@@ -1,0 +1,471 @@
+openapi: 3.1.0
+info:
+  title: Nebula Authorization Service
+  version: "1.0.0"
+  summary: User identity, role membership, and per-resource access decisions.
+  description: |
+    The authorization service answers two questions for the rest of Nebula:
+
+    1. *Who is this user, and what roles do they have?* Used by the core
+       to gate the admin panel and to attribute actions in audit logs.
+       Identity is asserted by the caller (the core) via `X-User-Id` and
+       optional `X-User-Email` headers — the OIDC-token-validation step
+       lives in the core, not here, so the contract makes no assumption
+       about the upstream identity provider.
+
+    2. *Is this user allowed to operate on this cloud resource?* Used by
+       the core when handling generation/drift/import requests, before
+       running terraform against a live project.
+
+    The OSS reference implementation under `services/authz/` is
+    intentionally permissive: `/v1/check` returns true if the service's
+    own cloud Service Principal can resolve the resource (Azure resource
+    group / GCP project), or unconditionally true when no cloud creds
+    are configured. Roles are stored in a JSON file on a volume; a
+    default root admin can be bootstrapped via env var.
+
+    Enterprise implementations replace the body of `/v1/check` with their
+    real authorization logic (Azure AD groups, internal CMDB-driven
+    policies, etc.) and back the role store with whatever directory
+    service they use.
+  contact:
+    name: Nebula maintainers
+    url: https://github.com/inditex/app-nebulaapp
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://authz:8083
+    description: Default in-cluster URL when running via docker-compose.
+
+tags:
+  - name: check
+    description: Per-resource access decisions.
+  - name: users
+    description: User identity and role queries.
+  - name: roles
+    description: Role catalogue and admin role-management endpoints.
+  - name: ops
+    description: Operational endpoints (liveness, readiness).
+
+paths:
+  /v1/check:
+    post:
+      operationId: check
+      tags: [check]
+      summary: Decide whether a user may operate on a resource.
+      description: |
+        Returns whether the identified user is permitted to operate on
+        the named cloud resource. The OSS reference impl ignores the
+        user dimension and answers based on whether the service's own
+        Service Principal can resolve the resource.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckRequest"
+      responses:
+        "200":
+          description: Decision computed (whether or not access is granted).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckResponse"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer (malformed
+            JSON, non-UTF-8 bytes). The OSS reference impl returns the
+            framework-default body for this case.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: Downstream identity/cloud backend returned an error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/users/me:
+    get:
+      operationId: get_current_user
+      tags: [users]
+      summary: Look up the calling user's identity and roles.
+      description: |
+        The caller asserts identity via `X-User-Id` (and optionally
+        `X-User-Email`). The service returns the corresponding user
+        record (creating an empty one if none exists) plus assigned
+        roles.
+
+        When neither header is present, the OSS reference impl returns
+        an anonymous user with no roles.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+        - $ref: "#/components/parameters/UserEmailHeader"
+      responses:
+        "200":
+          description: User found (or implicitly created).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/roles:
+    get:
+      operationId: list_roles
+      tags: [roles]
+      summary: List available roles.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Catalogue of role names known to the service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleList"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/users:
+    get:
+      operationId: list_users
+      tags: [users]
+      summary: "Admin: list all known users."
+      description: |
+        Caller must hold the `admin` role (asserted via X-User-Id +
+        verified against the role store).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Users known to the service.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Caller is not an admin.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/users/{user_id}/roles:
+    post:
+      operationId: assign_role
+      tags: [roles]
+      summary: "Admin: assign a role to a user."
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignRoleRequest"
+      responses:
+        "204":
+          description: Role assigned.
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Caller is not an admin.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: Role does not exist in the catalogue.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/users/{user_id}/roles/{role}:
+    delete:
+      operationId: revoke_role
+      tags: [roles]
+      summary: "Admin: revoke a role from a user."
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        "204":
+          description: Role revoked (or was already absent).
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Caller is not an admin.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [ops]
+      summary: Liveness probe.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    UserIdHeader:
+      name: X-User-Id
+      in: header
+      required: false
+      description: |
+        Caller-asserted user identifier. The core sets this after
+        validating the upstream OIDC token; the authz service does not
+        validate the OIDC token itself. May be empty or omitted for
+        anonymous flows.
+
+        Implementations MAY clamp over-long values; the OSS reference
+        impl truncates to 1024 chars before persisting. The contract
+        does not advertise a maxLength on the header so that boundary
+        callers don't get hard 4xx failures.
+      schema:
+        type: string
+    UserEmailHeader:
+      name: X-User-Email
+      in: header
+      required: false
+      description: |
+        Caller-asserted user email. May be empty or omitted.
+        Implementations MAY clamp over-long values (the reference impl
+        truncates to 256 chars before persisting).
+      schema:
+        type: string
+
+  schemas:
+    CheckRequest:
+      type: object
+      required: [cloud, project]
+      additionalProperties: false
+      properties:
+        user_id:
+          type: [string, "null"]
+          description: User to check. May be null for anonymous flows.
+          minLength: 1
+          maxLength: 1024
+        cloud:
+          type: string
+          minLength: 1
+          maxLength: 32
+          examples: ["azure", "gcp"]
+        project:
+          type: string
+          minLength: 1
+          maxLength: 256
+        environment:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 32
+          examples: ["dev", "pro"]
+
+    CheckResponse:
+      type: object
+      required: [authorized]
+      additionalProperties: false
+      properties:
+        authorized:
+          type: boolean
+        portal_url:
+          type: [string, "null"]
+          description: |
+            Implementation-supplied link to the cloud portal for the
+            resource (Azure Portal, GCP Console). May be null when the
+            implementation has no portal-URL convention.
+          maxLength: 2048
+        reason:
+          type: [string, "null"]
+          description: |
+            Human-readable explanation of the decision. Useful for
+            debugging and for surfacing in the UI.
+          maxLength: 1024
+
+    User:
+      type: object
+      required: [id, roles]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        email:
+          type: [string, "null"]
+          maxLength: 256
+        name:
+          type: [string, "null"]
+          maxLength: 256
+        roles:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+
+    UserList:
+      type: object
+      required: [users]
+      additionalProperties: false
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+
+    Role:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        description:
+          type: [string, "null"]
+          maxLength: 512
+
+    RoleList:
+      type: object
+      required: [roles]
+      additionalProperties: false
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+
+    AssignRoleRequest:
+      type: object
+      required: [role]
+      additionalProperties: false
+      properties:
+        role:
+          type: string
+          minLength: 1
+          maxLength: 64
+
+    Health:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: Problem details for HTTP APIs (RFC 7807).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: "about:blank"
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference

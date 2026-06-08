@@ -1,0 +1,19 @@
+# Configuration for openapi-python-client.
+# Used by `make generate-clients` to regenerate the typed HTTP clients in
+# `core/src/clients/<service>/` from each `contracts/openapi/<service>.v*.yaml`.
+#
+# Keep both options below stable across services so generated code looks the
+# same everywhere (matters for review).
+
+# Force the package directory to a fixed name regardless of the spec's title.
+# We invoke the generator once per service with --output-path pointing at the
+# desired target dir; the package_name_override below ensures internal imports
+# don't bake in a service-specific name.
+package_name_override: client_pkg
+
+# Project name only matters when generating with --meta=poetry/setup; we use
+# --meta=none, but set it for completeness.
+project_name_override: nebula-clients
+
+# Don't prefix model names with the path they came from.
+use_path_prefixes_for_title_model_names: false

@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: Nebula Validation Service
+  version: "1.0.0"
+  summary: Run terraform init/validate/plan against a checked-out workspace.
+  description: |
+    The validation service runs the Terraform CLI (`init`, `validate`,
+    `plan`) against a workspace and returns structured results. It is the
+    inner loop of Nebula's "generate then validate" cycle: the LLM
+    iterates on the workspace contents and asks the validation service
+    after each change whether the configuration is valid and what changes
+    a `plan` would produce.
+
+    The OSS reference implementation under `services/validation/` runs
+    `terraform` directly via subprocess and operates on a docker-compose
+    shared volume mounted into both the core and the validation service.
+    Enterprise implementations may instead run plans through internal
+    pipelines, against centrally-managed state backends, or with stricter
+    cost / policy gates — same contract, different mechanics.
+
+    The contract makes no assumption about how the workspace ends up on
+    disk. The OSS reference impl assumes the caller has already written
+    the Terraform code at `workspace_path` (typically the path the core
+    cloned the repo into); other implementations may pull from
+    object storage, a content-addressable cache, or an upload endpoint.
+  contact:
+    name: Nebula maintainers
+    url: https://github.com/inditex/app-nebulaapp
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://validation:8082
+    description: Default in-cluster URL when running via docker-compose.
+
+tags:
+  - name: validate
+    description: Run terraform validation against a workspace.
+  - name: ops
+    description: Operational endpoints (liveness, readiness).
+
+paths:
+  /v1/validate:
+    post:
+      operationId: validate
+      tags: [validate]
+      summary: Validate the Terraform configuration in a workspace.
+      description: |
+        Runs `terraform init`, `terraform validate`, and (if the workspace
+        validates) `terraform plan` against the workspace at
+        `workspace_path`. Returns the raw plan output and a boolean
+        success flag. When `get_drift` is true and the plan succeeds, the
+        plan JSON is parsed and any drift is summarised in the `feedback`
+        field.
+
+        Implementations that require cloud credentials (the reference
+        impl uses the standard Terraform provider env vars: ARM_*,
+        GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
+        than producing a misleading `validation: false`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateRequest"
+      responses:
+        "200":
+          description: Validation completed (whether or not it passed).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from the
+            implementation. Distinct from a Terraform-level validation
+            failure (which returns 200 with `validation: false`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites
+            (cloud credentials, terraform binary, configured state
+            backend, etc.).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [ops]
+      summary: Liveness probe.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Per-service bearer token. The token value is the contents of the
+        environment variable named in the system config (default
+        `NEBULA_VALIDATION_TOKEN`). Implementations MAY accept all
+        requests when no token is configured for local development.
+
+  schemas:
+    ValidateRequest:
+      type: object
+      required: [workspace_path]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the validation service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        branch:
+          type: [string, "null"]
+          description: |
+            Informational: the branch name the workspace was checked out
+            from. Implementations MAY include it in logs / traces but the
+            actual validation operates on whatever is currently on disk
+            at `workspace_path`.
+          maxLength: 256
+        targets:
+          type: array
+          description: |
+            Optional `terraform plan -target=` filters. When omitted or
+            empty, the entire configuration is planned.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1024
+          maxItems: 256
+        get_drift:
+          type: boolean
+          default: false
+          description: |
+            When true and the plan succeeds, the implementation parses
+            the plan JSON and summarises any resource changes (drift) in
+            the `feedback` field of the response, with `validation` set
+            to `false` if drift is non-empty. Useful for "is anything
+            different from what's deployed?" queries.
+
+    ValidateResponse:
+      type: object
+      required: [validation, feedback, terraform_plan, terraform_targets]
+      additionalProperties: false
+      properties:
+        validation:
+          type: boolean
+          description: |
+            True if `terraform init`, `terraform validate`, and
+            `terraform plan` (when run) all succeeded AND, when
+            `get_drift` was requested, no drift was detected.
+        feedback:
+          type: string
+          description: |
+            Human-readable diagnostics. On failure, this contains the
+            terraform CLI's stderr or the parsed drift summary. On
+            success, this is typically empty.
+        terraform_plan:
+          type: string
+          description: |
+            Terraform's plan output (text). May be empty when validation
+            failed before plan ran.
+        terraform_targets:
+          type: array
+          description: Echoes the `targets` from the request.
+          items:
+            type: string
+
+    Health:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: |
+        Problem details for HTTP APIs (RFC 7807).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: "about:blank"
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference

@@ -1,0 +1,248 @@
+openapi: 3.1.0
+info:
+  title: Nebula Mapping Service
+  version: "1.0.0"
+  summary: Resolve a business identifier into an IaC repository reference.
+  description: |
+    The mapping service translates a "business identifier" (project name,
+    subscription code, product slug, full repo URL — whatever an
+    organization uses) into a concrete IaC reference: clone URL, default
+    branch, and optional subdirectory within the repo.
+
+    The OSS reference implementation under `services/mapping/` is an
+    identity passthrough: the input identifier is treated as the repo URL
+    and a `project` echoing the identifier is returned. It exists so a
+    fresh OSS deploy works end-to-end without anyone needing to write a
+    real mapper.
+
+    Enterprise implementations look up the identifier against an internal
+    catalogue (CMDB, Backstage, a shared spreadsheet, …) and return the
+    canonical IaC repo for it. The contract makes no assumption about
+    where that data lives.
+
+    This is the only one of the four Nebula service contracts that is
+    invoked from the browser as well as from the core. Implementations
+    must therefore set CORS appropriately for their deployment.
+  contact:
+    name: Nebula maintainers
+    url: https://github.com/inditex/app-nebulaapp
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://mapping:8081
+    description: Default in-cluster URL when running via docker-compose.
+
+tags:
+  - name: resolve
+    description: Resolve identifiers to IaC references.
+  - name: ops
+    description: Operational endpoints (liveness, readiness).
+
+paths:
+  /v1/resolve:
+    post:
+      operationId: resolve
+      tags: [resolve]
+      summary: Resolve a business identifier into an IaC repository reference.
+      description: |
+        Translates `identifier` into the IaC repo, branch, and (optional)
+        sub-path that the rest of Nebula should operate on. Implementations
+        MAY use the optional `cloud` and `environment` hints to disambiguate
+        between repos that share an identifier across deployment dimensions.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+      responses:
+        "200":
+          description: Identifier was resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolveResponse"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer (malformed
+            JSON, non-UTF-8 bytes in a JSON body, missing Content-Type).
+            Implementations MAY return either a Problem object or a
+            framework-default body for this case; the OSS reference impl
+            currently returns the latter for FastAPI-internal parse
+            errors. Distinct from 422 (well-formed JSON failing schema
+            validation).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            Identifier could not be resolved. Implementations SHOULD use this
+            for a clean "not in our catalogue" response, distinct from
+            transient backend failures (which use 5xx).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: |
+            Request body failed validation (well-formed JSON but does not
+            satisfy the schema).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: Downstream catalogue/CMDB returned an error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [ops]
+      summary: Liveness probe.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Per-service bearer token. The token value is the contents of the
+        environment variable named in the system config (default
+        `NEBULA_MAPPING_TOKEN`). Implementations MAY accept all requests
+        when no token is configured for local development.
+
+  schemas:
+    ResolveRequest:
+      type: object
+      required: [identifier]
+      additionalProperties: false
+      properties:
+        identifier:
+          type: string
+          description: |
+            Business identifier to resolve. Free-form by design — could be
+            a project name, a subscription code, a product slug, a full
+            repo URL, or anything else the implementation accepts. The
+            identity reference impl treats this as the repo URL directly.
+          minLength: 1
+          maxLength: 1024
+          examples: ["my-project", "https://github.com/me/my-iac.git"]
+        cloud:
+          type: [string, "null"]
+          description: |
+            Optional cloud hint (`azure`, `gcp`, `aws`, …). Implementations
+            MAY use this to disambiguate identifiers that span clouds.
+            May be omitted or sent as null.
+          minLength: 1
+          maxLength: 32
+          examples: ["azure", "gcp"]
+        environment:
+          type: [string, "null"]
+          description: |
+            Optional deployment-dimension hint (`dev`, `staging`, `pro`, …).
+            Implementations MAY use this to route to environment-specific
+            mirrors of the same logical repo. May be omitted or sent as null.
+          minLength: 1
+          maxLength: 32
+          examples: ["dev", "pro"]
+
+    ResolveResponse:
+      type: object
+      required: [repo_url, project]
+      additionalProperties: false
+      properties:
+        repo_url:
+          type: string
+          description: |
+            URL Nebula should clone. Free-form because git accepts many
+            URL shapes (https://, ssh+git://, git@host:path, file://,
+            absolute paths). Implementations are responsible for returning
+            something the deployment's git client can clone.
+          minLength: 1
+          maxLength: 2048
+        project:
+          type: string
+          description: |
+            Canonical project name used for downstream context (cloud
+            resource group naming, tracer attributes, audit logs).
+            Identity reference impl returns the input identifier; smarter
+            implementations return the catalogue's canonical name.
+          minLength: 1
+          maxLength: 128
+        branch:
+          type: [string, "null"]
+          description: |
+            Default branch Nebula should target. Implementations MAY omit
+            this or send null; callers fall back to the resolved repo's
+            default branch.
+          maxLength: 256
+        path:
+          type: [string, "null"]
+          description: |
+            Optional sub-path within the repo where the IaC lives. Useful
+            for monorepos that host multiple IaC projects. May be omitted
+            or sent as null.
+          maxLength: 1024
+
+    Health:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: |
+        Problem details for HTTP APIs (RFC 7807).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          default: "about:blank"
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference

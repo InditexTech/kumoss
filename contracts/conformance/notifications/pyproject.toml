@@ -1,0 +1,12 @@
+[project]
+name = "nebula-notifications-conformance"
+version = "0.1.0"
+description = "Schemathesis-driven conformance suite for contracts/openapi/notifications.v1.yaml."
+requires-python = ">=3.13"
+dependencies = [
+    "schemathesis>=3.36",
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra"

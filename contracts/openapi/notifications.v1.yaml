@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: Nebula Notifications Service
+  version: "1.0.0"
+  summary: Channel-agnostic notification dispatch for Nebula.
+  description: |
+    The notifications service accepts a notification request from the Nebula
+    core and delivers it through whatever channel(s) the implementation
+    supports. The contract is intentionally channel-agnostic: callers do not
+    name a channel, they describe an event and identify an audience. The
+    implementation decides routing (which Slack channel, which Teams group,
+    which email list, etc.).
+
+    The OSS reference implementation under `services/notifications/` posts to
+    a single Slack channel via webhook. Enterprise and third-party
+    implementations can route by `kind`, `severity`, or `audience`.
+  contact:
+    name: Nebula maintainers
+    url: https://github.com/inditex/app-nebulaapp
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://notifications:8080
+    description: Default in-cluster URL when running via docker-compose.
+
+tags:
+  - name: notify
+    description: Submit notifications for delivery.
+  - name: ops
+    description: Operational endpoints (liveness, readiness).
+
+paths:
+  /v1/notify:
+    post:
+      operationId: notify
+      tags: [notify]
+      summary: Submit a notification for delivery.
+      description: |
+        Accepts a notification, validates it, and queues it for delivery
+        through the implementation's configured channel. Returns
+        `202 Accepted` once the request is durably accepted; actual
+        delivery happens out-of-band and is not guaranteed to be complete
+        when this call returns.
+
+        Implementations SHOULD be idempotent on `kind` + `subject` +
+        `body` within a short window to tolerate caller retries, but the
+        contract does not require it.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRequest"
+      responses:
+        "202":
+          description: Notification accepted for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationAccepted"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer (malformed
+            JSON, non-UTF-8 bytes in a JSON body, missing Content-Type).
+            Implementations MAY return either a Problem object or a
+            framework-default body for this case; the OSS reference impl
+            currently returns the latter for FastAPI-internal parse
+            errors. Distinct from 422 (well-formed JSON failing schema
+            validation).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: |
+            Request body failed validation. Returned when the body is
+            well-formed JSON but does not satisfy the schema (missing
+            required field, value out of range, wrong type, etc.).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: Downstream channel (e.g., Slack) returned an error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: Service is running but not configured (e.g., no webhook URL set).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [ops]
+      summary: Liveness probe.
+      description: |
+        Returns 200 with `{"status":"ok"}` if the service process is alive
+        and able to handle requests. Does not check downstream connectivity.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Per-service bearer token. The token value is the contents of the
+        environment variable named in the system config (default
+        `NEBULA_NOTIFICATIONS_TOKEN`). If the implementation has no token
+        configured, it MAY accept all requests for local development.
+
+  schemas:
+    NotificationRequest:
+      type: object
+      required: [kind, severity, subject, body]
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          description: |
+            Event category. Free-form by design; the convention is dotted
+            lowercase (e.g., `iac.terraform.plan_completed`,
+            `iac.terraform.apply_completed`, `system.error`). Implementations
+            MAY route based on this value.
+          minLength: 1
+          maxLength: 128
+          examples: ["iac.terraform.plan_completed", "system.error"]
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        subject:
+          type: string
+          description: Single-line summary suitable for a notification title.
+          minLength: 1
+          maxLength: 256
+        body:
+          type: string
+          description: |
+            Notification body. Markdown is permitted; implementations decide
+            whether to render or pass through verbatim.
+          minLength: 1
+          maxLength: 16384
+        audience:
+          type: array
+          description: |
+            Implementation-specific recipient identifiers (e.g., email
+            addresses, Slack handles, Teams group IDs). Implementations MAY
+            ignore this field if they route by other means.
+          items:
+            type: string
+            minLength: 1
+          maxItems: 256
+        links:
+          type: array
+          description: Structured links the implementation can render.
+          items:
+            $ref: "#/components/schemas/Link"
+          maxItems: 32
+        context:
+          type: object
+          description: |
+            Free-form structured context for the implementation to use as it
+            sees fit. Implementations MUST NOT assume any particular shape.
+          additionalProperties: true
+
+    Link:
+      type: object
+      required: [label, url]
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 128
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+
+    NotificationAccepted:
+      type: object
+      required: [delivery_id]
+      additionalProperties: false
+      properties:
+        delivery_id:
+          type: string
+          format: uuid
+          description: Implementation-assigned identifier for this delivery attempt.
+
+    Health:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: |
+        Problem details for HTTP APIs (RFC 7807).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: |
+            URI reference identifying the problem type. Use
+            `about:blank` if the implementation has no problem-type vocabulary.
+          default: "about:blank"
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: URI reference identifying the specific occurrence.
