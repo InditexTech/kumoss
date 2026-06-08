@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # authz (reference implementation)
 
 Reference implementation of [`contracts/openapi/authz.v1.yaml`](../../contracts/openapi/authz.v1.yaml).

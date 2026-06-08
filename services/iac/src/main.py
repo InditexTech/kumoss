@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """FastAPI application for the validation reference implementation."""
 
 from __future__ import annotations

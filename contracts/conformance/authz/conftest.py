@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Pytest configuration for the authz conformance suite."""
 
 from __future__ import annotations

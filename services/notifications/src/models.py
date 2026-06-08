@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Pydantic models matching contracts/openapi/notifications.v1.yaml.
 
 Hand-written here rather than imported from a generated client because the

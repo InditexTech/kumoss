@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Slack incoming-webhook delivery backend."""
 
 from __future__ import annotations
@@ -8,10 +12,10 @@ from .models import NotificationRequest
 
 
 _SEVERITY_COLOR: dict[str, str] = {
-    "info": "#36a64f",       # green
-    "warning": "#f2c744",    # yellow
-    "error": "#d93f3f",      # red
-    "critical": "#7a0b0b",   # dark red
+    "info": "#36a64f",  # green
+    "warning": "#f2c744",  # yellow
+    "error": "#d93f3f",  # red
+    "critical": "#7a0b0b",  # dark red
 }
 
 

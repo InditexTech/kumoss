@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Schemathesis-driven conformance suite for the validation contract."""
 
 from __future__ import annotations
@@ -7,9 +11,7 @@ from pathlib import Path
 import schemathesis
 
 
-_SPEC_PATH = (
-    Path(__file__).resolve().parents[2] / "openapi" / "validation.v1.yaml"
-)
+_SPEC_PATH = Path(__file__).resolve().parents[2] / "openapi" / "validation.v1.yaml"
 
 schema = schemathesis.openapi.from_path(str(_SPEC_PATH))
 

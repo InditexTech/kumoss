@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Unit tests for the authz reference implementation."""
 
 from __future__ import annotations
@@ -9,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from src.config import Config
 from src import main as service_main
-from src import store
 
 
 @contextmanager
@@ -129,18 +132,12 @@ def test_assign_and_revoke_role_flow(tmp_path: Path) -> None:
         )
         assert response.status_code == 204
         # alice's record now exists with that role
-        response = client.get(
-            "/v1/users/me", headers={"X-User-Id": "alice"}
-        )
+        response = client.get("/v1/users/me", headers={"X-User-Id": "alice"})
         assert "user" in response.json()["roles"]
         # revoke
-        response = client.delete(
-            "/v1/users/alice/roles/user", headers=admin_headers
-        )
+        response = client.delete("/v1/users/alice/roles/user", headers=admin_headers)
         assert response.status_code == 204
-        response = client.get(
-            "/v1/users/me", headers={"X-User-Id": "alice"}
-        )
+        response = client.get("/v1/users/me", headers={"X-User-Id": "alice"})
         assert "user" not in response.json()["roles"]
 
 

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """JSON-file backed user/role store.
 
 Schema:
@@ -74,9 +78,7 @@ def bootstrap_root_admin(path: Path, email: str) -> None:
         _save(path, data)
 
 
-def get_or_create_user(
-    path: Path, user_id: str, email: str | None
-) -> dict[str, Any]:
+def get_or_create_user(path: Path, user_id: str, email: str | None) -> dict[str, Any]:
     with _lock:
         data = _load(path)
         users = data.setdefault("users", {})

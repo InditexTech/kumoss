@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Pytest configuration for the notifications conformance suite.
 
 The suite is implementation-agnostic: pass `--service-url=<base-url>` (or

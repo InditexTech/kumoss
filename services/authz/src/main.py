@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """FastAPI application for the authz reference implementation."""
 
 from __future__ import annotations
@@ -140,9 +144,7 @@ async def get_current_user(
     # callers don't get hard failures from boundary cases.
     user_id = x_user_id[:1024]
     user_email = x_user_email[:256] if x_user_email else None
-    record = store.get_or_create_user(
-        Path(config.role_store_path), user_id, user_email
-    )
+    record = store.get_or_create_user(Path(config.role_store_path), user_id, user_email)
     return User(**record)
 
 

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Runtime configuration for the authz reference implementation."""
 
 from __future__ import annotations
@@ -36,7 +40,6 @@ class Config:
                 "NEBULA_AUTHZ_ROLE_STORE", "/data/roles.json"
             ),
             root_admin_email=os.environ.get("NEBULA_AUTHZ_ROOT_ADMIN_EMAIL", ""),
-            permissive_check=os.environ.get(
-                "NEBULA_AUTHZ_PERMISSIVE", "true"
-            ).lower() == "true",
+            permissive_check=os.environ.get("NEBULA_AUTHZ_PERMISSIVE", "true").lower()
+            == "true",
         )

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # OpenAPI specs
 
 One YAML per service, named `<service>.v<major>.yaml`.

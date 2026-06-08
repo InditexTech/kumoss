@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Bearer-token authentication for the notifications service."""
 
 from __future__ import annotations
 
-from fastapi import Header, HTTPException, status
+from fastapi import HTTPException, status
 
 from .config import Config
 

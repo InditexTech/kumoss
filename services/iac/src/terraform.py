@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 """Thin async wrapper around the terraform CLI.
 
 Just enough to drive `init`, `validate`, `plan`, and to read back the
@@ -85,4 +89,3 @@ def parse_drift(plan_json_text: str) -> list[dict]:
 
 def random_plan_filename() -> str:
     return f"{uuid.uuid4().hex}.plan"
-
