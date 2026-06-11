@@ -169,7 +169,7 @@
       "rule": {
         "type": "file-existence",
         "options": {
-          "globsAny": ["setup.py", "requirements.txt", "pyproject.toml"]
+          "globsAny": ["**/setup.py", "**/requirements.txt", "**/pyproject.toml"]
         }
       }
     },
