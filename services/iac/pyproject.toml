@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-validation"
+name = "nebula-iac"
 version = "0.1.0"
-description = "Reference implementation of contracts/openapi/validation.v1.yaml — local terraform CLI."
+description = "Reference implementation of contracts/openapi/iac.v1.yaml — local terraform CLI."
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.116.0",

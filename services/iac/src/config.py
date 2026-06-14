@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Runtime configuration for the validation reference implementation."""
+"""Runtime configuration for the IaC reference implementation."""
 
 from __future__ import annotations
 
@@ -34,10 +34,10 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
-            expected_token=os.environ.get("NEBULA_VALIDATION_TOKEN", ""),
+            expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
             terraform_binary=os.environ.get("TERRAFORM_BINARY", "terraform"),
             allow_plan_without_creds=os.environ.get(
-                "NEBULA_VALIDATION_ALLOW_PLAN_WITHOUT_CREDS", "false"
+                "NEBULA_IAC_ALLOW_PLAN_WITHOUT_CREDS", "false"
             ).lower()
             == "true",
         )

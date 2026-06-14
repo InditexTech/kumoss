@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for the validation reference implementation.
+"""Unit tests for the IaC reference implementation.
 
 These cover the contract surface: healthz, auth, validation/parsing of
 the request, the 404-on-missing-workspace path, the 503 when terraform

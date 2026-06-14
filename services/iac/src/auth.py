@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Bearer-token authentication for the validation service."""
+"""Bearer-token authentication for the IaC service."""
 
 from __future__ import annotations
 

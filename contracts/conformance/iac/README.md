@@ -4,10 +4,10 @@ SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# validation conformance suite
+# IaC conformance suite
 
 Implementation-agnostic check that any service claiming to satisfy
-[`contracts/openapi/validation.v1.yaml`](../../openapi/validation.v1.yaml)
+[`contracts/openapi/iac.v1.yaml`](../../openapi/iac.v1.yaml)
 actually does.
 
 The suite uses [Schemathesis](https://schemathesis.readthedocs.io/) to
@@ -17,21 +17,21 @@ what the spec declares.
 ## Running against the OSS reference impl
 
 ```bash
-docker compose up -d validation
+docker compose up -d iac
 ```
 
 ```bash
-cd contracts/conformance/validation
+cd contracts/conformance/iac
 uv venv && source .venv/bin/activate
 uv pip install -e .
-pytest --service-url=http://localhost:8082 --service-token=$NEBULA_VALIDATION_TOKEN
+pytest --service-url=http://localhost:8082 --service-token=$NEBULA_IAC_TOKEN
 ```
 
 ## Running against your own implementation
 
 ```bash
 pytest \
-  --service-url=https://validation.your.example \
+  --service-url=https://iac.your.example \
   --service-token=$YOUR_TOKEN
 ```
 

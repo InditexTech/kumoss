@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""FastAPI application for the validation reference implementation."""
+"""FastAPI application for the IaC reference implementation."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ config = Config.from_env()
 
 
 app = FastAPI(
-    title="Nebula Validation Service",
+    title="Nebula IaC Service",
     version="1.0.0",
-    description="Reference implementation of contracts/openapi/validation.v1.yaml.",
+    description="Reference implementation of contracts/openapi/iac.v1.yaml.",
 )
 
 
@@ -78,7 +78,7 @@ async def validate(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
                 f"Terraform binary '{config.terraform_binary}' not found "
-                "in PATH on the validation service."
+                "in PATH on the IaC service."
             ),
         )
 
@@ -122,9 +122,9 @@ async def validate(
             validation=True,
             feedback=(
                 "terraform validate passed; plan skipped because no cloud "
-                "provider credentials were configured for the validation "
+                "provider credentials were configured for the IaC "
                 "service. Set ARM_*, GOOGLE_*, or AWS_* env vars (or set "
-                "NEBULA_VALIDATION_ALLOW_PLAN_WITHOUT_CREDS=true to attempt "
+                "NEBULA_IAC_ALLOW_PLAN_WITHOUT_CREDS=true to attempt "
                 "plan anyway)."
             ),
             terraform_plan="",

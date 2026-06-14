@@ -4,20 +4,20 @@
 
 openapi: 3.1.0
 info:
-  title: Nebula Validation Service
+  title: Nebula IaC Service
   version: "1.0.0"
   summary: Run terraform init/validate/plan against a checked-out workspace.
   description: |
-    The validation service runs the Terraform CLI (`init`, `validate`,
+    The IaC service runs the Terraform CLI (`init`, `validate`,
     `plan`) against a workspace and returns structured results. It is the
     inner loop of Nebula's "generate then validate" cycle: the LLM
-    iterates on the workspace contents and asks the validation service
+    iterates on the workspace contents and asks the IaC service
     after each change whether the configuration is valid and what changes
     a `plan` would produce.
 
-    The OSS reference implementation under `services/validation/` runs
+    The OSS reference implementation under `services/iac/` runs
     `terraform` directly via subprocess and operates on a docker-compose
-    shared volume mounted into both the core and the validation service.
+    shared volume mounted into both the core and the IaC service.
     Enterprise implementations may instead run plans through internal
     pipelines, against centrally-managed state backends, or with stricter
     cost / policy gates — same contract, different mechanics.
@@ -35,7 +35,7 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: http://validation:8082
+  - url: http://iac:8082
     description: Default in-cluster URL when running via docker-compose.
 
 tags:
@@ -148,7 +148,7 @@ components:
       description: |
         Per-service bearer token. The token value is the contents of the
         environment variable named in the system config (default
-        `NEBULA_VALIDATION_TOKEN`). Implementations MAY accept all
+        `NEBULA_IAC_TOKEN`). Implementations MAY accept all
         requests when no token is configured for local development.
 
   schemas:
@@ -163,7 +163,7 @@ components:
             Absolute filesystem path to the Terraform workspace as visible
             to the implementation. For the OSS docker-compose deployment,
             this is a path on the shared volume mounted into both the
-            core and the validation service.
+            core and the IaC service.
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]

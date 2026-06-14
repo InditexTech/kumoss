@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pytest configuration for the validation conformance suite.
+"""Pytest configuration for the IaC conformance suite.
 
 Implementation-agnostic: pass `--service-url=<base-url>` (or set
-NEBULA_VALIDATION_URL) and the tests fuzz that URL against the contract.
+NEBULA_IAC_URL) and the tests fuzz that URL against the contract.
 A bearer token can be supplied via `--service-token` /
-NEBULA_VALIDATION_TOKEN if the implementation enforces auth.
+NEBULA_IAC_TOKEN if the implementation enforces auth.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ import pytest
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--service-url",
-        default=os.environ.get("NEBULA_VALIDATION_URL", "http://localhost:8082"),
-        help="Base URL of the validation service to test (default: http://localhost:8082).",
+        default=os.environ.get("NEBULA_IAC_URL", "http://localhost:8082"),
+        help="Base URL of the IaC service to test (default: http://localhost:8082).",
     )
     parser.addoption(
         "--service-token",
-        default=os.environ.get("NEBULA_VALIDATION_TOKEN", ""),
+        default=os.environ.get("NEBULA_IAC_TOKEN", ""),
         help="Bearer token to include on requests, if the service requires auth.",
     )
 

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pydantic models matching contracts/openapi/validation.v1.yaml."""
+"""Pydantic models matching contracts/openapi/iac.v1.yaml."""
 
 from __future__ import annotations
 
