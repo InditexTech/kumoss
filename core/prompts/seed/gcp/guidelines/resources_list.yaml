@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Names of gcp-resources-* prompts the compositor may select from.
+body: |
+  # Available GCP Resource Templates
+
+  When the user's request mentions one of these resources, select the
+  matching template. The name on the left is the literal prompt name
+  in this Phoenix repository.
+
+  - `project` — GCP project (created via google_project).
+  - `vpc_network` — VPC network (custom-mode).
+  - `subnetwork` — Subnetwork within a VPC.
+  - `storage_bucket` — Cloud Storage bucket.
+  - `service_account` — IAM service account.
+  - `firewall` — VPC firewall rule.
+
+  This list is the source of truth. Adding a new
+  `core/prompts/seed/gcp/resources/<name>.yaml` requires adding the
+  matching entry here so the compositor knows it exists.

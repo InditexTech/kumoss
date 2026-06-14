@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure resource group template.
+body: |
+  # Azure Resource Group
+
+  A resource group is the basic container for Azure resources. Every
+  module begins with one.
+
+  ```hcl
+  resource "azurerm_resource_group" "main" {
+    name     = "rg-${var.application}-${var.environment}"
+    location = var.location
+
+    tags = {
+      environment = var.environment
+      owner       = var.owner
+      managed_by  = "terraform"
+    }
+  }
+  ```
+
+  ## Inputs commonly required
+  - `application` — short application identifier.
+  - `environment` — `dev`, `staging`, or `prod`.
+  - `location` — Azure region (e.g. `westeurope`).
+  - `owner` — team or individual.
+
+  ## Notes
+  - The resource group name is the only place the region appears as
+    part of the name; child resources inherit `location` from the
+    resource group.

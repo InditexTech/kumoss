@@ -1,0 +1,23 @@
+[
+  {
+    "name": "task_complete",
+    "description": "CRITICAL: Call this single tool to signal the final completion of the user's request. This is the very last action the agent should take. Use this tool in one of three situations: 1) The user's request has been fully and successfully addressed. 2) The agent has encountered an unrecoverable error and cannot proceed. This tool concludes the entire operation and provides a comprehensive report to the user.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "boolean",
+          "description": "The final status of the task. `true` if succeeded, `false` otherwise."
+        },
+        "final_summary": {
+          "type": "string",
+          "description": "A detailed, human-readable narrative of the entire operation from start to finish. Explain your reasoning and the sequence of actions taken. Synthesize the 'why' behind the tool calls (e.g., 'First, I listed the files to understand the project structure. Then, I read main.tf to identify the outdated module version. Finally, I used replace_in_file to update the module source to the correct version.'). This summary is the primary communication to the user."
+        }
+      },
+      "required": [
+        "status",
+        "final_summary"
+      ]
+    }
+  }
+]

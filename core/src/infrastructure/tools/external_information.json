@@ -1,0 +1,22 @@
+[
+  {
+    "description": "Perform a web search. Use this tool when you need to search the internet for up-to-date information, facts, or general knowledge.",
+    "name": "web_search",
+    "parameters": {
+      "properties": {
+        "query": {
+          "description": "The search query to execute on the web.",
+          "type": "string"
+        },
+        "explanation": {
+          "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+          "type": "string"
+        }
+      },
+      "required":[
+        "query"
+      ],
+      "type": "object"
+    }
+  }
+]

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP VPC network (custom-mode) template.
+body: |
+  # GCP VPC Network
+
+  ```hcl
+  resource "google_compute_network" "main" {
+    name                            = "vpc-${var.application}-${var.environment}"
+    project                         = var.project_id
+    auto_create_subnetworks         = false
+    routing_mode                    = "REGIONAL"
+    delete_default_routes_on_create = false
+  }
+  ```
+
+  ## Notes
+  - Always use `auto_create_subnetworks = false` (custom mode); the
+    auto-mode default creates a `/20` per region, which is wasteful
+    and surprising.
+  - Subnetworks are defined separately with `google_compute_subnetwork`.
+  - Default `routing_mode = "REGIONAL"` keeps blast radius small;
+    only switch to `GLOBAL` when the request explicitly needs
+    cross-region routing.

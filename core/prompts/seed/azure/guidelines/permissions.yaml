@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure RBAC and identity conventions.
+body: |
+  # Azure Permissions Guidelines
+
+  ## RBAC
+  - Grant the least-privileged built-in role that satisfies the use
+    case before considering a custom role.
+  - Assign roles at resource-group scope, not subscription scope,
+    unless explicitly required.
+  - `Owner` is only granted to break-glass identities.
+
+  ## Managed identities
+  - Prefer system-assigned managed identities for compute resources
+    that need to access other Azure services.
+  - Use user-assigned identities when the same permissions must be
+    shared across multiple resources.
+
+  ## Service principals
+  - Use only for non-Azure workloads (CI/CD, external services).
+  - Rotate secrets at least every 90 days; prefer federated
+    credentials over client secrets.
+
+  ## Key Vault access
+  - Use Azure RBAC for Key Vault data-plane access, not access
+    policies.
+  - Grant `Key Vault Secrets User` for read, `Key Vault Secrets
+    Officer` for write.
+
+  Replace this body with your organization's authoritative IAM standards.

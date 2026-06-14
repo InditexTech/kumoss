@@ -1,0 +1,101 @@
+[
+  {
+    "description": "Read the contents of a file. The output of this tool call will be the entire contents of the file.",
+    "name": "read_file",
+    "parameters": {
+      "properties": {
+        "explanation": {
+          "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+          "type": "string"
+        },
+        "target_file": {
+          "description": "The path of the file to read, relative to the workspace root.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_file"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "List the contents of a directory. The quick tool to use for discovery, before using more targeted tools like file reading. Useful to try to understand the file structure before diving deeper into specific files. Can be used to explore the codebase.",
+    "name": "list_dir",
+    "parameters": {
+      "properties": {
+        "explanation": {
+          "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+          "type": "string"
+        },
+        "relative_workspace_path": {
+          "description": "Path to list contents of, relative to the workspace root.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_workspace_path"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "bulk_grep_search",
+    "description": "Performs multiple text-based regex searches in a single bulk operation. Each search can have its own specific parameters (query, case sensitivity, include/exclude patterns). This is highly efficient for running several independent searches at once.\nResults for each search will be returned, formatted in the style of ripgrep.\nUse the include or exclude patterns to filter the search scope by file type or specific paths. To avoid overwhelming output, the results for each individual search are capped at 50 matches.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "explanation": {
+          "type": "string",
+          "description": "A single, overarching explanation for why this bulk search operation is being performed and how it contributes to the main goal."
+        },
+        "searches": {
+          "type": "array",
+          "description": "A list of search operations to perform in bulk.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The regex pattern to search for."
+              },
+              "case_sensitive": {
+                "type": "boolean",
+                "description": "Whether this specific search should be case sensitive. Defaults to false if not provided."
+              },
+              "include_pattern": {
+                "type": "string",
+                "description": "Glob pattern for files to include for this search (e.g. '*.tf')."
+              },
+              "exclude_pattern": {
+                "type": "string",
+                "description": "Glob pattern for files to exclude for this search."
+              }
+            },
+            "required": [
+              "query"
+            ]
+          }
+        }
+      },
+      "required": [
+        "searches",
+        "explanation"
+      ]
+    }
+  },
+  {
+    "description": "Retrieve the history of recent changes made to files in the workspace. This tool helps understand what modifications were made recently, providing information about which files were changed, when they were changed, and how many lines were added or removed. Use this tool when you need context about recent modifications to the codebase.",
+    "name": "diff_history",
+    "parameters": {
+      "properties": {
+        "explanation": {
+          "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+          "type": "string"
+        }
+      },
+      "required": ["explanation"],
+      "type": "object"
+    }
+  }
+]

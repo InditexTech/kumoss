@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Names of azure-resources-* prompts the compositor may select from.
+body: |
+  # Available Azure Resource Templates
+
+  When the user's request mentions one of these resources, select the
+  matching template. The name on the left is the literal prompt name
+  in this Phoenix repository.
+
+  - `resource_group` — Azure resource group.
+  - `virtual_network` — Virtual network (VNet) with subnets.
+  - `subnet` — Standalone subnet (when not declared inline on a VNet).
+  - `storage_account` — Storage account (blob, file, queue, table).
+  - `key_vault` — Key Vault for secrets, keys, and certificates.
+  - `network_security_group` — NSG with inbound and outbound rules.
+
+  This list is the source of truth. Adding a new
+  `core/prompts/seed/azure/resources/<name>.yaml` requires adding the
+  matching entry here so the compositor knows it exists.

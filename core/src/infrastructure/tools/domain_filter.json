@@ -1,0 +1,23 @@
+[
+  {
+    "name": "check_domain_relevance",
+    "description": "Determines if the user's request is related to Infrastructure as Code (IaC) generation using Terraform. This tool should be used as a preliminary check before attempting to construct any infrastructure information or proceeding with IaC generation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "boolean",
+          "description": "True if the user's request is directly related to generating, defining, or managing cloud infrastructure using Terraform. False if the request is a general question, asks for information unrelated to infrastructure, or is outside the scope of IaC generation."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "A concise sentence explaining why the user's request is or is not considered relevant to the IaC Terraform generation domain."
+        }
+      },
+      "required": [
+        "status",
+        "explanation"
+      ]
+    }
+  }
+]

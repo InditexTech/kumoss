@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # Azure Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                       | Prefix |
+  |--------------------------------|--------|
+  | Resource group                 | rg     |
+  | Virtual network                | vnet   |
+  | Subnet                         | snet   |
+  | Network security group         | nsg    |
+  | Public IP                      | pip    |
+  | Load balancer                  | lb     |
+  | Application gateway            | agw    |
+  | Storage account                | st     |
+  | Key vault                      | kv     |
+  | Virtual machine                | vm     |
+  | Managed disk                   | disk   |
+  | AKS cluster                    | aks    |
+  | Container registry             | acr    |
+  | App service                    | app    |
+  | App service plan               | asp    |
+  | Function app                   | func   |
+  | SQL server                     | sql    |
+  | SQL database                   | sqldb  |
+  | Cosmos DB account              | cosmos |
+  | Log Analytics workspace        | log    |
+  | Application Insights           | appi   |
+
+  Replace this list with your organization's naming standard.

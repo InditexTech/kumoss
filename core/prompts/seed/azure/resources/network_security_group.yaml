@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Network Security Group template with explicit allow rules.
+body: |
+  # Azure Network Security Group
+
+  ```hcl
+  resource "azurerm_network_security_group" "this" {
+    name                = "nsg-${var.subnet_name}"
+    location            = var.location
+    resource_group_name = var.resource_group_name
+
+    tags = {
+      environment = var.environment
+      managed_by  = "terraform"
+    }
+  }
+
+  resource "azurerm_network_security_rule" "allow_https" {
+    name                        = "allow-https-inbound"
+    priority                    = 100
+    direction                   = "Inbound"
+    access                      = "Allow"
+    protocol                    = "Tcp"
+    source_port_range           = "*"
+    destination_port_range      = "443"
+    source_address_prefix       = var.allowed_source
+    destination_address_prefix  = "*"
+    resource_group_name         = var.resource_group_name
+    network_security_group_name = azurerm_network_security_group.this.name
+  }
+
+  resource "azurerm_subnet_network_security_group_association" "this" {
+    subnet_id                 = var.subnet_id
+    network_security_group_id = azurerm_network_security_group.this.id
+  }
+  ```
+
+  ## Notes
+  - Default behavior is implicit deny inbound from internet; this is
+    correct and should not be overridden.
+  - Never use `source_address_prefix = "*"` or `0.0.0.0/0` for
+    inbound rules. Always scope to a known CIDR or service tag.
+  - Use Azure service tags (`AzureLoadBalancer`, `Internet`,
+    `VirtualNetwork`) instead of literal CIDRs where possible.

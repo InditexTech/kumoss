@@ -1,0 +1,28 @@
+{
+  "typeCheckingMode": "recommended",
+  "include": [
+    "src"
+  ],
+
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "src/experimental",
+    "src/typestubs"
+  ],
+
+  "defineConstant": {
+    "DEBUG": true
+  },
+
+  "reportMissingImports": "error",
+  "reportPrivateLocalImportUsage": false,
+  "reportExplicitAny": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownVariableType": false,
+  "reportAny": false,
+  "reportArgumentType": false,
+
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Linux"
+}

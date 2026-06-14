@@ -1,0 +1,414 @@
+[
+  {
+    "name": "generate_terraform_plan_report",
+    "description": "Analyzes an infrastructure-as-code plan (e.g., from Terraform) and generates a structured, human-readable summary of the proposed changes, including potential impacts and estimated costs.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "object",
+          "description": "A high-level overview of the total resource changes.",
+          "properties": {
+            "create": {
+              "type": "integer",
+              "description": "Total count of resources to be created."
+            },
+            "update": {
+              "type": "integer",
+              "description": "Total count of resources to be updated."
+            },
+            "delete": {
+              "type": "integer",
+              "description": "Total count of resources to be destroyed."
+            },
+            "recreate": {
+              "type": "integer",
+              "description": "Total count of resources to be recreated (destroyed and created in-place)."
+            }
+          },
+          "required": [
+            "create",
+            "update",
+            "delete",
+            "recreate"
+          ]
+        },
+        "detailed_changes": {
+          "type": "array",
+          "description": "A list of aggregated changes, grouping related resources together.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "A human-readable name for the aggregated change, e.g., 'New NAT Gateway & Public IP'."
+              },
+              "action": {
+                "type": "string",
+                "description": "The primary action for the group: 'create', 'update', 'delete', or 'recreate'.",
+                "enum": [
+                  "create",
+                  "update",
+                  "delete",
+                  "recreate"
+                ]
+              },
+              "notes": {
+                "type": "string",
+                "description": "A very short, one-line description for the collapsed card title, e.g., 'Creates a NAT Gateway and its Public IP.'."
+              },
+              "summary": {
+                "type": "string",
+                "description": "A slightly more detailed summary for the expanded card content, e.g., 'Deploys a new NAT Gateway and its associated Public IP to provide secure outbound connectivity.'."
+              },
+              "details": {
+                "type": "string",
+                "description": "The formatted, concatenated raw plan output for all resources in this group. Use newline characters for separation."
+              }
+            },
+            "required": [
+              "name",
+              "action",
+              "notes",
+              "summary",
+              "details"
+            ]
+          }
+        },
+        "potential_impact": {
+          "type": "object",
+          "description": "An analysis of the potential risks and operational impacts of applying the plan.",
+          "properties": {
+            "banner": {
+              "type": "object",
+              "description": "A prominent banner to highlight the overall impact level.",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "description": "The severity level of the potential impact."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "A title for the impact banner, e.g., 'High Impact: Network Reconfiguration'."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "A short explanation for the banner, e.g., 'This plan alters a subnet association which can cause a temporary loss of connectivity for affected resources.'."
+                }
+              },
+              "required": [
+                "level",
+                "title",
+                "description"
+              ]
+            },
+            "summary_paragraph": {
+              "type": "string",
+              "description": "A prose summary of the overall changes, e.g., 'This plan will reconfigure networking for a critical application. It is important to understand the implications of this action.'."
+            },
+            "bullet_points": {
+              "type": "array",
+              "description": "A list of specific, noteworthy impacts.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "A bolded title for the bullet point, e.g., 'Connectivity Risk'."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "A human-readable description of the point, e.g., 'Associating the service to a new subnet will cause a network interruption while the change is applied.'."
+                  }
+                },
+                "required": [
+                  "title",
+                  "description"
+                ]
+              }
+            }
+          },
+          "required": [
+            "banner",
+            "summary_paragraph",
+            "bullet_points"
+          ]
+        },
+        "estimated_costs": {
+          "type": "object",
+          "description": "An estimation of the monthly and hourly costs associated with the new or updated resources.",
+          "properties": {
+            "banner": {
+              "type": "object",
+              "description": "A banner providing a quick summary of the estimated costs.",
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "description": "A high-level cost summary sentence, e.g., 'The new resources are estimated to cost approximately $0.05 per hour and $36.50 per month.'."
+                }
+              },
+              "required": [
+                "summary"
+              ]
+            },
+            "introduction_paragraph": {
+              "type": "string",
+              "description": "A prose paragraph explaining the basis of the estimation, e.g., 'Terraform plans don't include a direct cost estimation, but here is a breakdown based on public pricing for the `westeurope` region.'."
+            },
+            "breakdown": {
+              "type": "array",
+              "description": "A detailed breakdown of costs by resource type.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "resource_type": {
+                    "type": "string",
+                    "description": "Name of the resource type, e.g., 'NAT Gateway'."
+                  },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "estimated_cost": {
+                        "type": "string",
+                        "description": "An estimated cost range in dollars for this resource type. I.e. '~$0.0208 per GB per month for hot tier'"
+                      },
+                      "additional_details": {
+                        "type": "string",
+                        "description": "Further details or clarifications if any."
+                      }
+                    },
+                    "required": [
+                      "estimated_cost",
+                      "additional_details"
+                    ]
+                  }
+                },
+                "required": [
+                  "resource_type",
+                  "details"
+                ]
+              }
+            }
+          },
+          "required": [
+            "banner",
+            "introduction_paragraph",
+            "breakdown"
+          ]
+        }
+      },
+      "required": [
+        "summary",
+        "detailed_changes",
+        "potential_impact",
+        "estimated_costs"
+      ]
+    }
+  },
+  {
+    "name": "generate_terraform_drift_report",
+    "description": "Creates a structured report summarizing the actions taken to remediate a Terraform configuration drift. This report details which files and resources were changed, what the specific changes were, and the reason for the remediation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "remediation_summary": {
+          "type": "string",
+          "description": "A high-level summary of the entire remediation action and possible exceptions whitelist resources present in the terrafrom plan."
+        },
+        "status": {
+          "type": "string",
+          "description": "The final status of the remediation attempt.",
+          "enum": [
+            "Succeeded",
+            "Partial",
+            "Failed"
+          ]
+        },
+        "remediated_resources": {
+          "type": "array",
+          "description": "A list of Terraform resources that were modified during the remediation process.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file_path": {
+                "type": "string",
+                "description": "The relative path to the Terraform file that was modified (e.g., 'csm_001.tf')."
+              },
+              "resource_address": {
+                "type": "string",
+                "description": "The full address of the modified Terraform resource (e.g., 'azurerm_cosmosdb_account.csm_001')."
+              },
+              "changes": {
+                "type": "array",
+                "description": "A list of specific changes made to the resource.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "attribute_modified": {
+                      "type": "string",
+                      "description": "The specific attribute or property within the resource that was changed (e.g., 'ip_range_filter', 'provider', 'id')."
+                    },
+                    "change_description": {
+                      "type": "string",
+                      "description": "A human-readable description of the change made to the attribute (e.g., 'Corrected CIDR notation for all IP addresses.', 'Removed invalid property.')."
+                    },
+                    "details": {
+                      "type": "array",
+                      "description": "A list of specific line-item changes, such as 'from -> to' values or a list of items that were added/removed.",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The justification or reason for making this change (e.g., 'Compliance with provider requirements', 'The property is not a valid argument for the resource.')."
+                    }
+                  },
+                  "required": [
+                    "attribute_modified",
+                    "change_description",
+                    "reason"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "file_path",
+              "resource_address",
+              "changes"
+            ]
+          }
+        }
+      },
+      "required": [
+        "remediation_summary",
+        "status",
+        "remediated_resources"
+      ]
+    }
+  },
+  {
+    "name": "generate_terraform_apply_report",
+    "description": "Analyzes the output of a Terraform apply operation and generates a comprehensive report detailing what resources were created, updated, or destroyed, including their status and any errors encountered.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "apply_summary": {
+          "type": "object",
+          "description": "High-level statistics summarizing the apply operation results.",
+          "properties": {
+            "total_resources": {
+              "type": "integer",
+              "description": "Total number of resources processed during the apply."
+            },
+            "created": {
+              "type": "integer",
+              "description": "Number of resources successfully created."
+            },
+            "updated": {
+              "type": "integer",
+              "description": "Number of resources successfully updated."
+            },
+            "destroyed": {
+              "type": "integer",
+              "description": "Number of resources successfully destroyed."
+            },
+            "failed": {
+              "type": "integer",
+              "description": "Number of resources that failed during apply."
+            }
+          },
+          "required": [
+            "total_resources",
+            "created",
+            "updated",
+            "destroyed",
+            "failed"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Overall status of the apply operation.",
+          "enum": [
+            "Success",
+            "Partial",
+            "Failed"
+          ]
+        },
+        "execution_summary": {
+          "type": "string",
+          "description": "A prose paragraph summarizing the overall apply execution, including timing, outcome, and any notable events."
+        },
+        "resource_changes": {
+          "type": "array",
+          "description": "Detailed list of all resource changes that occurred during the apply.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_type": {
+                "type": "string",
+                "description": "The type of the Terraform resource (e.g., 'azurerm_storage_account', 'azurerm_virtual_network')."
+              },
+              "resource_name": {
+                "type": "string",
+                "description": "The name/identifier of the resource instance."
+              },
+              "action": {
+                "type": "string",
+                "description": "The action performed on this resource.",
+                "enum": [
+                  "created",
+                  "updated",
+                  "destroyed",
+                  "no_change"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "description": "Whether the operation on this resource succeeded or failed.",
+                "enum": [
+                  "success",
+                  "failed"
+                ]
+              },
+              "details": {
+                "type": "string",
+                "description": "Human-readable details about what changed for this resource, including key attributes modified."
+              },
+              "error_message": {
+                "type": "string",
+                "description": "If the resource operation failed, this contains the error message. Null if successful."
+              }
+            },
+            "required": [
+              "resource_type",
+              "resource_name",
+              "action",
+              "status",
+              "details"
+            ]
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "A list of actionable recommendations or follow-up actions based on the apply results.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "apply_summary",
+        "status",
+        "execution_summary",
+        "resource_changes",
+        "recommendations"
+      ]
+    }
+  }
+]

@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP subnetwork template.
+body: |
+  # GCP Subnetwork
+
+  ```hcl
+  resource "google_compute_subnetwork" "this" {
+    name          = "snet-${var.purpose}"
+    project       = var.project_id
+    region        = var.region
+    network       = google_compute_network.main.id
+    ip_cidr_range = var.cidr_range
+
+    private_ip_google_access = true
+
+    log_config {
+      aggregation_interval = "INTERVAL_10_MIN"
+      flow_sampling        = 0.5
+      metadata             = "INCLUDE_ALL_METADATA"
+    }
+  }
+  ```
+
+  ## Notes
+  - Enable `private_ip_google_access` so VMs without external IPs
+    can reach Google APIs.
+  - Enable VPC flow logs (`log_config`) in production for security
+    monitoring; sampling at 0.5 balances cost and coverage.
+  - For GKE, allocate secondary ranges via `secondary_ip_range`
+    blocks for pods and services.

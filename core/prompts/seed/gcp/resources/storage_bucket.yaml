@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud Storage bucket template.
+body: |
+  # GCP Storage Bucket
+
+  ```hcl
+  resource "google_storage_bucket" "this" {
+    name                        = "${var.project_id}-${var.purpose}"
+    project                     = var.project_id
+    location                    = var.region
+    storage_class               = "STANDARD"
+    uniform_bucket_level_access = true
+    public_access_prevention    = "enforced"
+    force_destroy               = false
+
+    versioning {
+      enabled = true
+    }
+
+    lifecycle_rule {
+      condition {
+        age = 30
+      }
+      action {
+        type          = "SetStorageClass"
+        storage_class = "NEARLINE"
+      }
+    }
+
+    labels = {
+      environment = var.environment
+      managed_by  = "terraform"
+    }
+  }
+  ```
+
+  ## Notes
+  - Bucket names are globally unique; prefix with the project ID to
+    avoid collisions.
+  - `uniform_bucket_level_access = true` disables legacy ACLs and
+    is the modern default.
+  - `public_access_prevention = "enforced"` blocks accidental public
+    exposure. Override only if the request explicitly requires a
+    public bucket (e.g. a static site).
+  - `force_destroy = false` means `terraform destroy` will fail if
+    the bucket contains objects. Override only when intentional.

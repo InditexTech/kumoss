@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP-specific resource creation conventions for Terraform.
+body: |
+  # GCP Resource Creation Guidelines
+
+  ## Provider
+  Use the `google` provider, pinned to a known-good major version:
+
+  ```hcl
+  terraform {
+    required_providers {
+      google = {
+        source  = "hashicorp/google"
+        version = "~> 5.0"
+      }
+    }
+  }
+
+  provider "google" {
+    project = var.project_id
+    region  = var.region
+  }
+  ```
+
+  ## Projects
+  - Every resource belongs to a project.
+  - One project per environment per application is the default.
+  - Use folders to group projects under shared billing accounts.
+
+  ## Labels
+  Every resource that supports `labels` carries at minimum:
+  - `environment` — `dev`, `staging`, or `prod`.
+  - `owner` — team or individual responsible.
+  - `managed_by` — set to `terraform`.
+
+  Note: GCP labels must be lowercase, may not start with a number,
+  and may only contain letters, numbers, hyphens, and underscores.
+
+  ## Regions and zones
+  - Default to a single primary region per environment.
+  - For zonal resources, use `${region}-a` unless the request needs
+    multi-zone redundancy.
+
+  Replace this body with your organization's authoritative GCP
+  resource-creation standards.

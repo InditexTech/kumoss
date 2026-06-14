@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP project template.
+body: |
+  # GCP Project
+
+  ```hcl
+  resource "google_project" "main" {
+    name            = "${var.application}-${var.environment}"
+    project_id      = "${var.application}-${var.environment}-${random_id.suffix.hex}"
+    folder_id       = var.folder_id
+    billing_account = var.billing_account
+
+    labels = {
+      environment = var.environment
+      owner       = var.owner
+      managed_by  = "terraform"
+    }
+  }
+
+  resource "random_id" "suffix" {
+    byte_length = 2
+  }
+  ```
+
+  ## Notes
+  - Project IDs are globally unique and immutable. The random suffix
+    avoids name collisions across organizations.
+  - Enable required APIs with `google_project_service` resources
+    immediately after project creation.
+  - Project deletion is soft for 30 days; reuse the original ID only
+    after final deletion.

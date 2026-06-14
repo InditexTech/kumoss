@@ -1,0 +1,25 @@
+[
+  {
+    "name": "report_decomposed_task_operations",
+    "description": "Reports a complex task split into a list of simpler, self-contained group of operations. This is the final step after identifying all necessary individual operations.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "operations": {
+          "type": "array",
+          "description": "A list of self-contained, groups of operations derived from the original complex task. Each item in this list should be a cohere independent group of actionable steps.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string",
+          "description": "An optional, concise explanation of how the task was split or the rationale behind the split operations."
+        }
+      },
+      "required": [
+        "operations"
+      ]
+    }
+  }
+]

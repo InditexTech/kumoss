@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Key Vault template with RBAC-mode authorization.
+body: |
+  # Azure Key Vault
+
+  ```hcl
+  data "azurerm_client_config" "current" {}
+
+  resource "azurerm_key_vault" "main" {
+    name                          = "kv-${var.application}-${var.environment}"
+    location                      = azurerm_resource_group.main.location
+    resource_group_name           = azurerm_resource_group.main.name
+    tenant_id                     = data.azurerm_client_config.current.tenant_id
+    sku_name                      = "standard"
+    enable_rbac_authorization     = true
+    purge_protection_enabled      = true
+    soft_delete_retention_days    = 7
+    public_network_access_enabled = false
+
+    tags = {
+      environment = var.environment
+      managed_by  = "terraform"
+    }
+  }
+  ```
+
+  ## Notes
+  - Key Vault names are 3-24 characters and globally unique.
+  - `enable_rbac_authorization = true` is required; access policies
+    are legacy and should not be used in new code.
+  - `purge_protection_enabled = true` prevents accidental permanent
+    deletion. Once enabled it cannot be turned off.
+  - Grant `Key Vault Secrets User` or `Key Vault Secrets Officer` via
+    `azurerm_role_assignment` to consumers.

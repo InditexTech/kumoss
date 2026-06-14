@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP VPC firewall rule template.
+body: |
+  # GCP VPC Firewall Rule
+
+  ```hcl
+  resource "google_compute_firewall" "allow_https" {
+    name      = "allow-https-${var.network_name}"
+    project   = var.project_id
+    network   = var.network_id
+    direction = "INGRESS"
+    priority  = 1000
+
+    allow {
+      protocol = "tcp"
+      ports    = ["443"]
+    }
+
+    source_ranges = var.allowed_source_ranges
+    target_tags   = ["https-server"]
+  }
+  ```
+
+  ## Notes
+  - Never use `source_ranges = ["0.0.0.0/0"]` unless the resource is
+    explicitly public (load balancer frontend, public bucket fronted
+    by CDN). For everything else, scope to known CIDRs or use
+    `source_tags` / `source_service_accounts`.
+  - Prefer `target_tags` or `target_service_accounts` over
+    network-wide rules.
+  - Firewall rules with lower `priority` numbers evaluate first;
+    1000 is the GCP default.
+  - For egress restriction, set `direction = "EGRESS"` and use
+    `destination_ranges`.

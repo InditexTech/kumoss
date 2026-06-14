@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure-specific resource creation conventions for Terraform.
+body: |
+  # Azure Resource Creation Guidelines
+
+  ## Provider
+  Use the `azurerm` provider, pinned to a known-good major version:
+
+  ```hcl
+  terraform {
+    required_providers {
+      azurerm = {
+        source  = "hashicorp/azurerm"
+        version = "~> 3.0"
+      }
+    }
+  }
+
+  provider "azurerm" {
+    features {}
+  }
+  ```
+
+  ## Resource groups
+  - Every Azure resource belongs to a resource group.
+  - One resource group per logical unit (environment, application).
+  - Region is declared on the resource group; resources inherit it
+    where the provider allows.
+
+  ## Tagging
+  Every resource that supports `tags` carries at minimum:
+  - `environment` — `dev`, `staging`, or `prod`.
+  - `owner` — team or individual responsible.
+  - `managed_by` — set to `terraform`.
+
+  ## Locations
+  - Default to a single primary region per environment.
+  - Use the long form (`westeurope`, not `weu`) in Terraform.
+
+  Replace this body with your organization's authoritative Azure
+  resource-creation standards.

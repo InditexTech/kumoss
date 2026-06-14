@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure networking conventions (VNets, subnets, peering, NSGs).
+body: |
+  # Azure Networking Guidelines
+
+  ## Topology
+  - Default to hub-and-spoke for multi-environment deployments.
+  - One VNet per environment (`dev`, `staging`, `prod`).
+  - Spoke VNets peer to a single hub; spokes do not peer to each other.
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs.
+  - Allocate `/16` per VNet by default; carve `/24` subnets within.
+
+  ## Subnets
+  - Declare subnets as inline `subnet` blocks on the parent
+    `azurerm_virtual_network` resource where the provider allows it.
+  - One subnet per tier: `web`, `app`, `data`, `mgmt`.
+  - Reserve a `/27` for `AzureBastionSubnet` if Bastion is required.
+
+  ## Network Security Groups
+  - One NSG per subnet, named `nsg-<subnet-name>`.
+  - Default-deny inbound; allow rules are explicit and narrow.
+  - Outbound `Internet` is allowed only where required.
+
+  ## Private endpoints
+  - Prefer private endpoints over service endpoints for PaaS access.
+  - Co-locate the private endpoint in the consumer's subnet.
+
+  Replace this body with your organization's authoritative networking
+  standards.

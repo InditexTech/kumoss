@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure actions Nebula must never generate (security and cost guardrails).
+body: |
+  # STRICTLY FORBIDDEN AZURE ACTIONS
+
+  Never generate Terraform that performs any of the following. If a
+  request requires one of these, refuse and explain why.
+
+  ## Networking
+  - Public IP addresses on database, storage, or compute resources
+    intended for internal use.
+  - `0.0.0.0/0` inbound rules on Network Security Groups.
+  - Disabling the Azure Firewall on existing networks.
+
+  ## Identity and access
+  - Assigning the `Owner` or `Contributor` role at subscription scope.
+  - Creating service principals with secrets that never expire.
+  - Storing credentials in resource tags, descriptions, or outputs.
+
+  ## Data
+  - Disabling encryption-at-rest on storage accounts, managed disks,
+    or databases.
+  - Setting `public_network_access_enabled = true` on resources whose
+    intent is private.
+  - Deleting or replacing resources holding state (databases, storage
+    accounts) without an explicit `lifecycle.prevent_destroy = true`
+    override request from the user.
+
+  ## Cost
+  - Provisioning Premium SKUs without an explicit user request.
+  - Creating resources with no auto-shutdown in non-production envs.
+
+  Replace this body with your organization's authoritative
+  forbidden-action policy.

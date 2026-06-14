@@ -1,0 +1,33 @@
+[
+  {
+    "name": "construct_information",
+    "description": "Constructs two independent lists: one for required infrastructure templates and one for naming abbreviations, based on the analysis of a user's request. The two lists are not correlated. If no items for a list can be determined, an empty array should be used for that list.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "description": "A list of resource template names required to fulfill the request. Names must match the available templates exactly.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "abbreviations": {
+          "type": "array",
+          "description": "An independent list of naming abbreviations identified in the user's request. This list has no correlation with the 'templates' list.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explanation": {
+          "type": "string",
+          "description": "A single, concise sentence explaining why the selected templates and abbreviations were chosen based on the user's request."
+        }
+      },
+      "required": [
+        "templates",
+        "abbreviations"
+      ]
+    }
+  }
+]

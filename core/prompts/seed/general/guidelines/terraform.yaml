@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Cloud-agnostic Terraform conventions injected into every IaC prompt.
+body: |
+  # General Terraform Guidelines
+
+  These conventions apply regardless of cloud provider. They establish a
+  predictable shape for every module Nebula generates.
+
+  ## File layout
+  - `main.tf` — primary resource definitions for the module.
+  - `variables.tf` — input variables, each with `description` and `type`.
+  - `outputs.tf` — exported values consumers may rely on.
+  - `versions.tf` — `terraform` block with `required_version` and
+    `required_providers`.
+
+  ## Naming
+  - Resource block names use `snake_case`.
+  - Prefer descriptive names over abbreviations: `primary_database`
+    over `db1`.
+  - Avoid trailing numeric suffixes unless the resource is genuinely
+    enumerated (`web_server_1`, `web_server_2`).
+
+  ## Variables and outputs
+  - Every variable declares `type` and `description`.
+  - Mark sensitive variables with `sensitive = true`.
+  - Outputs that expose secrets are also marked `sensitive = true`.
+
+  ## State and providers
+  - Pin provider versions with `~>` (allow patch updates, block minor).
+  - Do not embed credentials in code; rely on environment configuration
+    or workload identity.
+
+  ## Style
+  - Run `terraform fmt` mentally before emitting code.
+  - Two-space indentation, no tabs.
+  - Group resources by logical concern (network, compute, storage).
+
+  Replace this body with your organization's authoritative Terraform
+  standards. These defaults are deliberately generic.

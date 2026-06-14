@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP IAM conventions.
+body: |
+  # GCP Permissions Guidelines
+
+  ## IAM principles
+  - Grant the least-privileged predefined role that satisfies the
+    use case before considering a custom role.
+  - Bind roles at the resource or project level, not at the
+    organization level, unless explicitly required.
+  - Never grant `roles/owner` to service accounts.
+
+  ## Service accounts
+  - One service account per workload.
+  - Name format: `sa-<workload>@<project>.iam.gserviceaccount.com`.
+  - Prefer workload identity federation over service-account keys.
+  - If a key is unavoidable, rotate it at least every 90 days.
+
+  ## Workload identity
+  - For GKE workloads, use Workload Identity (KSA ↔ GSA binding).
+  - For Cloud Run / Cloud Functions, assign a runtime service account
+    rather than embedding credentials.
+
+  ## Secrets
+  - Store secrets in Secret Manager, not in Terraform variables or
+    resource metadata.
+  - Grant `roles/secretmanager.secretAccessor` per-secret, not
+    project-wide.
+
+  Replace this body with your organization's authoritative IAM standards.

@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure virtual network (VNet) template with inline subnets.
+body: |
+  # Azure Virtual Network
+
+  ```hcl
+  resource "azurerm_virtual_network" "main" {
+    name                = "vnet-${var.application}-${var.environment}"
+    location            = azurerm_resource_group.main.location
+    resource_group_name = azurerm_resource_group.main.name
+    address_space       = [var.vnet_cidr]
+
+    subnet {
+      name             = "snet-web"
+      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 0)]
+    }
+
+    subnet {
+      name             = "snet-app"
+      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 1)]
+    }
+
+    subnet {
+      name             = "snet-data"
+      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 2)]
+    }
+
+    tags = {
+      environment = var.environment
+      managed_by  = "terraform"
+    }
+  }
+  ```
+
+  ## Inputs commonly required
+  - `vnet_cidr` — VNet address space, default `10.0.0.0/16`.
+
+  ## Notes
+  - Subnets are declared inline; standalone `azurerm_subnet` resources
+    are only used when a subnet must be referenced from outside this
+    module.
