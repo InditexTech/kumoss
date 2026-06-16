@@ -1,0 +1,174 @@
+name: nebula
+
+# Per-service env_file is the source of truth for every service in this
+# stack. Copy each `env.sample` to a `.env` next to it before
+# `docker compose up` (see README.md). The `required: false` flag lets
+# the stack boot even if a particular service's .env is missing — useful
+# for the OSS quickstart where most knobs have safe defaults.
+
+services:
+  proxy:
+    image: nebula-nginx:latest
+    restart: on-failure
+    build:
+      context: ./frontend
+      dockerfile: docker/local.nginx.Dockerfile
+    ports:
+      - "80:80"
+    expose:
+      - 80
+    depends_on:
+      - api
+      - webapp
+      - phoenix
+    networks:
+      - bridge-network
+
+  api:
+    image: nebula-fastapi:latest
+    build:
+      context: ./core
+      dockerfile: ./local.Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./core/.env
+        required: false
+    environment:
+      # Stack-internal wiring (not secrets, not deployer-tunable). The
+      # bundled ./config.yaml is mounted read-only at /etc/nebula/config.yaml
+      # below; edit it (or override via docker-compose.override.yml) to
+      # customize.
+      - NEBULA_CONFIG=/etc/nebula/config.yaml
+      - PHOENIX_HOST=http://phoenix:6006/
+      # Cloned repos go on the shared `workspaces` volume so the
+      # validation service can read the same paths.
+      # - NEBULA_UPLOAD_FOLDER=/workspaces
+    volumes:
+      - ./config.yaml:/etc/nebula/config.yaml:ro
+      - workspaces:/workspaces
+    depends_on:
+      - notifications
+      - mapping
+      - validation
+      - authz
+    develop:
+      watch:
+        - action: sync
+          path: ./core
+          target: /usr/src/app
+    networks:
+      - bridge-network
+
+  notifications:
+    image: nebula-notifications:latest
+    build:
+      context: ./services/notifications
+    env_file:
+      - path: ./services/notifications/.env
+        required: false
+    expose:
+      - 8080
+    networks:
+      - bridge-network
+
+  mapping:
+    image: nebula-mapping:latest
+    build:
+      context: ./services/mapping
+    env_file:
+      - path: ./services/mapping/.env
+        required: false
+    expose:
+      - 8081
+    # Also exposed on the host because mapping is the one Nebula service
+    # called directly from the React app (not via the api proxy). When the
+    # frontend is loaded from the proxy on :80, browsers go to :8081 here.
+    ports:
+      - "8081:8081"
+    networks:
+      - bridge-network
+
+  authz:
+    image: nebula-authz:latest
+    build:
+      context: ./services/authz
+    env_file:
+      - path: ./services/authz/.env
+        required: false
+    volumes:
+      # Roles persist across container restarts.
+      - authz_data:/data
+    expose:
+      - 8083
+    networks:
+      - bridge-network
+
+  iac:
+    image: nebula-iac:latest
+    build:
+      context: ./services/iac
+    env_file:
+      - path: ./services/validation/.env
+        required: false
+    volumes:
+      - workspaces:/workspaces
+    expose:
+      - 8082
+    networks:
+      - bridge-network
+
+  webapp:
+    image: nebula-web:latest
+    build:
+      context: ./frontend
+      dockerfile: ./docker/local.vite.Dockerfile
+    ports:
+      - "5173"
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/user_portal
+          target: /user_portal
+    networks:
+      - bridge-network
+
+  phoenix:
+    image: arizephoenix/phoenix:17.6.0
+    env_file:
+      - path: ./core/.env
+        required: false
+    ports:
+      - "6006"
+      - "4317"
+    depends_on:
+      - db
+    environment:
+      - PHOENIX_HOST_ROOT_PATH=/monitoring
+    networks:
+      - bridge-network
+
+  db:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432"
+    volumes:
+      - database_data:/var/lib/postgresql/data
+    networks:
+      - bridge-network
+
+volumes:
+  database_data:
+    driver: local
+  workspaces:
+    driver: local
+  authz_data:
+    driver: local
+
+networks:
+  bridge-network:
+    driver: bridge
