@@ -30,6 +30,7 @@ from src.clients.mapping.models.resolve_request import ResolveRequest
 from src.clients.mapping.models.resolve_response import ResolveResponse
 from src.clients.mapping.types import UNSET, Unset
 from src.shared.config import system_config
+from src.shared.exceptions import ExceptionHandler
 
 
 @dataclass(frozen=True)
@@ -63,10 +64,11 @@ class MappingServiceClient:
     ) -> ResolvedRef:
         """Resolve `identifier` via the mapping service, or identity-pass it.
 
-        Raises ValueError if the mapping service is enabled but the call fails
-        or returns an unexpected response — callers should treat that as a
-        fatal request error, not silently fall back to identity (which would
-        mask misconfiguration).
+        Raises `ExceptionHandler` if the mapping service is enabled but the
+        call fails (timeout, unreachable, bad status) or returns an
+        unexpected response — callers should treat that as a fatal request
+        error, not silently fall back to identity (which would mask
+        misconfiguration). 504 for timeouts, 502 otherwise.
         """
         cfg = system_config.services.mapping
         if not cfg.enabled or not cfg.endpoint:
@@ -82,11 +84,16 @@ class MappingServiceClient:
             token=cfg.token,
             timeout=httpx.Timeout(10.0),
         )
-        async with client as c:
-            response = await resolve_op.asyncio(client=c, body=body)
+        try:
+            async with client as c:
+                response = await resolve_op.asyncio(client=c, body=body)
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"mapping service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"mapping service unreachable: {e}", 502) from e
         if not isinstance(response, ResolveResponse):
-            raise ValueError(
-                f"Mapping service returned an unexpected response: {response!r}"
+            raise ExceptionHandler(
+                f"mapping service returned an unexpected response: {response!r}", 502
             )
         return ResolvedRef(
             repo_url=response.repo_url,

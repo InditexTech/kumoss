@@ -13,10 +13,11 @@ configured mapper.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.infrastructure.external.mapping_service import MappingServiceClient
+from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/mapping", tags=["Mapping"])
 
@@ -53,11 +54,14 @@ async def resolve(
         ),
     ] = None,
 ):
-    resolved = await MappingServiceClient().resolve(
-        identifier,
-        cloud=cloud,
-        environment=environment,
-    )
+    try:
+        resolved = await MappingServiceClient().resolve(
+            identifier,
+            cloud=cloud,
+            environment=environment,
+        )
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(
         content={
             "repo_url": resolved.repo_url,
