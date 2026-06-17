@@ -10,26 +10,25 @@ Implementation-agnostic check that any service claiming to satisfy
 [`contracts/openapi/authz.v1.yaml`](../../openapi/authz.v1.yaml)
 actually does.
 
-## Running against the OSS reference impl
+## Running
 
-```bash
-docker compose up -d authz
-```
+Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/authz
 uv venv && source .venv/bin/activate
 uv pip install -e .
-pytest --service-url=http://localhost:8083 --service-token=$NEBULA_AUTHZ_TOKEN
-```
-
-## Running against your own implementation
-
-```bash
 pytest \
   --service-url=https://authz.your.example \
   --service-token=$YOUR_TOKEN
 ```
+
+`--service-token` is only needed if the implementation enforces auth.
+URL and token may also be supplied via `NEBULA_AUTHZ_URL` /
+`NEBULA_AUTHZ_TOKEN`.
+
+The bundled reference impl under `services/authz/` has its own test
+suite — see that directory's README for how to run it.
 
 ## Notes
 

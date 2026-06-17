@@ -15,32 +15,25 @@ generate requests from the OpenAPI spec and verify that responses match
 what the spec declares. It runs against a live HTTP endpoint, so it
 treats the service under test as a black box.
 
-## Running against the OSS reference impl
+## Running
 
-```bash
-docker compose up -d mapping
-```
+Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/mapping
 uv venv && source .venv/bin/activate
 uv pip install -e .
-pytest --service-url=http://localhost:8081
-```
-
-If the service is configured with `NEBULA_MAPPING_TOKEN`, pass it:
-
-```bash
-pytest --service-url=http://localhost:8081 --service-token=$NEBULA_MAPPING_TOKEN
-```
-
-## Running against your own implementation
-
-```bash
 pytest \
   --service-url=https://mapping.your.example \
   --service-token=$YOUR_TOKEN
 ```
+
+`--service-token` is only needed if the implementation enforces auth.
+URL and token may also be supplied via `NEBULA_MAPPING_URL` /
+`NEBULA_MAPPING_TOKEN`.
+
+The bundled reference impl under `services/mapping/` has its own test
+suite — see that directory's README for how to run it.
 
 ## What this checks
 

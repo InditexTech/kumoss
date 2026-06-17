@@ -17,11 +17,7 @@ What this does NOT check:
   resolver returns something semantically meaningful for any specific
   identifier).
 
-Run against the OSS reference impl spun up by docker-compose:
-
-    pytest --service-url=http://localhost:8081
-
-Or against your own implementation:
+Run against any implementation of the contract:
 
     pytest --service-url=https://mapping.your.example \
            --service-token=$YOUR_TOKEN

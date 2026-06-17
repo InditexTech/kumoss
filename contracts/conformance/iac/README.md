@@ -14,26 +14,25 @@ The suite uses [Schemathesis](https://schemathesis.readthedocs.io/) to
 generate requests from the OpenAPI spec and verify that responses match
 what the spec declares.
 
-## Running against the OSS reference impl
+## Running
 
-```bash
-docker compose up -d iac
-```
+Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/iac
 uv venv && source .venv/bin/activate
 uv pip install -e .
-pytest --service-url=http://localhost:8082 --service-token=$NEBULA_IAC_TOKEN
-```
-
-## Running against your own implementation
-
-```bash
 pytest \
   --service-url=https://iac.your.example \
   --service-token=$YOUR_TOKEN
 ```
+
+`--service-token` is only needed if the implementation enforces auth.
+URL and token may also be supplied via `NEBULA_IAC_URL` /
+`NEBULA_IAC_TOKEN`.
+
+The bundled reference impl under `services/iac/` has its own test
+suite — see that directory's README for how to run it.
 
 ## What this checks
 
