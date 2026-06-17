@@ -16,6 +16,7 @@ from src.api.v2 import (
     authorization,
     admin,
     sessions,
+    mapping,
 )
 from src.infrastructure.database import db
 from src.infrastructure.filesystem.git_credentials import configure_git_credentials
@@ -83,3 +84,4 @@ app.include_router(logs.router, prefix="/v2")
 app.include_router(authorization.router, prefix="/v2")
 app.include_router(admin.router, prefix="/v2")
 app.include_router(sessions.router, prefix="/v2")
+app.include_router(mapping.router, prefix="/v2")

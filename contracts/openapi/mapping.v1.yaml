@@ -24,9 +24,9 @@ info:
     canonical IaC repo for it. The contract makes no assumption about
     where that data lives.
 
-    This is the only one of the four Nebula service contracts that is
-    invoked from the browser as well as from the core. Implementations
-    must therefore set CORS appropriately for their deployment.
+    The mapping service is invoked only by the Nebula core; browser
+    callers reach it through the core passthrough at
+    `POST /v2/mapping/resolve`.
   contact:
     name: Nebula maintainers
     url: https://github.com/inditex/app-nebulaapp

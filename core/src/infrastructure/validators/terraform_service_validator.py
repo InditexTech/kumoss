@@ -76,16 +76,17 @@ class TerraformServiceValidator(ITerraformValidator):
             targets=targets,
             get_drift=get_drift,
         )
-        async with client as c:
-            response = await validate_op.asyncio(client=c, body=body)
+        try:
+            async with client as c:
+                response = await validate_op.asyncio(client=c, body=body)
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
         if not isinstance(response, ValidateResponse):
-            logging.error(f"IaC service returned an unexpected response: {response!r}")
-            return TerraformValidationDTO(
-                validation=False,
-                feedback=str(response),
-                terraform_plan="",
-                terraform_targets=targets,
+            raise ExceptionHandler(
+                f"IaC service returned an unexpected response: {response!r}", 502
             )
         if response.validation and response.feedback:
             logging.warning(response.feedback)

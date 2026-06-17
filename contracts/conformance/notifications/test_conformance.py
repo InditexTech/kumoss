@@ -17,11 +17,7 @@ What this does NOT check:
   confirm a notification actually got delivered).
 - Authorization semantics beyond "bearer token is honored or rejected".
 
-Run against the OSS reference impl spun up by docker-compose:
-
-    pytest --service-url=http://localhost:8080
-
-Or against your own implementation:
+Run against any implementation of the contract:
 
     pytest --service-url=https://notifications.your.example \
            --service-token=$YOUR_TOKEN

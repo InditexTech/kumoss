@@ -18,21 +18,21 @@ Enterprise implementations of this contract resolve identifiers against
 an internal source of truth (CMDB, Backstage, a spreadsheet, …) and
 return the canonical IaC repo for each.
 
+The service is internal-only: the core api forwards browser requests
+to it via `POST /v2/mapping/resolve`. It is not reachable from the
+browser directly.
+
 ## What it does
 
 - `POST /v1/resolve` — returns `{repo_url: identifier, project: identifier}`.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/resolve` if `NEBULA_MAPPING_TOKEN` is set.
-- CORS — mapping is the only Nebula service the browser calls
-  directly, so origins are configurable via `NEBULA_MAPPING_CORS_ORIGINS`
-  (comma-separated). Defaults cover the docker-compose stack.
 
 ## Configuration
 
 | Env var                        | Required | Description                          |
 |--------------------------------|----------|--------------------------------------|
 | `NEBULA_MAPPING_TOKEN`         | no       | Bearer token clients must present.   |
-| `NEBULA_MAPPING_CORS_ORIGINS`  | no       | Comma-separated list of allowed CORS origins. Defaults to `http://localhost,http://localhost:5173,http://localhost:80`. |
 
 ## Run locally
 

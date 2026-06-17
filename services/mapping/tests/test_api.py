@@ -16,14 +16,7 @@ from src import main as service_main
 
 @contextmanager
 def _client_with(token: str = ""):
-    # NB: CORSMiddleware captures origins when src.main is first imported,
-    # so we cannot override cors_origins from a test. The CORS test below
-    # therefore uses one of the default origins (http://localhost). To
-    # change the allowed origins, set NEBULA_MAPPING_CORS_ORIGINS in the
-    # environment before importing the app.
-    service_main.config = Config(
-        expected_token=token, cors_origins=service_main.config.cors_origins
-    )
+    service_main.config = Config(expected_token=token)
     with TestClient(service_main.app) as client:
         yield client
 
@@ -92,18 +85,3 @@ def test_resolve_validation_error_returns_problem_json() -> None:
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
-
-
-def test_cors_preflight_returns_allowed_origin_header() -> None:
-    # http://localhost is in the default NEBULA_MAPPING_CORS_ORIGINS list.
-    with _client_with() as client:
-        response = client.options(
-            "/v1/resolve",
-            headers={
-                "Origin": "http://localhost",
-                "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "Content-Type",
-            },
-        )
-    assert response.status_code in (200, 204)
-    assert response.headers.get("access-control-allow-origin") == "http://localhost"

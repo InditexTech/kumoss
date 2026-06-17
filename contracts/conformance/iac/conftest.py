@@ -20,8 +20,8 @@ import pytest
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--service-url",
-        default=os.environ.get("NEBULA_IAC_URL", "http://localhost:8082"),
-        help="Base URL of the IaC service to test (default: http://localhost:8082).",
+        default=os.environ.get("NEBULA_IAC_URL"),
+        help="Base URL of the IaC service to test (or set NEBULA_IAC_URL).",
     )
     parser.addoption(
         "--service-token",
@@ -32,7 +32,13 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 @pytest.fixture(scope="session")
 def service_url(pytestconfig: pytest.Config) -> str:
-    return pytestconfig.getoption("--service-url")
+    url = pytestconfig.getoption("--service-url")
+    if not url:
+        raise pytest.UsageError(
+            "--service-url is required (or set NEBULA_IAC_URL). "
+            "Point it at the implementation you want to verify."
+        )
+    return url
 
 
 @pytest.fixture(scope="session")

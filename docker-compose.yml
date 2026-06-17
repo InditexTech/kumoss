@@ -81,11 +81,6 @@ services:
         required: false
     expose:
       - 8081
-    # Also exposed on the host because mapping is the one Nebula service
-    # called directly from the React app (not via the api proxy). When the
-    # frontend is loaded from the proxy on :80, browsers go to :8081 here.
-    ports:
-      - "8081:8081"
     networks:
       - bridge-network
 

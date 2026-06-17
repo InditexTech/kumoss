@@ -31,6 +31,7 @@ from src.clients.authz.models.check_response import CheckResponse
 from src.clients.authz.models.user import User
 from src.clients.authz.types import UNSET, Unset
 from src.shared.config import system_config
+from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 
@@ -79,17 +80,17 @@ class AuthzServiceClient:
             token=cfg.token,
             timeout=httpx.Timeout(15.0),
         )
-        async with client as c:
-            response = await check_op.asyncio(client=c, body=body)
+        try:
+            async with client as c:
+                response = await check_op.asyncio(client=c, body=body)
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"authz service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"authz service unreachable: {e}", 502) from e
 
         if not isinstance(response, CheckResponse):
-            logging.error(
-                f"authz service returned an unexpected response: {response!r}"
-            )
-            return CheckResult(
-                authorized=False,
-                portal_url=None,
-                reason=f"authz call failed: {response!r}",
+            raise ExceptionHandler(
+                f"authz service returned an unexpected response: {response!r}", 502
             )
 
         return CheckResult(
@@ -119,18 +120,23 @@ class AuthzServiceClient:
             token=cfg.token,
             timeout=httpx.Timeout(15.0),
         )
-        async with client as c:
-            response = await get_current_user_op.asyncio(
-                client=c,
-                x_user_id=user_id if user_id else UNSET,
-                x_user_email=user_email if user_email else UNSET,
-            )
+        try:
+            async with client as c:
+                response = await get_current_user_op.asyncio(
+                    client=c,
+                    x_user_id=user_id if user_id else UNSET,
+                    x_user_email=user_email if user_email else UNSET,
+                )
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"authz service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"authz service unreachable: {e}", 502) from e
 
         if not isinstance(response, User):
-            logging.error(
-                f"authz get_current_user returned an unexpected response: {response!r}"
+            raise ExceptionHandler(
+                f"authz get_current_user returned an unexpected response: {response!r}",
+                502,
             )
-            return None
         return response
 
     async def is_admin(self, user_id: str | None) -> bool:

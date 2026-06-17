@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .auth import verify_bearer_token
@@ -29,17 +28,6 @@ app = FastAPI(
     title="Nebula Mapping Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/mapping.v1.yaml.",
-)
-
-
-# Mapping is the one Nebula service the browser calls directly, so CORS
-# is part of the contract surface here.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.cors_origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
 )
 
 

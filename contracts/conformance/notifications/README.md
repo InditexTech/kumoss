@@ -15,41 +15,25 @@ generate requests from the OpenAPI spec and verify that responses match
 what the spec declares. It runs against a live HTTP endpoint, so it
 treats the service under test as a black box.
 
-## Running against the OSS reference impl
+## Running
 
-Spin up the docker-compose stack so the notifications service is
-listening:
-
-```bash
-docker compose up -d notifications
-```
-
-Then run the suite:
+Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/notifications
 uv venv && source .venv/bin/activate
 uv pip install -e .
-pytest --service-url=http://localhost:8080
-```
-
-If the service is configured with `NEBULA_NOTIFICATIONS_TOKEN`, pass
-the matching token:
-
-```bash
-pytest --service-url=http://localhost:8080 --service-token=$NEBULA_NOTIFICATIONS_TOKEN
-```
-
-## Running against your own implementation
-
-The suite has no knowledge of the OSS reference impl — point
-`--service-url` at any implementation that listens for the contract.
-
-```bash
 pytest \
   --service-url=https://notifications.your.example \
   --service-token=$YOUR_TOKEN
 ```
+
+`--service-token` is only needed if the implementation enforces auth.
+URL and token may also be supplied via `NEBULA_NOTIFICATIONS_URL` /
+`NEBULA_NOTIFICATIONS_TOKEN`.
+
+The bundled reference impl under `services/notifications/` has its own
+test suite — see that directory's README for how to run it.
 
 ## What this checks
 

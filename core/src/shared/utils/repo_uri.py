@@ -6,8 +6,9 @@
 def derive_project_name(repo_uri: str) -> str:
     """Project name = last `/` or `:` segment of the URI, with .git stripped.
 
-    Used for tracer/authz `project` field after the mapping service was
-    removed from the request path. Stable, readable, deterministic.
+    Used as a fallback for tracer/authz `project` when the mapping
+    passthrough is not consulted (or returns the identifier unchanged
+    under the identity-default). Stable, readable, deterministic.
     """
     s = repo_uri.rstrip("/")
     sep = max(s.rfind("/"), s.rfind(":"))
