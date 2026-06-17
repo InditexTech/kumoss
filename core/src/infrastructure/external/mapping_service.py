@@ -47,7 +47,7 @@ class ResolvedRef:
     path: str | None = None
 
 
-def _unwrap(value: str | Unset) -> str | None:
+def _unwrap(value: str | None | Unset) -> str | None:
     return None if isinstance(value, Unset) else value
 
 
