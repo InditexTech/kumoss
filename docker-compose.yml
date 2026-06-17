@@ -52,6 +52,7 @@ services:
       - mapping
       - iac
       - authz
+    develop:
       watch:
         - action: sync
           path: ./core
