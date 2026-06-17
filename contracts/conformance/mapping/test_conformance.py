@@ -16,7 +16,6 @@ What this does NOT check:
 - Side effects (the suite verifies the contract surface, not that the
   resolver returns something semantically meaningful for any specific
   identifier).
-- CORS behavior — that is best validated from a real browser context.
 
 Run against the OSS reference impl spun up by docker-compose:
 

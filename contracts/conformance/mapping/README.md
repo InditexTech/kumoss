@@ -54,4 +54,3 @@ pytest \
 - Side effects — the suite verifies the contract surface, not that the
   resolver returns something semantically meaningful for any specific
   identifier.
-- CORS — best validated from a real browser context.
