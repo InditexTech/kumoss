@@ -9,8 +9,8 @@
 #
 # To customize, edit this file (e.g., flip `mapping.enabled` to true and
 # point it at a self-hosted mapper) or override per-environment via a
-# docker-compose.override.yml. For the full annotated reference, see
-# examples/config.yaml.
+# docker-compose.override.yml. For the full config schema + defaults, see
+# core/src/shared/config/system_config.py.
 
 services:
   notifications:
@@ -25,10 +25,10 @@ services:
     enabled: true
     endpoint: "http://authz:8083"
     token_env: "NEBULA_AUTHZ_TOKEN"
-  validation:
+  iac:
     enabled: true
-    endpoint: "http://validation:8082"
-    token_env: "NEBULA_VALIDATION_TOKEN"
+    endpoint: "http://iac:8082"
+    token_env: "NEBULA_IAC_TOKEN"
 
 http:
   cors_origins:
