@@ -10,11 +10,11 @@ WORKDIR /usr/src/app
 
 # Python dependencies
 RUN pip install --no-cache-dir uv
-COPY pyproject.toml .
+COPY core/pyproject.toml .
 RUN uv pip install --system --prerelease=allow -r pyproject.toml
 
 # Copy application code
-COPY . .
+COPY core/ .
 
 EXPOSE 8000
 

@@ -1,0 +1,48 @@
+# Default Nebula system config bundled with the docker-compose stack.
+#
+# This file is read by the core when NEBULA_CONFIG points at it (the
+# docker-compose `api` service sets that env var and mounts this file
+# read-only at /etc/nebula/config.yaml). It only contains values needed
+# to make `docker compose up` work out of the box — no secrets. Bearer
+# tokens and webhook URLs are referenced by env-var name and resolved
+# at use time.
+#
+# To customize, edit this file (e.g., flip `mapping.enabled` to true and
+# point it at a self-hosted mapper) or override per-environment via a
+# docker-compose.override.yml. For the full config schema + defaults, see
+# core/src/shared/config/system_config.py.
+
+services:
+  notifications:
+    enabled: true
+    endpoint: "http://notifications:8080"
+    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
+  mapping:
+    enabled: false
+    endpoint: "http://mapping:8081"
+    token_env: "NEBULA_MAPPING_TOKEN"
+  authz:
+    enabled: true
+    endpoint: "http://authz:8083"
+    token_env: "NEBULA_AUTHZ_TOKEN"
+  iac:
+    enabled: true
+    endpoint: "http://iac:8082"
+    token_env: "NEBULA_IAC_TOKEN"
+
+http:
+  cors_origins:
+    - "http://localhost"
+
+# Phoenix is reachable as `phoenix:6006` on the docker network. The default
+# (http://localhost:6006/) only works when running the core outside docker.
+telemetry:
+  collector_url: "http://phoenix:6006/"
+
+# Git push credentials. Names of env vars holding the actual user/PAT;
+# leave host/pat_*_env empty to disable (push will then need mounted
+# ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
+git:
+  host: "github.com"
+  pat_user_env: "GIT_USER"
+  pat_token_env: "GIT_TOKEN"

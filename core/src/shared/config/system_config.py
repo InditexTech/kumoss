@@ -126,8 +126,6 @@ class OrchestrationConfig(BaseModel):
     max_tool_chain_executions: int = 70
     max_session_events_iteration: int = 2160
     drift_group_operations: int = 8
-    max_file_size_bytes: int = 10 * 1024 * 1024
-    repo_cleanup_age_minutes: int = 30
 
 
 class PathsConfig(BaseModel):
@@ -219,3 +217,4 @@ class SystemConfig(BaseModel):
 
 # Module-level singleton used across the application.
 system_config = SystemConfig.load()
+
