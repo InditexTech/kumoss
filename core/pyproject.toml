@@ -8,7 +8,7 @@ version = "2.0.0"
 description = "FastAPI-based API with Terraform support"
 requires-python = ">=3.13"
 dependencies = [
-    "boto3~=1.35.15",
+    "boto3>=1.43.25",
     "fastapi[standard]>=0.116.0",
     "python-dotenv>=1.1.1",
     "httpx[http2]>=0.28.1",
@@ -16,7 +16,7 @@ dependencies = [
     "anthropic[vertex]>=0.64.0",
     "google-genai>=1.29.0",
     "jinja2>=3.1.6",
-    "arize-phoenix>=14.2.1",
+    "arize-phoenix>=17.2.0",
     "openinference-semantic-conventions>=0.1.21",
     "opentelemetry-exporter-otlp>=1.36.0",
     "opentelemetry-sdk>=1.36.0",
@@ -24,5 +24,7 @@ dependencies = [
     "aioretry>=6.3.1",
     "asyncpg>=0.31.0",
     "sqlalchemy[asyncio]>=2.0.0",
-    "pyyaml>=6.0",
+    "azure-storage-blob>=12.24.0",
+    "graphql-core<3.3.0",
+    "pydantic-ai[mcp]<2.0.0",
 ]

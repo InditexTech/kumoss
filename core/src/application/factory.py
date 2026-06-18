@@ -23,7 +23,6 @@ from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git_utils import GitUtils
 from src.infrastructure.templates.factory import TemplateFactory
 from src.infrastructure.llm.factory import LLMFactory
-from src.infrastructure.external.no_op_apply import NoOpApply
 from src.infrastructure.validators.factory import ValidatorFactory
 
 # Application layer imports
@@ -358,7 +357,7 @@ class HandlerFactory:
         # OSS reference has no apply impl; the route remains so the API
         # surface is stable but always errors with a clear message. Provide
         # your own IApplyInfrastructure to enable apply.
-        apply_svc = NoOpApply()
+        apply_svc = ""
         return TerraformApplyHandler(
             apply_service=apply_svc,
             session_service=session_svc,
