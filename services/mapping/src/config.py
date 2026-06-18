@@ -15,7 +15,7 @@ class Config:
     """Resolved from environment at startup.
 
     - ``expected_token``: bearer token clients must present. If unset, the
-      service accepts any (or no) token. Local-dev fallback.
+      service accepts any (or no) token (intended for local development).
     """
 
     expected_token: str
