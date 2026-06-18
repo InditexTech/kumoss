@@ -15,7 +15,7 @@ read at use time. This keeps the YAML safe to commit (or share in a bug
 report) while real secrets stay in env files / Kubernetes Secrets / a
 secrets manager.
 
-The annotated reference is at ``examples/config.yaml``.
+The annotated yaml configuration file is at ``/config.yaml``.
 """
 
 from __future__ import annotations
@@ -24,7 +24,16 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from src.shared.constants import LLMProvider
+
+
+class ConfigError(ValueError):
+    """Raised when the resolved system configuration is unusable.
+
+    Surfaced at startup.
+    """
 
 
 def _env(name: str, default: str = "") -> str:
@@ -162,16 +171,13 @@ class GitConfig(BaseModel):
     When all three fields resolve at boot, the application writes
     ~/.git-credentials and configures the `store` credential helper so
     subsequent `git push` calls authenticate without prompting. Single-
-    tenant by design (one PAT for all sessions); per-user / per-repo
-    credential forwarding is explicitly out of scope per the spec.
+    tenant by design (one PAT for all sessions)
     """
 
     host: str = ""  # e.g. "github.com", "gitlab.com", "bitbucket.org"
     pat_user_env: str = ""  # env var name holding the username
     pat_token_env: str = ""  # env var name holding the personal access token
 
-    # Commit author identity stamped on every Nebula-generated commit.
-    # Always applied at boot regardless of whether credentials are set —
     # git refuses to create a commit without name + email.
     author_name: str = "Nebula"
     author_email: str = "nebula@noreply.invalid"
@@ -186,7 +192,7 @@ class GitConfig(BaseModel):
 
 
 class SystemConfig(BaseModel):
-    environment: str = "development"  # dev | staging | production label
+    environment: str = "development"  # development | staging | production
 
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
@@ -197,6 +203,74 @@ class SystemConfig(BaseModel):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
+
+    @model_validator(mode="after")
+    def _assert_llm_credentials(self) -> "SystemConfig":
+        """Fail-fast on missing LLM credentials for the selected providers.
+
+        Only the providers actually referenced by ``llm.model`` / ``llm.small_model``
+        are required.
+        """
+        selected: list[str] = []
+        for field, name in (
+            ("model", self.llm.model),
+            ("small_model", self.llm.small_model),
+        ):
+            try:
+                selected.append(LLMProvider[name].value["provider"])
+            except KeyError as e:
+                valid = ", ".join(p.name for p in LLMProvider)
+                raise ConfigError(
+                    f"llm.{field}={name!r} is not a known LLMProvider. Valid: {valid}"
+                ) from e
+
+        missing: list[str] = []
+        if "anthropicBedrock" in selected:
+            if not self.llm.aws_bedrock_access_key_id:
+                missing.append(self.llm.aws_bedrock_access_key_id_env)
+            if not self.llm.aws_bedrock_secret_access_key:
+                missing.append(self.llm.aws_bedrock_secret_access_key_env)
+        if {"anthropicVertex", "google"} & set(selected):
+            # ADC: either GOOGLE_APPLICATION_CREDENTIALS (path to a key file)
+            # or GOOGLE_SA_SECRET (inline JSON) must resolve.
+            if not (
+                self.llm.google_application_credentials or self.llm.google_sa_secret
+            ):
+                missing.append(
+                    f"{self.llm.google_application_credentials_env} "
+                    + f"or {self.llm.google_sa_secret_env}"
+                )
+            if not self.llm.google_vertex_project:
+                missing.append(self.llm.google_vertex_project_env)
+
+        if missing:
+            raise ConfigError(
+                "Missing credentials for selected LLM providers "
+                + f"({', '.join(sorted(set(selected)))}): "
+                + f"set env var(s) {', '.join(missing)}."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _assert_service_tokens(self) -> "SystemConfig":
+        """Every enabled service must have a non-empty bearer token resolved.
+
+        The outbound httpx clients always send ``Authorization: Bearer <token>``
+        and httpx rejects an empty bearer as a malformed header. Catching it
+        here turns a per-request 500 into a clear boot-time failure.
+        """
+        missing: list[str] = []
+        for name in ("notifications", "mapping", "authz", "iac"):
+            svc: ServiceConfig = getattr(self.services, name)
+            if svc.enabled and not svc.token:
+                missing.append(f"services.{name} → ${svc.token_env}")
+        if missing:
+            raise ConfigError(
+                "Enabled services have no bearer token in the environment: "
+                + "; ".join(missing)
+                + ". Set the listed env vars or flip the service to enabled: false."
+            )
+        return self
 
     @classmethod
     def load(cls, config_path: str | None = None) -> "SystemConfig":
@@ -217,4 +291,3 @@ class SystemConfig(BaseModel):
 
 # Module-level singleton used across the application.
 system_config = SystemConfig.load()
-
