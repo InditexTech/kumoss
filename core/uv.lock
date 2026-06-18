@@ -1281,7 +1281,6 @@ dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-sdk" },
-    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "sqlalchemy", extra = ["asyncio"] },
 ]
@@ -1302,7 +1301,6 @@ requires-dist = [
     { name = "opentelemetry-api", specifier = ">=1.36.0" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.36.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.36.0" },
-    { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.0" },
 ]

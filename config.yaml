@@ -47,23 +47,28 @@ llm:
   small_model_temperature: 0.1
   aws_region: "us-west-2"
 
-# Microservice wiring. `endpoint` is the base URL the core calls. The
-# bearer token sent on every request is read from env at use time
-# (default NEBULA_<SERVICE>_TOKEN). Disable a service by flipping
-# `enabled: false`.
+# Microservice wiring. `endpoint` is the base URL the core calls.
+# `token_env` is the name of the env var that holds the bearer token
+# the core sends on every request. Any enabled service whose token_env
+# resolves to an empty value will refuse the core's boot — flip
+# `enabled: false` to skip a service entirely.
 services:
   notifications:
     enabled: true
     endpoint: "http://notifications:8080"
+    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
   mapping:
     enabled: false
     endpoint: "http://mapping:8081"
+    token_env: "NEBULA_MAPPING_TOKEN"
   authz:
     enabled: true
     endpoint: "http://authz:8083"
+    token_env: "NEBULA_AUTHZ_TOKEN"
   iac:
     enabled: true
     endpoint: "http://iac:8082"
+    token_env: "NEBULA_IAC_TOKEN"
 
 # Iteration limits and batch sizes for the core's orchestration loops.
 # Raise carefully — these bound runaway-loop costs.
