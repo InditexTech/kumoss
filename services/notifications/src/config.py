@@ -19,8 +19,7 @@ class Config:
       ``503 Service Unavailable`` from /v1/notify (handy for smoke tests
       against a service that hasn't been wired to a backend yet).
     - ``expected_token``: bearer token clients must present. If unset, the
-      service accepts any (or no) token. This is intended for local
-      development only — production deploys MUST set it.
+      service accepts any (or no) token (intended for local development).
     """
 
     slack_webhook_url: str

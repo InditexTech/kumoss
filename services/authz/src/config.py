@@ -15,7 +15,7 @@ class Config:
     """Resolved from environment at startup.
 
     - ``expected_token``: bearer token clients must present. Empty
-      disables auth (local-dev only).
+      disables auth (intended for local development).
     - ``role_store_path``: JSON file backing the user→roles map. Created
       on first write if missing.
     - ``root_admin_email``: when non-empty, the user with this email is

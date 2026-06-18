@@ -10,7 +10,6 @@ requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.43.25",
     "fastapi[standard]>=0.116.0",
-    "python-dotenv>=1.1.1",
     "httpx[http2]>=0.28.1",
     "deepdiff>=8.4.2",
     "anthropic[vertex]>=0.64.0",

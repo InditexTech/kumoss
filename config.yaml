@@ -2,16 +2,56 @@
 #
 # This file is read by the core when NEBULA_CONFIG points at it (the
 # docker-compose `api` service sets that env var and mounts this file
-# read-only at /etc/nebula/config.yaml). It only contains values needed
-# to make `docker compose up` work out of the box — no secrets. Bearer
-# tokens and webhook URLs are referenced by env-var name and resolved
-# at use time.
+# read-only at /etc/nebula/config.yaml). It carries deployment-tunable
+# knobs — no secrets.
 #
-# To customize, edit this file (e.g., flip `mapping.enabled` to true and
-# point it at a self-hosted mapper) or override per-environment via a
-# docker-compose.override.yml. For the full config schema + defaults, see
-# core/src/shared/config/system_config.py.
+# Secrets live in env vars. The core looks them up by name; the default
+# names (AWS_ACCESS_KEY_ID, GOOGLE_APPLICATION_CREDENTIALS, GIT_TOKEN,
+# NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
+# repeated here. Override only if you need a different env var name —
+# see core/src/shared/config/system_config.py for the `*_env` fields.
+#
+# To customize, edit this file (e.g., flip `services.mapping.enabled` to
+# true and point it at a self-hosted mapper) or override per-environment
+# via a docker-compose.override.yml / your own NEBULA_CONFIG path.
 
+# development | staging | production. Surface only — used in telemetry/log
+# tagging; no behavior gates are keyed on it today.
+environment: "development"
+
+# OIDC issuer settings used by the React frontend when it logs in to the
+# core. Leave blank to disable OIDC auth (dev default).
+oidc:
+  issuer_url: ""
+  client_id: ""
+  audience: ""
+
+# Bootstrap administrator. The address listed here is granted the
+# root-admin role on first run. Leave blank to skip the bootstrap.
+admin:
+  default_root_email: ""
+
+# LLM provider selection.
+#
+# `model` and `small_model` are LLMProvider enum names (see
+# core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
+# HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
+# the name to the full provider/model/region tuple at startup.
+#
+# The core fails fast at boot if the selected providers' credentials
+# (looked up from env vars) are missing.
+llm:
+  model: "SONNET_VERTEX"
+  small_model: "HAIKU_VERTEX"
+  temperature: 0.1
+  small_model_temperature: 0.1
+  aws_region: "us-west-2"
+
+# Microservice wiring. `endpoint` is the base URL the core calls.
+# `token_env` is the name of the env var that holds the bearer token
+# the core sends on every request. Any enabled service whose token_env
+# resolves to an empty value will refuse the core's boot — flip
+# `enabled: false` to skip a service entirely.
 services:
   notifications:
     enabled: true
@@ -30,19 +70,43 @@ services:
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
 
+# Iteration limits and batch sizes for the core's orchestration loops.
+# Raise carefully — these bound runaway-loop costs.
+orchestration:
+  max_drift_reports: 3
+  max_validation_iteration: 5
+  max_tool_chain_executions: 70
+  max_session_events_iteration: 2160
+  drift_group_operations: 8
+
+# Filesystem paths used by the core. `upload_folder` must be writable
+# and (in the docker stack) shared with the IaC service via the
+# `workspaces` volume so both see the same cloned-repo paths.
+paths:
+  upload_folder: "/workspaces"
+
+# OTel telemetry. `collector_url` is a base URL; the OTLP endpoint is
+# computed at use time as `f"{collector_url}v1/traces"`. Phoenix is
+# reachable as `phoenix:6006` on the docker network; the in-code default
+# (http://localhost:6006/) only works when running the core outside docker.
+telemetry:
+  collector_url: "http://phoenix:6006/"
+  otel_attribute_count_limit: 1024
+  otel_console_exporter: false
+
+# Browser-facing CORS origins. The docker-compose stack serves the
+# frontend via nginx on :80, so http://localhost is the default. Add
+# http://localhost:5173 if you run the Vite dev server outside docker
+# and point it at the API container.
 http:
   cors_origins:
     - "http://localhost"
 
-# Phoenix is reachable as `phoenix:6006` on the docker network. The default
-# (http://localhost:6006/) only works when running the core outside docker.
-telemetry:
-  collector_url: "http://phoenix:6006/"
-
-# Git push credentials. Names of env vars holding the actual user/PAT;
-# leave host/pat_*_env empty to disable (push will then need mounted
+# Git push host + author. Credentials (username + PAT) are read from
+# env at use time (default GIT_USER / GIT_TOKEN). Leave `host` blank to
+# disable push-credential setup (push will then need mounted
 # ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
 git:
   host: "github.com"
-  pat_user_env: "GIT_USER"
-  pat_token_env: "GIT_TOKEN"
+  author_name: "Nebula"
+  author_email: "nebula@noreply.invalid"
