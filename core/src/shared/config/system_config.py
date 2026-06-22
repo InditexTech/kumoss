@@ -168,16 +168,16 @@ class HttpConfig(BaseModel):
 class GitConfig(BaseModel):
     """Credentials for `git push` against the remote hosting user repos.
 
-    When `host` is set and the env vars named by `pat_user_env` /
+    When `provider` is set and the env vars named by `pat_user_env` /
     `pat_token_env` resolve to non-empty values at boot, the application
     writes ~/.git-credentials and configures the `store` credential
     helper so subsequent `git push` calls authenticate without prompting.
-    Leave `host` empty to disable the credential setup entirely (push
+    Leave `provider` empty to disable the credential setup entirely (push
     will then need mounted ~/.git-credentials, SSH keys, or PAT-embedded
     repo_uri). Single-tenant by design (one PAT for all sessions).
     """
 
-    host: str = ""  # e.g. "github.com", "gitlab.com", "bitbucket.org"
+    provider: str = "github.com"  # e.g. "github.com", "gitlab.com", "bitbucket.org"
     pat_user_env: str = "GIT_USER"  # env var name holding the username
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 

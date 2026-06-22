@@ -6,11 +6,11 @@
 
 Sets the global commit author identity (always) and, when credentials
 are available, writes ~/.git-credentials and enables git's `store`
-credential helper so `git push` against the configured host
+credential helper so `git push` against the configured provider
 authenticates without prompting. Idempotent — safe to call repeatedly.
 
 Reads the user/token from the env vars named in `system_config.git`. If
-any of host/user/token is empty, logs a warning and skips the
+any of provider/user/token is empty, logs a warning and skips the
 credential write (push operations will fail at runtime, same as before).
 The author identity is set regardless — git refuses to create a commit
 without name + email.
@@ -38,14 +38,14 @@ def configure_git_credentials(home: Path | None = None) -> bool:
     """
     _set_author_identity()
 
-    host = system_config.git.host
+    provider = system_config.git.provider
     user = system_config.git.pat_user
     token = system_config.git.pat_token
 
-    if not host or not user or not token:
+    if not provider or not user or not token:
         logging.warning(
             "Git credentials not configured "
-            + f"(host={'set' if host else 'unset'}, "
+            + f"(provider={'set' if provider else 'unset'}, "
             + f"user={'set' if user else 'unset'}, "
             + f"token={'set' if token else 'unset'}). "
             + "`git push` will fail unless the operator provides credentials "
@@ -56,14 +56,14 @@ def configure_git_credentials(home: Path | None = None) -> bool:
 
     home = home or Path.home()
     creds_file = home / ".git-credentials"
-    _ = creds_file.write_text(f"https://{user}:{token}@{host}\n")
+    _ = creds_file.write_text(f"https://{user}:{token}@{provider}\n")
     creds_file.chmod(0o600)
 
     _ = _cli.run(
         ["git", "config", "--global", "credential.helper", "store"],
         check=True,
     )
-    logging.info(f"Git credentials configured for {host}")
+    logging.info(f"Git credentials configured for {provider}")
     return True
 
 

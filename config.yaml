@@ -62,7 +62,7 @@ services:
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
   authz:
-    enabled: true
+    enabled: false
     endpoint: "http://authz:8083"
     token_env: "NEBULA_AUTHZ_TOKEN"
   iac:
@@ -102,11 +102,11 @@ http:
   cors_origins:
     - "http://localhost"
 
-# Git push host + author. Credentials (username + PAT) are read from
-# env at use time (default GIT_USER / GIT_TOKEN). Leave `host` blank to
+# Git push provider + author. Credentials (username + PAT) are read from
+# env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
 # disable push-credential setup (push will then need mounted
 # ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
 git:
-  host: "github.com"
+  provider: "github.com" # github.com | gitlab.com | dev.azure.com
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
