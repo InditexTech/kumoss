@@ -7,22 +7,22 @@ name: nebula
 # for the OSS quickstart where most knobs have safe defaults.
 
 services:
-  proxy:
-    image: nebula-nginx:latest
-    restart: on-failure
-    build:
-      context: ./frontend
-      dockerfile: docker/local.nginx.Dockerfile
-    ports:
-      - "80:80"
-    expose:
-      - 80
-    depends_on:
-      - api
-      - webapp
-      - phoenix
-    networks:
-      - bridge-network
+  # proxy:
+  #   image: nebula-nginx:latest
+  #   restart: on-failure
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: docker/local.nginx.Dockerfile
+  #   ports:
+  #     - "80:80"
+  #   expose:
+  #     - 80
+  #   depends_on:
+  #     - api
+  #     - webapp
+  #     - phoenix
+  #   networks:
+  #     - bridge-network
 
   api:
     image: nebula-fastapi:latest
@@ -40,7 +40,7 @@ services:
       # below; edit it (or override via docker-compose.override.yml) to
       # customize.
       - NEBULA_CONFIG=/etc/nebula/config.yaml
-      - PHOENIX_HOST=http://phoenix:6006/
+      # - PHOENIX_HOST=http://phoenix:6006/
       # Cloned repos go on the shared `workspaces` volume so the
       # IaC service can read the same paths.
       # - NEBULA_UPLOAD_FOLDER=/workspaces
@@ -113,26 +113,23 @@ services:
     networks:
       - bridge-network
 
-  webapp:
-    image: nebula-web:latest
-    build:
-      context: ./frontend
-      dockerfile: ./docker/local.vite.Dockerfile
-    ports:
-      - "5173"
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend/user_portal
-          target: /user_portal
-    networks:
-      - bridge-network
+  # webapp:
+  #   image: nebula-web:latest
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: ./docker/local.vite.Dockerfile
+  #   ports:
+  #     - "5173"
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./frontend/user_portal
+  #         target: /user_portal
+  #   networks:
+  #     - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:17.6.0
-    env_file:
-      - path: ./core/.env
-        required: false
+    image: arizephoenix/phoenix:17.10.0
     ports:
       - "6006"
       - "4317"

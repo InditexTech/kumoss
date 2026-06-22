@@ -45,21 +45,21 @@ def configure_git_credentials(home: Path | None = None) -> bool:
     if not host or not user or not token:
         logging.warning(
             "Git credentials not configured "
-            f"(host={'set' if host else 'unset'}, "
-            f"user={'set' if user else 'unset'}, "
-            f"token={'set' if token else 'unset'}). "
-            "`git push` will fail unless the operator provides credentials "
-            "via mounted SSH keys, a pre-populated ~/.git-credentials, or a "
-            "PAT-embedded repo_uri."
+            + f"(host={'set' if host else 'unset'}, "
+            + f"user={'set' if user else 'unset'}, "
+            + f"token={'set' if token else 'unset'}). "
+            + "`git push` will fail unless the operator provides credentials "
+            + "via mounted SSH keys, a pre-populated ~/.git-credentials, or a "
+            + "PAT-embedded repo_uri."
         )
         return False
 
     home = home or Path.home()
     creds_file = home / ".git-credentials"
-    creds_file.write_text(f"https://{user}:{token}@{host}\n")
+    _ = creds_file.write_text(f"https://{user}:{token}@{host}\n")
     creds_file.chmod(0o600)
 
-    _cli.run(
+    _ = _cli.run(
         ["git", "config", "--global", "credential.helper", "store"],
         check=True,
     )
@@ -71,6 +71,6 @@ def _set_author_identity() -> None:
     """Stamp the global git user.name / user.email so commits are valid."""
     name = system_config.git.author_name
     email = system_config.git.author_email
-    _cli.run(["git", "config", "--global", "user.name", name], check=True)
-    _cli.run(["git", "config", "--global", "user.email", email], check=True)
+    _ = _cli.run(["git", "config", "--global", "user.name", name], check=True)
+    _ = _cli.run(["git", "config", "--global", "user.email", email], check=True)
     logging.info(f"Git author identity configured: {name} <{email}>")
