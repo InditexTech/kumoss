@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.infrastructure.filesystem.git_credentials import configure_git_credentials
+from src.infrastructure.filesystem import configure_git_credentials
 
 
 def _stub_cfg(
@@ -44,8 +44,12 @@ class TestConfigureGitCredentials(unittest.TestCase):
 
     def test_skips_creds_when_host_missing_but_sets_author(self):
         with (
-            patch("src.infrastructure.filesystem.git_credentials.system_config") as cfg,
-            patch("src.infrastructure.filesystem.git_credentials._cli.run") as mock_run,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials.system_config"
+            ) as cfg,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials._cli.run"
+            ) as mock_run,
         ):
             _stub_cfg(cfg, host="", user="u", token="t")
             result = configure_git_credentials(home=self.home)
@@ -71,8 +75,10 @@ class TestConfigureGitCredentials(unittest.TestCase):
 
     def test_skips_creds_when_user_env_unset(self):
         with (
-            patch("src.infrastructure.filesystem.git_credentials.system_config") as cfg,
-            patch("src.infrastructure.filesystem.git_credentials._cli.run"),
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials.system_config"
+            ) as cfg,
+            patch("src.infrastructure.filesystem.git.git_credentials._cli.run"),
         ):
             _stub_cfg(cfg, host="github.com", user="", token="t")
             result = configure_git_credentials(home=self.home)
@@ -80,8 +86,10 @@ class TestConfigureGitCredentials(unittest.TestCase):
 
     def test_skips_creds_when_token_env_unset(self):
         with (
-            patch("src.infrastructure.filesystem.git_credentials.system_config") as cfg,
-            patch("src.infrastructure.filesystem.git_credentials._cli.run"),
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials.system_config"
+            ) as cfg,
+            patch("src.infrastructure.filesystem.git.git_credentials._cli.run"),
         ):
             _stub_cfg(cfg, host="github.com", user="u", token="")
             result = configure_git_credentials(home=self.home)
@@ -89,8 +97,12 @@ class TestConfigureGitCredentials(unittest.TestCase):
 
     def test_writes_creds_file_when_all_set(self):
         with (
-            patch("src.infrastructure.filesystem.git_credentials.system_config") as cfg,
-            patch("src.infrastructure.filesystem.git_credentials._cli.run") as mock_run,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials.system_config"
+            ) as cfg,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials._cli.run"
+            ) as mock_run,
         ):
             _stub_cfg(cfg, host="github.com", user="alice", token="ghp_secret")
             result = configure_git_credentials(home=self.home)
@@ -124,8 +136,12 @@ class TestConfigureGitCredentials(unittest.TestCase):
 
     def test_overridable_author_identity(self):
         with (
-            patch("src.infrastructure.filesystem.git_credentials.system_config") as cfg,
-            patch("src.infrastructure.filesystem.git_credentials._cli.run") as mock_run,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials.system_config"
+            ) as cfg,
+            patch(
+                "src.infrastructure.filesystem.git.git_credentials._cli.run"
+            ) as mock_run,
         ):
             _stub_cfg(
                 cfg,

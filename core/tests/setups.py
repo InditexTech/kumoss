@@ -8,7 +8,7 @@ from contextvars import Token
 
 from src.domains.services.tracer_service import TracerService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem import GitUtils
 from src.shared.logger import logging
 from tests.settings import Settings
 

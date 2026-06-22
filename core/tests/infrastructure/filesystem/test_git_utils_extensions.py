@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem import GitUtils
 
 _TMP_DIR = Path(tempfile.gettempdir())
 

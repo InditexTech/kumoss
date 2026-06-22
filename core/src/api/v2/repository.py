@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Body, HTTPException
 
 from src.domains.services.database_service import DatabaseService
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem import GitUtils
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 from src.shared.utils.repo_uri import derive_project_name

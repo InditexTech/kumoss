@@ -19,8 +19,7 @@ from src.domains.services import (
 from src.domains.services.task_split_service import TaskSplitService
 from src.infrastructure.external.gemini_web_search import GeminiWebSearch
 from src.infrastructure.tools.tool_registry import ToolRegistry
-from src.infrastructure.filesystem.file_system import FileSystemUtils
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem import FileSystemUtils, GitUtils
 from src.infrastructure.templates.factory import TemplateFactory
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory

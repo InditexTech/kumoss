@@ -19,7 +19,7 @@ from src.api.v2 import (
     mapping,
 )
 from src.infrastructure.database import db
-from src.infrastructure.filesystem.git_credentials import configure_git_credentials
+from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging

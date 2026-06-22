@@ -24,7 +24,7 @@ from src.application.exceptions import (
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
-from src.infrastructure.filesystem.workspace import WorkspaceService, InvalidRepoURI
+from src.infrastructure.filesystem import WorkspaceService, InvalidRepoURI
 from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging

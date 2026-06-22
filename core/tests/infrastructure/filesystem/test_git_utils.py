@@ -6,8 +6,7 @@
 import unittest
 from pathlib import Path
 
-from src.infrastructure.filesystem.git_utils import GitUtils
-from src.infrastructure.filesystem.file_system import FileSystemUtils
+from src.infrastructure.filesystem import FileSystemUtils, GitUtils
 from tests.setups import setup_repository, clean_resources
 from tests.settings import Settings
 from src.shared.logger import logging

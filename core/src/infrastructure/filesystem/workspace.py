@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import UUID
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
 from src.shared.logger import logging
 
