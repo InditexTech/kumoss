@@ -39,9 +39,10 @@ class GitHub(IGitProvider):
         description: str,
     ) -> PullRequestDTO:
         owner, repository = self.__parse_url(repository_url)
+        url = f"https://api.github.com/repos/{owner}/{repository}/pulls"
         try:
             response = await self.__client.post(
-                url=f"https://api.github.com/repos/{owner}/{repository}/pulls",
+                url=url,
                 content=json.dumps(
                     {
                         "title": title,
@@ -60,7 +61,11 @@ class GitHub(IGitProvider):
             raise ExceptionHandler(message="PR creation timeout", error_code=504)
 
         p_response = json.loads(response.content)
-        return PullRequestDTO(p_response["number"], p_response["state"])
+        return PullRequestDTO(
+            id=p_response["number"],
+            url=url,
+            status=p_response["state"],
+        )
 
     @override
     async def complete_pr(self, repository_url: str, id: int) -> None:

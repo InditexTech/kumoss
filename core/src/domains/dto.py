@@ -90,7 +90,8 @@ class TerraformValidationDTO:
 
 @dataclass
 class PullRequestDTO:
-    pr_id: int
+    id: int
+    url: str
     status: str
 
 

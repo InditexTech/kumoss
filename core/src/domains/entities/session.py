@@ -11,6 +11,7 @@ from src.domains.dto import SessionPayloadDTO
 from src.shared.constants import SessionStatus
 from src.shared.logger import logging
 
+# TODO: remove in-memory sessions
 _SESSIONS: dict[str, "Session"] = {}
 
 

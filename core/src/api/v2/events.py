@@ -14,9 +14,8 @@ from fastapi.responses import StreamingResponse
 from src.domains.entities import Session
 from src.domains.services import SessionService
 from src.domains.dto import SessionPayloadDTO
-from src.application.factory import HandlerFactory
 from src.shared.config import system_config
-from src.shared.constants import SessionStatus, LLMProvider
+from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -24,8 +23,6 @@ router = APIRouter(
     prefix="/events",
     tags=["Events Subscription"],
 )
-
-_LLM_ADAPTER = HandlerFactory.get_llm_adapter(LLMProvider.GEMINI_FLASH_LITE, 0.7)
 
 
 @router.get(
@@ -49,14 +46,12 @@ async def subscribe_events(
 
     Behavior:
     - Polls the session message queue every 5 seconds
-    - Falls back to LLM-generated messages when queue is empty (10s interval)
     - Automatically terminates when session reaches COMPLETED or FAILED status
     - Closes stream when max iterations reached (session is preserved)
     - Messages are sanitized by removing double quotes to prevent JSON parsing issues
 
     Note:
     - Connection remains open until session completion or failure
-    - Uses a small LLM provider for fallback messages
     """
     session: Session = get_session(session_id)
 
@@ -72,7 +67,6 @@ async def subscribe_events(
             i += 1
             session_status = session.status
 
-            # Don't send payload to client as it breaks JSON parsing
             payload = {
                 "status_msg": session_status.status.name,
                 "detail": {
@@ -152,7 +146,7 @@ def session_payload(
         204: {"description": "The session has been successfully deleted"},
         404: {
             "description": "The requested content has already been permanently deleted from server, "
-            "with no forwarding address",
+            + "with no forwarding address",
             "content": {
                 "application/json": {
                     "example": {"detail": "Session id 1234 not found."}

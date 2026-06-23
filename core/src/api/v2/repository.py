@@ -6,23 +6,41 @@ from typing import Annotated
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Body, HTTPException
 
+from src.application.factory import HandlerFactory
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.filesystem import GitUtils
+from src.shared.config import system_config
+from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
-from src.shared.logger import logging
-from src.shared.utils.repo_uri import derive_project_name
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
+_LLM_ADAPTER = HandlerFactory.get_llm_adapter(
+    system_config.llm.small_model, system_config.llm.small_model_temperature
+)
+
 
 @router.patch(
-    path="/approve_pr", summary="merge the PR with ID `id` into the default branch"
+    path="/merge_pr", summary="merge the PR with ID `id` into the default branch"
 )
 async def complete_pr(
-    id: Annotated[int, Body(description="Pull Request ID.", embed=True)],
+    session_id: Annotated[
+        str,
+        Body(
+            description="Session id whose branch should be turned into a PR.",
+            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            embed=True,
+        ),
+    ],
+    id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
     try:
-        _ = await GitUtils().complete_pr(id)
+        session = await DatabaseService.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=404, detail=f"Session {session_id} not found."
+            )
+        await GitUtils(system_config.git.provider).complete_pr(session.repo_uri, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=201)
@@ -35,44 +53,37 @@ async def create_pr(
         Body(
             description="Session id whose branch should be turned into a PR.",
             pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            embed=True,
         ),
     ],
-    q: Annotated[
-        str, Body(description="PR title/description seed (the user's prompt)")
-    ],
 ) -> JSONResponse:
-    session = await DatabaseService.load_session(session_id)
-    if session is None:
+    session = await DatabaseService.get_session(session_id)
+    if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
-    if session.status != "active":
+    if session.status != SessionStatus.REPORT.value:
         raise HTTPException(
             status_code=409, detail=f"Session {session_id} is {session.status}."
         )
 
     try:
-        pr_details = await GitUtils(branch=session.branch_name).create_pr(
-            description=q,
-            repository_name=derive_project_name(session.repo_uri),
-            target_branch="master",
+        pr_details = await GitUtils(system_config.git.provider).create_pr(
+            repository_url=session.repo_uri,
+            head_branch=session.branch_name,
+            title="TODO",
+            # title=session.history.get_first_turn.user, # session history property getter
+            description=_LLM_ADAPTER.inference(
+                "transform the following data into makdown format"
+                + f" for a PR descrition: {session.last_payload}"
+            ),
         )
+        await DatabaseService.set_pull_request_url(session_id, pr_details.url)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
-    # Persist the PR URL when the DTO exposes one; PullRequestDTO currently
-    # carries only pr_id + status (no URL field in the OSS reference).  We
-    # check defensively so forge-specific subclasses that add a `pr_url`
-    # attribute are handled automatically.
-    pr_url = getattr(pr_details, "pr_url", None)
-    if pr_url:
-        await DatabaseService.set_pull_request_url(session_id, pr_url)
-    else:
-        logging.warning(
-            f"PullRequestDTO for session {session_id} has no pr_url; "
-            "pull_request_url column left NULL. "
-            "Extend PullRequestDTO with a pr_url field in your forge integration."
-        )
-    await DatabaseService.mark_completed(session_id)
+    # TODO: define when a session is completed
+    # await DatabaseService.mark_completed(session_id)
+
     return JSONResponse(
-        content={"id": pr_details.pr_id, "status": pr_details.status},
+        content={"id": pr_details.id, "status": pr_details.status},
         status_code=201,
     )

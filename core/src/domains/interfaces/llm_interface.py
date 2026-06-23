@@ -27,7 +27,7 @@ class ILLMProvider(ABC):
     async def inference(
         self,
         msg: str | list[ToolResultDTO],
-        system_prompt: str,
+        system_prompt: str = None,
         tools: list[ToolDefinitionDTO] = None,
         history: History = None,
         prefill: str = None,
