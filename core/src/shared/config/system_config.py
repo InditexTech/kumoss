@@ -199,7 +199,6 @@ class GitConfig(BaseModel):
 
 class SystemConfig(BaseModel):
     environment: str = "development"  # development | staging | production
-
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
@@ -279,7 +278,7 @@ class SystemConfig(BaseModel):
         return self
 
     @classmethod
-    def load(cls, config_path: str | None = None) -> "SystemConfig":
+    def load(cls, config_path: str | None = None) -> SystemConfig:
         """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before

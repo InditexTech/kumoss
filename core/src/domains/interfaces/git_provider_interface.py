@@ -20,7 +20,7 @@ class IGitProvider(ABC):
         """Create a Pull Request
 
         Args:
-            repository_url: The full repository URL
+            repository_url: The full repository URL.
             head: The name of the branch where your changes are implemented.
             base: The name of the branch you want the changes pulled into.
             title: The title of the new pull request.
@@ -32,6 +32,11 @@ class IGitProvider(ABC):
         pass
 
     @abstractmethod
-    async def complete_pr(self, owner: str, repository: str, id: int) -> None:
-        """Complete or accept a Pull Request ID"""
+    async def complete_pr(self, repository_url: str, id: int) -> None:
+        """Complete or accept a Pull Request ID
+
+        Args:
+            repository_url: The full repository URL.
+            id: The PR unique identifier.
+        """
         pass

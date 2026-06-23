@@ -63,7 +63,8 @@ class GitHub(IGitProvider):
         return PullRequestDTO(p_response["number"], p_response["state"])
 
     @override
-    async def complete_pr(self, owner: str, repository: str, id: int) -> None:
+    async def complete_pr(self, repository_url: str, id: int) -> None:
+        owner, repository = self.__parse_url(repository_url)
         try:
             approve = await self.__client.post(
                 url=f"https://api.github.com/repos/{owner}/{repository}/pulls/{id}/reviews",

@@ -58,14 +58,23 @@ class IGit(ABC):
     @abstractmethod
     async def create_pr(
         self,
+        repository_url: str,
+        head_branch: str,
+        title: str,
         description: str,
-        repository_name: str,
-        target_branch: str,
     ) -> PullRequestDTO:
+        """Create a Pull Request
+
+        Args:
+            repository_url: The full repository URL.
+            head_branch: The branch where the changes are implemented.
+            title: The PR title.
+            description: The PR description.
+        """
         pass
 
     @abstractmethod
-    async def complete_pr(self, pr_id: int) -> bool:
+    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
         pass
 
     @abstractmethod
