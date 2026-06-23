@@ -29,7 +29,7 @@ from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
     SessionStatus,
-    TracerProviderEnum,
+    TracerProject,
     PromptsLibrary,
 )
 from src.shared.exceptions import ExceptionHandler
@@ -71,11 +71,11 @@ class TerraformDriftHandler:
         hist = History(history)
 
         async def background_task():
-            provider = TracerProviderEnum.PRO_TERRAFORM_DRIFT
+            provider = TracerProject.PRO_TERRAFORM_DRIFT
             if system_config.environment == "development":
-                provider = TracerProviderEnum.DEV_TERRAFORM_DRIFT
+                provider = TracerProject.DEV_TERRAFORM_DRIFT
             elif system_config.environment == "staging":
-                provider = TracerProviderEnum.PRE_TERRAFORM_DRIFT
+                provider = TracerProject.PRE_TERRAFORM_DRIFT
 
             branch = await self.__setup_svc.setup_project()
             project = derive_project_name(ctx.repo_uri)

@@ -106,7 +106,11 @@ http:
 # env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
 # disable push-credential setup (push will then need mounted
 # ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
+#
+# `provider` is GitProviderName enum names (see
+# core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
+# AZURE_DEVOPS.
 git:
-  provider: "github.com" # github.com | gitlab.com | dev.azure.com
+  provider: "GITHUB"
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"

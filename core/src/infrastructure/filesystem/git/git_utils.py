@@ -10,8 +10,8 @@ from typing import Literal, override
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
-from src.shared.config import system_config
 from src.shared.exceptions import ExceptionHandler
+from src.shared.config import system_config
 from src.shared.logger import logging
 
 

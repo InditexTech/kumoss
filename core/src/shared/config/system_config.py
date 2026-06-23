@@ -177,7 +177,10 @@ class GitConfig(BaseModel):
     repo_uri). Single-tenant by design (one PAT for all sessions).
     """
 
-    provider: str = "github.com"  # e.g. "github.com", "gitlab.com", "bitbucket.org"
+    # `provider` is GitProviderName enum names (see
+    # core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
+    # AZURE_DEVOPS.
+    provider: str = "GITHUB"
     pat_user_env: str = "GIT_USER"  # env var name holding the username
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 

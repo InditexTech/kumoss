@@ -7,7 +7,8 @@ from enum import Enum, unique
 
 @unique
 class LLMProvider(Enum):
-    # https://docs.anthropic.com/en/docs/about-claude/models#model-comparison
+    """All supported LLM models and providers"""
+
     HAIKU_BEDROCK = {
         "model_id": "anthropic.claude-3-5-haiku-20241022-v1:0",
         "max_input_tokens": 200_000,
@@ -68,6 +69,8 @@ class LLMProvider(Enum):
 
 @unique
 class Embeddings(Enum):
+    """(DEPRECATED) All supported embedding models and providers"""
+
     OPENAI_LARGE_3 = {
         "model": "text-embedding-3-large",
         "output_dimension": 3_072,
@@ -88,9 +91,9 @@ class TemplateProvider(Enum):
 
 
 @unique
-class TracerProviderEnum(Enum):
-    """Defines all possible tracer providers.
-    Note: a tracer provider is defined as a project in Phoenix Collector
+class TracerProject(Enum):
+    """Defines all possible tracer projects.
+    Note: a project in Phoenix is defined as a group of traces
     """
 
     DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
@@ -103,6 +106,8 @@ class TracerProviderEnum(Enum):
 
 @unique
 class SessionStatus(Enum):
+    """All possible Session states"""
+
     STARTED = "started"
     FILTERING = "filtering"
     GENERATING = "generating"
@@ -144,3 +149,11 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+
+
+@unique
+class GitProviderName(Enum):
+    """Defines all the supported git providers"""
+
+    GITHUB = "github.com"
+    AZURE_DEVOPS = "dev.azure.com"

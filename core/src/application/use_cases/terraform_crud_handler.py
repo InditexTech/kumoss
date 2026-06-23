@@ -22,7 +22,7 @@ from src.domains.services import (
 from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.config import system_config
-from src.shared.constants import SessionStatus, TracerProviderEnum, PromptsLibrary
+from src.shared.constants import SessionStatus, TracerProject, PromptsLibrary
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 from src.shared.utils.repo_uri import derive_project_name
@@ -59,11 +59,11 @@ class TerraformCRUDHandler:
         hist = History(history)
 
         async def background_task():
-            provider = TracerProviderEnum.PRO_TERRAFORM_DAY2
+            provider = TracerProject.PRO_TERRAFORM_DAY2
             if system_config.environment == "development":
-                provider = TracerProviderEnum.DEV_TERRAFORM_DAY2
+                provider = TracerProject.DEV_TERRAFORM_DAY2
             elif system_config.environment == "staging":
-                provider = TracerProviderEnum.PRE_TERRAFORM_DAY2
+                provider = TracerProject.PRE_TERRAFORM_DAY2
 
             branch = await self.__setup_svc.setup_project()
             project = derive_project_name(ctx.repo_uri)

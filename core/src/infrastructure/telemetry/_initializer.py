@@ -14,22 +14,22 @@ from openinference.semconv.resource import ResourceAttributes
 
 from src.shared.config import system_config
 from src.infrastructure.exceptions import TracerProviderError
-from src.shared.constants import TracerProviderEnum
+from src.shared.constants import TracerProject
 from src.shared.logger import logging
 
 
 class ProvidersInitializer:
     def __init__(self):
-        self.__providers: dict[TracerProviderEnum, TracerProvider] = {}
+        self.__providers: dict[TracerProject, TracerProvider] = {}
         self.__init_providers()
         logging.debug("Tracer providers initialized successfully")
 
     @property
-    def providers(self) -> dict[TracerProviderEnum, TracerProvider]:
+    def providers(self) -> dict[TracerProject, TracerProvider]:
         return self.__providers
 
     def __init_providers(self) -> None:
-        for provider_name in TracerProviderEnum:
+        for provider_name in TracerProject:
             resource = Resource(
                 attributes={ResourceAttributes.PROJECT_NAME: provider_name.value}
             )
@@ -53,10 +53,10 @@ class ProvidersInitializer:
             self.__providers[provider_name] = tracer_provider
 
 
-_PROVIDERS: dict[TracerProviderEnum, TracerProvider] = ProvidersInitializer().providers
+_PROVIDERS: dict[TracerProject, TracerProvider] = ProvidersInitializer().providers
 
 
-def get_tracer(tracer_name: TracerProviderEnum) -> Tracer:
+def get_tracer(tracer_name: TracerProject) -> Tracer:
     provider = _PROVIDERS.get(tracer_name)
     if not provider:
         raise TracerProviderError(
