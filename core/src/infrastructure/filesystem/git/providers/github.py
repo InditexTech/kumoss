@@ -32,13 +32,13 @@ class GitHub(IGitProvider):
     @override
     async def create_pr(
         self,
-        owner: str,
-        repository: str,
+        repository_url: str,
         head: str,
         base: str,
         title: str,
         description: str,
     ) -> PullRequestDTO:
+        owner, repository = self.__parse_url(repository_url)
         try:
             response = await self.__client.post(
                 url=f"https://api.github.com/repos/{owner}/{repository}/pulls",
@@ -80,3 +80,14 @@ class GitHub(IGitProvider):
             )
         except httpx.TimeoutException:
             raise ExceptionHandler(message="Complete PR timeout", error_code=504)
+
+    def __parse_url(self, repository_url: str) -> tuple[str, str]:
+        if repository_url.find("https://") != -1:
+            repository_url = repository_url[len("https://") :]
+        parts = repository_url.split("/")
+        if parts[0] != "github.com":
+            raise ExceptionHandler(
+                message=f"Malformed repository URL '{repository_url}'",
+                error_code=400,
+            )
+        return parts[1], parts[2]
