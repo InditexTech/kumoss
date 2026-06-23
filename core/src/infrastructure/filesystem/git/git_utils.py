@@ -58,12 +58,9 @@ class GitUtils(IGit):
         repo_url: str,
         repository_name: str,
         branch: str | None = None,
-        depth: int | None = None,
         create_branch: bool = False,
     ) -> bool:
-        cmd = ["git", "clone"]
-        if depth is not None:
-            cmd.extend(["--depth", str(depth)])
+        cmd = ["git", "clone", "--depth", "1"]
         if branch and not create_branch:
             cmd.extend(["--branch", branch])
         cmd.extend([repo_url, repository_name])

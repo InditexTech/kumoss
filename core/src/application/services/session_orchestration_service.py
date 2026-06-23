@@ -38,7 +38,7 @@ class SessionOrchestrationService:
     ) -> SessionContext:
         sid = uuid4()
         branch = self._new_branch_name()
-        await DatabaseService.start_session(
+        _ = await DatabaseService.start_session(
             session_id=sid,
             user_id=request.user_id,
             repo_uri=request.repo_uri,
