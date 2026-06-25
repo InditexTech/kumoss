@@ -87,6 +87,7 @@ class GitHub(IGitProvider):
             raise ExceptionHandler(message="Complete PR timeout", error_code=504)
 
     def __parse_url(self, repository_url: str) -> tuple[str, str]:
+        repository_url = repository_url.lower()
         if repository_url.find("https://") != -1:
             repository_url = repository_url[len("https://") :]
         parts = repository_url.split("/")
@@ -95,4 +96,4 @@ class GitHub(IGitProvider):
                 message=f"Malformed repository URL '{repository_url}'",
                 error_code=400,
             )
-        return parts[1], parts[2] if parts[2][-4:].find(".git") == -1 else parts[2][:-4]
+        return parts[1], parts[2].rstrip("/").removesuffix(".git")

@@ -2,9 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from functools import cache
 from src.domains.interfaces.git_provider_interface import IGitProvider
 from src.infrastructure.filesystem.git.providers.github import GitHub
 from src.shared.constants import GitProviderName
+
+
+# lazyly initialize singleton (git-credentials are read at runtime)
+@cache
+def _github() -> GitHub:
+    return GitHub()
 
 
 class GitProviderFactory:
@@ -12,12 +19,8 @@ class GitProviderFactory:
         self.__provider = provider
 
     def get(self) -> IGitProvider:
-        match self.__provider.name:
-            case "GITHUB":
-                return _git
+        match self.__provider:
+            case GitProviderName.GITHUB:
+                return _github()
             case _:
                 raise NotImplementedError()
-
-
-# singleton
-_git = GitHub()
