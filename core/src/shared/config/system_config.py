@@ -24,9 +24,9 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import LLMProvider
+from src.shared.constants import GitProviderName, LLMProvider
 
 
 class ConfigError(ValueError):
@@ -70,8 +70,8 @@ class LlmConfig(BaseModel):
     # core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
     # HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
     # the name to the full provider/model/region tuple at startup.
-    model: str = "SONNET_VERTEX"
-    small_model: str = "HAIKU_VERTEX"
+    model: LLMProvider = LLMProvider.SONNET_VERTEX
+    small_model: LLMProvider = LLMProvider.HAIKU_VERTEX
     temperature: float = 0.1
     small_model_temperature: float = 0.1
 
@@ -81,6 +81,17 @@ class LlmConfig(BaseModel):
     google_application_credentials_env: str = "GOOGLE_APPLICATION_CREDENTIALS"
     google_sa_secret_env: str = "GOOGLE_SA_SECRET"
     google_vertex_project_env: str = "GOOGLE_VERTEX_ID"
+
+    @field_validator("model", "small_model", mode="before")
+    @classmethod
+    def _coerce_model(cls, v: str | LLMProvider):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return LLMProvider[v]
+            except KeyError:
+                return LLMProvider(v)
+        return v
 
     @property
     def aws_bedrock_access_key_id(self) -> str:
@@ -180,7 +191,7 @@ class GitConfig(BaseModel):
     # `provider` is GitProviderName enum names (see
     # core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
     # AZURE_DEVOPS.
-    provider: str = "GITHUB"
+    provider: GitProviderName = GitProviderName.GITHUB
     pat_user_env: str = "GIT_USER"  # env var name holding the username
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 
@@ -196,6 +207,17 @@ class GitConfig(BaseModel):
     def pat_token(self) -> str:
         return _env(self.pat_token_env)
 
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _coerce_provider(cls, v: str | GitProviderName):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return GitProviderName[v]
+            except KeyError:
+                return GitProviderName(v)
+        return v
+
 
 class SystemConfig(BaseModel):
     environment: str = "development"  # development | staging | production
@@ -210,7 +232,7 @@ class SystemConfig(BaseModel):
     git: GitConfig = Field(default_factory=GitConfig)
 
     @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> "SystemConfig":
+    def _assert_llm_credentials(self) -> SystemConfig:
         """Fail-fast on missing LLM credentials for the selected providers.
 
         Only the providers actually referenced by ``llm.model`` / ``llm.small_model``

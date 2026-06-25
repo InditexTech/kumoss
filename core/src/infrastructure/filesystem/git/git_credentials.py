@@ -38,7 +38,7 @@ def configure_git_credentials(home: Path | None = None) -> bool:
     """
     _set_author_identity()
 
-    provider = system_config.git.provider
+    provider = system_config.git.provider.value
     user = system_config.git.pat_user
     token = system_config.git.pat_token
 

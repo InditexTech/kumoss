@@ -14,6 +14,10 @@ class GitProviderFactory:
     def get(self) -> IGitProvider:
         match self.__provider.name:
             case "GITHUB":
-                return GitHub()
+                return _git
             case _:
                 raise NotImplementedError()
+
+
+# singleton
+_git = GitHub()

@@ -31,8 +31,10 @@ class WorkspaceService(IWorkspace):
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:
+
         git = GitUtils(
-            git_provider=system_config.git.provider, cwd=Path(tempfile.gettempdir())
+            git_provider=system_config.git.provider,
+            cwd=Path(tempfile.gettempdir()),
         )
         if not await git.ls_remote(repo_uri):
             msg = git.error_msg or f"Cannot reach repository: {repo_uri}"

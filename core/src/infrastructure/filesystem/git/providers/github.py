@@ -39,10 +39,9 @@ class GitHub(IGitProvider):
         description: str,
     ) -> PullRequestDTO:
         owner, repository = self.__parse_url(repository_url)
-        url = f"https://api.github.com/repos/{owner}/{repository}/pulls"
         try:
             response = await self.__client.post(
-                url=url,
+                url=f"https://api.github.com/repos/{owner}/{repository}/pulls",
                 content=json.dumps(
                     {
                         "title": title,
@@ -63,7 +62,7 @@ class GitHub(IGitProvider):
         p_response = json.loads(response.content)
         return PullRequestDTO(
             id=p_response["number"],
-            url=url,
+            url=p_response["url"],
             status=p_response["state"],
         )
 
@@ -96,4 +95,4 @@ class GitHub(IGitProvider):
                 message=f"Malformed repository URL '{repository_url}'",
                 error_code=400,
             )
-        return parts[1], parts[2]
+        return parts[1], parts[2] if parts[2][-4:].find(".git") == -1 else parts[2][:-4]

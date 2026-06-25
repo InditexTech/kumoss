@@ -43,7 +43,7 @@ async def complete_pr(
         await GitUtils(system_config.git.provider).complete_pr(session.repo_uri, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    return JSONResponse(content="OK", status_code=201)
+    return JSONResponse(content="OK", status_code=200)
 
 
 @router.put(path="/pr", summary="Submit the code to create a Pull Request")
@@ -71,7 +71,7 @@ async def create_pr(
             head_branch=session.branch_name,
             title="TODO",
             # title=session.history.get_first_turn.user, # session history property getter
-            description=_LLM_ADAPTER.inference(
+            description=await _LLM_ADAPTER.inference(
                 "transform the following data into makdown format"
                 + f" for a PR descrition: {session.last_payload}"
             ),

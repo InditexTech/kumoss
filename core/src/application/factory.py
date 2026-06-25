@@ -260,9 +260,9 @@ class HandlerFactory:
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
             tool_svc,
-            LLMProvider[system_config.llm.model],
+            system_config.llm.model,
             system_config.llm.temperature,
-            LLMProvider[system_config.llm.small_model],
+            system_config.llm.small_model,
             system_config.llm.small_model_temperature,
         )
 
