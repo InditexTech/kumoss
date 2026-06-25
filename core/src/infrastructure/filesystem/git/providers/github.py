@@ -15,7 +15,7 @@ from src.shared.exceptions import ExceptionHandler
 
 class GitHub(IGitProvider):
     def __init__(self):
-        self.__client = httpx.AsyncClient = httpx.AsyncClient(
+        self.__client: httpx.AsyncClient = httpx.AsyncClient(
             headers={
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
