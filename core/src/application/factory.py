@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Domain layer imports
+from typing import final
 from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
@@ -30,6 +31,7 @@ from src.application.services import (
     GeneratePayloadService,
     ProjectSetupService,
     TerraformDriftService,
+    PullRequestService,
 )
 from src.application.use_cases import (
     TerraformCRUDHandler,
@@ -48,6 +50,7 @@ from src.shared.constants import (
 from src.shared.config import system_config
 
 
+@final
 class HandlerFactory:
     def __init__(
         self,
@@ -55,14 +58,10 @@ class HandlerFactory:
         session_ctx: SessionContext,
         call_dir: Path,
         q: str,
-        terraform_targets: list[str] | None = None,
-        is_partial: bool = False,
     ):
         self.session_ctx = session_ctx
         self.call_dir = call_dir
         self.q = q
-        self.terraform_targets = terraform_targets or []
-        self.is_partial = is_partial
 
     # --- Providers for Infrastructure Components ---
     # These providers create the concrete implementations for the utils
@@ -78,6 +77,7 @@ class HandlerFactory:
 
     def _get_git_utils(self, file_utils: IFileSystem) -> GitUtils:
         return GitUtils(
+            git_provider=system_config.git.provider,
             cwd=file_utils.project_root,
             branch=self.session_ctx.branch_name,
         )
@@ -120,7 +120,7 @@ class HandlerFactory:
                 filesystem=file_utils,
                 git=git_utils,
                 web_search=GeminiWebSearch(
-                    gemini=self.get_llm_adapter(LLMProvider.GEMINI_FLASH, 0.5)
+                    gemini=self.get_llm_adapter(system_config.llm.small_model, 0.5)
                 ),
             )
         )
@@ -264,6 +264,16 @@ class HandlerFactory:
             system_config.llm.temperature,
             system_config.llm.small_model,
             system_config.llm.small_model_temperature,
+        )
+
+    def get_pull_request_service(self) -> PullRequestService:
+        file_utils = self._get_file_utils()
+        git_utils = self._get_git_utils(file_utils)
+        tool_svc = self._get_tool_service(file_utils, git_utils)
+        llm_svc = self._get_default_llm_service(tool_svc)
+        return PullRequestService(
+            git_utils=git_utils,
+            llm_service=llm_svc,
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:

@@ -10,7 +10,8 @@ from src.application.factory import HandlerFactory
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.filesystem import GitUtils
 from src.shared.config import system_config
-from src.shared.constants import SessionStatus
+
+# from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
@@ -58,24 +59,16 @@ async def create_pr(
     ],
 ) -> JSONResponse:
     session = await DatabaseService.get_session(session_id)
+    pr_svc = HandlerFactory(session_ctx=session).get_pull_request_service()
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
-    if session.status != SessionStatus.REPORT.value:
-        raise HTTPException(
-            status_code=409, detail=f"Session {session_id} is {session.status}."
-        )
+    # if session.status != SessionStatus.REPORT.value:
+    #     raise HTTPException(
+    #         status_code=409, detail=f"Session {session_id} is {session.status}."
+    #     )
 
     try:
-        pr_details = await GitUtils(system_config.git.provider).create_pr(
-            repository_url=session.repo_uri,
-            head_branch=session.branch_name,
-            title="TODO",
-            # title=session.history.get_first_turn.user, # session history property getter
-            description=await _LLM_ADAPTER.inference(
-                "transform the following data into makdown format"
-                + f" for a PR descrition: {session.last_payload}"
-            ),
-        )
+        pr_details = await pr_svc.create_pr(session)
         await DatabaseService.set_pull_request_url(session_id, pr_details.url)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
@@ -85,5 +78,5 @@ async def create_pr(
 
     return JSONResponse(
         content={"id": pr_details.id, "status": pr_details.status},
-        status_code=201,
+        status_code=200,
     )

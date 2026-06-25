@@ -216,14 +216,22 @@ class GitUtils(IGit):
             )
         return cmd.stdout.decode("utf-8").strip()
 
-    # note: target_branch support for possible use, although currently it is always self.__feature_branch
+    # note: target_branch support for possible use. Otherwise it is always self.__branch
     async def _checkout_branch(self, target_branch: str) -> bool:
         if await self._show_current_branch() != target_branch:
             all_branches = await self._show_all_branches()
             if all_branches.find(self.__branch) == -1:
                 logging.info(f"git new branch checkout {target_branch}")
                 return self._handle_return_code(
-                    await self.__cli.execute(["git", "checkout", "-b", target_branch])
+                    await self.__cli.execute(
+                        [
+                            "git",
+                            "checkout",
+                            "-b",
+                            target_branch,
+                            await self.get_default_branch(),
+                        ]
+                    )
                 )
             else:
                 logging.info(f"git checkout {target_branch}")

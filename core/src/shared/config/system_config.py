@@ -244,7 +244,7 @@ class SystemConfig(BaseModel):
             ("small_model", self.llm.small_model),
         ):
             try:
-                selected.append(LLMProvider[name].value["provider"])
+                selected.append(name.value["provider"])
             except KeyError as e:
                 valid = ", ".join(p.name for p in LLMProvider)
                 raise ConfigError(

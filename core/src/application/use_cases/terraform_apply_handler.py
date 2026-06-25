@@ -6,7 +6,6 @@ from uuid import UUID
 from collections.abc import Coroutine
 from typing import Callable, Any
 
-from src.domains.interfaces.apply_infrastructure_interface import IApplyInfrastructure
 from src.domains.services import (
     TemplateOrchestrationService,
     TracerService,
@@ -23,7 +22,7 @@ from src.shared.utils.repo_uri import derive_project_name
 class TerraformApplyHandler:
     def __init__(
         self,
-        apply_service: IApplyInfrastructure,
+        apply_service,
         session_service: SessionService,
         template_service: TemplateOrchestrationService,
         payload_svc: GeneratePayloadService,
