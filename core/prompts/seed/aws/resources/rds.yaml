@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS RDS Instance default configuration (Multi-AZ, encryption, backups, monitoring).
+body: |
+  # AWS RDS Instance
+
+  For an RDS Instance, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `rds-<application>-<environment>`.
+  - Create a DB subnet group using private subnets across at least
+    two availability zones.
+  - Storage type set to gp3, which provides baseline 3,000 IOPS and
+    125 MiB/s at no extra cost over gp2.
+  - Storage encryption must be enabled with KMS. Specify a
+    customer-managed key when provided; otherwise the AWS-managed
+    aws/rds key is acceptable.
+  - Enable auto-scaling for storage by setting a maximum allocated
+    storage value.
+  - Use managed master user password (Secrets Manager integration)
+    — never hardcode database passwords in variables or outputs.
+  - Multi-AZ must be enabled for production. Set to single-AZ only
+    for non-production environments.
+  - Must be placed in private subnets with publicly accessible set
+    to false.
+  - Automated backup retention set to 7 days minimum.
+  - Define a backup window and a maintenance window that do not
+    overlap.
+  - Copy tags to snapshots must be enabled.
+  - Do not delete automated backups on instance deletion.
+  - A final snapshot must be taken before deletion — skip final
+    snapshot must be false.
+  - Deletion protection must be enabled.
+  - Add a lifecycle block with prevent_destroy.
+  - Auto minor version upgrade must be enabled.
+  - Performance Insights must be enabled with at least 7-day
+    retention (free tier).
+  - Enhanced Monitoring must be enabled with a 60-second interval.
+    This requires an IAM role with the
+    AmazonRDSEnhancedMonitoringRole managed policy.
+  - Enable CloudWatch log exports relevant to the engine (e.g.
+    postgresql and upgrade for Postgres; audit, error, and
+    slowquery for MySQL).
+  - Prefer Graviton-based instance classes (db.t4g, db.r7g) for
+    better price-performance.
+  - Apply standard tags: Name.

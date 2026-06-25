@@ -2,40 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure Storage account template (Storage account, blob, file, queue, table).
+description: Azure Storage Account default configuration (encryption, networking, lifecycle).
 body: |
   # Azure Storage Account
 
-  ```hcl
-  resource "azurerm_storage_account" "main" {
-    name                            = "st${var.application}${var.environment}"
-    resource_group_name             = azurerm_resource_group.main.name
-    location                        = azurerm_resource_group.main.location
-    account_tier                    = "Standard"
-    account_replication_type        = "LRS"
-    min_tls_version                 = "TLS1_2"
-    public_network_access_enabled   = false
-    allow_nested_items_to_be_public = false
+  For a Storage Account, unless explicitly requested otherwise, use
+  the following default configuration:
 
-    blob_properties {
-      versioning_enabled = true
-      delete_retention_policy {
-        days = 7
-      }
-    }
-
-    tags = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-  ```
-
-  ## Notes
-  - Storage account names are 3-24 characters, lowercase, alphanumeric
-    only, and globally unique. The `st<app><env>` pattern usually
-    works but may need a suffix in shared subscriptions.
-  - `public_network_access_enabled = false` is the default; if public
-    access is genuinely required, the request must say so explicitly.
-  - Pair with `azurerm_private_endpoint` when consumers live inside a
-    VNet.
+  - Account tier set to Standard.
+  - Replication type set to LRS (Locally Redundant Storage). Use GRS
+    or ZRS only when the user explicitly requests higher durability.
+  - Minimum TLS version set to 1.2.
+  - Public network access must be disabled.
+  - Nested items (blobs) must not be allowed to be public.
+  - Blob versioning must be enabled.
+  - Blob soft-delete retention set to 7 days.
+  - Container soft-delete retention set to 7 days.
+  - Add a lifecycle block with prevent_destroy to guard against
+    accidental deletion.
+  - Naming convention: `st<application><environment>` — storage
+    account names are 3-24 characters, lowercase alphanumeric only,
+    and globally unique. Add a short suffix if collisions are likely.
+  - Pair with a private endpoint when consumers live inside a VNet.
+  - Apply standard tags: environment and managed_by.
+  - For access logging, enable diagnostic settings or use a dedicated
+    logging storage account.

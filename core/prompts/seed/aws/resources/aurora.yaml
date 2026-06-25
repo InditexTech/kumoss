@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Aurora Cluster default configuration (Multi-AZ, encryption, backups, monitoring).
+body: |
+  # AWS Aurora Cluster
+
+  For an Aurora Cluster, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `aurora-<application>-<environment>` for the
+    cluster and `aurora-<application>-<environment>-<index>` for
+    each instance.
+  - Create a DB subnet group using private subnets across at least
+    two availability zones.
+  - Storage encryption must be enabled with KMS. Specify a
+    customer-managed key when provided; otherwise the AWS-managed
+    key is acceptable.
+  - Use managed master user password (Secrets Manager integration)
+    — never hardcode database passwords in variables or outputs.
+  - Create a minimum of 2 cluster instances for production (writer
+    plus at least one reader in a separate AZ) for compute high
+    availability. Aurora automatically replicates data across three
+    AZs at the storage layer.
+  - All instances must have publicly accessible set to false.
+  - Automated backup retention set to 7 days minimum.
+  - Define a preferred backup window and maintenance window that do
+    not overlap.
+  - Copy tags to snapshots must be enabled.
+  - A final snapshot must be taken before deletion — skip final
+    snapshot must be false.
+  - Deletion protection must be enabled on the cluster.
+  - Add a lifecycle block with prevent_destroy on the cluster.
+  - Auto minor version upgrade must be enabled on all instances.
+  - Performance Insights must be enabled on each instance with at
+    least 7-day retention (free tier).
+  - Enhanced Monitoring must be enabled on each instance with a
+    60-second interval. This requires an IAM role with the
+    AmazonRDSEnhancedMonitoringRole managed policy.
+  - Enable CloudWatch log exports relevant to the engine (e.g.
+    postgresql for Aurora PostgreSQL; audit, error, and slowquery
+    for Aurora MySQL).
+  - Prefer Graviton-based instance classes (db.r7g) for production
+    and db.t4g for non-production.
+  - For variable or unpredictable workloads, consider Aurora
+    Serverless v2 by using the serverless instance class with
+    scaling configuration on the cluster.
+  - Define cluster instances as separate resources (not using count
+    on the cluster) so each can be individually managed and placed.
+  - Apply standard tags: Name.

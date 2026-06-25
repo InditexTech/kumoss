@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # AWS Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                       | Prefix |
+  |--------------------------------|--------|
+  | VPC                            | vpc    |
+  | Subnet                         | snet   |
+  | Security group                 | sg     |
+  | Internet gateway               | igw    |
+  | NAT gateway                    | natgw  |
+  | Route table                    | rtb    |
+  | Elastic Load Balancer          | elb    |
+  | Application Load Balancer      | alb    |
+  | Network Load Balancer          | nlb    |
+  | S3 bucket                      | s3     |
+  | IAM role                       | role   |
+  | IAM policy                     | pol    |
+  | EC2 instance                   | ec2    |
+  | EBS volume                     | ebs    |
+  | EKS cluster                    | eks    |
+  | ECR repository                 | ecr    |
+  | Lambda function                | lmb    |
+  | RDS instance                   | rds    |
+  | DynamoDB table                 | ddb    |
+  | SNS topic                      | sns    |
+  | SQS queue                      | sqs    |
+  | CloudWatch log group           | cwlog  |
+  | Secrets Manager secret         | sm     |
+  | KMS key                        | kms    |
+
+  Replace this list with your organization's naming standard.

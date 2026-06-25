@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Vertex AI default configuration (networking, encryption, service account, endpoints).
+body: |
+  # GCP Vertex AI
+
+  For Vertex AI resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## General
+  - Enable the required APIs: aiplatform.googleapis.com,
+    compute.googleapis.com, and storage.googleapis.com.
+  - Use a dedicated service account for Vertex AI workloads — do
+    not use the default Compute Engine service account. Grant only
+    the roles needed (e.g. roles/aiplatform.user,
+    roles/storage.objectViewer).
+  - Encryption uses Google-managed keys by default. Use CMEK via
+    Cloud KMS only when explicitly requested.
+  - Apply standard labels: environment and managed_by.
+
+  ## Datasets and training
+  - Store training data in a Cloud Storage bucket following the
+    storage bucket template defaults.
+  - For custom training jobs, specify machine type, accelerator
+    type, and count based on the workload. Default to
+    n1-standard-4 with no GPU for experimentation; add GPUs only
+    when the user requests deep learning training.
+  - Enable VPC peering for network-isolated training by configuring
+    a peering connection to the Vertex AI service network.
+
+  ## Endpoints
+  - Naming convention: `endpoint-<model>-<environment>`.
+  - Deploy models to endpoints in the same region as the training
+    data.
+  - Enable auto-scaling with minimum replica count of 1 for
+    production and 0 for non-production (scale to zero).
+  - Enable request/response logging for monitoring and auditing
+    predictions.
+  - Use private endpoints for network-isolated inference — deploy
+    within the VPC to avoid exposing the endpoint publicly.
+
+  ## Feature Store (if requested)
+  - Use Vertex AI Feature Store (Bigtable-backed) for online
+    serving and BigQuery for offline serving.
+  - Enable monitoring for feature drift detection.
+
+  ## Cost control
+  - Use Vertex AI Workbench managed notebooks instead of
+    user-managed notebooks for automatic idle shutdown.
+  - Set auto-shutdown policies on training jobs to avoid runaway
+    costs.

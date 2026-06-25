@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Lambda Function default configuration (Graviton, tracing, DLQ, logging, VPC).
+body: |
+  # AWS Lambda Function
+
+  For a Lambda Function, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `lmb-<application>-<purpose>-<environment>`.
+  - Architecture set to arm64 (Graviton), which is approximately
+    20% cheaper and often faster. Use x86_64 only when native
+    dependencies require it.
+  - The execution role must have the AWSLambdaBasicExecutionRole
+    managed policy. If the function is VPC-attached, also add
+    AWSLambdaVPCAccessExecutionRole.
+  - Set a reserved concurrent execution limit to prevent a single
+    function from consuming the entire account concurrency pool.
+  - Enable AWS X-Ray active tracing for distributed tracing.
+  - Configure a dead-letter queue (SQS or SNS) for failed
+    invocations so no events are silently lost.
+  - Create the CloudWatch log group explicitly in Terraform with a
+    defined retention period (e.g. 30 days) and KMS encryption. If
+    not created explicitly, Lambda auto-creates the log group with
+    infinite retention and no encryption.
+  - Log group naming convention:
+    `/aws/lambda/<function-name>`.
+  - When the function accesses VPC resources (RDS, ElastiCache,
+    etc.), attach it to private subnets. VPC-attached Lambdas need
+    a NAT Gateway for outbound internet access; use VPC endpoints
+    for AWS service calls to avoid NAT costs.
+  - Use source code hash to trigger redeployment when the package
+    changes.
+  - For container-based Lambda, use image URI and Image package
+    type instead of filename, handler, and runtime.
+  - Apply standard tags: Name.

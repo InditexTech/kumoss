@@ -29,7 +29,7 @@ class _BaseIacRequest(BaseModel):
         ),
     ] = None
     cloud: Annotated[
-        Literal["azure", "gcp"] | None,
+        Literal["azure", "gcp", "aws"] | None,
         Field(description="Cloud (first call only)."),
     ] = None
     environment: Annotated[

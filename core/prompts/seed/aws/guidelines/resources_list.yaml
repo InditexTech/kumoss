@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Names of aws-resources-* prompts the compositor may select from.
+body: |
+  # Available AWS Resource Templates
+
+  When the user's request mentions one of these resources, select the
+  matching template. The name on the left is the literal prompt name
+  in this Phoenix repository.
+
+  - `vpc` — AWS VPC with DNS support.
+  - `subnet` — Subnet within a VPC.
+  - `security_group` — Security group with ingress and egress rules.
+  - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.
+  - `iam_role` — IAM role with trust policy and managed policy attachments.
+
+  This list is the source of truth. Adding a new
+  `core/prompts/seed/aws/resources/<name>.yaml` requires adding the
+  matching entry here so the compositor knows it exists.

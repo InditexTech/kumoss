@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP GKE Autopilot default configuration (networking, security, maintenance).
+body: |
+  # GCP GKE Autopilot
+
+  For a GKE Autopilot cluster, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `gke-<application>-<environment>`.
+  - Use Autopilot mode — node provisioning, scaling, and
+    management are fully automated by Google. Do not use Standard
+    mode unless the user explicitly requires custom node pools or
+    node-level configuration.
+  - Network configuration must use VPC-native (alias IP) mode.
+    Specify the VPC network and subnetwork with secondary ranges
+    for pods and services.
+  - Enable private cluster: private nodes (no external IPs on
+    nodes), and control plane accessible only from authorized
+    networks. Set master authorized networks to the VPN CIDR or
+    corporate network ranges.
+  - Control plane access: use private endpoint where possible.
+    Enable public endpoint with authorized networks only when
+    private endpoint is not feasible.
+  - Release channel set to REGULAR for production (balanced
+    between stability and features). Use RAPID for non-production
+    if early access to features is desired.
+  - Enable Workload Identity so pods authenticate to Google Cloud
+    APIs using Kubernetes service accounts mapped to GCP service
+    accounts — never mount service account keys.
+  - Maintenance window must be defined (day, start time, duration)
+    to control when automatic upgrades occur.
+  - Define maintenance exclusions for critical business periods
+    (e.g. peak shopping seasons).
+  - Enable vertical and horizontal pod autoscaling (enabled by
+    default in Autopilot).
+  - Network policy enforcement is enabled by default in Autopilot.
+  - Binary Authorization should be enabled for production to
+    enforce only trusted container images.
+  - Enable Cloud Logging and Cloud Monitoring for system and
+    workload components.
+  - Deletion protection must be enabled for production clusters.
+  - Apply standard labels: environment and managed_by.

@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS IAM conventions.
+body: |
+  # AWS Permissions Guidelines
+
+  ## IAM principles
+  - Grant the least-privileged AWS managed policy that satisfies the
+    use case before considering an inline or customer-managed policy.
+  - Scope policies to specific resources using ARN conditions, not
+    `Resource: "*"`, unless the API genuinely requires it (e.g.
+    `sts:GetCallerIdentity`).
+  - Never attach policies directly to IAM users; use IAM roles with
+    trust policies instead.
+
+  ## IAM roles
+  - One IAM role per workload.
+  - Name format: `<application>-<workload>-role`.
+  - Prefer `aws_iam_role` with an `assume_role_policy` document over
+    legacy `aws_iam_policy_attachment` (which is authoritative and
+    removes other attachments).
+  - Use `aws_iam_role_policy_attachment` (additive) for managed
+    policies attached to a role.
+
+  ## Service-linked roles
+  - Do not create service-linked roles manually; they are created
+    automatically by the service that needs them.
+
+  ## Secrets
+  - Store secrets in AWS Secrets Manager or SSM Parameter Store
+    (SecureString), not in Terraform variables or resource metadata.
+  - Grant access per-secret via resource-based policies or scoped
+    IAM policies.
+  - Enable automatic rotation where supported.
+
+  ## Cross-account access
+  - Use IAM role assumption with external IDs for cross-account
+    access rather than sharing long-lived credentials.
+
+  Replace this body with your organization's authoritative IAM standards.

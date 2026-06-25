@@ -84,6 +84,7 @@ class Embeddings(Enum):
 class TemplateProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
+    AWS = "aws"
     COMMON = "common"
 
 

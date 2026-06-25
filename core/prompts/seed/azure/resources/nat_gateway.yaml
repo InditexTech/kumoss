@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure NAT Gateway default configuration (public IP, subnet association, idle timeout).
+body: |
+  # Azure NAT Gateway
+
+  For a NAT Gateway, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `natgw-<application>-<environment>`.
+  - SKU set to Standard (the only available tier).
+  - Associate at least one public IP address with the NAT Gateway.
+    Name the public IP `pip-natgw-<application>-<environment>`.
+  - Public IP SKU must be Standard and allocation method must be
+    Static (required for NAT Gateway).
+  - Idle timeout set to 4 minutes (default). Increase up to 120
+    minutes only when the workload requires long-lived outbound
+    connections.
+  - Associate the NAT Gateway with the private subnets that need
+    outbound internet access.
+  - Do not associate a NAT Gateway with subnets that already have a
+    different outbound method (e.g. Azure Firewall, load balancer
+    outbound rules) unless explicitly requested.
+  - A single NAT Gateway supports up to 64,512 SNAT ports per
+    public IP. Add additional public IPs or a public IP prefix for
+    high-throughput workloads.
+  - NAT Gateway is zone-resilient by default — it spans all AZs in
+    a region. When using zonal public IPs, align the NAT Gateway's
+    availability zone with the public IP zone.
+  - Apply standard tags: environment and managed_by.

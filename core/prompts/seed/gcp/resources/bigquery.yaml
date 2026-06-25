@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP BigQuery default configuration (datasets, encryption, access control, partitioning).
+body: |
+  # GCP BigQuery
+
+  For BigQuery resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Dataset
+  - Naming convention: `bq_<application>_<purpose>_<environment>`
+    (underscores only — BigQuery dataset IDs do not support
+    hyphens).
+  - Location set to a specific region (e.g. EU, US,
+    europe-west1) matching the data residency requirements.
+    BigQuery datasets are immutable in location once created.
+  - Default table expiration should not be set unless the user
+    specifies that tables are temporary or ephemeral.
+  - Default partition expiration should be set based on data
+    retention requirements (e.g. 90 days, 365 days).
+  - Encryption uses Google-managed keys by default. Use
+    customer-managed encryption keys (CMEK) via Cloud KMS only
+    when explicitly requested.
+  - Access control should use IAM bindings at the dataset level.
+    Grant roles/bigquery.dataViewer for read access and
+    roles/bigquery.dataEditor for write access. Avoid granting
+    project-level BigQuery roles when dataset-level is sufficient.
+  - Delete contents on destroy must be false. Override only when
+    the user explicitly requests it.
+  - Add a lifecycle block with prevent_destroy for production
+    datasets.
+  - Apply standard labels: environment and managed_by.
+
+  ## Tables (when the user specifies a schema)
+  - Enable time-based partitioning (e.g. by ingestion time or a
+    date/timestamp column) for large tables to improve query
+    performance and reduce cost.
+  - Enable clustering on high-cardinality columns frequently used
+    in filters.
+  - Deletion protection must be enabled for production tables.
+  - Do not define table schemas inline unless the user provides
+    the schema. Prefer schema definitions in a separate JSON file.
+
+  ## Cost control
+  - Use on-demand pricing by default. Use reserved slots
+    (editions) only when the user has predictable query workloads
+    and requests flat-rate pricing.
+  - Set maximum bytes billed on queries where applicable to prevent
+    runaway costs.

@@ -2,43 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure virtual network (VNet) template with inline subnets.
+description: Azure Virtual Network default configuration (address space, subnets, peering, diagnostics).
 body: |
   # Azure Virtual Network
 
-  ```hcl
-  resource "azurerm_virtual_network" "main" {
-    name                = "vnet-${var.application}-${var.environment}"
-    location            = azurerm_resource_group.main.location
-    resource_group_name = azurerm_resource_group.main.name
-    address_space       = [var.vnet_cidr]
+  For a Virtual Network, unless explicitly requested otherwise, use
+  the following default configuration:
 
-    subnet {
-      name             = "snet-web"
-      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 0)]
-    }
-
-    subnet {
-      name             = "snet-app"
-      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 1)]
-    }
-
-    subnet {
-      name             = "snet-data"
-      address_prefixes = [cidrsubnet(var.vnet_cidr, 8, 2)]
-    }
-
-    tags = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-  ```
-
-  ## Inputs commonly required
-  - `vnet_cidr` — VNet address space, default `10.0.0.0/16`.
-
-  ## Notes
-  - Subnets are declared inline; standalone `azurerm_subnet` resources
-    are only used when a subnet must be referenced from outside this
-    module.
+  - Naming convention: `vnet-<application>-<environment>`.
+  - Allocate a /16 address space from RFC 1918 ranges by default.
+    Avoid overlapping with on-premises or peered VNet CIDRs.
+  - Declare subnets inline on the VNet resource where the provider
+    allows it. Create one subnet per tier: web, app, data, mgmt.
+  - Carve /24 subnets within the VNet address space.
+  - Enable DDoS protection plan association for production
+    environments when available.
+  - Enable diagnostic settings to send VNet metrics and logs to a
+    Log Analytics workspace.
+  - One VNet per environment (dev, staging, prod).
+  - For multi-environment deployments, use hub-and-spoke topology —
+    spoke VNets peer to a single hub; spokes do not peer to each
+    other.
+  - Apply standard tags: environment and managed_by.
+  - Location is inherited from the parent resource group.

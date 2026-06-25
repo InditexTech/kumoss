@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Bedrock default configuration (model access, guardrails, logging, VPC).
+body: |
+  # AWS Bedrock
+
+  For Amazon Bedrock resources, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Model access
+  - Request model access only for the specific foundation models
+    the user needs. Do not request access to all available models.
+  - Prefer on-demand throughput for variable workloads. Use
+    Provisioned Throughput only when the user explicitly requests
+    guaranteed capacity or has negotiated commitments.
+
+  ## Custom models (fine-tuning)
+  - Store training data in an S3 bucket following the S3 bucket
+    template defaults.
+  - Use a dedicated IAM role for the customization job with access
+    scoped to the specific S3 bucket and Bedrock actions.
+  - Output model artifacts to a dedicated S3 bucket with encryption.
+  - Encryption uses AWS-managed keys by default. Use a
+    customer-managed KMS key when explicitly requested.
+
+  ## Guardrails
+  - Create guardrails to define content filtering policies,
+    denied topics, and word filters appropriate to the use case.
+  - Guardrail naming convention:
+    `bedrock-guardrail-<application>-<environment>`.
+  - Set blocked messaging thresholds based on the application's
+    content safety requirements.
+  - Enable PII detection and redaction when processing user input
+    that may contain personal data.
+
+  ## Logging and monitoring
+  - Enable model invocation logging to an S3 bucket and/or
+    CloudWatch Logs for auditability.
+  - Log both input and output data unless privacy requirements
+    prohibit it.
+  - Encryption of logs must use KMS.
+
+  ## Networking
+  - For VPC-isolated access, create a VPC endpoint for Bedrock
+    Runtime so API calls do not traverse the public internet.
+  - Use IAM policies scoped to specific model IDs and actions —
+    do not grant bedrock:* wildcard permissions.
+
+  ## Knowledge Bases (if requested)
+  - Use OpenSearch Serverless or Aurora PostgreSQL as the vector
+    store.
+  - Store source documents in an S3 bucket following the S3
+    bucket template defaults.
+  - Use a dedicated IAM role for the knowledge base with access
+    scoped to the vector store and source bucket.
+
+  ## Agents (if requested)
+  - Agent naming convention:
+    `bedrock-agent-<application>-<environment>`.
+  - Use a dedicated IAM role with least-privilege permissions for
+    the agent's action groups.
+  - Store agent instructions as a clear, versioned prompt —
+    do not hardcode instructions inline.

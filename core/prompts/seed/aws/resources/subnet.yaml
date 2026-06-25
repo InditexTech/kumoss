@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Subnet default configuration (AZ placement, public IP, routing).
+body: |
+  # AWS Subnet
+
+  For a Subnet, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `snet-<purpose>-<environment>` (e.g.
+    snet-web-prod, snet-app-dev, snet-data-staging).
+  - Carve /24 CIDR blocks from the parent VPC address space.
+  - Map public IP on launch must be disabled. Only enable for
+    explicitly public subnets behind a load balancer.
+  - For high availability, create one subnet per availability zone
+    (typically 2-3 AZs).
+  - Associate each subnet with an explicit route table. Subnets
+    without an explicit association use the VPC main route table,
+    which may have unintended routes.
+  - One subnet tier per function: public, app, data, mgmt.
+  - Public subnets route 0.0.0.0/0 through the Internet Gateway.
+  - Private subnets route 0.0.0.0/0 through a NAT Gateway deployed
+    in a public subnet.
+  - Apply standard tags: Name.

@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Security Group default configuration (least-privilege, rule separation).
+body: |
+  # AWS Security Group
+
+  For a Security Group, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `sg-<purpose>-<environment>`.
+  - Always provide a meaningful description explaining what the
+    security group protects.
+  - Must be associated with a specific VPC — never use the default
+    VPC security group.
+  - Define ingress and egress rules as separate standalone resources
+    (not inline blocks) to avoid rule conflicts and improve
+    merge-safety.
+  - Every rule must have a description explaining its purpose.
+  - Default-deny inbound; allow rules must be explicit and narrow.
+  - Never use source 0.0.0.0/0 for ingress rules unless the
+    resource is explicitly public-facing. Scope to known CIDRs or
+    reference other security groups for intra-VPC traffic.
+  - Prefer referencing other security groups as sources instead of
+    CIDR blocks for communication between AWS resources within the
+    same VPC.
+  - AWS security groups are stateful — return traffic is
+    automatically allowed, so egress rules for response traffic
+    are not needed.
+  - Apply standard tags: Name.

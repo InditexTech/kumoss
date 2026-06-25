@@ -2,48 +2,35 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Cloud Storage bucket template.
+description: GCP Cloud Storage Bucket default configuration (encryption, access control, lifecycle, retention).
 body: |
   # GCP Storage Bucket
 
-  ```hcl
-  resource "google_storage_bucket" "this" {
-    name                        = "${var.project_id}-${var.purpose}"
-    project                     = var.project_id
-    location                    = var.region
-    storage_class               = "STANDARD"
-    uniform_bucket_level_access = true
-    public_access_prevention    = "enforced"
-    force_destroy               = false
+  For a Cloud Storage Bucket, unless explicitly requested otherwise,
+  use the following default configuration:
 
-    versioning {
-      enabled = true
-    }
-
-    lifecycle_rule {
-      condition {
-        age = 30
-      }
-      action {
-        type          = "SetStorageClass"
-        storage_class = "NEARLINE"
-      }
-    }
-
-    labels = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-  ```
-
-  ## Notes
-  - Bucket names are globally unique; prefix with the project ID to
-    avoid collisions.
-  - `uniform_bucket_level_access = true` disables legacy ACLs and
-    is the modern default.
-  - `public_access_prevention = "enforced"` blocks accidental public
-    exposure. Override only if the request explicitly requires a
-    public bucket (e.g. a static site).
-  - `force_destroy = false` means `terraform destroy` will fail if
+  - Naming convention: `<project-id>-<purpose>`. Bucket names are
+    globally unique; prefix with the project ID to avoid collisions.
+  - Storage class set to STANDARD. Use NEARLINE, COLDLINE, or
+    ARCHIVE only when the user specifies infrequent access patterns.
+  - Uniform bucket-level access must be enabled — this disables
+    legacy ACLs and is the modern recommended default.
+  - Public access prevention must be set to enforced. Override only
+    if the request explicitly requires a public bucket (e.g. a
+    static website).
+  - Force destroy must be disabled. Terraform destroy will fail if
     the bucket contains objects. Override only when intentional.
+  - Versioning must be enabled to protect against accidental
+    deletion and overwriting.
+  - Add a lifecycle rule to transition objects to NEARLINE after
+    30 days. Adjust thresholds based on data access patterns.
+  - Add a lifecycle rule to delete non-current object versions
+    after 90 days.
+  - For sensitive data, enable a retention policy with a lock to
+    prevent early deletion.
+  - For customer-managed encryption, configure a CMEK using a
+    Cloud KMS key. Otherwise the default Google-managed encryption
+    applies automatically.
+  - Enable access logging by setting a log bucket and log object
+    prefix for audit trail.
+  - Apply standard labels: environment and managed_by.
