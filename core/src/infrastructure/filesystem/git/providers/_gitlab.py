@@ -5,6 +5,7 @@ import httpx
 import json
 
 from typing import override
+from urllib.parse import quote
 
 
 from src.domains.dto import PullRequestDTO
@@ -13,17 +14,13 @@ from src.shared.config import system_config
 from src.shared.exceptions import ExceptionHandler
 
 
-class GitHub(IGitProvider):
+class GitLab(IGitProvider):
     def __init__(self):
         self.__client: httpx.AsyncClient = httpx.AsyncClient(
             headers={
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
+                "PRIVATE-TOKEN": system_config.git.pat_token,
+                "Accept": "application/json",
             },
-            auth=httpx.BasicAuth(
-                username=system_config.git.pat_user,
-                password=system_config.git.pat_token,
-            ),
             http2=True,
             http1=True,
             timeout=20,
@@ -38,16 +35,16 @@ class GitHub(IGitProvider):
         title: str,
         description: str,
     ) -> PullRequestDTO:
-        owner, repository = self.__parse_url(repository_url)
+        project_id = self.__project_id(repository_url)
         try:
             response = await self.__client.post(
-                url=f"https://api.github.com/repos/{owner}/{repository}/pulls",
+                url=f"https://gitlab.com/api/v4/projects/{project_id}/merge_requests",
                 content=json.dumps(
                     {
+                        "source_branch": head,
+                        "target_branch": base,
                         "title": title,
-                        "head": head,
-                        "base": base,
-                        "body": description,
+                        "description": description,
                     }
                 ),
             )
@@ -61,22 +58,27 @@ class GitHub(IGitProvider):
 
         p_response = json.loads(response.content)
         return PullRequestDTO(
-            id=p_response["number"],
-            url=p_response["url"],
+            id=p_response["iid"],
+            url=p_response["web_url"],
             status=p_response["state"],
         )
 
     @override
     async def complete_pr(self, repository_url: str, id: int) -> None:
-        owner, repository = self.__parse_url(repository_url)
+        project_id = self.__project_id(repository_url)
         try:
             approve = await self.__client.post(
-                url=f"https://api.github.com/repos/{owner}/{repository}/pulls/{id}/reviews",
-                content=json.dumps({"event": "APPROVE"}),
+                url=(
+                    f"https://gitlab.com/api/v4/projects/{project_id}"
+                    f"/merge_requests/{id}/approve"
+                ),
             )
             _ = approve.raise_for_status()
             response = await self.__client.put(
-                url=f"https://api.github.com/repos/{owner}/{repository}/pulls/{id}/merge",
+                url=(
+                    f"https://gitlab.com/api/v4/projects/{project_id}"
+                    f"/merge_requests/{id}/merge"
+                ),
             )
             _ = response.raise_for_status()
         except httpx.HTTPStatusError as e:
@@ -86,14 +88,19 @@ class GitHub(IGitProvider):
         except httpx.TimeoutException:
             raise ExceptionHandler(message="Complete PR timeout", error_code=504)
 
+    def __project_id(self, repository_url: str) -> str:
+        namespace, project = self.__parse_url(repository_url)
+        return quote(f"{namespace}/{project}", safe="")
+
     def __parse_url(self, repository_url: str) -> tuple[str, str]:
         repository_url = repository_url.lower()
         if repository_url.find("https://") != -1:
             repository_url = repository_url[len("https://") :]
+        repository_url = repository_url.rstrip("/")
         parts = repository_url.split("/")
-        if parts[0] != "github.com":
+        if len(parts) != 3 or parts[0] != "gitlab.com":
             raise ExceptionHandler(
                 message=f"Malformed repository URL '{repository_url}'",
                 error_code=400,
             )
-        return parts[1], parts[2].rstrip("/").removesuffix(".git")
+        return parts[1], parts[2].removesuffix(".git")
