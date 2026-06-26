@@ -10,7 +10,7 @@ from typing import Literal, override
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
-from src.infrastructure.filesystem.git.providers.factory import GitProviderFactory
+from src.infrastructure.filesystem.git.providers import GitProviderFactory
 from src.shared.constants import GitProviderName
 from src.shared.exceptions import ExceptionHandler
 from src.shared.config import system_config
