@@ -64,7 +64,7 @@ class GitHub(IGitProvider):
         p_response = json.loads(response.content)
         return PullRequestDTO(
             id=p_response["number"],
-            url=p_response["url"],
+            url=p_response["html_url"],
             status=p_response["state"],
         )
 
@@ -104,7 +104,7 @@ class GitHub(IGitProvider):
             _ = readiness.raise_for_status()
             readiness = json.loads(readiness.content)
             mergeable = readiness["mergeable"]
-            if not mergeable:
+            if mergeable is False:
                 raise ExceptionHandler(
                     message=f"Pull Request {id} cannot be merged.",
                     error_code=400,

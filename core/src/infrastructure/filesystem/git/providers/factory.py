@@ -10,7 +10,7 @@ from src.infrastructure.filesystem.git.providers._gitlab import GitLab
 from src.shared.constants import GitProviderName
 
 
-# lazyly initialize singleton (git-credentials are read at runtime)
+# lazily initialize singleton (git-credentials are read at runtime)
 @cache
 def _github() -> GitHub:
     return GitHub()

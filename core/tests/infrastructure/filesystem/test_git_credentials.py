@@ -19,7 +19,7 @@ def _stub_cfg(
     author_name="Nebula",
     author_email="nebula@noreply.invalid",
 ):
-    cfg.git.provider = provider
+    cfg.git.provider.value = provider
     cfg.git.pat_user = user
     cfg.git.pat_token = token
     cfg.git.author_name = author_name

@@ -24,7 +24,7 @@ class PullRequestService:
             title="TODO",
             # title=session.history.get_first_turn.user, # session history property getter
             description=await self.__llm_svc.generate_text(
-                "transform the following data into makdown format"
-                + f" for a PR descrition: {session.last_payload}"
+                "transform the following data into markdown format"
+                + f" for a PR description: {session.last_payload}"
             ),
         )
