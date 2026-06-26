@@ -15,7 +15,7 @@ body: |
   - Public IP addresses on RDS instances, ElastiCache clusters, or
     internal-only EC2 instances.
   - Disabling VPC flow logs on existing VPCs.
-  - Removing or replacing the default deny-all egress rule without
+  - Removing or replacing the default allow-all egress rule without
     an explicit user request.
 
   ## Identity and access

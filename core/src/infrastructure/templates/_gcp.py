@@ -26,8 +26,11 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         abbreviations: list[str],
         include_forbidden_actions: bool,
     ) -> str:
-        """Renders the IaC generator template"""
-        concrete_implementations: list[str] = []
+        concrete_implementations: list[str] = (
+            [f"This is the convention for resource naming: {abbreviations}"]
+            if abbreviations
+            else []
+        )
         try:
             terraform_guidelines: str = await remote_fetcher.fetch(
                 prompt_name="terraform",
@@ -36,6 +39,12 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
                 tag=system_config.environment,
             )
             resource_creation = await self.__fetch_gcp_guidelines("resource_creation")
+            forbidden_actions = (
+                await self.__fetch_gcp_guidelines("forbidden_actions")
+                if include_forbidden_actions
+                else None
+            )
+            networking = await self.__fetch_gcp_guidelines("networking")
             permissions = await self.__fetch_gcp_guidelines("permissions")
             concrete_implementations.extend(
                 await self.__get_resources_templates(resources)
@@ -49,7 +58,9 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         base_template = self._get_template(self._core + "iac_generator.jinja")
         return base_template.render(
             GENERAL_TERRAFORM_GUIDELINES=terraform_guidelines,
+            FORBIDDEN_ACTIONS=forbidden_actions,
             RESOURCE_CREATION=resource_creation,
+            NETWORKING=networking,
             PERMISSIONS=permissions,
             CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations),
             CWD=self._cwd,
@@ -62,8 +73,11 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         abbreviations: list[str],
         include_forbidden_actions: bool,
     ) -> str:
-        """Renders the predictive target calculator template"""
-        concrete_implementations: list[str] = []
+        concrete_implementations: list[str] = (
+            [f"This is the convention for resource naming: {abbreviations}"]
+            if abbreviations
+            else []
+        )
         try:
             terraform_guidelines: str = await remote_fetcher.fetch(
                 prompt_name="terraform",
@@ -72,6 +86,12 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
                 tag=system_config.environment,
             )
             resource_creation = await self.__fetch_gcp_guidelines("resource_creation")
+            forbidden_actions = (
+                await self.__fetch_gcp_guidelines("forbidden_actions")
+                if include_forbidden_actions
+                else None
+            )
+            networking = await self.__fetch_gcp_guidelines("networking")
             permissions = await self.__fetch_gcp_guidelines("permissions")
             concrete_implementations.extend(
                 await self.__get_resources_templates(resources)
@@ -87,14 +107,15 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         )
         return base_template.render(
             GENERAL_TERRAFORM_GUIDELINES=terraform_guidelines,
+            FORBIDDEN_ACTIONS=forbidden_actions,
             RESOURCE_CREATION=resource_creation,
+            NETWORKING=networking,
             PERMISSIONS=permissions,
             CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations),
             CWD=self._cwd,
         )
 
     async def __get_resources_templates(self, resources: list[str]) -> list[str]:
-        """Helper method to bypass incorrect resouce template names"""
         rendered_resources: list[str] = []
         for r in resources:
             try:
@@ -118,6 +139,12 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         already_selected_abbreviations: list[str] | None = None,
     ):
         try:
+            abbr = await remote_fetcher.fetch(
+                prompt_name="abbreviations",
+                scope="gcp",
+                type="guidelines",
+                tag=system_config.environment,
+            )
             resources = await remote_fetcher.fetch(
                 prompt_name="resources_list",
                 scope="gcp",
@@ -133,6 +160,7 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
         t = self._get_template(self._core + "prompt_compositor.jinja")
         return t.render(
             AVAILABLE_TEMPLATES_LIST=resources,
+            AVAILABLE_ABBREVIATIONS_LIST=abbr,
             ALREADY_SELECTED_TEMPLATES=already_selected_templates,
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
