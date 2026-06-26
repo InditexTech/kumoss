@@ -68,7 +68,7 @@ class AzureDevOps(IGitProvider):
         p_response = json.loads(response.content)
         return PullRequestDTO(
             id=p_response["pullRequestId"],
-            url=p_response["url"],
+            url=f"https://dev.azure.com/{org}/{project}/_git/{repository}/pullrequest/{p_response['pullRequestId']}",
             status=p_response["status"],
         )
 

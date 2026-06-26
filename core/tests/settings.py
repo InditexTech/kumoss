@@ -7,12 +7,12 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from src.shared.constants import TracerProviderEnum, TemplateProvider, LLMProvider
+from src.shared.constants import TracerProject, TemplateProvider, LLMProvider
 
 
 class Settings:
     # Phoenix/Tracing configuration
-    PHOENIX_PROJECT_NAME: TracerProviderEnum = TracerProviderEnum.DEV_TERRAFORM_DRIFT
+    PHOENIX_PROJECT_NAME: TracerProject = TracerProject.DEV_TERRAFORM_DRIFT
 
     # Test session configuration
     SESSION_ID: uuid.UUID = uuid.uuid4()

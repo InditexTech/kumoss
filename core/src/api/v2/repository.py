@@ -16,10 +16,6 @@ from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
-_LLM_ADAPTER = HandlerFactory.get_llm_adapter(
-    system_config.llm.small_model, system_config.llm.small_model_temperature
-)
-
 
 @router.patch(
     path="/merge_pr", summary="merge the PR with ID `id` into the default branch"

@@ -184,9 +184,7 @@ class GitConfig(BaseModel):
     `pat_token_env` resolve to non-empty values at boot, the application
     writes ~/.git-credentials and configures the `store` credential
     helper so subsequent `git push` calls authenticate without prompting.
-    Leave `provider` empty to disable the credential setup entirely (push
-    will then need mounted ~/.git-credentials, SSH keys, or PAT-embedded
-    repo_uri). Single-tenant by design (one PAT for all sessions).
+    Single-tenant by design (one PAT for all sessions).
     """
 
     # `provider` is GitProviderName enum names (see
