@@ -89,7 +89,7 @@ class GitHub(IGitProvider):
         if repository_url.find("https://") != -1:
             repository_url = repository_url[len("https://") :]
         parts = repository_url.split("/")
-        if parts[0] != "github.com":
+        if len(parts) < 3 or parts[0] != "github.com":
             raise ExceptionHandler(
                 message=f"Malformed repository URL '{repository_url}'",
                 error_code=400,
