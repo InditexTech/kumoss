@@ -146,6 +146,7 @@ class OrchestrationConfig(BaseModel):
     max_tool_chain_executions: int = 70
     max_session_events_iteration: int = 2160
     drift_group_operations: int = 8
+    pull_request_readiness_seconds: int = 10
 
 
 class PathsConfig(BaseModel):

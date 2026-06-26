@@ -157,3 +157,4 @@ class GitProviderName(Enum):
 
     GITHUB = "github.com"
     AZURE_DEVOPS = "dev.azure.com"
+    GITLAB = "gitlab.com"
