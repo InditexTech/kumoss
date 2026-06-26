@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EC2 Instance default configuration (IMDSv2, encryption, monitoring, SSM).
+body: |
+  # AWS EC2 Instance
+
+  For an EC2 Instance, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `ec2-<application>-<environment>`.
+  - Use an AMI data source to look up the latest Amazon-owned image
+    filtered by name pattern and HVM virtualization type.
+  - Instance metadata service must enforce IMDSv2 (http_tokens
+    required, hop limit 1) to prevent SSRF-based credential theft.
+  - Associate public IP must be disabled. For internet-facing
+    workloads, use a load balancer (ALB or NLB) in front of
+    instances in private subnets.
+  - Root volume must use gp3 storage type with encryption enabled
+    via KMS.
+  - Attach an IAM instance profile for the role the instance
+    assumes — never use long-lived access keys on instances.
+  - Enable detailed CloudWatch monitoring (1-minute intervals).
+  - Add a lifecycle block with ignore_changes on the AMI to prevent
+    drift when the AMI data source resolves a newer image. Remove
+    this if Terraform should trigger re-creation on new AMIs.
+  - Prefer Graviton-based instance types (t4g, m7g, c7g) for
+    better price-performance. Use x86 types only when the workload
+    has native x86 dependencies.
+  - For production workloads, use Auto Scaling Groups instead of
+    standalone instances for self-healing and horizontal scaling.
+  - Connect via SSM Session Manager instead of SSH — this requires
+    no SSH keys, no bastion host, and no inbound security group
+    rules. Attach the AmazonSSMManagedInstanceCore managed policy
+    to the instance role.
+  - Apply standard tags: Name.

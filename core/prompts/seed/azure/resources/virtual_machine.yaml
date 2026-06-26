@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Virtual Machine default configuration (managed disks, identity, networking, monitoring).
+body: |
+  # Azure Virtual Machine
+
+  For a Virtual Machine, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `vm-<application>-<environment>`.
+  - Use the Linux or Windows VM resource as appropriate. Default to
+    Linux unless the user specifies Windows.
+  - VM size should match the workload. Prefer B-series for
+    non-production and D-series or E-series for production. Do not
+    provision premium SKUs without explicit request.
+  - OS disk must use managed disks with Premium SSD (Premium_LRS)
+    for production or Standard SSD (StandardSSD_LRS) for
+    non-production.
+  - OS disk encryption must be enabled (enabled by default with
+    platform-managed keys; use customer-managed keys via Disk
+    Encryption Set when requested).
+  - Disable public IP assignment. Place the VM in a private subnet
+    and use Azure Bastion or a load balancer for access.
+  - Enable system-assigned managed identity for authentication to
+    other Azure services — avoid storing credentials on the VM.
+  - Use SSH key authentication for Linux VMs. Do not use password
+    authentication — set disable_password_authentication to true.
+  - For Windows VMs, use Azure AD join where possible.
+  - Enable boot diagnostics with a managed storage account.
+  - Enable the Azure Monitor Agent extension for log and metric
+    collection.
+  - Set auto-shutdown schedule for non-production VMs to reduce
+    cost.
+  - For production workloads, use Virtual Machine Scale Sets (VMSS)
+    with Flexible orchestration instead of standalone VMs for
+    self-healing and scaling.
+  - Associate a Network Security Group to the VM's subnet, not
+    directly to the NIC, unless per-NIC filtering is required.
+  - Apply standard tags: environment and managed_by.

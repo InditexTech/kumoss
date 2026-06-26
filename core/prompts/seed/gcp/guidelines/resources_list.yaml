@@ -10,12 +10,21 @@ body: |
   matching template. The name on the left is the literal prompt name
   in this Phoenix repository.
 
-  - `project` — GCP project (created via google_project).
-  - `vpc_network` — VPC network (custom-mode).
-  - `subnetwork` — Subnetwork within a VPC.
-  - `storage_bucket` — Cloud Storage bucket.
-  - `service_account` — IAM service account.
+  - `bigquery` — BigQuery dataset and tables.
+  - `cloud_nat` — Cloud NAT gateway for private subnet outbound access.
+  - `cloud_router` — Cloud Router for dynamic routing.
+  - `cloud_run` — Cloud Run service with IAM and networking.
+  - `cloud_sql_postgres` — Cloud SQL PostgreSQL instance.
   - `firewall` — VPC firewall rule.
+  - `gke_autopilot` — GKE Autopilot cluster.
+  - `load_balancer` — HTTP(S) or TCP/UDP load balancer.
+  - `project` — GCP project (created via google_project).
+  - `service_account` — IAM service account.
+  - `spanner` — Cloud Spanner instance and database.
+  - `storage_bucket` — Cloud Storage bucket.
+  - `subnetwork` — Subnetwork within a VPC.
+  - `vertex` — Vertex AI endpoint, model, and training.
+  - `vpc_network` — VPC network (custom-mode).
 
   This list is the source of truth. Adding a new
   `core/prompts/seed/gcp/resources/<name>.yaml` requires adding the

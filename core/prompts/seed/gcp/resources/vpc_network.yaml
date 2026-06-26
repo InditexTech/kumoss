@@ -2,25 +2,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP VPC network (custom-mode) template.
+description: GCP VPC Network default configuration (custom mode, routing, firewall).
 body: |
   # GCP VPC Network
 
-  ```hcl
-  resource "google_compute_network" "main" {
-    name                            = "vpc-${var.application}-${var.environment}"
-    project                         = var.project_id
-    auto_create_subnetworks         = false
-    routing_mode                    = "REGIONAL"
-    delete_default_routes_on_create = false
-  }
-  ```
+  For a VPC Network, unless explicitly requested otherwise, use the
+  following default configuration:
 
-  ## Notes
-  - Always use `auto_create_subnetworks = false` (custom mode); the
-    auto-mode default creates a `/20` per region, which is wasteful
-    and surprising.
-  - Subnetworks are defined separately with `google_compute_subnetwork`.
-  - Default `routing_mode = "REGIONAL"` keeps blast radius small;
-    only switch to `GLOBAL` when the request explicitly needs
-    cross-region routing.
+  - Naming convention: `vpc-<application>-<environment>`.
+  - Always use custom subnet mode (auto_create_subnetworks disabled).
+    Auto mode creates a /20 subnet per region, which is wasteful
+    and creates an unnecessarily large attack surface.
+  - Routing mode set to REGIONAL to keep the blast radius small.
+    Only switch to GLOBAL when the request explicitly requires
+    cross-region dynamic routing.
+  - Do not delete default routes on create unless the user
+    explicitly requests a fully isolated network with no internet
+    egress.
+  - Subnetworks are defined as separate resources, not inline.
+  - The default network in a project should not be used — always
+    create explicit VPC networks.
+  - Apply standard labels: environment and managed_by.

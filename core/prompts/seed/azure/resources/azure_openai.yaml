@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure OpenAI Service default configuration (networking, identity, deployments).
+body: |
+  # Azure OpenAI Service
+
+  For an Azure OpenAI account, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `oai-<application>-<environment>`.
+  - SKU set to S0 (the only generally available tier).
+  - Public network access must be disabled.
+  - Configure a private endpoint in the consumer's subnet for
+    network-isolated access.
+  - Network ACLs default action set to Deny.
+  - Enable system-assigned managed identity for authentication.
+    Prefer managed identity with RBAC (Cognitive Services OpenAI
+    User role) over API key authentication.
+  - Custom subdomain name must be set — it is required for private
+    endpoint and managed identity scenarios.
+  - Do not create any model deployments initially unless the user
+    specifies which models to deploy.
+  - When creating model deployments, set a tokens-per-minute rate
+    limit appropriate to the workload. Use Standard deployment type
+    unless the user requests Provisioned Throughput.
+  - Enable diagnostic settings to send logs and metrics to a Log
+    Analytics workspace.
+  - Content filtering policies are enabled by default — do not
+    disable them unless the user explicitly requests it.
+  - Apply standard tags: environment and managed_by.

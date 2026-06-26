@@ -2,33 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure resource group template.
+description: Azure Resource Group default configuration (naming, tagging, region).
 body: |
   # Azure Resource Group
 
-  A resource group is the basic container for Azure resources. Every
-  module begins with one.
+  For a Resource Group, unless explicitly requested otherwise, use
+  the following default configuration:
 
-  ```hcl
-  resource "azurerm_resource_group" "main" {
-    name     = "rg-${var.application}-${var.environment}"
-    location = var.location
-
-    tags = {
-      environment = var.environment
-      owner       = var.owner
-      managed_by  = "terraform"
-    }
-  }
-  ```
-
-  ## Inputs commonly required
-  - `application` — short application identifier.
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `location` — Azure region (e.g. `westeurope`).
-  - `owner` — team or individual.
-
-  ## Notes
-  - The resource group name is the only place the region appears as
-    part of the name; child resources inherit `location` from the
-    resource group.
+  - Naming convention: `rg-<application>-<environment>`.
+  - Location should match the primary deployment region.
+  - Apply standard tags: environment, owner, and managed_by.
+  - A resource group is the foundational container — every module
+    should begin with one.
+  - All child resources inherit their location from the resource
+    group; do not hardcode regions on individual resources.
+  - One resource group per application per environment, unless the
+    user explicitly requests a shared resource group.

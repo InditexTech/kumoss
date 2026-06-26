@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Internet Gateway default configuration (VPC attachment, routing).
+body: |
+  # AWS Internet Gateway
+
+  For an Internet Gateway, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `igw-<application>-<environment>`.
+  - One Internet Gateway per VPC — AWS allows only one IGW per VPC.
+  - Attach the Internet Gateway to the VPC immediately after
+    creation.
+  - Add a route for 0.0.0.0/0 (and ::/0 for IPv6 if applicable)
+    pointing to the Internet Gateway in the public subnet route
+    tables only.
+  - Never add IGW routes to private subnet route tables — private
+    subnets use NAT Gateways for outbound access.
+  - The Internet Gateway is horizontally scaled, redundant, and
+    highly available by default — no additional HA configuration
+    is needed.
+  - Internet Gateways have no bandwidth limits and incur no
+    separate hourly charge — billing is based on data transfer
+    only.
+  - Apply standard tags: Name.

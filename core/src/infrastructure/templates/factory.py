@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from src.domains.interfaces.template_interface import ITemplate
+from src.infrastructure.templates._aws import AWSTemplateAdapter
 from src.infrastructure.templates._azure import AzureTemplateAdapter
 from src.infrastructure.templates._gcp import GCPTemplateAdapter
 from src.infrastructure.templates._common import CommonTemplateAdapter
@@ -27,6 +28,8 @@ class TemplateFactory:
                 return AzureTemplateAdapter(cwd=self.__cwd)
             case TemplateProvider.GCP:
                 return GCPTemplateAdapter(cwd=self.__cwd)
+            case TemplateProvider.AWS:
+                return AWSTemplateAdapter(cwd=self.__cwd)
             case TemplateProvider.COMMON:
                 return CommonTemplateAdapter(cwd=self.__cwd)
             case _:

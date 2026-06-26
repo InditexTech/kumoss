@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud Router default configuration (BGP, NAT pairing, VPN).
+body: |
+  # GCP Cloud Router
+
+  For a Cloud Router, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `router-<application>-<environment>`.
+  - Associate with the VPC network in the target region.
+  - BGP ASN should use a private ASN in the range 64512-65534 or
+    4200000000-4294967294. Default to 64514 unless the user
+    specifies otherwise or the ASN conflicts with an existing
+    router.
+  - BGP advertise mode set to DEFAULT (advertises all subnets in
+    the region). Use CUSTOM only when the user needs to control
+    specific route advertisements.
+  - A Cloud Router is required as a prerequisite for Cloud NAT,
+    Cloud VPN, and Cloud Interconnect. Create it alongside these
+    resources.
+  - For Cloud NAT scenarios, the router does not need BGP peers —
+    it serves only as the anchor resource.
+  - For hybrid connectivity (Cloud VPN or Interconnect), configure
+    BGP peers with the on-premises router ASN and IP addresses.
+  - Enable graceful restart for BGP sessions in production to
+    minimize traffic disruption during router maintenance.
+  - One Cloud Router per region per VPC is the typical pattern.
+    Create additional routers only for separate routing domains.

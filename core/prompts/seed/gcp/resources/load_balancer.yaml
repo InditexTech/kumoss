@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Load Balancer default configuration (HTTPS, health checks, CDN, SSL).
+body: |
+  # GCP Load Balancer
+
+  For a Load Balancer, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Type selection
+  - Use an external Application Load Balancer (HTTP/S) for
+    public-facing web workloads. This is the default when the user
+    asks for a load balancer without specifying the type.
+  - Use an internal Application Load Balancer for internal
+    HTTP/HTTPS services.
+  - Use a Network Load Balancer (TCP/UDP) only when the user
+    requires non-HTTP protocols or ultra-low-latency passthrough.
+  - Use the global tier for external load balancers (anycast IP
+    across all regions). Use regional tier only when explicitly
+    requested or when single-region is sufficient.
+
+  ## Frontend
+  - Naming convention for forwarding rules:
+    `lb-<application>-<environment>`.
+  - Use HTTPS (port 443) with a Google-managed SSL certificate by
+    default. Redirect HTTP (port 80) to HTTPS using a URL map
+    redirect rule.
+  - SSL policy must enforce a minimum TLS version of 1.2 with a
+    MODERN or RESTRICTED profile.
+  - Reserve a static external IP address for the forwarding rule.
+
+  ## Backend
+  - Configure health checks with appropriate intervals (check
+    interval 10 seconds, timeout 5 seconds, healthy threshold 2,
+    unhealthy threshold 3).
+  - Enable Cloud CDN on the backend service for cacheable content.
+    Disable CDN for dynamic API backends.
+  - Enable connection draining with a timeout of 300 seconds.
+  - Session affinity set to NONE (stateless) unless the user
+    specifies otherwise.
+  - Logging must be enabled on the backend service with a sample
+    rate of 1.0 for production.
+
+  ## Security
+  - Associate a Cloud Armor security policy for DDoS protection
+    and WAF rules on public-facing load balancers.
+  - Enable Identity-Aware Proxy (IAP) for internal applications
+    that require user authentication.

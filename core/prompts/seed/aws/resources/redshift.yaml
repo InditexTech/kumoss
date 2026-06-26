@@ -1,0 +1,57 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Redshift default configuration (Serverless or provisioned, encryption, networking, logging).
+body: |
+  # AWS Redshift
+
+  For Redshift, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  ## Type selection
+  - Default to Redshift Serverless for variable or unpredictable
+    workloads — it auto-scales compute and requires no cluster
+    management.
+  - Use Redshift Provisioned only when the user explicitly requires
+    predictable pricing, specific node types, or features not
+    available in Serverless.
+
+  ## Redshift Serverless
+  - Namespace naming convention:
+    `rs-<application>-<environment>`.
+  - Workgroup naming convention:
+    `rswg-<application>-<environment>`.
+  - Base RPU capacity set to 8 (minimum) for non-production.
+    Increase for production based on query complexity.
+  - Encryption must be enabled with KMS. Specify a customer-managed
+    key when provided; otherwise the AWS-managed key is acceptable.
+  - Use managed admin credentials (Secrets Manager integration) —
+    never hardcode database passwords.
+  - Must be placed in private subnets with publicly accessible set
+    to false.
+  - Associate with the appropriate security groups for inbound
+    access control.
+  - Enhanced VPC routing must be enabled to force all COPY and
+    UNLOAD traffic through the VPC (allows VPC flow log capture
+    and security group enforcement).
+
+  ## Redshift Provisioned
+  - Cluster identifier naming convention:
+    `rs-<application>-<environment>`.
+  - Node type should match the workload (ra3.xlplus for general
+    purpose, ra3.4xlarge or ra3.16xlarge for large-scale). Prefer
+    RA3 nodes for managed storage separation.
+  - Encryption must be enabled with KMS.
+  - Use managed admin credentials (Secrets Manager integration).
+  - Automated snapshots retention set to 7 days minimum.
+  - Must be placed in private subnets with publicly accessible set
+    to false.
+  - Enhanced VPC routing must be enabled.
+  - Enable audit logging to an S3 bucket for compliance.
+  - Maintenance window must be defined.
+
+  ## Common
+  - Enable CloudWatch logging for user activity and connection logs.
+  - Add a lifecycle block with prevent_destroy for production.
+  - Apply standard tags: Name.

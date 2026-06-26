@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS NAT Gateway default configuration (public subnet, EIP, HA).
+body: |
+  # AWS NAT Gateway
+
+  For a NAT Gateway, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `natgw-<application>-<environment>-<az>`
+    (include the AZ suffix when deploying one per AZ).
+  - Connectivity type set to public (the default). Use private only
+    for VPC-to-VPC traffic without internet access.
+  - Deploy the NAT Gateway in a public subnet (one that has a route
+    to an Internet Gateway).
+  - Allocate a dedicated Elastic IP (EIP) for each NAT Gateway.
+    Name the EIP `eip-natgw-<application>-<environment>-<az>`.
+  - For production, deploy one NAT Gateway per availability zone
+    for high availability — if the AZ hosting the NAT Gateway goes
+    down, resources in other AZs lose outbound access unless they
+    have their own NAT Gateway.
+  - For non-production, a single NAT Gateway is acceptable to
+    reduce cost.
+  - Update the route tables of private subnets to route 0.0.0.0/0
+    through the NAT Gateway in the same AZ.
+  - NAT Gateways support up to 55,000 simultaneous connections per
+    destination. For high-throughput workloads, split traffic across
+    multiple NAT Gateways or use multiple EIPs.
+  - NAT Gateways are billed per hour and per GB processed — monitor
+    costs via CloudWatch metrics (BytesOutToDestination,
+    PacketsDropCount).
+  - Apply standard tags: Name.

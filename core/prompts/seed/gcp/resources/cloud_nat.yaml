@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud NAT default configuration (logging, IP allocation, timeouts).
+body: |
+  # GCP Cloud NAT
+
+  For a Cloud NAT gateway, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `nat-<application>-<environment>`.
+  - Associate with a Cloud Router in the same region.
+  - NAT IP allocation method set to AUTO_ONLY (GCP auto-allocates
+    external IPs). Use MANUAL_ONLY only when the user requires
+    static egress IPs (e.g. for allow-listing with third parties).
+  - Source subnetwork IP ranges set to ALL_SUBNETWORKS_ALL_IP_RANGES
+    to cover all private subnets. Restrict to specific subnets only
+    when the user explicitly requests it.
+  - Enable logging with filter set to ERRORS_ONLY for cost
+    efficiency. Use ALL for troubleshooting when requested.
+  - Minimum ports per VM set to 64 (default). Increase for
+    workloads with high outbound connection rates.
+  - Enable dynamic port allocation for efficient port utilization
+    across VMs with variable connection patterns.
+  - TCP established idle timeout set to 1200 seconds (default).
+    Adjust only when the workload requires long-lived outbound
+    connections.
+  - TCP transitory idle timeout set to 30 seconds (default).
+  - UDP idle timeout set to 30 seconds (default).
+  - For high-availability production workloads, ensure sufficient
+    NAT IPs to avoid port exhaustion — each IP provides 64,512
+    ports.

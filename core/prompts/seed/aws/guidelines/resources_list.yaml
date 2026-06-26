@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Names of aws-resources-* prompts the compositor may select from.
+body: |
+  # Available AWS Resource Templates
+
+  When the user's request mentions one of these resources, select the
+  matching template. The name on the left is the literal prompt name
+  in this Phoenix repository.
+
+  - `aurora` — Aurora cluster (MySQL or PostgreSQL compatible).
+  - `bedrock` — Amazon Bedrock model access, guardrails, and logging.
+  - `cloudwatch` — CloudWatch alarms, log groups, and dashboards.
+  - `dynamodb` — DynamoDB table with encryption and capacity settings.
+  - `ec2` — EC2 instance with EBS, networking, and monitoring.
+  - `iam_role` — IAM role with trust policy and managed policy attachments.
+  - `internet_gateway` — Internet Gateway attached to a VPC.
+  - `lambda` — Lambda function with IAM role, VPC, and logging.
+  - `nat_gateway` — NAT Gateway in a public subnet for private outbound access.
+  - `rds` — RDS instance (MySQL, PostgreSQL, or SQL Server).
+  - `redshift` — Redshift Serverless or provisioned data warehouse.
+  - `route53` — Route 53 hosted zone and DNS records.
+  - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.
+  - `sagemaker` — SageMaker domain, notebooks, training, and endpoints.
+  - `security_group` — Security group with ingress and egress rules.
+  - `subnet` — Subnet within a VPC.
+  - `vpc` — AWS VPC with DNS support.
+
+  This list is the source of truth. Adding a new
+  `core/prompts/seed/aws/resources/<name>.yaml` requires adding the
+  matching entry here so the compositor knows it exists.

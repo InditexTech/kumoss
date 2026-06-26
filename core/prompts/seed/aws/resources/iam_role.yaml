@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS IAM Role default configuration (trust policy, least-privilege, boundaries).
+body: |
+  # AWS IAM Role
+
+  For an IAM Role, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<application>-<workload>-role`.
+  - One role per workload — do not share roles across unrelated
+    workloads.
+  - Define the trust policy (assume role policy) using a policy
+    document data source, not an inline JSON string — this provides
+    type checking and composability.
+  - Scope the trust policy to the specific AWS service principal
+    that will assume the role (e.g. ec2.amazonaws.com,
+    lambda.amazonaws.com).
+  - Add condition blocks to the trust policy to restrict assumption
+    and prevent confused-deputy attacks — use conditions like
+    StringEquals on aws:SourceAccount or aws:SourceArn.
+  - Attach managed policies using additive attachments. Never use
+    authoritative policy attachment resources, as they remove other
+    attachments on the same policy.
+  - For inline policies scoped to a single role, define them using
+    a policy document data source attached to the role.
+  - Set a permissions boundary when the organization enforces IAM
+    boundaries to cap effective permissions.
+  - Use a path (e.g. /app/) to organize roles hierarchically and
+    enable path-based IAM policy scoping.
+  - Apply standard tags: Name.

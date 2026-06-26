@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud Run default configuration (scaling, networking, identity, security).
+body: |
+  # GCP Cloud Run
+
+  For a Cloud Run service, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `run-<application>-<service>-<environment>`.
+  - Use the second-generation execution environment (gen2) for
+    better performance and full Linux compatibility.
+  - Set minimum instances to 0 for non-production (scale to zero)
+    and at least 1 for production to avoid cold starts.
+  - Set maximum instances based on expected load. Default to 10
+    unless the user specifies otherwise.
+  - Container concurrency (max requests per instance) set to 80
+    (default). Adjust based on the application's concurrency model.
+  - CPU allocation set to "CPU is only allocated during request
+    processing" for cost efficiency. Use "CPU is always allocated"
+    only for background processing or WebSocket workloads.
+  - Memory limit set to 512Mi and CPU limit set to 1 unless the
+    user specifies otherwise.
+  - Timeout set to 300 seconds (default). Increase up to 3600
+    seconds for long-running requests.
+  - Ingress set to internal-only for services that should not be
+    publicly accessible. Use all (public) only when explicitly
+    required.
+  - Connect a dedicated VPC connector or use Direct VPC Egress for
+    access to private resources (Cloud SQL, Memorystore, etc.).
+  - Use a dedicated service account per service — do not use the
+    default Compute Engine service account.
+  - Store secrets in Secret Manager and mount them as environment
+    variables or volumes — never hardcode sensitive values.
+  - Enable startup and liveness probes for production services.
+  - Apply standard labels: environment and managed_by.

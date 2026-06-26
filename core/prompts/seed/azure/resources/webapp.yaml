@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Web App (App Service) default configuration (plan, networking, identity, TLS).
+body: |
+  # Azure Web App (App Service)
+
+  For a Web App, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  ## App Service Plan
+  - Naming convention: `asp-<application>-<environment>`.
+  - Use Linux as the OS type unless Windows is explicitly required.
+  - SKU set to B1 for non-production and P1v3 (or P0v3) for
+    production. Do not provision Premium SKUs without explicit
+    request.
+  - Enable zone redundancy for production plans (requires Premium
+    v3 or Isolated v2 tiers).
+
+  ## Web App
+  - Naming convention: `app-<application>-<environment>`.
+  - HTTPS only must be enabled. Minimum TLS version set to 1.2.
+  - Enable system-assigned managed identity for authentication to
+    other Azure services.
+  - Always-on must be enabled for production (not available on
+    Free/Shared tiers).
+  - Set the runtime stack and version matching the user's language
+    (e.g. NODE 20-lts, PYTHON 3.12, DOTNETCORE 8.0).
+  - Enable VNet integration to a dedicated subnet for access to
+    private resources.
+  - Public network access should be restricted. Use access
+    restrictions or private endpoints for production.
+  - Application Insights must be connected for monitoring.
+  - Store secrets in Azure Key Vault and reference them via Key
+    Vault references in app settings.
+  - Enable diagnostic settings (HTTP logs, application logs, platform
+    logs) to a Log Analytics workspace.
+  - Configure health check path for automatic instance replacement
+    on failures.
+  - Apply standard tags: environment and managed_by.

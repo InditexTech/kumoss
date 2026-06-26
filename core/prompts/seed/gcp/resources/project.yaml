@@ -2,33 +2,27 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP project template.
+description: GCP Project default configuration (naming, APIs, billing, organization).
 body: |
   # GCP Project
 
-  ```hcl
-  resource "google_project" "main" {
-    name            = "${var.application}-${var.environment}"
-    project_id      = "${var.application}-${var.environment}-${random_id.suffix.hex}"
-    folder_id       = var.folder_id
-    billing_account = var.billing_account
+  For a Project, unless explicitly requested otherwise, use the
+  following default configuration:
 
-    labels = {
-      environment = var.environment
-      owner       = var.owner
-      managed_by  = "terraform"
-    }
-  }
-
-  resource "random_id" "suffix" {
-    byte_length = 2
-  }
-  ```
-
-  ## Notes
-  - Project IDs are globally unique and immutable. The random suffix
-    avoids name collisions across organizations.
-  - Enable required APIs with `google_project_service` resources
-    immediately after project creation.
-  - Project deletion is soft for 30 days; reuse the original ID only
-    after final deletion.
+  - Project name convention: `<application>-<environment>`.
+  - Project ID must be globally unique and immutable. Append a
+    short random suffix to avoid name collisions across
+    organizations.
+  - Place the project under the appropriate organization folder
+    using a folder ID.
+  - Associate a billing account.
+  - Enable required Google Cloud APIs immediately after project
+    creation using service enablement resources. Common APIs:
+    compute.googleapis.com, container.googleapis.com,
+    iam.googleapis.com, logging.googleapis.com,
+    monitoring.googleapis.com.
+  - Project deletion is soft for 30 days — the original project ID
+    can only be reused after final deletion.
+  - Delete the default VPC network and default firewall rules after
+    project creation to enforce custom networking.
+  - Apply standard labels: environment, owner, and managed_by.

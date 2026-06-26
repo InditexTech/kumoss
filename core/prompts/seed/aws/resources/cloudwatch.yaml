@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS CloudWatch default configuration (log groups, metric alarms, dashboards).
+body: |
+  # AWS CloudWatch
+
+  For CloudWatch resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Log Groups
+  - Naming convention: `/app/<application>/<environment>` for
+    application logs; follow AWS service conventions for service
+    logs (e.g. `/aws/lambda/<function-name>`).
+  - Tag naming convention: `cwlog-<application>-<environment>`.
+  - Always set a retention period (e.g. 30, 60, or 90 days). The
+    default is infinite retention, which accumulates cost over time.
+  - Encrypt log groups with a KMS key. The key policy must grant
+    the CloudWatch Logs service principal (logs.<region>.amazonaws.com)
+    the Encrypt and Decrypt actions.
+  - Use STANDARD log group class by default. Use INFREQUENT_ACCESS
+    class for log groups that are rarely queried to reduce ingestion
+    costs by approximately 50%.
+
+  ## Metric Alarms
+  - Naming convention:
+    `cwalarm-<application>-<metric>-<environment>`.
+  - Set treat_missing_data to "missing" — this preserves the alarm
+    state when data points are absent rather than triggering false
+    positives (breaching) or silently resolving (notBreaching).
+  - Always configure alarm actions (SNS topic ARNs) for
+    notification and OK actions for recovery notification.
+  - Use composite alarms to combine multiple related alarms into a
+    single actionable alert and reduce notification noise.
+  - For application-specific metrics, publish custom metrics via
+    the CloudWatch agent or PutMetricData API.
+
+  ## Dashboards
+  - Naming convention: `cwdash-<application>-<environment>`.
+  - Define dashboard widgets as a structured JSON body.
+  - Build the widget list in a local variable for readability.
+  - Group related metrics into logical widget sections (e.g.
+    compute, database, application).

@@ -2,32 +2,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP subnetwork template.
+description: GCP Subnetwork default configuration (private Google access, flow logs, secondary ranges).
 body: |
   # GCP Subnetwork
 
-  ```hcl
-  resource "google_compute_subnetwork" "this" {
-    name          = "snet-${var.purpose}"
-    project       = var.project_id
-    region        = var.region
-    network       = google_compute_network.main.id
-    ip_cidr_range = var.cidr_range
+  For a Subnetwork, unless explicitly requested otherwise, use the
+  following default configuration:
 
-    private_ip_google_access = true
-
-    log_config {
-      aggregation_interval = "INTERVAL_10_MIN"
-      flow_sampling        = 0.5
-      metadata             = "INCLUDE_ALL_METADATA"
-    }
-  }
-  ```
-
-  ## Notes
-  - Enable `private_ip_google_access` so VMs without external IPs
-    can reach Google APIs.
-  - Enable VPC flow logs (`log_config`) in production for security
-    monitoring; sampling at 0.5 balances cost and coverage.
-  - For GKE, allocate secondary ranges via `secondary_ip_range`
-    blocks for pods and services.
+  - Naming convention: `snet-<purpose>` (e.g. snet-web, snet-app,
+    snet-data).
+  - Assign CIDR ranges carved from the parent VPC's planned address
+    space.
+  - Enable Private Google Access so VMs without external IPs can
+    reach Google APIs and services.
+  - Enable VPC flow logs for security monitoring and
+    troubleshooting in production. Use an aggregation interval of
+    10 minutes, flow sampling at 0.5, and include all metadata.
+    Disable or reduce sampling in non-production to manage cost.
+  - For GKE clusters, allocate secondary IP ranges for pods and
+    services using secondary range blocks.
+  - One subnetwork per purpose per region.
+  - Apply standard labels where supported.

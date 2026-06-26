@@ -2,31 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Standalone Azure subnet template (when not declared inline on the VNet).
+description: Azure Subnet default configuration (addressing, service endpoints, delegation).
 body: |
-  # Azure Subnet (standalone)
+  # Azure Subnet
 
-  Use this only when the subnet must be referenced from outside the
-  module that owns its parent VNet. Otherwise prefer inline subnet
-  blocks on the `azurerm_virtual_network` resource.
+  For a Subnet, unless explicitly requested otherwise, use the
+  following default configuration:
 
-  ```hcl
-  resource "azurerm_subnet" "this" {
-    name                 = "snet-${var.purpose}"
-    resource_group_name  = var.resource_group_name
-    virtual_network_name = var.virtual_network_name
-    address_prefixes     = [var.address_prefix]
-
-    service_endpoints = var.service_endpoints
-  }
-  ```
-
-  ## Inputs commonly required
-  - `purpose` — what the subnet hosts (`web`, `app`, `data`, `bastion`).
-  - `virtual_network_name`, `resource_group_name` — parent references.
-  - `address_prefix` — CIDR, e.g. `10.0.1.0/24`.
-  - `service_endpoints` — list of service endpoints to enable.
-
-  ## Notes
-  - For Azure Bastion, the subnet name MUST be exactly
-    `AzureBastionSubnet`.
+  - Prefer declaring subnets as inline blocks on the parent virtual
+    network resource. Use standalone subnet resources only when the
+    subnet must be referenced from outside the module that owns the
+    VNet.
+  - Naming convention: `snet-<purpose>` (e.g. snet-web, snet-app,
+    snet-data, snet-mgmt).
+  - Address prefix should be carved from the parent VNet CIDR using
+    /24 ranges.
+  - Enable service endpoints relevant to the workload (e.g.
+    Microsoft.Storage, Microsoft.Sql, Microsoft.KeyVault).
+  - For Azure Bastion, the subnet name must be exactly
+    `AzureBastionSubnet` with a minimum /27 prefix.
+  - For Azure Application Gateway, the subnet must be dedicated and
+    named `snet-agw` or similar — do not share with other resources.
+  - Associate an NSG to every subnet immediately after creation.
+  - Private endpoints should be co-located in the consumer's subnet.

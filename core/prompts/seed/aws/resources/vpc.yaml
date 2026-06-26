@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS VPC default configuration (DNS, flow logs, default SG lockdown).
+body: |
+  # AWS VPC
+
+  For a VPC, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `vpc-<application>-<environment>`.
+  - Allocate a /16 CIDR block from RFC 1918 ranges by default.
+    Avoid overlapping with on-premises or peered VPC CIDRs.
+  - Enable DNS support and DNS hostnames — both are required for
+    private DNS resolution and VPC endpoints.
+  - Use default tenancy. Only use dedicated tenancy when compliance
+    explicitly requires it (significant cost increase).
+  - Lock down the default security group by importing it and
+    removing all ingress and egress rules, so nothing accidentally
+    uses it. Tag it with a DO-NOT-USE suffix.
+  - Enable VPC flow logs capturing all traffic, sending to a
+    CloudWatch Logs log group with 30-day retention and KMS
+    encryption. Use traffic type REJECT only in non-production
+    environments to reduce cost.
+  - The flow log requires an IAM role with permissions to publish
+    to CloudWatch Logs.
+  - Subnets are defined as separate resources, not inline.
+  - Pair with an Internet Gateway for public subnets and a NAT
+    Gateway for private subnet outbound access.
+  - Apply standard tags: Name.

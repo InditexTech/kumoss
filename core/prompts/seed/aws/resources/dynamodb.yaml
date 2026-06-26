@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS DynamoDB Table default configuration (on-demand, encryption, PITR, deletion protection).
+body: |
+  # AWS DynamoDB Table
+
+  For a DynamoDB Table, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `ddb-<application>-<table>-<environment>`.
+  - Billing mode set to PAY_PER_REQUEST (on-demand), which scales
+    automatically with no capacity planning. Switch to PROVISIONED
+    only when the user provides explicit read/write capacity values
+    and auto-scaling configuration.
+  - Define attribute blocks only for the partition key, sort key,
+    and any GSI/LSI key attributes. DynamoDB is schemaless for
+    non-key attributes.
+  - Point-in-time recovery must be enabled for continuous backups
+    with 35-day recovery capability.
+  - Server-side encryption must be enabled with KMS. Specify a
+    customer-managed key when provided; otherwise the AWS-owned
+    key is acceptable.
+  - Deletion protection must be enabled — the table cannot be
+    deleted via the API until deletion protection is explicitly
+    disabled.
+  - Add a lifecycle block with prevent_destroy.
+  - Table class set to STANDARD. Use STANDARD_INFREQUENT_ACCESS
+    only when the user indicates the table has infrequent reads,
+    to reduce storage costs.
+  - For Global Secondary Indexes, add the index definition and
+    corresponding attribute definitions. Each GSI has its own
+    throughput and should be sized independently.
+  - Apply standard tags: Name.
