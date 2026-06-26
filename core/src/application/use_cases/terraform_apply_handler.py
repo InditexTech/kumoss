@@ -6,7 +6,6 @@ from uuid import UUID
 from collections.abc import Coroutine
 from typing import Callable, Any
 
-from src.domains.interfaces.apply_infrastructure_interface import IApplyInfrastructure
 from src.domains.services import (
     TemplateOrchestrationService,
     TracerService,
@@ -14,7 +13,7 @@ from src.domains.services import (
 )
 from src.application.services.generate_payload_service import GeneratePayloadService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import SessionStatus, TracerProviderEnum, PromptsLibrary
+from src.shared.constants import SessionStatus, TracerProject, PromptsLibrary
 from src.shared.config import system_config
 from src.shared.exceptions import ExceptionHandler
 from src.shared.utils.repo_uri import derive_project_name
@@ -23,7 +22,7 @@ from src.shared.utils.repo_uri import derive_project_name
 class TerraformApplyHandler:
     def __init__(
         self,
-        apply_service: IApplyInfrastructure,
+        apply_service,
         session_service: SessionService,
         template_service: TemplateOrchestrationService,
         payload_svc: GeneratePayloadService,
@@ -42,11 +41,11 @@ class TerraformApplyHandler:
         self.__session_svc.create_session(ctx.session_id)
 
         async def task_background():
-            provider = TracerProviderEnum.PRO_TERRAFORM_DAY2
+            provider = TracerProject.PRO_TERRAFORM_DAY2
             if system_config.environment == "development":
-                provider = TracerProviderEnum.DEV_TERRAFORM_DAY2
+                provider = TracerProject.DEV_TERRAFORM_DAY2
             elif system_config.environment == "staging":
-                provider = TracerProviderEnum.PRE_TERRAFORM_DAY2
+                provider = TracerProject.PRE_TERRAFORM_DAY2
 
             project = derive_project_name(ctx.repo_uri)
 

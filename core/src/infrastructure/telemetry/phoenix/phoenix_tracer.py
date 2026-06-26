@@ -37,13 +37,13 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider, TracerProviderEnum
+from src.shared.constants import LLMProvider, TracerProject
 
 
 class PhoenixTracer(ITracer):
     def __init__(
         self,
-        provider_name: TracerProviderEnum,
+        provider_name: TracerProject,
         session_id: UUID,
         user_id: str,
         project: str,

@@ -24,7 +24,7 @@ from src.application.exceptions import (
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
-from src.infrastructure.filesystem.workspace import WorkspaceService, InvalidRepoURI
+from src.infrastructure.filesystem import WorkspaceService, InvalidRepoURI
 from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -179,7 +179,6 @@ async def apply_infrastructure(
             session_ctx=ctx,
             call_dir=call_dir,
             q=request.q,
-            terraform_targets=request.terraform_targets,
         ).get_terraform_apply_handler()
         return await handler.handle(request.q, request.terraform_targets)
 

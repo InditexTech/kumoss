@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from uuid import uuid4
 
-from src.infrastructure.filesystem.workspace import (
+from src.infrastructure.filesystem import (
     WorkspaceService,
     InvalidRepoURI,
 )

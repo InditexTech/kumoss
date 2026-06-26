@@ -39,7 +39,7 @@ class LLMOrchestrationService:
     async def generate_text(
         self,
         query: str,
-        prompt: PromptTemplateDTO,
+        prompt: PromptTemplateDTO = None,
         history: History | None = None,
         prefill: str | None = None,
         thinking: bool = False,
@@ -71,7 +71,7 @@ class LLMOrchestrationService:
         """
         response = await self.__small_llm.inference(
             msg=query,
-            system_prompt=prompt.prompt,
+            system_prompt=prompt.prompt if prompt else None,
             history=history,
             prefill=prefill,
             thinking=thinking,

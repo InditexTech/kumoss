@@ -30,14 +30,12 @@ class IGit(ABC):
         repo_url: str,
         repository_name: str,
         branch: str | None = None,
-        depth: int | None = None,
         create_branch: bool = False,
     ) -> bool:
         """Clone the repository at ``repo_url`` into ``repository_name``.
 
         ``branch`` is optional; when ``None``, the cloner uses the remote's
-        default branch. ``depth`` limits commit history (shallow clone).
-        When ``create_branch`` is True and ``branch`` is provided, the clone
+        default branch. When ``create_branch`` is True and ``branch`` is provided, the clone
         uses the default branch and then creates a new local branch.
         """
         pass
@@ -58,14 +56,23 @@ class IGit(ABC):
     @abstractmethod
     async def create_pr(
         self,
+        repository_url: str,
+        head_branch: str,
+        title: str,
         description: str,
-        repository_name: str,
-        target_branch: str,
     ) -> PullRequestDTO:
+        """Create a Pull Request
+
+        Args:
+            repository_url: The full repository URL.
+            head_branch: The branch where the changes are implemented.
+            title: The PR title.
+            description: The PR description.
+        """
         pass
 
     @abstractmethod
-    async def complete_pr(self, pr_id: int) -> bool:
+    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
         pass
 
     @abstractmethod

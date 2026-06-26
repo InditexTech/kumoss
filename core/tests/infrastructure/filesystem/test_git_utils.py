@@ -6,8 +6,8 @@
 import unittest
 from pathlib import Path
 
-from src.infrastructure.filesystem.git_utils import GitUtils
-from src.infrastructure.filesystem.file_system import FileSystemUtils
+from src.infrastructure.filesystem import FileSystemUtils, GitUtils
+from src.shared.constants import GitProviderName
 from tests.setups import setup_repository, clean_resources
 from tests.settings import Settings
 from src.shared.logger import logging
@@ -32,7 +32,9 @@ class TestGitUtils(unittest.IsolatedAsyncioTestCase):
             ),
             file_ext=["tf", "tfvars"],
         )
-        cls.git_utils = GitUtils(file_utils.project_root)
+        cls.git_utils = GitUtils(
+            git_provider=GitProviderName.GITHUB, cwd=file_utils.project_root
+        )
         await cls.git_utils.checkout()
 
     @classmethod
@@ -42,7 +44,10 @@ class TestGitUtils(unittest.IsolatedAsyncioTestCase):
     async def test_get_remote_url(self):
         await setup_repository(self.PROJECTS)
         for pair in self.PROJECTS:
-            git = GitUtils(Settings.UPLOAD_DIR / f"{pair[0]}_{Settings.SESSION_ID}")
+            git = GitUtils(
+                git_provider=GitProviderName.GITHUB,
+                cwd=Settings.UPLOAD_DIR / f"{pair[0]}_{Settings.SESSION_ID}",
+            )
             output = await git.get_remote_url()
             if pair[1] == "gcp":
                 self.assertIn(

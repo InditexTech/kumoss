@@ -4,7 +4,7 @@
 
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.services.session_service import SessionService
-from src.infrastructure.filesystem.file_system import FileSystemUtils
+from src.infrastructure.filesystem import FileSystemUtils
 from src.infrastructure.validators import TerraformServiceValidator
 
 

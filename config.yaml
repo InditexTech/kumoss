@@ -62,7 +62,7 @@ services:
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
   authz:
-    enabled: true
+    enabled: false
     endpoint: "http://authz:8083"
     token_env: "NEBULA_AUTHZ_TOKEN"
   iac:
@@ -78,6 +78,7 @@ orchestration:
   max_tool_chain_executions: 70
   max_session_events_iteration: 2160
   drift_group_operations: 8
+  pull_request_readiness_seconds: 10
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -102,11 +103,15 @@ http:
   cors_origins:
     - "http://localhost"
 
-# Git push host + author. Credentials (username + PAT) are read from
-# env at use time (default GIT_USER / GIT_TOKEN). Leave `host` blank to
+# Git push provider + author. Credentials (username + PAT) are read from
+# env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
 # disable push-credential setup (push will then need mounted
 # ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
+#
+# `provider` is GitProviderName enum names (see
+# core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
+# AZURE_DEVOPS.
 git:
-  host: "github.com"
+  provider: "GITHUB"
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"

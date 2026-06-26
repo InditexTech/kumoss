@@ -10,17 +10,21 @@ from typing import Literal, override
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
-from src.shared.config import system_config
+from src.infrastructure.filesystem.git.providers import GitProviderFactory
+from src.shared.constants import GitProviderName
 from src.shared.exceptions import ExceptionHandler
+from src.shared.config import system_config
 from src.shared.logger import logging
 
 
 class GitUtils(IGit):
     def __init__(
         self,
+        git_provider: GitProviderName,
         cwd: Path = None,
         branch: str = None,
     ):
+        self.__provider = GitProviderFactory(git_provider).get()
         self.__cli: Cli = Cli(
             (cwd if cwd else system_config.paths.upload_folder).resolve().as_posix(),
         )
@@ -54,12 +58,9 @@ class GitUtils(IGit):
         repo_url: str,
         repository_name: str,
         branch: str | None = None,
-        depth: int | None = None,
         create_branch: bool = False,
     ) -> bool:
-        cmd = ["git", "clone"]
-        if depth is not None:
-            cmd.extend(["--depth", str(depth)])
+        cmd = ["git", "clone", "--depth", "1"]
         if branch and not create_branch:
             cmd.extend(["--branch", branch])
         cmd.extend([repo_url, repository_name])
@@ -98,32 +99,22 @@ class GitUtils(IGit):
     @override
     async def create_pr(
         self,
+        repository_url: str,
+        head_branch: str,
+        title: str,
         description: str,
-        repository_name: str,
-        target_branch: str,
     ) -> PullRequestDTO:
-        # The OSS reference does not ship a PR-creation backend. The route
-        # remains so the API surface is stable; provide your own IGit
-        # implementation (or extend GitUtils) to integrate with whatever
-        # forge you use (GitHub, GitLab, Bitbucket, Azure DevOps, etc.).
-        raise ExceptionHandler(
-            message=(
-                "PR creation is not implemented in the OSS reference "
-                "distribution. Implement IGit.create_pr against your forge."
-            ),
-            error_code=501,
+        return await self.__provider.create_pr(
+            repository_url=repository_url,
+            head=head_branch,
+            base=await self.get_default_branch(),
+            title=title,
+            description=description,
         )
 
     @override
-    async def complete_pr(self, pr_id: int) -> bool:
-        # See create_pr above. Same reasoning applies to PR completion.
-        raise ExceptionHandler(
-            message=(
-                "PR completion is not implemented in the OSS reference "
-                "distribution. Implement IGit.complete_pr against your forge."
-            ),
-            error_code=501,
-        )
+    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
+        await self.__provider.complete_pr(repository_url, pr_id)
 
     @override
     async def get_remote_url(self) -> str:
@@ -225,14 +216,22 @@ class GitUtils(IGit):
             )
         return cmd.stdout.decode("utf-8").strip()
 
-    # note: target_branch support for possible use, although currently it is always self.__feature_branch
+    # note: target_branch support for possible use. Otherwise it is always self.__branch
     async def _checkout_branch(self, target_branch: str) -> bool:
         if await self._show_current_branch() != target_branch:
             all_branches = await self._show_all_branches()
             if all_branches.find(self.__branch) == -1:
                 logging.info(f"git new branch checkout {target_branch}")
                 return self._handle_return_code(
-                    await self.__cli.execute(["git", "checkout", "-b", target_branch])
+                    await self.__cli.execute(
+                        [
+                            "git",
+                            "checkout",
+                            "-b",
+                            target_branch,
+                            await self.get_default_branch(),
+                        ]
+                    )
                 )
             else:
                 logging.info(f"git checkout {target_branch}")

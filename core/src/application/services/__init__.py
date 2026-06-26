@@ -6,10 +6,12 @@ from .filter_request_service import FilterRequestService
 from .generate_payload_service import GeneratePayloadService
 from .setup_project_service import ProjectSetupService
 from .terraform_drift_service import TerraformDriftService
+from .pull_request_service import PullRequestService
 
 __all__ = [
     "FilterRequestService",
     "GeneratePayloadService",
     "ProjectSetupService",
     "TerraformDriftService",
+    "PullRequestService",
 ]

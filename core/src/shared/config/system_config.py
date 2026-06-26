@@ -24,9 +24,9 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import LLMProvider
+from src.shared.constants import GitProviderName, LLMProvider
 
 
 class ConfigError(ValueError):
@@ -70,8 +70,8 @@ class LlmConfig(BaseModel):
     # core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
     # HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
     # the name to the full provider/model/region tuple at startup.
-    model: str = "SONNET_VERTEX"
-    small_model: str = "HAIKU_VERTEX"
+    model: LLMProvider = LLMProvider.SONNET_VERTEX
+    small_model: LLMProvider = LLMProvider.HAIKU_VERTEX
     temperature: float = 0.1
     small_model_temperature: float = 0.1
 
@@ -81,6 +81,17 @@ class LlmConfig(BaseModel):
     google_application_credentials_env: str = "GOOGLE_APPLICATION_CREDENTIALS"
     google_sa_secret_env: str = "GOOGLE_SA_SECRET"
     google_vertex_project_env: str = "GOOGLE_VERTEX_ID"
+
+    @field_validator("model", "small_model", mode="before")
+    @classmethod
+    def _coerce_model(cls, v: str | LLMProvider):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return LLMProvider[v]
+            except KeyError:
+                return LLMProvider(v)
+        return v
 
     @property
     def aws_bedrock_access_key_id(self) -> str:
@@ -135,6 +146,7 @@ class OrchestrationConfig(BaseModel):
     max_tool_chain_executions: int = 70
     max_session_events_iteration: int = 2160
     drift_group_operations: int = 8
+    pull_request_readiness_seconds: int = 10
 
 
 class PathsConfig(BaseModel):
@@ -168,16 +180,17 @@ class HttpConfig(BaseModel):
 class GitConfig(BaseModel):
     """Credentials for `git push` against the remote hosting user repos.
 
-    When `host` is set and the env vars named by `pat_user_env` /
+    When `provider` is set and the env vars named by `pat_user_env` /
     `pat_token_env` resolve to non-empty values at boot, the application
     writes ~/.git-credentials and configures the `store` credential
     helper so subsequent `git push` calls authenticate without prompting.
-    Leave `host` empty to disable the credential setup entirely (push
-    will then need mounted ~/.git-credentials, SSH keys, or PAT-embedded
-    repo_uri). Single-tenant by design (one PAT for all sessions).
+    Single-tenant by design (one PAT for all sessions).
     """
 
-    host: str = ""  # e.g. "github.com", "gitlab.com", "bitbucket.org"
+    # `provider` is GitProviderName enum names (see
+    # core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
+    # AZURE_DEVOPS.
+    provider: GitProviderName = GitProviderName.GITHUB
     pat_user_env: str = "GIT_USER"  # env var name holding the username
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 
@@ -193,10 +206,20 @@ class GitConfig(BaseModel):
     def pat_token(self) -> str:
         return _env(self.pat_token_env)
 
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _coerce_provider(cls, v: str | GitProviderName):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return GitProviderName[v]
+            except KeyError:
+                return GitProviderName(v)
+        return v
+
 
 class SystemConfig(BaseModel):
     environment: str = "development"  # development | staging | production
-
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
@@ -208,7 +231,7 @@ class SystemConfig(BaseModel):
     git: GitConfig = Field(default_factory=GitConfig)
 
     @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> "SystemConfig":
+    def _assert_llm_credentials(self) -> SystemConfig:
         """Fail-fast on missing LLM credentials for the selected providers.
 
         Only the providers actually referenced by ``llm.model`` / ``llm.small_model``
@@ -220,7 +243,7 @@ class SystemConfig(BaseModel):
             ("small_model", self.llm.small_model),
         ):
             try:
-                selected.append(LLMProvider[name].value["provider"])
+                selected.append(name.value["provider"])
             except KeyError as e:
                 valid = ", ".join(p.name for p in LLMProvider)
                 raise ConfigError(
@@ -276,7 +299,7 @@ class SystemConfig(BaseModel):
         return self
 
     @classmethod
-    def load(cls, config_path: str | None = None) -> "SystemConfig":
+    def load(cls, config_path: str | None = None) -> SystemConfig:
         """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before

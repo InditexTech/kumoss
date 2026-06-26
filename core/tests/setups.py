@@ -8,7 +8,8 @@ from contextvars import Token
 
 from src.domains.services.tracer_service import TracerService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.filesystem import GitUtils
+from src.shared.constants import GitProviderName
 from src.shared.logger import logging
 from tests.settings import Settings
 
@@ -25,7 +26,7 @@ async def setup_repository(
     for pair in project_cloud:
         # Test fixture: pair[0] is treated as the repo URL directly,
         # consistent with the OSS-default identity mapping behavior.
-        if not await GitUtils().clone_repository(
+        if not await GitUtils(git_provider=GitProviderName.GITHUB).clone_repository(
             repo_url=pair[0],
             repository_name=f"{pair[0]}_{Settings.SESSION_ID}",
         ):
