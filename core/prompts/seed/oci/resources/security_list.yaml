@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Security List default configuration (ingress, egress, stateful rules).
+body: |
+  # OCI Security List
+
+  For a Security List, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `sl-<purpose>-<application>-<environment>`.
+  - Do not modify the VCN default security list — create a new one.
+  - All rules should be stateful unless the user explicitly
+    requests stateless rules for high-throughput scenarios.
+  - Egress: allow all outbound traffic (0.0.0.0/0, all protocols)
+    unless the user specifies restrictive egress.
+  - Ingress: deny all by default. Only open specific ports:
+    - Port 443 (HTTPS) from required source CIDRs.
+    - Port 80 (HTTP) only if explicitly requested.
+    - SSH (port 22) only from bastion subnet CIDRs, never from
+      0.0.0.0/0.
+    - Application-specific ports only from the subnets that need
+      them.
+  - Use CIDR blocks as sources, not 0.0.0.0/0, for non-HTTP/HTTPS
+    ingress rules.
+  - Prefer Network Security Groups over Security Lists for
+    resource-level granularity when possible.
+  - Apply freeform tags: Name.

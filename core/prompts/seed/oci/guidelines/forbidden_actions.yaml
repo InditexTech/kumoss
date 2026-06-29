@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI actions Nebula must never generate (security and cost guardrails).
+body: |
+  # STRICTLY FORBIDDEN OCI ACTIONS
+
+  Never generate Terraform that performs any of the following. If a
+  request requires one of these, refuse and explain why.
+
+  ## Networking
+  - Security list or NSG ingress rules with `source = "0.0.0.0/0"`
+    on ports other than 80 and 443.
+  - Public IP addresses on database instances, private compute
+    instances, or backend servers.
+  - Disabling VCN flow logs on existing VCNs.
+  - Modifying or deleting the default security list without an
+    explicit user request.
+
+  ## Identity and access
+  - IAM policies with `manage all-resources in tenancy` without
+    an explicit user request.
+  - Creating API keys and storing private key material in
+    Terraform outputs, state, or resource metadata.
+  - Granting `manage` verb when `use` or `read` is sufficient.
+  - Creating local users with passwords — use federated identity
+    providers instead.
+
+  ## Data
+  - Disabling encryption on Object Storage buckets, Block Volumes,
+    or Autonomous Database instances.
+  - Setting Object Storage bucket visibility to public without an
+    explicit user request.
+  - Deleting or replacing stateful resources (Autonomous Database,
+    Block Volumes, Object Storage, File Storage) without a
+    `lifecycle.prevent_destroy = true` override request from the
+    user.
+  - Disabling automatic backups on database resources.
+
+  ## Cost
+  - Provisioning GPU shapes (e.g. `BM.GPU4.8`, `VM.GPU.A10`)
+    without an explicit user request.
+  - Creating bare-metal instances when virtual machine shapes
+    suffice and the user has not requested bare metal.
+  - Provisioning resources with no auto-stop mechanism in
+    non-production environments.
+  - Creating always-free tier resources in production environments
+    without explicit user acknowledgment of the limitations.
+
+  Replace this body with your organization's authoritative
+  forbidden-action policy.

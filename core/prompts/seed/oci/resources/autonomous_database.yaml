@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Autonomous Database default configuration (ATP/ADW, networking, encryption, backups).
+body: |
+  # OCI Autonomous Database
+
+  For an Autonomous Database, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Type selection
+  - Default to Autonomous Transaction Processing (ATP) for OLTP
+    workloads.
+  - Use Autonomous Data Warehouse (ADW) when the user explicitly
+    requests analytics or data warehousing.
+  - Use Serverless deployment for variable workloads. Use Dedicated
+    infrastructure only when the user requires full isolation.
+
+  ## General
+  - Naming convention: `adb-<application>-<environment>`.
+  - Display name should be descriptive and include the application
+    and environment.
+  - OCPU count set to 1 for non-production, scaled per user
+    request for production.
+  - Storage size set to 1 TB for non-production. Scale per user
+    request for production.
+  - Auto-scaling must be enabled for production databases.
+  - License model set to LICENSE_INCLUDED unless the user has
+    existing Oracle licenses (BRING_YOUR_OWN_LICENSE).
+
+  ## Networking
+  - Private endpoint access only — set
+    `is_mtls_connection_required = true`.
+  - Deploy into a private subnet with an NSG controlling access.
+  - Whitelisted IPs should reference application subnet CIDRs,
+    not 0.0.0.0/0.
+  - Never allow public access to production databases.
+
+  ## Security
+  - Admin password must be stored in OCI Vault or passed via a
+    sensitive Terraform variable — never hardcoded.
+  - Encryption uses Oracle-managed keys by default. Use a
+    customer-managed key (OCI Vault) when requested.
+
+  ## Backups
+  - Automatic backups are enabled by default — do not disable them.
+  - Retention period: 60 days for production, 30 days for
+    non-production.
+  - Add a lifecycle block with prevent_destroy for production.
+  - Apply freeform tags: Name.

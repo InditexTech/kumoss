@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Compute Instance default configuration (shape, networking, boot volume).
+body: |
+  # OCI Compute Instance
+
+  For a Compute Instance, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `inst-<application>-<environment>`.
+  - Use flexible shapes (VM.Standard.E5.Flex or VM.Standard.A2.Flex)
+    with configurable OCPUs and memory. Avoid fixed shapes unless
+    the user explicitly requests them.
+  - Arm-based shapes (A2.Flex) are preferred for cost efficiency
+    when the workload supports ARM architecture.
+  - Place instances in private subnets. Only use public subnets
+    when direct internet access is explicitly required.
+  - Assign a Network Security Group to the VNIC, not just a
+    security list.
+  - Boot volume encryption uses Oracle-managed keys by default.
+    Use a customer-managed key (OCI Vault) when requested.
+  - Boot volume size defaults to 50 GB. Increase based on workload
+    requirements.
+  - In-transit encryption must be enabled for boot and block
+    volume attachments.
+  - Use instance metadata service v2 (IMDSv2) when available.
+  - Do not assign a public IP unless explicitly requested.
+  - Use cloud-init for instance initialization rather than
+    provisioners.
+  - For production instances, configure a boot volume backup policy
+    (Bronze, Silver, or Gold).
+  - Add a lifecycle block with prevent_destroy for production.
+  - Apply freeform tags: Name.

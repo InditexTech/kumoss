@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI-specific resource creation conventions for Terraform.
+body: |
+  # OCI Resource Creation Guidelines
+
+  ## Provider
+  Use the `oci` provider, pinned to a known-good major version:
+
+  ```hcl
+  terraform {
+    required_providers {
+      oci = {
+        source  = "oracle/oci"
+        version = "~> 6.0"
+      }
+    }
+  }
+
+  provider "oci" {
+    region = var.region
+  }
+  ```
+
+  Authentication is typically handled via instance principal,
+  resource principal, or API key configuration outside of Terraform
+  files. Never hardcode credentials in provider blocks.
+
+  ## Compartments
+  - Every OCI resource belongs to a compartment.
+  - Use a dedicated compartment per application or environment.
+  - Reference compartments by OCID via variables, not hardcoded
+    strings.
+  - The root compartment (tenancy) should only contain
+    compartments, not direct resources.
+
+  ## Tagging
+  Every resource that supports `freeform_tags` carries at minimum:
+  - `environment` — `dev`, `staging`, or `prod`.
+  - `owner` — team or individual responsible.
+  - `managed_by` — set to `terraform`.
+
+  Use defined tags (tag namespaces) when the organization enforces
+  tag value validation or cost tracking.
+
+  ## Regions
+  - Default to a single primary region per environment.
+  - Use OCI region identifiers (e.g. `eu-frankfurt-1`,
+    `eu-madrid-1`, `us-ashburn-1`).
+  - For disaster recovery, use a paired region in the same realm.
+
+  Replace this body with your organization's authoritative OCI
+  resource-creation standards.
