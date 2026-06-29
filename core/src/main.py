@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.v2 import (
+from src.api.v1 import (
     terraform,
     events,
     repository,
@@ -76,12 +76,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-### V2 ###
-app.include_router(terraform.router, prefix="/v2")
-app.include_router(events.router, prefix="/v2")
-app.include_router(repository.router, prefix="/v2")
-app.include_router(logs.router, prefix="/v2")
-app.include_router(authorization.router, prefix="/v2")
-app.include_router(admin.router, prefix="/v2")
-app.include_router(sessions.router, prefix="/v2")
-app.include_router(mapping.router, prefix="/v2")
+### V1 ###
+app.include_router(terraform.router, prefix="/v1")
+app.include_router(events.router, prefix="/v1")
+app.include_router(repository.router, prefix="/v1")
+app.include_router(logs.router, prefix="/v1")
+app.include_router(authorization.router, prefix="/v1")
+app.include_router(admin.router, prefix="/v1")
+app.include_router(sessions.router, prefix="/v1")
+app.include_router(mapping.router, prefix="/v1")

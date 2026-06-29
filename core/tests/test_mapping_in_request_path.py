@@ -5,14 +5,14 @@
 """Mapping is exposed as a passthrough on the core api.
 
 The browser used to call the mapping service directly. It now goes
-through core under /v2/mapping/resolve, which forwards to the
+through core under /v1/mapping/resolve, which forwards to the
 configured mapping microservice (or falls back to identity passthrough
 when the service is disabled in system config).
 """
 
 import unittest
 
-from src.api.v2 import mapping
+from src.api.v1 import mapping
 from src.infrastructure.external import mapping_service
 from src.main import app
 
@@ -20,7 +20,7 @@ from src.main import app
 class TestMappingPassthroughWired(unittest.TestCase):
     def test_resolve_route_is_registered_on_app(self):
         paths = {route.path for route in app.routes}
-        self.assertIn("/v2/mapping/resolve", paths)
+        self.assertIn("/v1/mapping/resolve", paths)
 
     def test_endpoint_uses_mapping_service_client(self):
         self.assertIs(
