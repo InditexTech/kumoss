@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes StatefulSet default configuration (stable identity, persistent storage, ordered operations).
+body: |
+  # Kubernetes StatefulSet
+
+  For a StatefulSet, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-<environment>`.
+  - Use StatefulSet when workloads need stable network identities,
+    stable persistent storage, or ordered deployment and scaling.
+  - Set `replicas` based on the application quorum requirements.
+  - `pod_management_policy`: default `OrderedReady` for ordered
+    startup; use `Parallel` only when pods are independent.
+  - `update_strategy`: use `RollingUpdate` with `partition = 0`
+    for full rollouts. Increase partition for canary deployments.
+  - Define `volume_claim_template` for each pod's persistent storage:
+    - Set appropriate `storage_class_name`.
+    - Size the `resources.requests.storage` for the workload.
+    - Use `access_modes = ["ReadWriteOnce"]` as default.
+  - Pair with a headless Service (`cluster_ip = "None"`) to provide
+    stable DNS entries per pod (`<pod>.<service>.<ns>.svc.cluster.local`).
+  - Apply the same security context, probes, and resource limits
+    guidelines as Deployments.
+  - Set `automount_service_account_token = false` unless API access
+    is required.

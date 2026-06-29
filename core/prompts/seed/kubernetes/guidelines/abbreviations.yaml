@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # Kubernetes Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                       | Prefix  |
+  |--------------------------------|---------|
+  | Namespace                      | ns      |
+  | Deployment                     | deploy  |
+  | StatefulSet                    | sts     |
+  | DaemonSet                      | ds      |
+  | Service                        | svc     |
+  | Ingress                        | ing     |
+  | ConfigMap                      | cm      |
+  | Secret                         | sec     |
+  | PersistentVolumeClaim          | pvc     |
+  | ServiceAccount                 | sa      |
+  | ClusterRole                    | cr      |
+  | ClusterRoleBinding             | crb     |
+  | Role                           | role    |
+  | RoleBinding                    | rb      |
+  | NetworkPolicy                  | netpol  |
+  | HorizontalPodAutoscaler        | hpa     |
+  | CronJob                        | cj      |
+  | Job                            | job     |
+  | Pod                            | pod     |
+  | ResourceQuota                  | quota   |
+  | LimitRange                     | lr      |
+
+  Replace this list with your organization's naming standard.

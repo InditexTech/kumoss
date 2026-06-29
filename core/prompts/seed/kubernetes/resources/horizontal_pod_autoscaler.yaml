@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes HorizontalPodAutoscaler default configuration (metrics, scaling behavior).
+body: |
+  # Kubernetes HorizontalPodAutoscaler
+
+  For an HPA, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-hpa`.
+  - Target a `kubernetes_deployment` or `kubernetes_stateful_set`
+    via `scale_target_ref`:
+    - `api_version = "apps/v1"`.
+    - `kind = "Deployment"` or `"StatefulSet"`.
+    - `name` — the target workload name.
+  - Set `min_replicas` to at least 2 for high availability.
+  - Set `max_replicas` based on capacity planning and budget.
+  - Define `metric` blocks:
+    - CPU utilization: `type = "Resource"`, resource name `cpu`,
+      target `average_utilization = 70`.
+    - Memory utilization: `type = "Resource"`, resource name
+      `memory`, target `average_utilization = 80`.
+  - Configure scaling behavior to prevent flapping:
+    - Scale-up: stabilization window of 0 seconds (react quickly).
+    - Scale-down: stabilization window of 300 seconds (5 minutes)
+      to avoid premature scale-in.
+  - The target workload must have resource requests defined —
+    HPA cannot calculate utilization without them.
+  - Apply standard labels for identification.

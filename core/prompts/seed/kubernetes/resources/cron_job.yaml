@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes CronJob default configuration (schedule, concurrency, history limits).
+body: |
+  # Kubernetes CronJob
+
+  For a CronJob, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<task>-cj`.
+  - Set `schedule` using standard cron syntax (5-field format).
+    Use UTC timezone unless the cluster has timezone support enabled.
+  - `concurrency_policy`:
+    - `"Forbid"` — skip the new run if the previous one is still
+      running (default for most use cases).
+    - `"Replace"` — cancel the running job and start a new one.
+    - `"Allow"` — run concurrently (use only when safe).
+  - Set `starting_deadline_seconds` to a reasonable value (e.g.,
+    300) to handle missed schedules.
+  - `successful_jobs_history_limit = 3` — keep last 3 successful
+    job records.
+  - `failed_jobs_history_limit = 3` — keep last 3 failed job
+    records for debugging.
+  - In the Job template:
+    - Set `backoff_limit` to control retry attempts on failure.
+    - Set `active_deadline_seconds` to prevent jobs from running
+      indefinitely.
+    - Set `restart_policy = "OnFailure"` or `"Never"`.
+  - Apply the same security context, resource limits, and image
+    pinning guidelines as Deployments.
+  - Apply standard labels for identification.

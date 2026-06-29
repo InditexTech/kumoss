@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Ingress default configuration (TLS, routing rules, annotations).
+body: |
+  # Kubernetes Ingress
+
+  For an Ingress, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<environment>-ing`.
+  - Specify `ingress_class_name` to target the correct Ingress
+    controller (e.g., `nginx`, `traefik`, cloud-native).
+  - Always configure TLS termination:
+    - Reference a `kubernetes_secret` of type `kubernetes.io/tls`
+      containing the certificate and key.
+    - List all hosts under the `tls` block.
+  - Define `rule` blocks with host-based routing:
+    - Use `path` entries with `path_type = "Prefix"` as default.
+    - Map each path to a backend `service` with `name` and
+      `port.number`.
+  - Add annotations for controller-specific behavior:
+    - SSL redirect: `nginx.ingress.kubernetes.io/ssl-redirect: "true"`.
+    - Rate limiting, CORS, and proxy settings as needed.
+  - For HTTPS-only services, redirect HTTP to HTTPS via
+    controller annotations.
+  - Apply standard labels for identification.

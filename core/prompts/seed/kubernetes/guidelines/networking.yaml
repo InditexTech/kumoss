@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes networking conventions for Terraform-managed resources.
+body: |
+  # Kubernetes Networking Guidelines
+
+  ## Network Policies
+  - Apply a default-deny ingress NetworkPolicy in every namespace,
+    then explicitly allow required traffic flows.
+  - Define NetworkPolicies per workload, not per namespace, to
+    enforce micro-segmentation.
+  - Use label selectors to match pods — avoid IP-based rules unless
+    communicating with external systems.
+
+  ## Services
+  - Use `ClusterIP` (default) for internal communication between
+    pods within the cluster.
+  - Use `NodePort` only for development or when a LoadBalancer is
+    not available.
+  - Use `LoadBalancer` for external-facing services when running on
+    a cloud provider with load balancer integration.
+  - Prefer `Ingress` or `Gateway API` over `LoadBalancer` services
+    for HTTP/HTTPS workloads to consolidate external entry points.
+
+  ## Ingress
+  - Use a single Ingress controller (e.g., NGINX, Traefik, or the
+    cloud provider's native controller) per cluster.
+  - Enable TLS termination at the Ingress level — reference TLS
+    secrets, do not embed certificates inline.
+  - Use path-based or host-based routing to multiplex services
+    behind a single external IP.
+
+  ## DNS
+  - Rely on Kubernetes internal DNS (`<service>.<namespace>.svc.cluster.local`)
+    for inter-service communication.
+  - Use ExternalDNS for automatic DNS record management when
+    exposing services externally.
+
+  Replace this body with your organization's authoritative Kubernetes
+  networking standards.

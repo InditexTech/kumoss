@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes-specific resource creation conventions for Terraform.
+body: |
+  # Kubernetes Resource Creation Guidelines
+
+  ## Provider
+  Use the `kubernetes` provider, pinned to a known-good major version:
+
+  ```hcl
+  terraform {
+    required_providers {
+      kubernetes = {
+        source  = "hashicorp/kubernetes"
+        version = "~> 2.0"
+      }
+    }
+  }
+
+  provider "kubernetes" {
+    config_path    = var.kubeconfig_path
+    config_context = var.kubeconfig_context
+  }
+  ```
+
+  For in-cluster or cloud-managed clusters, prefer token-based
+  authentication over kubeconfig file paths:
+
+  ```hcl
+  provider "kubernetes" {
+    host                   = var.cluster_endpoint
+    cluster_ca_certificate = base64decode(var.cluster_ca_cert)
+    token                  = var.cluster_token
+  }
+  ```
+
+  ## Namespaces
+  - Always create resources within an explicit namespace.
+  - Never deploy application workloads into `default`, `kube-system`,
+    `kube-public`, or `kube-node-lease`.
+  - Use a dedicated namespace per application or team.
+
+  ## Labels
+  Every resource carries at minimum these standard Kubernetes labels:
+  - `app.kubernetes.io/name` — application name.
+  - `app.kubernetes.io/instance` — unique instance identifier.
+  - `app.kubernetes.io/managed-by` — set to `terraform`.
+  - `app.kubernetes.io/part-of` — higher-level application group.
+  - `app.kubernetes.io/version` — application version.
+
+  Use a `labels` local or variable to apply baseline labels across
+  all resources consistently.
+
+  ## Resource Naming
+  - Use lowercase names with hyphens as separators.
+  - Follow the pattern `<app>-<component>-<environment>`.
+  - Maximum 253 characters for most Kubernetes names.
+  - Labels and annotations keys follow `prefix/name` convention.
+
+  Replace this body with your organization's authoritative Kubernetes
+  resource-creation standards.

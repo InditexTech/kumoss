@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Security guardrails and forbidden patterns for Kubernetes Terraform code.
+body: |
+  # Kubernetes — STRICTLY FORBIDDEN Actions
+
+  The following actions are forbidden in generated Terraform code
+  targeting Kubernetes. Violations must be corrected before the code
+  is delivered.
+
+  ## Security
+  - Do NOT run containers as root (`run_as_user = 0`) or with
+    `privileged = true` unless explicitly requested.
+  - Do NOT set `host_network = true`, `host_pid = true`, or
+    `host_ipc = true` on pods.
+  - Do NOT use `allow_privilege_escalation = true` in security
+    contexts.
+  - Do NOT mount the Docker socket (`/var/run/docker.sock`) into
+    containers.
+  - Do NOT store secrets as plain-text ConfigMap values — use
+    `kubernetes_secret` resources or external secrets operators.
+
+  ## RBAC
+  - Do NOT bind `cluster-admin` to application service accounts.
+  - Do NOT use wildcard (`*`) verbs and resources in Roles or
+    ClusterRoles for application workloads.
+  - Do NOT create ClusterRoleBindings for namespace-scoped access.
+
+  ## Workloads
+  - Do NOT deploy workloads into the `default`, `kube-system`,
+    `kube-public`, or `kube-node-lease` namespaces.
+  - Do NOT omit resource requests and limits on containers.
+  - Do NOT use `latest` as the container image tag — always pin
+    to a specific version or digest.
+  - Do NOT set `image_pull_policy = "Never"` in non-local
+    environments.
+
+  ## Networking
+  - Do NOT expose services externally without TLS termination.
+  - Do NOT create `NodePort` services with hardcoded port numbers
+    unless explicitly requested.
+  - Do NOT omit NetworkPolicies in production namespaces.
+
+  ## Data
+  - Do NOT set `reclaim_policy = "Delete"` on PersistentVolumes
+    holding production data without explicit confirmation.
+  - Do NOT disable PersistentVolumeClaim protection finalizers.

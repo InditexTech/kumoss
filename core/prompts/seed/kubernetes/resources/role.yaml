@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Role default configuration (namespace-scoped RBAC rules).
+body: |
+  # Kubernetes Role
+
+  For a Role, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<purpose>-role`.
+  - Use Role for namespace-scoped permissions — prefer this over
+    ClusterRole for application workloads.
+  - Define `rule` blocks with the narrowest set of `api_groups`,
+    `resources`, and `verbs` required.
+  - Avoid wildcard (`*`) verbs or resources — enumerate explicitly.
+  - Use `resource_names` to restrict access to specific named
+    resources when possible.
+  - Common patterns:
+    - Read ConfigMaps/Secrets: `verbs = ["get", "list", "watch"]`.
+    - Manage Deployments: `verbs = ["get", "list", "create", "update", "patch"]`.
+    - Read-only access: `verbs = ["get", "list", "watch"]`.
+  - Pair with a `kubernetes_role_binding` to bind to subjects.
+  - Apply standard labels for identification.

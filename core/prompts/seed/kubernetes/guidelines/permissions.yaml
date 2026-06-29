@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes RBAC and security conventions for Terraform-managed resources.
+body: |
+  # Kubernetes Permissions & RBAC Guidelines
+
+  ## RBAC Principles
+  - Apply the principle of least privilege — grant only the minimum
+    permissions required for each workload or user.
+  - Prefer namespace-scoped `Role` + `RoleBinding` over cluster-wide
+    `ClusterRole` + `ClusterRoleBinding` unless cluster-level access
+    is genuinely required.
+  - Never bind `cluster-admin` to application service accounts.
+  - Use separate ServiceAccounts per workload — never use the
+    `default` service account for application pods.
+
+  ## ServiceAccount Configuration
+  - Set `automount_service_account_token = false` on ServiceAccounts
+    unless the pod explicitly needs API server access.
+  - When API access is required, scope it to the narrowest set of
+    verbs and resources.
+
+  ## Role Design
+  - Group permissions by functional area (e.g., read ConfigMaps,
+    manage Deployments) rather than creating one large Role.
+  - Use `resourceNames` to restrict access to specific resources
+    when possible.
+  - Avoid wildcard (`*`) verbs or resources in production Roles.
+
+  ## Cloud IAM Integration
+  - For managed Kubernetes (EKS, GKE, AKS), map Kubernetes
+    ServiceAccounts to cloud IAM roles using workload identity
+    (e.g., IAM Roles for Service Accounts on EKS, Workload Identity
+    on GKE) instead of embedding credentials in Secrets.
+
+  Replace this body with your organization's authoritative Kubernetes
+  RBAC standards.

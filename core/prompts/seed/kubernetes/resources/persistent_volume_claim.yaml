@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes PersistentVolumeClaim default configuration (storage class, access modes, size).
+body: |
+  # Kubernetes PersistentVolumeClaim
+
+  For a PersistentVolumeClaim, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `<app>-<purpose>-pvc`.
+  - Set `storage_class_name` explicitly — do not rely on the cluster
+    default unless it is well-documented.
+  - Default `access_modes = ["ReadWriteOnce"]`. Use `ReadWriteMany`
+    only when multiple pods need concurrent write access (requires
+    a storage class that supports it, e.g., NFS, EFS, Azure Files).
+  - Size `resources.requests.storage` appropriately — PVCs cannot
+    be shrunk after creation (only expanded if the storage class
+    supports `allowVolumeExpansion`).
+  - Set `volume_mode = "Filesystem"` (default). Use `Block` only
+    for applications that manage raw block devices.
+  - For StatefulSets, define PVCs via `volume_claim_template` on
+    the StatefulSet rather than as standalone resources.
+  - Add a `lifecycle` block with `prevent_destroy = true` for
+    production data volumes to guard against accidental deletion.
+  - Apply standard labels for identification.

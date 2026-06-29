@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes ConfigMap default configuration (data, immutability, volume mounts).
+body: |
+  # Kubernetes ConfigMap
+
+  For a ConfigMap, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<purpose>-cm`.
+  - Use `data` for UTF-8 key-value pairs; use `binary_data` for
+    binary content (base64-encoded).
+  - Never store sensitive data (passwords, tokens, keys) in a
+    ConfigMap — use a `kubernetes_secret` instead.
+  - Set `immutable = true` for configuration that should not change
+    after creation. Immutable ConfigMaps improve cluster performance
+    by reducing API server watch load.
+  - Mount as a volume when the application reads config files,
+    or use `env` / `env_from` when individual keys map to
+    environment variables.
+  - Keep ConfigMaps small — the 1 MiB size limit is a hard
+    Kubernetes constraint.
+  - Apply standard labels for identification.

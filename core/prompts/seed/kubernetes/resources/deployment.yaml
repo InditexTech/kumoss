@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Deployment default configuration (replicas, probes, security context, resources).
+body: |
+  # Kubernetes Deployment
+
+  For a Deployment, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-<environment>`.
+  - Set `replicas` to at least 2 for high availability. Use an odd
+    number (3) when the workload requires leader election.
+  - Strategy: use `RollingUpdate` with `max_unavailable = 1` and
+    `max_surge = 1` as defaults.
+  - Always pin the container image to a specific tag or SHA digest —
+    never use `latest`.
+  - Set `image_pull_policy = "IfNotPresent"` for tagged images,
+    `"Always"` for mutable tags only.
+  - Define resource requests and limits for every container:
+    - `requests` — minimum guaranteed resources.
+    - `limits` — maximum allowed resources.
+  - Configure liveness and readiness probes:
+    - `liveness_probe` — restart unhealthy containers.
+    - `readiness_probe` — remove unready pods from service endpoints.
+    - Use `http_get`, `tcp_socket`, or `exec` based on the app.
+  - Security context at the pod level:
+    - `run_as_non_root = true`.
+    - `run_as_user` — a non-zero UID.
+    - `fs_group` — when shared volumes are used.
+  - Security context at the container level:
+    - `allow_privilege_escalation = false`.
+    - `read_only_root_filesystem = true` when possible.
+    - Drop all capabilities, add only what is needed.
+  - Set `automount_service_account_token = false` on the pod spec
+    unless the application needs Kubernetes API access.
+  - Use a dedicated `kubernetes_service_account` — never the
+    namespace default.
+  - Apply standard labels for selectors and identification.

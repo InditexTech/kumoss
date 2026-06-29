@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Service default configuration (ClusterIP, selectors, ports, session affinity).
+body: |
+  # Kubernetes Service
+
+  For a Service, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-svc`.
+  - Default type: `ClusterIP` for internal communication.
+  - Use `LoadBalancer` only for external-facing services when
+    running on a cloud provider.
+  - Use `NodePort` only for development or constrained environments
+    where LoadBalancer is unavailable.
+  - Define `selector` labels that exactly match the pod template
+    labels of the target Deployment or StatefulSet.
+  - Specify named `port` blocks with `name`, `port`, `target_port`,
+    and `protocol`. Use lowercase protocol names.
+  - For headless services (StatefulSet backing), set
+    `cluster_ip = "None"`.
+  - Set `session_affinity = "ClientIP"` only when sticky sessions
+    are required — default is `None`.
+  - Apply standard labels matching the backed workload.
