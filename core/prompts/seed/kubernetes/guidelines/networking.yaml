@@ -7,36 +7,68 @@ body: |
   # Kubernetes Networking Guidelines
 
   ## Network Policies
-  - Apply a default-deny ingress NetworkPolicy in every namespace,
-    then explicitly allow required traffic flows.
+  - Apply a default-deny ingress AND egress NetworkPolicy in every
+    production namespace, then explicitly allow required flows.
+  - Always allow DNS egress (port 53 TCP/UDP to `kube-system`) in
+    every deny-all egress policy — without it, pods cannot resolve
+    service names.
   - Define NetworkPolicies per workload, not per namespace, to
     enforce micro-segmentation.
   - Use label selectors to match pods — avoid IP-based rules unless
     communicating with external systems.
+  - NetworkPolicies are additive: the union of all policies applies.
+    A deny-all policy does not override a later allow policy.
+  - NetworkPolicies require a CNI plugin that supports them (Calico,
+    Cilium, Weave Net). Policies are silently ignored by CNIs that
+    do not implement them (e.g., default Flannel).
 
   ## Services
   - Use `ClusterIP` (default) for internal communication between
     pods within the cluster.
-  - Use `NodePort` only for development or when a LoadBalancer is
-    not available.
   - Use `LoadBalancer` for external-facing services when running on
     a cloud provider with load balancer integration.
-  - Prefer `Ingress` or `Gateway API` over `LoadBalancer` services
-    for HTTP/HTTPS workloads to consolidate external entry points.
+  - Use `NodePort` only for development or when a LoadBalancer is
+    not available.
+  - Prefer Ingress or Gateway API over `LoadBalancer` services
+    for HTTP/HTTPS workloads to consolidate external entry points
+    and reduce cloud load balancer costs.
+  - Set `external_traffic_policy = "Local"` on LoadBalancer/NodePort
+    services when client source IP preservation is needed. Be aware
+    this can cause uneven traffic distribution.
+  - Use `internal_traffic_policy = "Local"` (K8s 1.26+) for
+    topology-aware routing to prefer node-local endpoints.
 
-  ## Ingress
-  - Use a single Ingress controller (e.g., NGINX, Traefik, or the
-    cloud provider's native controller) per cluster.
+  ## Ingress and Gateway API
+  - Ingress is suitable for simple HTTP/HTTPS routing. For advanced
+    use cases (TCP/UDP routing, traffic splitting, header matching),
+    prefer the Gateway API (`gateway.networking.k8s.io` resources).
+  - Always specify `ingress_class_name` to target the correct
+    controller.
   - Enable TLS termination at the Ingress level — reference TLS
     secrets, do not embed certificates inline.
+  - Use cert-manager for automatic TLS certificate provisioning and
+    renewal from Let's Encrypt or internal CAs.
   - Use path-based or host-based routing to multiplex services
     behind a single external IP.
 
+  ## Pod Topology
+  - Use `topology_spread_constraints` to distribute pods evenly
+    across failure domains (zones, nodes):
+    - `max_skew = 1`, `topology_key = "topology.kubernetes.io/zone"`.
+    - `when_unsatisfiable = "DoNotSchedule"` for strict distribution
+      or `"ScheduleAnyway"` for best-effort.
+  - Pair with `pod_anti_affinity` to prevent co-location of replicas
+    on the same node.
+
   ## DNS
-  - Rely on Kubernetes internal DNS (`<service>.<namespace>.svc.cluster.local`)
-    for inter-service communication.
+  - Rely on Kubernetes internal DNS for inter-service communication:
+    `<service>.<namespace>.svc.cluster.local`.
+  - Use `<pod-name>.<headless-service>.<namespace>.svc.cluster.local`
+    for StatefulSet pod DNS.
   - Use ExternalDNS for automatic DNS record management when
     exposing services externally.
+  - Set `dns_policy = "ClusterFirst"` (default). Use
+    `"ClusterFirstWithHostNet"` only when `host_network = true`.
 
   Replace this body with your organization's authoritative Kubernetes
   networking standards.

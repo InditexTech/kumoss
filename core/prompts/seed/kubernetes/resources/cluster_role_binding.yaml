@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes ClusterRoleBinding default configuration (subjects, role references).
+description: Kubernetes ClusterRoleBinding default configuration (subjects, role references, immutability).
 body: |
   # Kubernetes ClusterRoleBinding
 
@@ -17,6 +17,8 @@ body: |
     - `api_group = "rbac.authorization.k8s.io"`.
     - `kind = "ClusterRole"`.
     - `name` — the ClusterRole to bind.
+  - The `role_ref` field is immutable — changing it requires
+    deleting and recreating the ClusterRoleBinding.
   - Define `subject` blocks specifying:
     - `kind` — `ServiceAccount`, `User`, or `Group`.
     - `name` — the subject identifier.

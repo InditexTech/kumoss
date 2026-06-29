@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes Namespace default configuration (labels, resource quotas, limit ranges).
+description: Kubernetes Namespace default configuration (labels, PSA, resource quotas, limit ranges).
 body: |
   # Kubernetes Namespace
 
@@ -14,11 +14,18 @@ body: |
     `app.kubernetes.io/part-of`.
   - Never use `default`, `kube-system`, `kube-public`, or
     `kube-node-lease` for application workloads.
+  - Apply Pod Security Admission labels to enforce security standards:
+    - `pod-security.kubernetes.io/enforce = "restricted"`.
+    - `pod-security.kubernetes.io/audit = "restricted"`.
+    - `pod-security.kubernetes.io/warn = "restricted"`.
+    Use `"baseline"` only when `"restricted"` is not feasible.
+    Never use `"privileged"` for application namespaces.
   - Consider pairing with a `kubernetes_resource_quota` to enforce
     CPU, memory, and object count limits.
   - Consider pairing with a `kubernetes_limit_range` to set default
     container resource requests and limits.
-  - Apply a default-deny ingress NetworkPolicy immediately after
-    namespace creation.
+  - Apply a default-deny ingress AND egress NetworkPolicy immediately
+    after namespace creation. Always allow DNS egress (port 53) in
+    deny-all egress policies.
   - Use annotations for metadata such as team ownership and
     cost-center attribution.

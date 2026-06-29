@@ -7,14 +7,14 @@ body: |
   # Kubernetes Resource Creation Guidelines
 
   ## Provider
-  Use the `kubernetes` provider, pinned to a known-good major version:
+  Use the `kubernetes` provider, pinned to a recent stable minor:
 
   ```hcl
   terraform {
     required_providers {
       kubernetes = {
         source  = "hashicorp/kubernetes"
-        version = "~> 2.0"
+        version = "~> 2.35"
       }
     }
   }
@@ -25,8 +25,8 @@ body: |
   }
   ```
 
-  For in-cluster or cloud-managed clusters, prefer token-based
-  authentication over kubeconfig file paths:
+  For cloud-managed clusters, prefer explicit authentication over
+  kubeconfig file paths:
 
   ```hcl
   provider "kubernetes" {
@@ -36,16 +36,23 @@ body: |
   }
   ```
 
+  When Helm charts are also deployed, pair with the `helm` provider
+  using the same authentication block to avoid credential drift.
+
   ## Namespaces
   - Always create resources within an explicit namespace.
   - Never deploy application workloads into `default`, `kube-system`,
     `kube-public`, or `kube-node-lease`.
   - Use a dedicated namespace per application or team.
+  - Apply Pod Security Admission labels on every namespace (see
+    Permissions guidelines).
 
   ## Labels
-  Every resource carries at minimum these standard Kubernetes labels:
+  Every resource carries at minimum these recommended Kubernetes
+  labels (kubernetes.io/docs/concepts/overview/working-with-objects/common-labels):
   - `app.kubernetes.io/name` — application name.
   - `app.kubernetes.io/instance` — unique instance identifier.
+  - `app.kubernetes.io/component` — the component within the architecture.
   - `app.kubernetes.io/managed-by` — set to `terraform`.
   - `app.kubernetes.io/part-of` — higher-level application group.
   - `app.kubernetes.io/version` — application version.
@@ -56,8 +63,18 @@ body: |
   ## Resource Naming
   - Use lowercase names with hyphens as separators.
   - Follow the pattern `<app>-<component>-<environment>`.
-  - Maximum 253 characters for most Kubernetes names.
+  - Maximum 253 characters for most Kubernetes names; 63 characters
+    for labels, label values, and container names.
   - Labels and annotations keys follow `prefix/name` convention.
+
+  ## Lifecycle Management
+  - Use `lifecycle { ignore_changes = [spec[0].replicas] }` on
+    Deployments and StatefulSets managed by an HPA so Terraform
+    does not fight the autoscaler.
+  - Use `lifecycle { prevent_destroy = true }` on PVCs holding
+    production data.
+  - Set `wait_for_rollout = false` when Terraform should not block
+    on Deployment readiness (e.g., initial bootstrapping).
 
   Replace this body with your organization's authoritative Kubernetes
   resource-creation standards.

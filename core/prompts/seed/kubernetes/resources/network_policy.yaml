@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes NetworkPolicy default configuration (ingress/egress rules, pod selectors).
+description: Kubernetes NetworkPolicy default configuration (ingress/egress rules, default-deny, pod selectors).
 body: |
   # Kubernetes NetworkPolicy
 
@@ -10,23 +10,28 @@ body: |
   the following default configuration:
 
   - Naming convention: `<app>-<purpose>-netpol`.
-  - Start with a default-deny-all ingress policy per namespace:
+  - Start with a default-deny-all ingress AND egress policy per
+    namespace:
     - `pod_selector {}` (empty = all pods).
-    - `policy_types = ["Ingress"]`.
-    - No `ingress` rules = deny all inbound traffic.
+    - `policy_types = ["Ingress", "Egress"]`.
+    - No `ingress` or `egress` rules = deny all traffic.
+  - Then add a DNS egress policy allowing port 53 (TCP and UDP) to
+    `kube-system` — without this, pods cannot resolve service names.
   - Then add explicit allow policies per workload:
     - Use `pod_selector` with `match_labels` to target specific pods.
     - Define `ingress` rules with `from` blocks using
       `pod_selector`, `namespace_selector`, or `ip_block`.
-    - Specify `ports` to restrict by protocol and port number.
-  - For egress control:
-    - Add `"Egress"` to `policy_types`.
     - Define `egress` rules with `to` blocks and `ports`.
-    - Allow DNS egress (port 53, TCP and UDP) to `kube-system`
-      namespace for all pods.
+    - Specify `ports` to restrict by protocol and port number.
+  - Use `ip_block` with `cidr` for external traffic. Use `except`
+    to exclude specific CIDR ranges within the allowed block.
   - Use `namespace_selector` with labels to allow cross-namespace
     communication.
+  - NetworkPolicies are additive: the union of all policies that
+    select a pod applies. A deny-all policy is not overridden by a
+    later allow policy — instead, the allow policy adds to the
+    permitted set.
   - NetworkPolicies require a CNI plugin that supports them (Calico,
-    Cilium, Weave Net). Verify the cluster's CNI before relying on
-    policies.
+    Cilium, Weave Net). Policies are silently ignored by CNIs that
+    do not implement them (e.g., default Flannel).
   - Apply standard labels for identification.

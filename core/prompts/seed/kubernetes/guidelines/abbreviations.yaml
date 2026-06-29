@@ -20,6 +20,8 @@ body: |
   | ConfigMap                      | cm      |
   | Secret                         | sec     |
   | PersistentVolumeClaim          | pvc     |
+  | PersistentVolume               | pv      |
+  | StorageClass                   | sc      |
   | ServiceAccount                 | sa      |
   | ClusterRole                    | cr      |
   | ClusterRoleBinding             | crb     |
@@ -27,9 +29,9 @@ body: |
   | RoleBinding                    | rb      |
   | NetworkPolicy                  | netpol  |
   | HorizontalPodAutoscaler        | hpa     |
+  | PodDisruptionBudget            | pdb     |
   | CronJob                        | cj      |
   | Job                            | job     |
-  | Pod                            | pod     |
   | ResourceQuota                  | quota   |
   | LimitRange                     | lr      |
 

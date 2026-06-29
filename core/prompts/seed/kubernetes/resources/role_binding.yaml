@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes RoleBinding default configuration (namespace-scoped subject-to-role mapping).
+description: Kubernetes RoleBinding default configuration (namespace-scoped subject-to-role mapping, immutability).
 body: |
   # Kubernetes RoleBinding
 
@@ -16,6 +16,8 @@ body: |
     - `api_group = "rbac.authorization.k8s.io"`.
     - `kind` — `Role` or `ClusterRole`.
     - `name` — the role to bind.
+  - The `role_ref` field is immutable — changing it requires
+    deleting and recreating the RoleBinding.
   - Binding a ClusterRole via RoleBinding scopes it to the
     RoleBinding's namespace — useful for reusing common ClusterRoles
     across namespaces without granting cluster-wide access.

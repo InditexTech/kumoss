@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes HorizontalPodAutoscaler default configuration (metrics, scaling behavior).
+description: Kubernetes HorizontalPodAutoscaler default configuration (metrics, scaling behavior, custom metrics).
 body: |
   # Kubernetes HorizontalPodAutoscaler
 
@@ -10,6 +10,8 @@ body: |
   following default configuration:
 
   - Naming convention: `<app>-<component>-hpa`.
+  - Use the `kubernetes_horizontal_pod_autoscaler_v2` resource
+    (autoscaling/v2 API) for full feature support.
   - Target a `kubernetes_deployment` or `kubernetes_stateful_set`
     via `scale_target_ref`:
     - `api_version = "apps/v1"`.
@@ -22,10 +24,23 @@ body: |
       target `average_utilization = 70`.
     - Memory utilization: `type = "Resource"`, resource name
       `memory`, target `average_utilization = 80`.
+    - Custom metrics: `type = "Pods"` or `type = "Object"` for
+      application-specific metrics from Prometheus, Datadog, or
+      other custom metrics adapters.
+    - External metrics: `type = "External"` for metrics from
+      external systems (e.g., queue depth, SQS messages).
   - Configure scaling behavior to prevent flapping:
     - Scale-up: stabilization window of 0 seconds (react quickly).
+      Use `policies` with `type = "Percent"` and
+      `value = 100` to allow doubling capacity per period.
     - Scale-down: stabilization window of 300 seconds (5 minutes)
-      to avoid premature scale-in.
+      to avoid premature scale-in. Use `policies` with
+      `type = "Pods"` and `value = 1` for conservative scale-down.
   - The target workload must have resource requests defined —
     HPA cannot calculate utilization without them.
+  - Do NOT use HPA and VPA (Vertical Pod Autoscaler) on the same
+    resource metric (e.g., both scaling on CPU) — they will fight.
+  - Ensure the target Deployment has
+    `lifecycle { ignore_changes = [spec[0].replicas] }` so
+    Terraform does not revert HPA scaling decisions.
   - Apply standard labels for identification.

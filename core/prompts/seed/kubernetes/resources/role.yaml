@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes Role default configuration (namespace-scoped RBAC rules).
+description: Kubernetes Role default configuration (namespace-scoped RBAC rules, subresources).
 body: |
   # Kubernetes Role
 
@@ -17,6 +17,8 @@ body: |
   - Avoid wildcard (`*`) verbs or resources — enumerate explicitly.
   - Use `resource_names` to restrict access to specific named
     resources when possible.
+  - When granting access to subresources, specify them explicitly
+    (e.g., `pods/log`, `pods/status`, `deployments/scale`).
   - Common patterns:
     - Read ConfigMaps/Secrets: `verbs = ["get", "list", "watch"]`.
     - Manage Deployments: `verbs = ["get", "list", "create", "update", "patch"]`.

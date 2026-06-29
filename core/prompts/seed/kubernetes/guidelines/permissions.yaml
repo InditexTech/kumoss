@@ -2,9 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes RBAC and security conventions for Terraform-managed resources.
+description: Kubernetes RBAC, Pod Security Admission, and security conventions for Terraform-managed resources.
 body: |
   # Kubernetes Permissions & RBAC Guidelines
+
+  ## Pod Security Admission (PSA)
+  Apply Pod Security Standards labels on every namespace. PSA
+  replaces the deprecated PodSecurityPolicy (removed in K8s 1.25):
+  - `pod-security.kubernetes.io/enforce` — reject pods that violate.
+  - `pod-security.kubernetes.io/audit` — log violations.
+  - `pod-security.kubernetes.io/warn` — show warnings to users.
+  Valid levels: `privileged`, `baseline`, `restricted`.
+  Default to `restricted` for application namespaces. Use `baseline`
+  only when `restricted` is not feasible. Never use `privileged`
+  for application workloads.
 
   ## RBAC Principles
   - Apply the principle of least privilege — grant only the minimum
@@ -15,17 +26,36 @@ body: |
   - Never bind `cluster-admin` to application service accounts.
   - Use separate ServiceAccounts per workload — never use the
     `default` service account for application pods.
+  - Roles prefixed with `system:` are reserved for Kubernetes
+    internal use — never create custom roles with this prefix.
+
+  ## Dangerous Verbs
+  - The `escalate` verb on Roles/ClusterRoles allows a subject to
+    grant permissions it does not itself hold — treat it as
+    cluster-admin equivalent.
+  - The `bind` verb on Roles/ClusterRoles allows binding to any
+    role — equally dangerous.
+  - The `impersonate` verb allows acting as another user or group.
+  - Never grant these verbs to application ServiceAccounts.
+
+  ## SubResource Access
+  - Access to subresources like `pods/exec`, `pods/attach`, and
+    `pods/portforward` grants shell access to running containers —
+    restrict to operators and debugging roles only.
+  - `nodes/proxy` grants API-level access to the kubelet — never
+    grant to application workloads.
 
   ## ServiceAccount Configuration
   - Set `automount_service_account_token = false` on ServiceAccounts
     unless the pod explicitly needs API server access.
-  - When API access is required, scope it to the narrowest set of
-    verbs and resources.
+  - Since K8s 1.24, long-lived ServiceAccount tokens are no longer
+    auto-created. Use `TokenRequest` API (projected volumes) for
+    short-lived, automatically rotated tokens.
 
   ## Role Design
   - Group permissions by functional area (e.g., read ConfigMaps,
     manage Deployments) rather than creating one large Role.
-  - Use `resourceNames` to restrict access to specific resources
+  - Use `resource_names` to restrict access to specific resources
     when possible.
   - Avoid wildcard (`*`) verbs or resources in production Roles.
 
@@ -33,7 +63,8 @@ body: |
   - For managed Kubernetes (EKS, GKE, AKS), map Kubernetes
     ServiceAccounts to cloud IAM roles using workload identity
     (e.g., IAM Roles for Service Accounts on EKS, Workload Identity
-    on GKE) instead of embedding credentials in Secrets.
+    on GKE, Workload Identity Federation on AKS) instead of
+    embedding credentials in Secrets.
 
   Replace this body with your organization's authoritative Kubernetes
   RBAC standards.

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes ClusterRole default configuration (rules, aggregation, least privilege).
+description: Kubernetes ClusterRole default configuration (rules, aggregation, subresources, least privilege).
 body: |
   # Kubernetes ClusterRole
 
@@ -18,6 +18,11 @@ body: |
   - Avoid wildcard (`*`) verbs or resources — enumerate explicitly.
   - Use `resource_names` to restrict access to specific named
     resources when possible.
+  - When granting access to subresources, specify them explicitly
+    (e.g., `pods/log`, `pods/status`, `deployments/scale`). Never
+    grant `pods/exec` or `pods/attach` to application workloads.
+  - Never grant `escalate`, `bind`, or `impersonate` verbs to
+    application ServiceAccounts.
   - For aggregated ClusterRoles, use `aggregation_rule` with label
     selectors to compose roles from smaller building blocks.
   - Pair with a `kubernetes_cluster_role_binding` to bind to

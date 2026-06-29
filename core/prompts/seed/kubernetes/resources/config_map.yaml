@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes ConfigMap default configuration (data, immutability, volume mounts).
+description: Kubernetes ConfigMap default configuration (data, immutability, volume mounts, rollout triggers).
 body: |
   # Kubernetes ConfigMap
 
@@ -20,6 +20,10 @@ body: |
   - Mount as a volume when the application reads config files,
     or use `env` / `env_from` when individual keys map to
     environment variables.
+  - To trigger a Deployment rollout when a ConfigMap changes, add
+    a checksum annotation to the pod template:
+    `config-hash = sha256(configmap-data)`. This forces a new
+    rollout because the pod template annotation changes.
   - Keep ConfigMaps small — the 1 MiB size limit is a hard
     Kubernetes constraint.
   - Apply standard labels for identification.
