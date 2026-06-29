@@ -69,7 +69,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
     def test_first_call_returns_202_and_session_id(self):
         uri = _bare_remote(self.tmp)
         resp = self.client.post(
-            "/v2/iac/generate",
+            "/v1/iac/generate",
             json={
                 "repo_uri": uri,
                 "cloud": "azure",
@@ -84,7 +84,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
 
     def test_first_call_with_bad_uri_returns_400(self):
         resp = self.client.post(
-            "/v2/iac/generate",
+            "/v1/iac/generate",
             json={
                 "repo_uri": "file:///does/not/exist.git",
                 "cloud": "azure",
@@ -96,7 +96,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 400, resp.text)
 
     def test_request_with_neither_uri_nor_session_id_returns_422(self):
-        resp = self.client.post("/v2/iac/generate", json={"user_id": "u", "q": "x"})
+        resp = self.client.post("/v1/iac/generate", json={"user_id": "u", "q": "x"})
         self.assertEqual(resp.status_code, 422, resp.text)
 
 
@@ -125,7 +125,7 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
     def test_drift_first_call_returns_202(self):
         uri = _bare_remote(self.tmp)
         resp = self.client.post(
-            "/v2/iac/drift",
+            "/v1/iac/drift",
             json={
                 "repo_uri": uri,
                 "cloud": "azure",
@@ -180,7 +180,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         # origin -- the iteration clone will fail in the background. That's
         # acceptable: the endpoint contract is purely the synchronous shape.
         resp = self.client.post(
-            "/v2/iac/apply",
+            "/v1/iac/apply",
             json={
                 "session_id": str(sid),
                 "user_id": "u",
@@ -232,7 +232,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
         asyncio.run(DatabaseService.acquire_in_flight(str(sid)))
 
         resp = self.client.post(
-            "/v2/iac/generate",
+            "/v1/iac/generate",
             json={"session_id": str(sid), "user_id": "u", "q": "iter"},
         )
         self.assertEqual(resp.status_code, 409, resp.text)
@@ -242,6 +242,6 @@ class TestUploadEndpointGone(unittest.TestCase):
     def test_upload_returns_404(self):
         client = TestClient(app)
         resp = client.post(
-            "/v2/upload/project", json={"project": "x", "cloud": "azure"}
+            "/v1/upload/project", json={"project": "x", "cloud": "azure"}
         )
         self.assertEqual(resp.status_code, 404)

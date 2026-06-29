@@ -40,11 +40,11 @@ class TestCreatePR(unittest.IsolatedAsyncioTestCase):
             )
         )
         with patch(
-            "src.api.v2.repository.GitUtils.create_pr",
+            "src.api.v1.repository.GitUtils.create_pr",
             new=AsyncMock(return_value=PullRequestDTO(pr_id=42, status="open")),
         ):
             resp = self.client.put(
-                "/v2/repository/pr",
+                "/v1/repository/pr",
                 json={"session_id": str(sid), "q": "Add storage account"},
             )
         self.assertEqual(resp.status_code, 201, resp.text)
@@ -57,7 +57,7 @@ class TestCreatePR(unittest.IsolatedAsyncioTestCase):
 
     def test_pr_unknown_session_returns_404(self):
         resp = self.client.put(
-            "/v2/repository/pr",
+            "/v1/repository/pr",
             json={
                 "session_id": "00000000-0000-0000-0000-000000000000",
                 "q": "x",

@@ -37,7 +37,7 @@ class TestSessionsList(unittest.IsolatedAsyncioTestCase):
                 branch_name="Nebula/x",
             )
         )
-        resp = self.client.get("/v2/sessions/")
+        resp = self.client.get("/v1/sessions/")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         # Body shape may be {items: [...]} or a list — accept either.

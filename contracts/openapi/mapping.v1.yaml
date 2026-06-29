@@ -26,7 +26,7 @@ info:
 
     The mapping service is invoked only by the Nebula core; browser
     callers reach it through the core passthrough at
-    `POST /v2/mapping/resolve`.
+    `POST /v1/mapping/resolve`.
   contact:
     name: Nebula maintainers
     url: https://github.com/inditex/app-nebulaapp

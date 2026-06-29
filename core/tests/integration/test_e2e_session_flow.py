@@ -74,7 +74,7 @@ class TestEndToEndSessionLifecycle(unittest.IsolatedAsyncioTestCase):
         # First call (background task may fail in isolated test env due to LLM
         # config; we only verify the synchronous shape and the session row).
         resp = self.client.post(
-            "/v2/iac/generate",
+            "/v1/iac/generate",
             json={
                 "repo_uri": uri,
                 "cloud": "azure",
@@ -91,11 +91,11 @@ class TestEndToEndSessionLifecycle(unittest.IsolatedAsyncioTestCase):
 
         # PR creation
         with patch(
-            "src.api.v2.repository.GitUtils.create_pr",
+            "src.api.v1.repository.GitUtils.create_pr",
             new=AsyncMock(return_value=PullRequestDTO(pr_id=1, status="open")),
         ):
             pr_resp = self.client.put(
-                "/v2/repository/pr", json={"session_id": sid, "q": "PR title"}
+                "/v1/repository/pr", json={"session_id": sid, "q": "PR title"}
             )
         self.assertEqual(pr_resp.status_code, 201, pr_resp.text)
 
