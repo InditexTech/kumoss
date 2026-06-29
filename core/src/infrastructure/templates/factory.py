@@ -7,6 +7,7 @@ from src.infrastructure.templates._aws import AWSTemplateAdapter
 from src.infrastructure.templates._azure import AzureTemplateAdapter
 from src.infrastructure.templates._gcp import GCPTemplateAdapter
 from src.infrastructure.templates._oci import OCITemplateAdapter
+from src.infrastructure.templates._kubernetes import KubernetesTemplateAdapter
 from src.infrastructure.templates._common import CommonTemplateAdapter
 from src.shared.constants import TemplateProvider
 
@@ -33,6 +34,8 @@ class TemplateFactory:
                 return AWSTemplateAdapter(cwd=self.__cwd)
             case TemplateProvider.OCI:
                 return OCITemplateAdapter(cwd=self.__cwd)
+            case TemplateProvider.KUBERNETES:
+                return KubernetesTemplateAdapter(cwd=self.__cwd)
             case TemplateProvider.COMMON:
                 return CommonTemplateAdapter(cwd=self.__cwd)
             case _:

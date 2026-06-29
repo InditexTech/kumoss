@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Catalogue of available Kubernetes resource templates.
+body: |
+  # Available Kubernetes Resource Templates
+
+  The following Kubernetes resource templates are available for
+  selection. Each template name maps to a seed file under
+  `kubernetes/resources/`.
+
+  - namespace
+  - deployment
+  - stateful_set
+  - daemon_set
+  - service
+  - ingress
+  - config_map
+  - secret
+  - persistent_volume_claim
+  - service_account
+  - cluster_role
+  - cluster_role_binding
+  - role
+  - role_binding
+  - network_policy
+  - horizontal_pod_autoscaler
+  - cron_job

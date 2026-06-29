@@ -89,6 +89,7 @@ class TemplateProvider(Enum):
     GCP = "gcp"
     AWS = "aws"
     OCI = "oci"
+    KUBERNETES = "kubernetes"
     COMMON = "common"
 
 

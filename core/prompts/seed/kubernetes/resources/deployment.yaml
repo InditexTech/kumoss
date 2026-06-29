@@ -1,0 +1,58 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Deployment default configuration (replicas, probes, security context, topology, resources).
+body: |
+  # Kubernetes Deployment
+
+  For a Deployment, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-<environment>`.
+  - Set `replicas` to at least 2 for high availability. Use an odd
+    number (3) when the workload requires leader election.
+  - Set `revision_history_limit = 5` to control how many old
+    ReplicaSets are retained for rollback.
+  - Strategy: use `RollingUpdate` with `max_unavailable = 1` and
+    `max_surge = 1` as defaults.
+  - Always pin the container image to a specific tag or SHA digest —
+    never use `latest`.
+  - Set `image_pull_policy = "IfNotPresent"` for tagged images,
+    `"Always"` for mutable tags only.
+  - Define resource requests and limits for every container:
+    - `requests` — minimum guaranteed resources.
+    - `limits` — maximum allowed resources.
+  - Configure all three probe types:
+    - `startup_probe` — gates liveness checks until the container
+      has started; use for slow-starting applications with a
+      generous `failure_threshold * period_seconds` window.
+    - `liveness_probe` — restart unhealthy containers.
+    - `readiness_probe` — remove unready pods from service endpoints.
+    - Use `http_get`, `tcp_socket`, `grpc`, or `exec` based on the app.
+  - Set `termination_grace_period_seconds` (default 30) to match
+    the application's shutdown time — long enough for in-flight
+    requests to drain.
+  - Security context at the pod level:
+    - `run_as_non_root = true`.
+    - `run_as_user` — a non-zero UID.
+    - `fs_group` — when shared volumes are used.
+    - `seccomp_profile { type = "RuntimeDefault" }`.
+  - Security context at the container level:
+    - `allow_privilege_escalation = false`.
+    - `read_only_root_filesystem = true` when possible.
+    - Drop all capabilities, add only what is needed.
+  - Set `automount_service_account_token = false` on the pod spec
+    unless the application needs Kubernetes API access.
+  - Use a dedicated `kubernetes_service_account` — never the
+    namespace default.
+  - Use `topology_spread_constraints` to distribute pods across
+    zones and nodes:
+    - `max_skew = 1`, `topology_key = "topology.kubernetes.io/zone"`.
+    - `when_unsatisfiable = "DoNotSchedule"`.
+  - Pair with a `kubernetes_pod_disruption_budget_v1` to protect
+    availability during voluntary disruptions (node drains, upgrades).
+  - When an HPA manages replicas, add
+    `lifecycle { ignore_changes = [spec[0].replicas] }` so Terraform
+    does not fight the autoscaler.
+  - Apply standard labels for selectors and identification.
