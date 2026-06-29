@@ -88,6 +88,7 @@ class TemplateProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
     AWS = "aws"
+    OCI = "oci"
     COMMON = "common"
 
 

@@ -23,7 +23,7 @@ class Settings:
 
     # Default project configuration
     DEFAULT_PROJECT_NAME: str = "dcapaiadd"
-    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws"] = "azure"
+    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws", "oci"] = "azure"
     DEFAULT_PROJECT_ENV: Literal["dev", "pre", "pro"] = "dev"
     DEFAULT_PROJECT_UID: str = f"{DEFAULT_PROJECT_NAME}_{SESSION_ID}"
 
