@@ -4,12 +4,12 @@
 
 """Minimal database client with only essential operations."""
 
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 from contextlib import asynccontextmanager
 
-from sqlalchemy import select, func, desc, asc
+from sqlalchemy import ColumnExpressionArgument, select, func, desc, asc
 
-from src.infrastructure.database.session import session_manager
+from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
 
@@ -20,8 +20,8 @@ class DatabaseClient:
     """Async database client with SQLAlchemy ORM support."""
 
     def __init__(self):
-        self.session_manager = session_manager
-        self._initialized = False
+        self.session_manager: SessionManager = session_manager
+        self._initialized: bool = False
 
     async def initialize(self, echo: bool = False) -> None:
         """Initialize the database client."""
@@ -64,7 +64,7 @@ class DatabaseClient:
         async with self.session_manager.transaction() as session:
             yield session
 
-    async def get_by(self, model: Type[T], **filters: Any) -> Optional[T]:
+    async def get_by(self, model: type[T], **filters: Any) -> T | None:
         """Get a single record by filters."""
         async with self.session() as session:
             stmt = select(model)
@@ -74,7 +74,7 @@ class DatabaseClient:
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def create(self, model: Type[T], **data: Any) -> T:
+    async def create(self, model: type[T], **data: Any) -> T:
         """Create a new record."""
         async with self.transaction() as session:
             instance = model(**data)
@@ -85,7 +85,7 @@ class DatabaseClient:
 
     async def list_by(
         self,
-        model: Type[T],
+        model: type[T],
         order_by: str | None = None,
         order_desc: bool = True,
         **filters: Any,
@@ -103,9 +103,9 @@ class DatabaseClient:
 
     async def query(
         self,
-        model: Type[T],
+        model: type[T],
         filters: dict[str, Any] | None = None,
-        extra_conditions: list | None = None,
+        extra_conditions: list[ColumnExpressionArgument[Any]] | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,

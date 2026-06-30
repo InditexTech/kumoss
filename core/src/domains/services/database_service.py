@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -160,11 +160,11 @@ class DatabaseService:
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[UserSession], int]:
-        filters: dict = {}
+        filters: dict[str, str] = {}
         if status:
             filters["status"] = status
 
-        extra_conditions = []
+        extra_conditions: list[Any] = []
         if search:
             pattern = f"%{search}%"
             extra_conditions.append(

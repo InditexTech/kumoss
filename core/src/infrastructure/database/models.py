@@ -5,7 +5,7 @@
 """Database models for Nebula application."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Optional, final, override
 
 from sqlalchemy import (
     CheckConstraint,
@@ -34,6 +34,7 @@ class Base(DeclarativeBase):
     )
 
 
+@final
 class GreenaiUsers(Base):
     """GreenAI users table for storing user information."""
 
@@ -42,10 +43,12 @@ class GreenaiUsers(Base):
     username: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     teams_group_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    @override
     def __repr__(self) -> str:
         return f"<GreenaiUsers(id={self.id}, username='{self.username}')>"
 
 
+@final
 class UserSession(Base):
     """One iterating session against a repo URI. Owns its history and last payload."""
 
@@ -79,10 +82,12 @@ class UserSession(Base):
     apply_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     iac_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    @override
     def __repr__(self) -> str:
         return f"<UserSession(session_id='{self.session_id}', status='{self.status}')>"
 
 
+@final
 class SessionOperation(Base):
     """Tracks individual operations within a session."""
 
@@ -108,5 +113,6 @@ class SessionOperation(Base):
     file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     content_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
+    @override
     def __repr__(self) -> str:
         return f"<SessionOperation(session_id='{self.session_id}', op=#{self.operation_number}, type='{self.operation_type}')>"

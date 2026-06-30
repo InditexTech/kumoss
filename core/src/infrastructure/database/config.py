@@ -21,7 +21,7 @@ class DatabaseConfig(BaseSettings):
         if not phoenix_url:
             raise ValueError(
                 "PHOENIX_SQL_DATABASE_URL environment variable is not set. "
-                "Please set it to connect to PostgreSQL."
+                + "Please set it to connect to PostgreSQL."
             )
 
         url = phoenix_url.replace("postgresql://", "postgresql+asyncpg://", 1)
