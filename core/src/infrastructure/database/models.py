@@ -4,8 +4,8 @@
 
 """Database models for Nebula application."""
 
-from datetime import datetime
-from typing import Any, Optional, final, override
+from datetime import datetime, timezone
+from typing import Any, final, override
 
 from sqlalchemy import (
     CheckConstraint,
@@ -27,10 +27,13 @@ class Base(DeclarativeBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=datetime.now(timezone.utc)
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime,
+        nullable=False,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
     )
 
 
@@ -41,7 +44,7 @@ class GreenaiUsers(Base):
     __tablename__ = "greenai_users"
 
     username: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    teams_group_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    teams_group_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @override
     def __repr__(self) -> str:
@@ -73,14 +76,14 @@ class UserSession(Base):
     history: Mapped[list[dict[str, str]]] = mapped_column(
         JSON, nullable=False, default=list
     )
-    last_payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    last_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     operation_type: Mapped[str] = mapped_column(
         String(50), nullable=False, default="generate"
     )
-    failure_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    pull_request_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pull_request_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     apply_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    iac_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    iac_path: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @override
     def __repr__(self) -> str:
@@ -98,20 +101,20 @@ class SessionOperation(Base):
     )
     operation_number: Mapped[int] = mapped_column(Integer, nullable=False)
     operation_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    operation_phase: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    operation_subtype: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    terraform_targets: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
-    success: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    artifact_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    blob_container: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    blob_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    blob_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    content_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    operation_phase: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    operation_subtype: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pipeline_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    terraform_targets: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    artifact_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    blob_container: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    blob_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    blob_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     @override
     def __repr__(self) -> str:
