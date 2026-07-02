@@ -1,0 +1,88 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.track {
+  width: 40%;
+  height: 2px;
+  border-radius: 1px;
+  background-color: light-dark(#e0e0e0, rgba(255, 255, 255, 0.15));
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 1px;
+  background-color: light-dark(#1a1a1a, rgba(255, 255, 255, 0.85));
+  transition: width 0.6s ease;
+}
+
+.fillActive {
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.messageArea {
+  min-height: 3.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.messageText {
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.messageItem {
+  display: block;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.messageIn {
+  animation: slideIn 500ms ease-out forwards;
+}
+
+.messageOut {
+  animation: slideOut 500ms ease-in forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
+  to {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}

@@ -1,0 +1,84 @@
+.supportContainer {
+  position: relative;
+  display: inline-block;
+  margin: 0;
+}
+
+.supportButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: 1px solid light-dark(var(--text-color-light), var(--text-color-dark));
+  background: light-dark(#ffffff, transparent);
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  border-radius: 0;
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.supportButton:hover {
+  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.1));
+  color: light-dark(rgba(0, 0, 0, 0.7), #ffffff);
+  border-color: light-dark(rgba(0, 0, 0, 0.7), #ffffff);
+}
+
+.supportButton:active {
+  background: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.15));
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  border-color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.supportButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.supportButton:disabled:hover {
+  background: light-dark(#ffffff, transparent);
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  border-color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.icon {
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.text {
+  font-weight: 500;
+  line-height: 1;
+}
+
+.iconVariant {
+  padding: 8px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  min-width: auto !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.iconVariant:hover {
+  opacity: 0.6;
+}
+
+.iconVariant:disabled {
+  opacity: 0.4;
+}
+
+.iconVariantIcon {
+  font-size: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+}

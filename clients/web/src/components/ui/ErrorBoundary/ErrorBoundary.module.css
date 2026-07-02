@@ -1,0 +1,37 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  padding: 2rem;
+}
+
+.content {
+  text-align: center;
+  color: var(--color-text-body);
+}
+
+.title {
+  font-size: 22px;
+  margin-bottom: 0.5rem;
+}
+
+.message {
+  margin-bottom: 1.5rem;
+  opacity: 0.8;
+}
+
+.retryButton {
+  padding: 0.5rem 1.5rem;
+  border: 1px solid var(--color-text-body);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-body);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.retryButton:hover {
+  background-color: var(--hover-bg, rgba(255, 255, 255, 0.1));
+}

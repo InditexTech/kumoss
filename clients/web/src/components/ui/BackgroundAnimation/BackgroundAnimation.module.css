@@ -1,0 +1,26 @@
+.responseVideo {
+  position: fixed;
+  top: 0;
+  left: 0;
+  object-fit: cover;
+  width: 100vw;
+  height: 100vh;
+  z-index: var(--z-deep-behind);
+}
+
+.backgroundColor {
+  background-color: light-dark(var(--background-color-light), var(--background-color-dark));
+  opacity: 0.8;
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  z-index: var(--z-behind);
+  /*transition: background-color .3s ease;*/
+  transition: opacity 1s ease;
+}
+
+.whiteOpacity {
+  opacity: 0.9;
+}

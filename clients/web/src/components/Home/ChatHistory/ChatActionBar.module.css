@@ -1,0 +1,47 @@
+.bar {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  padding: 0 24px;
+  gap: 16px;
+  overflow-x: auto;
+}
+
+.actionBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 12px;
+  gap: 4px;
+  flex: none;
+  border: none;
+  background: light-dark(#e5eaff, #1a1a3e);
+  color: light-dark(#1a1aff, #8ab4f8);
+  font-weight: 300;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    opacity 150ms ease;
+}
+
+.actionBtn:hover {
+  background: light-dark(#d6ddff, rgba(255, 255, 255, 0.1));
+}
+
+.actionBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.actionBtnPrimary {
+  background: light-dark(#e5eaff, #131575);
+  color: light-dark(#1a1aff, #8ab4f8);
+}
+
+.actionBtnPrimary:hover {
+  background: light-dark(#d6ddff, rgba(19, 21, 117, 0.8));
+}

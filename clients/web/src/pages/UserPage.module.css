@@ -1,0 +1,169 @@
+.container {
+  min-height: 100vh;
+}
+
+.content {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 120px 24px 48px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 48px 0;
+}
+
+.pageTitle {
+  font-size: 32px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.backButton {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 16px !important;
+  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  text-transform: none !important;
+  min-height: auto !important;
+  transition: background-color 0.2s ease !important;
+}
+
+.backButton:hover {
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08)) !important;
+}
+
+.backButtonIcon {
+  font-size: 18px !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+}
+
+.backButtonText {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.section {
+  margin-bottom: 40px;
+}
+
+.sectionTitle {
+  color: light-dark(#6b7280, #9ca3af);
+  margin: 0 0 16px 0;
+}
+
+.userCard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid light-dark(#e5e7eb, #262626);
+}
+
+.userCardTop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.userCardBottom {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.userAvatar {
+  width: 48px;
+  height: 48px;
+  border: 1px solid light-dark(#e5e7eb, #262626);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatarIcon {
+  height: 24px !important;
+  width: 24px !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+}
+
+.userDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.userName {
+  margin: 0 0 4px 0;
+}
+
+.userEmail {
+  font-size: 12px;
+  font-weight: 300;
+  color: light-dark(#9ca3af, #6b7280);
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.logoutButton {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 14px !important;
+  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  text-transform: none !important;
+  min-height: auto !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease !important;
+}
+
+.logoutButton:hover {
+  background: light-dark(rgba(220, 38, 38, 0.06), rgba(239, 68, 68, 0.1)) !important;
+  border-color: light-dark(#fca5a5, #7f1d1d) !important;
+}
+
+.logoutIcon {
+  font-size: 18px !important;
+  color: light-dark(#6b7280, #9ca3af) !important;
+  transition: color 0.2s ease !important;
+}
+
+.logoutButton:hover .logoutIcon {
+  color: light-dark(#dc2626, #ef4444) !important;
+}
+
+.logoutText {
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 1px;
+  color: light-dark(#6b7280, #9ca3af);
+  transition: color 0.2s ease;
+}
+
+.logoutButton:hover .logoutText {
+  color: light-dark(#dc2626, #ef4444) !important;
+}
+
+.placeholder {
+  padding: 32px;
+  border: 1px dashed light-dark(#d1d5db, #374151);
+  text-align: center;
+}
+
+.placeholderText {
+  font-size: 14px;
+  font-weight: 300;
+  color: light-dark(#9ca3af, #6b7280);
+  letter-spacing: 1px;
+  margin: 0;
+}

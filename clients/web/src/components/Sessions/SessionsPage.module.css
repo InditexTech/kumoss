@@ -1,0 +1,38 @@
+.wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.applyCell {
+  text-align: center;
+}
+
+.applyIconOpen {
+  font-size: 20px !important;
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.applyIconLocked {
+  font-size: 20px !important;
+  color: var(--color-status-failed);
+}
+
+.phoenixLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #000000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.phoenixLink:hover {
+  text-decoration: underline;
+}

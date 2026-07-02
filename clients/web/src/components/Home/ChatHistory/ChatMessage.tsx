@@ -1,0 +1,27 @@
+import Typography from "@mui/material/Typography";
+import type { HistoryRole } from "@/types/api";
+import styles from "./ChatMessage.module.css";
+
+interface ChatMessageProps {
+  role: HistoryRole;
+  content: string;
+}
+
+export default function ChatMessage({ role, content }: ChatMessageProps) {
+  const styleClass =
+    role === "user"
+      ? styles.user
+      : role === "validation"
+        ? styles.validation
+        : styles.assistant;
+
+  const bullet =
+    role === "assistant" ? "○" : role === "validation" ? "◆" : null;
+
+  return (
+    <div className={`${styles.message} ${styleClass}`}>
+      {bullet && <span className={styles.bullet}>{bullet}</span>}
+      <Typography variant="bodyText" className={styles.content}>{content}</Typography>
+    </div>
+  );
+}

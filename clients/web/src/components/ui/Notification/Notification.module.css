@@ -1,0 +1,71 @@
+.stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: var(--z-notification);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.notification {
+  width: 400px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  font-size: 21px;
+  pointer-events: auto;
+}
+
+.success {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.warning {
+  background-color: #F4B271;
+  color: #ffffff;
+}
+
+.failure {
+  background-color: #E23645;
+  color: #ffffff;
+}
+
+.icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.action {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.action:hover {
+  text-decoration-thickness: 2px;
+}
+
+.close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}

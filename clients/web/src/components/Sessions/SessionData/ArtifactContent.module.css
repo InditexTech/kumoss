@@ -1,0 +1,23 @@
+.loading {
+  color: rgba(0, 0, 0, 0.5);
+  padding: 24px 0;
+}
+
+.reportContainer {
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+}
+
+.executionSummary {
+  margin-bottom: 28px;
+}
+
+.executionSummaryLabel {
+  color: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.5));
+  margin: 0 0 8px;
+}
+
+.executionSummaryText {
+  color: #000000;
+  margin: 0;
+}

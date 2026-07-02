@@ -1,0 +1,103 @@
+/* ─── Compact Card ─── */
+
+.impactCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  gap: 16px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 32px;
+  cursor: pointer;
+}
+
+.impactLabel {
+  color: light-dark(#000000, #ffffff);
+  margin: 0;
+}
+
+.impactLevel {
+  margin: 0;
+}
+
+.impactLevel.high {
+  color: var(--color-danger);
+}
+
+.impactLevel.medium {
+  color: #f59e0b;
+}
+
+.impactLevel.low {
+  color: var(--color-generated);
+}
+
+.impactDescription {
+  color: light-dark(#000000, #ffffff);
+  margin: 0;
+}
+
+/* ─── Detail Overlay ─── */
+
+.impactGrid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  row-gap: 24px;
+  column-gap: 32px;
+}
+
+.impactSectionLabel {
+  margin: 0;
+  align-self: first baseline;
+}
+
+.impactStatusValue {
+  margin: 0;
+  color: var(--color-generated);
+}
+
+.impactStatusValue.high {
+  color: var(--color-danger);
+}
+
+.impactStatusValue.medium {
+  color: #f59e0b;
+}
+
+.impactStatusValue.low {
+  color: var(--color-generated);
+}
+
+.impactSectionBody {
+  color: light-dark(#000000, #e5e7eb);
+  margin: 0;
+}
+
+.impactDetailsValue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.impactBulletItem {
+  padding-left: 16px;
+}
+
+.impactBulletTitle {
+  margin: 0 0 6px;
+}
+
+.impactBulletDot {
+  margin-right: 8px;
+}
+
+.impactBulletDescription {
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+  color: light-dark(#374151, #d1d5db);
+  margin: 0;
+  padding-left: 16px;
+}

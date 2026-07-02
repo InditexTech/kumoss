@@ -1,0 +1,112 @@
+.loginContainer {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 64px;
+  padding: 40px 0;
+}
+
+.loginContent {
+  width: 100%;
+  max-width: 400px;
+  padding: 0 24px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field {
+  width: 100%;
+}
+
+.field input {
+  font-weight: 300 !important;
+  letter-spacing: 0.5px !important;
+}
+
+.field label {
+  font-weight: 300 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+}
+
+.submitButton {
+  width: 100%;
+  padding: 14px !important;
+  border-radius: 0 !important;
+  border: 1px solid light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+  background: transparent !important;
+  text-transform: uppercase !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  letter-spacing: 2px !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+  cursor: pointer;
+  transition: background-color 0.2s ease !important;
+  min-height: auto !important;
+}
+
+.submitButton:hover {
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08)) !important;
+}
+
+/* Use cases cards */
+
+.useCasesSection {
+  width: 100%;
+  max-width: 1000px;
+  padding: 0 24px;
+}
+
+.useCasesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.useCaseCard {
+  padding: 32px 24px;
+  border: 1px solid light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1));
+  transition: border-color 0.2s ease;
+  text-align: center;
+}
+
+.useCaseCard:hover {
+  border-color: light-dark(rgba(0, 0, 0, 0.25), rgba(255, 255, 255, 0.25));
+}
+
+.useCaseIcon {
+  font-size: 28px !important;
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  display: block;
+  margin: 5px auto;
+}
+
+.useCaseTitle {
+  font-weight: 300;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.useCaseDescription {
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+}
+
+@media screen and (max-width: 768px) {
+  .useCasesGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,33 @@
+.greetingScreen {
+  text-align: center;
+  font-size: clamp(29px, 2.5vw + 8px, 38px);
+  font-style: normal;
+  font-weight: 300;
+  line-height: 46px;
+  letter-spacing: -0.38px;
+}
+
+.greetingContainer {
+  display: flex;
+  margin: 0;
+  justify-content: center;
+  align-items: center;
+  min-height: 70vh;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  transition: left 0.3s ease-in-out;
+  overflow: hidden;
+  font-size: 19px;
+}
+
+.greetingTitle {
+  margin: 100px 10px 10px;
+  font-size: 128px;
+}
+
+.greetingTitle > span:first-child {
+  font-weight: 300;
+}
+
+.greetingTitle > span:last-child {
+  font-weight: 500;
+}
