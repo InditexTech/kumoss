@@ -3,12 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Annotated
-from fastapi.responses import JSONResponse
+
 from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import JSONResponse
 
 from src.application.factory import HandlerFactory
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.filesystem import GitUtils
+from src.infrastructure.filesystem.workspace import InvalidRepoURI, WorkspaceService
 from src.shared.config import system_config
 
 # from src.shared.constants import SessionStatus
@@ -74,5 +76,32 @@ async def create_pr(
 
     return JSONResponse(
         content={"id": pr_details.id, "status": pr_details.status},
+        status_code=200,
+    )
+
+
+@router.post(
+    path="/scan",
+    summary="Scan a repository for Terraform configuration paths.",
+)
+async def scan_terraform_paths(
+    repo_url: Annotated[
+        str,
+        Body(
+            description="Git-cloneable repository URL to scan for Terraform files.",
+            embed=True,
+        ),
+    ],
+) -> JSONResponse:
+    try:
+        ws = WorkspaceService()
+        await ws.validate_uri(repo_url)
+        paths = await ws.scan_terraform_paths(repo_url)
+    except InvalidRepoURI as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+    return JSONResponse(
+        content={"repo_url": repo_url, "terraform_paths": paths},
         status_code=200,
     )
