@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import final, override
 
 from sqlalchemy import (
-    # CheckConstraint,
     ForeignKey,
     String,
     Text,
@@ -24,6 +23,7 @@ from src.shared.constants import (
     GitProviderName,
     OperationType,
     SessionStatus,
+    TemplateProvider,
 )
 
 
@@ -63,13 +63,6 @@ class Session(Base):
     """"""
 
     __tablename__ = "sessions"
-    # __table_args__ = (
-    #     CheckConstraint(
-    #         "status IN ('active', 'completed', 'abandoned')",
-    #         name="user_sessions_status_check",
-    #     ),
-    # )
-
     uuid: Mapped[str] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     status: Mapped[SessionStatus] = mapped_column(
@@ -84,6 +77,10 @@ class Session(Base):
     pull_requests: Mapped[list["PullRequest"]] = relationship(
         "PullRequest", cascade="all, delete"
     )
+    cloud_providers: Mapped[list["CloudProvider"]] = relationship(
+        "CloudProvider", cascade="all, delete"
+    )
+    histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     operations: Mapped[list["Operation"]] = relationship(
         "Operation", cascade="all, delete"
     )
@@ -108,6 +105,20 @@ class Workspace(Base):
     @override
     def __repr__(self) -> str:
         return f"<Workspace(session_id='{self.session_id}', uri={self.uri}')>"
+
+
+@final
+class CloudProvider(Base):
+    """"""
+
+    __tablename__ = "cloud_providers"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    name: Mapped[TemplateProvider] = mapped_column()
+
+    @override
+    def __repr__(self) -> str:
+        return f"<CloudProvider(session_id='{self.session_id}', name={self.name}')>"
 
 
 @final
