@@ -85,7 +85,7 @@ class FileSystemUtils(IFileSystem):
             )
 
             with open(file_path, "w", encoding="utf-8") as file:
-                file.write(modified_content)
+                _ = file.write(modified_content)
 
             logging.info(f"Successfully replaced content in file {target_file}")
             return True
