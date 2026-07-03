@@ -51,7 +51,8 @@ export async function runTerraformActionWorkflow(
     : {
         repo_uri: params.repoUri,
         q: params.query,
-        cloud: params.cloud as "azure" | "gcp",
+        //cloud: params.cloud as "azure" | "gcp",
+        cloud: "azure", //TODO: How can we retrieve this value from input params?
         environment: params.environment,
         user_id: params.userId,
         iac_path: params.iacPath ?? null,

@@ -20,11 +20,11 @@ export function useMapperResolution() {
       try {
         const resolved = await resolveProject({ identifier });
         const scan = await scanRepository(resolved.repo_url);
-        setScanPaths(scan.paths);
+        setScanPaths(scan.terraform_paths);
         return {
           repoUrl: resolved.repo_url,
           project: resolved.project ?? null,
-          paths: scan.paths,
+          paths: scan.terraform_paths,
         };
       } finally {
         setMapperLoading(false);

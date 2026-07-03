@@ -7,7 +7,7 @@ export interface ResolveRequest {
 }
 
 export interface ResolveResponse {
-  repo_url: string;
+  identifier: string;
   project?: string | null;
   branch?: string | null;
   path?: string | null;

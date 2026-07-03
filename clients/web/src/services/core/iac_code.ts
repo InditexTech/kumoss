@@ -28,15 +28,16 @@ export async function approvePullRequest(
 }
 
 export interface ScanRepositoryResponse {
-  paths: string[];
+  repo_url: string
+  terraform_paths: string[];
 }
 
 /** POST /v1/repository/scan — Scan a repo for IaC paths */
 export async function scanRepository(
-  url: string,
+  repo_url: string,
 ): Promise<ScanRepositoryResponse> {
   return apiFetch<ScanRepositoryResponse>(`${REPO_BASE}/scan`, {
     method: "POST",
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ repo_url }),
   });
 }
