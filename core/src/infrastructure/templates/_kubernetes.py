@@ -38,7 +38,9 @@ class KubernetesTemplateAdapter(CommonTemplateAdapter):
                 type="guidelines",
                 tag=system_config.environment,
             )
-            resource_creation = await self.__fetch_kubernetes_guidelines("resource_creation")
+            resource_creation = await self.__fetch_kubernetes_guidelines(
+                "resource_creation"
+            )
             forbidden_actions = (
                 await self.__fetch_kubernetes_guidelines("forbidden_actions")
                 if include_forbidden_actions
@@ -85,7 +87,9 @@ class KubernetesTemplateAdapter(CommonTemplateAdapter):
                 type="guidelines",
                 tag=system_config.environment,
             )
-            resource_creation = await self.__fetch_kubernetes_guidelines("resource_creation")
+            resource_creation = await self.__fetch_kubernetes_guidelines(
+                "resource_creation"
+            )
             forbidden_actions = (
                 await self.__fetch_kubernetes_guidelines("forbidden_actions")
                 if include_forbidden_actions

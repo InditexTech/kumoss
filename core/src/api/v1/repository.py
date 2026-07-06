@@ -7,11 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.application.factory import HandlerFactory
+from src.application.factory import HandlerFactory, StatelessFactory
 from src.domains.services.database_service import DatabaseService
-from src.infrastructure.filesystem import GitUtils
-from src.infrastructure.filesystem.workspace import InvalidRepoURI, WorkspaceService
-from src.shared.config import system_config
+from src.infrastructure.filesystem.workspace import InvalidRepoURI
 
 # from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
@@ -39,7 +37,8 @@ async def complete_pr(
             raise HTTPException(
                 status_code=404, detail=f"Session {session_id} not found."
             )
-        await GitUtils(system_config.git.provider).complete_pr(session.repo_uri, id)
+        git_service = StatelessFactory.get_git_service()
+        await git_service.complete_pr(session.repo_uri, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -81,27 +80,26 @@ async def create_pr(
 
 
 @router.post(
-    path="/scan",
-    summary="Scan a repository for Terraform configuration paths.",
+    path="/parse",
+    summary="Parse a repository for Terraform root-module directories.",
 )
-async def scan_terraform_paths(
-    repo_url: Annotated[
+async def parse_repository(
+    repo_uri: Annotated[
         str,
         Body(
-            description="Git-cloneable repository URL to scan for Terraform files.",
+            description="Git-cloneable repository URI to parse for Terraform roots.",
             embed=True,
         ),
     ],
 ) -> JSONResponse:
     try:
-        ws = WorkspaceService()
-        await ws.validate_uri(repo_url)
-        paths = await ws.scan_terraform_paths(repo_url)
+        service = StatelessFactory.get_iac_root_detection_service()
+        roots = await service.detect_roots(repo_uri)
     except InvalidRepoURI as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(
-        content={"repo_url": repo_url, "terraform_paths": paths},
+        content={"roots": roots},
         status_code=200,
     )

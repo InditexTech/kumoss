@@ -8,6 +8,7 @@ from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
+    IacRootDetectionService,
     TemplateOrchestrationService,
     TerraformTargetService,
     TerraformValidationService,
@@ -20,7 +21,12 @@ from src.domains.services import (
 from src.domains.services.task_split_service import TaskSplitService
 from src.infrastructure.external.gemini_web_search import GeminiWebSearch
 from src.infrastructure.tools.tool_registry import ToolRegistry
-from src.infrastructure.filesystem import FileSystemUtils, GitUtils
+from src.infrastructure.filesystem import (
+    FileSystemUtils,
+    GitUtils,
+    IacRootDetector,
+    WorkspaceService,
+)
 from src.infrastructure.templates.factory import TemplateFactory
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory
@@ -374,3 +380,19 @@ class HandlerFactory:
             payload_svc=payload_svc,
             session_ctx=self.session_ctx,
         )
+
+
+@final
+class StatelessFactory:
+    """Composition root for request-scoped services that have no session."""
+
+    @staticmethod
+    def get_iac_root_detection_service() -> IacRootDetectionService:
+        return IacRootDetectionService(
+            workspace=WorkspaceService(),
+            detector=IacRootDetector(),
+        )
+
+    @staticmethod
+    def get_git_service() -> IGit:
+        return GitUtils(git_provider=system_config.git.provider)
