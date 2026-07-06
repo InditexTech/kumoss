@@ -4,15 +4,13 @@
 
 import shutil
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import final, override
 from uuid import UUID
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.filesystem.cli import Cli
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
-from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 
@@ -82,34 +80,3 @@ class WorkspaceService(IWorkspace):
     @override
     def cleanup(self, call_dir: Path) -> None:
         shutil.rmtree(call_dir, ignore_errors=True)
-
-    async def scan_terraform_paths(self, repo_uri: str) -> list[str]:
-        """Clone a repo and return directories containing Terraform files."""
-        clone_dir = Path(tempfile.mkdtemp())
-        try:
-            git = GitUtils(
-                git_provider=system_config.git.provider,
-                cwd=clone_dir,
-            )
-            ok = await git.clone_repository(
-                repo_url=repo_uri,
-                repository_name="repo",
-            )
-            if not ok:
-                raise ExceptionHandler(
-                    f"Repository could not be cloned: {git.error_msg}", 422
-                )
-
-            cli = Cli(cwd=str(clone_dir / "repo"))
-            result = await cli.execute(
-                ["git", "ls-tree", "-r", "--name-only", "HEAD"],
-            )
-
-            paths: set[str] = set()
-            for line in result.stdout.decode().splitlines():
-                if line.endswith(".tf") or line.endswith(".tf.json"):
-                    paths.add(str(PurePosixPath(line).parent))
-
-            return sorted(paths)
-        finally:
-            shutil.rmtree(clone_dir, ignore_errors=True)

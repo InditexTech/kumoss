@@ -4,6 +4,7 @@
 
 from .filesystem_interface import IFileSystem
 from .git_interface import IGit
+from .iac_root_detector_interface import IIacRootDetector
 from .llm_interface import ILLMProvider
 from .template_interface import ITemplate
 from .terraform_validator_interface import ITerraformValidator
@@ -13,6 +14,7 @@ from .tracer_interface import ITracer
 __all__ = [
     "IFileSystem",
     "IGit",
+    "IIacRootDetector",
     "ILLMProvider",
     "ITemplate",
     "ITerraformValidator",
