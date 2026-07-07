@@ -32,13 +32,8 @@ async def complete_pr(
     id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
     try:
-        session = await DatabaseService.get_session(session_id)
-        if not session:
-            raise HTTPException(
-                status_code=404, detail=f"Session {session_id} not found."
-            )
-        git_service = StatelessFactory.get_git_service()
-        await git_service.complete_pr(session.repo_uri, id)
+        service = StatelessFactory.get_merge_pr_service()
+        await service.merge(session_id, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)

@@ -4,7 +4,6 @@
 
 import asyncio
 import unittest
-from types import SimpleNamespace
 from unittest.mock import patch, AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -18,9 +17,9 @@ from src.infrastructure.database.models import Base
 from src.shared.exceptions import ExceptionHandler
 
 
-def _mock_git_service(complete_pr: AsyncMock) -> MagicMock:
+def _mock_merge_service(merge: AsyncMock) -> MagicMock:
     svc = MagicMock()
-    svc.complete_pr = complete_pr
+    svc.merge = merge
     return svc
 
 
@@ -28,22 +27,11 @@ class TestMergePR(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.client = TestClient(app)
 
-    def _session(self, **overrides):
-        defaults = dict(repo_uri="https://github.com/org/repo.git")
-        defaults.update(overrides)
-        return SimpleNamespace(**defaults)
-
     def test_merge_pr_succeeds(self):
-        svc = _mock_git_service(AsyncMock(return_value=None))
-        with (
-            patch(
-                "src.api.v1.repository.StatelessFactory.get_git_service",
-                return_value=svc,
-            ),
-            patch(
-                "src.api.v1.repository.DatabaseService.get_session",
-                new=AsyncMock(return_value=self._session()),
-            ),
+        svc = _mock_merge_service(AsyncMock(return_value=None))
+        with patch(
+            "src.api.v1.repository.StatelessFactory.get_merge_pr_service",
+            return_value=svc,
         ):
             resp = self.client.patch(
                 "/v1/repository/merge_pr",
@@ -53,12 +41,19 @@ class TestMergePR(unittest.IsolatedAsyncioTestCase):
                 },
             )
         self.assertEqual(resp.status_code, 200)
-        svc.complete_pr.assert_awaited_once_with("https://github.com/org/repo.git", 42)
+        svc.merge.assert_awaited_once_with(
+            "00000000-0000-0000-0000-000000000001", 42
+        )
 
     def test_merge_pr_unknown_session_returns_404(self):
+        svc = _mock_merge_service(
+            AsyncMock(
+                side_effect=ExceptionHandler("Session not found.", 404)
+            )
+        )
         with patch(
-            "src.api.v1.repository.DatabaseService.get_session",
-            new=AsyncMock(return_value=None),
+            "src.api.v1.repository.StatelessFactory.get_merge_pr_service",
+            return_value=svc,
         ):
             resp = self.client.patch(
                 "/v1/repository/merge_pr",
@@ -70,18 +65,12 @@ class TestMergePR(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_merge_pr_git_error_returns_status(self):
-        svc = _mock_git_service(
+        svc = _mock_merge_service(
             AsyncMock(side_effect=ExceptionHandler("merge conflict", 409))
         )
-        with (
-            patch(
-                "src.api.v1.repository.StatelessFactory.get_git_service",
-                return_value=svc,
-            ),
-            patch(
-                "src.api.v1.repository.DatabaseService.get_session",
-                new=AsyncMock(return_value=self._session()),
-            ),
+        with patch(
+            "src.api.v1.repository.StatelessFactory.get_merge_pr_service",
+            return_value=svc,
         ):
             resp = self.client.patch(
                 "/v1/repository/merge_pr",
