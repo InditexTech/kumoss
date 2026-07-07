@@ -9,12 +9,13 @@ from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
     IacRootDetectionService,
+    LLMOrchestrationService,
+    MergePullRequestService,
+    SessionService,
     TemplateOrchestrationService,
     TerraformTargetService,
     TerraformValidationService,
     ToolOrchestrationService,
-    SessionService,
-    LLMOrchestrationService,
 )
 
 # Infrastructure layer imports
@@ -394,5 +395,7 @@ class StatelessFactory:
         )
 
     @staticmethod
-    def get_git_service() -> IGit:
-        return GitUtils(git_provider=system_config.git.provider)
+    def get_merge_pr_service() -> MergePullRequestService:
+        return MergePullRequestService(
+            git=GitUtils(git_provider=system_config.git.provider),
+        )
