@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
         raise
 
     try:
-        configure_git_credentials()
+        _ = configure_git_credentials()
     except Exception as e:
         logging.warning(f"Failed to configure git credentials: {e}")
 
@@ -85,3 +85,4 @@ app.include_router(authorization.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(sessions.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
+
