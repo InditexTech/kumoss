@@ -157,11 +157,6 @@ class DatabaseService:
             row.updated_at = datetime.utcnow()
 
     @staticmethod
-    async def get_session(session_id: str) -> Optional[UserSession]:
-        # Back-compat alias used by remaining list/detail views.
-        return await DatabaseService.load_session(session_id)
-
-    @staticmethod
     async def list_sessions(
         search: str | None = None,
         status: str | None = None,
