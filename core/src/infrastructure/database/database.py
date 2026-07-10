@@ -139,9 +139,6 @@ class DatabaseClient:
             count_result = await session.execute(count_stmt)
             return list(result.scalars().all()), count_result.scalar_one()
 
-    async def health_check(self) -> dict:
-        """Check database health."""
-        return await self.session_manager.health_check()
-
 
 db = DatabaseClient()
+
