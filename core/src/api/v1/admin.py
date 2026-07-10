@@ -182,3 +182,4 @@ async def toggle_apply_allowed(
     await DatabaseService.toggle_apply_allowed(session_id, allowed)
 
     return {"session_id": session_id, "apply_allowed": allowed}
+

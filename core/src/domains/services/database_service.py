@@ -9,14 +9,22 @@ from uuid import UUID
 from sqlalchemy import select, update
 
 from src.infrastructure.database.database import db
-from src.infrastructure.database.models import UserSession, SessionOperation
+from src.infrastructure.database.models import (
+    CloudProvider,
+    User,
+    Session,
+    Workspace,
+    History,
+    Operation,
+)
+from src.shared.constants import OperationType, TemplateProvider
 
 
 class DatabaseService:
-    """Stateless static helpers over the `user_sessions` table."""
+    """Stateless static DB helpers."""
 
     @staticmethod
-    async def start_session(
+    async def create_session(
         *,
         session_id: UUID,
         user_id: str,
@@ -24,27 +32,29 @@ class DatabaseService:
         cloud: str,
         environment: str,
         branch_name: str,
+        query: str,
         operation_type: str = "generate",
         iac_path: str | None = None,
-    ) -> UserSession:
-        return await db.create(
-            UserSession,
-            session_id=str(session_id),
-            user_id=user_id,
-            repo_uri=repo_uri,
-            cloud_provider=cloud,
-            environment=environment,
-            branch_name=branch_name,
-            status="active",
-            in_flight=False,
-            history=[],
-            last_payload=None,
-            operation_type=operation_type,
-            failure_reason=None,
-            pull_request_url=None,
-            apply_allowed=True,
-            iac_path=iac_path,
+    ) -> Session:
+        session: Session = await db.create(Session, user_id="TODO", uuid=session_id)
+        _ = await db.create(
+            Workspace,
+            session_id=session.id,
+            uri=repo_uri,
+            branch=branch_name,
+            root_path=iac_path,
         )
+        _ = await db.create(
+            CloudProvider,
+            session_id=session.id,
+            name=TemplateProvider[cloud],
+        )
+        _ = await db.create(
+            History,
+            session_id=session.id,
+            first_query=query,
+        )
+        return session
 
     @staticmethod
     async def load_session(session_id: str) -> Optional[UserSession]:
@@ -199,3 +209,4 @@ class DatabaseService:
             order_desc=order_desc,
             session_id=session_id,
         )
+
