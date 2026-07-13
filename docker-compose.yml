@@ -7,22 +7,22 @@ name: nebula
 # for the OSS quickstart where most knobs have safe defaults.
 
 services:
-  # proxy:
-  #   image: nebula-nginx:latest
-  #   restart: on-failure
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: docker/local.nginx.Dockerfile
-  #   ports:
-  #     - "80:80"
-  #   expose:
-  #     - 80
-  #   depends_on:
-  #     - api
-  #     - webapp
-  #     - phoenix
-  #   networks:
-  #     - bridge-network
+  proxy:
+    image: nebula-nginx:latest
+    restart: on-failure
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    expose:
+      - 80
+    depends_on:
+      - api
+      # - webapp
+      - phoenix
+    networks:
+      - bridge-network
 
   api:
     image: nebula-fastapi:latest
