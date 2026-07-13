@@ -1,0 +1,73 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem;
+  position: relative;
+  z-index: var(--z-header);
+  flex-shrink: 0;
+}
+
+.rightSection {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  max-height: 43px;
+}
+
+.logo > a {
+  display: flex;
+  text-decoration: none;
+  justify-content: center;
+  align-items: center;
+}
+
+.logo > a > span:first-child {
+  font-size: 34px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.logo > a > span:last-child {
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.separator {
+  width: 1px;
+  height: 24px;
+  background: light-dark(var(--color-border), var(--color-border));
+  margin: 0 4px;
+}
+
+.iconButton {
+  padding: 8px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  min-width: auto !important;
+  transition: opacity 0.2s ease !important;
+}
+
+.iconButton:hover {
+  opacity: 0.6;
+}
+
+.headerIcon {
+  font-size: 22px !important;
+  width: 22px !important;
+  height: 22px !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+}

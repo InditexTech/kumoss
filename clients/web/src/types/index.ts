@@ -1,0 +1,126 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+export interface UserInfo {
+  username: string;
+  name: string;
+  homeAccountId: string;
+  environment: string;
+  tenantId: string;
+  localAccountId: string;
+  roles: string[];
+}
+
+// ─── Terraform Report ───────────────────────────────────────
+
+export interface TerraformChange {
+  action: string;
+  name?: string;
+  user_friendly_header?: string;
+  notes?: string;
+  summary?: string;
+  details?: string;
+  [key: string]: unknown;
+}
+
+export interface BulletPoint {
+  title: string;
+  description: string;
+}
+
+export interface CostBreakdownItem {
+  resource_type: string;
+  details: {
+    estimated_cost: string;
+    additional_details: string;
+  };
+}
+
+export interface ImportSummary {
+  total_untracked_resources?: number;
+  successfully_imported_count?: number;
+  not_imported_count?: number;
+  resource_group_name?: string;
+}
+
+export interface ImportResourceDetail {
+  category: string;
+  resource_identifier: string;
+  details: string;
+}
+
+export interface DriftChange {
+  attribute_modified: string;
+  change_description: string;
+  reason: string;
+  details?: string[];
+}
+
+export interface DriftResource {
+  resource_address: string;
+  file_path: string;
+  changes?: DriftChange[];
+}
+
+export interface ApplyResourceChange {
+  resource_type: string;
+  resource_name: string;
+  action: string;
+  status: string;
+  details: string;
+  error_message?: string;
+}
+
+export interface PlanSummary {
+  create: number;
+  update: number;
+  delete: number;
+  recreate: number;
+}
+
+export interface TerraformReport {
+  status?: string;
+  summary?: PlanSummary;
+  potential_impact?: {
+    banner?: { level: string; title: string; description: string };
+    summary_paragraph?: string;
+    bullet_points?: BulletPoint[];
+  };
+  estimated_costs?: {
+    banner?: { summary: string };
+    introduction_paragraph?: string;
+    breakdown?: CostBreakdownItem[];
+  };
+  detailed_changes?: TerraformChange[];
+  remediation_summary?: string;
+  remediated_resources?: DriftResource[];
+  import_summary?: ImportSummary;
+  execution_summary?: string;
+  resource_details?: ImportResourceDetail[];
+  recommendations?: string[];
+  apply_summary?: {
+    total_resources?: number;
+    created?: number;
+    updated?: number;
+    destroyed?: number;
+    failed?: number;
+  };
+  resource_changes?: ApplyResourceChange[];
+  [key: string]: unknown;
+}
+
+// ─── Events ─────────────────────────────────────────────────
+
+export interface EventMessage {
+  status_msg?: string;
+  detail?: { validation_id?: string; message?: string };
+  [key: string]: unknown;
+}
+
+// ─── API ────────────────────────────────────────────────────
+
+export interface ApiOptions extends RequestInit {
+  headers?: Record<string, string>;
+  timeout?: number;
+}

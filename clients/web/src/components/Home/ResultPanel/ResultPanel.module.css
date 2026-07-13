@@ -1,0 +1,99 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── Container ─── */
+
+.panel {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding: 32px 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Tabs ─── */
+
+.tabBar {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.tab {
+  color: light-dark(#9ca3af, #6b7280);
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 0 0 6px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.tab:hover {
+  color: light-dark(#374151, #d1d5db);
+}
+
+.tabActive {
+  color: light-dark(#111827, #f9fafb);
+  border-bottom-color: light-dark(#111827, #f9fafb);
+}
+
+/* ─── Tab Content ─── */
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─── Execution Summary ─── */
+
+.executionSummary {
+  margin-bottom: 28px;
+}
+
+.executionSummaryLabel {
+  margin: 0 0 8px;
+}
+
+.executionSummaryText {
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+/* ─── Plan / Code Views ─── */
+
+.planView,
+.codeView {
+  flex: 1;
+  min-height: 0;
+}
+
+.emptyState {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ─── Responsive ─── */
+
+@media screen and (max-width: 1200px) {
+  .panel {
+    height: auto;
+    overflow: initial;
+    padding: 24px 0;
+  }
+
+}
