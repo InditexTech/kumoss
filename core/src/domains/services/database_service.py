@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
@@ -15,9 +15,8 @@ from src.infrastructure.database.models import (
     Session,
     Workspace,
     History,
-    Operation,
 )
-from src.shared.constants import OperationType, TemplateProvider
+from src.shared.constants import TemplateProvider
 
 
 class DatabaseService:
@@ -30,13 +29,14 @@ class DatabaseService:
         user_id: str,
         repo_uri: str,
         cloud: str,
-        environment: str,
         branch_name: str,
         query: str,
-        operation_type: str = "generate",
         iac_path: str | None = None,
     ) -> Session:
-        session: Session = await db.create(Session, user_id="TODO", uuid=session_id)
+        user: User | None = await db.get_by(User, username=user_id)
+        if not user:
+            user = await db.create(User, username=user_id)
+        session: Session = await db.create(Session, user_id=user.id, uuid=session_id)
         _ = await db.create(
             Workspace,
             session_id=session.id,
@@ -82,16 +82,6 @@ class DatabaseService:
                 update(UserSession)
                 .where(UserSession.session_id == session_id)
                 .values(in_flight=False, updated_at=datetime.utcnow())
-            )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def set_last_payload(session_id: str, payload: dict) -> None:
-        async with db.transaction() as sess:
-            stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(last_payload=payload, updated_at=datetime.utcnow())
             )
             await sess.execute(stmt)
 
