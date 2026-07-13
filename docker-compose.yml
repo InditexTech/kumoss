@@ -113,21 +113,6 @@ services:
     networks:
       - bridge-network
 
-  # webapp:
-  #   image: nebula-web:latest
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: ./docker/local.vite.Dockerfile
-  #   ports:
-  #     - "5173"
-  #   develop:
-  #     watch:
-  #       - action: sync
-  #         path: ./frontend/user_portal
-  #         target: /user_portal
-  #   networks:
-  #     - bridge-network
-
   phoenix:
     image: arizephoenix/phoenix:17.10.0
     ports:
