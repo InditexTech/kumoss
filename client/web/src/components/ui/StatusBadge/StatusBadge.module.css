@@ -1,0 +1,73 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0px 6px;
+  height: 20px;
+  border-radius: 0;
+  text-align: center;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  flex-shrink: 0;
+}
+
+/* ─── Green (create / completed / succeeded) ─── */
+.create,
+.created,
+.completed,
+.succeeded,
+.successfully_imported {
+  background-color: var(--color-create);
+  color: var(--color-create-bg);
+}
+
+/* ─── Blue (generated) ─── */
+.generated {
+  background-color: var(--color-generated);
+  color: var(--color-generated-bg);
+}
+
+/* ─── Orange (update / partial) ─── */
+.update,
+.updated,
+.partial {
+  background-color: var(--color-update);
+  color: var(--color-update-bg);
+}
+
+/* ─── Purple (recreate) ─── */
+.recreate,
+.recreated {
+  background-color: var(--color-recreate);
+  color: var(--color-recreate-bg);
+}
+
+/* ─── Red (delete / failed) ─── */
+.delete,
+.deleted,
+.failed,
+.not_imported {
+  background-color: var(--color-delete);
+  color: var(--color-delete-bg);
+}
+
+/* ─── Dark red (destroyed) ─── */
+.destroyed {
+  background-color: var(--color-destroyed);
+  color: var(--color-delete-bg);
+}
+
+/* ─── Gray (started / generating / neutral) ─── */
+.started,
+.generating,
+.no_change,
+.untracked,
+.default {
+  background-color: var(--color-started-bg);
+  color: var(--color-neutral-text);
+}

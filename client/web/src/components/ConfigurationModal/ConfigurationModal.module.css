@@ -1,0 +1,125 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+}
+
+.settingText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settingTitle {
+  font-size: 14px;
+  font-weight: 300;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.settingDescription {
+  font-size: 13px;
+  font-weight: 300;
+  color: light-dark(#6b7280, #9ca3af);
+}
+
+.section {
+  margin-bottom: 40px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: light-dark(#6b7280, #9ca3af);
+  margin: 0 0 16px 0;
+}
+
+.optionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.optionItem {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  padding: 14px 16px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  transition: background-color 0.2s ease !important;
+  text-transform: none !important;
+  gap: 14px !important;
+  min-height: auto !important;
+  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+}
+
+.optionItem:hover {
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08)) !important;
+}
+
+.optionItemActive {
+  border-color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+}
+
+.optionIcon {
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.optionText {
+  font-size: 14px;
+  font-weight: 300;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  letter-spacing: 1px;
+}
+
+.sessionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.sessionCard {
+  padding: 16px;
+  border: 1px solid light-dark(#e5e7eb, #262626);
+}
+
+.sessionLabel {
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: light-dark(#9ca3af, #6b7280);
+  margin: 0 0 6px 0;
+}
+
+.sessionValue {
+  font-size: 14px;
+  font-weight: 300;
+  margin: 0;
+  letter-spacing: 0.5px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.generateIcon { color: #2563eb !important; }
+.driftIcon { color: #ea580c !important; }
+.partialDriftIcon { color: #16a34a !important; }
+.importIcon { color: #7c3aed !important; }
+
+@media screen and (max-width: 768px) {
+  .sessionGrid {
+    grid-template-columns: 1fr;
+  }
+}

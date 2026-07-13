@@ -1,0 +1,128 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 48px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ─── Filters ──────────────────────────────── */
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.extraContent {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── Inline Pagination ───────────────────── */
+
+.inlinePagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ─── Table ────────────────────────────────── */
+
+.tableWrapper {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: inherit;
+}
+
+.table th {
+  font-family: inherit;
+  font-weight: 300;
+  text-transform: uppercase;
+  font-feature-settings: "tnum" on, "lnum" on;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0;
+  text-align: left;
+  padding: 8px 12px;
+  height: 42px;
+  box-sizing: border-box;
+  border-bottom: 0.5px solid #000000;
+  color: #000000;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-base);
+  background: #ffffff;
+}
+
+.table td {
+  font-family: inherit;
+  font-weight: 300;
+  font-size: 16px;
+  line-height: 20px;
+  letter-spacing: -0.03em;
+  padding: 24px 12px;
+  height: 76px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+  color: #000000;
+}
+
+.table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* ─── Cell Variants ────────────────────────── */
+
+.userCell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queryCell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dateCell {
+  white-space: nowrap;
+}
+
+.applyCell {
+  text-align: center;
+}
+
+.emptyRow {
+  text-align: center;
+  padding: 40px 14px !important;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.clickableRow {
+  cursor: pointer;
+}

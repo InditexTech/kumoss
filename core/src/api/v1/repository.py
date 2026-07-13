@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Annotated
-
-from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Body, HTTPException
 
-from src.application.factory import HandlerFactory, StatelessFactory
+from src.application.factory import HandlerFactory
 from src.domains.services.database_service import DatabaseService
-from src.infrastructure.filesystem.workspace import InvalidRepoURI
+from src.infrastructure.filesystem import GitUtils
+from src.shared.config import system_config
 
 # from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
@@ -32,8 +32,12 @@ async def complete_pr(
     id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
     try:
-        service = StatelessFactory.get_merge_pr_service()
-        await service.merge(session_id, id)
+        session = await DatabaseService.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=404, detail=f"Session {session_id} not found."
+            )
+        await GitUtils(system_config.git.provider).complete_pr(session.repo_uri, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -70,31 +74,5 @@ async def create_pr(
 
     return JSONResponse(
         content={"id": pr_details.id, "status": pr_details.status},
-        status_code=200,
-    )
-
-
-@router.post(
-    path="/parse",
-    summary="Parse a repository for Terraform root-module directories.",
-)
-async def parse_repository(
-    repo_uri: Annotated[
-        str,
-        Body(
-            description="Git-cloneable repository URI to parse for Terraform roots.",
-            embed=True,
-        ),
-    ],
-) -> JSONResponse:
-    try:
-        service = StatelessFactory.get_iac_root_detection_service()
-        roots = await service.detect_roots(repo_uri)
-    except InvalidRepoURI as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except ExceptionHandler as e:
-        raise HTTPException(status_code=e.error_code, detail=e.message)
-    return JSONResponse(
-        content={"roots": roots},
         status_code=200,
     )

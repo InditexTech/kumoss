@@ -1,0 +1,56 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.dropdown {
+  min-width: 220px;
+}
+
+.menuItem {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 16px 0px !important;
+  font-size: 14px !important;
+  font-weight: 300 !important;
+  line-height: 20px !important;
+  font-feature-settings: 'tnum' on, 'lnum' on !important;
+  min-height: 40px !important;
+}
+
+.menuItem:global(.Mui-selected) .menuItemLabel {
+  font-weight: 300;
+}
+
+.menuItemContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0px;
+}
+
+.menuItemLabel {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.menuItemDescription {
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 16px;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  color: light-dark(#5C5C5C, var(--text-color-dark-darker));
+}
+
+.selectedLabel {
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}

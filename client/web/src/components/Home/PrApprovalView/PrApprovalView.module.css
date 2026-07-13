@@ -1,0 +1,175 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 24px;
+}
+
+.heading {
+  margin: 20px 0 0;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  text-align: center;
+}
+
+.subtitle {
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+.buttonRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.outlineBtn {
+  padding: 14px 36px;
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid light-dark(var(--text-color-light), var(--text-color-dark));
+  background: transparent;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition:
+    background 150ms ease,
+    opacity 150ms ease;
+}
+
+.outlineBtn:hover {
+  background: light-dark(#f0f0f0, rgba(255, 255, 255, 0.06));
+}
+
+.filledBtn {
+  padding: 14px 36px;
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  background: light-dark(#1a1a1a, #e0e0e0);
+  color: light-dark(#fff, #1a1a1a);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    opacity 150ms ease;
+}
+
+.filledBtn:hover {
+  background: light-dark(#333, #ccc);
+}
+
+.filledBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.backLink {
+  margin-top: 24px;
+  padding: 8px 16px;
+  font-weight: 300;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  background: transparent;
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.backLink:hover {
+  opacity: 0.7;
+}
+
+.noAnchor {
+  text-decoration: none;
+  color: inherit;
+}
+
+.blockedContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 24px;
+}
+
+.blockedText {
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  text-align: center;
+  margin: 16px 0 0;
+  max-width: 520px;
+}
+
+.warningBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border: 1px solid light-dark(#d4a017, #e6b422);
+  border-radius: var(--radius-sm);
+  background: light-dark(#fef9e7, rgba(230, 180, 34, 0.08));
+  margin-top: 24px;
+  max-width: 520px;
+}
+
+.warningIcon {
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.warningText {
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.dangerBtn {
+  padding: 14px 36px;
+  font-weight: 300;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  background: light-dark(#b91c1c, #dc2626);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    opacity 150ms ease;
+}
+
+.dangerBtn:hover {
+  background: light-dark(#991b1b, #b91c1c);
+}
+
+.dangerBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@media screen and (max-width: 768px) {
+  .buttonRow {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .outlineBtn,
+  .filledBtn {
+    width: 100%;
+    text-align: center;
+  }
+}

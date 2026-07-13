@@ -1,0 +1,85 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.footerContainer {
+  display: flex;
+  position: absolute;
+  z-index: var(--z-footer);
+  bottom: 0;
+  left: 10%;
+  width: 80%;
+  justify-content: center;
+  align-items: center;
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  overflow: hidden;
+  margin-bottom: 25px;
+}
+
+.containerUnit {
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  justify-content: center;
+  flex: 2;
+  min-width: 0;
+}
+
+.containerUnitLarge {
+  composes: containerUnit;
+  flex: 4;
+}
+
+.containerUnitSmall {
+  composes: containerUnit;
+  flex: 1;
+}
+
+.containerUnit > span {
+  margin: 0 10px;
+}
+
+.footerContainer > span {
+  margin: auto 10px;
+}
+
+.mainMsg {
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.timelineContainer {
+  position: absolute;
+  z-index: var(--z-footer);
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 1200px) {
+  .footerContainer {
+    width: 100%;
+    left: 0;
+    margin-bottom: 2px;
+  }
+
+  .containerUnit {
+    padding: 0 5px;
+  }
+
+  .containerUnit > span {
+    margin: 0 10px 0 0;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .timelineContainer {
+    max-height: 280px;
+  }
+}
