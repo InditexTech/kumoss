@@ -6,9 +6,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, override
-from urllib.parse import urlunparse
-
-from rfc3986 import urlparse
+from urllib.parse import urlparse, urlunparse
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
@@ -69,11 +67,13 @@ class GitUtils(IGit):
             cmd.extend(["--branch", branch])
         cmd.extend(extra_args)
         cmd.extend([repo_url, repository_name])
+        result = await self.__cli.execute(cmd, timeout)
+        if not self._handle_return_code(result):
+            logging.error(f"git clone failed for {repo_url}")
+            return False
         parsed = urlparse(repo_url)
         safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
         logging.info(f"git clone {safe_uri}")
-        if not self._handle_return_code(await self.__cli.execute(cmd, timeout)):
-            return False
         if create_branch and branch:
             clone_dir = (Path(self.__cli.cwd) / repository_name).resolve()
             checkout_cli = Cli(cwd=str(clone_dir))
