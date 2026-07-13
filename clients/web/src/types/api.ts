@@ -10,6 +10,34 @@ export interface HistoryEntry {
   content: string;
 }
 
+// TEMPORAL FIX: Raw conversation turn as returned by the backend's
+// History.serialize(). Remove this and normalizeHistory() once the
+// backend returns HistoryEntry[] directly.
+export interface RawHistoryTurn {
+  user: string;
+  assistant: string;
+}
+
+// TEMPORAL FIX: Converts backend {user, assistant} turn pairs into
+// the flat {role, content} HistoryEntry[] the UI consumes. Tolerates
+// entries already in {role, content} form (mock data / future backend).
+export function normalizeHistory(
+  raw: unknown[] | undefined,
+): HistoryEntry[] {
+  if (!raw) return [];
+  const result: HistoryEntry[] = [];
+  for (const entry of raw) {
+    const obj = entry as Record<string, unknown>;
+    if ("role" in obj && "content" in obj) {
+      result.push(obj as unknown as HistoryEntry);
+    } else if ("user" in obj && "assistant" in obj) {
+      result.push({ role: "user", content: String(obj.user) });
+      result.push({ role: "assistant", content: String(obj.assistant) });
+    }
+  }
+  return result;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

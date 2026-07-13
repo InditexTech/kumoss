@@ -4,6 +4,7 @@ import {
   AdminSessionDetailResponse,
   SessionsListResponse,
   UserMeResponse,
+  normalizeHistory,
 } from "@/types/api";
 import type { SessionPayloadResponse } from "@/types/api";
 import { getSessionData } from "@/services/core/events";
@@ -32,9 +33,14 @@ export async function listSessions(
 export async function getSessionDetail(
   sessionId: string,
 ): Promise<AdminSessionDetailResponse> {
-  return apiFetch<AdminSessionDetailResponse>(
+  const raw = await apiFetch<AdminSessionDetailResponse>(
     `${BASE}/sessions/${encodeURIComponent(sessionId)}`,
   );
+  // TEMPORAL FIX: normalize {user, assistant} turn pairs from backend into {role, content} entries
+  if (raw.full_history) {
+    raw.full_history = normalizeHistory(raw.full_history);
+  }
+  return raw;
 }
 
 /** PATCH /v1/admin/sessions/{session_id}/apply_allowed — Toggle apply_allowed for a session (admin unlock/lock) */

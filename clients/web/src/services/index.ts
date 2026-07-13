@@ -15,7 +15,7 @@ export {
 export {
   createPullRequest,
   approvePullRequest,
-  scanRepository,
+  parseRepository,
 } from "./core/iac_code";
 
 export { authorizeUser } from "./core/authorization";

@@ -1,4 +1,4 @@
-import { apiFetch } from "@/services/api";
+import { ApiError, apiFetch } from "@/services/api";
 import type {
   AdminOperationItem,
   UserSessionInfo,
@@ -49,9 +49,14 @@ export async function getSession(
 export async function getSessionOperations(
   sessionId: string,
 ): Promise<AdminOperationItem[]> {
-  return apiFetch<AdminOperationItem[]>(
-    `${BASE}/${encodeURIComponent(sessionId)}/operations`,
-  );
+  try {
+    return await apiFetch<AdminOperationItem[]>(
+      `${BASE}/${encodeURIComponent(sessionId)}/operations`,
+    );
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return [];
+    throw error;
+  }
 }
 
 /** Fetch artifact content directly from its blob storage URL */

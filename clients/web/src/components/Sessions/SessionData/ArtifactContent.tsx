@@ -6,7 +6,6 @@ import { useMode } from "@/contexts/ModeContext";
 import type { AdminOperationItem } from "@/types/api";
 import type { TerraformReport } from "@/types";
 import {
-  PlanSummaryBar,
   ChangesTable,
   ChangeDetail,
   PotentialImpactCard,
@@ -213,7 +212,6 @@ export default function ArtifactContent({
             </Typography>
           </div>
         )}
-        {reportData.summary && <PlanSummaryBar summary={reportData.summary} />}
         {reportData.potential_impact && (
           <div
             onClick={() => setActiveDetail("impact")}

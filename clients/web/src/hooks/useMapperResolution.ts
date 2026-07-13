@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { resolveProject } from "@/services/mapper/mapper";
-import { scanRepository } from "@/services/core/iac_code";
+import { parseRepository } from "@/services/core/iac_code";
 
 export interface ResolveResult {
   repoUrl: string;
@@ -19,12 +19,12 @@ export function useMapperResolution() {
       setMapperError(null);
       try {
         const resolved = await resolveProject({ identifier });
-        const scan = await scanRepository(resolved.repo_url);
-        setScanPaths(scan.terraform_paths);
+        const parsed = await parseRepository(resolved.repo_url);
+        setScanPaths(parsed.roots);
         return {
           repoUrl: resolved.repo_url,
           project: resolved.project ?? null,
-          paths: scan.terraform_paths,
+          paths: parsed.roots,
         };
       } finally {
         setMapperLoading(false);

@@ -1,4 +1,3 @@
-export { default as PlanSummaryBar } from "./ResultPanel/PlanSummaryBar/PlanSummaryBar";
 export { default as ChangesTable } from "./ResultPanel/ChangesTable/ChangesTable";
 export { default as ChangeDetail } from "./ResultPanel/ChangeDetail/ChangeDetail";
 export {

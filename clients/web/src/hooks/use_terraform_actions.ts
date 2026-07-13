@@ -197,20 +197,26 @@ export function useTerraformActions() {
                   }
                   onCompleted?.(payload);
                 })
-                .catch((err) => console.error("Failed to fetch session data:", err));
+                .catch((err) =>
+                  console.error("Failed to fetch session data:", err),
+                );
             }
 
             if (data.status_msg === EVENT_STATUS.FAILED) {
               es.close();
               eventSourceRef.current = null;
               clearInactivityTimer();
-              dispatch({
-                type: "ERROR",
-                message: data.detail.message || "Process failed",
-              });
-              notifyIfHidden("Pipeline failed", {
-                body: data.detail.message || "Process failed",
-              });
+
+              const failMsg = data.detail.message || "Process failed";
+
+              dispatch({ type: "ERROR", message: failMsg });
+              setAssistantMsgState((prev) => ({
+                ...prev,
+                pipelineStep: PHASE.COMPLETE,
+                sseStatus: EVENT_STATUS.FAILED,
+                msg: failMsg,
+              }));
+              notifyIfHidden("Pipeline failed", { body: failMsg });
             }
           } catch (err) {
             console.error("SSE parse error:", err);
@@ -237,7 +243,12 @@ export function useTerraformActions() {
         dispatch({ type: "ERROR", message });
       }
     },
-    [setAssistantMsgState, notifyIfHidden, clearInactivityTimer, resetInactivityTimer],
+    [
+      setAssistantMsgState,
+      notifyIfHidden,
+      clearInactivityTimer,
+      resetInactivityTimer,
+    ],
   );
 
   const reset = useCallback(() => {

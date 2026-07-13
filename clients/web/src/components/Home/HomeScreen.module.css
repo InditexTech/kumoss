@@ -58,6 +58,8 @@
 }
 
 .chatFull {
+  display: flex;
+  flex-direction: column;
   width: 100%;
   flex: 1;
   min-height: 0;

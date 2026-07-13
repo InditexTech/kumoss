@@ -15,14 +15,14 @@ describe("useMapperResolution", () => {
 
   it("resolveAndScan returns repoUrl, project, and paths on success", async () => {
     server.use(
-      http.post("/api/v1/mapper/resolve", () =>
+      http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({
           repo_url: "https://dev.azure.com/org/project/_git/repo",
           project: "my-project",
         }),
       ),
-      http.post("/api/v1/repository/scan", () =>
-        HttpResponse.json({ paths: ["environments/dev", "environments/pro"] }),
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ roots: ["environments/dev", "environments/pro"] }),
       ),
     );
 
@@ -52,14 +52,14 @@ describe("useMapperResolution", () => {
 
   it("resolveAndScan returns empty paths when repo has no IaC", async () => {
     server.use(
-      http.post("/api/v1/mapper/resolve", () =>
+      http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({
           repo_url: "https://example.com/repo",
           project: "empty-project",
         }),
       ),
-      http.post("/api/v1/repository/scan", () =>
-        HttpResponse.json({ paths: [] }),
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ roots: [] }),
       ),
     );
 
@@ -78,7 +78,7 @@ describe("useMapperResolution", () => {
 
   it("resolveAndScan throws on network error", async () => {
     server.use(
-      http.post("/api/v1/mapper/resolve", () =>
+      http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({ detail: "Not found" }, { status: 404 }),
       ),
     );
@@ -98,11 +98,11 @@ describe("useMapperResolution", () => {
 
   it("sets mapperLoading during resolution", async () => {
     server.use(
-      http.post("/api/v1/mapper/resolve", () =>
+      http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({ repo_url: "url", project: "p" }),
       ),
-      http.post("/api/v1/repository/scan", () =>
-        HttpResponse.json({ paths: ["dev"] }),
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ roots: ["dev"] }),
       ),
     );
 
@@ -131,11 +131,11 @@ describe("useMapperResolution", () => {
 
   it("resetMapper clears all state", async () => {
     server.use(
-      http.post("/api/v1/mapper/resolve", () =>
+      http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({ repo_url: "url", project: "p" }),
       ),
-      http.post("/api/v1/repository/scan", () =>
-        HttpResponse.json({ paths: ["dev", "pro"] }),
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ roots: ["dev", "pro"] }),
       ),
     );
 

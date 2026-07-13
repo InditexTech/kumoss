@@ -27,17 +27,16 @@ export async function approvePullRequest(
   });
 }
 
-export interface ScanRepositoryResponse {
-  repo_url: string
-  terraform_paths: string[];
+export interface ParseRepositoryResponse {
+  roots: string[];
 }
 
-/** POST /v1/repository/scan — Scan a repo for IaC paths */
-export async function scanRepository(
-  repo_url: string,
-): Promise<ScanRepositoryResponse> {
-  return apiFetch<ScanRepositoryResponse>(`${REPO_BASE}/scan`, {
+/** POST /v1/repository/parse — Parse a repo for IaC root-module directories */
+export async function parseRepository(
+  repo_uri: string,
+): Promise<ParseRepositoryResponse> {
+  return apiFetch<ParseRepositoryResponse>(`${REPO_BASE}/parse`, {
     method: "POST",
-    body: JSON.stringify({ repo_url }),
+    body: JSON.stringify({ repo_uri }),
   });
 }

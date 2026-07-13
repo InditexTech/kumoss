@@ -1,5 +1,5 @@
 import { apiFetch } from "@/services/api";
-import { SessionPayloadResponse } from "@/types/api";
+import { SessionPayloadResponse, normalizeHistory } from "@/types/api";
 
 const BASE = "/api/v1/events";
 
@@ -85,9 +85,21 @@ export function subscribeToSession(
 export async function getSessionData(
   sessionId: string,
 ): Promise<SessionPayloadResponse> {
-  return apiFetch<SessionPayloadResponse>(
+  const raw = await apiFetch<SessionPayloadResponse>(
     `${BASE}/get/${encodeURIComponent(sessionId)}`,
   );
+  // TEMPORAL FIX: normalize {user, assistant} turn pairs from backend into {role, content} entries
+  raw.full_history = normalizeHistory(raw.full_history);
+
+  // // TODO: remove — workaround for backend not including `response` in full_history
+  // if (raw.response) {
+  //   const lastEntry = raw.full_history[raw.full_history.length - 1];
+  //   if (!lastEntry || lastEntry.content !== raw.response) {
+  //     raw.full_history.push({ role: "assistant", content: raw.response });
+  //   }
+  // }
+
+  return raw;
 }
 
 /** DELETE /v1/events/unsubscribe/{session_id} — Delete session data */
