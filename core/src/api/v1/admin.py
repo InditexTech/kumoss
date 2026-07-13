@@ -4,7 +4,7 @@
 
 import math
 from datetime import datetime
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
@@ -123,12 +123,13 @@ router = APIRouter(
 
 @router.get("/sessions", summary="List sessions with pagination and filters")
 async def list_sessions(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: Optional[str] = Query(
-        None, description="Search by user or repo URI (partial match)"
-    ),
-    status: Optional[str] = Query(None),
+    page: Annotated[int, Query(1, ge=1)],
+    page_size: Annotated[int, Query(20, ge=1, le=100)],
+    search: Annotated[
+        str | None,
+        Query(None, description="Search by user or repo URI (partial match)"),
+    ],
+    status: Annotated[str | None, Query(None)],
 ) -> PaginatedSessionsResponse:
     offset = (page - 1) * page_size
     items, total = await DatabaseService.list_sessions(

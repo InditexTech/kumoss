@@ -2,21 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
     CloudProvider,
+    Operation,
     User,
     Session,
     Workspace,
     History,
 )
-from src.shared.constants import TemplateProvider
+from src.shared.constants import SessionStatus, TemplateProvider
 
 
 class DatabaseService:
@@ -57,94 +59,84 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def load_session(session_id: str) -> Optional[UserSession]:
-        return await db.get_by(UserSession, session_id=session_id)
+    async def load_session(session_id: UUID) -> Session | None:
+        return await db.get_by(Session, session_id=session_id)
 
     @staticmethod
-    async def acquire_in_flight(session_id: str) -> bool:
+    async def acquire_in_flight(session_id: UUID) -> bool:
         """Atomic compare-and-set: True if we won the lock, False otherwise."""
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
+                update(Session)
                 .where(
-                    UserSession.session_id == session_id,
-                    UserSession.in_flight.is_(False),
+                    Session.uuid == session_id,
                 )
-                .values(in_flight=True, updated_at=datetime.utcnow())
+                .values(in_flight=True, updated_at=datetime.now(timezone.utc))
             )
-            result = await sess.execute(stmt)
-            return result.rowcount == 1
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
-    async def release_in_flight(session_id: str) -> None:
+    async def release_in_flight(session_id: UUID) -> bool:
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(in_flight=False, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(in_flight=False, updated_at=datetime.now(timezone.utc))
             )
-            await sess.execute(stmt)
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
-    async def mark_completed(session_id: str) -> None:
+    async def mark_completed(session_id: UUID) -> bool:
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(status="completed", updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(
+                    status=SessionStatus.COMPLETED,
+                    updated_at=datetime.now(timezone.utc),
+                )
             )
-            await sess.execute(stmt)
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
-    async def mark_failed(session_id: str, reason: str) -> None:
-        """Record a failure reason without changing the session status.
-
-        The session stays active so the user can retry. We just store the
-        most recent error message for admin visibility.
-        """
+    async def mark_failed(session_id: UUID) -> bool:
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(failure_reason=reason, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(
+                    status=SessionStatus.FAILED,
+                    updated_at=datetime.now(timezone.utc),
+                )
             )
-            await sess.execute(stmt)
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
-    async def set_pull_request_url(session_id: str, url: str) -> None:
+    async def set_pull_request_url(session_id: UUID, url: str) -> bool:
         """Persist the URL of the PR created for this session."""
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(pull_request_url=url, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(pull_request_url=url, updated_at=datetime.now(timezone.utc))
             )
-            await sess.execute(stmt)
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
-    async def set_apply_allowed(session_id: str, allowed: bool) -> None:
-        """Set the apply_allowed flag (e.g. False when destructive changes detected)."""
+    async def set_lock(session_id: UUID, allowed: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(apply_allowed=allowed, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(is_blocked=allowed, updated_at=datetime.now(timezone.utc))
             )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def toggle_apply_allowed(session_id: str, allowed: bool) -> None:
-        """Admin alias for set_apply_allowed — kept for back-compat."""
-        await DatabaseService.set_apply_allowed(session_id, allowed)
-
-    @staticmethod
-    async def append_history(session_id: str, turn: dict) -> None:
-        """Read-modify-write append. Safe under per-session in_flight guard."""
-        async with db.transaction() as sess:
-            stmt = select(UserSession).where(UserSession.session_id == session_id)
-            row = (await sess.execute(stmt)).scalar_one()
-            row.history = list(row.history) + [turn]
-            row.updated_at = datetime.utcnow()
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
     async def list_sessions(
@@ -154,7 +146,7 @@ class DatabaseService:
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
-    ) -> tuple[list[UserSession], int]:
+    ) -> tuple[list[Session], int]:
         filters: dict[str, str] = {}
         if status:
             filters["status"] = status
@@ -162,12 +154,10 @@ class DatabaseService:
         extra_conditions: list[Any] = []
         if search:
             pattern = f"%{search}%"
-            extra_conditions.append(
-                UserSession.user_id.ilike(pattern) | UserSession.repo_uri.ilike(pattern)
-            )
+            extra_conditions.append(Session.uuid.ilike(pattern))
 
         return await db.query(
-            UserSession,
+            Session,
             filters=filters,
             extra_conditions=extra_conditions,
             order_by=order_by,
@@ -177,19 +167,17 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def get_operation(
-        session_id: str, operation_id: int
-    ) -> SessionOperation | None:
-        return await db.get_by(SessionOperation, session_id=session_id, id=operation_id)
+    async def get_operation(session_id: UUID, operation_id: int) -> Session | None:
+        return await db.get_by(Session, session_id=session_id, id=operation_id)
 
     @staticmethod
     async def get_operations(
         session_id: str,
         order_by: str = "operation_number",
         order_desc: bool = False,
-    ) -> list[SessionOperation]:
+    ) -> list[Operation]:
         return await db.list_by(
-            SessionOperation,
+            Operation,
             order_by=order_by,
             order_desc=order_desc,
             session_id=session_id,
