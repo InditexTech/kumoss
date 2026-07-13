@@ -1,0 +1,105 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.messageList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 0;
+  scrollbar-width: thin;
+  scrollbar-color: light-dark(#c0c0c0, #555) transparent;
+}
+
+.messageList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messageList::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messageList::-webkit-scrollbar-thumb {
+  background: light-dark(#c0c0c0, #555);
+  border-radius: var(--radius-sm);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.messageListSplit {
+  --msg-max-width: 70%;
+}
+
+@media screen and (max-width: 1200px) {
+  .messageListSplit {
+    --msg-max-width: 100%;
+  }
+}
+
+.inputBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid light-dark(var(--color-border), var(--color-border));
+}
+
+.input {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 40px;
+  background-color: transparent;
+  border: none;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  caret-color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  opacity: 0.5;
+}
+
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: light-dark(#1a1a1a, #ffffff);
+  color: light-dark(#ffffff, #000000);
+  border: none;
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.sendBtn:hover {
+  opacity: 0.8;
+}
+
+.sendBtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+

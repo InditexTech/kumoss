@@ -1,0 +1,93 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.filterBar {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 0;
+}
+
+.filterTab {
+  background: none;
+  border: none;
+  padding: 8px 0 10px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.filterTab:hover {
+  color: var(--color-text-secondary);
+}
+
+.filterTabActive {
+  color: var(--color-heading);
+  border-bottom-color: var(--color-heading);
+}
+
+.filterCount {
+  vertical-align: super;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.changesTable {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.changeRow {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  min-height: 48px;
+}
+
+.changeName {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeNotes {
+  color: var(--color-text-body);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeEntry {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.changeRowClickable {
+  cursor: pointer;
+}
+
+.changeRowClickable:hover {
+  background: var(--color-surface-subtle);
+}
+
+/* ─── Responsive ─── */
+
+@media screen and (max-width: 1200px) {
+  .changeRow {
+    grid-template-columns: 90px 1fr;
+    gap: 8px;
+  }
+
+  .changeNotes {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,167 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── Compact Card ─── */
+
+.costsCard {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px;
+  gap: 16px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 24px;
+  cursor: pointer;
+}
+
+.costsLabel {
+  color: light-dark(#000000, #ffffff);
+  margin: 0;
+}
+
+.costsSummary {
+  font-weight: 300;
+  font-size: 48px;
+  line-height: 56px;
+  letter-spacing: -0.05em;
+  color: var(--color-create);
+  margin: 0;
+}
+
+.costsDescription {
+  color: light-dark(#000000, #ffffff);
+  margin: 0;
+}
+
+.costsInline {
+  display: flex;
+  align-items: baseline;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.costInlineGroup {
+  display: flex;
+  align-items: baseline;
+}
+
+.costInlineAmount {
+  color: var(--color-create);
+}
+
+.costInlinePeriod {
+  color: var(--color-create);
+}
+
+/* ─── Detail Overlay ─── */
+
+.costSummaryTable {
+  margin-bottom: 48px;
+}
+
+.costSummaryRow {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--color-border);
+  align-items: baseline;
+}
+
+.costSummaryLabel {
+}
+
+.costSummaryValue {
+  color: var(--color-text-body);
+}
+
+.costTotalValues {
+  display: flex;
+  gap: 32px;
+  align-items: baseline;
+}
+
+.costTotalGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.costTotalAmount {
+  font-size: 32px;
+  font-weight: 300;
+  color: light-dark(#111827, #f9fafb);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.costTotalPeriod {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.breakdownSection {
+  margin-top: 8px;
+}
+
+.breakdownTitle {
+  color: light-dark(#111827, #f9fafb);
+  margin: 0 0 32px;
+}
+
+.breakdownGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+}
+
+.breakdownItem {
+  padding: 0 0 32px;
+}
+
+.breakdownResourceType {
+  margin: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.breakdownCostLabel {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin: 16px 0 4px;
+}
+
+.breakdownValue {
+  color: light-dark(#059669, #10b981);
+  margin: 0 0 4px;
+}
+
+.breakdownValueNegative {
+  color: light-dark(#dc2626, #ef4444);
+}
+
+.breakdownUnit {
+  margin: 0 0 16px;
+}
+
+.breakdownAdditionalText {
+  color: var(--color-text-body);
+}
+
+/* ─── Responsive ─── */
+
+@media screen and (max-width: 1200px) {
+  .breakdownGrid {
+    grid-template-columns: 1fr;
+  }
+}

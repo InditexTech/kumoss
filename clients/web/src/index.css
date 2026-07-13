@@ -1,0 +1,153 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500&display=swap');
+
+:root {
+
+  font-family: "Inter", sans-serif;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 300;
+
+  color-scheme: light;
+  /*transition: background-color .3s ease;*/
+
+  /* Layout */
+  --assistant-top-offset: 15rem;
+
+  /* Z-index scale */
+  --z-deep-behind: -2;
+  --z-behind: -1;
+  --z-base: 1;
+  --z-raised: 5;
+  --z-footer: 10;
+  --z-header: 20;
+  --z-modal: 100;
+  --z-notification: 200;
+
+  --text-color-light: #000;
+  --text-color-light-lighter: #888;
+  --background-color-light: #ffffff;
+  --background-color-light-darker: #5e5e5e;
+
+  --text-color-dark: #fff;
+  --text-color-dark-darker: #aaa;
+  --background-color-dark: #0000b1;
+  --background-color-dark-lighter: #7f7edf;
+
+  /* Design tokens — semantic colors */
+  --color-heading: light-dark(#0400c3, #ffffff);
+  --color-text-body: light-dark(#4b5563, #d1d5db);
+  --color-text-muted: light-dark(#6b7280, #9ca3af);
+  --color-text-secondary: light-dark(#374151, #ffffff);
+  --color-text-emphasis: light-dark(#131575, #f9fafb);
+  --color-surface: light-dark(#ffffff, #131575);
+  --color-surface-subtle: light-dark(#f9fafb, rgba(255, 255, 255, 0.05));
+  --color-border: light-dark(#C9C9C9, rgba(255, 255, 255, 0.1));
+  --color-border-strong: light-dark(#d1d5db, #ffffff);
+  --color-brand-active: light-dark(#0400c3, #131575);
+
+  /* Content chrome — neutral scale for session detail, overlays, modals */
+  --color-content-primary:   light-dark(#000000, #ffffff);
+  --color-content-secondary: light-dark(rgba(0, 0, 0, 0.6), rgba(255, 255, 255, 0.6));
+  --color-content-muted:     light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.5));
+  --color-content-subtle:    light-dark(rgba(0, 0, 0, 0.25), rgba(255, 255, 255, 0.25));
+  --color-content-hover-bg:  light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.04));
+
+  /* Status colors */
+  --color-create: #238830;
+  --color-update: #FF8C1A;
+  --color-delete: #E12D3C;
+  --color-recreate: #AB6BB8;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #0ea5e9;
+  --color-destroyed: #C32230;
+  --color-generated: #2280C3;
+  --color-no-change: #6b7280;
+  --color-started-bg: #F6F6F6;
+  --color-create-bg: #E2FBE8;
+  --color-generated-bg: #E5F4FF;
+  --color-update-bg: #FFF2E5;
+  --color-recreate-bg: #F8E9FB;
+  --color-delete-bg: #FFE5E8;
+  --color-neutral-text: #919191;
+
+  /* Phase colors (admin operations timeline) */
+  --color-phase-generation: #1976d2;
+  --color-phase-drift: #ed6c02;
+  --color-phase-apply: #2e7d32;
+  --color-phase-import: #9c27b0;
+  --color-phase-other: #9e9e9e;
+
+  /* Operation status colors (admin) */
+  --color-status-completed: #2e7d32;
+  --color-status-failed: #d32f2f;
+  --color-status-started: #1976d2;
+
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  background-color: light-dark(var(--background-color-light), var(--background-color-dark));
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  color: light-dark(var(--background-color-light), var(--background-color-dark));;
+  background: light-dark(var(--text-color-light), var(--text-color-dark));;
+}
+
+::placeholder {
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+}
+
+body {
+  margin: 0;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+}
+
+.disabledButton {
+  background-color: #333;
+  opacity: .5;
+  cursor: default !important;
+}
+
+.disabledButton:hover {
+  background-color: #333 !important;
+}
+
+@media screen and (max-width: 1200px) {
+  :root {
+    font-size: 13px;
+  }
+
+  body {
+    width: 100vw;
+    overflow: initial;
+  }
+}
+
+.appContainer {
+  margin: 0 20px;
+}
+
+.secondary-background-color {
+  background: linear-gradient(135deg, var(--background-color-dark), var(--background-color-dark-lighter));
+}

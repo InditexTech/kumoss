@@ -1,0 +1,70 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  background: var(--color-surface);
+  width: 90vw;
+  max-width: 816px;
+  max-height: 85vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 32px 40px;
+  box-sizing: border-box;
+  animation: slideIn 0.25s ease-out;
+}
+
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  cursor: grab;
+  user-select: none;
+}
+
+.headerDragging {
+  cursor: grabbing;
+}
+
+.title {
+  font-size: clamp(24px, 2vw + 8px, 32px);
+  font-weight: 300;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: light-dark(#111827, #f9fafb);
+  margin: 0;
+}
+
+.close {
+  padding: 4px !important;
+  color: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.7)) !important;
+}
+
+.close:hover {
+  color: light-dark(rgba(0, 0, 0, 0.9), rgba(255, 255, 255, 1)) !important;
+}
