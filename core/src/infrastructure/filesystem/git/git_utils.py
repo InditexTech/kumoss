@@ -6,9 +6,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, override
-from urllib.parse import urlunparse
-
-from rfc3986 import urlparse
+from urllib.parse import urlparse, urlunparse
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
