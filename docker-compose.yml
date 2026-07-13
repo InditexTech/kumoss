@@ -7,22 +7,22 @@ name: nebula
 # for the OSS quickstart where most knobs have safe defaults.
 
 services:
-  proxy:
-    image: nebula-nginx:latest
-    restart: on-failure
-    build:
-      context: ./clients/web
-      dockerfile: docker/dev.proxy.Dockerfile
-    ports:
-      - "80:80"
-    expose:
-      - 80
-    depends_on:
-      - api
-      - webapp
-      - phoenix
-    networks:
-      - bridge-network
+  # proxy:
+  #   image: nebula-nginx:latest
+  #   restart: on-failure
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: docker/local.nginx.Dockerfile
+  #   ports:
+  #     - "80:80"
+  #   expose:
+  #     - 80
+  #   depends_on:
+  #     - api
+  #     - webapp
+  #     - phoenix
+  #   networks:
+  #     - bridge-network
 
   api:
     image: nebula-fastapi:latest
@@ -113,20 +113,20 @@ services:
     networks:
       - bridge-network
 
-  webapp:
-    image: nebula-web:latest
-    build:
-      context: ./clients/web
-      dockerfile: docker/dev.vite.Dockerfile
-    ports:
-      - "5173"
-    develop:
-      watch:
-        - action: sync
-          path: ./clients/web
-          target: /app
-    networks:
-      - bridge-network
+  # webapp:
+  #   image: nebula-web:latest
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: ./docker/local.vite.Dockerfile
+  #   ports:
+  #     - "5173"
+  #   develop:
+  #     watch:
+  #       - action: sync
+  #         path: ./frontend/user_portal
+  #         target: /user_portal
+  #   networks:
+  #     - bridge-network
 
   phoenix:
     image: arizephoenix/phoenix:17.10.0
