@@ -85,4 +85,3 @@ app.include_router(authorization.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(sessions.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
-

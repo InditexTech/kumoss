@@ -141,4 +141,3 @@ class DatabaseClient:
 
 
 db = DatabaseClient()
-

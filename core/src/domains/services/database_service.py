@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import update
 from sqlalchemy.engine import CursorResult
 
 from src.infrastructure.database.database import db
@@ -182,4 +182,3 @@ class DatabaseService:
             order_desc=order_desc,
             session_id=session_id,
         )
-

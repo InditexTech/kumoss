@@ -187,4 +187,3 @@ class Artifact(Base):
     @override
     def __repr__(self) -> str:
         return f"<Artifact(operation_id='{self.operation_id}', uri='{self.uri}')>"
-

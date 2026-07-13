@@ -4,7 +4,7 @@
 
 import math
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
@@ -183,4 +183,3 @@ async def toggle_apply_allowed(
     await DatabaseService.toggle_apply_allowed(session_id, allowed)
 
     return {"session_id": session_id, "apply_allowed": allowed}
-
