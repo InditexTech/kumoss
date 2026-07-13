@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 type EnvKey = keyof ImportMetaEnv;
 
 const runtimeEnv = (window as Record<string, unknown>).__ENV__ as

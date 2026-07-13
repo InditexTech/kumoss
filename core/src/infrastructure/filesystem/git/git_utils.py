@@ -6,16 +6,14 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, override
-from urllib.parse import urlunparse
 
-from rfc3986 import urlparse
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
 from src.infrastructure.filesystem.git.providers import GitProviderFactory
-from src.shared.config import system_config
 from src.shared.constants import GitProviderName
 from src.shared.exceptions import ExceptionHandler
+from src.shared.config import system_config
 from src.shared.logger import logging
 
 
@@ -61,18 +59,13 @@ class GitUtils(IGit):
         repository_name: str,
         branch: str | None = None,
         create_branch: bool = False,
-        *extra_args: str,
-        timeout: int = 300,
     ) -> bool:
         cmd = ["git", "clone", "--depth", "1"]
         if branch and not create_branch:
             cmd.extend(["--branch", branch])
-        cmd.extend(extra_args)
         cmd.extend([repo_url, repository_name])
-        parsed = urlparse(repo_url)
-        safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
-        logging.info(f"git clone {safe_uri}")
-        if not self._handle_return_code(await self.__cli.execute(cmd, timeout)):
+        logging.info(f"git clone {repo_url}")
+        if not self._handle_return_code(await self.__cli.execute(cmd)):
             return False
         if create_branch and branch:
             clone_dir = (Path(self.__cli.cwd) / repository_name).resolve()
@@ -82,17 +75,6 @@ class GitUtils(IGit):
             ):
                 return False
         return True
-
-    async def ls_tree(self, cwd: Path) -> list[str]:
-        """Return all tracked file paths via ``git ls-tree -r HEAD --name-only``."""
-        cli = Cli(cwd=str(cwd))
-        result = await cli.execute(
-            ["git", "ls-tree", "-r", "--name-only", "HEAD"],
-            30,
-        )
-        if not self._handle_return_code(result):
-            raise ExceptionHandler(f"git ls-tree failed: {self.error_msg}", 502)
-        return result.stdout.decode().splitlines()
 
     @override
     async def push_branch(self, branch: str) -> bool:

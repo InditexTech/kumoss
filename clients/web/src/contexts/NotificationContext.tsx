@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { createContext, useCallback, useContext, useState, useMemo } from "react";
 import type { NotificationType, NotificationData, NotificationAction } from "@/types/ui";
 import { NotificationStack } from "@/components/ui";

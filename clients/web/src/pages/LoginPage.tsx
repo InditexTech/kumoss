@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ButtonBase, TextField } from "@mui/material";

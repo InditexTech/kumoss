@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useWizardNavigation } from "./useWizardNavigation";

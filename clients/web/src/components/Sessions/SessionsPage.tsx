@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";

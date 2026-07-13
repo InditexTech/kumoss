@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { lazy, Suspense, useState, useEffect } from 'react';
 import ErrorBoundary from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import EditorSkeleton from './EditorSkeleton';

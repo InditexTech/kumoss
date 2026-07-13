@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { ButtonBase, Divider, Select, MenuItem, Tooltip } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import { useMode } from "@/contexts/ModeContext";

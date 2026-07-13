@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import { useRef, useEffect, useCallback, useState } from "react";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import { useSession } from "@/contexts/SessionContext";

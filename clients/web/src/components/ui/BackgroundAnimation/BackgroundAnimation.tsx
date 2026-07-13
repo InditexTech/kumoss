@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import styles from "./BackgroundAnimation.module.css";
 import backgroundGridWebm from "@/assets/background_waves.webm";
 import backgroundGridPng from "@/assets/background_waves.png";

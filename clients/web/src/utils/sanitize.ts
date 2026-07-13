@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
 import DOMPurify from 'dompurify';
 
 const ALLOWED_TAGS: string[] = ['b', 'i', 'em', 'strong', 'p', 'br', 'ul', 'ol', 'li'];
