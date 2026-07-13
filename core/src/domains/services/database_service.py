@@ -13,6 +13,7 @@ from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
     CloudProvider,
     Operation,
+    PullRequest,
     User,
     Session,
     Workspace,
@@ -57,6 +58,18 @@ class DatabaseService:
             first_query=query,
         )
         return session
+
+    @staticmethod
+    async def create_pull_request(
+        session_id: UUID, uri: str, branch: str, root_path: str
+    ) -> PullRequest:
+        return await db.create(
+            PullRequest,
+            session_id=session_id,
+            uri=uri,
+            branch=branch,
+            root_path=root_path,
+        )
 
     @staticmethod
     async def load_session(session_id: UUID) -> Session | None:
@@ -111,18 +124,6 @@ class DatabaseService:
                     status=SessionStatus.FAILED,
                     updated_at=datetime.now(timezone.utc),
                 )
-            )
-            res = await sess.execute(stmt)
-            return cast(CursorResult[Any], res).rowcount == 1
-
-    @staticmethod
-    async def set_pull_request_url(session_id: UUID, url: str) -> bool:
-        """Persist the URL of the PR created for this session."""
-        async with db.transaction() as sess:
-            stmt = (
-                update(Session)
-                .where(Session.uuid == session_id)
-                .values(pull_request_url=url, updated_at=datetime.now(timezone.utc))
             )
             res = await sess.execute(stmt)
             return cast(CursorResult[Any], res).rowcount == 1

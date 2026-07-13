@@ -88,6 +88,8 @@ class TemplateProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
     AWS = "aws"
+    OCI = "oci"
+    KUBERNETES = "kubernetes"
     COMMON = "common"
 
 
@@ -115,25 +117,8 @@ class SessionStatus(Enum):
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
+    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
-
-
-@unique
-class OperationType(Enum):
-    """All possible Session types"""
-
-    GENERATE = "generate"
-    DRIFT = "drift"
-    IMPORT = "import"
-
-
-@unique
-class ArtifactType(Enum):
-    """All possible artifact types"""
-
-    CODE = "code"
-    PLAN = "plan"
-    REPORT = "report"
 
 
 @unique

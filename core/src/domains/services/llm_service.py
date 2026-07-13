@@ -29,7 +29,7 @@ class LLMOrchestrationService:
         self,
         main_llm_provider: ILLMProvider,
         small_llm_provider: ILLMProvider,
-        tool_service: ToolOrchestrationService,
+        tool_service: ToolOrchestrationService | None = None,
     ):
         self.__main_llm = main_llm_provider
         self.__small_llm = small_llm_provider
