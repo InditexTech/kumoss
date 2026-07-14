@@ -64,7 +64,7 @@ class Session(Base):
 
     __tablename__ = "sessions"
     uuid: Mapped[str] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     status: Mapped[SessionStatus] = mapped_column(
         String(20), default=SessionStatus.STARTED
     )
@@ -97,7 +97,7 @@ class Workspace(Base):
 
     __tablename__ = "workspaces"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     uri: Mapped[str] = mapped_column(Text)
     branch: Mapped[str] = mapped_column(String(254))
     root_path: Mapped[str] = mapped_column(Text)
@@ -113,7 +113,7 @@ class CloudProvider(Base):
 
     __tablename__ = "cloud_providers"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     name: Mapped[TemplateProvider] = mapped_column()
 
     @override
@@ -127,7 +127,7 @@ class PullRequest(Base):
 
     __tablename__ = "pull_requests"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     provider: Mapped[GitProviderName] = mapped_column(String(20))
     url: Mapped[str] = mapped_column(String(254))
 
@@ -142,7 +142,7 @@ class History(Base):
 
     __tablename__ = "histories"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     first_query: Mapped[str] = mapped_column(Text)
     payload: Mapped[JSON] = mapped_column(default={})
 
@@ -157,7 +157,7 @@ class Operation(Base):
 
     __tablename__ = "operations"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     operation: Mapped[OperationType] = mapped_column()
     type: Mapped[ArtifactType] = mapped_column()
     terraform_targets: Mapped[list[str]] = mapped_column(ARRAY(String))
@@ -179,7 +179,7 @@ class Artifact(Base):
 
     __tablename__ = "artifacts"
 
-    operation_id: Mapped[int] = mapped_column(ForeignKey("operations.id"))
+    operation_id: Mapped[int] = mapped_column(ForeignKey("operations.id"), index=True)
     uri: Mapped[str] = mapped_column(Text)
     content_type: Mapped[str] = mapped_column(String(20))
     file_size_bytes: Mapped[int] = mapped_column(Integer)
