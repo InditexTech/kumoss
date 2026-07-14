@@ -9,13 +9,10 @@ from typing import final, override
 from uuid import UUID
 
 from src.domains.interfaces.workspace_interface import IWorkspace
+from src.infrastructure.exceptions import InvalidRepoURI
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
 from src.shared.logger import logging
-
-
-class InvalidRepoURI(Exception):
-    """Raised when `git ls-remote` rejects the URI."""
 
 
 @final
@@ -39,7 +36,7 @@ class WorkspaceService(IWorkspace):
         if not await git.ls_remote(repo_uri):
             msg = git.error_msg or f"Cannot reach repository: {repo_uri}"
             logging.warning(f"git ls-remote failed for {repo_uri}: {msg}")
-            raise InvalidRepoURI(msg)
+            raise InvalidRepoURI(message=msg, error_code=400)
 
     @override
     async def setup_call_dir(

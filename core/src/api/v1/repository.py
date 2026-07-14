@@ -9,9 +9,6 @@ from fastapi.responses import JSONResponse
 
 from src.application.factory import HandlerFactory, StatelessFactory
 from src.domains.services.database_service import DatabaseService
-from src.infrastructure.filesystem.workspace import InvalidRepoURI
-
-# from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
@@ -90,8 +87,6 @@ async def parse_repository(
     try:
         service = StatelessFactory.get_iac_root_detection_service()
         roots = await service.detect_roots(repo_uri)
-    except InvalidRepoURI as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(
