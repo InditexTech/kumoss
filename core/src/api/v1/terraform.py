@@ -9,22 +9,17 @@ from uuid import uuid4, UUID
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from src.application.factory import HandlerFactory
+from src.application.factory import ApplicationFactory
 from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
 )
 from src.application.dto import SessionContext
-from src.application.exceptions import (
-    SessionConflict,
-    SessionForbidden,
-    SessionTerminal,
-)
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
-from src.infrastructure.filesystem import WorkspaceService, InvalidRepoURI
+from src.infrastructure.filesystem import WorkspaceService
 from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -39,17 +34,12 @@ async def _resolve_or_raise(
     request, operation_type: str = "generate"
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext."""
-    if request.repo_uri is not None:
-        try:
-            await _workspace.validate_uri(request.repo_uri)
-        except InvalidRepoURI as e:
-            raise HTTPException(status_code=400, detail=str(e))
     try:
+        if request.repo_uri is not None:
+            await _workspace.validate_uri(request.repo_uri)
         return await _orchestration.resolve(request, operation_type)
-    except SessionForbidden as e:
-        raise HTTPException(status_code=403, detail=str(e))
-    except (SessionConflict, SessionTerminal) as e:
-        raise HTTPException(status_code=409, detail=str(e))
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
 
 
 def _make_runner(
@@ -78,50 +68,19 @@ def _make_runner(
                 branch=ctx.branch_name,
                 create_branch=ctx.is_first_call,
             )
-        except Exception as e:
-            msg = f"Workspace setup failed: {e}"
-            logging.error(f"{msg} (session {ctx.session_id})")
-            await DatabaseService.mark_failed(str(ctx.session_id), msg)
-            await _orchestration.release(ctx.session_id)
-            return
-
-        try:
-            _sse_id, run_handler = await build_handler(call_dir)
-        except ExceptionHandler as e:
-            msg = f"Handler setup failed: {e.message}"
-            logging.error(f"{msg} (session {ctx.session_id})")
-            await DatabaseService.mark_failed(str(ctx.session_id), msg)
-            _workspace.cleanup(call_dir)
-            await _orchestration.release(ctx.session_id)
-            return
-        except Exception as e:
-            msg = f"Unexpected error preparing handler: {e}"
-            logging.error(f"{msg} (session {ctx.session_id})")
-            await DatabaseService.mark_failed(str(ctx.session_id), msg)
-            _workspace.cleanup(call_dir)
-            await _orchestration.release(ctx.session_id)
-            return
-
-        try:
+            await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
+            _sse_id, run_handler = await build_handler(call_dir)  # TODO: _sse_id
             await run_handler()
-            try:
-                await _workspace.push_and_cleanup(
-                    call_dir=call_dir, branch=ctx.branch_name
-                )
-            except Exception as e:
-                msg = f"Push failed: {e}"
-                logging.error(f"{msg} (session {ctx.session_id})")
-                await DatabaseService.mark_failed(str(ctx.session_id), msg)
-                _workspace.cleanup(call_dir)
-                return
-            await DatabaseService.append_history(
-                str(ctx.session_id), {"user": q, "assistant": ""}
-            )
-        except Exception as e:
-            logging.error(f"Use-case failed for session {ctx.session_id}: {e}")
-            await DatabaseService.mark_failed(str(ctx.session_id), str(e))
-            _workspace.cleanup(call_dir)
+            # await DatabaseService.append_history(
+            #     str(ctx.session_id), {"user": q, "assistant": ""}
+            # )
+        except ExceptionHandler as e:
+            msg = f"runner failed: {e.message}"
+            logging.error(f"{msg} (session {ctx.session_id})")
+            await DatabaseService.mark_failed(str(ctx.session_id), msg)
+            return
         finally:
+            _workspace.cleanup(call_dir)
             await _orchestration.release(ctx.session_id)
 
     return runner
@@ -137,9 +96,7 @@ async def generate_infrastructure(
     ctx = await _resolve_or_raise(request, "generate")
 
     async def build(call_dir):
-        handler = HandlerFactory(
-            session_ctx=ctx, call_dir=call_dir, q=request.q
-        ).get_terraform_crud_handler()
+        handler = ApplicationFactory(session_ctx=ctx).get_terraform_crud_handler()
         return await handler.handle(request.q, ctx.history)
 
     background_tasks.add_task(_make_runner(ctx, request.q, build))
@@ -156,9 +113,7 @@ async def drift_detection_remediation(
     ctx = await _resolve_or_raise(request, "drift")
 
     async def build(call_dir):
-        handler = HandlerFactory(
-            session_ctx=ctx, call_dir=call_dir, q=request.q
-        ).get_terraform_drift_handler()
+        handler = ApplicationFactory(session_ctx=ctx).get_terraform_drift_handler()
         return await handler.handle(request.q, ctx.history, request.is_partial)
 
     background_tasks.add_task(_make_runner(ctx, request.q, build))
@@ -175,11 +130,7 @@ async def apply_infrastructure(
     ctx = await _resolve_or_raise(request, "apply")
 
     async def build(call_dir):
-        handler = HandlerFactory(
-            session_ctx=ctx,
-            call_dir=call_dir,
-            q=request.q,
-        ).get_terraform_apply_handler()
+        handler = ApplicationFactory(session_ctx=ctx).get_terraform_apply_handler()
         return await handler.handle(request.q, request.terraform_targets)
 
     background_tasks.add_task(_make_runner(ctx, request.q, build))

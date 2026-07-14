@@ -143,3 +143,9 @@ class InvalidRepoURI(ExceptionHandler):
     """Raised when `git ls-remote` rejects the URI."""
 
     pass
+
+
+class GitError(ExceptionHandler):
+    """General git error exception"""
+
+    pass
