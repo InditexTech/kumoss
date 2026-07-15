@@ -3,14 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Domain layer imports
+from pathlib import Path
 from typing import final
+
 from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
     IacRootDetectionService,
     LLMOrchestrationService,
-    MergePullRequestService,
     SessionService,
     TemplateOrchestrationService,
     TerraformTargetService,
@@ -45,7 +46,6 @@ from src.application.use_cases import (
     TerraformDriftHandler,
     TerraformApplyHandler,
 )
-from pathlib import Path
 
 from src.application.dto import SessionContext
 
@@ -58,35 +58,33 @@ from src.shared.config import system_config
 
 
 @final
-class HandlerFactory:
+class ApplicationFactory:
     def __init__(
         self,
-        *,
-        session_ctx: SessionContext,
-        call_dir: Path,
-        q: str,
+        session_ctx: SessionContext | None = None,
     ):
-        self.session_ctx = session_ctx
-        self.call_dir = call_dir
-        self.q = q
+        self.__ctx: SessionContext | None = session_ctx
 
     # --- Providers for Infrastructure Components ---
     # These providers create the concrete implementations for the utils
 
-    def _get_file_utils(self) -> FileSystemUtils:
-        root = self.call_dir
-        if self.session_ctx.iac_path:
-            root = root / self.session_ctx.iac_path
+    def _get_file_utils(self, path: Path | None = None) -> FileSystemUtils:
+        assert path is not None or (
+            self.__ctx is not None and self.__ctx.iac_path is not None
+        )
         return FileSystemUtils(
-            root=root,
+            root=self.__ctx.iac_path if self.__ctx else path,
             file_ext=["tf", "tfvars"],
         )
 
-    def _get_git_utils(self, file_utils: IFileSystem) -> GitUtils:
+    def _get_git_utils(self, path: Path, branch: str | None = None) -> GitUtils:
+        assert branch is not None or (
+            self.__ctx is not None and self.__ctx.branch_name is not None
+        )
         return GitUtils(
             git_provider=system_config.git.provider,
-            cwd=file_utils.project_root,
-            branch=self.session_ctx.branch_name,
+            cwd=path,
+            branch=self.__ctx.branch_name if self.__ctx else branch,
         )
 
     # --- Providers for Domain Services ---
@@ -99,20 +97,20 @@ class HandlerFactory:
             temperature=temperature,
         ).get()
 
+    @staticmethod
     def _get_llm_service(
-        self,
-        tool_service: ToolOrchestrationService,
         main_llm: LLMProvider,
         main_temp: float,
         small_llm: LLMProvider,
         small_temp: float,
+        tool_service: ToolOrchestrationService | None = None,
     ) -> LLMOrchestrationService:
         return LLMOrchestrationService(
-            main_llm_provider=self.get_llm_adapter(
+            main_llm_provider=ApplicationFactory.get_llm_adapter(
                 provider=main_llm,
                 temperature=main_temp,
             ),
-            small_llm_provider=self.get_llm_adapter(
+            small_llm_provider=ApplicationFactory.get_llm_adapter(
                 provider=small_llm,
                 temperature=small_temp,
             ),
@@ -140,15 +138,27 @@ class HandlerFactory:
         llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         file_utils: IFileSystem,
+        provider: TemplateProvider | None = None,
     ):
+        assert provider is not None or (
+            self.__ctx is not None and self.__ctx.cloud is not None
+        )
         template_adapter = TemplateFactory(
-            template_provider=getattr(TemplateProvider, self.session_ctx.cloud.upper()),
+            template_provider=getattr(TemplateProvider, self.__ctx.cloud.upper())
+            if self.__ctx
+            else provider,
             cwd=str(file_utils.project_root),
         ).get()
         return TemplateOrchestrationService(
             templates=template_adapter,
             llm_service=llm_service,
             tool_service=tool_service,
+        )
+
+    def get_iac_root_detection_service(self) -> IacRootDetectionService:
+        return IacRootDetectionService(
+            workspace=WorkspaceService(),
+            detector=IacRootDetector(),
         )
 
     def _get_terraform_target_service(
@@ -207,6 +217,16 @@ class HandlerFactory:
 
     # --- Providers for Application Building Blocks ---
 
+    def get_pull_request_service(self) -> PullRequestService:
+        file_utils = self._get_file_utils()
+        git_utils = self._get_git_utils(file_utils.project_root)
+        tool_svc = self._get_tool_service(file_utils, git_utils)
+        llm_svc = self._get_default_llm_service(tool_svc)
+        return PullRequestService(
+            git_utils=git_utils,
+            llm_service=llm_svc,
+        )
+
     def _get_project_setup_service(
         self,
         git_utils: GitUtils,
@@ -263,7 +283,7 @@ class HandlerFactory:
     # These providers compose the final use case objects.
 
     def _get_default_llm_service(
-        self, tool_svc: ToolOrchestrationService
+        self, tool_svc: ToolOrchestrationService | None = None
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
             tool_svc,
@@ -273,19 +293,9 @@ class HandlerFactory:
             system_config.llm.small_model_temperature,
         )
 
-    def get_pull_request_service(self) -> PullRequestService:
-        file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
-        llm_svc = self._get_default_llm_service(tool_svc)
-        return PullRequestService(
-            git_utils=git_utils,
-            llm_service=llm_svc,
-        )
-
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils)
+        git_utils = self._get_git_utils(file_utils.project_root)
         tool_svc = self._get_tool_service(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
@@ -317,12 +327,12 @@ class HandlerFactory:
             filter_request_service=filter_svc,
             target_svc=target_svc,
             drift_svc=drift_svc,
-            session_ctx=self.session_ctx,
+            session_ctx=self.__ctx,
         )
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
         file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils)
+        git_utils = self._get_git_utils(file_utils.project_root)
         tool_svc = self._get_tool_service(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
@@ -357,12 +367,12 @@ class HandlerFactory:
             target_service=target_svc,
             split_service=split_svc,
             drift_service=drift_svc,
-            session_ctx=self.session_ctx,
+            session_ctx=self.__ctx,
         )
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
         file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils)
+        git_utils = self._get_git_utils(file_utils.project_root)
         tool_svc = self._get_tool_service(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
@@ -379,23 +389,5 @@ class HandlerFactory:
             session_service=session_svc,
             template_service=template_svc,
             payload_svc=payload_svc,
-            session_ctx=self.session_ctx,
-        )
-
-
-@final
-class StatelessFactory:
-    """Composition root for request-scoped services that have no session."""
-
-    @staticmethod
-    def get_iac_root_detection_service() -> IacRootDetectionService:
-        return IacRootDetectionService(
-            workspace=WorkspaceService(),
-            detector=IacRootDetector(),
-        )
-
-    @staticmethod
-    def get_merge_pr_service() -> MergePullRequestService:
-        return MergePullRequestService(
-            git=GitUtils(git_provider=system_config.git.provider),
+            session_ctx=self.__ctx,
         )

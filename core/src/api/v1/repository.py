@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.application.factory import HandlerFactory, StatelessFactory
+from src.application.factory import ApplicationFactory, StatelessFactory
 from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 
@@ -48,7 +48,7 @@ async def create_pr(
     ],
 ) -> JSONResponse:
     session = await DatabaseService.get_session(session_id)
-    pr_svc = HandlerFactory(session_ctx=session).get_pull_request_service()
+    pr_svc = ApplicationFactory(session_ctx=session).get_pull_request_service()
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
     # if session.status != SessionStatus.REPORT.value:

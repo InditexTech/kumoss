@@ -66,16 +66,24 @@ class SessionOrchestrationService:
     async def _load(self, request: _BaseIacRequest) -> SessionContext:
         row = await DatabaseService.load_session(request.session_id)
         if row is None:
-            raise SessionTerminal(f"Session {request.session_id} not found.")
+            raise SessionTerminal(
+                message=f"Session {request.session_id} not found.",
+                error_code=404,
+            )
         if row.user_id != request.user_id:
             raise SessionForbidden(
-                f"Session {request.session_id} belongs to a different user."
+                message=f"Session {request.session_id} belongs to a different user.",
+                error_code=400,
             )
         if row.status != "active":
-            raise SessionTerminal(f"Session {request.session_id} is {row.status}.")
+            raise SessionTerminal(
+                message=f"Session {request.session_id} is {row.status}.",
+                error_code=410,
+            )
         if not await DatabaseService.acquire_in_flight(request.session_id):
             raise SessionConflict(
-                f"Session {request.session_id} already has a call in flight."
+                message=f"Session {request.session_id} already has a call in flight.",
+                error_code=409,
             )
         return SessionContext(
             session_id=UUID(request.session_id),

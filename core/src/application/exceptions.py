@@ -22,7 +22,3 @@ class SessionTerminal(ExceptionHandler):
     """Session is completed or abandoned (HTTP 409 with current status)."""
 
     pass
-
-
-class MissingArgumentError(ExceptionHandler):
-    pass
