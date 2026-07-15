@@ -65,9 +65,6 @@ class Session(Base):
     __tablename__ = "sessions"
     uuid: Mapped[str] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    status: Mapped[SessionStatus] = mapped_column(
-        String(20), default=SessionStatus.STARTED
-    )
     in_flight: Mapped[bool] = mapped_column(default=False)
     is_blocked: Mapped[bool] = mapped_column(default=False)
     # relations
@@ -81,13 +78,14 @@ class Session(Base):
         "CloudProvider", cascade="all, delete"
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
+    statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
     operations: Mapped[list["Operation"]] = relationship(
         "Operation", cascade="all, delete"
     )
 
     @override
     def __repr__(self) -> str:
-        return f"""<UserSession(session_id='{self.uuid}', status='{self.status}',
+        return f"""<UserSession(session_id='{self.uuid}',
                       in_flight='{self.in_flight}, is_blocked='{self.is_blocked}')>"""
 
 
@@ -149,6 +147,23 @@ class History(Base):
     @override
     def __repr__(self) -> str:
         return f"<History(session_id='{self.session_id}', first_query={self.first_query}')>"
+
+
+@final
+class Status(Base):
+    """"""
+
+    __tablename__ = "statuses"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    status: Mapped[SessionStatus] = mapped_column(
+        String(20), default=SessionStatus.STARTED
+    )
+    message: Mapped[str] = mapped_column(Text)
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Status(session_id='{self.session_id}', status={self.status.name}')>"
 
 
 @final

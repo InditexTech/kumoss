@@ -47,7 +47,6 @@ class PhoenixTracer(ITracer):
         session_id: UUID,
         user_id: str,
         project: str,
-        environment: str,
         branch_name: str | None = None,
     ):
         """
@@ -58,14 +57,12 @@ class PhoenixTracer(ITracer):
         :param session_id: Unique identifier for this tracing session
         :param user_id: Identifier for the user associated with this session
         :param project: The name of the selected project
-        :param environment: The environment of the selected project
         :param branch_name: The name of the git's branch name where the changes are being implemented
         """
         self.__tracer: Tracer = get_tracer(provider_name)
         self.__session_id: str = session_id.hex
         self.__user_id: str = user_id
         self.__project: str = project
-        self.__environment: str = environment
         self.__branch_name: str = branch_name if branch_name else "undefined"
         self.__root_context: Context | None = None
 
@@ -86,7 +83,6 @@ class PhoenixTracer(ITracer):
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
                     "project": self.__project,
-                    "environment": self.__environment,
                     "branch_name": self.__branch_name,
                     **kwargs,
                 }
