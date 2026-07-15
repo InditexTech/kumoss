@@ -168,8 +168,8 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def get_operation(session_id: UUID, operation_id: int) -> Session | None:
-        return await db.get_by(Session, session_id=session_id, id=operation_id)
+    async def get_operation(session_id: UUID) -> Session | None:
+        return await db.get_by(Session, session_id=session_id)
 
     @staticmethod
     async def get_operations(
@@ -183,3 +183,11 @@ class DatabaseService:
             order_desc=order_desc,
             session_id=session_id,
         )
+
+    @staticmethod
+    async def get_workspace(session_id: UUID) -> Workspace | None:
+        return await db.get_by(Workspace, session_id=session_id)
+
+    @staticmethod
+    async def get_pull_requests(session_id: UUID) -> list[PullRequest]:
+        return await db.list_by(PullRequest, session_id=session_id)

@@ -10,7 +10,6 @@ from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.dto import (
     PromptTemplateDTO,
     SessionPayloadDTO,
-    MainHistory,
     TerraformDriftReport,
     TerraformPlanReport,
 )
@@ -100,10 +99,7 @@ class SessionService:
         self.__session.set_payload(
             SessionPayloadDTO(
                 response=response,
-                main_history=MainHistory(
-                    user=query,
-                    assistant=response,
-                ),
+                main_history=History([{"user": query, "assistant": response}]),
                 full_history=history.serialize(),
                 validation=validation,
                 project=project,
