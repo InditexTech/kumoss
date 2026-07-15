@@ -18,8 +18,7 @@ class _Status:
     message: str
 
 
-# TODO: rename to Context
-class Session:
+class SessionContext:
     def __init__(
         self,
         id: UUID,

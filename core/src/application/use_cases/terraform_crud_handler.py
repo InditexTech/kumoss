@@ -6,11 +6,11 @@ from collections.abc import Coroutine
 from typing import Callable, Any
 from uuid import UUID
 
-from src.application.dto import SessionContext
 from src.application.services.filter_request_service import FilterRequestService
 from src.application.services.generate_payload_service import GeneratePayloadService
 from src.application.services.setup_project_service import ProjectSetupService
 from src.application.services.terraform_drift_service import TerraformDriftService
+from src.domains.entities.session import SessionContext
 from src.domains.entities.history import History
 from src.domains.services import (
     SessionService,
@@ -39,7 +39,7 @@ class TerraformCRUDHandler:
         payload_svc: GeneratePayloadService,
         target_svc: TerraformTargetService,
         drift_svc: TerraformDriftService,
-        session_ctx: SessionContext,  # SessionContext
+        session_ctx: SessionContext,
     ):
         self.__validation_svc = validation_service
         self.__session_svc = session_service
@@ -55,7 +55,6 @@ class TerraformCRUDHandler:
         self, q: str, history: list[dict]
     ) -> tuple[UUID, Callable[[], Coroutine[Any, Any, None]]]:
         ctx = self.__ctx
-        self.__session_svc.create_session(ctx.session_id)
         hist = History(history)
 
         async def background_task():

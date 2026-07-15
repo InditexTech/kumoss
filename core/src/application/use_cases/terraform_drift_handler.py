@@ -67,7 +67,6 @@ class TerraformDriftHandler:
         self, q: str, history: list[dict], is_partial: bool
     ) -> tuple[UUID, Callable[[], Coroutine[Any, Any, None]]]:
         ctx = self.__ctx
-        self.__session_svc.create_session(ctx.session_id)
         hist = History(history)
 
         async def background_task():

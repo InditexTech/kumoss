@@ -11,7 +11,7 @@ from src.application.exceptions import (
     SessionTerminal,
 )
 from src.application.iac_requests import _BaseIacRequest
-from src.domains.entities import Session
+from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.models import Workspace
 from src.shared.constants import SessionStatus
@@ -31,14 +31,14 @@ class SessionOrchestrationService:
 
     async def resolve(
         self, request: _BaseIacRequest, operation_type: str = "generate"
-    ) -> Session:
+    ) -> SessionContext:
         if request.repo_uri is not None:
             return await self._create(request, operation_type)
         return await self._load(request)
 
     async def _create(
         self, request: _BaseIacRequest, operation_type: str = "generate"
-    ) -> Session:
+    ) -> SessionContext:
         sid = uuid4()
         branch = self._new_branch_name()
         _ = await DatabaseService.create_session(
@@ -51,9 +51,11 @@ class SessionOrchestrationService:
             iac_path=request.iac_path,
         )
         if not await DatabaseService.acquire_in_flight(str(sid)):
-            # Should not happen on a fresh row, but defend anyway.
-            raise SessionConflict("Failed to acquire in_flight lock on new session.")
-        return Session(
+            raise SessionConflict(
+                message="Failed to acquire in_flight lock on new session.",
+                error_code=500,
+            )
+        return SessionContext(
             id=sid,
             user_id=request.user_id,
             repo_uri=repo_uri,
@@ -61,19 +63,8 @@ class SessionOrchestrationService:
             branch_name=branch,
             iac_path=request.iac_path,
         )
-        # return SessionContext(
-        #     session_id=sid,
-        #     user_id=request.user_id,
-        #     repo_uri=request.repo_uri,
-        #     cloud=request.cloud,
-        #     environment=request.environment,
-        #     branch_name=branch,
-        #     history=[],
-        #     is_first_call=True,
-        #     iac_path=request.iac_path,
-        # )
 
-    async def _load(self, request: _BaseIacRequest) -> Session:
+    async def _load(self, request: _BaseIacRequest) -> SessionContext:
         session = await DatabaseService.load_session(request.session_id)
         workspace: Workspace | None = await DatabaseService.get_workspace(
             request.session_id
@@ -88,22 +79,22 @@ class SessionOrchestrationService:
                 message=f"Session {request.session_id} belongs to a different user.",
                 error_code=400,
             )
-        if workspace is None:
-            raise SessionTerminal(
-                message=f"Session {request.session_id} does not have a workspace",
-                error_code=404,
-            )
         if session.status == SessionStatus.FAILED:
             raise SessionTerminal(
                 message=f"Session {request.session_id} is {session.status}.",
                 error_code=409,
+            )
+        if workspace is None:
+            raise SessionTerminal(
+                message=f"Session {request.session_id} does not have a workspace",
+                error_code=404,
             )
         if not await DatabaseService.acquire_in_flight(request.session_id):
             raise SessionConflict(
                 message=f"Session {request.session_id} already has a call in flight.",
                 error_code=409,
             )
-        return Session(
+        return SessionContext(
             id=session.uuid,
             user_id=session.user_id,
             repo_uri=workspace.uri,
@@ -111,17 +102,6 @@ class SessionOrchestrationService:
             branch_name=workspace.branch,
             iac_path=workspace.root_path,
         )
-        # return SessionContext(
-        #     session_id=UUID(request.session_id),
-        #     user_id=row.user_id,
-        #     repo_uri=row.repo_uri,
-        #     cloud=row.cloud_provider,
-        #     environment=row.environment,
-        #     branch_name=row.branch_name,
-        #     history=list(row.history),
-        #     is_first_call=False,
-        #     iac_path=row.iac_path,
-        # )
 
     async def release(self, session_id: UUID) -> None:
         _ = await DatabaseService.release_in_flight(str(session_id))

@@ -38,7 +38,6 @@ class TerraformApplyHandler:
         self, q: str, terraform_targets: list[str]
     ) -> tuple[UUID, Callable[[], Coroutine[Any, Any, None]]]:
         ctx = self.__ctx
-        self.__session_svc.create_session(ctx.session_id)
 
         async def task_background():
             provider = TracerProject.PRO_TERRAFORM_DAY2

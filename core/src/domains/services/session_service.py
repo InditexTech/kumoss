@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportAttributeAccessIssue=false
-from uuid import UUID
-
-from src.domains.entities import Session, get_session, History
+from src.domains.entities import SessionContext, History
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.dto import (
     PromptTemplateDTO,
@@ -13,7 +11,7 @@ from src.domains.dto import (
     TerraformDriftReport,
     TerraformPlanReport,
 )
-from src.domains.exceptions import SessionNotInitializeError, SessionNotFound
+from src.domains.exceptions import SessionNotInitializeError
 from src.shared.constants import SessionStatus
 from src.shared.logger import logging
 
@@ -23,12 +21,12 @@ class SessionService:
         self,
         llm_service: LLMOrchestrationService,
     ):
-        self.__session: Session = None
+        self.__session: SessionContext = None
         self.__summaries: list[str] = []
         self.__llm_service = llm_service
 
     @property
-    def session(self) -> Session:
+    def session(self) -> SessionContext:
         return self.__session
 
     @property
@@ -37,12 +35,6 @@ class SessionService:
 
     def append_summary(self, summ: str):
         self.__summaries.append(summ)
-
-    def create_session(self, id: UUID):
-        self.__session = Session(
-            id=id,
-            status=SessionStatus.STARTED,
-        )
 
     def set_validation_id(self, id: str):
         """Set the validation ID (pipeline build ID for example)
@@ -121,13 +113,3 @@ class SessionService:
                 message="Error session is not initialized",
                 error_code=500,
             )
-
-    @staticmethod
-    def get_session(id: UUID) -> Session:
-        session = get_session(id)
-        if not session:
-            raise SessionNotFound(
-                message=f"Session with id {str(id)} doesn't exist.",
-                error_code=404,
-            )
-        return session
