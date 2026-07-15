@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import final
 
+from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
@@ -47,8 +48,6 @@ from src.application.use_cases import (
     TerraformApplyHandler,
 )
 
-from src.application.dto import SessionContext
-
 # Shared imports
 from src.shared.constants import (
     TemplateProvider,
@@ -72,19 +71,12 @@ class ApplicationFactory:
         assert path is not None or (
             self.__ctx is not None and self.__ctx.iac_path is not None
         )
-        return FileSystemUtils(
-            root=self.__ctx.iac_path if self.__ctx else path,
-            file_ext=["tf", "tfvars"],
-        )
+        return FileSystemUtils(root=self.__ctx.iac_path if self.__ctx else path)
 
-    def _get_git_utils(self, path: Path, branch: str | None = None) -> GitUtils:
-        assert branch is not None or (
-            self.__ctx is not None and self.__ctx.branch_name is not None
-        )
+    def _get_git_utils(self, path: Path) -> GitUtils:
         return GitUtils(
             git_provider=system_config.git.provider,
             cwd=path,
-            branch=self.__ctx.branch_name if self.__ctx else branch,
         )
 
     # --- Providers for Domain Services ---
@@ -144,9 +136,7 @@ class ApplicationFactory:
             self.__ctx is not None and self.__ctx.cloud is not None
         )
         template_adapter = TemplateFactory(
-            template_provider=getattr(TemplateProvider, self.__ctx.cloud.upper())
-            if self.__ctx
-            else provider,
+            template_provider=self.__ctx.cloud if self.__ctx else provider,
             cwd=str(file_utils.project_root),
         ).get()
         return TemplateOrchestrationService(

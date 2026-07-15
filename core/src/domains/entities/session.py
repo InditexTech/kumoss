@@ -43,8 +43,12 @@ class SessionContext:
         self.set_status(SessionStatus.STARTED, message="Session started")
 
     @property
-    def id(self):
-        return str(self.__id)
+    def id(self) -> UUID:
+        return self.__id
+
+    @property
+    def user_id(self) -> str:
+        return self.__user_id
 
     @property
     def status(self) -> _Status:
@@ -54,11 +58,24 @@ class SessionContext:
         self.__status.put_nowait(_Status(status=status, message=message))
 
     @property
-    def payload(self):
-        return self.__payload
+    def repo_uri(self) -> str:
+        return self.__repo_uri
 
-    # def set_payload(self, payload: SessionPayloadDTO):
-    #     self.__payload = payload
+    @property
+    def cloud(self) -> TemplateProvider:
+        return self.__cloud
+
+    @property
+    def branch_name(self) -> str:
+        return self.__branch_name
+
+    @property
+    def iac_path(self) -> str:
+        return self.__iac_path
+
+    @property
+    def history(self) -> History:
+        return self.__history
 
     @override
     def __str__(self) -> str:

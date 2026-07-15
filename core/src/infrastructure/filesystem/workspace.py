@@ -10,6 +10,7 @@ from uuid import UUID
 
 from src.domains.interfaces.workspace_interface import IWorkspace
 from src.infrastructure.exceptions import GitError, InvalidRepoURI
+from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
 from src.shared.logger import logging
@@ -25,6 +26,17 @@ class WorkspaceService(IWorkspace):
     @property
     def _base(self) -> Path:
         return self._override_base or system_config.paths.upload_folder
+
+    def __add_terraform_gitignore(self, path: Path) -> bool:
+        utils = FileSystemUtils(path)
+        with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
+            if not Path(utils.project_root / ".gitignore").exists():
+                return utils.write_file(
+                    target_file=".gitignore",
+                    content=f.read(),
+                    is_safe=False,
+                )
+        return True
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:
@@ -57,11 +69,16 @@ class WorkspaceService(IWorkspace):
         ok = await git.clone_repository(
             repo_url=repo_uri,
             repository_name=str(call_id),
-            branch=branch,
-            create_branch=create_branch,
         )
         if not ok:
             raise GitError(f"git clone failed: {git.error_msg}", 500)
+
+        if not self.__add_terraform_gitignore(call_dir):
+            logging.warning("terraform gitignore couldn't be created")
+
+        git = GitUtils(git_provider=system_config.git.provider, cwd=call_dir)
+        await git.checkout(branch)
+        await git.commit_and_push(branch)
         return call_dir
 
     @override
