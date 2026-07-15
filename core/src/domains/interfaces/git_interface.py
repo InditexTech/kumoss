@@ -31,12 +31,24 @@ class IGit(ABC):
         repository_name: str,
         branch: str | None = None,
         create_branch: bool = False,
+        *extra_args: str,
+        timeout: int = 300,
     ) -> bool:
         """Clone the repository at ``repo_url`` into ``repository_name``.
 
         ``branch`` is optional; when ``None``, the cloner uses the remote's
         default branch. When ``create_branch`` is True and ``branch`` is provided, the clone
         uses the default branch and then creates a new local branch.
+
+        ``extra_args`` are passed through verbatim to ``git clone``.
+        Use for optional flags that control the shape of the clone without
+        adding a dedicated method — for example ``--filter=blob:none`` to
+        skip fetching file blobs (partial clone) or ``--no-checkout`` to skip
+        populating the working tree.  These arguments are injected between
+        the built-in flags (``--depth``, ``--branch``) and the trailing
+        ``<repo> <dir>`` positionals.
+
+        ``timeout`` is the maximum seconds to wait for the clone subprocess.
         """
         pass
 

@@ -29,7 +29,7 @@ class LLMOrchestrationService:
         self,
         main_llm_provider: ILLMProvider,
         small_llm_provider: ILLMProvider,
-        tool_service: ToolOrchestrationService,
+        tool_service: ToolOrchestrationService | None = None,
     ):
         self.__main_llm = main_llm_provider
         self.__small_llm = small_llm_provider
@@ -119,6 +119,7 @@ class LLMOrchestrationService:
             - For multi-tool scenarios, continues until "task_complete" sentinel is executed
             - All tool executions and responses are automatically added to the conversation history
         """
+        assert self.__tool_svc is not None
         if len(tools) > 1:
             assert isinstance(sentinel_tool, ToolDefinitionDTO)
             assert sentinel_tool is not None
