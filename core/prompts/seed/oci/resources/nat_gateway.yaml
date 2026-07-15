@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI NAT Gateway default configuration (VCN attachment, routing).
+body: |
+  # OCI NAT Gateway
+
+  For a NAT Gateway, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `natgw-<application>-<environment>`.
+  - One NAT Gateway per VCN. A single NAT Gateway can serve all
+    private subnets.
+  - Block traffic must be set to false (allow traffic). Set to true
+    only to temporarily disable outbound internet access.
+  - Add a route rule in the private subnet route tables for
+    0.0.0.0/0 pointing to the NAT Gateway.
+  - NAT Gateways are regional and highly available — no additional
+    HA configuration is needed.
+  - NAT Gateways have no bandwidth limits beyond the underlying
+    VCN limits.
+  - For static outbound IP requirements, the NAT Gateway provides
+    a consistent public IP address.
+  - Apply freeform tags: Name.

@@ -86,6 +86,10 @@ typings/
 # Yarn Integrity file
 .yarn-integrity
 
+# Frontend test coverage
+coverage/
+mocks/
+
 # IDE
 *workspace
 

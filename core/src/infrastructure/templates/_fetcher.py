@@ -19,7 +19,7 @@ class _PromptFetcher:
     async def fetch(
         self,
         prompt_name: str,
-        scope: Literal["general", "azure", "gcp", "aws"],
+        scope: Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"],
         type: Literal["resources", "guidelines"],
         tag: Literal["production", "development"],
     ) -> str:

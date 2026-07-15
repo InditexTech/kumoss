@@ -22,8 +22,8 @@ class Settings:
     UPLOAD_DIR: Path = Path(tempfile.gettempdir())
 
     # Default project configuration
-    DEFAULT_PROJECT_NAME: str = "dcapaiadd"
-    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws"] = "azure"
+    DEFAULT_PROJECT_NAME: str = "nebula"
+    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws", "oci", "kubernetes"] = "azure"
     DEFAULT_PROJECT_ENV: Literal["dev", "pre", "pro"] = "dev"
     DEFAULT_PROJECT_UID: str = f"{DEFAULT_PROJECT_NAME}_{SESSION_ID}"
 

@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Object Storage bucket default configuration (encryption, versioning, access).
+body: |
+  # OCI Object Storage Bucket
+
+  For an Object Storage bucket, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `bkt-<application>-<environment>`.
+  - Bucket names must be unique within the namespace (tenancy).
+  - Storage tier set to Standard. Use Archive tier only when the
+    user explicitly requests it for infrequently accessed data.
+  - Access type set to NoPublicAccess. Never set to
+    ObjectReadWithoutList or ObjectRead unless the user explicitly
+    requests public access.
+  - Versioning must be enabled for production buckets.
+  - Encryption uses Oracle-managed keys by default. Use a
+    customer-managed key (OCI Vault) when explicitly requested.
+  - Enable object lifecycle rules to transition or delete objects
+    after a defined retention period if the user specifies one.
+  - Auto-tiering should be enabled for buckets with mixed access
+    patterns to optimize cost.
+  - Emit object events must be enabled for production buckets to
+    support audit logging via OCI Events and Streaming.
+  - Add a lifecycle block with prevent_destroy for production
+    buckets.
+  - Apply freeform tags: Name.

@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI IAM and identity conventions.
+body: |
+  # OCI Permissions Guidelines
+
+  ## IAM Policies
+  - OCI uses policy statements in the form:
+    `Allow <subject> to <verb> <resource-type> in <location>`.
+  - Grant the narrowest verb that satisfies the use case:
+    `inspect` < `read` < `use` < `manage`.
+  - Scope policies to compartments, not the tenancy, unless
+    cross-compartment access is explicitly required.
+  - Never grant `manage all-resources in tenancy` outside of
+    administrator groups.
+
+  ## Groups and Dynamic Groups
+  - Assign policies to groups, not individual users.
+  - Use dynamic groups for compute instances, functions, and other
+    OCI resources that need to call OCI APIs.
+  - Dynamic group matching rules should be as specific as possible
+    (match on compartment OCID + resource type, not just
+    resource type).
+
+  ## Instance Principals
+  - Prefer instance principals over API keys for workloads running
+    on OCI compute, functions, or container instances.
+  - Create a dynamic group matching the specific instances, then
+    write a policy granting the required access.
+
+  ## API Keys
+  - Use only for external workloads (CI/CD, on-premises services).
+  - Rotate API keys at least every 90 days.
+  - Never store private keys in Terraform state, outputs, or
+    version control.
+
+  ## Service Limits
+  - Check service limits before provisioning large-scale resources.
+  - Request limit increases proactively for production environments.
+
+  Replace this body with your organization's authoritative IAM
+  standards.

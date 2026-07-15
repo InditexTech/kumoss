@@ -1,0 +1,38 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.label {
+  flex-shrink: 0;
+  width: 120px;
+  padding-top: 2px;
+}
+
+.value {
+  flex: 1;
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.codeValue {
+  flex: 1;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-body);
+  background: light-dark(#f8f9fa, rgba(0, 0, 0, 0.3));
+  border: 1px solid var(--color-border);
+  padding: 16px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

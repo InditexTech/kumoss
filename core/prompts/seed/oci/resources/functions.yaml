@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Functions default configuration (application, function, networking, IAM).
+body: |
+  # OCI Functions
+
+  For OCI Functions resources, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Functions Application
+  - Naming convention: `fnapp-<application>-<environment>`.
+  - Deploy the application into a private subnet with a NAT
+    Gateway for outbound internet access.
+  - Associate with an NSG that allows outbound traffic and denies
+    all inbound (functions are invoked via the OCI API, not via
+    direct network access).
+  - Set the application shape to GENERIC_ARM when the function
+    image supports ARM, or GENERIC_X86 otherwise. ARM shapes are
+    more cost-efficient.
+
+  ## Function
+  - Naming convention: `fn-<name>-<environment>`.
+  - Memory: 256 MB default. Increase based on function requirements.
+  - Timeout: 30 seconds default. Maximum 300 seconds.
+  - Use the OCI Container Registry (OCIR) for function images.
+  - Set provisioned concurrency only for latency-sensitive
+    production functions. Use on-demand for all others.
+  - Configuration variables should not contain secrets — use OCI
+    Vault secrets and retrieve them at runtime via the Secrets
+    service.
+
+  ## IAM
+  - Create a dynamic group matching the functions application
+    compartment and resource type.
+  - Write a policy granting the dynamic group the minimum
+    permissions required (e.g. read secrets, use object storage).
+  - Apply freeform tags: Name.

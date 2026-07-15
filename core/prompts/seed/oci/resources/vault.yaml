@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Vault default configuration (vault type, master encryption key, secrets).
+body: |
+  # OCI Vault
+
+  For Vault resources, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Vault
+  - Naming convention: `vlt-<application>-<environment>`.
+  - Vault type: DEFAULT for general use. Use VIRTUAL_PRIVATE only
+    when the user requires a dedicated HSM partition (higher cost).
+  - Create the vault in the application compartment.
+  - Do not create secrets or keys inline with the vault — use
+    separate resources.
+  - Add a lifecycle block with prevent_destroy for production
+    vaults. Vault deletion has a mandatory 7-30 day pending
+    deletion period.
+
+  ## Master Encryption Key
+  - Naming convention: `key-<purpose>-<application>-<environment>`.
+  - Algorithm: AES with 256-bit key length for symmetric
+    encryption (default). Use RSA or ECDSA only for asymmetric
+    use cases.
+  - Protection mode: HSM for production. SOFTWARE only for
+    non-production cost optimization.
+  - Enable automatic key rotation with a rotation interval of
+    90 days for production keys.
+  - Key shape: AES 256 for data encryption, RSA 2048 or 4096 for
+    signing.
+
+  ## Secrets
+  - Naming convention: `secret-<name>-<environment>`.
+  - Store all sensitive values (database passwords, API keys,
+    certificates) as vault secrets.
+  - Never store secret content in Terraform state or outputs.
+  - Use secret versions for rotation. Set expiry rules where
+    applicable.
+  - Grant access via IAM policies to specific groups or dynamic
+    groups — never grant broad vault access.
+  - Apply freeform tags: Name.

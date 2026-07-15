@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Service default configuration (ClusterIP, selectors, ports, traffic policy).
+body: |
+  # Kubernetes Service
+
+  For a Service, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-svc`.
+  - Default type: `ClusterIP` for internal communication.
+  - Use `LoadBalancer` only for external-facing services when
+    running on a cloud provider.
+  - Use `NodePort` only for development or constrained environments
+    where LoadBalancer is unavailable.
+  - Prefer Ingress or Gateway API over per-service LoadBalancers
+    for HTTP/HTTPS workloads.
+  - Define `selector` labels that exactly match the pod template
+    labels of the target Deployment or StatefulSet.
+  - Specify named `port` blocks with `name`, `port`, `target_port`,
+    and `protocol`. Use lowercase protocol names.
+  - For headless services (StatefulSet backing), set
+    `cluster_ip = "None"`.
+  - Set `external_traffic_policy = "Local"` on LoadBalancer/NodePort
+    services when source IP preservation is needed. Be aware this
+    can cause uneven traffic if pods are not on all nodes.
+  - Set `internal_traffic_policy = "Local"` (K8s 1.26+) to prefer
+    node-local endpoints for topology-aware routing.
+  - Set `session_affinity = "ClientIP"` only when sticky sessions
+    are required — default is `None`.
+  - Set `publish_not_ready_addresses = true` on headless services
+    when StatefulSet pods need DNS records before becoming ready.
+  - Apply standard labels matching the backed workload.

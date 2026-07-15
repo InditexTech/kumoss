@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Load Balancer default configuration (flexible/network, listeners, backends).
+body: |
+  # OCI Load Balancer
+
+  For a Load Balancer, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Type selection
+  - Default to a Flexible Load Balancer for HTTP/HTTPS workloads.
+  - Use a Network Load Balancer for TCP/UDP, low-latency, or
+    high-throughput workloads.
+
+  ## Flexible Load Balancer
+  - Naming convention: `lb-<application>-<environment>`.
+  - Minimum bandwidth: 10 Mbps. Maximum bandwidth: 100 Mbps for
+    non-production, scaled per user request for production.
+  - Place in a public subnet when serving external traffic, or a
+    private subnet for internal-only traffic.
+  - Assign an NSG to the load balancer.
+  - Create an HTTPS listener on port 443 with SSL termination.
+    Create an HTTP listener on port 80 only to redirect to HTTPS.
+  - Use a certificate from OCI Certificates service or import a
+    custom certificate — never use self-signed certificates in
+    production.
+  - Backend set health check: HTTP GET on the application health
+    endpoint, interval 10 seconds, timeout 3 seconds, 3 retries.
+  - Session persistence: use application cookie stickiness only
+    when explicitly requested.
+  - Enable access logging and error logging.
+
+  ## Network Load Balancer
+  - Naming convention: `nlb-<application>-<environment>`.
+  - Place in a public or private subnet depending on traffic
+    source.
+  - Assign an NSG to the NLB.
+  - Health check: TCP on the service port.
+
+  ## Common
+  - Apply freeform tags: Name.

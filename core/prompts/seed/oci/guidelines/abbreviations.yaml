@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # OCI Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                       | Prefix |
+  |--------------------------------|--------|
+  | Compartment                    | cmp    |
+  | Virtual Cloud Network          | vcn    |
+  | Subnet                         | snet   |
+  | Security List                  | sl     |
+  | Network Security Group         | nsg    |
+  | Internet Gateway               | igw    |
+  | NAT Gateway                    | natgw  |
+  | Service Gateway                | sgw    |
+  | Route Table                    | rt     |
+  | Load Balancer                  | lb     |
+  | Compute Instance               | inst   |
+  | Block Volume                   | bv     |
+  | Object Storage Bucket          | bkt    |
+  | File Storage                   | fss    |
+  | Autonomous Database            | adb    |
+  | OKE Cluster                    | oke    |
+  | Vault                          | vlt    |
+  | Functions Application          | fnapp  |
+  | DNS Zone                       | dns    |
+  | Dynamic Group                  | dg     |
+
+  Replace this list with your organization's naming standard.

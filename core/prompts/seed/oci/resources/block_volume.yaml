@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Block Volume default configuration (encryption, backup, performance).
+body: |
+  # OCI Block Volume
+
+  For a Block Volume, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `bv-<purpose>-<application>-<environment>`.
+  - Size defaults to 50 GB. Increase based on workload
+    requirements. Minimum 50 GB, maximum 32 TB.
+  - VPUs (Volume Performance Units) per GB:
+    - 0 VPUs (Lower Cost) for non-critical, low-IOPS workloads.
+    - 10 VPUs (Balanced) as default for general workloads.
+    - 20 VPUs (Higher Performance) for databases and
+      latency-sensitive applications.
+    - 30-120 VPUs (Ultra High Performance) only when explicitly
+      requested.
+  - Encryption uses Oracle-managed keys by default. Use a
+    customer-managed key (OCI Vault) when requested.
+  - In-transit encryption must be enabled for the volume
+    attachment.
+  - Attachment type: paravirtualized for general use. Use iSCSI
+    only when the user explicitly requires multipath or specific
+    performance characteristics.
+  - Assign a backup policy:
+    - Bronze (monthly) for non-production.
+    - Silver (weekly) for standard production.
+    - Gold (daily) for critical production data.
+  - Cross-region replication should be enabled for disaster
+    recovery on critical volumes when requested.
+  - Add a lifecycle block with prevent_destroy for production.
+  - Apply freeform tags: Name.

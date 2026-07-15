@@ -1,0 +1,90 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.description {
+  font-size: 14px;
+  font-weight: 300;
+  color: light-dark(#6b7280, #9ca3af);
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.textArea {
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid light-dark(#e5e7eb, #262626);
+  border-radius: 0;
+  background: transparent;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.textArea::placeholder {
+  color: light-dark(#9ca3af, #6b7280);
+  font-weight: 300;
+}
+
+.textArea:focus {
+  border-color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.charCount {
+  font-size: 12px;
+  font-weight: 300;
+  color: light-dark(#9ca3af, #6b7280);
+  letter-spacing: 0.5px;
+}
+
+.error {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--color-danger);
+  margin: 0;
+  flex: 1;
+}
+
+.submitButton {
+  padding: 8px 24px !important;
+  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
+  transition: background-color 0.2s ease !important;
+  min-height: auto !important;
+}
+
+.submitButton:hover {
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08)) !important;
+}
+
+.submitButton:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Ingress default configuration (TLS, routing rules, annotations, Gateway API).
+body: |
+  # Kubernetes Ingress
+
+  For an Ingress, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<environment>-ing`.
+  - Specify `ingress_class_name` to target the correct Ingress
+    controller (e.g., `nginx`, `traefik`, cloud-native).
+  - For advanced routing (TCP/UDP, traffic splitting, header
+    matching), consider the Gateway API
+    (`gateway.networking.k8s.io`) as a modern alternative.
+  - Always configure TLS termination:
+    - Reference a `kubernetes_secret` of type `kubernetes.io/tls`
+      containing the certificate and key.
+    - List all hosts under the `tls` block.
+    - Use cert-manager for automatic certificate provisioning and
+      renewal from Let's Encrypt or internal CAs.
+  - Define `rule` blocks with host-based routing:
+    - Use `path` entries with `path_type = "Prefix"` as default.
+      Use `"Exact"` when only an exact URL should match.
+    - Map each path to a backend `service` with `name` and
+      `port.number`.
+  - Configure a `default_backend` to handle unmatched requests
+    (returns 404 or a custom error page).
+  - Add annotations for controller-specific behavior:
+    - SSL redirect: `nginx.ingress.kubernetes.io/ssl-redirect: "true"`.
+    - Rate limiting: `nginx.ingress.kubernetes.io/limit-rps`.
+    - CORS, proxy timeouts, and body size as needed.
+  - For HTTPS-only services, redirect HTTP to HTTPS via
+    controller annotations.
+  - Apply standard labels for identification.
