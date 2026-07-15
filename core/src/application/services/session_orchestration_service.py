@@ -10,7 +10,7 @@ from src.application.exceptions import (
     SessionForbidden,
     SessionTerminal,
 )
-from src.application.iac_requests import _BaseIacRequest
+from src.application.iac_requests import BaseIacRequest
 from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.models import Workspace
@@ -30,14 +30,14 @@ class SessionOrchestrationService:
         return f"Nebula/{ts}"
 
     async def resolve(
-        self, request: _BaseIacRequest, operation_type: str = "generate"
+        self, request: BaseIacRequest, operation_type: str = "generate"
     ) -> SessionContext:
         if request.repo_uri is not None:
             return await self._create(request, operation_type)
         return await self._load(request)
 
     async def _create(
-        self, request: _BaseIacRequest, operation_type: str = "generate"
+        self, request: BaseIacRequest, operation_type: str = "generate"
     ) -> SessionContext:
         sid = uuid4()
         branch = self._new_branch_name()
@@ -64,7 +64,7 @@ class SessionOrchestrationService:
             iac_path=request.iac_path,
         )
 
-    async def _load(self, request: _BaseIacRequest) -> SessionContext:
+    async def _load(self, request: BaseIacRequest) -> SessionContext:
         session = await DatabaseService.load_session(request.session_id)
         workspace: Workspace | None = await DatabaseService.get_workspace(
             request.session_id

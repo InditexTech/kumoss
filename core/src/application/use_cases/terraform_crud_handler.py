@@ -4,14 +4,11 @@
 
 from collections.abc import Coroutine
 from typing import Callable, Any
-from uuid import UUID
 
 from src.application.services.filter_request_service import FilterRequestService
 from src.application.services.generate_payload_service import GeneratePayloadService
-from src.application.services.setup_project_service import ProjectSetupService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.entities.session import SessionContext
-from src.domains.entities.history import History
 from src.domains.services import (
     SessionService,
     TracerService,
@@ -35,7 +32,6 @@ class TerraformCRUDHandler:
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         filter_request_service: FilterRequestService,
-        setup_service: ProjectSetupService,
         payload_svc: GeneratePayloadService,
         target_svc: TerraformTargetService,
         drift_svc: TerraformDriftService,
@@ -44,18 +40,15 @@ class TerraformCRUDHandler:
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__setup_svc = setup_service
         self.__payload_svc = payload_svc
         self.__filter_request_svc = filter_request_service
         self.__target_svc = target_svc
         self.__drift_svc = drift_svc
         self.__ctx = session_ctx
 
-    async def handle(
-        self, q: str, history: list[dict]
-    ) -> tuple[UUID, Callable[[], Coroutine[Any, Any, None]]]:
+    async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
-        hist = History(history)
+        hist = ctx.history.deepcopy()
 
         async def background_task():
             provider = TracerProject.PRO_TERRAFORM_DAY2
@@ -64,28 +57,21 @@ class TerraformCRUDHandler:
             elif system_config.environment == "staging":
                 provider = TracerProject.PRE_TERRAFORM_DAY2
 
-            branch = await self.__setup_svc.setup_project()
             project = derive_project_name(ctx.repo_uri)
 
-            try:
-                _ = await AuthzServiceClient().check(
-                    cloud=ctx.cloud,
-                    project=project,
-                    environment=ctx.environment,
-                    user_id=ctx.user_id,
-                )
-                # portal_url no longer persisted on session row; pass-through only.
-            except Exception as e:
-                logging.warning(f"Could not resolve cloud portal URL: {e}")
+            _ = await AuthzServiceClient().check(
+                cloud=ctx.cloud,
+                project=project,
+                user_id=ctx.user_id,
+            )
 
             tracer_token = TracerService.set_current_tracer(
                 tracer=PhoenixTracer(
                     provider_name=provider,
-                    session_id=ctx.session_id,
+                    session_id=ctx.id,
                     user_id=ctx.user_id,
                     project=project,
-                    environment=ctx.environment,
-                    branch_name=branch,
+                    branch_name=ctx.branch_name,
                 )
             )
             try:
@@ -100,9 +86,9 @@ class TerraformCRUDHandler:
                 if not status:
                     await self.__payload_svc.generate(
                         response=explanation,
-                        command=_LegacyCommandShim(ctx, q),
+                        command="TODO",
                         history=hist,
-                        branch=branch,
+                        branch=ctx.branch_name,
                     )
                     return
 
@@ -111,7 +97,7 @@ class TerraformCRUDHandler:
                 )
                 if predictive_targets:
                     drift_result = await self.__drift_svc.detect_and_resolve_drift(
-                        branch=branch,
+                        branch=ctx.branch_name,
                         targets=predictive_targets,
                         history=hist,
                         max_iterations=2,
@@ -128,9 +114,9 @@ class TerraformCRUDHandler:
                 )
                 await self.__payload_svc.generate(
                     response="",
-                    command=_LegacyCommandShim(ctx, q),
+                    command="TODO",
                     history=hist,
-                    branch=branch,
+                    branch=ctx.branch_name,
                     validation=validation_result,
                 )
             except ExceptionHandler as e:
@@ -141,20 +127,4 @@ class TerraformCRUDHandler:
             finally:
                 TracerService.reset_current_tracer(tracer_token)
 
-        return ctx.session_id, background_task
-
-
-class _LegacyCommandShim:
-    """Adapter so GeneratePayloadService keeps its old `command.*` access pattern.
-
-    GeneratePayloadService reads command.cloud, command.environment, command.q,
-    command.user_id during payload assembly. We pass it a tiny shim instead of
-    threading every field through a new signature.
-    """
-
-    def __init__(self, ctx, q: str):
-        self.cloud = ctx.cloud
-        self.environment = ctx.environment
-        self.user_id = ctx.user_id
-        self.q = q
-        self.repository_id = ctx.repo_uri  # for any leftover access
+        return background_task

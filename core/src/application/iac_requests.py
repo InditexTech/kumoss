@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class _BaseIacRequest(BaseModel):
+class BaseIacRequest(BaseModel):
     repo_uri: Annotated[
         str | None,
         Field(
@@ -80,13 +80,13 @@ class _BaseIacRequest(BaseModel):
         return self
 
 
-class GenerateRequest(_BaseIacRequest):
+class GenerateRequest(BaseIacRequest):
     pass
 
 
-class DriftRequest(_BaseIacRequest):
+class DriftRequest(BaseIacRequest):
     is_partial: bool = False
 
 
-class ApplyRequest(_BaseIacRequest):
+class ApplyRequest(BaseIacRequest):
     terraform_targets: list[str] = Field(default_factory=list)

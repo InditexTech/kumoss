@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from uuid import UUID
 from collections.abc import Coroutine
 from typing import Callable, Any
 
+from src.domains.entities import SessionContext
 from src.domains.services import (
     TemplateOrchestrationService,
     TracerService,
@@ -26,7 +26,7 @@ class TerraformApplyHandler:
         session_service: SessionService,
         template_service: TemplateOrchestrationService,
         payload_svc: GeneratePayloadService,
-        session_ctx,  # SessionContext
+        session_ctx: SessionContext,
     ):
         self.__apply_svc = apply_service
         self.__session_svc = session_service
@@ -36,7 +36,7 @@ class TerraformApplyHandler:
 
     async def handle(
         self, q: str, terraform_targets: list[str]
-    ) -> tuple[UUID, Callable[[], Coroutine[Any, Any, None]]]:
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
 
         async def task_background():
@@ -88,7 +88,7 @@ class TerraformApplyHandler:
             finally:
                 TracerService.reset_current_tracer(tracer_token)
 
-        return ctx.session_id, task_background
+        return task_background
 
 
 class _LegacyCommandShim:
