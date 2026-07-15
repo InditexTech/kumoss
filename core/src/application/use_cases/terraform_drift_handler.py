@@ -26,7 +26,6 @@ from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
     SessionStatus,
-    TracerProject,
     PromptsLibrary,
 )
 from src.shared.exceptions import ExceptionHandler
@@ -64,11 +63,6 @@ class TerraformDriftHandler:
         hist = ctx.history.deepcopy()
 
         async def background_task():
-            provider = TracerProject.PRO_TERRAFORM_DRIFT
-            if system_config.environment == "development":
-                provider = TracerProject.DEV_TERRAFORM_DRIFT
-            elif system_config.environment == "staging":
-                provider = TracerProject.PRE_TERRAFORM_DRIFT
 
             project = derive_project_name(ctx.repo_uri)
 
@@ -80,7 +74,6 @@ class TerraformDriftHandler:
 
             tracer_token = TracerService.set_current_tracer(
                 tracer=PhoenixTracer(
-                    provider_name=provider,
                     session_id=ctx.id,
                     user_id=ctx.user_id,
                     project=project,

@@ -37,13 +37,12 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider, TracerProject
+from src.shared.constants import LLMProvider
 
 
 class PhoenixTracer(ITracer):
     def __init__(
         self,
-        provider_name: TracerProject,
         session_id: UUID,
         user_id: str,
         project: str,
@@ -53,13 +52,12 @@ class PhoenixTracer(ITracer):
         PhoenixTracer implements a concrete adapter to OTel for a Phoenix collector
         This class is tied with the lifetime of a single request or session.
 
-        :param provider_name: The telemetry provider to use for tracing
         :param session_id: Unique identifier for this tracing session
         :param user_id: Identifier for the user associated with this session
         :param project: The name of the selected project
         :param branch_name: The name of the git's branch name where the changes are being implemented
         """
-        self.__tracer: Tracer = get_tracer(provider_name)
+        self.__tracer: Tracer = get_tracer()
         self.__session_id: str = session_id.hex
         self.__user_id: str = user_id
         self.__project: str = project
