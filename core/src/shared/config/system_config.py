@@ -218,6 +218,27 @@ class GitConfig(BaseModel):
         return v
 
 
+class DatabaseConfig(BaseModel):
+    """Credentials for Phoenix collector and Nebula postgres databases"""
+
+    nebula_database_url_env: str = "NEBULA_SQL_DATABASE_URL"
+    phoenix_database_url_env: str = "PHOENIX_SQL_DATABASE_URL"
+
+    @property
+    def nebula_database_url(self) -> str:
+        return _env(self.nebula_database_url_env)
+
+    @property
+    def phoenix_database_url(self) -> str:
+        return _env(self.phoenix_database_url_env)
+
+    @model_validator(mode="after")
+    def _assert_urls(self) -> DatabaseConfig:
+        if not self.phoenix_database_url or not self.nebula_database_url:
+            raise ConfigError("Missing env variable for phoenix or nebula databases")
+        return self
+
+
 class SystemConfig(BaseModel):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
@@ -226,6 +247,7 @@ class SystemConfig(BaseModel):
     services: ServicesConfig = Field(default_factory=ServicesConfig)
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)

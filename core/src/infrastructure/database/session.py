@@ -4,7 +4,7 @@
 
 """Database session management with connection pooling."""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
-from src.infrastructure.database.config import db_config
+from ._config import db_config
 
 
 class SessionManager:

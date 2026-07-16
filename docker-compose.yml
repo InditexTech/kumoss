@@ -18,14 +18,14 @@ services:
     expose:
       - 80
     depends_on:
-      - api
+      - core
       # - webapp
       - phoenix
     networks:
       - bridge-network
 
-  api:
-    image: nebula-fastapi:latest
+  core:
+    image: nebula-core:latest
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -48,6 +48,7 @@ services:
       - ./config.yaml:/etc/nebula/config.yaml:ro
       - workspaces:/workspaces
     depends_on:
+      - core-db
       - notifications
       - mapping
       - iac
@@ -59,6 +60,20 @@ services:
           target: /usr/src/app
     networks:
       - bridge-network
+
+  core-db:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=nebula
+    ports:
+      - "5432:5432"
+    volumes:
+      - core_db_data:/var/lib/postgresql/data
+    networks:
+      - bridge-network
+
 
   notifications:
     image: nebula-notifications:latest
@@ -114,32 +129,51 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:17.10.0
+    image: arizephoenix/phoenix:17.30.0
     ports:
       - "6006"
       - "4317"
     depends_on:
-      - db
+      - phoenix-db
     environment:
+      - PHOENIX_SQL_DATABASE_URL=postgresql://postgres:postgres@phoenix-db:5432/phoenix
       - PHOENIX_HOST_ROOT_PATH=/monitoring
     networks:
       - bridge-network
 
-  db:
+  phoenix-db:
     image: postgres:17
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_DB=phoenix
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - database_data:/var/lib/postgresql/data
+      - phoenix_db_data:/var/lib/postgresql/data
     networks:
       - bridge-network
 
+  object-store:
+    image: quay.io/minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - object_store_data:/data
+    command: server /data --console-address ":9001"
+    # restart: unless-stopped
+
 volumes:
-  database_data:
+  core_db_data:
+    driver: local
+  phoenix_db_data:
+    driver: local
+  object_store_data:
     driver: local
   workspaces:
     driver: local

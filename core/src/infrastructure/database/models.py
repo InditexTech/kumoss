@@ -22,7 +22,7 @@ from src.shared.constants import (
     GitProviderName,
     ReportType,
     SessionStatus,
-    TemplateProvider,
+    TemplateProvider as TP,
 )
 
 
@@ -73,8 +73,8 @@ class Session(Base):
     pull_requests: Mapped[list["PullRequest"]] = relationship(
         "PullRequest", cascade="all, delete"
     )
-    cloud_providers: Mapped[list["CloudProvider"]] = relationship(
-        "CloudProvider", cascade="all, delete"
+    template_providers: Mapped[list["TemplateProvider"]] = relationship(
+        "TemplateProvider", cascade="all, delete"
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
@@ -109,18 +109,20 @@ class Workspace(Base):
 
 
 @final
-class CloudProvider(Base):
+class TemplateProvider(Base):
     """"""
 
-    __tablename__ = "cloud_providers"
+    __tablename__ = "template_providers"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    name: Mapped[TemplateProvider] = mapped_column()
+    provider: Mapped[TP] = mapped_column()
     scope_id: Mapped[str] = mapped_column(String(1016))
 
     @override
     def __repr__(self) -> str:
-        return f"<CloudProvider(session_id='{self.session_id}', name={self.name}')>"
+        return (
+            f"<TemplateProvider(session_id='{self.session_id}', name={self.provider}')>"
+        )
 
 
 @final
@@ -176,7 +178,6 @@ class Artifact(Base):
 
     __tablename__ = "artifacts"
 
-    operation_id: Mapped[int] = mapped_column(ForeignKey("operations.id"), index=True)
     uri: Mapped[str] = mapped_column(Text)
     content_type: Mapped[str] = mapped_column(String(20))
     file_size_bytes: Mapped[int] = mapped_column(Integer)
@@ -191,7 +192,7 @@ class Artifact(Base):
 
     @override
     def __repr__(self) -> str:
-        return f"<Artifact(operation_id='{self.operation_id}', uri='{self.uri}')>"
+        return f"<Artifact(uri='{self.uri}', content_type='{self.content_type}')>"
 
 
 @final
@@ -201,7 +202,7 @@ class TerraformPlan(Base):
     __tablename__ = "terraform_plans"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     targets: Mapped[list[str]] = mapped_column(ARRAY(String))
 
     @override
@@ -218,7 +219,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     type: Mapped[ReportType] = mapped_column()
 
     @override
@@ -233,7 +234,7 @@ class CodeChange(Base):
     __tablename__ = "code_changes"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     file_name: Mapped[str] = mapped_column(String(254))
 
     @override
