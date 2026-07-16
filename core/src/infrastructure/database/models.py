@@ -78,6 +78,13 @@ class Session(Base):
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
+    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
+        "TerraformPlan", cascade="all, delete"
+    )
+    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    code_changes: Mapped[list["CodeChange"]] = relationship(
+        "CodeChange", cascade="all, delete"
+    )
 
     @override
     def __repr__(self) -> str:
@@ -109,6 +116,7 @@ class CloudProvider(Base):
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     name: Mapped[TemplateProvider] = mapped_column()
+    scope_id: Mapped[str] = mapped_column(String(1016))
 
     @override
     def __repr__(self) -> str:
@@ -172,6 +180,14 @@ class Artifact(Base):
     uri: Mapped[str] = mapped_column(Text)
     content_type: Mapped[str] = mapped_column(String(20))
     file_size_bytes: Mapped[int] = mapped_column(Integer)
+    # relations
+    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
+        "TerraformPlan", cascade="all, delete"
+    )
+    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    code_changes: Mapped[list["CodeChange"]] = relationship(
+        "CodeChange", cascade="all, delete"
+    )
 
     @override
     def __repr__(self) -> str:
@@ -190,7 +206,9 @@ class TerraformPlan(Base):
 
     @override
     def __repr__(self) -> str:
-        return f"<TerraformPlan(session_id='{self.session_id}', targets='{self.uri}')>"
+        return (
+            f"<TerraformPlan(session_id='{self.session_id}', targets='{self.targets}')>"
+        )
 
 
 @final

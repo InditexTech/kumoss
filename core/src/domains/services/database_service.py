@@ -109,18 +109,6 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def create_pull_request(
-        session_id: UUID, uri: str, branch: str, root_path: str
-    ) -> PullRequest:
-        return await db.create(
-            PullRequest,
-            session_id=session_id,
-            uri=uri,
-            branch=branch,
-            root_path=root_path,
-        )
-
-    @staticmethod
     async def get_session_context(session_id: UUID) -> SessionContext:
         user: User | None = await DatabaseService.__load_user(session_id)
         if user is None:
@@ -146,14 +134,64 @@ class DatabaseService:
                 message=f"Session {session_id} does not have an associated cloud provider",
                 error_code=404,
             )
-
         return SessionContext(
             id=session.uuid,
             user_id=user.username,
             repo_uri=workspace.uri,
+            scope_id=cloud.scope_id,
             cloud=cloud.name,
             branch_name=workspace.branch,
             iac_path=workspace.root_path,
+        )
+
+    @staticmethod
+    async def update_session(ctx: SessionContext) -> None:
+        async with db.transaction() as sess:
+            stmt = (
+                update(Session)
+                .where(
+                    Session.uuid == ctx.id,
+                )
+                .values(
+                    is_blocked=ctx.is_blocked,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            res = await sess.execute(stmt)
+            if cast(CursorResult[Any], res).rowcount == 1:
+                raise SessionConflict(
+                    message=f"Failed to update lock on session {ctx.id}.",
+                    error_code=500,
+                )
+
+        async with db.transaction() as sess:
+            stmt = (
+                update(History)
+                .where(
+                    Session.uuid == ctx.id,
+                )
+                .values(
+                    paylod=ctx.history,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            res = await sess.execute(stmt)
+            if cast(CursorResult[Any], res).rowcount == 1:
+                raise SessionConflict(
+                    message=f"Failed to update history on session {ctx.id}.",
+                    error_code=500,
+                )
+
+    @staticmethod
+    async def create_pull_request(
+        session_id: UUID, uri: str, branch: str, root_path: str
+    ) -> PullRequest:
+        return await db.create(
+            PullRequest,
+            session_id=session_id,
+            uri=uri,
+            branch=branch,
+            root_path=root_path,
         )
 
     @staticmethod

@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.application.factory import ApplicationFactory, StatelessFactory
+from src.application.factory import ApplicationFactory
 from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 
@@ -29,7 +29,7 @@ async def complete_pr(
     id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
     try:
-        service = StatelessFactory.get_merge_pr_service()
+        service = ApplicationFactory().get_pull_request_service()
         await service.merge(session_id, id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
@@ -85,7 +85,7 @@ async def parse_repository(
     ],
 ) -> JSONResponse:
     try:
-        service = StatelessFactory.get_iac_root_detection_service()
+        service = ApplicationFactory().get_iac_root_detection_service()
         roots = await service.detect_roots(repo_uri)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

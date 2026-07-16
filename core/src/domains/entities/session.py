@@ -8,7 +8,7 @@ from typing import override, Any
 from uuid import UUID
 
 from src.domains.entities import History
-from src.shared.constants import TemplateProvider
+from src.shared.constants import ReportType, TemplateProvider
 
 
 class SessionContext:
@@ -17,14 +17,17 @@ class SessionContext:
         id: UUID,
         user_id: str,
         repo_uri: str,
+        scope_id: str,
         cloud: TemplateProvider,
         branch_name: str,
         iac_path: str,
         history: list[dict[str, str]] = None,
+        is_blocked: bool = False,
     ):
         self.__id = id
         self.__user_id = user_id
         self.__repo_uri = repo_uri
+        self.__scope_id = scope_id
         self.__cloud = cloud
         self.__branch_name = branch_name
         self.__iac_path = iac_path
@@ -33,6 +36,8 @@ class SessionContext:
             dict[str, Any]
         ]  # TODO: implement entity and services, interfaces...
         self.__call_dir: Path = None
+        self.__report_type = None
+        self.__is_blocked: bool = is_blocked
 
     @property
     def id(self) -> UUID:
@@ -47,8 +52,20 @@ class SessionContext:
         return self.__repo_uri
 
     @property
+    def scope_id(self) -> str:
+        return self.__scope_id
+
+    @property
     def cloud(self) -> TemplateProvider:
         return self.__cloud
+
+    @property
+    def report_type(self) -> ReportType:
+        assert self.__report_type is not None
+        return self.__report_type
+
+    def set_report_type(self, type: ReportType) -> None:
+        self.__report_type = type
 
     @property
     def branch_name(self) -> str:
@@ -69,6 +86,10 @@ class SessionContext:
 
     def set_call_dir(self, path: Path) -> None:
         self.__call_dir = path
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.__is_blocked
 
     @override
     def __str__(self) -> str:

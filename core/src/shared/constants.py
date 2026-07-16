@@ -98,6 +98,7 @@ class ReportType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
+    APPLY = "apply"
 
 
 @unique

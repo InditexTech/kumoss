@@ -22,6 +22,7 @@ from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
+from src.shared.constants import ReportType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -88,7 +89,7 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, "generate")
+    ctx = await _resolve_or_raise(request, ReportType.GENERATE)
 
     async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_crud_handler()
@@ -105,7 +106,7 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, "drift")
+    ctx = await _resolve_or_raise(request, ReportType.DRIFT)
 
     async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_drift_handler()
@@ -122,7 +123,7 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, "apply")
+    ctx = await _resolve_or_raise(request, ReportType.APPLY)
 
     async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_apply_handler()
