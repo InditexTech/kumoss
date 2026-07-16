@@ -81,7 +81,7 @@ class GeneratePayloadService:
         ):
             apply_allowed = False
             await DatabaseService.set_apply_allowed(
-                str(self.__session_svc.session.id), False
+                str(self.__session_svc.context.id), False
             )
 
         await self.__session_svc.set_payload(

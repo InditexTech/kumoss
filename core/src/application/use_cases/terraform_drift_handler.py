@@ -22,14 +22,12 @@ from src.application.services import (
 )
 from src.domains.services.task_split_service import TaskSplitService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
     SessionStatus,
     PromptsLibrary,
 )
 from src.shared.exceptions import ExceptionHandler
-from src.shared.utils.repo_uri import derive_project_name
 
 
 class TerraformDriftHandler:
@@ -63,14 +61,6 @@ class TerraformDriftHandler:
         hist = ctx.history.deepcopy()
 
         async def background_task():
-
-            project = derive_project_name(ctx.repo_uri)
-
-            _ = await AuthzServiceClient().check(
-                cloud=ctx.cloud,
-                project=project,
-                user_id=ctx.user_id,
-            )
 
             tracer_token = TracerService.set_current_tracer(
                 tracer=PhoenixTracer(

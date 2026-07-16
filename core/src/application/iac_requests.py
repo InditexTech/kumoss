@@ -15,31 +15,36 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BaseIacRequest(BaseModel):
+    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
+    user_id: Annotated[
+        str, Field(description="Caller identity. Required on every call.")
+    ]
+    session_id: Annotated[
+        str | None,
+        Field(
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
+            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        ),
+    ] = None
     repo_uri: Annotated[
         str | None,
         Field(
             description="Repository URI (first call only). Mutually exclusive with session_id."
         ),
     ] = None
-    session_id: Annotated[
+    scope_id: Annotated[
         str | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            description="""Infrastructure scope id:
+                        - Azure -> subscription id
+                        - GCP -> project id
+                        - AWS -> account id"""
         ),
     ] = None
     cloud: Annotated[
         Literal["azure", "gcp", "aws", "oci", "kubernetes"] | None,
         Field(description="Cloud (first call only)."),
     ] = None
-    environment: Annotated[
-        Literal["dev", "pre", "pro"] | None,
-        Field(description="Environment (first call only)."),
-    ] = None
-    user_id: Annotated[
-        str, Field(description="Caller identity. Required on every call.")
-    ]
-    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
     iac_path: Annotated[
         str | None,
         Field(

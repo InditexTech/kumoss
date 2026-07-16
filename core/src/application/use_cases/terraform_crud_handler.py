@@ -17,7 +17,7 @@ from src.domains.services import (
     TerraformTargetService,
 )
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import SessionStatus, PromptsLibrary
+from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -59,19 +59,9 @@ class TerraformCRUDHandler:
                 )
             )
             try:
-                await self.__session_svc.update_status(
-                    msg=q,
-                    prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
-                    ),
-                    status=SessionStatus.FILTERING,
-                )
                 ok, explanation = await self.__filter_request_svc.filter(q, hist)
                 if not ok:
-                    await self.__payload_svc.generate(
-                        response=explanation,
-                        context=ctx,
-                    )
+                    # TODO
                     return
 
                 predictive_targets = await self.__target_svc.generate_predictive(

@@ -38,7 +38,6 @@ from src.infrastructure.validators.factory import ValidatorFactory
 from src.application.services import (
     FilterRequestService,
     GeneratePayloadService,
-    ProjectSetupService,
     TerraformDriftService,
     PullRequestService,
 )
@@ -220,23 +219,15 @@ class ApplicationFactory:
             llm_service=llm_svc,
         )
 
-    def _get_project_setup_service(
-        self,
-        git_utils: GitUtils,
-        file_utils: FileSystemUtils,
-    ) -> ProjectSetupService:
-        return ProjectSetupService(
-            git=git_utils,
-            filesystem=file_utils,
-        )
-
     def _get_filter_request_service(
         self,
+        session_service: SessionService,
         second_llm_service: LLMOrchestrationService,
         tool_svc: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
     ):
         return FilterRequestService(
+            session_service=session_service,
             second_llm_service=second_llm_service,
             tool_service=tool_svc,
             template_service=template_service,
@@ -305,8 +296,9 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        setup_svc = self._get_project_setup_service(git_utils, file_utils)
-        filter_svc = self._get_filter_request_service(llm_svc, tool_svc, template_svc)
+        filter_svc = self._get_filter_request_service(
+            session_svc, llm_svc, tool_svc, template_svc
+        )
         payload_svc = self._get_payload_generation_service(
             session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
         )
@@ -315,7 +307,6 @@ class ApplicationFactory:
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            setup_service=setup_svc,
             payload_svc=payload_svc,
             filter_request_service=filter_svc,
             target_svc=target_svc,
@@ -342,8 +333,9 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        setup_svc = self._get_project_setup_service(git_utils, file_utils)
-        filter_svc = self._get_filter_request_service(llm_svc, tool_svc, template_svc)
+        filter_svc = self._get_filter_request_service(
+            session_svc, llm_svc, tool_svc, template_svc
+        )
         payload_svc = self._get_payload_generation_service(
             session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
         )
@@ -352,7 +344,6 @@ class ApplicationFactory:
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            setup_service=setup_svc,
             payload_svc=payload_svc,
             filter_request_service=filter_svc,
             validator_provider=validator_prv,
