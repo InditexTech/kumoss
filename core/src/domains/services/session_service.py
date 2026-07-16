@@ -10,7 +10,6 @@ from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.dto import (
     PromptTemplateDTO,
-    SessionPayloadDTO,
     TerraformDriftReport,
     TerraformPlanReport,
 )
@@ -59,7 +58,6 @@ class SessionService:
         await DatabaseService.mark_session_status(self.__ctx.id, status, cast(str, msg))
 
     async def save(self) -> None:
-        assert self.__ctx is not None
         await DatabaseService.update_session(self.__ctx)
 
     # FIXME: stale
@@ -70,11 +68,12 @@ class SessionService:
         terraform_report: TerraformPlanReport | TerraformDriftReport | None = None,
         apply_allowed: bool = True,
     ):
-        self.__ctx.set_payload(
-            SessionPayloadDTO(
-                files=files,
-                history=history.serialize(),
-                terraform_report=terraform_report,
-                apply_allowed=apply_allowed,
-            )
-        )
+        return
+        # self.__ctx.set_payload(
+        #     SessionPayloadDTO(
+        #         files=files,
+        #         history=history.serialize(),
+        #         terraform_report=terraform_report,
+        #         apply_allowed=apply_allowed,
+        #     )
+        # )

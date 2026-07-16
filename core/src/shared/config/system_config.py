@@ -21,9 +21,9 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
+import yaml
 from pathlib import Path
 
-import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import GitProviderName, LLMProvider
@@ -312,6 +312,7 @@ class SystemConfig(BaseModel):
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
             return cls.model_validate(data)
+
         return cls()
 
 

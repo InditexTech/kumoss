@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override, Any
 from uuid import UUID
 
-from src.domains.entities import History
+from src.domains.entities.history import History
 from src.shared.constants import ReportType, TemplateProvider
 
 

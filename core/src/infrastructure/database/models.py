@@ -88,7 +88,7 @@ class Session(Base):
 
     @override
     def __repr__(self) -> str:
-        return f"""<UserSession(session_id='{self.uuid}',
+        return f"""<Session(session_id='{self.uuid}',
                       in_flight='{self.in_flight}, is_blocked='{self.is_blocked}')>"""
 
 
@@ -146,7 +146,7 @@ class History(Base):
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     first_query: Mapped[str] = mapped_column(Text)
-    payload: Mapped[JSON] = mapped_column(default={})
+    payload: Mapped[dict[str, str]] = mapped_column(JSON, default={})
 
     @override
     def __repr__(self) -> str:
