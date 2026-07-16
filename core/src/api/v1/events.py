@@ -3,16 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-from uuid import UUID
 from asyncio import sleep
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
-from src.domains.entities import Session
-from src.domains.services import SessionService
+from src.domains.entities import Status
+from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
 from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
@@ -52,51 +51,40 @@ async def subscribe_events(
     Note:
     - Connection remains open until session completion or failure
     """
-    session: Session = get_session(session_id)
 
     async def event_stream():
         i = 0
         await sleep(10)  # Wait for acknowledge message
         while True:
+            i += 1
+            try:
+                status: Status = await DatabaseService.get_last_status(session_id)
+            except ExceptionHandler as e:
+                logging.error(e.message)
+                await sleep(5)
+                continue
+
             if i == system_config.orchestration.max_session_events_iteration:
-                logging.warning(
+                logging.error(
                     f"SSE max iterations reached, closing stream. session_id={session_id}"
                 )
                 break
-            i += 1
-            session_status = session.status
 
             payload = {
-                "status_msg": session_status.status.name,
+                "status_msg": status.status,
                 "detail": {
-                    "message": session_status.message.replace('"', ""),  # Sanitize msg
+                    "message": status.msg.replace('"', ""),  # Sanitize msg
                 },
             }
 
             yield f"data: {json.dumps(payload)}\n\n"
 
             if (
-                session_status.status == SessionStatus.COMPLETED
-                or session_status.status == SessionStatus.FAILED
+                status.status == SessionStatus.COMPLETED
+                or status.status == SessionStatus.FAILED
             ):
                 break
 
             await sleep(5)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
-
-
-def get_session(session_id: str) -> Session:
-    try:
-        session_uuid = UUID(session_id.strip('"'))
-        return SessionService.get_session(session_uuid)
-    except ValueError as e:
-        raise HTTPException(
-            detail=f"Error: invalid session UUID. {e}",
-            status_code=400,
-        )
-    except ExceptionHandler as e:
-        raise HTTPException(
-            detail=e.message,
-            status_code=e.error_code,
-        )

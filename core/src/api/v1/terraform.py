@@ -5,22 +5,23 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from src.domains.services.database_service import DatabaseService
+from src.domains.entities.session import SessionContext
 from src.application.factory import ApplicationFactory
 from src.application.iac_requests import (
+    BaseIacRequest,
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
 )
-from src.application.dto import SessionContext
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
-from src.domains.services.database_service import DatabaseService
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -31,9 +32,9 @@ _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request, operation_type: str = "generate"
+    request: BaseIacRequest, operation_type: str = "generate"
 ) -> SessionContext:
-    """Validate URI (first call) and resolve to a SessionContext."""
+    """Validate URI (first call) and resolve to a SessionContext entity."""
     try:
         if request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
@@ -44,10 +45,7 @@ async def _resolve_or_raise(
 
 def _make_runner(
     ctx: SessionContext,
-    q: str,
-    build_handler: Callable[
-        [Path], Awaitable[tuple[UUID, Callable[[], Awaitable[Any]]]]
-    ],
+    build_handler: Callable[[], Awaitable[Callable[[], Awaitable[Any]]]],
 ):
     """Build the full pipeline as a single background coroutine.
 
@@ -62,26 +60,23 @@ def _make_runner(
         call_dir: Path | None = None
         try:
             call_dir = await _workspace.setup_call_dir(
-                session_id=ctx.session_id,
+                session_id=ctx.id,
                 call_id=call_id,
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
-                create_branch=ctx.is_first_call,
             )
+            ctx.set_call_dir(call_dir)
             await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
-            _sse_id, run_handler = await build_handler(call_dir)  # TODO: _sse_id
+            run_handler = await build_handler()
             await run_handler()
-            # await DatabaseService.append_history(
-            #     str(ctx.session_id), {"user": q, "assistant": ""}
-            # )
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
-            logging.error(f"{msg} (session {ctx.session_id})")
-            await DatabaseService.mark_failed(str(ctx.session_id), msg)
+            logging.error(f"{msg} (session {ctx.id})")
+            await DatabaseService.mark_failed(str(ctx.id), msg)
             return
         finally:
             _workspace.cleanup(call_dir)
-            await _orchestration.release(ctx.session_id)
+            await _orchestration.release(ctx.id)
 
     return runner
 
@@ -95,12 +90,12 @@ async def generate_infrastructure(
     """
     ctx = await _resolve_or_raise(request, "generate")
 
-    async def build(call_dir):
+    async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_crud_handler()
-        return await handler.handle(request.q, ctx.history)
+        return await handler.handle(request.q)
 
-    background_tasks.add_task(_make_runner(ctx, request.q, build))
-    return {"session_id": str(ctx.session_id)}
+    background_tasks.add_task(_make_runner(ctx, build))
+    return {"session_id": str(ctx.id)}
 
 
 @router.post("/drift", status_code=202)
@@ -112,12 +107,12 @@ async def drift_detection_remediation(
     """
     ctx = await _resolve_or_raise(request, "drift")
 
-    async def build(call_dir):
+    async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_drift_handler()
-        return await handler.handle(request.q, ctx.history, request.is_partial)
+        return await handler.handle(request.q, request.is_partial)
 
-    background_tasks.add_task(_make_runner(ctx, request.q, build))
-    return {"session_id": str(ctx.session_id)}
+    background_tasks.add_task(_make_runner(ctx, build))
+    return {"session_id": str(ctx.id)}
 
 
 @router.post("/apply", status_code=202)
@@ -129,9 +124,9 @@ async def apply_infrastructure(
     """
     ctx = await _resolve_or_raise(request, "apply")
 
-    async def build(call_dir):
+    async def build():
         handler = ApplicationFactory(session_ctx=ctx).get_terraform_apply_handler()
         return await handler.handle(request.q, request.terraform_targets)
 
-    background_tasks.add_task(_make_runner(ctx, request.q, build))
-    return {"session_id": str(ctx.session_id)}
+    background_tasks.add_task(_make_runner(ctx, build))
+    return {"session_id": str(ctx.id)}

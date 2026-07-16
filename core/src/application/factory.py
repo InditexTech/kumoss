@@ -123,7 +123,10 @@ class ApplicationFactory:
         )
 
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
-        return SessionService(second_llm_service)
+        assert self.__ctx is not None
+        return SessionService(
+            llm_service=second_llm_service, session_context=self.__ctx
+        )
 
     def _get_template_service(
         self,

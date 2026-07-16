@@ -16,12 +16,10 @@ from src.domains.services import (
     TerraformValidationService,
     TerraformTargetService,
 )
-from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.constants import SessionStatus, PromptsLibrary
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
-from src.shared.utils.repo_uri import derive_project_name
 
 
 class TerraformCRUDHandler:
@@ -51,20 +49,13 @@ class TerraformCRUDHandler:
 
         async def background_task():
 
-            project = derive_project_name(ctx.repo_uri)
-
-            _ = await AuthzServiceClient().check(
-                cloud=ctx.cloud,
-                project=project,
-                user_id=ctx.user_id,
-            )
-
             tracer_token = TracerService.set_current_tracer(
                 tracer=PhoenixTracer(
                     session_id=ctx.id,
                     user_id=ctx.user_id,
-                    project=project,
                     branch_name=ctx.branch_name,
+                    cloud=ctx.cloud,
+                    iac_path=ctx.iac_path,
                 )
             )
             try:
@@ -75,13 +66,11 @@ class TerraformCRUDHandler:
                     ),
                     status=SessionStatus.FILTERING,
                 )
-                status, explanation = await self.__filter_request_svc.filter(q, hist)
-                if not status:
+                ok, explanation = await self.__filter_request_svc.filter(q, hist)
+                if not ok:
                     await self.__payload_svc.generate(
                         response=explanation,
-                        command="TODO",
-                        history=hist,
-                        branch=ctx.branch_name,
+                        context=ctx,
                     )
                     return
 

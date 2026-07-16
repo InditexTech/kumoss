@@ -24,7 +24,7 @@ class BaseIacRequest(BaseModel):
     session_id: Annotated[
         str | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with repo_uri.",
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter.",
             pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         ),
     ] = None

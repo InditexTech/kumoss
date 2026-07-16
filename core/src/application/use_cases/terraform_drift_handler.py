@@ -76,8 +76,9 @@ class TerraformDriftHandler:
                 tracer=PhoenixTracer(
                     session_id=ctx.id,
                     user_id=ctx.user_id,
-                    project=project,
                     branch_name=ctx.branch_name,
+                    cloud=ctx.cloud,
+                    iac_path=ctx.iac_path,
                 )
             )
             try:

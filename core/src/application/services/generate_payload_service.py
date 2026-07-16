@@ -4,6 +4,7 @@
 
 from typing import Any, Literal
 
+from src.application.exceptions import ReportGenerationError
 from src.domains.entities import History
 from src.domains.interfaces import IFileSystem, IGit
 from src.domains.services import (
@@ -68,7 +69,6 @@ class GeneratePayloadService:
             await self.__generate_report(
                 query=validation.terraform_plan,
                 report_type="plan",
-                phase="generation",
             )
             if validation and validation.validation
             else None
@@ -141,7 +141,6 @@ class GeneratePayloadService:
             terraform_report=await self.__generate_report(
                 query=str(summaries),
                 report_type="drift",
-                phase="drift",
             ),
         )
         await self.__session_svc.update_status(
@@ -167,7 +166,6 @@ class GeneratePayloadService:
             terraform_apply_report = await self.__generate_report(
                 query=apply_output,
                 report_type="apply",
-                phase="apply",
             )
 
         await self.__session_svc.set_payload(
@@ -223,7 +221,6 @@ class GeneratePayloadService:
         self,
         query: str,
         report_type: Literal["plan", "drift", "apply"],
-        phase: str,
     ) -> TerraformPlanReport | TerraformDriftReport | TerraformApplyReport | None:
         tool_index = {"plan": 0, "drift": 1, "apply": 2}.get(report_type, 0)
 
@@ -240,5 +237,7 @@ class GeneratePayloadService:
             ),
         )
         if not response.success:
-            return None
+            raise ReportGenerationError(
+                f"report '{report_type}' generation error.", 500
+            )
         return response.result
