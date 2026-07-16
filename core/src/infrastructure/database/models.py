@@ -19,9 +19,8 @@ from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.shared.constants import (
-    ArtifactType,
     GitProviderName,
-    OperationType,
+    ReportType,
     SessionStatus,
     TemplateProvider,
 )
@@ -79,9 +78,6 @@ class Session(Base):
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
-    operations: Mapped[list["Operation"]] = relationship(
-        "Operation", cascade="all, delete"
-    )
 
     @override
     def __repr__(self) -> str:
@@ -167,28 +163,6 @@ class Status(Base):
 
 
 @final
-class Operation(Base):
-    """Tracks individual operations within a session."""
-
-    __tablename__ = "operations"
-
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    operation: Mapped[OperationType] = mapped_column()
-    type: Mapped[ArtifactType] = mapped_column()
-    terraform_targets: Mapped[list[str]] = mapped_column(ARRAY(String))
-    # relations
-    artifacts: Mapped[list["Artifact"]] = relationship(
-        "Artifact", cascade="all, delete"
-    )
-
-    @override
-    def __repr__(self) -> str:
-        return (
-            f"<Operation(session_id='{self.session_id}', operation={self.operation})>"
-        )
-
-
-@final
 class Artifact(Base):
     """"""
 
@@ -202,3 +176,48 @@ class Artifact(Base):
     @override
     def __repr__(self) -> str:
         return f"<Artifact(operation_id='{self.operation_id}', uri='{self.uri}')>"
+
+
+@final
+class TerraformPlan(Base):
+    """"""
+
+    __tablename__ = "terraform_plans"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    targets: Mapped[list[str]] = mapped_column(ARRAY(String))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<TerraformPlan(session_id='{self.session_id}', targets='{self.uri}')>"
+
+
+@final
+class Report(Base):
+    """"""
+
+    __tablename__ = "reports"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    type: Mapped[ReportType] = mapped_column()
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Report(session_id='{self.session_id}', type='{self.type}')>"
+
+
+@final
+class CodeChange(Base):
+    """"""
+
+    __tablename__ = "code_changes"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifact_id"), index=True)
+    file_name: Mapped[str] = mapped_column(String(254))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<CodeChange(session_id='{self.session_id}', file_name='{self.file_name}')>"

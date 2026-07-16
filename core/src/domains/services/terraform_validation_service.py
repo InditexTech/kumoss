@@ -104,7 +104,7 @@ class TerraformValidationService:
                 history=local_history,
             )
 
-            await self.__git.commit()
+            await self.__git.commit_and_push()
 
             validation_dto = await self.__validator.validate(
                 branch=self.__git.branch,

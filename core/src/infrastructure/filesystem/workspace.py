@@ -58,7 +58,6 @@ class WorkspaceService(IWorkspace):
         call_id: UUID,
         repo_uri: str,
         branch: str | None,
-        create_branch: bool = False,
     ) -> Path:
         call_dir = self._base / "sessions" / str(session_id) / str(call_id)
         call_dir.parent.mkdir(parents=True, exist_ok=True)

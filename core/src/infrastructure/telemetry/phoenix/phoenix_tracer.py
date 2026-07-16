@@ -4,6 +4,7 @@
 
 import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any, Literal, override
 from uuid import UUID
 
@@ -37,7 +38,7 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider
+from src.shared.constants import LLMProvider, TemplateProvider
 
 
 class PhoenixTracer(ITracer):
@@ -45,7 +46,8 @@ class PhoenixTracer(ITracer):
         self,
         session_id: UUID,
         user_id: str,
-        project: str,
+        cloud: TemplateProvider,
+        iac_path: Path,
         branch_name: str | None = None,
     ):
         """
@@ -60,7 +62,8 @@ class PhoenixTracer(ITracer):
         self.__tracer: Tracer = get_tracer()
         self.__session_id: str = session_id.hex
         self.__user_id: str = user_id
-        self.__project: str = project
+        self.__cloud: TemplateProvider = cloud
+        self.__iac_path: Path = iac_path
         self.__branch_name: str = branch_name if branch_name else "undefined"
         self.__root_context: Context | None = None
 
@@ -80,7 +83,8 @@ class PhoenixTracer(ITracer):
                 {
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
-                    "project": self.__project,
+                    "cloud": self.__cloud,
+                    "iac_path": self.__iac_path,
                     "branch_name": self.__branch_name,
                     **kwargs,
                 }

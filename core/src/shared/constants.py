@@ -94,17 +94,10 @@ class TemplateProvider(Enum):
 
 
 @unique
-class OperationType(Enum):
+class ReportType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
-
-
-@unique
-class ArtifactType(Enum):
-    CODE = "code"
-    PLAN = "plan"
-    REPORT = "report"
 
 
 @unique

@@ -5,9 +5,11 @@
 from .session import SessionContext
 from .history import History
 from .document import Document
+from .status import Status
 
 __all__ = [
     "SessionContext",
     "History",
     "Document",
+    "Status",
 ]

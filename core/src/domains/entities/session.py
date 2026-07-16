@@ -3,19 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportAttributeAccessIssue=false
-from dataclasses import dataclass
+from pathlib import Path
 from typing import override, Any
 from uuid import UUID
-from asyncio import Queue
 
 from src.domains.entities import History
-from src.shared.constants import SessionStatus, TemplateProvider
-
-
-@dataclass
-class _Status:
-    status: SessionStatus
-    message: str
+from src.shared.constants import TemplateProvider
 
 
 class SessionContext:
@@ -31,7 +24,6 @@ class SessionContext:
     ):
         self.__id = id
         self.__user_id = user_id
-        self.__status: Queue[_Status] = Queue()
         self.__repo_uri = repo_uri
         self.__cloud = cloud
         self.__branch_name = branch_name
@@ -40,7 +32,7 @@ class SessionContext:
         self.__artifacts: list[
             dict[str, Any]
         ]  # TODO: implement entity and services, interfaces...
-        self.set_status(SessionStatus.STARTED, message="Session started")
+        self.__call_dir: Path = None
 
     @property
     def id(self) -> UUID:
@@ -49,13 +41,6 @@ class SessionContext:
     @property
     def user_id(self) -> str:
         return self.__user_id
-
-    @property
-    def status(self) -> _Status:
-        return self.__status.get_nowait()
-
-    def set_status(self, status: SessionStatus, message: str):
-        self.__status.put_nowait(_Status(status=status, message=message))
 
     @property
     def repo_uri(self) -> str:
@@ -76,6 +61,14 @@ class SessionContext:
     @property
     def history(self) -> History:
         return self.__history
+
+    @property
+    def call_dir(self) -> Path:
+        assert self.__call_dir is not None
+        return self.__call_dir
+
+    def set_call_dir(self, path: Path) -> None:
+        self.__call_dir = path
 
     @override
     def __str__(self) -> str:
