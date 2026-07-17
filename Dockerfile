@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git curl ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
+# config.yaml
+COPY config.yaml /etc/nebula/
+
 WORKDIR /usr/src/app
 
 # Python dependencies

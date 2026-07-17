@@ -33,19 +33,8 @@ services:
       - "8000:8000"
     env_file:
       - path: ./core/.env
-        required: false
-    environment:
-      # Stack-internal wiring (not secrets, not deployer-tunable). The
-      # bundled ./config.yaml is mounted read-only at /etc/nebula/config.yaml
-      # below; edit it (or override via docker-compose.override.yml) to
-      # customize.
-      - NEBULA_CONFIG=/etc/nebula/config.yaml
-      # - PHOENIX_HOST=http://phoenix:6006/
-      # Cloned repos go on the shared `workspaces` volume so the
-      # IaC service can read the same paths.
-      # - NEBULA_UPLOAD_FOLDER=/workspaces
+        required: true
     volumes:
-      - ./config.yaml:/etc/nebula/config.yaml:ro
       - workspaces:/workspaces
     depends_on:
       - core-db

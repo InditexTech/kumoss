@@ -321,7 +321,7 @@ class SystemConfig(BaseModel):
         return self
 
     @classmethod
-    def load(cls, config_path: str | None = None) -> SystemConfig:
+    def load(cls, config_path: str = "/etc/nebula/config.yaml") -> SystemConfig:
         """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before
@@ -329,9 +329,8 @@ class SystemConfig(BaseModel):
         foot-gun where mounting a missing host file silently creates an
         empty directory on the container side.
         """
-        path = config_path or os.environ.get("NEBULA_CONFIG")
-        if path and Path(path).is_file():
-            with open(path) as f:
+        if config_path and Path(config_path).is_file():
+            with open(config_path) as f:
                 data = yaml.safe_load(f) or {}
             return cls.model_validate(data)
 
