@@ -84,7 +84,7 @@ class Embeddings(Enum):
 
 
 @unique
-class TemplateProvider(Enum):
+class TerraformProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
     AWS = "aws"

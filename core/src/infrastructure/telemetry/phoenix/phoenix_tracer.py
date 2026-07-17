@@ -38,7 +38,7 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider, TemplateProvider
+from src.shared.constants import LLMProvider, TerraformProvider
 
 
 class PhoenixTracer(ITracer):
@@ -46,7 +46,7 @@ class PhoenixTracer(ITracer):
         self,
         session_id: UUID,
         user_id: str,
-        cloud: TemplateProvider,
+        cloud: TerraformProvider,
         iac_path: Path,
         branch_name: str | None = None,
     ):
@@ -62,7 +62,7 @@ class PhoenixTracer(ITracer):
         self.__tracer: Tracer = get_tracer()
         self.__session_id: str = session_id.hex
         self.__user_id: str = user_id
-        self.__cloud: TemplateProvider = cloud
+        self.__cloud: TerraformProvider = cloud
         self.__iac_path: Path = iac_path
         self.__branch_name: str = branch_name if branch_name else "undefined"
         self.__root_context: Context | None = None

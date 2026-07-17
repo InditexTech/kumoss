@@ -22,7 +22,7 @@ from src.shared.constants import (
     GitProviderName,
     ReportType,
     SessionStatus,
-    TemplateProvider as TP,
+    TerraformProvider as TP,
 )
 
 
@@ -73,7 +73,7 @@ class Session(Base):
     pull_requests: Mapped[list["PullRequest"]] = relationship(
         "PullRequest", cascade="all, delete"
     )
-    template_providers: Mapped[list["TemplateProvider"]] = relationship(
+    template_providers: Mapped[list["TerraformProvider"]] = relationship(
         "TemplateProvider", cascade="all, delete"
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
@@ -109,10 +109,10 @@ class Workspace(Base):
 
 
 @final
-class TemplateProvider(Base):
+class TerraformProvider(Base):
     """"""
 
-    __tablename__ = "template_providers"
+    __tablename__ = "terraform_providers"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     provider: Mapped[TP] = mapped_column()
@@ -120,9 +120,7 @@ class TemplateProvider(Base):
 
     @override
     def __repr__(self) -> str:
-        return (
-            f"<TemplateProvider(session_id='{self.session_id}', name={self.provider}')>"
-        )
+        return f"<TerraformProvider(session_id='{self.session_id}', name={self.provider}')>"
 
 
 @final

@@ -9,13 +9,13 @@ from src.infrastructure.templates._gcp import GCPTemplateAdapter
 from src.infrastructure.templates._oci import OCITemplateAdapter
 from src.infrastructure.templates._kubernetes import KubernetesTemplateAdapter
 from src.infrastructure.templates._common import CommonTemplateAdapter
-from src.shared.constants import TemplateProvider
+from src.shared.constants import TerraformProvider
 
 
 class TemplateFactory:
     def __init__(
         self,
-        template_provider: TemplateProvider,
+        template_provider: TerraformProvider,
         cwd: str,
     ):
         self.__template_prv = template_provider
@@ -26,24 +26,24 @@ class TemplateFactory:
         :return: the corresponding template adapter
         """
         match self.__template_prv:
-            case TemplateProvider.AZURE:
+            case TerraformProvider.AZURE:
                 return AzureTemplateAdapter(cwd=self.__cwd)
-            case TemplateProvider.GCP:
+            case TerraformProvider.GCP:
                 return GCPTemplateAdapter(cwd=self.__cwd)
-            case TemplateProvider.AWS:
+            case TerraformProvider.AWS:
                 return AWSTemplateAdapter(cwd=self.__cwd)
-            case TemplateProvider.OCI:
+            case TerraformProvider.OCI:
                 return OCITemplateAdapter(cwd=self.__cwd)
-            case TemplateProvider.KUBERNETES:
+            case TerraformProvider.KUBERNETES:
                 return KubernetesTemplateAdapter(cwd=self.__cwd)
-            case TemplateProvider.COMMON:
+            case TerraformProvider.COMMON:
                 return CommonTemplateAdapter(cwd=self.__cwd)
             case _:
                 raise NotImplementedError()
 
 
 if __name__ == "__main__":
-    factory = TemplateFactory(TemplateProvider.GCP, cwd=".")
+    factory = TemplateFactory(TerraformProvider.GCP, cwd=".")
     # prompt = factory.get().render_iac_generator(resources=["keyvault"], abbreviations=["sta"])
     prompt = factory.get().render_iac_generator(
         resources=["service_account"], abbreviations=[]

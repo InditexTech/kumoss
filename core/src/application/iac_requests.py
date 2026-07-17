@@ -9,9 +9,11 @@ Every request is exactly one of:
   - iteration:  {session_id, user_id, q, ...}
 """
 
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from src.shared.constants import TerraformProvider
 
 
 class BaseIacRequest(BaseModel):
@@ -41,9 +43,11 @@ class BaseIacRequest(BaseModel):
                         - AWS -> account id"""
         ),
     ] = None
-    cloud: Annotated[
-        Literal["azure", "gcp", "aws", "oci", "kubernetes"] | None,
-        Field(description="Cloud (first call only)."),
+    terraform_providers: Annotated[
+        TerraformProvider | None,
+        Field(
+            description="Terraform providers where the operation will take place (first call only)."
+        ),
     ] = None
     iac_path: Annotated[
         str | None,
@@ -57,7 +61,7 @@ class BaseIacRequest(BaseModel):
 
     @field_validator("iac_path", mode="before")
     @classmethod
-    def _validate_iac_path(cls, v):
+    def _validate_iac_path(cls, v: str):
         if v is None or v == "":
             return None
         if v.startswith("/") or ".." in v.split("/"):
@@ -74,10 +78,8 @@ class BaseIacRequest(BaseModel):
             raise ValueError(
                 "Exactly one of `repo_uri` or `session_id` must be provided."
             )
-        if has_uri and (self.cloud is None or self.environment is None):
-            raise ValueError(
-                "First call (repo_uri) requires `cloud` and `environment`."
-            )
+        if has_uri and (self.terraform_providers is None):
+            raise ValueError("First call (repo_uri) requires `template_providers`.")
         if has_sid and self.iac_path is not None:
             raise ValueError(
                 "iac_path is set only on the first call; iteration calls inherit it from the session."

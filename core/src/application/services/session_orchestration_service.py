@@ -37,7 +37,7 @@ class SessionOrchestrationService:
             session_id=sid,
             user_id=request.user_id,
             repo_uri=request.repo_uri,
-            cloud=request.cloud,
+            template_prv=request.template_providers,
             branch_name=self.__new_branch_name(),
             query=request.q,
             iac_path=request.iac_path,

@@ -18,7 +18,7 @@ from src.domains.exceptions import (
 )
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
-    CloudProvider,
+    TerraformProvider as DbTerraformProvider,
     PullRequest,
     Status as DbStatus,
     User,
@@ -26,7 +26,7 @@ from src.infrastructure.database.models import (
     Workspace,
     History,
 )
-from src.shared.constants import SessionStatus, TemplateProvider
+from src.shared.constants import SessionStatus, TerraformProvider
 from src.shared.logger import logging
 from src.shared.utils.decorators import async_cache
 
@@ -52,11 +52,11 @@ class DatabaseService:
 
     @staticmethod
     @async_cache
-    async def __load_cloud(session_id: UUID) -> CloudProvider | None:
-        cloud: CloudProvider | None = await db.get_by(
-            CloudProvider, session_id=session_id
+    async def __load_terraform_provider(session_id: UUID) -> DbTerraformProvider | None:
+        tp: DbTerraformProvider | None = await db.get_by(
+            DbTerraformProvider, session_id=session_id
         )
-        return cloud
+        return tp
 
     @staticmethod
     async def __load_pull_requests(session_id: UUID) -> list[PullRequest]:
@@ -80,7 +80,7 @@ class DatabaseService:
         session_id: UUID,
         user_id: str,
         repo_uri: str,
-        cloud: str,
+        template_prv: str,
         branch_name: str,
         query: str,
         iac_path: str | None = None,
@@ -97,9 +97,9 @@ class DatabaseService:
             root_path=iac_path,
         )
         _ = await db.create(
-            CloudProvider,
+            TerraformProvider,
             session_id=session.id,
-            name=TemplateProvider[cloud],
+            name=TerraformProvider[template_prv],
         )
         _ = await db.create(
             History,
@@ -128,8 +128,10 @@ class DatabaseService:
                 message=f"Session {session_id} does not have a workspace",
                 error_code=404,
             )
-        cloud: CloudProvider | None = await DatabaseService.__load_cloud(session_id)
-        if cloud is None:
+        terraform_prv: (
+            DbTerraformProvider | None
+        ) = await DatabaseService.__load_terraform_provider(session_id)
+        if terraform_prv is None:
             raise SessionTerminal(
                 message=f"Session {session_id} does not have an associated cloud provider",
                 error_code=404,
@@ -138,8 +140,8 @@ class DatabaseService:
             id=session.uuid,
             user_id=user.username,
             repo_uri=workspace.uri,
-            scope_id=cloud.scope_id,
-            cloud=cloud.name,
+            scope_id=terraform_prv.scope_id,
+            terraform_prv=terraform_prv.provider,
             branch_name=workspace.branch,
             iac_path=workspace.root_path,
         )

@@ -49,7 +49,7 @@ from src.application.use_cases import (
 
 # Shared imports
 from src.shared.constants import (
-    TemplateProvider,
+    TerraformProvider,
     LLMProvider,
 )
 from src.shared.config import system_config
@@ -132,13 +132,13 @@ class ApplicationFactory:
         llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         file_utils: IFileSystem,
-        provider: TemplateProvider | None = None,
+        provider: TerraformProvider | None = None,
     ):
         assert provider is not None or (
-            self.__ctx is not None and self.__ctx.cloud is not None
+            self.__ctx is not None and self.__ctx.terraform_prv is not None
         )
         template_adapter = TemplateFactory(
-            template_provider=self.__ctx.cloud if self.__ctx else provider,
+            template_provider=self.__ctx.terraform_prv if self.__ctx else provider,
             cwd=str(file_utils.project_root),
         ).get()
         return TemplateOrchestrationService(

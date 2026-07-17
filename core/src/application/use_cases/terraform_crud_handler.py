@@ -54,7 +54,7 @@ class TerraformCRUDHandler:
                     session_id=ctx.id,
                     user_id=ctx.user_id,
                     branch_name=ctx.branch_name,
-                    cloud=ctx.cloud,
+                    cloud=ctx.terraform_prv,
                     iac_path=ctx.iac_path,
                 )
             )

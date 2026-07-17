@@ -8,7 +8,7 @@ from typing import override, Any
 from uuid import UUID
 
 from src.domains.entities.history import History
-from src.shared.constants import ReportType, TemplateProvider
+from src.shared.constants import ReportType, TerraformProvider
 
 
 class SessionContext:
@@ -18,7 +18,7 @@ class SessionContext:
         user_id: str,
         repo_uri: str,
         scope_id: str,
-        cloud: TemplateProvider,
+        terraform_prv: TerraformProvider,
         branch_name: str,
         iac_path: str,
         history: list[dict[str, str]] = None,
@@ -28,7 +28,7 @@ class SessionContext:
         self.__user_id = user_id
         self.__repo_uri = repo_uri
         self.__scope_id = scope_id
-        self.__cloud = cloud
+        self.__terraform_prv = terraform_prv
         self.__branch_name = branch_name
         self.__iac_path = iac_path
         self.__history: History = History(history)
@@ -56,8 +56,8 @@ class SessionContext:
         return self.__scope_id
 
     @property
-    def cloud(self) -> TemplateProvider:
-        return self.__cloud
+    def terraform_prv(self) -> TerraformProvider:
+        return self.__terraform_prv
 
     @property
     def report_type(self) -> ReportType:
