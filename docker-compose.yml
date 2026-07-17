@@ -19,7 +19,6 @@ services:
       - 80
     depends_on:
       - core
-      # - webapp
       - phoenix
     networks:
       - bridge-network
@@ -29,8 +28,8 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - 8000
     env_file:
       - path: ./core/.env
         required: true
@@ -56,13 +55,12 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=nebula
-    ports:
-      - "5432:5432"
+    expose:
+      - 5432
     volumes:
       - core_db_data:/var/lib/postgresql/data
     networks:
       - bridge-network
-
 
   notifications:
     image: nebula-notifications:latest
@@ -88,6 +86,20 @@ services:
     networks:
       - bridge-network
 
+  iac:
+    image: nebula-iac:latest
+    build:
+      context: ./services/iac
+    env_file:
+      - path: ./services/iac/.env
+        required: false
+    volumes:
+      - workspaces:/workspaces
+    expose:
+      - 8082
+    networks:
+      - bridge-network
+
   authz:
     image: nebula-authz:latest
     build:
@@ -103,25 +115,11 @@ services:
     networks:
       - bridge-network
 
-  iac:
-    image: nebula-iac:latest
-    build:
-      context: ./services/iac
-    env_file:
-      - path: ./services/iac/.env
-        required: false
-    volumes:
-      - workspaces:/workspaces
-    expose:
-      - 8082
-    networks:
-      - bridge-network
-
   phoenix:
     image: arizephoenix/phoenix:17.30.0
-    ports:
-      - "6006"
-      - "4317"
+    expose:
+      - 6006
+      - 4317
     depends_on:
       - phoenix-db
     environment:
@@ -136,8 +134,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=phoenix
-    ports:
-      - "5433:5432"
+    expose:
+      - 5432
     volumes:
       - phoenix_db_data:/var/lib/postgresql/data
     networks:

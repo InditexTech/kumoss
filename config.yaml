@@ -58,7 +58,7 @@ services:
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
   mapping:
-    enabled: false
+    enabled: true
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
   authz:
