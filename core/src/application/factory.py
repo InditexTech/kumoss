@@ -270,11 +270,11 @@ class ApplicationFactory:
         self, tool_svc: ToolOrchestrationService | None = None
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
-            tool_svc,
-            system_config.llm.model,
-            system_config.llm.temperature,
-            system_config.llm.small_model,
-            system_config.llm.small_model_temperature,
+            main_llm=system_config.llm.model,
+            main_temp=system_config.llm.temperature,
+            small_llm=system_config.llm.small_model,
+            small_temp=system_config.llm.small_model_temperature,
+            tool_service=tool_svc,
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:

@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy import update
 from sqlalchemy.engine import CursorResult
 
+
 from src.domains.entities import SessionContext, Status
 from src.domains.exceptions import (
     LastStatusError,
@@ -27,7 +28,6 @@ from src.infrastructure.database.models import (
     History,
 )
 from src.shared.constants import SessionStatus, TerraformProvider
-from src.shared.logger import logging
 from src.shared.utils.decorators import async_cache
 
 
@@ -35,57 +35,74 @@ class DatabaseService:
     """Stateless static DB helpers."""
 
     @staticmethod
-    async def __load_session(session_id: UUID) -> Session | None:
-        session: Session | None = await db.get_by(Session, session_id=session_id)
+    @async_cache
+    async def __map_session_id(uuid: UUID) -> int | None:
+        session: Session | None = await db.get_by(Session, uuid=uuid)
+        return session.id if session is not None else None
+
+    @staticmethod
+    async def __load_session(uuid: UUID) -> Session | None:
+        session: Session | None = await db.get_by(Session, uuid=uuid)
         return session
 
     @staticmethod
     @async_cache
-    async def __load_user(session_id: UUID) -> User | None:
-        user: User | None = await db.get_by(User, session_id=session_id)
+    async def __load_user_by_pk(pk: int) -> User | None:
+        user: User | None = await db.get_by(User, id=pk)
         return user
 
     @staticmethod
+    @async_cache
+    async def __load_user_by_username(username: str) -> User | None:
+        user: User | None = await db.get_by(User, username=username)
+        return user
+
+    @staticmethod
+    @async_cache
     async def __load_workspace(session_id: UUID) -> Workspace | None:
-        workspace: Workspace | None = await db.get_by(Workspace, session_id=session_id)
+        sid = await DatabaseService.__map_session_id(session_id)
+        workspace: Workspace | None = await db.get_by(Workspace, session_id=sid)
         return workspace
 
     @staticmethod
     @async_cache
     async def __load_terraform_provider(session_id: UUID) -> DbTerraformProvider | None:
+        sid = await DatabaseService.__map_session_id(session_id)
         tp: DbTerraformProvider | None = await db.get_by(
-            DbTerraformProvider, session_id=session_id
+            DbTerraformProvider, session_id=sid
         )
         return tp
 
     @staticmethod
     async def __load_pull_requests(session_id: UUID) -> list[PullRequest]:
-        pr: list[PullRequest] = await db.list_by(PullRequest, session_id=session_id)
+        sid = await DatabaseService.__map_session_id(session_id)
+        pr: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
         return pr
 
     @staticmethod
     async def __create_status(
         session_id: UUID, status: SessionStatus, msg: str
     ) -> DbStatus:
+        sid = await DatabaseService.__map_session_id(session_id)
         return await db.create(
             DbStatus,
-            session_id=session_id,
+            session_id=sid,
             status=status,
             message=msg,
         )
 
     @staticmethod
     async def create_session(
-        *,
         session_id: UUID,
         user_id: str,
         repo_uri: str,
-        template_prv: str,
+        terraform_prv: TerraformProvider,
+        scope_id: str,
         branch_name: str,
         query: str,
         iac_path: str | None = None,
     ) -> Session:
-        user: User | None = await DatabaseService.__load_user(session_id)
+        user: User | None = await DatabaseService.__load_user_by_username(user_id)
         if not user:
             user = await db.create(User, username=user_id)
         session: Session = await db.create(Session, user_id=user.id, uuid=session_id)
@@ -97,9 +114,10 @@ class DatabaseService:
             root_path=iac_path,
         )
         _ = await db.create(
-            TerraformProvider,
+            DbTerraformProvider,
             session_id=session.id,
-            name=TerraformProvider[template_prv],
+            provider=terraform_prv,
+            scope_id=scope_id,
         )
         _ = await db.create(
             History,
@@ -109,18 +127,19 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def get_session_context(session_id: UUID) -> SessionContext:
-        user: User | None = await DatabaseService.__load_user(session_id)
-        if user is None:
-            raise SessionForbidden(
-                message=f"Session {session_id} belongs to a different user.",
-                error_code=400,
-            )
+    async def get_session_context(session_id: UUID, user_id: str) -> SessionContext:
         session: Session | None = await DatabaseService.__load_session(session_id)
         if session is None:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
+            )
+        user: User | None = await DatabaseService.__load_user_by_pk(session.user_id)
+        assert user is not None
+        if user.username != user_id:
+            raise SessionForbidden(
+                message=f"Session {session_id} belongs to a different user.",
+                error_code=400,
             )
         workspace: Workspace | None = await DatabaseService.__load_workspace(session_id)
         if workspace is None:
@@ -148,29 +167,12 @@ class DatabaseService:
 
     @staticmethod
     async def update_session(ctx: SessionContext) -> None:
-        async with db.transaction() as sess:
-            stmt = (
-                update(Session)
-                .where(
-                    Session.uuid == ctx.id,
-                )
-                .values(
-                    is_blocked=ctx.is_blocked,
-                    updated_at=datetime.now(timezone.utc),
-                )
-            )
-            res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount == 1:
-                raise SessionConflict(
-                    message=f"Failed to update lock on session {ctx.id}.",
-                    error_code=500,
-                )
-
+        sid = await DatabaseService.__map_session_id(ctx.id)
         async with db.transaction() as sess:
             stmt = (
                 update(History)
                 .where(
-                    Session.uuid == ctx.id,
+                    Session.uuid == sid,
                 )
                 .values(
                     paylod=ctx.history,
@@ -178,23 +180,11 @@ class DatabaseService:
                 )
             )
             res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount == 1:
+            if cast(CursorResult[Any], res).rowcount != 1:
                 raise SessionConflict(
                     message=f"Failed to update history on session {ctx.id}.",
                     error_code=500,
                 )
-
-    @staticmethod
-    async def create_pull_request(
-        session_id: UUID, uri: str, branch: str, root_path: str
-    ) -> PullRequest:
-        return await db.create(
-            PullRequest,
-            session_id=session_id,
-            uri=uri,
-            branch=branch,
-            root_path=root_path,
-        )
 
     @staticmethod
     async def acquire_in_flight(session_id: UUID) -> None:
@@ -208,7 +198,7 @@ class DatabaseService:
                 .values(in_flight=True, updated_at=datetime.now(timezone.utc))
             )
             res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount == 1:
+            if cast(CursorResult[Any], res).rowcount != 1:
                 raise SessionConflict(
                     message=f"Failed to acquire in-flight lock on session {session_id}.",
                     error_code=500,
@@ -224,7 +214,7 @@ class DatabaseService:
                 .values(in_flight=False, updated_at=datetime.now(timezone.utc))
             )
             res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount == 1:
+            if cast(CursorResult[Any], res).rowcount != 1:
                 raise SessionConflict(
                     message=f"Failed to release in-flight lock on session {session_id}.",
                     error_code=500,
@@ -234,29 +224,31 @@ class DatabaseService:
     async def mark_session_status(
         session_id: UUID, status: SessionStatus, msg: str
     ) -> None:
-        async with db.transaction() as sess:
-            stmt = (
-                update(Status)
-                .where(Session.uuid == session_id)
-                .values(
-                    status=status,
-                    updated_at=datetime.now(timezone.utc),
-                )
-            )
-            res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount != 1:
-                logging.error(
-                    f"error `mark_session_status` transaction session {session_id} "
-                )
+        # sid = await DatabaseService.__map_session_id(session_id)
+        # async with db.transaction() as sess:
+        #     stmt = (
+        #         update(Status)
+        #         .where(Session.uuid == sid)
+        #         .values(
+        #             status=status,
+        #             updated_at=datetime.now(timezone.utc),
+        #         )
+        #     )
+        #     res = await sess.execute(stmt)
+        #     if cast(CursorResult[Any], res).rowcount != 1:
+        #         logging.error(
+        #             f"error `mark_session_status` transaction session {session_id} "
+        #         )
         _ = await DatabaseService.__create_status(session_id, status, msg)
 
     @staticmethod
     async def get_last_status(session_id: UUID) -> Status:
+        sid = await DatabaseService.__map_session_id(session_id)
         status_model = await db.list_by(
             DbStatus,
             order_by="created_at",
             order_desc=True,
-            session_id=session_id,
+            session_id=sid,
             limit=1,
         )
         if len(status_model) != 1:
@@ -274,12 +266,12 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def set_lock(session_id: UUID, allowed: bool) -> bool:
+    async def set_lock(session_id: UUID, lock: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (
                 update(Session)
                 .where(Session.uuid == session_id)
-                .values(is_blocked=allowed, updated_at=datetime.now(timezone.utc))
+                .values(is_blocked=lock, updated_at=datetime.now(timezone.utc))
             )
             res = await sess.execute(stmt)
             return cast(CursorResult[Any], res).rowcount == 1

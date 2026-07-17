@@ -60,6 +60,7 @@ def _make_runner(
         call_id = uuid4()
         call_dir: Path | None = None
         try:
+            await _orchestration.acquire(ctx.id)
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
                 call_id=call_id,

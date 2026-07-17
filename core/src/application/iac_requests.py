@@ -79,7 +79,7 @@ class BaseIacRequest(BaseModel):
                 "Exactly one of `repo_uri` or `session_id` must be provided."
             )
         if has_uri and (self.terraform_providers is None):
-            raise ValueError("First call (repo_uri) requires `template_providers`.")
+            raise ValueError("First call (repo_uri) requires `terraform_providers`.")
         if has_sid and self.iac_path is not None:
             raise ValueError(
                 "iac_path is set only on the first call; iteration calls inherit it from the session."

@@ -29,16 +29,23 @@ from src.shared.constants import (
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.now(timezone.utc)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
 
@@ -62,8 +69,9 @@ class Session(Base):
     """"""
 
     __tablename__ = "sessions"
-    uuid: Mapped[str] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+
+    uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     in_flight: Mapped[bool] = mapped_column(default=False)
     is_blocked: Mapped[bool] = mapped_column(default=False)
     # relations
@@ -73,8 +81,8 @@ class Session(Base):
     pull_requests: Mapped[list["PullRequest"]] = relationship(
         "PullRequest", cascade="all, delete"
     )
-    template_providers: Mapped[list["TerraformProvider"]] = relationship(
-        "TemplateProvider", cascade="all, delete"
+    terraform_providers: Mapped[list["TerraformProvider"]] = relationship(
+        "TerraformProvider", cascade="all, delete"
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
