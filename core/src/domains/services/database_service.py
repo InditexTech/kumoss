@@ -172,12 +172,11 @@ class DatabaseService:
 
     @staticmethod
     async def update_session(ctx: SessionContext) -> None:
-        sid = await DatabaseService.__map_session_id(ctx.id)
         async with db.transaction() as sess:
             stmt = (
                 update(History)
                 .where(
-                    Session.uuid == sid,
+                    Session.uuid == ctx.id,
                 )
                 .values(
                     payload=ctx.history.serialize(),
