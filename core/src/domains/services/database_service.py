@@ -14,7 +14,6 @@ from src.domains.entities import SessionContext, Status
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
-    SessionForbidden,
     SessionTerminal,
 )
 from src.infrastructure.database.database import db
@@ -74,6 +73,12 @@ class DatabaseService:
         return tp
 
     @staticmethod
+    async def __load_history(session_id: UUID) -> History | None:
+        sid = await DatabaseService.__map_session_id(session_id)
+        his: History | None = await db.get_by(History, session_id=sid)
+        return his
+
+    @staticmethod
     async def __load_pull_requests(session_id: UUID) -> list[PullRequest]:
         sid = await DatabaseService.__map_session_id(session_id)
         pr: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
@@ -127,7 +132,7 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def get_session_context(session_id: UUID, user_id: str) -> SessionContext:
+    async def get_session_context(session_id: UUID) -> SessionContext:
         session: Session | None = await DatabaseService.__load_session(session_id)
         if session is None:
             raise SessionTerminal(
@@ -136,11 +141,6 @@ class DatabaseService:
             )
         user: User | None = await DatabaseService.__load_user_by_pk(session.user_id)
         assert user is not None
-        if user.username != user_id:
-            raise SessionForbidden(
-                message=f"Session {session_id} belongs to a different user.",
-                error_code=400,
-            )
         workspace: Workspace | None = await DatabaseService.__load_workspace(session_id)
         if workspace is None:
             raise SessionTerminal(
@@ -155,6 +155,7 @@ class DatabaseService:
                 message=f"Session {session_id} does not have an associated cloud provider",
                 error_code=404,
             )
+        his: History | None = await DatabaseService.__load_history(session_id)
         return SessionContext(
             id=session.uuid,
             user_id=user.username,
@@ -163,6 +164,10 @@ class DatabaseService:
             terraform_prv=terraform_prv.provider,
             branch_name=workspace.branch,
             iac_path=workspace.root_path,
+            is_blocked=session.is_blocked,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            history=his.payload if his else None,
         )
 
     @staticmethod
@@ -283,7 +288,7 @@ class DatabaseService:
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[Session], int]:
-        return await db.query(
+        return await db.__query(  # FIXME
             Session,
             order_by=order_by,
             order_desc=order_desc,

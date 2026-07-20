@@ -43,16 +43,14 @@ class SessionOrchestrationService:
             query=request.q,
             iac_path=request.iac_path,
         )
-        sc = await DatabaseService.get_session_context(sid, request.user_id)
+        sc = await DatabaseService.get_session_context(sid)
         sc.set_report_type(operation_type)
         return sc
 
     async def _load(
         self, request: BaseIacRequest, operation_type: ReportType
     ) -> SessionContext:
-        sc = await DatabaseService.get_session_context(
-            request.session_id, request.user_id
-        )
+        sc = await DatabaseService.get_session_context(request.session_id)
         sc.set_report_type(operation_type)
         return sc
 

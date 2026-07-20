@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import override, Any
 from uuid import UUID
+from datetime import datetime
 
 from src.domains.entities.history import History
 from src.shared.constants import ReportType, TerraformProvider
@@ -21,8 +22,10 @@ class SessionContext:
         terraform_prv: TerraformProvider,
         branch_name: str,
         iac_path: str,
-        history: list[dict[str, str]] = None,
-        is_blocked: bool = False,
+        created_at: datetime,
+        updated_at: datetime,
+        history: list[dict[str, str]],
+        is_blocked: bool,
     ):
         self.__id = id
         self.__user_id = user_id
@@ -32,12 +35,14 @@ class SessionContext:
         self.__branch_name = branch_name
         self.__iac_path = iac_path
         self.__history: History = History(history)
+        self.__is_blocked: bool = is_blocked
+        self.__created_at: datetime = created_at
+        self.__updated_at: datetime = updated_at
         self.__artifacts: list[
             dict[str, Any]
         ]  # TODO: implement entity and services, interfaces...
         self.__call_dir: Path = None
         self.__report_type = None
-        self.__is_blocked: bool = is_blocked
 
     @property
     def id(self) -> UUID:

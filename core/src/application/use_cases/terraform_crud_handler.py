@@ -45,7 +45,7 @@ class TerraformCRUDHandler:
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
-        hist = ctx.history.deepcopy()
+        # hist = ctx.history.deepcopy()
 
         async def background_task():
 
@@ -59,19 +59,19 @@ class TerraformCRUDHandler:
                 )
             )
             try:
-                ok, explanation = await self.__filter_request_svc.filter(q, hist)
+                ok, explanation = await self.__filter_request_svc.filter(q, ctx.history)
                 if not ok:
                     # TODO
                     return
 
                 predictive_targets = await self.__target_svc.generate_predictive(
-                    query=q, history=hist, include_forbidden_actions=True
+                    query=q, history=ctx.history, include_forbidden_actions=True
                 )
                 if predictive_targets:
                     drift_result = await self.__drift_svc.detect_and_resolve_drift(
                         branch=ctx.branch_name,
                         targets=predictive_targets,
-                        history=hist,
+                        history=ctx.history,
                         max_iterations=2,
                     )
                     if drift_result.validation:
@@ -87,7 +87,7 @@ class TerraformCRUDHandler:
                 await self.__payload_svc.generate(
                     response="",
                     command="TODO",
-                    history=hist,
+                    history=ctx.history,
                     branch=ctx.branch_name,
                     validation=validation_result,
                 )
