@@ -28,7 +28,6 @@ class IWorkspace(ABC):
         call_id: UUID,
         repo_uri: str,
         branch: str | None,
-        create_branch: bool = False,
     ) -> Path:
         """Shallow-clone into the per-call directory. Returns the dir path."""
 

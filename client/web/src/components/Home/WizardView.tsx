@@ -7,6 +7,7 @@ import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
 import type { useHomeWizard } from "./useHomeWizard";
 import { STRINGS } from "@/constants/strings";
+import { TERRAFORM_PROVIDERS } from "@/types/api";
 import styles from "./HomeScreen.module.css";
 
 const HINTS = STRINGS.wizard.hints;
@@ -24,6 +25,7 @@ type WizardProps = Pick<
   | "placeholder"
   | "handleKeyDown"
   | "handlePath"
+  | "handleProvider"
   | "retry"
   | "reset"
 >;
@@ -37,6 +39,7 @@ export default function WizardView({
   placeholder,
   handleKeyDown,
   handlePath,
+  handleProvider,
   retry,
   reset,
 }: WizardProps) {
@@ -67,6 +70,8 @@ export default function WizardView({
     step === "query" || step === "repository_url" || step === "cloud_scope";
 
   const isListStep = step === "iac_path";
+
+  const isProviderStep = step === "provider";
 
   return (
     <div className={styles.center} onClick={() => inputRef.current?.focus()}>
@@ -127,6 +132,28 @@ export default function WizardView({
             {scanPaths.map((path) => (
               <Typography variant="h3" component="li" key={path} onClick={handlePathClick} role="option">
                 {path}
+              </Typography>
+            ))}
+          </ul>
+        </Fade>
+      )}
+
+      {!isLoading && !error && isProviderStep && (
+        <Fade in timeout={800}>
+          <ul
+            className={styles.selectContainer}
+            role="listbox"
+            aria-label={STRINGS.wizard.ariaProvider}
+          >
+            {TERRAFORM_PROVIDERS.map((provider) => (
+              <Typography
+                variant="h3"
+                component="li"
+                key={provider}
+                onClick={() => handleProvider(provider)}
+                role="option"
+              >
+                {provider}
               </Typography>
             ))}
           </ul>

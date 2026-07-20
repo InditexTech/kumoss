@@ -6,6 +6,7 @@
 from pathlib import Path
 from typing import final
 
+from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
@@ -37,7 +38,6 @@ from src.infrastructure.validators.factory import ValidatorFactory
 from src.application.services import (
     FilterRequestService,
     GeneratePayloadService,
-    ProjectSetupService,
     TerraformDriftService,
     PullRequestService,
 )
@@ -47,11 +47,9 @@ from src.application.use_cases import (
     TerraformApplyHandler,
 )
 
-from src.application.dto import SessionContext
-
 # Shared imports
 from src.shared.constants import (
-    TemplateProvider,
+    TerraformProvider,
     LLMProvider,
 )
 from src.shared.config import system_config
@@ -72,19 +70,12 @@ class ApplicationFactory:
         assert path is not None or (
             self.__ctx is not None and self.__ctx.iac_path is not None
         )
-        return FileSystemUtils(
-            root=self.__ctx.iac_path if self.__ctx else path,
-            file_ext=["tf", "tfvars"],
-        )
+        return FileSystemUtils(root=self.__ctx.call_dir if self.__ctx else path)
 
-    def _get_git_utils(self, path: Path, branch: str | None = None) -> GitUtils:
-        assert branch is not None or (
-            self.__ctx is not None and self.__ctx.branch_name is not None
-        )
+    def _get_git_utils(self, path: Path) -> GitUtils:
         return GitUtils(
             git_provider=system_config.git.provider,
             cwd=path,
-            branch=self.__ctx.branch_name if self.__ctx else branch,
         )
 
     # --- Providers for Domain Services ---
@@ -131,22 +122,23 @@ class ApplicationFactory:
         )
 
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
-        return SessionService(second_llm_service)
+        assert self.__ctx is not None
+        return SessionService(
+            llm_service=second_llm_service, session_context=self.__ctx
+        )
 
     def _get_template_service(
         self,
         llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         file_utils: IFileSystem,
-        provider: TemplateProvider | None = None,
+        provider: TerraformProvider | None = None,
     ):
         assert provider is not None or (
-            self.__ctx is not None and self.__ctx.cloud is not None
+            self.__ctx is not None and self.__ctx.terraform_prv is not None
         )
         template_adapter = TemplateFactory(
-            template_provider=getattr(TemplateProvider, self.__ctx.cloud.upper())
-            if self.__ctx
-            else provider,
+            template_provider=self.__ctx.terraform_prv if self.__ctx else provider,
             cwd=str(file_utils.project_root),
         ).get()
         return TemplateOrchestrationService(
@@ -227,23 +219,15 @@ class ApplicationFactory:
             llm_service=llm_svc,
         )
 
-    def _get_project_setup_service(
-        self,
-        git_utils: GitUtils,
-        file_utils: FileSystemUtils,
-    ) -> ProjectSetupService:
-        return ProjectSetupService(
-            git=git_utils,
-            filesystem=file_utils,
-        )
-
     def _get_filter_request_service(
         self,
+        session_service: SessionService,
         second_llm_service: LLMOrchestrationService,
         tool_svc: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
     ):
         return FilterRequestService(
+            session_service=session_service,
             second_llm_service=second_llm_service,
             tool_service=tool_svc,
             template_service=template_service,
@@ -286,11 +270,11 @@ class ApplicationFactory:
         self, tool_svc: ToolOrchestrationService | None = None
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
-            tool_svc,
-            system_config.llm.model,
-            system_config.llm.temperature,
-            system_config.llm.small_model,
-            system_config.llm.small_model_temperature,
+            main_llm=system_config.llm.model,
+            main_temp=system_config.llm.temperature,
+            small_llm=system_config.llm.small_model,
+            small_temp=system_config.llm.small_model_temperature,
+            tool_service=tool_svc,
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
@@ -312,8 +296,9 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        setup_svc = self._get_project_setup_service(git_utils, file_utils)
-        filter_svc = self._get_filter_request_service(llm_svc, tool_svc, template_svc)
+        filter_svc = self._get_filter_request_service(
+            session_svc, llm_svc, tool_svc, template_svc
+        )
         payload_svc = self._get_payload_generation_service(
             session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
         )
@@ -322,7 +307,6 @@ class ApplicationFactory:
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            setup_service=setup_svc,
             payload_svc=payload_svc,
             filter_request_service=filter_svc,
             target_svc=target_svc,
@@ -349,8 +333,9 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        setup_svc = self._get_project_setup_service(git_utils, file_utils)
-        filter_svc = self._get_filter_request_service(llm_svc, tool_svc, template_svc)
+        filter_svc = self._get_filter_request_service(
+            session_svc, llm_svc, tool_svc, template_svc
+        )
         payload_svc = self._get_payload_generation_service(
             session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
         )
@@ -359,7 +344,6 @@ class ApplicationFactory:
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            setup_service=setup_svc,
             payload_svc=payload_svc,
             filter_request_service=filter_svc,
             validator_provider=validator_prv,

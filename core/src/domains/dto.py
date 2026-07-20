@@ -101,11 +101,6 @@ class PromptTemplateDTO:
     prompt: str
 
 
-class MainHistory(BaseModel):
-    user: str
-    assistant: str
-
-
 class Summary(BaseModel):
     """High-level summary containing counts of resources to be created, updated, deleted, or recreated"""
 
@@ -251,27 +246,6 @@ class TerraformApplyReport(BaseModel):
     execution_summary: str
     resource_changes: list[TerraformApplyChange]
     recommendations: list[str]
-
-
-class SessionPayloadDTO(BaseModel):
-    """DTO for session payloads"""
-
-    id: str
-    response: str
-    main_history: MainHistory
-    full_history: list[dict[str, str]]
-    environment: str
-    cloud: str
-    project: str
-    validation: bool
-    branch_name: str
-    terraform_plan: str | None = None
-    terraform_targets: list[str] | None = None
-    terraform_report: (
-        TerraformPlanReport | TerraformDriftReport | TerraformApplyReport | None
-    ) = None
-    pipeline_url: str | None = None
-    apply_allowed: bool = True
 
 
 @dataclass

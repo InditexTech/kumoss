@@ -11,11 +11,6 @@ from src.domains.dto import PullRequestDTO
 class IGit(ABC):
     @property
     @abstractmethod
-    def branch(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
     def error_msg(self) -> str:
         pass
 
@@ -29,8 +24,6 @@ class IGit(ABC):
         self,
         repo_url: str,
         repository_name: str,
-        branch: str | None = None,
-        create_branch: bool = False,
         *extra_args: str,
         timeout: int = 300,
     ) -> bool:
@@ -58,11 +51,11 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def checkout(self) -> None:
+    async def checkout(self, branch: str) -> None:
         pass
 
     @abstractmethod
-    async def commit(self) -> None:
+    async def commit_and_push(self, branch: str) -> None:
         pass
 
     @abstractmethod

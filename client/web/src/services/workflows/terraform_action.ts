@@ -19,7 +19,7 @@ import {
   driftDetectionRemediation,
   applyInfrastructure,
 } from "@/services/core/iac_actions";
-import type { IacSessionResponse } from "@/types/api";
+import type { IacSessionResponse, TerraformProvider } from "@/types/api";
 import type { Mode } from "@/types/ui";
 import { MODE } from "@/types/ui";
 
@@ -28,8 +28,8 @@ import { MODE } from "@/types/ui";
 export interface TerraformActionParams {
   repoUri: string;
   query: string;
-  cloud: string;
-  environment: string;
+  terraformProviders: TerraformProvider;
+  scopeId: string;
   userId: string;
   mode: Mode;
   iacPath?: string;
@@ -55,9 +55,8 @@ export async function runTerraformActionWorkflow(
     : {
         repo_uri: params.repoUri,
         q: params.query,
-        //cloud: params.cloud as "azure" | "gcp",
-        cloud: "azure", //TODO: How can we retrieve this value from input params?
-        environment: "dev", //TODO: hardcoded — derive from params.environment or iac_path
+        terraform_providers: params.terraformProviders,
+        scope_id: params.scopeId,
         user_id: params.userId,
         iac_path: params.iacPath ?? null,
       };

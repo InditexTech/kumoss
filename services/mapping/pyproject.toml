@@ -13,6 +13,13 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
 ]
 
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.9",
+    "web-pdb==2.0.1",
+]
+
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

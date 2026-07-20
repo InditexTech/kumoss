@@ -14,6 +14,7 @@ import { useCurrentView } from "@/hooks/useCurrentView";
 import { useWizardNavigation } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
+import type { TerraformProvider } from "@/types/api";
 
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
@@ -46,11 +47,11 @@ export function useHomeWizard() {
         {
           repoUri: navigation.data.repositoryUrl,
           query: navigation.data.query,
-          cloud: navigation.data.cloudScope,
-          environment: navigation.data.environment,
+          terraformProviders: navigation.data.provider as TerraformProvider,
+          scopeId: navigation.data.cloudScope,
           userId: user?.username ?? "",
           mode,
-          iacPath: navigation.data.environment,
+          iacPath: navigation.data.iacPath,
         },
         isImport ? handleApplyCompleted : handleCompleted,
       );
@@ -94,9 +95,9 @@ export function useHomeWizard() {
               mapper.setMapperError(STRINGS.wizard.noIacPaths);
             } else if (result.paths.length === 1) {
               const path = result.paths[0];
-              navigation.setData((prev) => ({ ...prev, environment: path }));
+              navigation.setData((prev) => ({ ...prev, iacPath: path }));
               updateSession({ environment: path });
-              navigation.setStep("cloud_scope");
+              navigation.setStep("provider");
             } else {
               navigation.setStep("iac_path");
             }
@@ -111,14 +112,13 @@ export function useHomeWizard() {
           const scope = value.trim().toLowerCase();
           if (!scope || !CLOUD_SCOPE_PATTERN.test(scope)) return;
           navigation.setData((prev) => ({ ...prev, cloudScope: scope }));
-          updateSession({ cloud: scope });
 
           auth.run({
             repositoryUrl: navigation.data.repositoryUrl,
             query: navigation.data.query,
             userEmail: user?.username ?? "",
-            cloud: scope,
-            environment: navigation.data.environment,
+            cloud: navigation.data.provider,
+            environment: navigation.data.iacPath,
           });
           break;
         }
@@ -132,8 +132,17 @@ export function useHomeWizard() {
 
   const handlePath = useCallback(
     (path: string) => {
-      navigation.setData((prev) => ({ ...prev, environment: path }));
+      navigation.setData((prev) => ({ ...prev, iacPath: path }));
       updateSession({ environment: path });
+      navigation.setStep("provider");
+    },
+    [navigation, updateSession],
+  );
+
+  const handleProvider = useCallback(
+    (provider: TerraformProvider) => {
+      navigation.setData((prev) => ({ ...prev, provider }));
+      updateSession({ cloud: provider });
       navigation.setStep("cloud_scope");
     },
     [navigation, updateSession],
@@ -165,8 +174,8 @@ export function useHomeWizard() {
           sessionId: session.session_id,
           repoUri: navigation.data.repositoryUrl,
           query,
-          cloud: navigation.data.cloudScope,
-          environment: navigation.data.environment,
+          terraformProviders: navigation.data.provider as TerraformProvider,
+          scopeId: navigation.data.cloudScope,
           userId: user?.username ?? "",
           mode,
         },
@@ -186,8 +195,8 @@ export function useHomeWizard() {
         sessionId: session.session_id,
         repoUri: navigation.data.repositoryUrl,
         query: session.firstQuery ?? session.userQueries[0] ?? "",
-        cloud: navigation.data.cloudScope,
-        environment: navigation.data.environment,
+        terraformProviders: navigation.data.provider as TerraformProvider,
+        scopeId: navigation.data.cloudScope,
         userId: user?.username ?? "",
         mode: "import" as const,
       },
@@ -198,7 +207,7 @@ export function useHomeWizard() {
   const retry = useCallback(() => {
     if (mapper.mapperError) {
       navigation.setStep("repository_url");
-      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", cloudScope: "", environment: "" }));
+      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", cloudScope: "", iacPath: "" }));
       mapper.resetMapper();
       hasTriggeredTerraform.current = false;
       auth.reset();
@@ -255,6 +264,7 @@ export function useHomeWizard() {
     handleKeyDown,
     handleInput,
     handlePath,
+    handleProvider,
     iterate,
     applyAfterPr,
     retry,

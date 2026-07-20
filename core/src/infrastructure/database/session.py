@@ -4,7 +4,7 @@
 
 """Database session management with connection pooling."""
 
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
@@ -18,15 +18,15 @@ from sqlalchemy import text
 
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
-from src.infrastructure.database.config import db_config
+from ._config import db_config
 
 
 class SessionManager:
     """Manages database sessions and connection pooling."""
 
     def __init__(self):
-        self._engine: Optional[AsyncEngine] = None
-        self._sessionmaker: Optional[async_sessionmaker[AsyncSession]] = None
+        self._engine: AsyncEngine | None = None
+        self._sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
     async def initialize(self, echo: bool = False) -> None:
         """Initialize the database engine and session factory."""
@@ -54,7 +54,7 @@ class SessionManager:
             )
 
             async with self._engine.begin() as conn:
-                await conn.execute(text("SELECT 1"))
+                _ = await conn.execute(text("SELECT 1"))
 
             logging.info("Session manager initialized successfully")
 
@@ -102,30 +102,6 @@ class SessionManager:
         async with self.session() as session:
             async with session.begin():
                 yield session
-
-    async def health_check(self) -> dict:
-        """Check database health and connection pool status."""
-        if self._engine is None:
-            return {"status": "error", "message": "Database not initialized"}
-
-        try:
-            async with self._engine.connect() as conn:
-                result = await conn.execute(text("SELECT version()"))
-                version = result.scalar()
-
-            pool = self._engine.pool
-
-            return {
-                "status": "healthy",
-                "database_version": version,
-                "pool_size": pool.size() if hasattr(pool, "size") else "N/A",
-                "checked_out_connections": (
-                    pool.checkedout() if hasattr(pool, "checkedout") else "N/A"
-                ),
-            }
-        except Exception as e:
-            logging.error(f"Health check failed: {e}")
-            return {"status": "error", "message": str(e)}
 
     @property
     def engine(self) -> AsyncEngine:

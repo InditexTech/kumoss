@@ -15,8 +15,9 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
+      provider: "",
       cloudScope: "",
-      environment: "",
+      iacPath: "",
     });
   });
 
@@ -75,6 +76,14 @@ describe("useWizardNavigation", () => {
       );
     });
 
+    it("returns provider prompt for provider step", () => {
+      const { result } = renderHook(() => useWizardNavigation());
+      act(() => result.current.setStep("provider"));
+      expect(result.current.promptMessage("idle")).toBe(
+        STRINGS.wizard.promptProvider,
+      );
+    });
+
     it("returns cloud scope prompt for cloud_scope step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("cloud_scope"));
@@ -119,6 +128,12 @@ describe("useWizardNavigation", () => {
       expect(result.current.placeholder()).toBe("");
     });
 
+    it("returns empty string for provider step", () => {
+      const { result } = renderHook(() => useWizardNavigation());
+      act(() => result.current.setStep("provider"));
+      expect(result.current.placeholder()).toBe("");
+    });
+
     it("returns cloud scope placeholder for cloud_scope step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("cloud_scope"));
@@ -137,8 +152,9 @@ describe("useWizardNavigation", () => {
         ...prev,
         query: "create vm",
         repositoryUrl: "https://repo.example.com",
+        provider: "azure",
         cloudScope: "sub-123",
-        environment: "dev",
+        iacPath: "environments/dev",
       }));
     });
 
@@ -151,8 +167,9 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
+      provider: "",
       cloudScope: "",
-      environment: "",
+      iacPath: "",
     });
   });
 });

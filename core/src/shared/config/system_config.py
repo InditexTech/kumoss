@@ -21,9 +21,9 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
+import yaml
 from pathlib import Path
 
-import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import GitProviderName, LLMProvider
@@ -144,7 +144,7 @@ class OrchestrationConfig(BaseModel):
     max_drift_reports: int = 3
     max_validation_iteration: int = 5
     max_tool_chain_executions: int = 70
-    max_session_events_iteration: int = 2160
+    max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
 
@@ -218,6 +218,27 @@ class GitConfig(BaseModel):
         return v
 
 
+class DatabaseConfig(BaseModel):
+    """Credentials for Phoenix collector and Nebula postgres databases"""
+
+    nebula_database_url_env: str = "NEBULA_SQL_DATABASE_URL"
+    phoenix_database_url_env: str = "PHOENIX_SQL_DATABASE_URL"
+
+    @property
+    def nebula_database_url(self) -> str:
+        return _env(self.nebula_database_url_env)
+
+    @property
+    def phoenix_database_url(self) -> str:
+        return _env(self.phoenix_database_url_env)
+
+    @model_validator(mode="after")
+    def _assert_urls(self) -> DatabaseConfig:
+        if not self.phoenix_database_url or not self.nebula_database_url:
+            raise ConfigError("Missing env variable for phoenix or nebula databases")
+        return self
+
+
 class SystemConfig(BaseModel):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
@@ -226,6 +247,7 @@ class SystemConfig(BaseModel):
     services: ServicesConfig = Field(default_factory=ServicesConfig)
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
@@ -299,7 +321,7 @@ class SystemConfig(BaseModel):
         return self
 
     @classmethod
-    def load(cls, config_path: str | None = None) -> SystemConfig:
+    def load(cls, config_path: str = "/etc/nebula/config.yaml") -> SystemConfig:
         """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before
@@ -307,11 +329,12 @@ class SystemConfig(BaseModel):
         foot-gun where mounting a missing host file silently creates an
         empty directory on the container side.
         """
-        path = config_path or os.environ.get("NEBULA_CONFIG")
+        path = os.environ.get("NEBULA_CONFIG") or config_path
         if path and Path(path).is_file():
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
             return cls.model_validate(data)
+
         return cls()
 
 

@@ -12,7 +12,7 @@ from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
 from src.infrastructure.filesystem.git.providers import GitProviderFactory
-from src.shared.config import system_config
+from src.shared.config.system_config import system_config
 from src.shared.constants import GitProviderName
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -23,20 +23,13 @@ class GitUtils(IGit):
         self,
         git_provider: GitProviderName,
         cwd: Path = None,
-        branch: str = None,
     ):
         self.__provider = GitProviderFactory(git_provider).get()
         self.__cli: Cli = Cli(
             (cwd if cwd else system_config.paths.upload_folder).resolve().as_posix(),
         )
         self.__date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        self.__branch: str = branch if branch else f"Nebula/timestamp_{self.__date}"
         self.__error_msg: str = ""
-
-    @property
-    @override
-    def branch(self) -> str:
-        return self.__branch
 
     @property
     @override
@@ -58,14 +51,10 @@ class GitUtils(IGit):
         self,
         repo_url: str,
         repository_name: str,
-        branch: str | None = None,
-        create_branch: bool = False,
         *extra_args: str,
         timeout: int = 300,
     ) -> bool:
         cmd = ["git", "clone", "--depth", "1"]
-        if branch and not create_branch:
-            cmd.extend(["--branch", branch])
         cmd.extend(extra_args)
         cmd.extend([repo_url, repository_name])
         parsed = urlparse(repo_url)
@@ -82,13 +71,6 @@ class GitUtils(IGit):
             )
             return False
         logging.info(f"git clone {safe_uri}")
-        if create_branch and branch:
-            clone_dir = (Path(self.__cli.cwd) / repository_name).resolve()
-            checkout_cli = Cli(cwd=str(clone_dir))
-            if not self._handle_return_code(
-                await checkout_cli.execute(["git", "checkout", "-b", branch])
-            ):
-                return False
         return True
 
     async def ls_tree(self, cwd: Path) -> list[str]:
@@ -113,13 +95,13 @@ class GitUtils(IGit):
         )
 
     @override
-    async def checkout(self) -> None:
-        if not await self._checkout_branch(target_branch=self.__branch):
+    async def checkout(self, branch: str) -> None:
+        if not await self._checkout_branch(target_branch=branch):
             raise ExceptionHandler(error_code=500, message=self.__error_msg)
 
     @override
-    async def commit(self) -> None:
-        if not await self._commit_changes() or not await self._push_commits():
+    async def commit_and_push(self, branch: str) -> None:
+        if not await self._commit_changes() or not await self._push_commits(branch):
             raise ExceptionHandler(error_code=500, message=self.__error_msg)
 
     @override
@@ -246,7 +228,7 @@ class GitUtils(IGit):
     async def _checkout_branch(self, target_branch: str) -> bool:
         if await self._show_current_branch() != target_branch:
             all_branches = await self._show_all_branches()
-            if all_branches.find(self.__branch) == -1:
+            if all_branches.find(target_branch) == -1:
                 logging.info(f"git new branch checkout {target_branch}")
                 return self._handle_return_code(
                     await self.__cli.execute(
@@ -312,11 +294,11 @@ class GitUtils(IGit):
             )
         return True
 
-    async def _push_commits(self) -> bool:
-        logging.info(f"git push origin/{self.__branch}")
+    async def _push_commits(self, branch: str) -> bool:
+        logging.info(f"git push origin/{branch}")
         return self._handle_return_code(
             await self.__cli.execute(
-                ["git", "push", "--set-upstream", "origin", self.__branch]
+                ["git", "push", "--set-upstream", "origin", branch]
             )
         )
 

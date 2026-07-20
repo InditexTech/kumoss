@@ -3,78 +3,99 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportAttributeAccessIssue=false
-from dataclasses import dataclass
+from pathlib import Path
+from typing import override, Any
 from uuid import UUID
-from asyncio import Queue, QueueEmpty
+from datetime import datetime
 
-from src.domains.dto import SessionPayloadDTO
-from src.shared.constants import SessionStatus
-from src.shared.logger import logging
-
-# TODO: remove in-memory sessions
-_SESSIONS: dict[str, "Session"] = {}
+from src.domains.entities.history import History
+from src.shared.constants import ReportType, TerraformProvider
 
 
-@dataclass
-class _Status:
-    status: SessionStatus
-    message: str
-
-
-class Session:
+class SessionContext:
     def __init__(
         self,
         id: UUID,
-        status: _Status,
+        user_id: str,
+        repo_uri: str,
+        scope_id: str,
+        terraform_prv: TerraformProvider,
+        branch_name: str,
+        iac_path: str,
+        created_at: datetime,
+        updated_at: datetime,
+        history: list[dict[str, str]],
+        is_blocked: bool,
     ):
         self.__id = id
-        self.__status: Queue[_Status] = Queue()
-        self.__last_status: _Status = _Status(
-            status=SessionStatus.STARTED,
-            message=f"Session with ID {str(id)[:4]} started.",
-        )
-        self.__validation_id: str = ""
-        self.__payload: SessionPayloadDTO = None
-        _SESSIONS[id.hex] = self
+        self.__user_id = user_id
+        self.__repo_uri = repo_uri
+        self.__scope_id = scope_id
+        self.__terraform_prv = terraform_prv
+        self.__branch_name = branch_name
+        self.__iac_path = iac_path
+        self.__history: History = History(history)
+        self.__is_blocked: bool = is_blocked
+        self.__created_at: datetime = created_at
+        self.__updated_at: datetime = updated_at
+        self.__artifacts: list[
+            dict[str, Any]
+        ]  # TODO: implement entity and services, interfaces...
+        self.__call_dir: Path = None
+        self.__report_type = None
 
     @property
-    def id(self):
-        return str(self.__id)
+    def id(self) -> UUID:
+        return self.__id
 
     @property
-    def status(self) -> _Status:
-        try:
-            curr_status = self.__status.get_nowait()
-            self.__last_status = curr_status
-            return curr_status
-        except QueueEmpty:
-            return self.__last_status
-
-    def set_status(self, status: SessionStatus, message: str):
-        self.__status.put_nowait(_Status(status=status, message=message))
+    def user_id(self) -> str:
+        return self.__user_id
 
     @property
-    def validation_id(self):
-        return self.__validation_id
-
-    def set_validation_id(self, id: str):
-        self.__validation_id = id
+    def repo_uri(self) -> str:
+        return self.__repo_uri
 
     @property
-    def payload(self):
-        return self.__payload
+    def scope_id(self) -> str:
+        return self.__scope_id
 
-    def set_payload(self, payload: SessionPayloadDTO):
-        self.__payload = payload
+    @property
+    def terraform_prv(self) -> TerraformProvider:
+        return self.__terraform_prv
 
-    def delete(self) -> None:
-        del _SESSIONS[self.__id.hex]
-        logging.warning(f"Session successfully deleted. id={self.id}")
-        logging.info(f"Current sessions number={len(_SESSIONS)}")
+    @property
+    def report_type(self) -> ReportType:
+        assert self.__report_type is not None
+        return self.__report_type
 
+    def set_report_type(self, type: ReportType) -> None:
+        self.__report_type = type
+
+    @property
+    def branch_name(self) -> str:
+        return self.__branch_name
+
+    @property
+    def iac_path(self) -> str:
+        return self.__iac_path
+
+    @property
+    def history(self) -> History:
+        return self.__history
+
+    @property
+    def call_dir(self) -> Path:
+        assert self.__call_dir is not None
+        return self.__call_dir
+
+    def set_call_dir(self, path: Path) -> None:
+        self.__call_dir = path
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.__is_blocked
+
+    @override
     def __str__(self) -> str:
-        return f"session: {self.__id}\nstate: {self.__status}"
-
-
-def get_session(id: UUID) -> Session | None:
-    return _SESSIONS.get(id.hex)
+        return f"session: {self.__id} (blocked={self.__is_blocked})"

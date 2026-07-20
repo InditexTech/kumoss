@@ -9,37 +9,46 @@ Every request is exactly one of:
   - iteration:  {session_id, user_id, q, ...}
 """
 
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.shared.constants import TerraformProvider
 
-class _BaseIacRequest(BaseModel):
+
+class BaseIacRequest(BaseModel):
+    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
+    user_id: Annotated[
+        str, Field(description="Caller identity. Required on every call.")
+    ]
+    session_id: Annotated[
+        str | None,
+        Field(
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
+            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        ),
+    ] = None
     repo_uri: Annotated[
         str | None,
         Field(
             description="Repository URI (first call only). Mutually exclusive with session_id."
         ),
     ] = None
-    session_id: Annotated[
+    scope_id: Annotated[
         str | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with repo_uri.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            description="""Infrastructure scope id:
+                        - Azure -> subscription id
+                        - GCP -> project id
+                        - AWS -> account id"""
         ),
     ] = None
-    cloud: Annotated[
-        Literal["azure", "gcp", "aws", "oci", "kubernetes"] | None,
-        Field(description="Cloud (first call only)."),
+    terraform_providers: Annotated[
+        TerraformProvider | None,
+        Field(
+            description="Terraform providers where the operation will take place (first call only)."
+        ),
     ] = None
-    environment: Annotated[
-        Literal["dev", "pre", "pro"] | None,
-        Field(description="Environment (first call only)."),
-    ] = None
-    user_id: Annotated[
-        str, Field(description="Caller identity. Required on every call.")
-    ]
-    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
     iac_path: Annotated[
         str | None,
         Field(
@@ -52,7 +61,7 @@ class _BaseIacRequest(BaseModel):
 
     @field_validator("iac_path", mode="before")
     @classmethod
-    def _validate_iac_path(cls, v):
+    def _validate_iac_path(cls, v: str):
         if v is None or v == "":
             return None
         if v.startswith("/") or ".." in v.split("/"):
@@ -69,10 +78,8 @@ class _BaseIacRequest(BaseModel):
             raise ValueError(
                 "Exactly one of `repo_uri` or `session_id` must be provided."
             )
-        if has_uri and (self.cloud is None or self.environment is None):
-            raise ValueError(
-                "First call (repo_uri) requires `cloud` and `environment`."
-            )
+        if has_uri and (self.terraform_providers is None):
+            raise ValueError("First call (repo_uri) requires `terraform_providers`.")
         if has_sid and self.iac_path is not None:
             raise ValueError(
                 "iac_path is set only on the first call; iteration calls inherit it from the session."
@@ -80,13 +87,13 @@ class _BaseIacRequest(BaseModel):
         return self
 
 
-class GenerateRequest(_BaseIacRequest):
+class GenerateRequest(BaseIacRequest):
     pass
 
 
-class DriftRequest(_BaseIacRequest):
+class DriftRequest(BaseIacRequest):
     is_partial: bool = False
 
 
-class ApplyRequest(_BaseIacRequest):
+class ApplyRequest(BaseIacRequest):
     terraform_targets: list[str] = Field(default_factory=list)

@@ -7,7 +7,7 @@
 .vscode/
 
 # Local dev compose overrides
-docker-compose.override.yml
+docker-compose.override.*
 
 # Distribution / packaging
 __pycache__

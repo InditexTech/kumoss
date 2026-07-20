@@ -5,7 +5,7 @@
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services.llm_service import LLMOrchestrationService
-from src.infrastructure.database.models import UserSession
+from src.infrastructure.database.models import Session
 
 
 class PullRequestService:
@@ -17,7 +17,7 @@ class PullRequestService:
         self.__llm_svc = llm_service
         self.__git_utils = git_utils
 
-    async def create_pr(self, session: UserSession) -> PullRequestDTO:
+    async def create_pr(self, session: Session) -> PullRequestDTO:
         return await self.__git_utils.create_pr(
             repository_url=session.repo_uri,
             head_branch=session.branch_name,

@@ -103,8 +103,6 @@ class IacRootDetector(IIacRootDetector):
             ok = await git.clone_repository(
                 repo_uri,
                 "repo",
-                None,
-                False,
                 "--filter=blob:none",
                 "--no-checkout",
                 timeout=60,
