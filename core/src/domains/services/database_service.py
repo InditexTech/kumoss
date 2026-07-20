@@ -180,7 +180,7 @@ class DatabaseService:
                     Session.uuid == sid,
                 )
                 .values(
-                    paylod=ctx.history,
+                    payload=ctx.history.serialize(),
                     updated_at=datetime.now(timezone.utc),
                 )
             )

@@ -126,8 +126,10 @@ class DatabaseClient:
                 col = getattr(model, order_by)
                 stmt = stmt.order_by(desc(col) if order_desc else asc(col))
 
-            if offset and limit:
-                stmt = stmt.offset(offset).limit(limit)
+            if offset is not None:
+                stmt = stmt.offset(offset)
+            if limit is not None:
+                stmt = stmt.limit(limit)
 
             result = await session.execute(stmt)
             count_result = await session.execute(count_stmt)

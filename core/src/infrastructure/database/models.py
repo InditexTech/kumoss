@@ -154,7 +154,7 @@ class History(Base):
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     first_query: Mapped[str] = mapped_column(Text)
-    payload: Mapped[dict[str, str]] = mapped_column(JSON, default={})
+    payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
 
     @override
     def __repr__(self) -> str:
