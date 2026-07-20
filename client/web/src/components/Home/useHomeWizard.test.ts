@@ -139,7 +139,7 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.step).toBe("query");
   });
 
-  it("handlePath sets environment and advances to cloud_scope", () => {
+  it("handlePath sets iacPath and advances to provider", () => {
     const { result } = renderHook(
       () => ({
         wizard: useHomeWizard(),
@@ -152,11 +152,29 @@ describe("useHomeWizard orchestrator", () => {
       result.current.wizard.handlePath("environments/dev");
     });
 
-    expect(result.current.wizard.step).toBe("cloud_scope");
-    expect(result.current.wizard.data.environment).toBe("environments/dev");
+    expect(result.current.wizard.step).toBe("provider");
+    expect(result.current.wizard.data.iacPath).toBe("environments/dev");
     expect(result.current.session.session.environment).toBe(
       "environments/dev",
     );
+  });
+
+  it("handleProvider sets provider and advances to cloud_scope", () => {
+    const { result } = renderHook(
+      () => ({
+        wizard: useHomeWizard(),
+        session: useSession(),
+      }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.wizard.handleProvider("azure");
+    });
+
+    expect(result.current.wizard.step).toBe("cloud_scope");
+    expect(result.current.wizard.data.provider).toBe("azure");
+    expect(result.current.session.session.cloud).toBe("azure");
   });
 
   it("reset restores wizard state to initial", async () => {
@@ -175,8 +193,9 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
+      provider: "",
       cloudScope: "",
-      environment: "",
+      iacPath: "",
     });
     expect(result.current.scanPaths).toEqual([]);
     expect(result.current.isLoading).toBe(false);
@@ -225,7 +244,7 @@ describe("useHomeWizard — repository resolution", () => {
     mockMapperErrorValue.mockReturnValue(null);
   });
 
-  it("single IaC path auto-advances to cloud_scope", async () => {
+  it("single IaC path auto-advances to provider", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       project: "myproj",
@@ -240,9 +259,9 @@ describe("useHomeWizard — repository resolution", () => {
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
 
-    expect(result.current.wizard.step).toBe("cloud_scope");
+    expect(result.current.wizard.step).toBe("provider");
     expect(result.current.wizard.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
-    expect(result.current.wizard.data.environment).toBe("environments/dev");
+    expect(result.current.wizard.data.iacPath).toBe("environments/dev");
     expect(result.current.session.session.repositoryUrl).toBe("https://dev.azure.com/org/repo");
   });
 
@@ -309,7 +328,8 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-    await act(async () => { await result.current.handleInput("azure"); });
+    act(() => { result.current.handleProvider("azure"); });
+    await act(async () => { await result.current.handleInput("sub-123"); });
 
     expect(mockAuthRun).toHaveBeenCalledWith({
       repositoryUrl: "https://dev.azure.com/org/repo",
@@ -331,7 +351,8 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-    await act(async () => { await result.current.handleInput("azure"); });
+    act(() => { result.current.handleProvider("azure"); });
+    await act(async () => { await result.current.handleInput("sub-123"); });
 
     mockAuthState.mockReturnValue({ status: "success" });
     await act(async () => { rerender(); });
@@ -340,8 +361,9 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
     expect(mockTerraformRun.mock.calls[0][0]).toMatchObject({
       repoUri: "https://dev.azure.com/org/repo",
       query: "deploy a VM",
-      cloud: "azure",
-      environment: "environments/dev",
+      terraformProviders: "azure",
+      scopeId: "sub-123",
+      iacPath: "environments/dev",
       userId: "test@example.com",
       mode: "generate",
     });
@@ -358,7 +380,8 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-    await act(async () => { await result.current.handleInput("azure"); });
+    act(() => { result.current.handleProvider("azure"); });
+    await act(async () => { await result.current.handleInput("sub-123"); });
 
     mockAuthState.mockReturnValue({ status: "success" });
     await act(async () => { rerender(); });
@@ -378,6 +401,7 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
+    act(() => { result.current.handleProvider("azure"); });
     await act(async () => { await result.current.handleInput("azure!@#"); });
 
     expect(mockAuthRun).not.toHaveBeenCalled();
@@ -420,7 +444,8 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
-    await act(async () => { await result.current.wizard.handleInput("azure"); });
+    act(() => { result.current.wizard.handleProvider("azure"); });
+    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
 
     act(() => { result.current.wizard.iterate("add a database"); });
 
@@ -460,7 +485,8 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
-    await act(async () => { await result.current.wizard.handleInput("azure"); });
+    act(() => { result.current.wizard.handleProvider("azure"); });
+    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
 
     act(() => { result.current.wizard.applyAfterPr(); });
 

@@ -59,8 +59,9 @@ vi.mock("@/hooks/useBrowserNotification", () => ({
 const defaultParams: TerraformActionParams = {
   repoUri: "https://dev.azure.com/org/repo",
   query: "deploy a VM",
-  cloud: "azure",
-  environment: "dev",
+  terraformProviders: "azure",
+  scopeId: "sub-123",
+  iacPath: "environments/dev",
   userId: "user@test.com",
   mode: "generate",
 };

@@ -6,7 +6,15 @@ import type { TerraformReport } from "./index";
 
 // ─── Shared Types ───────────────────────────────────────────
 
-export type CloudProvider = "azure" | "gcp";
+export const TERRAFORM_PROVIDERS = [
+  "azure",
+  "gcp",
+  "aws",
+  "oci",
+  "kubernetes",
+  "common",
+] as const;
+export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
 export type HistoryRole = "user" | "assistant" | "validation";
 
 export interface HistoryEntry {
@@ -52,19 +60,20 @@ export interface PaginatedResponse<T> {
 
 // ─── IaC Operations (/api/v1/iac/*) ─────────────────────────
 // URI-driven, session-iterating model: first call provides repo_uri +
-// cloud + environment; iteration calls provide session_id only.
+// terraform_providers (+ optional scope_id / iac_path); iteration calls
+// provide session_id only.
 
 export interface BaseIacRequest {
   repo_uri?: string | null;
   session_id?: string | null;
-  cloud?: CloudProvider | null;
-  environment?: string | null;
+  scope_id?: string | null;
+  terraform_providers?: TerraformProvider | null;
   user_id: string;
   q: string;
   iac_path?: string | null;
 }
 
-export interface GenerateRequest extends BaseIacRequest {}
+export type GenerateRequest = BaseIacRequest;
 
 export interface DriftRequest extends BaseIacRequest {
   is_partial?: boolean;
