@@ -168,9 +168,7 @@ class Status(Base):
     __tablename__ = "statuses"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    status: Mapped[SessionStatus] = mapped_column(
-        String(20), default=SessionStatus.STARTED
-    )
+    status: Mapped[SessionStatus] = mapped_column(default=SessionStatus.STARTED)
     message: Mapped[str] = mapped_column(Text)
 
     @override

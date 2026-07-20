@@ -32,5 +32,4 @@ dependencies = [
 [dependency-groups]
 dev = [
     "basedpyright>=1.39.9",
-    "web-pdb==2.0.1",
 ]

@@ -4,7 +4,6 @@
 
 import json
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any, Literal, override
 from uuid import UUID
 
@@ -47,7 +46,7 @@ class PhoenixTracer(ITracer):
         session_id: UUID,
         user_id: str,
         cloud: TerraformProvider,
-        iac_path: Path,
+        iac_path: str,
         branch_name: str | None = None,
     ):
         """
@@ -60,10 +59,10 @@ class PhoenixTracer(ITracer):
         :param branch_name: The name of the git's branch name where the changes are being implemented
         """
         self.__tracer: Tracer = get_tracer()
-        self.__session_id: str = session_id.hex
+        self.__session_id: str = str(session_id)
         self.__user_id: str = user_id
-        self.__cloud: TerraformProvider = cloud
-        self.__iac_path: Path = iac_path
+        self.__terraform_prv: TerraformProvider = cloud
+        self.__iac_path: str = iac_path
         self.__branch_name: str = branch_name if branch_name else "undefined"
         self.__root_context: Context | None = None
 
@@ -83,7 +82,7 @@ class PhoenixTracer(ITracer):
                 {
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
-                    "cloud": self.__cloud,
+                    "cloud": self.__terraform_prv.name,
                     "iac_path": self.__iac_path,
                     "branch_name": self.__branch_name,
                     **kwargs,

@@ -245,11 +245,11 @@ class DatabaseService:
     async def get_last_status(session_id: UUID) -> Status:
         sid = await DatabaseService.__map_session_id(session_id)
         status_model = await db.list_by(
-            DbStatus,
+            model=DbStatus,
             order_by="created_at",
             order_desc=True,
-            session_id=sid,
             limit=1,
+            session_id=sid,
         )
         if len(status_model) != 1:
             raise LastStatusError(f"No status records for session {session_id}", 500)
@@ -278,26 +278,13 @@ class DatabaseService:
 
     @staticmethod
     async def list_sessions(
-        search: str | None = None,
-        status: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
     ) -> tuple[list[Session], int]:
-        filters: dict[str, str] = {}
-        if status:
-            filters["status"] = status
-
-        extra_conditions: list[Any] = []
-        if search:
-            pattern = f"%{search}%"
-            extra_conditions.append(Session.uuid.ilike(pattern))
-
         return await db.query(
             Session,
-            filters=filters,
-            extra_conditions=extra_conditions,
             order_by=order_by,
             order_desc=order_desc,
             offset=offset,
