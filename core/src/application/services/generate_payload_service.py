@@ -49,6 +49,7 @@ class GeneratePayloadService:
         branch: str,
         validation: TerraformValidationDTO | None = None,
     ):
+        return
         history.append_turn(
             user_msg=command.q,
             assistant_msg="Task successfully finished"

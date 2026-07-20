@@ -82,7 +82,7 @@ class TerraformCRUDHandler:
                         logging.warning("Drift resolution completed but issues remain")
 
                 validation_result = await self.__validation_svc.generate_and_validate(
-                    query=q, history=hist, include_forbidden_actions=True
+                    query=q, ctx=ctx, include_forbidden_actions=True
                 )
                 await self.__payload_svc.generate(
                     response="",

@@ -128,7 +128,7 @@ class PhoenixTracer(ITracer):
         self.__root_context = trace.set_span_in_context(span)
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(chain_type=kwargs["prompt"].type.name),
-            *_span_kind_attributes(OpenInferenceSpanKindValues.CHAIN),
+            *_span_kind_attributes(OpenInferenceSpanKindValues.AGENT),
             *_input_attributes(kwargs["query"]),
         ):
             span.set_attribute(attribute_key, attribute_value)
@@ -193,7 +193,7 @@ class PhoenixTracer(ITracer):
 
     @override
     def trace_tool(
-        self, start_time: int, output: Any, *args: list[Any], **kwargs: Any
+        self, start_time: int, output: ToolResultDTO, *args: list[Any], **kwargs: Any
     ) -> Span:
         """
         Creates and configures a span for tracing tool operations.
@@ -203,12 +203,14 @@ class PhoenixTracer(ITracer):
         :param kwargs: Keyword arguments containing the tool input
         :return: OpenTelemetry Span configured with tool-specific attributes
         """
-        tool_name: ToolCallDTO | None = kwargs.get("tool_call")
+        tool: ToolCallDTO | None = kwargs.get("tool_call")
         span = self.__tracer.start_span(
-            name=f"Tool call - {tool_name.name if tool_name else 'undefined'}",
+            name=f"Tool call - {tool.name if tool else 'undefined'}",
             start_time=start_time,
             context=self.__root_context,
         )
+        if tool and tool.name == "task_complete":
+            output = output.result.get("final_summary")
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),

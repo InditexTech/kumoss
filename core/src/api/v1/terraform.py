@@ -46,7 +46,7 @@ async def _resolve_or_raise(
 
 def _make_runner(
     ctx: SessionContext,
-    build_handler: Callable[[], Awaitable[Callable[[], Awaitable[Any]]]],
+    build_handler: Callable[[SessionContext], Awaitable[Callable[[], Awaitable[Any]]]],
 ):
     """Build the full pipeline as a single background coroutine.
 
@@ -69,7 +69,7 @@ def _make_runner(
             )
             ctx.set_call_dir(call_dir / ctx.iac_path)
             await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
-            run_handler = await build_handler()
+            run_handler = await build_handler(ctx)
             await run_handler()
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
@@ -92,8 +92,8 @@ async def generate_infrastructure(
     """
     ctx = await _resolve_or_raise(request, ReportType.GENERATE)
 
-    async def build():
-        handler = ApplicationFactory(session_ctx=ctx).get_terraform_crud_handler()
+    async def build(context: SessionContext):
+        handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
         return await handler.handle(request.q)
 
     background_tasks.add_task(_make_runner(ctx, build))
@@ -109,8 +109,8 @@ async def drift_detection_remediation(
     """
     ctx = await _resolve_or_raise(request, ReportType.DRIFT)
 
-    async def build():
-        handler = ApplicationFactory(session_ctx=ctx).get_terraform_drift_handler()
+    async def build(context: SessionContext):
+        handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
         return await handler.handle(request.q, request.is_partial)
 
     background_tasks.add_task(_make_runner(ctx, build))
@@ -126,8 +126,8 @@ async def apply_infrastructure(
     """
     ctx = await _resolve_or_raise(request, ReportType.APPLY)
 
-    async def build():
-        handler = ApplicationFactory(session_ctx=ctx).get_terraform_apply_handler()
+    async def build(context: SessionContext):
+        handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
         return await handler.handle(request.q, request.terraform_targets)
 
     background_tasks.add_task(_make_runner(ctx, build))
