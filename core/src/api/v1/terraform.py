@@ -67,7 +67,7 @@ def _make_runner(
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
             )
-            ctx.set_call_dir(call_dir)
+            ctx.set_call_dir(call_dir / ctx.iac_path)
             await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
             run_handler = await build_handler()
             await run_handler()

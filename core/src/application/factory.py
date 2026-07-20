@@ -70,7 +70,7 @@ class ApplicationFactory:
         assert path is not None or (
             self.__ctx is not None and self.__ctx.iac_path is not None
         )
-        return FileSystemUtils(root=self.__ctx.iac_path if self.__ctx else path)
+        return FileSystemUtils(root=self.__ctx.call_dir if self.__ctx else path)
 
     def _get_git_utils(self, path: Path) -> GitUtils:
         return GitUtils(

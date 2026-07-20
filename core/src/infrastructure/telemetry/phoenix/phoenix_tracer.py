@@ -4,7 +4,7 @@
 
 import json
 from collections.abc import Iterator
-from typing import Any, Literal, override
+from typing import Any, Literal, cast, override
 from uuid import UUID
 
 from opentelemetry import trace
@@ -251,25 +251,9 @@ def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str
     Maps provider name to OpenInference value and yields the OpenInference model name attribute.
     """
     if any(key in provider_name.name.lower() for key in ["opus", "sonnet", "haiku"]):
-        if "sonnet" in provider_name.name.lower():
-            model_name = "claude-sonnet-4-5-20250929"
-        elif "haiku" in provider_name.name.lower():
-            model_name = "claude-haiku-4-5-20251001"
-        elif "opus" in provider_name.name.lower():
-            model_name = "claude-opus-4-1"
-        else:
-            model_name = "undefined"
         provider = OpenInferenceLLMProviderValues.ANTHROPIC.value
         system = OpenInferenceLLMSystemValues.ANTHROPIC.value
     elif "gemini" in provider_name.name.lower():
-        if "lite" in provider_name.name.lower():
-            model_name = "gemini-2.5-flash-lite"
-        elif "flash" in provider_name.name.lower():
-            model_name = "gemini-3-flash-preview"
-        elif "pro" in provider_name.name.lower():
-            model_name = "gemini-3-pro-preview"
-        else:
-            model_name = "undefined"
         provider = OpenInferenceLLMProviderValues.GOOGLE.value
         system = OpenInferenceLLMSystemValues.VERTEXAI.value
     else:
@@ -277,7 +261,7 @@ def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str
             message=f"Provider {provider_name.name} couldn't be mapped to OpenInference",
             error_code=404,
         )
-    yield SpanAttributes.LLM_MODEL_NAME, model_name
+    yield SpanAttributes.LLM_MODEL_NAME, cast(str, provider_name.value["phoenix_id"])
     yield SpanAttributes.LLM_PROVIDER, provider
     yield SpanAttributes.LLM_SYSTEM, system
 
