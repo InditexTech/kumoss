@@ -75,7 +75,7 @@ class DatabaseClient:
 
     async def get_by(self, model: type[T], **filters: Any) -> T | None:
         """Get a single record by filters."""
-        result, count = await self.__query(model=model, filters=filters)
+        result, count = await self.query(model=model, filters=filters)
         if count != 1:
             return None
         return result[0]
@@ -90,7 +90,7 @@ class DatabaseClient:
         **filters: Any,
     ) -> list[T]:
         """Get all records matching filters."""
-        result, _ = await self.__query(
+        result, _ = await self.query(
             model=model,
             order_by=order_by,
             order_desc=order_desc,
@@ -100,14 +100,14 @@ class DatabaseClient:
         )
         return result
 
-    async def __query(
+    async def query(
         self,
         model: type[T],
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int | None = None,
         limit: int | None = None,
-        filters: dict[str, Any] | None = None,
+        **filters: dict[str, Any] | None,
     ) -> tuple[list[T], int]:
         """Query records with filtering, ordering, and pagination.
         Returns (items, total_count).
@@ -132,8 +132,10 @@ class DatabaseClient:
                 stmt = stmt.limit(limit)
 
             result = await session.execute(stmt)
-            count_result = await session.execute(count_stmt)
-            return list(result.scalars().all()), count_result.scalar_one()
+            if offset and limit:
+                count_result = await session.execute(count_stmt)
+                return list(result.scalars().all()), count_result.scalar_one()
+            return list(result.scalars().all()), -1
 
 
 db = DatabaseClient()
