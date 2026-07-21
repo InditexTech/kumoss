@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
+from attr import dataclass
 from sqlalchemy import update
 from sqlalchemy.engine import CursorResult
 
@@ -28,6 +29,28 @@ from src.infrastructure.database.models import (
 )
 from src.shared.constants import SessionStatus, TerraformProvider
 from src.shared.utils.decorators import async_cache
+
+
+@dataclass
+class SessionOverview:
+    session_id: UUID
+    first_query: str
+    repo_uri: str
+    iac_path: str
+    terraform_provider: TerraformProvider
+    branch_name: str
+    is_blocked: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class PaginatedSessionOverview:
+    items: list[SessionOverview]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class DatabaseService:
@@ -71,6 +94,13 @@ class DatabaseService:
             DbTerraformProvider, session_id=sid
         )
         return tp
+
+    @staticmethod
+    @async_cache
+    async def __load_first_query(session_id: UUID) -> str | None:
+        sid = await DatabaseService.__map_session_id(session_id)
+        his: History | None = await db.get_by(History, session_id=sid)
+        return his.first_query if his else None
 
     @staticmethod
     async def __load_history(session_id: UUID) -> History | None:
@@ -164,10 +194,64 @@ class DatabaseService:
             terraform_prv=terraform_prv.provider,
             branch_name=workspace.branch,
             iac_path=workspace.root_path,
-            is_blocked=session.is_blocked,
-            created_at=session.created_at,
-            updated_at=session.updated_at,
             history=his.payload if his else None,
+        )
+
+    @staticmethod
+    async def list_sessions(
+        user_id: str,
+        order_by: str = "created_at",
+        order_desc: bool = True,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> PaginatedSessionOverview:
+        user: User | None = await DatabaseService.__load_user_by_username(user_id)
+        if user is None:
+            raise SessionTerminal(
+                message=f"User {user_id} not found",
+                error_code=404,
+            )
+
+        sessions, count = await db.query(
+            Session,
+            order_by=order_by,
+            order_desc=order_desc,
+            offset=offset,
+            limit=limit,
+            user_id=user.id,
+        )
+        overviews: list[SessionOverview] = []
+        for s in sessions:
+            workspace: Workspace | None = await DatabaseService.__load_workspace(s.uuid)
+            terraform_prv: (
+                DbTerraformProvider | None
+            ) = await DatabaseService.__load_terraform_provider(s.uuid)
+            first_q: str | None = await DatabaseService.__load_first_query(s.uuid)
+            if workspace is None or terraform_prv is None or first_q is None:
+                raise SessionTerminal(
+                    message=f"Session {s.uuid} is missconfigured",
+                    error_code=500,
+                )
+            overviews.append(
+                SessionOverview(
+                    session_id=s.uuid,
+                    first_query=first_q,
+                    repo_uri=workspace.uri,
+                    iac_path=workspace.root_path,
+                    terraform_provider=terraform_prv.provider,
+                    branch_name=workspace.branch,
+                    is_blocked=s.is_blocked,
+                    created_at=s.created_at,
+                    updated_at=s.updated_at,
+                )
+            )
+
+        return PaginatedSessionOverview(
+            items=overviews,
+            total=count,
+            page=offset // limit,
+            page_size=limit,
+            total_pages=count // limit,
         )
 
     @staticmethod
@@ -228,21 +312,6 @@ class DatabaseService:
     async def mark_session_status(
         session_id: UUID, status: SessionStatus, msg: str
     ) -> None:
-        # sid = await DatabaseService.__map_session_id(session_id)
-        # async with db.transaction() as sess:
-        #     stmt = (
-        #         update(Status)
-        #         .where(Session.uuid == sid)
-        #         .values(
-        #             status=status,
-        #             updated_at=datetime.now(timezone.utc),
-        #         )
-        #     )
-        #     res = await sess.execute(stmt)
-        #     if cast(CursorResult[Any], res).rowcount != 1:
-        #         logging.error(
-        #             f"error `mark_session_status` transaction session {session_id} "
-        #         )
         _ = await DatabaseService.__create_status(session_id, status, msg)
 
     @staticmethod
@@ -279,21 +348,6 @@ class DatabaseService:
             )
             res = await sess.execute(stmt)
             return cast(CursorResult[Any], res).rowcount == 1
-
-    @staticmethod
-    async def list_sessions(
-        order_by: str = "created_at",
-        order_desc: bool = True,
-        offset: int = 0,
-        limit: int = 20,
-    ) -> tuple[list[Session], int]:
-        return await db.__query(  # FIXME
-            Session,
-            order_by=order_by,
-            order_desc=order_desc,
-            offset=offset,
-            limit=limit,
-        )
 
     @staticmethod
     async def get_pull_requests(session_id: UUID) -> list[PullRequest]:
