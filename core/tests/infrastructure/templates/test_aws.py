@@ -89,6 +89,7 @@ class TestAWSTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(
             prompt.find("mocked_lambda_content") != -1
         )  # Should not be present since it was not selected
+        # To sign
 
 
 if __name__ == "__main__":
