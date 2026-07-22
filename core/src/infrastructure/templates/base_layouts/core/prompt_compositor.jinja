@@ -30,7 +30,9 @@ Important: The templates list and abbreviations list operate independently. A re
 {% if ALREADY_SELECTED_TEMPLATES %}
 The following templates have already been selected for this request: {{ ALREADY_SELECTED_TEMPLATES | join(', ') }}
 {% if ALREADY_SELECTED_TEMPLATES_CONTENT %}
+<already_selected_context_content>
 The content of each previous template for the request is provided here: {{ ALREADY_SELECTED_TEMPLATES_CONTENT | join(', ') }}
+</already_selected_context_content>
 {% endif %}
 {% endif %}
 {% if ALREADY_SELECTED_ABBREVIATIONS %}
