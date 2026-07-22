@@ -77,7 +77,7 @@ async def subscribe_events(
                 },
             }
 
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield f"data: {json.dumps(payload)}\n\n"  # FIXME
 
             if (
                 status.status == SessionStatus.COMPLETED

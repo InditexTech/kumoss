@@ -209,8 +209,6 @@ class PhoenixTracer(ITracer):
             start_time=start_time,
             context=self.__root_context,
         )
-        if tool and tool.name == "task_complete":
-            output = output.result.get("final_summary")
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
@@ -235,6 +233,8 @@ def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
+    if isinstance(payload, ToolResultDTO) and payload.name == "task_complete":
+        payload = payload.result.get("final_summary")
     yield SpanAttributes.OUTPUT_VALUE, str(payload)
     yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
 

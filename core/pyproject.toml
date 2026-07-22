@@ -27,6 +27,7 @@ dependencies = [
     "graphql-core<3.3.0",
     "pydantic-ai[mcp]<2.0.0",
     "pyyaml>=6.0",
+    "redis==8.0.1"
 ]
 
 [dependency-groups]

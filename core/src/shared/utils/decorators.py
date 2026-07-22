@@ -47,7 +47,7 @@ def async_cache(
         key = args + tuple(kwargs.items())
 
         if key in cache:
-            logging.debug(f"cache hit for session {key}")
+            logging.debug(f"cache hit {key}")
             return cache[key]
 
         result = await func(*args, **kwargs)

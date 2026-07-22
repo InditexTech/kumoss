@@ -239,7 +239,7 @@ class DatabaseConfig(BaseModel):
         return self
 
 
-class SystemConfig(BaseModel):
+class SystemConfig(BaseModel, frozen=True):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
