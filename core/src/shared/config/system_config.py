@@ -239,6 +239,23 @@ class DatabaseConfig(BaseModel):
         return self
 
 
+class RedisConfig(BaseModel):
+    """Connection settings for the Redis session store / cache.
+
+    The URL is referenced indirectly via an env-var name so any password
+    embedded in it stays out of the YAML. When the env var is unset the
+    docker-compose service default is used, so the OSS stack boots without
+    extra wiring.
+    """
+
+    redis_url_env: str = "NEBULA_REDIS_URL"
+    default_url: str = "redis://redis:6379/0"
+
+    @property
+    def redis_url(self) -> str:
+        return _env(self.redis_url_env) or self.default_url
+
+
 class SystemConfig(BaseModel, frozen=True):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
@@ -248,6 +265,7 @@ class SystemConfig(BaseModel, frozen=True):
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    redis: RedisConfig = Field(default_factory=RedisConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
