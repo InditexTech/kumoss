@@ -161,13 +161,17 @@ class OCITemplateAdapter(CommonTemplateAdapter):
         templates_content: list[str] = await self.__get_resources_templates(
             already_selected_templates or []
         )
+        templates_and_content: dict = (
+            dict(zip(already_selected_templates, templates_content))
+            if already_selected_templates and templates_content
+            else dict.fromkeys(already_selected_templates or [], "")
+        )
 
         t = self._get_template(self._core + "prompt_compositor.jinja")
         return t.render(
             AVAILABLE_TEMPLATES_LIST=resources,
             AVAILABLE_ABBREVIATIONS_LIST=abbr,
-            ALREADY_SELECTED_TEMPLATES=already_selected_templates,
-            ALREADY_SELECTED_TEMPLATES_CONTENT=templates_content,
+            ALREADY_SELECTED_TEMPLATES=templates_and_content,
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 

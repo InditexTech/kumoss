@@ -29,15 +29,10 @@ Important: The templates list and abbreviations list operate independently. A re
 <already_selected_context>
 {% if ALREADY_SELECTED_TEMPLATES %}
 The following templates have already been selected for this request:
-<already_selected_context_content>
-{% for template in ALREADY_SELECTED_TEMPLATES %}
-{{ template }}
-{% if ALREADY_SELECTED_TEMPLATES_CONTENT and loop.index0 < ALREADY_SELECTED_TEMPLATES_CONTENT | length %}
-{{ ALREADY_SELECTED_TEMPLATES_CONTENT[loop.index0] }}
-{% endif %}
-
+{% for title, content in ALREADY_SELECTED_TEMPLATES.items() %}
+- **{{ title }}**:
+{{ content }}
 {% endfor %}
-</already_selected_context_content>
 {% endif %}
 {% if ALREADY_SELECTED_ABBREVIATIONS %}
 The following abbreviations have already been selected for this request: {{ ALREADY_SELECTED_ABBREVIATIONS | join(', ') }}
