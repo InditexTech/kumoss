@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from src.shared.constants import TracerProject, TemplateProvider, LLMProvider
+from src.shared.constants import TracerProject, TerraformProvider, LLMProvider
 
 
 class Settings:
@@ -28,7 +28,7 @@ class Settings:
     DEFAULT_PROJECT_UID: str = f"{DEFAULT_PROJECT_NAME}_{SESSION_ID}"
 
     # Provider configuration
-    TEMPLATE_PROVIDER: TemplateProvider = TemplateProvider.AZURE
+    TEMPLATE_PROVIDER: TerraformProvider = TerraformProvider.AZURE
     LLM_PROVIDER: LLMProvider = LLMProvider.GEMINI_FLASH
     LLM_PROVIDER_SMALL: LLMProvider = LLMProvider.GEMINI_FLASH
 
