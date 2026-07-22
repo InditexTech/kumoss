@@ -14,7 +14,7 @@ from src.shared.constants import TerraformProvider
 # from tests.setups import setup_repository, clean_resources
 
 
-class TestGeneratePayloadServiceAws2(unittest.IsolatedAsyncioTestCase):
+class TestAWSTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     # Fixture for mocking the fetch method to return predefined responses based on the prompt_name
     MOCK_RESPONSES = {
         "abbreviations": "mocked_abbreviations",
