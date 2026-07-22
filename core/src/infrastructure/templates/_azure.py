@@ -163,18 +163,10 @@ class AzureTemplateAdapter(CommonTemplateAdapter):
                 error_code=502,
             )
 
-        try:
-            templates_content: list[str] = (
-                await self.__get_resources_templates(already_selected_templates) or []
-            )
-        except PhoenixPromptFetchError as e:
-            logging.error(
-                f"Error template couldn't be fetched to read content. Error: {e.message}"
-            )
-            raise RemoteTemplateFetcherError(
-                message=f"Error fetching remote template. {e.message}",
-                error_code=502,
-            )
+        templates_content: list[str] = await self.__get_resources_templates(
+            already_selected_templates or []
+        )
+
         return t.render(
             AVAILABLE_TEMPLATES_LIST=resources,
             AVAILABLE_ABBREVIATIONS_LIST=abbr,
