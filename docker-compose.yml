@@ -126,6 +126,7 @@ services:
     environment:
       - PHOENIX_SQL_DATABASE_URL=postgresql://postgres:postgres@phoenix-db:5432/phoenix
       - PHOENIX_HOST_ROOT_PATH=/monitoring
+      - PHOENIX_ENABLE_MCP_SERVER=false
     networks:
       - bridge-network
 
