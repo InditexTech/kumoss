@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
@@ -47,18 +48,19 @@ async def create_pr(
         ),
     ],
 ) -> JSONResponse:
-    session = await DatabaseService.get_session(session_id)
-    pr_svc = ApplicationFactory(session_ctx=session).get_pull_request_service()
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
+    uuid = UUID(session_id)
+    try:
+        ctx = await DatabaseService.get_session_context(uuid)
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+    pr_svc = ApplicationFactory(session_ctx=ctx).get_pull_request_service()
     # if session.status != SessionStatus.REPORT.value:
     #     raise HTTPException(
     #         status_code=409, detail=f"Session {session_id} is {session.status}."
     #     )
 
     try:
-        pr_details = await pr_svc.create_pr(session)
-        await DatabaseService.set_pull_request_url(session_id, pr_details.url)
+        pr_details = await pr_svc.create_pr(ctx)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 

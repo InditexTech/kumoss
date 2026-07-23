@@ -2,63 +2,67 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# from typing import Annotated
-#
-# from fastapi import APIRouter, HTTPException
-#
-# from src.domains.services.database_service import DatabaseService
-#
-# router = APIRouter(prefix="/sessions", tags=["Session Management"])
-#
-#
-# @router.get(
-#     path="/get/{session_id}",
-#     summary="Get the corresponding session related data",
-#     responses={
-#         200: {
-#             "description": "Get the main response to the query, plus client session state data.",
-#         },
-#         404: {
-#             "description": "The server cannot find the requested resource.",
-#             "content": {
-#                 "application/json": {
-#                     "example": {"detail": "Session id 1234 does not exist."}
-#                 }
-#             },
-#         },
-#         409: {
-#             "description": "The request conflicts with the current state of the server",
-#             "content": {
-#                 "application/json": {
-#                     "example": {"detail": "Session id 1234 has not yet finished."}
-#                 }
-#             },
-#         },
-#     },
-# )
-# def session_status(
-#     session_id: Annotated[
-#         str,
-#         Path(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
-#     ],
-# ) -> SessionPayloadDTO:
-#     """Retrieve the final payload data from a completed session.
-#
-#     This endpoint returns the complete session payload once the session has finished
-#     processing. It's designed to be called after the SSE stream has indicated
-#     completion to retrieve the final results.
-#
-#     Note:
-#     - This endpoint should only be called after the session has completed
-#     - The payload will be None until the session finishes processing
-#     - Session data persists until explicitly deleted via the unsubscribe endpoint
-#     """
-#     session = get_session(session_id)
-#     if not session.payload:
-#         raise HTTPException(
-#             status_code=409, detail=f"Session is still in progress. id={session.id}"
-#         )
-#     return session.payload
+from typing import Annotated
+
+from fastapi import APIRouter, Body, HTTPException, Query
+
+from src.domains.dto import PaginatedSessionOverview, SessionOverview
+from src.domains.services.database_service import DatabaseService
+from src.shared.exceptions import ExceptionHandler
+
+router = APIRouter(prefix="/sessions", tags=["Session Management"])
+
+
+@router.get(
+    path="",
+    summary="Retrive user sessions.",
+)
+async def sessions_list(
+    user_id: Annotated[str, Body()],
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> PaginatedSessionOverview:
+    """TODO"""
+    try:
+        session = await DatabaseService.list_sessions(
+            user_id=user_id,
+            offset=page * page_size,
+            limit=page_size,
+        )
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+    return session
+
+
+@router.get(
+    path="/{session_id}",
+    summary="Get the corresponding session related data",
+)
+async def session_status(
+    session_id: Annotated[
+        str,
+        Query(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+    ],
+) -> SessionOverview:
+    """Retrieve the final payload data from a completed session.
+
+    This endpoint returns the complete session payload once the session has finished
+    processing. It's designed to be called after the SSE stream has indicated
+    completion to retrieve the final results.
+
+    Note:
+    - This endpoint should only be called after the session has completed
+    - The payload will be None until the session finishes processing
+    - Session data persists until explicitly deleted via the unsubscribe endpoint
+    """
+    try:
+        session = await DatabaseService.get_session_overview(session_id)
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+
+    return session
+
+
 #
 #
 # @router.delete(
@@ -96,4 +100,3 @@
 #       in the SSE subscription endpoint
 #     """
 #     get_session(session_id).delete()
-

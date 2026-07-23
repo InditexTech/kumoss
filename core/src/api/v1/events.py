@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
-from src.domains.entities import Status
+from src.domains.value_objects import Status
 from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
 from src.shared.constants import SessionStatus

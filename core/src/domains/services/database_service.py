@@ -30,6 +30,7 @@ from src.infrastructure.database.models import (
     History,
 )
 from src.infrastructure.redis import redis_client
+from src.shared.config.system_config import system_config
 from src.shared.constants import SessionStatus, TerraformProvider
 
 # --- Cache configuration -------------------------------------------------
@@ -51,8 +52,10 @@ _CACHE_NS = "nebula:v1"
 
 _TTL_FACTS = 4 * 24 * 60 * 60  # write-once facts; immutable, safe to keep long
 _TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; kept honest via delete-on-write
+_TTL_HISTORY = 2 * 24 * 60 * 60  # history payload; invalidated together with context
 _TTL_STATUS = 2 * 60 * 60  # last status; polled often, delete-on-write on change
 _TTL_LOCK = 5 * 60  # lock state; short backstop, delete-on-write on change
+_TTL_PR = 7 * 24 * 60 * 60  # pull requests; append-only, delete-on-write on add
 
 
 def _ttl(base: int) -> int:
@@ -94,6 +97,14 @@ def _k_last_status(session_id: UUID) -> str:
 
 def _k_lock(session_id: UUID) -> str:
     return f"{_CACHE_NS}:session:{session_id}:lock"
+
+
+def _k_history(session_id: UUID) -> str:
+    return f"{_CACHE_NS}:session:{session_id}:history"
+
+
+def _k_pull_requests(session_id: UUID) -> str:
+    return f"{_CACHE_NS}:session:{session_id}:prs"
 
 
 def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
@@ -221,18 +232,32 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def __load_history(session_id: UUID) -> History | None:
-        # Not cached on its own: the payload is folded into the cached
-        # session context, which is invalidated on every history write.
-        sid = await DatabaseService.__map_session_id(session_id)
-        his: History | None = await db.get_by(History, session_id=sid)
-        return his
+    async def __history_payload(session_id: UUID) -> list[dict[str, str]] | None:
+        """Cache-aside read of the conversation payload (turns) for a session."""
+
+        async def _load() -> list[dict[str, str]] | None:
+            sid = await DatabaseService.__map_session_id(session_id)
+            his: History | None = await db.get_by(History, session_id=sid)
+            return his.payload if his is not None else None
+
+        return await redis_client.get_or_set(
+            _k_history(session_id), _ttl(_TTL_HISTORY), _load
+        )
 
     @staticmethod
-    async def __load_pull_requests(session_id: UUID) -> list[PullRequest]:
-        sid = await DatabaseService.__map_session_id(session_id)
-        pr: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
-        return pr
+    async def __pull_requests(session_id: UUID) -> list[dict[str, str]]:
+        """Cache-aside read of all pull requests for a session."""
+
+        async def _load() -> list[dict[str, str]]:
+            sid = await DatabaseService.__map_session_id(session_id)
+            prs: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
+            # Empty list is a valid cacheable state (most sessions have none).
+            return [{"provider": pr.provider.value, "url": pr.url} for pr in prs]
+
+        data = await redis_client.get_or_set(
+            _k_pull_requests(session_id), _ttl(_TTL_PR), _load
+        )
+        return data if data is not None else []
 
     @staticmethod
     async def __create_status(
@@ -338,7 +363,7 @@ class DatabaseService:
                     message=f"Session {session_id} does not have an associated cloud provider",
                     error_code=404,
                 )
-            his: History | None = await DatabaseService.__load_history(session_id)
+            payload = await DatabaseService.__history_payload(session_id)
             ctx = SessionContext(
                 id=session.uuid,
                 user_id=username,
@@ -347,7 +372,7 @@ class DatabaseService:
                 terraform_prv=provider.provider,
                 branch_name=workspace.branch,
                 iac_path=workspace.root_path,
-                history=his.payload if his else None,
+                history=payload,
             )
             return _serialize_ctx(ctx)
 
@@ -355,6 +380,40 @@ class DatabaseService:
             _k_context(session_id), _ttl(_TTL_CONTEXT), _load
         )
         return _deserialize_ctx(data)
+
+    @staticmethod
+    async def __construct_session_overview(s: Session) -> SessionOverview:
+        workspace: WorkspaceFacts | None = await DatabaseService.__workspace_facts(
+            s.uuid
+        )
+        provider: ProviderFacts | None = await DatabaseService.__provider_facts(s.uuid)
+        first_q: str | None = await DatabaseService.__first_query(s.uuid)
+        if workspace is None or provider is None or first_q is None:
+            raise SessionTerminal(
+                message=f"Session {s.uuid} is missconfigured",
+                error_code=500,
+            )
+        return SessionOverview(
+            session_id=s.uuid,
+            first_query=first_q,
+            repo_uri=workspace.uri,
+            iac_path=workspace.root_path,
+            terraform_provider=provider.provider,
+            branch_name=workspace.branch,
+            is_blocked=s.is_blocked,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+        )
+
+    @staticmethod
+    async def get_session_overview(session_id: UUID) -> SessionOverview:
+        s: Session | None = await DatabaseService.__load_session(session_id)
+        if not s:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        return await DatabaseService.__construct_session_overview(s)
 
     @staticmethod
     async def list_sessions(
@@ -379,33 +438,9 @@ class DatabaseService:
             limit=limit,
             user_id=user_pk,
         )
-        overviews: list[SessionOverview] = []
-        for s in sessions:
-            workspace: WorkspaceFacts | None = await DatabaseService.__workspace_facts(
-                s.uuid
-            )
-            provider: ProviderFacts | None = await DatabaseService.__provider_facts(
-                s.uuid
-            )
-            first_q: str | None = await DatabaseService.__first_query(s.uuid)
-            if workspace is None or provider is None or first_q is None:
-                raise SessionTerminal(
-                    message=f"Session {s.uuid} is missconfigured",
-                    error_code=500,
-                )
-            overviews.append(
-                SessionOverview(
-                    session_id=s.uuid,
-                    first_query=first_q,
-                    repo_uri=workspace.uri,
-                    iac_path=workspace.root_path,
-                    terraform_provider=provider.provider,
-                    branch_name=workspace.branch,
-                    is_blocked=s.is_blocked,
-                    created_at=s.created_at,
-                    updated_at=s.updated_at,
-                )
-            )
+        overviews: list[SessionOverview] = [
+            await DatabaseService.__construct_session_overview(s.id) for s in sessions
+        ]
 
         return PaginatedSessionOverview(
             items=overviews,
@@ -434,7 +469,7 @@ class DatabaseService:
                     message=f"Failed to update history on session {ctx.id}.",
                     error_code=500,
                 )
-        _ = await redis_client.invalidate(_k_context(ctx.id))
+        _ = await redis_client.invalidate(_k_context(ctx.id), _k_history(ctx.id))
 
     @staticmethod
     async def get_lock(session_id: UUID) -> Lock:
@@ -553,11 +588,23 @@ class DatabaseService:
         return updated
 
     @staticmethod
-    async def get_pull_requests(session_id: UUID) -> list[PullRequest]:
-        pr = await DatabaseService.__load_pull_requests(session_id)
-        if len(pr) == 0:
+    async def get_pull_requests(session_id: UUID) -> list[dict[str, str]]:
+        prs = await DatabaseService.__pull_requests(session_id)
+        if not prs:
             raise SessionTerminal(
-                message=f"Session {session_id} does not have any associated Pull Requests ",
+                message=f"Session {session_id} does not have any associated Pull Requests",
                 error_code=404,
             )
-        return pr
+        return prs
+
+    @staticmethod
+    async def add_pull_request(session_id: UUID, url: str) -> None:
+        """Persist a new Pull Request and drop the cached list so the next read is fresh."""
+        sid = await DatabaseService.__map_session_id(session_id)
+        _ = await db.create(
+            PullRequest,
+            session_id=sid,
+            provider=system_config.git.provider,
+            url=url,
+        )
+        _ = await redis_client.invalidate(_k_pull_requests(session_id))
