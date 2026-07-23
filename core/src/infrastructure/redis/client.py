@@ -5,8 +5,9 @@
 """Minimal async Redis client for caching and session state."""
 
 import json
-from typing import Any, cast
+from typing import Any
 from datetime import timedelta
+from collections.abc import Awaitable, Callable
 
 from redis.asyncio import Redis
 
@@ -44,31 +45,15 @@ class RedisClient:
         logging.info("Redis client closed")
 
     @property
-    def client(self) -> Redis:
-        """Get the underlying Redis client for commands not wrapped here."""
+    def _client(self) -> Redis:
+        """Underlying Redis client for commands not wrapped here."""
         return self.connection.client
-
-    # --- String values ---------------------------------------------------
-
-    async def get(self, key: str) -> str | None:
-        """Get the string value at ``key`` (``None`` if absent)."""
-        # decode_responses=True guarantees str, but the stubs stay bytes|str.
-        return cast("str | None", await self.client.get(key))
-
-    async def set(
-        self,
-        key: str,
-        value: str | int | float | bytes,
-        ttl: Expiry | None = None,
-    ) -> None:
-        """Set ``key`` to ``value`` with an optional expiry (seconds/timedelta)."""
-        _ = await self.client.set(key, value, ex=ttl)
 
     # --- JSON values (caching / session state) ---------------------------
 
-    async def get_json(self, key: str) -> Any | None:
+    async def _get_json(self, key: str) -> Any | None:
         """Get and JSON-decode the value at ``key`` (``None`` if absent)."""
-        raw = await self.client.get(key)
+        raw = await self._client.get(key)
         return json.loads(raw) if raw is not None else None
 
     async def set_json(
@@ -78,25 +63,38 @@ class RedisClient:
         ttl: Expiry | None = None,
     ) -> None:
         """JSON-encode ``value`` and store it at ``key`` with optional expiry."""
-        _ = await self.client.set(key, json.dumps(value, default=str), ex=ttl)
+        _ = await self._client.set(key, json.dumps(value, default=str), ex=ttl)
 
-    # --- Key operations --------------------------------------------------
+    # --- Cache-aside -----------------------------------------------------
 
-    async def delete(self, *keys: str) -> int:
+    async def get_or_set(
+        self,
+        key: str,
+        ttl: Expiry | None,
+        loader: Callable[[], Awaitable[Any]],
+    ) -> Any:
+        """Return the JSON value at ``key``, or compute it via ``loader``.
+
+        On a miss the loader runs and its result is cached with ``ttl``.
+        A ``None`` result is never cached (no negative caching), so absent
+        keys keep hitting the source until they exist.
+        """
+        cached = await self._get_json(key)
+        if cached is not None:
+            return cached
+
+        value = await loader()
+        if value is not None:
+            await self.set_json(key, value, ttl=ttl)
+        return value
+
+    async def invalidate(self, *keys: str) -> int:
+        """Drop cached ``keys`` so the next read recomputes. Returns count removed."""
+        return await self._delete(*keys)
+
+    async def _delete(self, *keys: str) -> int:
         """Delete one or more keys, returning the number removed."""
-        return await self.client.delete(*keys)
-
-    async def exists(self, *keys: str) -> int:
-        """Return how many of the given keys exist."""
-        return await self.client.exists(*keys)
-
-    async def expire(self, key: str, ttl: Expiry) -> bool:
-        """Set a key's time-to-live (seconds/timedelta)."""
-        return await self.client.expire(key, ttl)
-
-    async def ttl(self, key: str) -> int:
-        """Return the remaining TTL in seconds (-2 missing, -1 no expiry)."""
-        return await self.client.ttl(key)
+        return await self._client.delete(*keys)
 
 
 redis_client = RedisClient()
