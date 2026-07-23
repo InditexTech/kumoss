@@ -116,7 +116,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:17.30.0
+    image: arizephoenix/phoenix:19.4.0
     expose:
       - 6006
       - 4317
@@ -125,6 +125,7 @@ services:
     environment:
       - PHOENIX_SQL_DATABASE_URL=postgresql://postgres:postgres@phoenix-db:5432/phoenix
       - PHOENIX_HOST_ROOT_PATH=/monitoring
+      - PHOENIX_ENABLE_MCP_SERVER=false
     networks:
       - bridge-network
 
