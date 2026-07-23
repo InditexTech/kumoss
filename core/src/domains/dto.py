@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel
 
-from src.shared.constants import PromptsLibrary, ToolContext
+from src.shared.constants import PromptsLibrary, TerraformProvider, ToolContext
 
 
 @dataclass
@@ -267,3 +269,27 @@ class TerraformPlanParseDTO:
 
     added: TerraformPlanParseObject
     removed: TerraformPlanParseObject
+
+
+class SessionOverview(BaseModel):
+    """Read model: a flattened summary of a session for listing endpoints."""
+
+    session_id: UUID
+    first_query: str
+    repo_uri: str
+    iac_path: str
+    terraform_provider: TerraformProvider
+    branch_name: str
+    is_blocked: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedSessionOverview(BaseModel):
+    """Response envelope: a page of session overviews plus pagination metadata."""
+
+    items: list[SessionOverview]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
