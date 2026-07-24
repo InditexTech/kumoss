@@ -43,12 +43,28 @@ const menuPropsSx = {
       sx: {
         borderRadius: 0,
         border: "1px solid",
-        borderColor: "light-dark(var(--color-border), var(--color-border))",
+        borderColor: "light-dark(var(--color-border), rgba(255, 255, 255, 0.18))",
         boxShadow:
-          "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
-        background: "light-dark(#ffffff, #1a1a1a)",
-        padding: "16px",
+          "0 10px 15px -3px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 30, 0.5)), 0 4px 6px -2px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 30, 0.35))",
+        background: "var(--color-surface)",
+        padding: "16px 0",
         "& .MuiList-root": { padding: 0 },
+        "& .MuiMenuItem-root:hover": {
+          backgroundColor:
+            "light-dark(rgba(0, 0, 0, 0.03), rgba(255, 255, 255, 0.05))",
+        },
+        "& .MuiMenuItem-root.Mui-focusVisible": {
+          backgroundColor:
+            "light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.08))",
+        },
+        "& .MuiMenuItem-root.Mui-selected": {
+          backgroundColor:
+            "light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.08))",
+        },
+        "& .MuiMenuItem-root.Mui-selected:hover": {
+          backgroundColor:
+            "light-dark(rgba(0, 0, 0, 0.07), rgba(255, 255, 255, 0.11))",
+        },
       },
     },
   },
