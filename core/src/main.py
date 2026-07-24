@@ -15,7 +15,7 @@ from src.api.v1 import (
     logs,
     authorization,
     # admin,
-    # sessions,
+    session,
     mapping,
 )
 from src.infrastructure.database import db
@@ -93,5 +93,5 @@ app.include_router(repository.router, prefix="/v1")
 app.include_router(logs.router, prefix="/v1")
 app.include_router(authorization.router, prefix="/v1")
 # app.include_router(admin.router, prefix="/v1")
-# app.include_router(sessions.router, prefix="/v1")
+app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")

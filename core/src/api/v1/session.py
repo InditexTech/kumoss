@@ -4,7 +4,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from src.domains.dto import PaginatedSessionOverview, SessionOverview
 from src.domains.services.database_service import DatabaseService
@@ -18,15 +18,15 @@ router = APIRouter(prefix="/sessions", tags=["Session Management"])
     summary="Retrive user sessions.",
 )
 async def sessions_list(
-    user_id: Annotated[str, Body()],
+    username: Annotated[str, Query(min_length=3, max_length=40)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> PaginatedSessionOverview:
     """TODO"""
     try:
         session = await DatabaseService.list_sessions(
-            user_id=user_id,
-            offset=page * page_size,
+            user_id=username,
+            offset=(page - 1) * page_size,
             limit=page_size,
         )
     except ExceptionHandler as e:
@@ -41,7 +41,7 @@ async def sessions_list(
 async def session_status(
     session_id: Annotated[
         str,
-        Query(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
+        Path(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
     ],
 ) -> SessionOverview:
     """Retrieve the final payload data from a completed session.

@@ -111,6 +111,13 @@ class ReportType(Enum):
 
 
 @unique
+class OperationType(Enum):
+    GENERATE = "generate"
+    DRIFT = "drift"
+    IMPORT = "import"
+
+
+@unique
 class TracerProject(Enum):
     """Defines all possible tracer projects.
     Note: a project in Phoenix is defined as a group of traces

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from src.application.iac_requests import BaseIacRequest
 from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
+from src.shared.constants import OperationType
 
 
 class SessionOrchestrationService:
@@ -21,16 +22,21 @@ class SessionOrchestrationService:
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
         return f"Nebula/{ts}"
 
-    async def resolve(self, request: BaseIacRequest) -> SessionContext:
+    async def resolve(
+        self, request: BaseIacRequest, operation: OperationType
+    ) -> SessionContext:
         if request.session_id is None:
-            return await self._create(request)
+            return await self._create(request, operation)
         return await self._load(request)
 
-    async def _create(self, request: BaseIacRequest) -> SessionContext:
+    async def _create(
+        self, request: BaseIacRequest, operation: OperationType
+    ) -> SessionContext:
         sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=sid,
             user_id=request.user_id,
+            operation=operation,
             repo_uri=request.repo_uri,
             terraform_prv=request.terraform_providers,
             scope_id=request.scope_id,

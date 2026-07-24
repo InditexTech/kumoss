@@ -20,6 +20,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.shared.constants import (
     GitProviderName,
+    OperationType,
     ReportType,
     SessionStatus,
     TerraformProvider as TP,
@@ -72,6 +73,7 @@ class Session(Base):
 
     uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    operation: Mapped[OperationType] = mapped_column()
     in_flight: Mapped[bool] = mapped_column(default=False)
     is_blocked: Mapped[bool] = mapped_column(default=False)
     # relations

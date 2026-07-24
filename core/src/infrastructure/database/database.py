@@ -75,8 +75,8 @@ class DatabaseClient:
 
     async def get_by(self, model: type[T], **filters: Any) -> T | None:
         """Get a single record by filters."""
-        result, count = await self.query(model=model, filters=filters)
-        if count != 1:
+        result, _ = await self.query(model, **filters)
+        if len(result) != 1:
             return None
         return result[0]
 
@@ -91,12 +91,12 @@ class DatabaseClient:
     ) -> list[T]:
         """Get all records matching filters."""
         result, _ = await self.query(
-            model=model,
-            order_by=order_by,
-            order_desc=order_desc,
-            offset=offset,
-            limit=limit,
-            filters=filters,
+            model,
+            order_by,
+            order_desc,
+            offset,
+            limit,
+            **filters,
         )
         return result
 

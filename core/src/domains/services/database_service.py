@@ -31,7 +31,7 @@ from src.infrastructure.database.models import (
 )
 from src.infrastructure.redis import redis_client
 from src.shared.config.system_config import system_config
-from src.shared.constants import SessionStatus, TerraformProvider
+from src.shared.constants import OperationType, SessionStatus, TerraformProvider
 
 # --- Cache configuration -------------------------------------------------
 #
@@ -275,6 +275,7 @@ class DatabaseService:
     async def create_session(
         session_id: UUID,
         user_id: str,
+        operation: OperationType,
         repo_uri: str,
         terraform_prv: TerraformProvider,
         scope_id: str,
@@ -294,7 +295,12 @@ class DatabaseService:
                 _k_user_name(user_pk), user_id, ttl=_ttl(_TTL_FACTS)
             )
 
-        session: Session = await db.create(Session, user_id=user_pk, uuid=session_id)
+        session: Session = await db.create(
+            Session,
+            user_id=user_pk,
+            uuid=session_id,
+            operation=operation,
+        )
         _ = await db.create(
             Workspace,
             session_id=session.id,

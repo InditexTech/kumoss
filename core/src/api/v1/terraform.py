@@ -22,6 +22,7 @@ from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
+from src.shared.constants import OperationType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -31,12 +32,14 @@ _workspace = WorkspaceService()
 _orchestration = SessionOrchestrationService()
 
 
-async def _resolve_or_raise(request: BaseIacRequest) -> SessionContext:
+async def _resolve_or_raise(
+    request: BaseIacRequest, operation: OperationType
+) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity."""
     try:
         if request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
-        return await _orchestration.resolve(request)
+        return await _orchestration.resolve(request, operation)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
@@ -87,7 +90,7 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request)
+    ctx = await _resolve_or_raise(request, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -104,7 +107,7 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request)
+    ctx = await _resolve_or_raise(request, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -121,7 +124,7 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request)
+    ctx = await _resolve_or_raise(request, OperationType.APPLY)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
