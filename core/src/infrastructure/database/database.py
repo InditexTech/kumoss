@@ -132,7 +132,8 @@ class DatabaseClient:
                 stmt = stmt.limit(limit)
 
             result = await session.execute(stmt)
-            if offset and limit:
+            # `offset` may legitimately be 0 (first page), so check for None.
+            if offset is not None and limit is not None:
                 count_result = await session.execute(count_stmt)
                 return list(result.scalars().all()), count_result.scalar_one()
             return list(result.scalars().all()), -1

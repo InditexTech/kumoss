@@ -14,6 +14,7 @@ from sqlalchemy import (
     DateTime,
     Integer,
     JSON,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -88,12 +89,8 @@ class Session(Base):
     )
     histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
     statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
-    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
-        "TerraformPlan", cascade="all, delete"
-    )
-    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
-    code_changes: Mapped[list["CodeChange"]] = relationship(
-        "CodeChange", cascade="all, delete"
+    rounds: Mapped[list["Round"]] = relationship(
+        "Round", cascade="all, delete", order_by="Round.number"
     )
 
     @override
@@ -170,12 +167,37 @@ class Status(Base):
     __tablename__ = "statuses"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    round_id: Mapped[int | None] = mapped_column(ForeignKey("rounds.id"), index=True)
     status: Mapped[SessionStatus] = mapped_column(default=SessionStatus.STARTED)
     message: Mapped[str] = mapped_column(Text)
 
     @override
     def __repr__(self) -> str:
         return f"<Status(session_id='{self.session_id}', status={self.status.name}')>"
+
+
+@final
+class Round(Base):
+    """One generation iteration within a session; per-round artifacts hang off it."""
+
+    __tablename__ = "rounds"
+    __table_args__ = (UniqueConstraint("session_id", "number"),)
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    number: Mapped[int] = mapped_column(Integer)
+    # relations
+    statuses: Mapped[list["Status"]] = relationship("Status")
+    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
+        "TerraformPlan", cascade="all, delete"
+    )
+    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    code_changes: Mapped[list["CodeChange"]] = relationship(
+        "CodeChange", cascade="all, delete"
+    )
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Round(session_id='{self.session_id}', number={self.number})>"
 
 
 @final
@@ -189,11 +211,13 @@ class Artifact(Base):
     file_size_bytes: Mapped[int] = mapped_column(Integer)
     # relations
     terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
-        "TerraformPlan", cascade="all, delete"
+        "TerraformPlan", back_populates="artifact", cascade="all, delete"
     )
-    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    reports: Mapped[list["Report"]] = relationship(
+        "Report", back_populates="artifact", cascade="all, delete"
+    )
     code_changes: Mapped[list["CodeChange"]] = relationship(
-        "CodeChange", cascade="all, delete"
+        "CodeChange", back_populates="artifact", cascade="all, delete"
     )
 
     @override
@@ -207,15 +231,17 @@ class TerraformPlan(Base):
 
     __tablename__ = "terraform_plans"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     targets: Mapped[list[str]] = mapped_column(ARRAY(String))
+    # relations
+    artifact: Mapped["Artifact"] = relationship(
+        "Artifact", back_populates="terraform_plans"
+    )
 
     @override
     def __repr__(self) -> str:
-        return (
-            f"<TerraformPlan(session_id='{self.session_id}', targets='{self.targets}')>"
-        )
+        return f"<TerraformPlan(round_id='{self.round_id}', targets='{self.targets}')>"
 
 
 @final
@@ -224,13 +250,15 @@ class Report(Base):
 
     __tablename__ = "reports"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     type: Mapped[ReportType] = mapped_column()
+    # relations
+    artifact: Mapped["Artifact"] = relationship("Artifact", back_populates="reports")
 
     @override
     def __repr__(self) -> str:
-        return f"<Report(session_id='{self.session_id}', type='{self.type}')>"
+        return f"<Report(round_id='{self.round_id}', type='{self.type}')>"
 
 
 @final
@@ -239,10 +267,14 @@ class CodeChange(Base):
 
     __tablename__ = "code_changes"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     file_name: Mapped[str] = mapped_column(String(254))
+    # relations
+    artifact: Mapped["Artifact"] = relationship(
+        "Artifact", back_populates="code_changes"
+    )
 
     @override
     def __repr__(self) -> str:
-        return f"<CodeChange(session_id='{self.session_id}', file_name='{self.file_name}')>"
+        return f"<CodeChange(round_id='{self.round_id}', file_name='{self.file_name}')>"

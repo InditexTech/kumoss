@@ -9,7 +9,13 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from src.shared.constants import PromptsLibrary, TerraformProvider, ToolContext
+from src.shared.constants import (
+    OperationType,
+    PromptsLibrary,
+    SessionStatus,
+    TerraformProvider,
+    ToolContext,
+)
 
 
 @dataclass
@@ -271,24 +277,106 @@ class TerraformPlanParseDTO:
     removed: TerraformPlanParseObject
 
 
-class SessionOverview(BaseModel):
+class StatusEntry(BaseModel):
+    """Read model: one status transition in a session's timeline."""
+
+    status: SessionStatus
+    message: str | None
+    created_at: datetime
+
+
+class ArtifactRef(BaseModel):
+    """Read model: a client-fetchable artifact produced during a round.
+
+    ``id`` is the pk of the typed row (report / plan / code change), not
+    the underlying artifacts row.
+    """
+
+    id: int
+    url: str
+    content_type: str | None
+    file_size_bytes: int | None
+    created_at: datetime
+
+
+class TerraformPlanRef(ArtifactRef):
+    """Read model: a terraform plan artifact plus its resource targets."""
+
+    targets: list[str]
+
+
+class CodeChangeRef(ArtifactRef):
+    """Read model: one generated/modified file artifact."""
+
+    file_name: str
+
+
+class RoundDetail(BaseModel):
+    """Read model: one generation round with its statuses and artifacts."""
+
+    id: int
+    number: int
+    statuses: list[StatusEntry]
+    report: ArtifactRef | None
+    plan: TerraformPlanRef | None
+    code_changes: list[CodeChangeRef]
+    created_at: datetime
+
+
+class WorkspaceRef(BaseModel):
+    """Read model: write-once workspace facts of a session."""
+
+    uri: str
+    branch: str
+    root_path: str | None
+
+
+class PullRequestRef(BaseModel):
+    """Read model: a pull request opened by a session.
+
+    ``provider`` is the GitProviderName token (e.g. "GITHUB"), not the host.
+    """
+
+    provider: str
+    url: str
+
+
+class SessionSummary(BaseModel):
     """Read model: a flattened summary of a session for listing endpoints."""
 
-    session_id: UUID
-    first_query: str
-    repo_uri: str
-    iac_path: str
-    terraform_provider: TerraformProvider
-    branch_name: str
+    uuid: UUID
+    username: str | None = None
+    operation: OperationType
+    provider: TerraformProvider
+    first_query: str | None
+    workspace_uri: str
+    current_status: SessionStatus
+    in_flight: bool
     is_blocked: bool
     created_at: datetime
     updated_at: datetime
 
 
-class PaginatedSessionOverview(BaseModel):
-    """Response envelope: a page of session overviews plus pagination metadata."""
+class SessionDetail(SessionSummary):
+    """Read model: the full session aggregate for the detail endpoint.
 
-    items: list[SessionOverview]
+    ``statuses`` holds session-level entries only (round_id IS NULL);
+    round-level statuses live inside their round. ``history`` is populated
+    on admin surfaces only.
+    """
+
+    workspace: WorkspaceRef
+    scope_id: str
+    pull_request: PullRequestRef | None
+    statuses: list[StatusEntry]
+    rounds: list[RoundDetail]
+    history: list[dict[str, str]] | None = None
+
+
+class PaginatedSessionSummary(BaseModel):
+    """Response envelope: a page of session summaries plus pagination metadata."""
+
+    items: list[SessionSummary]
     total: int
     page: int
     page_size: int

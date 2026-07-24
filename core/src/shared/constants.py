@@ -141,7 +141,6 @@ class SessionStatus(Enum):
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
-    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
 
 

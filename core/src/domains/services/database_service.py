@@ -2,16 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import math
 import random
 from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.orm import selectinload
 
 
-from src.domains.dto import PaginatedSessionOverview, SessionOverview
+from src.domains.dto import (
+    ArtifactRef,
+    CodeChangeRef,
+    PaginatedSessionSummary,
+    PullRequestRef,
+    RoundDetail,
+    SessionDetail,
+    SessionSummary,
+    StatusEntry,
+    TerraformPlanRef,
+    WorkspaceRef,
+)
 from src.domains.entities import SessionContext
 from src.domains.value_objects import Lock, ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
@@ -21,8 +34,13 @@ from src.domains.exceptions import (
 )
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
+    Artifact,
+    CodeChange,
+    TerraformPlan,
     TerraformProvider as DbTerraformProvider,
     PullRequest,
+    Report,
+    Round,
     Status as DbStatus,
     User,
     Session,
@@ -31,7 +49,13 @@ from src.infrastructure.database.models import (
 )
 from src.infrastructure.redis import redis_client
 from src.shared.config.system_config import system_config
-from src.shared.constants import OperationType, SessionStatus, TerraformProvider
+from src.shared.constants import (
+    GitProviderName,
+    OperationType,
+    ReportType,
+    SessionStatus,
+    TerraformProvider,
+)
 
 # --- Cache configuration -------------------------------------------------
 #
@@ -261,12 +285,13 @@ class DatabaseService:
 
     @staticmethod
     async def __create_status(
-        session_id: UUID, status: SessionStatus, msg: str
+        session_id: UUID, status: SessionStatus, msg: str, round_id: int | None = None
     ) -> DbStatus:
         sid = await DatabaseService.__map_session_id(session_id)
         return await db.create(
             DbStatus,
             session_id=sid,
+            round_id=round_id,
             status=status,
             message=msg,
         )
@@ -388,47 +413,60 @@ class DatabaseService:
         return _deserialize_ctx(data)
 
     @staticmethod
-    async def __construct_session_overview(s: Session) -> SessionOverview:
+    async def __current_status(session_id: UUID) -> SessionStatus:
+        """Latest recorded status, STARTED when none has been written yet."""
+        try:
+            status: Status = await DatabaseService.get_last_status(session_id)
+        except LastStatusError:
+            return SessionStatus.STARTED
+        return status.status
+
+    @staticmethod
+    async def __construct_summary(s: Session) -> SessionSummary:
         workspace: WorkspaceFacts | None = await DatabaseService.__workspace_facts(
             s.uuid
         )
         provider: ProviderFacts | None = await DatabaseService.__provider_facts(s.uuid)
-        first_q: str | None = await DatabaseService.__first_query(s.uuid)
-        if workspace is None or provider is None or first_q is None:
+        if workspace is None or provider is None:
             raise SessionTerminal(
                 message=f"Session {s.uuid} is missconfigured",
                 error_code=500,
             )
-        return SessionOverview(
-            session_id=s.uuid,
-            first_query=first_q,
-            repo_uri=workspace.uri,
-            iac_path=workspace.root_path,
-            terraform_provider=provider.provider,
-            branch_name=workspace.branch,
+        return SessionSummary(
+            uuid=s.uuid,
+            username=await DatabaseService.__map_user_name(s.user_id),
+            operation=s.operation,
+            provider=provider.provider,
+            first_query=await DatabaseService.__first_query(s.uuid),
+            workspace_uri=workspace.uri,
+            current_status=await DatabaseService.__current_status(s.uuid),
+            in_flight=s.in_flight,
             is_blocked=s.is_blocked,
             created_at=s.created_at,
             updated_at=s.updated_at,
         )
 
     @staticmethod
-    async def get_session_overview(session_id: UUID) -> SessionOverview:
+    async def get_session_summary(session_id: UUID) -> SessionSummary:
         s: Session | None = await DatabaseService.__load_session(session_id)
         if not s:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
             )
-        return await DatabaseService.__construct_session_overview(s)
+        return await DatabaseService.__construct_summary(s)
 
     @staticmethod
     async def list_sessions(
         user_id: str,
+        operation: OperationType | None = None,
+        status: SessionStatus | None = None,
+        search: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
-    ) -> PaginatedSessionOverview:
+    ) -> PaginatedSessionSummary:
         user_pk: int | None = await DatabaseService.__map_user_id(user_id)
         if user_pk is None:
             raise SessionTerminal(
@@ -436,24 +474,212 @@ class DatabaseService:
                 error_code=404,
             )
 
-        sessions, count = await db.query(
-            Session,
-            order_by=order_by,
-            order_desc=order_desc,
-            offset=offset,
-            limit=limit,
-            user_id=user_pk,
-        )
-        overviews: list[SessionOverview] = [
-            await DatabaseService.__construct_session_overview(s.id) for s in sessions
+        async with db.session() as sess:
+            stmt = select(Session).where(Session.user_id == user_pk)
+            if operation is not None:
+                stmt = stmt.where(Session.operation == operation)
+            if search:
+                pattern = f"%{search}%"
+                stmt = (
+                    stmt.join(History, History.session_id == Session.id)
+                    .join(Workspace, Workspace.session_id == Session.id)
+                    .where(
+                        History.first_query.ilike(pattern)
+                        | Workspace.uri.ilike(pattern)
+                    )
+                )
+            if status is not None:
+                # Filter on each session's most recent status row; max(id)
+                # is the append-order proxy for "latest".
+                latest = (
+                    select(
+                        DbStatus.session_id,
+                        func.max(DbStatus.id).label("last_id"),
+                    )
+                    .group_by(DbStatus.session_id)
+                    .subquery()
+                )
+                stmt = (
+                    stmt.join(latest, latest.c.session_id == Session.id)
+                    .join(DbStatus, DbStatus.id == latest.c.last_id)
+                    .where(DbStatus.status == status)
+                )
+
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            count: int = (await sess.execute(count_stmt)).scalar_one()
+
+            order_col = getattr(Session, order_by, Session.created_at)
+            stmt = (
+                stmt.order_by(order_col.desc() if order_desc else order_col.asc())
+                .offset(offset)
+                .limit(limit)
+            )
+            sessions = list((await sess.execute(stmt)).scalars().all())
+
+        summaries: list[SessionSummary] = [
+            await DatabaseService.__construct_summary(s) for s in sessions
         ]
 
-        return PaginatedSessionOverview(
-            items=overviews,
+        return PaginatedSessionSummary(
+            items=summaries,
             total=count,
-            page=offset // limit,
+            page=offset // limit + 1,
             page_size=limit,
-            total_pages=count // limit,
+            total_pages=math.ceil(count / limit) if count > 0 else 0,
+        )
+
+    # --- Session detail aggregate -----------------------------------------
+
+    @staticmethod
+    def __artifact_url(artifact: Artifact) -> str:
+        """Client-fetchable URL for an artifact.
+
+        Signing seam: ``artifacts.uri`` is returned verbatim until a blob
+        storage backend with pre-signed URLs is wired in.
+        """
+        return artifact.uri
+
+    @staticmethod
+    def __artifact_fields(row: Report | TerraformPlan | CodeChange) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "url": DatabaseService.__artifact_url(row.artifact),
+            "content_type": row.artifact.content_type,
+            "file_size_bytes": row.artifact.file_size_bytes,
+            "created_at": row.created_at,
+        }
+
+    @staticmethod
+    def __status_entry(st: DbStatus) -> StatusEntry:
+        return StatusEntry(
+            status=st.status,
+            message=st.message or None,
+            created_at=st.created_at,
+        )
+
+    @staticmethod
+    def __round_detail(r: Round) -> RoundDetail:
+        # A round holds at most one meaningful report/plan; latest wins.
+        report = max(r.reports, key=lambda x: (x.created_at, x.id), default=None)
+        plan = max(r.terraform_plans, key=lambda x: (x.created_at, x.id), default=None)
+        return RoundDetail(
+            id=r.id,
+            number=r.number,
+            statuses=[
+                DatabaseService.__status_entry(st)
+                for st in sorted(r.statuses, key=lambda st: (st.created_at, st.id))
+            ],
+            report=ArtifactRef(**DatabaseService.__artifact_fields(report))
+            if report
+            else None,
+            plan=TerraformPlanRef(
+                **DatabaseService.__artifact_fields(plan), targets=plan.targets
+            )
+            if plan
+            else None,
+            code_changes=[
+                CodeChangeRef(
+                    **DatabaseService.__artifact_fields(c), file_name=c.file_name
+                )
+                for c in sorted(r.code_changes, key=lambda c: (c.created_at, c.id))
+            ],
+            created_at=r.created_at,
+        )
+
+    @staticmethod
+    def __git_provider_token(value: GitProviderName | str) -> str:
+        if isinstance(value, GitProviderName):
+            return value.name
+        try:
+            return GitProviderName(value).name
+        except ValueError:
+            return str(value)
+
+    @staticmethod
+    async def get_session_detail(
+        session_id: UUID, include_history: bool = False
+    ) -> SessionDetail:
+        """Full session aggregate: facts, timeline, and per-round artifacts.
+
+        Always read fresh from the DB: the aggregate mutates while a session
+        is in flight and the push channel triggers client refetches of this
+        exact read model.
+        """
+        async with db.session() as sess:
+            stmt = (
+                select(Session)
+                .where(Session.uuid == session_id)
+                .options(
+                    selectinload(Session.workspaces),
+                    selectinload(Session.terraform_providers),
+                    selectinload(Session.pull_requests),
+                    selectinload(Session.histories),
+                    selectinload(Session.statuses),
+                    selectinload(Session.rounds).selectinload(Round.statuses),
+                    selectinload(Session.rounds)
+                    .selectinload(Round.reports)
+                    .selectinload(Report.artifact),
+                    selectinload(Session.rounds)
+                    .selectinload(Round.terraform_plans)
+                    .selectinload(TerraformPlan.artifact),
+                    selectinload(Session.rounds)
+                    .selectinload(Round.code_changes)
+                    .selectinload(CodeChange.artifact),
+                )
+            )
+            result = await sess.execute(stmt)
+            s: Session | None = result.scalar_one_or_none()
+
+        if s is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        if not s.workspaces or not s.terraform_providers:
+            raise SessionTerminal(
+                message=f"Session {session_id} is missconfigured",
+                error_code=500,
+            )
+
+        workspace = s.workspaces[0]
+        provider = s.terraform_providers[0]
+        history = s.histories[0] if s.histories else None
+        last_pr = max(
+            s.pull_requests, key=lambda pr: (pr.created_at, pr.id), default=None
+        )
+        current = max(s.statuses, key=lambda st: (st.created_at, st.id), default=None)
+        session_statuses = sorted(
+            (st for st in s.statuses if st.round_id is None),
+            key=lambda st: (st.created_at, st.id),
+        )
+
+        return SessionDetail(
+            uuid=s.uuid,
+            username=await DatabaseService.__map_user_name(s.user_id),
+            operation=s.operation,
+            provider=provider.provider,
+            first_query=history.first_query if history else None,
+            workspace_uri=workspace.uri,
+            current_status=current.status if current else SessionStatus.STARTED,
+            in_flight=s.in_flight,
+            is_blocked=s.is_blocked,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
+            workspace=WorkspaceRef(
+                uri=workspace.uri,
+                branch=workspace.branch,
+                root_path=workspace.root_path,
+            ),
+            scope_id=provider.scope_id,
+            pull_request=PullRequestRef(
+                provider=DatabaseService.__git_provider_token(last_pr.provider),
+                url=last_pr.url,
+            )
+            if last_pr
+            else None,
+            statuses=[DatabaseService.__status_entry(st) for st in session_statuses],
+            rounds=[DatabaseService.__round_detail(r) for r in s.rounds],
+            history=history.payload if include_history and history else None,
         )
 
     @staticmethod
@@ -537,9 +763,13 @@ class DatabaseService:
 
     @staticmethod
     async def mark_session_status(
-        session_id: UUID, status: SessionStatus, msg: str
+        session_id: UUID,
+        status: SessionStatus,
+        msg: str,
+        round_id: int | None = None,
     ) -> None:
-        _ = await DatabaseService.__create_status(session_id, status, msg)
+        """Append a status row; pass ``round_id`` for round-level statuses."""
+        _ = await DatabaseService.__create_status(session_id, status, msg, round_id)
         # A new row is now the most recent status; drop the cached one.
         _ = await redis_client.invalidate(_k_last_status(session_id))
 
@@ -592,6 +822,89 @@ class DatabaseService:
             # Lock state changed; drop the cached copy so the next read reloads.
             _ = await redis_client.invalidate(_k_lock(session_id))
         return updated
+
+    # --- Round / artifact write path ---------------------------------------
+
+    @staticmethod
+    async def create_round(session_id: UUID) -> int:
+        """Open the next generation round for a session, returning its pk.
+
+        Numbering relies on the session's in-flight lock (one runner per
+        session); the unique constraint on (session_id, number) backstops
+        any race.
+        """
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        last: list[Round] = await db.list_by(
+            Round, order_by="number", order_desc=True, limit=1, session_id=sid
+        )
+        number = last[0].number + 1 if last else 1
+        round_: Round = await db.create(Round, session_id=sid, number=number)
+        return round_.id
+
+    @staticmethod
+    async def __create_artifact(
+        uri: str, content_type: str, file_size_bytes: int
+    ) -> int:
+        artifact: Artifact = await db.create(
+            Artifact,
+            uri=uri,
+            content_type=content_type,
+            file_size_bytes=file_size_bytes,
+        )
+        return artifact.id
+
+    @staticmethod
+    async def add_report(
+        round_id: int,
+        report_type: ReportType,
+        uri: str,
+        content_type: str,
+        file_size_bytes: int,
+    ) -> int:
+        aid = await DatabaseService.__create_artifact(
+            uri, content_type, file_size_bytes
+        )
+        report: Report = await db.create(
+            Report, round_id=round_id, artifact_id=aid, type=report_type
+        )
+        return report.id
+
+    @staticmethod
+    async def add_terraform_plan(
+        round_id: int,
+        targets: list[str],
+        uri: str,
+        content_type: str,
+        file_size_bytes: int,
+    ) -> int:
+        aid = await DatabaseService.__create_artifact(
+            uri, content_type, file_size_bytes
+        )
+        plan: TerraformPlan = await db.create(
+            TerraformPlan, round_id=round_id, artifact_id=aid, targets=targets
+        )
+        return plan.id
+
+    @staticmethod
+    async def add_code_change(
+        round_id: int,
+        file_name: str,
+        uri: str,
+        content_type: str,
+        file_size_bytes: int,
+    ) -> int:
+        aid = await DatabaseService.__create_artifact(
+            uri, content_type, file_size_bytes
+        )
+        change: CodeChange = await db.create(
+            CodeChange, round_id=round_id, artifact_id=aid, file_name=file_name
+        )
+        return change.id
 
     @staticmethod
     async def get_pull_requests(session_id: UUID) -> list[dict[str, str]]:

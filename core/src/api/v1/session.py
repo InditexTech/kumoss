@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from src.domains.dto import PaginatedSessionOverview, SessionOverview
+from src.domains.dto import PaginatedSessionSummary, SessionDetail
 from src.domains.services.database_service import DatabaseService
+from src.shared.constants import OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/sessions", tags=["Session Management"])
@@ -15,88 +17,52 @@ router = APIRouter(prefix="/sessions", tags=["Session Management"])
 
 @router.get(
     path="",
-    summary="Retrive user sessions.",
+    summary="List a user's sessions.",
 )
 async def sessions_list(
-    username: Annotated[str, Query(min_length=3, max_length=40)],
+    username: Annotated[str, Query(min_length=3, max_length=254)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
-) -> PaginatedSessionOverview:
-    """TODO"""
+    operation: Annotated[OperationType | None, Query()] = None,
+    status: Annotated[SessionStatus | None, Query()] = None,
+    search: Annotated[str | None, Query(max_length=200)] = None,
+) -> PaginatedSessionSummary:
+    """Paginated session summaries for the sessions table.
+
+    Each item carries the operation, terraform provider, first query,
+    workspace URI, latest status, and lock flags — everything the list
+    view renders, resolved server-side. ``status`` matches a session's
+    most recent status; ``search`` matches first query or workspace URI.
+    """
     try:
-        session = await DatabaseService.list_sessions(
+        return await DatabaseService.list_sessions(
             user_id=username,
+            operation=operation,
+            status=status,
+            search=search,
             offset=(page - 1) * page_size,
             limit=page_size,
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    return session
 
 
 @router.get(
     path="/{session_id}",
-    summary="Get the corresponding session related data",
+    summary="Get the full session aggregate.",
 )
-async def session_status(
-    session_id: Annotated[
-        str,
-        Path(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
-    ],
-) -> SessionOverview:
-    """Retrieve the final payload data from a completed session.
+async def session_detail(session_id: UUID) -> SessionDetail:
+    """The complete read model for the session detail view.
 
-    This endpoint returns the complete session payload once the session has finished
-    processing. It's designed to be called after the SSE stream has indicated
-    completion to retrieve the final results.
+    Returns the session facts (workspace, provider, pull request, first
+    query), the session-level status timeline, and one entry per
+    generation round containing its statuses and artifacts (report, plan,
+    code changes) with client-fetchable URLs.
 
-    Note:
-    - This endpoint should only be called after the session has completed
-    - The payload will be None until the session finishes processing
-    - Session data persists until explicitly deleted via the unsubscribe endpoint
+    Clients subscribed to the push channel should refetch this endpoint
+    whenever a `session.updated` nudge arrives for this session id.
     """
     try:
-        session = await DatabaseService.get_session_overview(session_id)
+        return await DatabaseService.get_session_detail(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-
-    return session
-
-
-#
-#
-# @router.delete(
-#     path="/unsubscribe/{session_id}",
-#     status_code=204,
-#     summary="Delete session data",
-#     responses={
-#         204: {"description": "The session has been successfully deleted"},
-#         404: {
-#             "description": "The requested content has already been permanently deleted from server, "
-#             + "with no forwarding address",
-#             "content": {
-#                 "application/json": {
-#                     "example": {"detail": "Session id 1234 not found."}
-#                 }
-#             },
-#         },
-#     },
-# )
-# def session_delete(
-#     session_id: Annotated[
-#         str,
-#         Path(pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
-#     ],
-# ):
-#     """Delete session data and cleanup resources.
-#
-#     This endpoint permanently removes a session and all associated data from the server.
-#     It's typically called when the client no longer needs the session or wants to
-#     cleanup resources after retrieving the final payload.
-#
-#     Note:
-#     - This operation is irreversible - all session data will be permanently lost
-#     - Session cleanup is also triggered automatically when max iterations are reached
-#       in the SSE subscription endpoint
-#     """
-#     get_session(session_id).delete()
