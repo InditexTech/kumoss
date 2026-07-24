@@ -98,4 +98,4 @@ class SessionContext:
 
     @override
     def __str__(self) -> str:
-        return f"session: {self.__id} (blocked={self.__is_blocked})"
+        return f"session: {self.__id} (blocked={self.__is_blocked})"
