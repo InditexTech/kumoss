@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import math
 import random
 from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import selectinload
 
@@ -65,9 +66,24 @@ from src.shared.constants import (
 #   * write-once facts (id maps, workspace, provider, first query) never
 #     change after ``create_session``, so they carry a long TTL and are
 #     populated write-through at creation. No invalidation is ever needed.
-#   * mutable reads (session context, last status, lock state) are
-#     cache-aside on read and invalidated (delete-on-write) whenever the
-#     source row changes, with a short TTL as a backstop.
+#   * mutable reads (session context, history, last status, pull requests)
+#     are written through on every mutation and read-repaired with SET NX
+#     on a miss. Entries are never deleted: delete-on-write races
+#     cache-aside readers (reader loads the old row -> writer commits and
+#     deletes -> reader caches the old value), while write-through + NX
+#     cannot go stale that way. The TTL is only a backstop for a lost
+#     write-through SET (Redis briefly down), so volatile keys keep it
+#     short.
+#
+# Lock state (in_flight / is_blocked) is deliberately NOT cached: it gates
+# concurrent work, so it is always read fresh from the session row.
+#
+# A third flavour exists for FINISHED sessions: once a session's latest
+# status is terminal (COMPLETED / FAILED) it can never change again —
+# ``acquire_in_flight`` enforces this — so the full detail aggregate is
+# cached and the last-status key gets a long TTL. The only mutation still
+# possible on a finished session is the admin ``set_lock`` toggle, which
+# drops the cached detail.
 #
 # Keys are namespaced and versioned so a schema change can drop everything
 # by bumping the prefix.
@@ -75,16 +91,26 @@ from src.shared.constants import (
 _CACHE_NS = "nebula:v1"
 
 _TTL_FACTS = 4 * 24 * 60 * 60  # write-once facts; immutable, safe to keep long
-_TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; kept honest via delete-on-write
-_TTL_HISTORY = 2 * 24 * 60 * 60  # history payload; invalidated together with context
-_TTL_STATUS = 2 * 60 * 60  # last status; polled often, delete-on-write on change
-_TTL_LOCK = 5 * 60  # lock state; short backstop, delete-on-write on change
-_TTL_PR = 7 * 24 * 60 * 60  # pull requests; append-only, delete-on-write on add
+_TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; written through on save
+_TTL_HISTORY = 2 * 24 * 60 * 60  # history payload; written through with context
+_TTL_STATUS = 5 * 60  # last status; volatile + user-facing, heal lost SETs fast
+_TTL_PR = 7 * 24 * 60 * 60  # pull requests; written through on add
+_TTL_DETAIL = 24 * 60 * 60  # finished-session aggregate; bounds the set_lock race
+
+# Session-level end states. Once a session's latest status is terminal it
+# never changes again (enforced by acquire_in_flight), so anything derived
+# from it is safe to cache aggressively.
+_TERMINAL = frozenset({SessionStatus.COMPLETED, SessionStatus.FAILED})
 
 
 def _ttl(base: int) -> int:
     """Base TTL plus up to ~10% jitter."""
     return base + random.randint(0, max(1, base // 10))
+
+
+def _status_ttl(status: SessionStatus) -> int:
+    """Terminal statuses never change: keep them as long as the facts."""
+    return _ttl(_TTL_FACTS) if status in _TERMINAL else _ttl(_TTL_STATUS)
 
 
 def _k_sid(session_id: UUID) -> str:
@@ -119,16 +145,16 @@ def _k_last_status(session_id: UUID) -> str:
     return f"{_CACHE_NS}:session:{session_id}:status:last"
 
 
-def _k_lock(session_id: UUID) -> str:
-    return f"{_CACHE_NS}:session:{session_id}:lock"
-
-
 def _k_history(session_id: UUID) -> str:
     return f"{_CACHE_NS}:session:{session_id}:history"
 
 
 def _k_pull_requests(session_id: UUID) -> str:
     return f"{_CACHE_NS}:session:{session_id}:prs"
+
+
+def _k_detail(session_id: UUID) -> str:
+    return f"{_CACHE_NS}:session:{session_id}:detail"
 
 
 def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
@@ -269,14 +295,26 @@ class DatabaseService:
         )
 
     @staticmethod
+    async def __load_pull_requests(sid: int | None) -> list[dict[str, str]]:
+        prs: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
+        # Empty list is a valid cacheable state (most sessions have none).
+        # The provider column is a plain string; normalize it to the same
+        # token get_session_detail exposes.
+        return [
+            {
+                "provider": DatabaseService.__git_provider_token(pr.provider),
+                "url": pr.url,
+            }
+            for pr in prs
+        ]
+
+    @staticmethod
     async def __pull_requests(session_id: UUID) -> list[dict[str, str]]:
-        """Cache-aside read of all pull requests for a session."""
+        """Cached read of all pull requests for a session."""
 
         async def _load() -> list[dict[str, str]]:
             sid = await DatabaseService.__map_session_id(session_id)
-            prs: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
-            # Empty list is a valid cacheable state (most sessions have none).
-            return [{"provider": pr.provider.value, "url": pr.url} for pr in prs]
+            return await DatabaseService.__load_pull_requests(sid)
 
         data = await redis_client.get_or_set(
             _k_pull_requests(session_id), _ttl(_TTL_PR), _load
@@ -313,11 +351,11 @@ class DatabaseService:
             user: User = await db.create(User, username=user_id)
             user_pk = user.id
             # Write-through the new user mappings (immutable once created).
-            await redis_client.set_json(
-                _k_user_id(user_id), user_pk, ttl=_ttl(_TTL_FACTS)
-            )
-            await redis_client.set_json(
-                _k_user_name(user_pk), user_id, ttl=_ttl(_TTL_FACTS)
+            await redis_client.set_json_many(
+                [
+                    (_k_user_id(user_id), user_pk, _ttl(_TTL_FACTS)),
+                    (_k_user_name(user_pk), user_id, _ttl(_TTL_FACTS)),
+                ]
             )
 
         session: Session = await db.create(
@@ -347,21 +385,21 @@ class DatabaseService:
 
         # Write-through the write-once facts so the first read is a cache hit.
         # All rows are committed above, so these values match the DB.
-        await redis_client.set_json(
-            _k_sid(session_id), session.id, ttl=_ttl(_TTL_FACTS)
-        )
-        await redis_client.set_json(
-            _k_workspace(session_id),
-            {"uri": repo_uri, "branch": branch_name, "root_path": iac_path},
-            ttl=_ttl(_TTL_FACTS),
-        )
-        await redis_client.set_json(
-            _k_provider(session_id),
-            {"provider": terraform_prv.value, "scope_id": scope_id},
-            ttl=_ttl(_TTL_FACTS),
-        )
-        await redis_client.set_json(
-            _k_first_query(session_id), query, ttl=_ttl(_TTL_FACTS)
+        await redis_client.set_json_many(
+            [
+                (_k_sid(session_id), session.id, _ttl(_TTL_FACTS)),
+                (
+                    _k_workspace(session_id),
+                    {"uri": repo_uri, "branch": branch_name, "root_path": iac_path},
+                    _ttl(_TTL_FACTS),
+                ),
+                (
+                    _k_provider(session_id),
+                    {"provider": terraform_prv.value, "scope_id": scope_id},
+                    _ttl(_TTL_FACTS),
+                ),
+                (_k_first_query(session_id), query, _ttl(_TTL_FACTS)),
+            ]
         )
         return session
 
@@ -374,27 +412,27 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username: str | None = await DatabaseService.__map_user_name(
-                session.user_id
+            username, workspace, provider, payload = await asyncio.gather(
+                DatabaseService.__map_user_name(session.user_id),
+                DatabaseService.__workspace_facts(session_id),
+                DatabaseService.__provider_facts(session_id),
+                DatabaseService.__history_payload(session_id),
             )
-            assert username is not None
-            workspace: WorkspaceFacts | None = await DatabaseService.__workspace_facts(
-                session_id
-            )
+            if username is None:
+                raise SessionTerminal(
+                    message=f"Session {session_id} has no owning user",
+                    error_code=500,
+                )
             if workspace is None:
                 raise SessionTerminal(
                     message=f"Session {session_id} does not have a workspace",
                     error_code=404,
                 )
-            provider: ProviderFacts | None = await DatabaseService.__provider_facts(
-                session_id
-            )
             if provider is None:
                 raise SessionTerminal(
                     message=f"Session {session_id} does not have an associated cloud provider",
                     error_code=404,
                 )
-            payload = await DatabaseService.__history_payload(session_id)
             ctx = SessionContext(
                 id=session.uuid,
                 user_id=username,
@@ -423,10 +461,19 @@ class DatabaseService:
 
     @staticmethod
     async def __construct_summary(s: Session) -> SessionSummary:
-        workspace: WorkspaceFacts | None = await DatabaseService.__workspace_facts(
-            s.uuid
+        (
+            workspace,
+            provider,
+            username,
+            first_query,
+            current_status,
+        ) = await asyncio.gather(
+            DatabaseService.__workspace_facts(s.uuid),
+            DatabaseService.__provider_facts(s.uuid),
+            DatabaseService.__map_user_name(s.user_id),
+            DatabaseService.__first_query(s.uuid),
+            DatabaseService.__current_status(s.uuid),
         )
-        provider: ProviderFacts | None = await DatabaseService.__provider_facts(s.uuid)
         if workspace is None or provider is None:
             raise SessionTerminal(
                 message=f"Session {s.uuid} is missconfigured",
@@ -434,12 +481,12 @@ class DatabaseService:
             )
         return SessionSummary(
             uuid=s.uuid,
-            username=await DatabaseService.__map_user_name(s.user_id),
+            username=username,
             operation=s.operation,
             provider=provider.provider,
-            first_query=await DatabaseService.__first_query(s.uuid),
+            first_query=first_query,
             workspace_uri=workspace.uri,
-            current_status=await DatabaseService.__current_status(s.uuid),
+            current_status=current_status,
             in_flight=s.in_flight,
             is_blocked=s.is_blocked,
             created_at=s.created_at,
@@ -516,9 +563,13 @@ class DatabaseService:
             )
             sessions = list((await sess.execute(stmt)).scalars().all())
 
-        summaries: list[SessionSummary] = [
-            await DatabaseService.__construct_summary(s) for s in sessions
-        ]
+        # Summaries only touch the cache / point reads, so build the whole
+        # page concurrently instead of paying the fan-out sequentially.
+        summaries: list[SessionSummary] = list(
+            await asyncio.gather(
+                *(DatabaseService.__construct_summary(s) for s in sessions)
+            )
+        )
 
         return PaginatedSessionSummary(
             items=summaries,
@@ -601,10 +652,18 @@ class DatabaseService:
     ) -> SessionDetail:
         """Full session aggregate: facts, timeline, and per-round artifacts.
 
-        Always read fresh from the DB: the aggregate mutates while a session
-        is in flight and the push channel triggers client refetches of this
-        exact read model.
+        Live sessions are always read fresh: the aggregate mutates while a
+        session runs and the push channel triggers client refetches of this
+        exact read model. Finished sessions can never change again
+        (``acquire_in_flight`` refuses them), so those are served from a
+        cached copy. The admin variant (``include_history=True``) is always
+        read fresh.
         """
+        if not include_history:
+            cached = await redis_client.get_json(_k_detail(session_id))
+            if cached is not None:
+                return SessionDetail.model_validate(cached)
+
         async with db.session() as sess:
             stmt = (
                 select(Session)
@@ -647,13 +706,15 @@ class DatabaseService:
         last_pr = max(
             s.pull_requests, key=lambda pr: (pr.created_at, pr.id), default=None
         )
-        current = max(s.statuses, key=lambda st: (st.created_at, st.id), default=None)
+        # max(id) is the append-order proxy for "latest" — the same
+        # convention get_last_status and the list_sessions filter use.
+        current = max(s.statuses, key=lambda st: st.id, default=None)
         session_statuses = sorted(
             (st for st in s.statuses if st.round_id is None),
             key=lambda st: (st.created_at, st.id),
         )
 
-        return SessionDetail(
+        detail = SessionDetail(
             uuid=s.uuid,
             username=await DatabaseService.__map_user_name(s.user_id),
             operation=s.operation,
@@ -682,14 +743,32 @@ class DatabaseService:
             history=history.payload if include_history and history else None,
         )
 
+        # A finished session's aggregate is immutable (only the admin
+        # set_lock toggle can still touch it, and that drops this key).
+        if (
+            not include_history
+            and detail.current_status in _TERMINAL
+            and not detail.in_flight
+        ):
+            await redis_client.set_json(
+                _k_detail(session_id),
+                detail.model_dump(mode="json"),
+                ttl=_ttl(_TTL_DETAIL),
+            )
+        return detail
+
     @staticmethod
     async def update_session(ctx: SessionContext) -> None:
+        sid = await DatabaseService.__map_session_id(ctx.id)
+        if sid is None:
+            raise SessionConflict(
+                message=f"Failed to update history on session {ctx.id}.",
+                error_code=500,
+            )
         async with db.transaction() as sess:
             stmt = (
                 update(History)
-                .where(
-                    Session.uuid == ctx.id,
-                )
+                .where(History.session_id == sid)
                 .values(
                     payload=ctx.history.serialize(),
                     updated_at=datetime.now(timezone.utc),
@@ -701,47 +780,77 @@ class DatabaseService:
                     message=f"Failed to update history on session {ctx.id}.",
                     error_code=500,
                 )
-        _ = await redis_client.invalidate(_k_context(ctx.id), _k_history(ctx.id))
+        # Write-through the fresh context + history (see cache notes above).
+        await redis_client.set_json_many(
+            [
+                (_k_context(ctx.id), _serialize_ctx(ctx), _ttl(_TTL_CONTEXT)),
+                (_k_history(ctx.id), ctx.history.serialize(), _ttl(_TTL_HISTORY)),
+            ]
+        )
+        _ = await redis_client.invalidate(_k_detail(ctx.id))
 
     @staticmethod
     async def get_lock(session_id: UUID) -> Lock:
-        """Cache-aside read of a session's concurrency lock state."""
+        """A session's concurrency lock state, always read fresh.
 
-        async def _load() -> dict[str, bool] | None:
-            session: Session | None = await DatabaseService.__load_session(session_id)
-            if session is None:
-                return None
-            return {"in_flight": session.in_flight, "is_blocked": session.is_blocked}
-
-        data = await redis_client.get_or_set(
-            _k_lock(session_id), _ttl(_TTL_LOCK), _load
-        )
-        if data is None:
+        Deliberately uncached: lock state gates concurrent work, so it must
+        reflect the row, not a possibly stale copy.
+        """
+        session: Session | None = await DatabaseService.__load_session(session_id)
+        if session is None:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
             )
-        return Lock(**data)
+        return Lock(in_flight=session.in_flight, is_blocked=session.is_blocked)
 
     @staticmethod
     async def acquire_in_flight(session_id: UUID) -> None:
-        """Atomic compare-and-set: True if we won the lock, False otherwise."""
+        """Compare-and-set the in-flight lock, refusing finished sessions.
+
+        One atomic UPDATE is both the CAS (``in_flight`` must be false) and
+        the terminal guard (latest status must not be COMPLETED/FAILED), so
+        two runners can never both win the lock and a finished session can
+        never be resumed — which is what makes finished sessions safe to
+        cache aggressively.
+        """
+        last_status = (
+            select(DbStatus.status)
+            .where(DbStatus.session_id == Session.id)
+            .order_by(DbStatus.id.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
         async with db.transaction() as sess:
             stmt = (
                 update(Session)
                 .where(
                     Session.uuid == session_id,
+                    Session.in_flight.is_(False),
+                    # No status rows yet counts as live (implicit STARTED).
+                    or_(last_status.is_(None), last_status.notin_(_TERMINAL)),
                 )
                 .values(in_flight=True, updated_at=datetime.now(timezone.utc))
             )
             res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount != 1:
-                raise SessionConflict(
-                    message=f"Failed to acquire in-flight lock on session {session_id}.",
-                    error_code=500,
-                )
-        # Lock state changed; drop the cached copy so the next read reloads.
-        _ = await redis_client.invalidate(_k_lock(session_id))
+            if cast(CursorResult[Any], res).rowcount == 1:
+                return
+        # Lost the CAS: reload once to report precisely why.
+        session = await DatabaseService.__load_session(session_id)
+        if session is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        if await DatabaseService.__current_status(session_id) in _TERMINAL:
+            raise SessionTerminal(
+                message=f"Session {session_id} is finished and cannot be resumed.",
+                error_code=409,
+            )
+        raise SessionConflict(
+            message=f"Session {session_id} already has an operation in flight.",
+            error_code=409,
+        )
 
     @staticmethod
     async def release_in_flight(session_id: UUID) -> None:
@@ -758,8 +867,6 @@ class DatabaseService:
                     message=f"Failed to release in-flight lock on session {session_id}.",
                     error_code=500,
                 )
-        # Lock state changed; drop the cached copy so the next read reloads.
-        _ = await redis_client.invalidate(_k_lock(session_id))
 
     @staticmethod
     async def mark_session_status(
@@ -770,16 +877,25 @@ class DatabaseService:
     ) -> None:
         """Append a status row; pass ``round_id`` for round-level statuses."""
         _ = await DatabaseService.__create_status(session_id, status, msg, round_id)
-        # A new row is now the most recent status; drop the cached one.
-        _ = await redis_client.invalidate(_k_last_status(session_id))
+        # Write-through the new latest status (see cache notes above).
+        await redis_client.set_json(
+            _k_last_status(session_id),
+            {"status": status.value, "message": msg},
+            ttl=_status_ttl(status),
+        )
+        # Any status transition invalidates a cached detail aggregate
+        # (a no-op for live sessions, which are never cached).
+        _ = await redis_client.invalidate(_k_detail(session_id))
 
     @staticmethod
     async def get_last_status(session_id: UUID) -> Status:
         async def _load() -> dict[str, str] | None:
             sid = await DatabaseService.__map_session_id(session_id)
+            # max(id) is the append-order proxy for "latest", immune to
+            # created_at ties (same convention as the list_sessions filter).
             status_model = await db.list_by(
                 model=DbStatus,
-                order_by="created_at",
+                order_by="id",
                 order_desc=True,
                 limit=1,
                 session_id=sid,
@@ -792,7 +908,10 @@ class DatabaseService:
             }
 
         data = await redis_client.get_or_set(
-            _k_last_status(session_id), _ttl(_TTL_STATUS), _load
+            _k_last_status(session_id),
+            # Read-repair keeps terminal statuses as long as the write path.
+            lambda loaded: _status_ttl(SessionStatus(loaded["status"])),
+            _load,
         )
         if data is None:
             raise LastStatusError(f"No status records for session {session_id}", 500)
@@ -819,11 +938,17 @@ class DatabaseService:
             res = await sess.execute(stmt)
             updated = cast(CursorResult[Any], res).rowcount == 1
         if updated:
-            # Lock state changed; drop the cached copy so the next read reloads.
-            _ = await redis_client.invalidate(_k_lock(session_id))
+            # is_blocked is part of the cached detail aggregate and this is
+            # the one mutation still allowed on a finished session: drop the
+            # cached copy so the next read rebuilds with the new flag.
+            _ = await redis_client.invalidate(_k_detail(session_id))
         return updated
 
     # --- Round / artifact write path ---------------------------------------
+    #
+    # No cache invalidation here: rounds and artifacts are only written
+    # while a session holds the in-flight lock, i.e. while it is live —
+    # and live sessions are never cached in the detail key.
 
     @staticmethod
     async def create_round(session_id: UUID) -> int:
@@ -918,12 +1043,18 @@ class DatabaseService:
 
     @staticmethod
     async def add_pull_request(session_id: UUID, url: str) -> None:
-        """Persist a new Pull Request and drop the cached list so the next read is fresh."""
+        """Persist a new Pull Request and write-through the refreshed list."""
         sid = await DatabaseService.__map_session_id(session_id)
         _ = await db.create(
             PullRequest,
             session_id=sid,
-            provider=system_config.git.provider,
+            # The column is String(20): store the enum's value, not the enum.
+            provider=system_config.git.provider.value,
             url=url,
         )
-        _ = await redis_client.invalidate(_k_pull_requests(session_id))
+        # Re-read and write-through instead of deleting (see cache notes above).
+        prs = await DatabaseService.__load_pull_requests(sid)
+        await redis_client.set_json(
+            _k_pull_requests(session_id), prs, ttl=_ttl(_TTL_PR)
+        )
+        _ = await redis_client.invalidate(_k_detail(session_id))

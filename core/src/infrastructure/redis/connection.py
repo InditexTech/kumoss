@@ -4,18 +4,24 @@
 
 """Redis connection management with a shared async connection pool."""
 
-from redis.asyncio import Redis, ConnectionPool
+from redis.asyncio import BlockingConnectionPool, Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import (
+    ConnectionError as RedisConnectionError,
+    TimeoutError as RedisTimeoutError,
+)
 
+from src.shared.config.system_config import system_config
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
-from ._config import redis_config
 
 
 class RedisConnectionManager:
     """Manages the async Redis client and its connection pool."""
 
     def __init__(self):
-        self._pool: ConnectionPool | None = None
+        self._pool: BlockingConnectionPool | None = None
         self._client: Redis | None = None
 
     async def initialize(self) -> None:
@@ -24,12 +30,22 @@ class RedisConnectionManager:
             logging.warning("Redis connection manager already initialized")
             return
 
+        cfg = system_config.redis
         try:
-            self._pool = ConnectionPool.from_url(
-                redis_config.redis_url,
-                max_connections=10,
+            # BlockingConnectionPool: when the pool is exhausted under a
+            # burst, callers wait (up to ``timeout``) for a free connection
+            # instead of erroring out like the default pool does.
+            self._pool = BlockingConnectionPool.from_url(
+                cfg.redis_url,
+                max_connections=cfg.max_connections,
+                timeout=cfg.pool_timeout,
                 decode_responses=True,
                 health_check_interval=30,
+                socket_connect_timeout=cfg.socket_connect_timeout,
+                socket_timeout=cfg.socket_timeout,
+                retry=Retry(ExponentialBackoff(cap=0.5, base=0.05), retries=2),
+                retry_on_error=[RedisConnectionError, RedisTimeoutError],
+                client_name="nebula-core",
             )
             self._client = Redis(connection_pool=self._pool)
 

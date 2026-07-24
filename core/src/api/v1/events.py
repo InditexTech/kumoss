@@ -5,6 +5,7 @@
 import json
 from asyncio import sleep
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter
 from fastapi.params import Path
@@ -53,12 +54,13 @@ async def subscribe_events(
     """
 
     async def event_stream():
+        sid = UUID(session_id)
         i = 0
         await sleep(10)  # Wait for acknowledge message
         while True:
             i += 1
             try:
-                status: Status = await DatabaseService.get_last_status(session_id)
+                status: Status = await DatabaseService.get_last_status(sid)
             except ExceptionHandler as e:
                 logging.error(e.message)
                 await sleep(5)

@@ -246,10 +246,19 @@ class RedisConfig(BaseModel):
     embedded in it stays out of the YAML. When the env var is unset the
     docker-compose service default is used, so the OSS stack boots without
     extra wiring.
+
+    Timeouts are deliberately aggressive: Redis is a cache, so a slow or
+    unreachable server should fail fast and let reads fall through to the
+    database instead of stalling requests.
     """
 
     redis_url_env: str = "NEBULA_REDIS_URL"
     default_url: str = "redis://redis:6379/0"
+    max_connections: int = 20
+    socket_connect_timeout: float = 2.0
+    socket_timeout: float = 2.0
+    # Seconds a request may wait for a free pooled connection under a burst.
+    pool_timeout: float = 2.0
 
     @property
     def redis_url(self) -> str:

@@ -158,7 +158,7 @@ class PromptsLibrary(Enum):
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
     # messages
-    JOKER = "joker"
+    JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
     TASK_ACKNOWLEDGE = "task_acknowledge"
 

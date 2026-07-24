@@ -61,6 +61,13 @@ def _make_runner(
         call_dir: Path | None = None
         try:
             await _orchestration.acquire(ctx.id)
+        except ExceptionHandler as e:
+            # We never got the lock: the session is already running or is
+            # finished. Write no status (the session is not ours to touch)
+            # and skip release (it would clobber the actual holder's lock).
+            logging.error(f"runner not started: {e.message} (session {ctx.id})")
+            return
+        try:
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
                 call_id=call_id,
@@ -74,7 +81,7 @@ def _make_runner(
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
-            await DatabaseService.mark_failed(str(ctx.id), msg)
+            await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
             _workspace.cleanup(call_dir)
