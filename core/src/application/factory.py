@@ -30,7 +30,7 @@ from src.infrastructure.filesystem import (
     IacRootDetector,
     WorkspaceService,
 )
-from src.infrastructure.templates.factory import TemplateFactory
+from src.infrastructure.templates._common import TemplateAdapter
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory
 
@@ -137,10 +137,10 @@ class ApplicationFactory:
         assert provider is not None or (
             self.__ctx is not None and self.__ctx.terraform_prv is not None
         )
-        template_adapter = TemplateFactory(
+        template_adapter = TemplateAdapter(
             template_provider=self.__ctx.terraform_prv if self.__ctx else provider,
             cwd=str(file_utils.project_root),
-        ).get()
+        )
         return TemplateOrchestrationService(
             templates=template_adapter,
             llm_service=llm_service,

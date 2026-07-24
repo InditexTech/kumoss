@@ -13,15 +13,17 @@ from src.infrastructure.exceptions import (
 )
 from src.shared.config import system_config
 from src.shared.logger import logging
+from src.shared.constants import TerraformProvider
 
 
-class CommonTemplateAdapter(ITemplate):
+class TemplateAdapter(ITemplate):
     _get_template = jinja_environment.get_template
     _core: str = "base_layouts/core/"
     _message: str = "base_layouts/messages/"
     _scope: str
 
-    def __init__(self, cwd: str):
+    def __init__(self, template_provider: TerraformProvider, cwd: str):
+        self._scope = template_provider.value
         self._cwd = cwd
 
     @override
