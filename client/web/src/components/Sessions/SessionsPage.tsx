@@ -12,23 +12,18 @@ import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import {
   listUserSessions,
-  getSession,
-  getSessionOperations,
+  getSessionDetail,
   fetchArtifactContent,
 } from "@/services/core/sessions";
-import {
-  listSessions as listAdminSessions,
-  getSessionDetail,
-  toggleApplyAllowed,
-} from "@/services/core/admin";
 import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
 import type { TerraformReport } from "@/types";
 import type {
-  UserSessionInfo,
-  AdminSessionInfo,
-  AdminOperationItem,
-  HistoryEntry,
+  OperationType,
+  SessionDetail,
+  SessionStatus,
+  SessionSummary,
 } from "@/types/api";
+import { normalizeHistory } from "@/types/api";
 import {
   StatusBadge,
   SideSheet,
@@ -37,9 +32,8 @@ import {
   truncate,
 } from "@/components/ui";
 import type { ColumnDef, FilterConfig, FetchParams } from "@/components/ui";
-import type { SessionItem } from "./types";
-import { extractProjectName } from "./types";
 import type { SearchFieldConfig } from "@/components/ui";
+import { extractProjectName } from "./types";
 import SessionData from "./SessionData/SessionData";
 import styles from "./SessionsPage.module.css";
 
@@ -52,58 +46,50 @@ const adminSearches: SearchFieldConfig[] = [
   { key: "search", placeholder: "Search by project name or query" },
 ];
 
-const columns: ColumnDef<UserSessionInfo>[] = [
+const baseColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "query",
     header: "Query",
-    width: "35%",
+    width: "34%",
     render: (s) => (
-      <span title={s.initial_query || ""}>
-        {truncate(s.initial_query ?? null)}
-      </span>
+      <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
     ),
   },
   {
     key: "project",
     header: "Project",
     width: "16%",
-    render: (s) => extractProjectName(s.repo_uri),
+    render: (s) => extractProjectName(s.workspace_uri),
   },
   {
     key: "type",
     header: "Type",
     width: "8%",
-    render: (s) => s.operation_type || "-",
+    render: (s) => s.operation,
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
-    render: (s) => s.cloud_provider,
-  },
-  {
-    key: "env",
-    header: "Env",
-    width: "8%",
-    render: (s) => s.environment,
+    render: (s) => s.provider,
   },
   {
     key: "status",
     header: "Status",
-    width: "8%",
-    render: (s) => <StatusBadge variant={s.status} />,
+    width: "10%",
+    render: (s) => <StatusBadge variant={s.current_status} />,
   },
   {
     key: "apply",
     header: "Apply",
-    width: "5%",
+    width: "6%",
     className: styles.applyCell,
     render: (s) =>
-      s.operation_type === "generate" ? (
-        s.apply_allowed ? (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        ) : (
+      s.operation === "generate" || s.operation === "import" ? (
+        s.is_blocked ? (
           <LockOutlinedIcon className={styles.applyIconLocked} />
+        ) : (
+          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
         )
       ) : null,
   },
@@ -115,85 +101,24 @@ const columns: ColumnDef<UserSessionInfo>[] = [
   },
 ];
 
-const adminColumns: ColumnDef<AdminSessionInfo>[] = [
+const adminColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "user",
-    header: "Usuario",
-    width: "13%",
-    render: (s) => s.user_id.split("@")[0],
+    header: "User",
+    width: "12%",
+    render: (s) => s.username ?? "-",
   },
-  {
-    key: "query",
-    header: "Query",
-    width: "28%",
-    render: (s) => (
-      <span title={s.initial_query || ""}>
-        {truncate(s.initial_query)}
-      </span>
-    ),
-  },
-  {
-    key: "project",
-    header: "Project",
-    width: "13%",
-    render: (s) =>
-      s.repository_id ? s.repository_id.replace(/_[^_]+$/, "") : "-",
-  },
-  {
-    key: "type",
-    header: "Type",
-    width: "8%",
-    render: (s) => s.operation_type,
-  },
-  {
-    key: "cloud",
-    header: "Cloud",
-    width: "8%",
-    render: (s) => s.cloud_provider,
-  },
-  {
-    key: "env",
-    header: "Env",
-    width: "8%",
-    render: (s) => s.environment,
-  },
-  {
-    key: "status",
-    header: "Status",
-    width: "8%",
-    render: (s) => <StatusBadge variant={s.final_status || s.current_status} />,
-  },
-  {
-    key: "apply",
-    header: "Apply",
-    width: "5%",
-    className: styles.applyCell,
-    render: (s) =>
-      s.operation_type === "generate" || s.operation_type === "import" ? (
-        s.apply_allowed ? (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        ) : (
-          <LockOutlinedIcon className={styles.applyIconLocked} />
-        )
-      ) : null,
-  },
-  {
-    key: "created",
-    header: "Created",
-    width: "9%",
-    render: (s) => formatDate(s.created_at),
-  },
+  ...baseColumns,
 ];
 
 const filters: FilterConfig[] = [
   {
-    key: "operationType",
+    key: "operation",
     placeholder: "TYPE",
     options: [
       { value: "generate", label: "Generate" },
-      { value: "apply", label: "Apply" },
-      { value: "import", label: "Import" },
       { value: "drift", label: "Drift" },
+      { value: "import", label: "Import" },
     ],
   },
   {
@@ -220,9 +145,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const username = user?.username || "";
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
-  const [selectedSession, setSelectedSession] = useState<SessionItem | null>(null);
-  const [operations, setOperations] = useState<AdminOperationItem[]>([]);
-  const [conversationHistory, setConversationHistory] = useState<HistoryEntry[]>([]);
+  const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const setSessionParam = useCallback(
@@ -233,7 +156,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
           next.set("session", id);
         } else {
           next.delete("session");
-          next.delete("operation");
+          next.delete("artifact");
           next.delete("detail");
           next.delete("resource");
           next.delete("filter");
@@ -247,108 +170,72 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
   useEffect(() => {
     if (!sessionId) {
-      setSelectedSession(null);
-      setOperations([]);
-      setConversationHistory([]);
+      setDetail(null);
       setLoadingDetail(false);
       return;
     }
-    if (selectedSession?.session_id === sessionId) return;
+    if (detail?.uuid === sessionId) return;
 
     let cancelled = false;
     setLoadingDetail(true);
-
-    (async () => {
-      try {
-        if (isAdminView) {
-          const detail = await getSessionDetail(sessionId);
-          if (cancelled) return;
-          setSelectedSession(detail.session);
-          setOperations(detail.operations);
-          setConversationHistory(detail.full_history ?? []);
-        } else {
-          const [session, ops] = await Promise.all([
-            getSession(sessionId),
-            getSessionOperations(sessionId),
-          ]);
-          if (cancelled) return;
-          setSelectedSession(session);
-          setOperations(ops);
-          setConversationHistory([]);
-        }
-      } catch {
-        if (cancelled) return;
-        setSessionParam(null);
-      } finally {
+    getSessionDetail(sessionId)
+      .then((d) => {
+        if (!cancelled) setDetail(d);
+      })
+      .catch(() => {
+        if (!cancelled) setSessionParam(null);
+      })
+      .finally(() => {
         if (!cancelled) setLoadingDetail(false);
-      }
-    })();
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
-    return () => { cancelled = true; };
-  }, [sessionId, isAdminView]);
-
-  const fetchUserSessions = useCallback(
-    async (
-      params: FetchParams,
-    ): Promise<{ items: UserSessionInfo[]; total: number; page: number; page_size: number; total_pages?: number }> => {
-      const { page, page_size, search, operationType, status } = params;
-      const data = await listUserSessions(username, {
+  const fetchSessions = useCallback(
+    async (params: FetchParams) => {
+      const { page, page_size, search, userSearch, operation, status } = params;
+      // The admin view can scope the listing to another user by email;
+      // it falls back to the current user until cross-user admin
+      // endpoints exist again server-side.
+      const email = isAdminView ? (userSearch as string) || username : username;
+      const data = await listUserSessions(email, {
         page: page as number,
         page_size: page_size as number,
         search: search as string | undefined,
-        status: status as string | undefined,
-        operation_type: operationType as string | undefined,
+        status: status as SessionStatus | undefined,
+        operation: operation as OperationType | undefined,
       });
-      if (page === 1 && !search && !status && !operationType) {
+      if (!isAdminView && page === 1 && !search && !status && !operation) {
         setCachedSessions(data.items, data.total);
       }
       return data;
     },
-    [username],
+    [username, isAdminView],
   );
 
-  const fetchAdminSessions = useCallback(
-    async (
-      params: FetchParams,
-    ): Promise<{ items: AdminSessionInfo[]; total: number; page: number; page_size: number; total_pages?: number }> => {
-      return listAdminSessions(params);
-    },
-    [],
-  );
-
-  function handleRowClick(row: SessionItem) {
-    setSessionParam(row.session_id);
-  }
-
-  async function handleToggleApply() {
-    if (!selectedSession) return;
-    const result = await toggleApplyAllowed(
-      selectedSession.session_id,
-      !selectedSession.apply_allowed,
-    );
-    setSelectedSession((prev) =>
-      prev ? { ...prev, apply_allowed: result.apply_allowed } : null,
-    );
+  function handleRowClick(row: SessionSummary) {
+    setSessionParam(row.uuid);
   }
 
   async function handleReload() {
-    if (!selectedSession) return;
+    if (!detail) return;
     invalidateSessionsCache();
 
-    const reportOp = operations.find(
-      (op) => op.artifact_type === "terraform_report" && op.blob_url,
-    );
-    const codeOp = operations.find(
-      (op) => op.artifact_type === "generated_code" && op.blob_url,
-    );
+    const lastRound =
+      detail.rounds.length > 0 ? detail.rounds[detail.rounds.length - 1] : null;
+    const codeChanges = lastRound?.code_changes ?? [];
 
-    const [reportContent, codeContent] = await Promise.all([
-      reportOp?.blob_url
-        ? fetchArtifactContent(reportOp.blob_url)
+    const [reportContent, planContent, ...fileContents] = await Promise.all([
+      lastRound?.report
+        ? fetchArtifactContent(lastRound.report.url)
         : Promise.resolve(null),
-      codeOp?.blob_url
-        ? fetchArtifactContent(codeOp.blob_url)
+      lastRound?.plan
+        ? fetchArtifactContent(lastRound.plan.url)
         : Promise.resolve(null),
+      ...codeChanges.map((c) => fetchArtifactContent(c.url)),
     ]);
 
     let report: TerraformReport | undefined;
@@ -360,27 +247,38 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       }
     }
 
-    const opType = selectedSession.operation_type;
-    if (opType === "apply") setMode("import");
-    else if (opType === "drift") setMode("drift");
-    else setMode("generate");
-
-    updateSession({
-      session_id: selectedSession.session_id,
-      cloud: selectedSession.cloud_provider,
-      environment: selectedSession.environment,
-      branchName: selectedSession.branch_name,
-      repositoryUrl: selectedSession.repo_uri,
-      terraform_report: report,
-      apply_allowed: selectedSession.apply_allowed,
+    // Rebuild the tagged multi-file blob the Home result view parses.
+    const parts: string[] = [];
+    if (planContent) {
+      parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);
+    }
+    codeChanges.forEach((c, i) => {
+      parts.push(`<${c.file_name}>\n${fileContents[i]}\n</${c.file_name}>`);
     });
 
-    const isApply = opType === "apply" || opType === "import";
+    setMode(
+      detail.operation === "drift"
+        ? "drift"
+        : detail.operation === "import"
+          ? "import"
+          : "generate",
+    );
 
-    if (isApply) {
+    updateSession({
+      session_id: detail.uuid,
+      cloud: detail.provider,
+      branchName: detail.workspace.branch,
+      repositoryUrl: detail.workspace.uri,
+      firstQuery: detail.first_query ?? undefined,
+      terraform_report: report,
+      terraform_targets: lastRound?.plan?.targets,
+      apply_allowed: !detail.is_blocked,
+    });
+
+    if (detail.operation === "import") {
       updateSession({
         applyResults: {
-          sessionId: selectedSession.session_id,
+          sessionId: detail.uuid,
           status: report?.status ?? "Unknown",
           message: report?.execution_summary ?? "",
           errorMessage: "",
@@ -389,11 +287,11 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         },
       });
       handleCloseOverlay();
-      navigate(`/home/apply-results/${selectedSession.session_id}`);
+      navigate(`/home/apply-results/${detail.uuid}`);
     } else {
-      updateSession({ code: codeContent ?? "" });
+      updateSession({ code: parts.join("\n") });
       handleCloseOverlay();
-      navigate(`/home/results/${selectedSession.session_id}`);
+      navigate(`/home/results/${detail.uuid}`);
     }
   }
 
@@ -403,15 +301,15 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
   return (
     <div className={styles.wrapper}>
-      {isAdminView ? (
-        <SessionsTable<AdminSessionInfo>
-          columns={adminColumns}
-          fetchData={fetchAdminSessions}
-          filters={filters}
-          rowKey={(s) => s.session_id}
-          searches={adminSearches}
-          onRowClick={handleRowClick}
-          extraToolbarContent={
+      <SessionsTable<SessionSummary>
+        columns={isAdminView ? adminColumns : baseColumns}
+        fetchData={fetchSessions}
+        filters={filters}
+        rowKey={(s) => s.uuid}
+        searches={isAdminView ? adminSearches : userSearches}
+        onRowClick={handleRowClick}
+        extraToolbarContent={
+          isAdminView ? (
             <a
               href="/monitoring/projects"
               target="_blank"
@@ -421,33 +319,26 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
               <OpenInNewIcon style={{ fontSize: "14px" }} />
               Phoenix
             </a>
-          }
-        />
-      ) : (
-        <SessionsTable<UserSessionInfo>
-          columns={columns}
-          fetchData={fetchUserSessions}
-          filters={filters}
-          rowKey={(s) => s.session_id}
-          searches={userSearches}
-          onRowClick={handleRowClick}
-        />
-      )}
+          ) : undefined
+        }
+      />
 
       <SideSheet
         isVisible={!!sessionId}
         onClose={handleCloseOverlay}
-        title={selectedSession?.initial_query || "Session Detail"}
+        title={detail?.first_query || "Session Detail"}
       >
         {loadingDetail ? (
           <p>Loading...</p>
-        ) : selectedSession ? (
+        ) : detail ? (
           <SessionData
-            session={selectedSession}
-            operations={operations}
+            session={detail}
             onReload={handleReload}
-            onToggleApply={isAdminView ? handleToggleApply : undefined}
-            conversationHistory={isAdminView ? conversationHistory : undefined}
+            conversationHistory={
+              isAdminView && detail.history
+                ? normalizeHistory(detail.history)
+                : undefined
+            }
           />
         ) : null}
       </SideSheet>

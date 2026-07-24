@@ -13,13 +13,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listUserSessions } from "@/services/core/sessions";
 import { getCachedSessions } from "@/services/core/sessionsCache";
 import useDragScroll from "@/hooks/useDragScroll";
-import type { UserSessionInfo } from "@/types/api";
+import type { SessionSummary } from "@/types/api";
 import SessionCard from "./SessionCard";
 import styles from "./UserSessionsHistory.module.css";
 
 interface UserSessionsHistoryProps {
   pageSize?: number;
-  onSelectSession?: (session: UserSessionInfo) => void;
+  onSelectSession?: (session: SessionSummary) => void;
 }
 
 export default function UserSessionsHistory({
@@ -29,7 +29,7 @@ export default function UserSessionsHistory({
   const { user } = useAuth();
   const navigate = useNavigate();
   const drag = useDragScroll<HTMLDivElement>();
-  const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loaded, setLoaded] = useState(false);
@@ -127,7 +127,7 @@ export default function UserSessionsHistory({
           ) : (
             sessions.map((s) => (
               <SessionCard
-                key={s.session_id}
+                key={s.uuid}
                 session={s}
                 onClick={onSelectSession}
               />

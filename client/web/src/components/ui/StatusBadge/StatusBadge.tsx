@@ -30,6 +30,11 @@ const VARIANT_CLASS: Record<string, string | undefined> = {
   destroyed: styles.destroyed,
   started: styles.started,
   generating: styles.generating,
+  // Round-phase statuses share the in-progress styling.
+  filtering: styles.generating,
+  validating: styles.generating,
+  report: styles.generating,
+  uncompleted: styles.partial,
   no_change: styles.no_change,
   untracked: styles.untracked,
 };

@@ -7,7 +7,12 @@ import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router-dom";
 import { fetchArtifactContent } from "@/services/core/sessions";
 import { useMode } from "@/contexts/ModeContext";
-import type { AdminOperationItem } from "@/types/api";
+import type {
+  ArtifactRef,
+  CodeChangeRef,
+  OperationType,
+  RoundDetail,
+} from "@/types/api";
 import type { TerraformReport } from "@/types";
 import {
   ChangesTable,
@@ -21,45 +26,42 @@ import type { FilterId, DetailView } from "@/components/Home";
 import { CodeBlock } from "@/components/ui";
 import styles from "./ArtifactContent.module.css";
 
+export type ArtifactKind = "report" | "plan" | "change";
+
 interface ArtifactContentProps {
-  operation: AdminOperationItem;
+  kind: ArtifactKind;
+  artifact: ArtifactRef;
+  round: RoundDetail;
+  operation: OperationType;
 }
 
-function processFiles(input: string): Record<string, string> {
-  if (!input) return {};
-  const fileRegex = /<([\w./\\-]+)>([\s\S]*?)<\/\1>/g;
-  const files: Record<string, string> = {};
-  let match: RegExpExecArray | null;
-  while ((match = fileRegex.exec(input)) !== null) {
-    const fileName = match[1];
-    if (fileName !== "Terraform_Plan") {
-      files[fileName] = match[2].trim() + "\n\n";
-    }
+export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string {
+  switch (kind) {
+    case "report":
+      return "Report";
+    case "plan":
+      return "Terraform Plan";
+    case "change":
+      return (artifact as CodeChangeRef).file_name;
   }
-  return files;
 }
 
-function getLanguage(
-  artifactType: string | null,
-  contentType: string | null,
-): string {
-  if (contentType?.includes("json")) return "json";
-  if (artifactType?.includes("terraform") || artifactType?.includes("plan"))
+function getLanguage(kind: ArtifactKind, artifact: ArtifactRef): string {
+  if (artifact.content_type?.includes("json")) return "json";
+  if (kind === "plan") return "hcl";
+  if (kind === "change" && (artifact as CodeChangeRef).file_name.endsWith(".tf"))
     return "hcl";
   return "plaintext";
 }
 
-export function formatArtifactLabel(artifactType: string | null): string {
-  if (!artifactType) return "Artifact";
-  return artifactType
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 export default function ArtifactContent({
+  kind,
+  artifact,
+  round,
   operation,
 }: Readonly<ArtifactContentProps>) {
   const [content, setContent] = useState<string | null>(null);
+  const [files, setFiles] = useState<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(true);
   const { setMode } = useMode();
 
@@ -130,82 +132,102 @@ export default function ArtifactContent({
     [setSearchParams],
   );
 
-  const loadContent = useCallback(async () => {
-    if (!operation.blob_url) {
-      setContent(null);
-      setLoading(false);
-      return;
-    }
+  // Load content: a code change loads every file of its round so the
+  // viewer can offer file tabs; report/plan load their single artifact.
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
-    try {
-      const text = await fetchArtifactContent(operation.blob_url);
-      setContent(text);
-    } catch {
-      setContent(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [operation.blob_url]);
+    setContent(null);
+    setFiles(null);
 
-  useEffect(() => {
-    loadContent();
-  }, [loadContent]);
-
-  useEffect(() => {
-    if (operation.artifact_type === "terraform_report" && content) {
+    (async () => {
       try {
-        const parsed: Record<string, unknown> = JSON.parse(content);
-        if (parsed.import_summary) {
-          setMode("import");
-        } else if (parsed.remediated_resources) {
-          setMode("drift");
+        if (kind === "change") {
+          const contents = await Promise.all(
+            round.code_changes.map((c) => fetchArtifactContent(c.url)),
+          );
+          if (cancelled) return;
+          const record: Record<string, string> = {};
+          round.code_changes.forEach((c, i) => {
+            record[c.file_name] = contents[i];
+          });
+          setFiles(record);
         } else {
-          setMode("generate");
+          const text = await fetchArtifactContent(artifact.url);
+          if (cancelled) return;
+          setContent(text);
         }
       } catch {
-        // ignore parse errors
+        // leave content/files null → error state
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, artifact.url, round]);
+
+  // The session's operation drives the report rendering mode; no more
+  // sniffing the report JSON for marker keys.
+  useEffect(() => {
+    if (kind === "report") {
+      setMode(
+        operation === "drift"
+          ? "drift"
+          : operation === "import"
+            ? "import"
+            : "generate",
+      );
     }
     return () => setMode("generate");
-  }, [content, operation.artifact_type, setMode]);
-
-  const isReport = operation.artifact_type === "terraform_report";
-  const isGeneratedCode = operation.artifact_type === "generated_code";
-  const files = isGeneratedCode ? processFiles(content || "") : null;
-  const fileNames = files ? Object.keys(files) : [];
+  }, [kind, operation, setMode]);
 
   const reportData: TerraformReport | null = useMemo(() => {
-    if (!isReport || !content) return null;
+    if (kind !== "report" || !content) return null;
     try {
       return JSON.parse(content);
     } catch {
       return null;
     }
-  }, [isReport, content]);
+  }, [kind, content]);
 
   const selectedChange = useMemo(() => {
     if (activeDetail !== "change" || !resourceParam || !reportData?.detailed_changes) return null;
     return reportData.detailed_changes.find((c) => c.name === resourceParam) ?? null;
   }, [activeDetail, resourceParam, reportData?.detailed_changes]);
 
+  const fileNames = files ? Object.keys(files) : [];
+  const clickedFileName =
+    kind === "change" ? (artifact as CodeChangeRef).file_name : "";
   const effectiveActiveFile =
-    activeFile || (fileNames.length > 0 ? fileNames[0] : "");
-
-  useEffect(() => {
-    if (fileNames.length > 0 && !activeFile) {
-      setActiveFile(fileNames[0]);
-    }
-  }, [content]);
+    activeFile || clickedFileName || (fileNames.length > 0 ? fileNames[0] : "");
 
   if (loading) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Loading artifact...</Typography>;
+  }
+
+  if (kind === "change") {
+    if (!files || fileNames.length === 0) {
+      return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
+    }
+    return (
+      <CodeBlock
+        files={files}
+        activeFile={effectiveActiveFile}
+        onFileChange={setActiveFile}
+        showLineNumbers
+        height="calc(100vh - 200px)"
+      />
+    );
   }
 
   if (content === null) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
   }
 
-  if (isReport && reportData) {
+  if (kind === "report" && reportData) {
     return (
       <div className={styles.reportContainer}>
         {reportData.execution_summary && (
@@ -271,22 +293,10 @@ export default function ArtifactContent({
     );
   }
 
-  if (isGeneratedCode && fileNames.length > 0) {
-    return (
-      <CodeBlock
-        files={files ?? undefined}
-        activeFile={effectiveActiveFile}
-        onFileChange={setActiveFile}
-        showLineNumbers
-        height="calc(100vh - 200px)"
-      />
-    );
-  }
-
   return (
     <CodeBlock
       code={content}
-      language={getLanguage(operation.artifact_type, operation.content_type)}
+      language={getLanguage(kind, artifact)}
       showLineNumbers
       height="calc(100vh - 200px)"
     />

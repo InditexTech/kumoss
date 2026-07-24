@@ -10,82 +10,29 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import ReplayIcon from "@mui/icons-material/Replay";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import type { AdminOperationItem, HistoryEntry } from "@/types/api";
+import type {
+  ArtifactRef,
+  HistoryEntry,
+  RoundDetail,
+  SessionDetail,
+} from "@/types/api";
+import { TERMINAL_STATUSES } from "@/types/api";
 import { StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
-import type { SessionItem } from "../types";
-import { isAdminSession } from "../types";
-import ArtifactContent, { formatArtifactLabel } from "./ArtifactContent";
+import ArtifactContent, { artifactLabel } from "./ArtifactContent";
+import type { ArtifactKind } from "./ArtifactContent";
 import styles from "./SessionData.module.css";
 
 interface SessionDataProps {
-  session: SessionItem;
-  operations: AdminOperationItem[];
+  session: SessionDetail;
   onReload?: () => void;
-  onToggleApply?: () => void;
   conversationHistory?: HistoryEntry[];
 }
 
-interface PhaseGroup {
-  phase: string;
-  operations: AdminOperationItem[];
-}
-
-function groupByPhase(operations: AdminOperationItem[]): PhaseGroup[] {
-  const groups: PhaseGroup[] = [];
-  let current: PhaseGroup | null = null;
-
-  for (const op of operations) {
-    const phase = op.operation_phase ?? "other";
-    if (!current || current.phase !== phase) {
-      current = { phase, operations: [op] };
-      groups.push(current);
-    } else {
-      current.operations.push(op);
-    }
-  }
-
-  return groups;
-}
-
-function formatPhaseLabel(phase: string): string {
-  return phase.replace(/_/g, " ").toUpperCase();
-}
-
-function getStatusColor(status: string): string {
-  switch (status.toLowerCase()) {
-    case "completed":
-    case "succeeded":
-    case "created":
-    case "successfully_imported":
-      return "var(--color-create)";
-    case "generated":
-      return "var(--color-generated)";
-    case "updated":
-    case "partial":
-      return "var(--color-update)";
-    case "recreated":
-      return "var(--color-recreate)";
-    case "failed":
-    case "deleted":
-    case "not_imported":
-      return "var(--color-delete)";
-    case "destroyed":
-      return "var(--color-destroyed)";
-    default:
-      return "var(--color-border)";
-  }
-}
-
-function formatSubItemLabel(op: AdminOperationItem): string {
-  if (op.operation_subtype) {
-    return op.operation_subtype
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  return op.operation_type
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+interface SelectedArtifact {
+  kind: ArtifactKind;
+  artifact: ArtifactRef;
+  round: RoundDetail;
 }
 
 function formatShortDate(iso: string | undefined | null): {
@@ -113,34 +60,60 @@ function formatOpDate(iso: string | undefined | null): string {
   return `${dd}.${mm}.${yyyy}, ${hh}:${min}`;
 }
 
-function hasArtifact(op: AdminOperationItem): boolean {
-  return !!(op.artifact_type && op.blob_url);
+function formatDuration(startIso: string, endIso: string): string {
+  const seconds = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000;
+  if (seconds < 0) return "-";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/** Every artifact of a round, flattened into openable rows. */
+function roundArtifacts(
+  round: RoundDetail,
+): { kind: ArtifactKind; artifact: ArtifactRef }[] {
+  const rows: { kind: ArtifactKind; artifact: ArtifactRef }[] = [];
+  if (round.report) rows.push({ kind: "report", artifact: round.report });
+  if (round.plan) rows.push({ kind: "plan", artifact: round.plan });
+  for (const change of round.code_changes) {
+    rows.push({ kind: "change", artifact: change });
+  }
+  return rows;
 }
 
 export default function SessionData({
   session,
-  operations,
   onReload,
-  onToggleApply,
   conversationHistory,
 }: SessionDataProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const operationParam = searchParams.get("operation");
+  const artifactParam = searchParams.get("artifact");
 
-  const selectedOp = useMemo(() => {
-    if (!operationParam) return null;
-    const opId = Number(operationParam);
-    return operations.find((op) => op.id === opId && hasArtifact(op)) ?? null;
-  }, [operationParam, operations]);
+  const selected: SelectedArtifact | null = useMemo(() => {
+    if (!artifactParam) return null;
+    const [kind, idStr] = artifactParam.split(":");
+    const id = Number(idStr);
+    for (const round of session.rounds) {
+      for (const row of roundArtifacts(round)) {
+        if (row.kind === kind && row.artifact.id === id) {
+          return { kind: row.kind, artifact: row.artifact, round };
+        }
+      }
+    }
+    return null;
+  }, [artifactParam, session.rounds]);
 
-  const setOperationParam = useCallback(
-    (op: AdminOperationItem | null) => {
+  const setArtifactParam = useCallback(
+    (value: { kind: ArtifactKind; artifact: ArtifactRef } | null) => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
-        if (op) {
-          next.set("operation", String(op.id));
+        if (value) {
+          next.set("artifact", `${value.kind}:${value.artifact.id}`);
         } else {
-          next.delete("operation");
+          next.delete("artifact");
         }
         next.delete("detail");
         next.delete("resource");
@@ -152,10 +125,21 @@ export default function SessionData({
     [setSearchParams],
   );
 
-  const phaseGroups = groupByPhase(operations);
-  const hasFailure = operations.some((op) => op.success === false);
+  const isTerminal = TERMINAL_STATUSES.includes(session.current_status);
+  const hasFailure =
+    session.current_status === "failed" ||
+    session.current_status === "uncompleted";
+  const failureMessage = useMemo(() => {
+    if (!hasFailure) return null;
+    const failed = [...session.statuses]
+      .reverse()
+      .find((s) => s.status === "failed" || s.status === "uncompleted");
+    return failed?.message || null;
+  }, [hasFailure, session.statuses]);
+
   const started = formatShortDate(session.created_at);
   const completed = formatShortDate(session.updated_at);
+  const hasTimeline = session.rounds.length > 0 || session.statuses.length > 0;
 
   return (
     <div className={styles.container}>
@@ -173,10 +157,7 @@ export default function SessionData({
           component="span"
           className={styles.fieldValue}
         >
-          {session.operation_type
-            ? session.operation_type.charAt(0).toUpperCase() +
-              session.operation_type.slice(1)
-            : "-"}
+          {capitalize(session.operation)}
         </Typography>
       </div>
       <div className={styles.fieldRow}>
@@ -185,14 +166,14 @@ export default function SessionData({
           component="span"
           className={styles.fieldLabel}
         >
-          Cloud /Env
+          Cloud
         </Typography>
         <Typography
           variant="body1"
           component="span"
           className={styles.fieldValue}
         >
-          {session.cloud_provider} / {session.environment}
+          {session.provider}
         </Typography>
       </div>
       <div className={styles.fieldRow}>
@@ -204,18 +185,10 @@ export default function SessionData({
           Status
         </Typography>
         <div className={styles.fieldValue}>
-          <StatusBadge
-            variant={
-              isAdminSession(session)
-                ? session.final_status || session.current_status
-                : session.status
-            }
-          />
+          <StatusBadge variant={session.current_status} />
         </div>
       </div>
-
-      {/* ── Admin-only Metadata ── */}
-      {isAdminSession(session) && session.failure_reason && (
+      {failureMessage && (
         <div className={styles.fieldRow}>
           <Typography
             variant="overline"
@@ -229,11 +202,11 @@ export default function SessionData({
             component="span"
             className={`${styles.fieldValue} ${styles.failureValue}`}
           >
-            {session.failure_reason}
+            {failureMessage}
           </Typography>
         </div>
       )}
-      {isAdminSession(session) && session.duration_seconds != null && (
+      {isTerminal && (
         <div className={styles.fieldRow}>
           <Typography
             variant="overline"
@@ -247,9 +220,7 @@ export default function SessionData({
             component="span"
             className={styles.fieldValue}
           >
-            {session.duration_seconds < 60
-              ? `${Math.round(session.duration_seconds)}s`
-              : `${Math.floor(session.duration_seconds / 60)}m ${Math.round(session.duration_seconds % 60)}s`}
+            {formatDuration(session.created_at, session.updated_at)}
           </Typography>
         </div>
       )}
@@ -263,16 +234,9 @@ export default function SessionData({
         >
           Timeline
         </Typography>
-        <div
-          className={styles.timeline}
-          style={
-            {
-              "--timeline-color": getStatusColor(session.status),
-            } as React.CSSProperties
-          }
-        >
-          {operations.length === 0 ? (
-            <p className={styles.timelineEmpty}>No operations recorded</p>
+        <div className={styles.timeline}>
+          {!hasTimeline ? (
+            <p className={styles.timelineEmpty}>No activity recorded</p>
           ) : (
             <>
               {/* STARTED */}
@@ -285,69 +249,67 @@ export default function SessionData({
                 </div>
               </div>
 
-              {/* Phase groups */}
-              {phaseGroups.map((group, idx) => {
-                const hasFailed = group.operations.some(
-                  (op) => op.success === false,
-                );
-
+              {/* Rounds */}
+              {session.rounds.map((round) => {
+                const artifacts = roundArtifacts(round);
                 return (
-                  <div
-                    key={idx}
-                    className={`${styles.timelineEntry}${hasFailed ? ` ${styles.timelineEntryFailed}` : ""}`}
-                  >
+                  <div key={round.id} className={styles.timelineEntry}>
                     <div className={styles.timelineDot} />
                     <div className={styles.timelineContent}>
                       <span className={styles.timelinePhase}>
-                        {formatPhaseLabel(group.phase)}
+                        Round {round.number}
                       </span>
                       <Typography
                         variant="overline"
                         component="span"
                         className={styles.timelineCount}
                       >
-                        {group.operations.length} OPERATION
-                        {group.operations.length !== 1 ? "S" : ""}
+                        {artifacts.length} ARTIFACT
+                        {artifacts.length !== 1 ? "S" : ""}
                       </Typography>
                       <div className={styles.timelineOps}>
-                        {group.operations.map((op, opIdx) => (
-                          <>
-                            <div
-                              key={op.id}
-                              className={`${styles.timelineOpRow}${opIdx === 0 ? ` ${styles.timelineOpRowFirst}` : ""}${hasArtifact(op) ? ` ${styles.timelineOpRowClickable}` : ""}`}
-                              onClick={
-                                hasArtifact(op)
-                                  ? () => setOperationParam(op)
-                                  : undefined
-                              }
-                              role={hasArtifact(op) ? "button" : undefined}
-                              tabIndex={hasArtifact(op) ? 0 : undefined}
-                              onKeyDown={
-                                hasArtifact(op)
-                                  ? (e) => {
-                                      if (e.key === "Enter")
-                                        setOperationParam(op);
-                                    }
-                                  : undefined
-                              }
+                        {round.statuses.map((st, i) => (
+                          <div
+                            key={`st-${i}`}
+                            className={`${styles.timelineOpRow}${i === 0 ? ` ${styles.timelineOpRowFirst}` : ""}`}
+                            title={st.message || undefined}
+                          >
+                            <Typography
+                              variant="subtitle2"
+                              component="span"
+                              className={styles.timelineOpName}
                             >
-                              <Typography
-                                variant="subtitle2"
-                                component="span"
-                                className={styles.timelineOpName}
-                              >
-                                {formatSubItemLabel(op)}
-                              </Typography>
-                              <span className={styles.timelineOpDate}>
-                                {formatOpDate(op.created_at)}
-                                {hasArtifact(op) && (
-                                  <VisibilityIcon
-                                    className={styles.artifactIcon}
-                                  />
-                                )}
-                              </span>
-                            </div>
-                          </>
+                              {capitalize(st.status)}
+                            </Typography>
+                            <span className={styles.timelineOpDate}>
+                              {formatOpDate(st.created_at)}
+                            </span>
+                          </div>
+                        ))}
+                        {artifacts.map(({ kind, artifact }) => (
+                          <div
+                            key={`${kind}:${artifact.id}`}
+                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable}`}
+                            onClick={() => setArtifactParam({ kind, artifact })}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter")
+                                setArtifactParam({ kind, artifact });
+                            }}
+                          >
+                            <Typography
+                              variant="subtitle2"
+                              component="span"
+                              className={styles.timelineOpName}
+                            >
+                              {artifactLabel(kind, artifact)}
+                            </Typography>
+                            <span className={styles.timelineOpDate}>
+                              {formatOpDate(artifact.created_at)}
+                              <VisibilityIcon className={styles.artifactIcon} />
+                            </span>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -355,19 +317,25 @@ export default function SessionData({
                 );
               })}
 
-              {/* COMPLETED / FAILED */}
-              <div
-                className={`${styles.timelineEntry} ${styles.timelineEntryLast}${hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
-              >
-                <div className={styles.timelineDot} />
-                <div className={styles.timelineContent}>
-                  <span className={styles.timelinePhase}>
-                    {hasFailure ? "Failed" : "Completed"}
-                  </span>
-                  <span className={styles.timelineDate}>{completed.date}</span>
-                  <span className={styles.timelineDate}>{completed.time}</span>
+              {/* Terminal state */}
+              {isTerminal && (
+                <div
+                  className={`${styles.timelineEntry} ${styles.timelineEntryLast}${hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
+                >
+                  <div className={styles.timelineDot} />
+                  <div className={styles.timelineContent}>
+                    <span className={styles.timelinePhase}>
+                      {capitalize(session.current_status)}
+                    </span>
+                    <span className={styles.timelineDate}>
+                      {completed.date}
+                    </span>
+                    <span className={styles.timelineDate}>
+                      {completed.time}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>
@@ -383,7 +351,7 @@ export default function SessionData({
           Additional Info
         </Typography>
         <div className={styles.infoContent}>
-          {session.iac_path && (
+          {session.workspace.root_path && (
             <div className={styles.infoRow}>
               <Typography
                 variant="subtitleSemiBold"
@@ -397,10 +365,26 @@ export default function SessionData({
                 component="span"
                 className={styles.infoValue}
               >
-                {session.iac_path}
+                {session.workspace.root_path}
               </Typography>
             </div>
           )}
+          <div className={styles.infoRow}>
+            <Typography
+              variant="subtitleSemiBold"
+              component="span"
+              className={styles.infoLabel}
+            >
+              Scope
+            </Typography>
+            <Typography
+              variant="subtitle2"
+              component="span"
+              className={styles.infoValue}
+            >
+              {session.scope_id}
+            </Typography>
+          </div>
           <div className={styles.infoRow}>
             <Typography
               variant="subtitleSemiBold"
@@ -411,7 +395,7 @@ export default function SessionData({
             </Typography>
             <div className={styles.linksCol}>
               <a
-                href={session.repo_uri}
+                href={session.workspace.uri}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={styles.link}
@@ -419,9 +403,9 @@ export default function SessionData({
                 Repository
                 <OpenInNewIcon className={styles.linkIcon} />
               </a>
-              {isAdminSession(session) && session.pull_request_url && (
+              {session.pull_request && (
                 <a
-                  href={session.pull_request_url}
+                  href={session.pull_request.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.link}
@@ -455,37 +439,18 @@ export default function SessionData({
 
       {/* ── Action Buttons ── */}
       <div className={styles.actions}>
-        {onToggleApply ? (
-          <button
-            type="button"
-            className={
-              session.apply_allowed
-                ? styles.btnApplyOpenInteractive
-                : styles.btnApplyInteractive
-            }
-            onClick={onToggleApply}
-          >
-            {session.apply_allowed ? (
-              <LockOpenOutlinedIcon className={styles.btnIcon} />
-            ) : (
-              <LockOutlinedIcon className={styles.btnIcon} />
-            )}
-            {session.apply_allowed ? "Apply Open" : "Apply Locked"}
-          </button>
-        ) : (
-          <span
-            className={
-              session.apply_allowed ? styles.btnApplyOpen : styles.btnApply
-            }
-          >
-            {session.apply_allowed ? (
-              <LockOpenOutlinedIcon className={styles.btnIcon} />
-            ) : (
-              <LockOutlinedIcon className={styles.btnIcon} />
-            )}
-            {session.apply_allowed ? "Apply Open" : "Apply Locked"}
-          </span>
-        )}
+        <span
+          className={
+            session.is_blocked ? styles.btnApply : styles.btnApplyOpen
+          }
+        >
+          {session.is_blocked ? (
+            <LockOutlinedIcon className={styles.btnIcon} />
+          ) : (
+            <LockOpenOutlinedIcon className={styles.btnIcon} />
+          )}
+          {session.is_blocked ? "Apply Locked" : "Apply Open"}
+        </span>
         {onReload && (
           <button type="button" className={styles.btnReload} onClick={onReload}>
             <ReplayIcon className={styles.btnIcon} />
@@ -494,13 +459,13 @@ export default function SessionData({
         )}
       </div>
 
-      {selectedOp && (
+      {selected && (
         <PageOverlay
-          onClose={() => setOperationParam(null)}
+          onClose={() => setArtifactParam(null)}
           title={
             <span className={styles.breadcrumb}>
               <span className={styles.breadcrumbPath}>
-                <span>{session.initial_query || "Session"}</span>
+                <span>{session.first_query || "Session"}</span>
                 <Typography
                   variant="micro"
                   component="span"
@@ -508,17 +473,20 @@ export default function SessionData({
                 >
                   /
                 </Typography>
-                <span>
-                  {formatPhaseLabel(selectedOp.operation_phase ?? "other")}
-                </span>
+                <span>Round {selected.round.number}</span>
               </span>
               <span className={styles.breadcrumbCurrent}>
-                {formatArtifactLabel(selectedOp.artifact_type)}
+                {artifactLabel(selected.kind, selected.artifact)}
               </span>
             </span>
           }
         >
-          <ArtifactContent operation={selectedOp} />
+          <ArtifactContent
+            kind={selected.kind}
+            artifact={selected.artifact}
+            round={selected.round}
+            operation={session.operation}
+          />
         </PageOverlay>
       )}
     </div>
