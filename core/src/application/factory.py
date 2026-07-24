@@ -30,7 +30,7 @@ from src.infrastructure.filesystem import (
     IacRootDetector,
     WorkspaceService,
 )
-from src.infrastructure.templates._common import TemplateAdapter
+from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory
 

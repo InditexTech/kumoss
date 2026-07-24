@@ -6,7 +6,7 @@
 import unittest
 
 from unittest.mock import patch, AsyncMock
-from src.infrastructure.templates._common import TemplateAdapter
+from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
 from src.shared.constants import TerraformProvider
