@@ -40,6 +40,7 @@ class TemplateOrchestrationService:
             "target_generator": self.__templates.render_target_generator,
             "report_generator": self.__templates.render_report_generator,
             "supervisor": self.__templates.render_supervisor,
+            "compliance_checker": self.__templates.render_compliance_checker,
             # messages
             "joker": self.__templates.render_joker,
             "status_update": self.__templates.render_status_update,

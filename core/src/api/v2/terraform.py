@@ -14,6 +14,7 @@ from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
+    ComplianceCheckRequest,
 )
 from src.application.dto import SessionContext
 from src.application.exceptions import (
@@ -184,4 +185,29 @@ async def apply_infrastructure(
         return await handler.handle(request.q, request.terraform_targets)
 
     background_tasks.add_task(_make_runner(ctx, request.q, build))
+    return {"session_id": str(ctx.session_id)}
+
+
+@router.post("/compliance-check", status_code=202)
+async def compliance_check(
+    background_tasks: BackgroundTasks, request: ComplianceCheckRequest
+) -> dict[str, str]:
+    """Runs a compliance check against a session's generated plan.
+    Returns 202 + session_id; the ComplianceCheckReport arrives via the
+    existing session event channel.
+    """
+    q = f"compliance-check:{request.mode}"
+    ctx = await _resolve_or_raise(request, "compliance-check")
+
+    async def build(call_dir):
+        handler = HandlerFactory(
+            session_ctx=ctx, call_dir=call_dir, q=q
+        ).get_compliance_check_handler()
+        return await handler.handle(
+            mode=request.mode,
+            history=ctx.history,
+            phoenix_prompt_name=request.phoenix_prompt_name,
+        )
+
+    background_tasks.add_task(_make_runner(ctx, q, build))
     return {"session_id": str(ctx.session_id)}

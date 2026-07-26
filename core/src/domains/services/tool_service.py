@@ -20,6 +20,9 @@ class ToolOrchestrationService:
     ):
         self.__tool_registry = tool_registry
 
+    def set_chain_history(self, history) -> None:
+        self.__tool_registry.set_chain_history(history)
+
     def get_sentinel_tool(self, context: ToolContext) -> ToolDefinitionDTO:
         assert isinstance(context, ToolContext)
         tool_list = self.get_available_tools([context])

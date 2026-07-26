@@ -7,6 +7,7 @@ from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import ToolDefinitionDTO, ToolResultDTO
+from src.shared.config import system_config
 from src.shared.constants import ToolContext, PromptsLibrary
 
 
@@ -21,9 +22,14 @@ class TerraformTargetService:
         self.__llm_svc = llm_service
         self.__template_svc = template_service
 
+    def __tool_contexts(self, contexts: list[ToolContext]) -> list[ToolContext]:
+        if system_config.compliance.enabled:
+            contexts.append(ToolContext.INLINE_COMPLIANCE)
+        return contexts
+
     async def generate(self, query: str, history: History) -> list[str]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=[ToolContext.WORKSPACE_INSPECTION]
+            contexts=self.__tool_contexts([ToolContext.WORKSPACE_INSPECTION])
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=query,
@@ -45,10 +51,7 @@ class TerraformTargetService:
         )
 
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=[
-                ToolContext.WORKSPACE_INSPECTION,
-                ToolContext.EXTERNAL_INFORMATION,
-            ]
+            contexts=self.__tool_contexts([ToolContext.WORKSPACE_INSPECTION, ToolContext.EXTERNAL_INFORMATION])
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=query,

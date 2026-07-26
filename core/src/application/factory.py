@@ -7,6 +7,7 @@ from src.domains.interfaces import ILLMProvider, ITerraformValidator
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
+    ComplianceCheckService,
     TemplateOrchestrationService,
     TerraformTargetService,
     TerraformValidationService,
@@ -22,6 +23,7 @@ from src.infrastructure.tools.tool_registry import ToolRegistry
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git_utils import GitUtils
 from src.infrastructure.templates.factory import TemplateFactory
+from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory
 
@@ -33,6 +35,7 @@ from src.application.services import (
     TerraformDriftService,
 )
 from src.application.use_cases import (
+    ComplianceCheckHandler,
     TerraformCRUDHandler,
     TerraformDriftHandler,
     TerraformApplyHandler,
@@ -113,18 +116,21 @@ class HandlerFactory:
             tool_service=tool_service,
         )
 
-    def _get_tool_service(
+    def _get_tool_registry(
         self, file_utils: IFileSystem, git_utils: IGit
-    ) -> ToolOrchestrationService:
-        return ToolOrchestrationService(
-            tool_registry=ToolRegistry(
-                filesystem=file_utils,
-                git=git_utils,
-                web_search=GeminiWebSearch(
-                    gemini=self.get_llm_adapter(LLMProvider.GEMINI_FLASH, 0.5)
-                ),
-            )
+    ) -> ToolRegistry:
+        return ToolRegistry(
+            filesystem=file_utils,
+            git=git_utils,
+            web_search=GeminiWebSearch(
+                gemini=self.get_llm_adapter(LLMProvider.GEMINI_FLASH, 0.5)
+            ),
         )
+
+    def _get_tool_service(
+        self, tool_registry: ToolRegistry
+    ) -> ToolOrchestrationService:
+        return ToolOrchestrationService(tool_registry=tool_registry)
 
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
         return SessionService(second_llm_service)
@@ -267,13 +273,37 @@ class HandlerFactory:
             system_config.llm.small_model_temperature,
         )
 
+    def _wire_compliance(
+        self,
+        tool_registry: ToolRegistry,
+        tool_svc: ToolOrchestrationService,
+        llm_svc: LLMOrchestrationService,
+        template_svc: TemplateOrchestrationService,
+    ) -> None:
+        if not system_config.compliance.enabled:
+            return
+        compliance_svc = ComplianceCheckService(
+            tool_service=tool_svc,
+            llm_service=llm_svc,
+            template_service=template_svc,
+        )
+        cloud = self.session_ctx.cloud
+        tag = system_config.environment
+
+        async def rules_provider() -> str:
+            return await remote_fetcher.fetch_core_guidelines(cloud, tag)
+
+        tool_registry.set_compliance_checker(compliance_svc, rules_provider)
+
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()
         git_utils = self._get_git_utils(file_utils)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        tool_registry = self._get_tool_registry(file_utils, git_utils)
+        tool_svc = self._get_tool_service(tool_registry)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        self._wire_compliance(tool_registry, tool_svc, llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_validator_provider(file_utils, session_svc)
@@ -307,10 +337,12 @@ class HandlerFactory:
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
         file_utils = self._get_file_utils()
         git_utils = self._get_git_utils(file_utils)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        tool_registry = self._get_tool_registry(file_utils, git_utils)
+        tool_svc = self._get_tool_service(tool_registry)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        self._wire_compliance(tool_registry, tool_svc, llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_validator_provider(file_utils, session_svc)
@@ -347,7 +379,8 @@ class HandlerFactory:
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
         file_utils = self._get_file_utils()
         git_utils = self._get_git_utils(file_utils)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        tool_registry = self._get_tool_registry(file_utils, git_utils)
+        tool_svc = self._get_tool_service(tool_registry)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
@@ -363,5 +396,25 @@ class HandlerFactory:
             session_service=session_svc,
             template_service=template_svc,
             payload_svc=payload_svc,
+            session_ctx=self.session_ctx,
+        )
+
+    def get_compliance_check_handler(self) -> ComplianceCheckHandler:
+        file_utils = self._get_file_utils()
+        git_utils = self._get_git_utils(file_utils)
+        tool_registry = self._get_tool_registry(file_utils, git_utils)
+        tool_svc = self._get_tool_service(tool_registry)
+        llm_svc = self._get_default_llm_service(tool_svc)
+        session_svc = self._get_session_service(llm_svc)
+        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        compliance_svc = ComplianceCheckService(
+            tool_service=tool_svc,
+            llm_service=llm_svc,
+            template_service=template_svc,
+        )
+        return ComplianceCheckHandler(
+            compliance_service=compliance_svc,
+            session_service=session_svc,
+            template_service=template_svc,
             session_ctx=self.session_ctx,
         )

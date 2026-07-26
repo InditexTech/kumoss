@@ -1,0 +1,56 @@
+[
+  {
+    "name": "report_compliance_findings",
+    "description": "CRITICAL: Call this tool ONLY when you have finished evaluating ALL compliance rules against the workspace code. Report every violation found. If no violations were found, report passed=true with an empty violations list. This tool ends the compliance check.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "true if all compliance rules are satisfied, false if any violation was found."
+        },
+        "violations": {
+          "type": "array",
+          "description": "List of compliance violations found. Empty array if passed is true.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "description": "Stable identifier of the rule that was broken."
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["info", "warning", "error", "critical"],
+                "description": "Severity level of the violation."
+              },
+              "resource": {
+                "type": ["string", "null"],
+                "description": "Terraform resource address that violates the rule (e.g. azurerm_storage_account.main), or null for global findings."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of what is wrong and why it violates the rule."
+              },
+              "suggested_fix": {
+                "type": ["string", "null"],
+                "description": "How to fix the violation, or null if no specific fix is suggested."
+              }
+            },
+            "required": ["rule_id", "severity", "message"]
+          }
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable summary of the compliance check results."
+        },
+        "checked_rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of rule_ids that were evaluated during the check."
+        }
+      },
+      "required": ["passed", "violations", "summary", "checked_rules"]
+    }
+  }
+]

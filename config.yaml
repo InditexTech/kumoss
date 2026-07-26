@@ -110,3 +110,12 @@ git:
   host: "github.com"
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
+
+# Compliance-checker sub-agent. When enabled, IaC generator and target
+# generator chains include a check_compliance tool that validates output
+# against curated rules before allowing completion. max_retries bounds
+# how many times the in-chain compliance check can be invoked per chain.
+compliance:
+  enabled: true
+  max_retries: 3
+  auto_pass_on_max_retries: true

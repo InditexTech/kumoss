@@ -43,6 +43,11 @@ class TerraformValidationService:
         self.__tool_orchestration = tool_orchestration_service
         self.__target_svc = target_service
 
+    def __tool_contexts(self, contexts: list[ToolContext]) -> list[ToolContext]:
+        if system_config.compliance.enabled:
+            contexts.append(ToolContext.INLINE_COMPLIANCE)
+        return contexts
+
     async def generate_and_validate(
         self,
         query: str,
@@ -76,11 +81,11 @@ class TerraformValidationService:
             chain_result: ToolResultDTO = await self.__llm_svc.generate(
                 query=query,
                 tools=self.__tool_orchestration.get_available_tools(
-                    contexts=[
+                    contexts=self.__tool_contexts([
                         ToolContext.EXTERNAL_INFORMATION,
                         ToolContext.FILE_OPERATIONS,
                         ToolContext.WORKSPACE_INSPECTION,
-                    ]
+                    ])
                 ),
                 sentinel_tool=self.__tool_orchestration.get_sentinel_tool(
                     context=ToolContext.GENERAL_TASK_COMPLETION,

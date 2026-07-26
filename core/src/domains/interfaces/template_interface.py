@@ -68,3 +68,7 @@ class ITemplate(ABC):
     @abstractmethod
     def render_iac_import(self) -> str:
         pass
+
+    @abstractmethod
+    def render_compliance_checker(self, rules: str) -> str:
+        pass

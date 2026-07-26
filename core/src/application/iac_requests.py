@@ -90,3 +90,33 @@ class DriftRequest(_BaseIacRequest):
 
 class ApplyRequest(_BaseIacRequest):
     terraform_targets: list[str] = Field(default_factory=list)
+
+
+class ComplianceCheckRequest(BaseModel):
+    repo_uri: None = None
+    session_id: Annotated[
+        str,
+        Field(
+            description="Existing session id.",
+            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        ),
+    ]
+    mode: Annotated[
+        Literal["plan_vs_core", "plan_vs_custom"],
+        Field(description="Compliance check mode."),
+    ]
+    phoenix_prompt_name: Annotated[
+        str | None,
+        Field(description="Phoenix prompt name (required for plan_vs_custom)."),
+    ] = None
+    user_id: Annotated[
+        str, Field(description="Caller identity.")
+    ]
+
+    @model_validator(mode="after")
+    def _validate_mode(self):
+        if self.mode == "plan_vs_custom" and not self.phoenix_prompt_name:
+            raise ValueError(
+                "phoenix_prompt_name is required when mode is 'plan_vs_custom'."
+            )
+        return self

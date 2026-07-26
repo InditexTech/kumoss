@@ -8,6 +8,7 @@ from uuid import UUID
 from src.domains.entities import Session, get_session, History
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.dto import (
+    ComplianceCheckReport,
     PromptTemplateDTO,
     SessionPayloadDTO,
     MainHistory,
@@ -93,6 +94,7 @@ class SessionService:
         terraform_plan: str | None = None,
         terraform_targets: list[str] | None = None,
         terraform_report: TerraformPlanReport | TerraformDriftReport | None = None,
+        compliance_report: ComplianceCheckReport | None = None,
         pipeline_url: str | None = None,
         apply_allowed: bool = True,
     ):
@@ -114,6 +116,7 @@ class SessionService:
                 terraform_plan=terraform_plan,
                 terraform_targets=terraform_targets,
                 terraform_report=terraform_report,
+                compliance_report=compliance_report,
                 pipeline_url=pipeline_url,
                 apply_allowed=apply_allowed,
             )

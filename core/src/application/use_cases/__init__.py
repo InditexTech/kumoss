@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from .compliance_check_handler import ComplianceCheckHandler
 from .terraform_apply_handler import TerraformApplyHandler
 from .terraform_crud_handler import TerraformCRUDHandler
 from .terraform_drift_handler import TerraformDriftHandler
 
 __all__ = [
+    "ComplianceCheckHandler",
     "TerraformApplyHandler",
     "TerraformCRUDHandler",
     "TerraformDriftHandler",

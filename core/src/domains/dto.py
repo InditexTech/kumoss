@@ -252,6 +252,27 @@ class TerraformApplyReport(BaseModel):
     recommendations: list[str]
 
 
+class ComplianceViolation(BaseModel):
+    rule_id: str
+    severity: Literal["info", "warning", "error", "critical"]
+    resource: str | None = None
+    message: str
+    suggested_fix: str | None = None
+
+
+class ComplianceContextDTO(BaseModel):
+    output_under_check: str | None = None
+    rules: str
+    history: list[dict[str, str]] | None = None
+
+
+class ComplianceCheckReport(BaseModel):
+    passed: bool
+    violations: list[ComplianceViolation]
+    summary: str
+    checked_rules: list[str]
+
+
 class SessionPayloadDTO(BaseModel):
     """DTO for session payloads"""
 
@@ -269,6 +290,7 @@ class SessionPayloadDTO(BaseModel):
     terraform_report: (
         TerraformPlanReport | TerraformDriftReport | TerraformApplyReport | None
     ) = None
+    compliance_report: ComplianceCheckReport | None = None
     pipeline_url: str | None = None
     apply_allowed: bool = True
 

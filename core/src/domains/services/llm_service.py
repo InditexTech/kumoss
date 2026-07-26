@@ -7,6 +7,7 @@ from src.domains.entities.history import History
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.services.tracer_service import trace_chain
+
 from src.domains.dto import (
     ToolCallDTO,
     ToolResultDTO,
@@ -129,7 +130,7 @@ class LLMOrchestrationService:
         response = LLMResponseDTO.empty()
         tools_result = query
         total_executions = 0
-        while not self.__sentinel_executed(sentinel_tool, response.tool_calls, tools):
+        while not self.__sentinel_executed(sentinel_tool, response.tool_calls, tools, tools_result):
             if (
                 total_executions
                 == system_config.orchestration.max_tool_chain_executions
@@ -151,6 +152,7 @@ class LLMOrchestrationService:
                     error_code=500,
                 )
             local_history.append_turn(tools_result, response.tool_calls)
+            self.__tool_svc.set_chain_history(local_history)
             tools_result = await self.__tool_svc.execute_tool_calls(response.tool_calls)
             if len(tools) == 1:  # check for single tool execution (no sentinel tool)
                 return tools_result[-1]
@@ -168,6 +170,7 @@ class LLMOrchestrationService:
             PromptsLibrary.TASK_SPLITTER.name,
             PromptsLibrary.REPORT_GENERATOR.name,
             PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR.name,
+            PromptsLibrary.COMPLIANCE_CHECKER.name,
         ]:
             return self.__main_llm
         return self.__small_llm
@@ -177,6 +180,7 @@ class LLMOrchestrationService:
         sentinel_tool: ToolDefinitionDTO | None,
         tool_calls: list[ToolCallDTO],
         tools: list[ToolDefinitionDTO],
+        tools_result: list[ToolResultDTO] | str = "",
     ) -> bool:
         if not sentinel_tool:
             return False
@@ -187,5 +191,9 @@ class LLMOrchestrationService:
             )
         for tool in tool_calls:
             if tool.name == sentinel_tool.name:
+                if isinstance(tools_result, list):
+                    for result in tools_result:
+                        if result.name == sentinel_tool.name and not result.success:
+                            return False
                 return True
         return False

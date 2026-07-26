@@ -125,6 +125,7 @@ class PromptsLibrary(Enum):
     PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
+    COMPLIANCE_CHECKER = "compliance_checker"
     # messages
     JOKER = "joker"
     STATUS_UPDATE = "status_update"
@@ -144,3 +145,5 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+    COMPLIANCE_CHECK = "compliance_check"
+    INLINE_COMPLIANCE = "inline_compliance"

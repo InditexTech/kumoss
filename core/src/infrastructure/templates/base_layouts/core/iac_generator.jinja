@@ -128,3 +128,11 @@ If you've performed an edit that may partially satiate the USER's query, but you
 
 You should give your best effort to complete the task with the given tools.
 </search_and_reading>
+
+<completion_workflow>
+Follow this exact order when finishing a task:
+1. Generate ALL required Terraform files first (using write_to_file / replace_in_file).
+2. ONLY AFTER all files are written, call `check_compliance` to verify them against organizational rules. Do NOT call check_compliance before writing files — it has nothing to inspect until files exist.
+3. If check_compliance returns passed=false, fix the violations and call check_compliance again.
+4. Once check_compliance returns passed=true, call task_complete.
+</completion_workflow>

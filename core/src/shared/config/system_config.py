@@ -165,6 +165,14 @@ class HttpConfig(BaseModel):
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost"])
 
 
+class ComplianceConfig(BaseModel):
+    """Toggle and limits for the compliance-checker sub-agent."""
+
+    enabled: bool = True
+    max_retries: int = 3
+    auto_pass_on_max_retries: bool = True
+
+
 class GitConfig(BaseModel):
     """Credentials for `git push` against the remote hosting user repos.
 
@@ -206,6 +214,7 @@ class SystemConfig(BaseModel):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
+    compliance: ComplianceConfig = Field(default_factory=ComplianceConfig)
 
     @model_validator(mode="after")
     def _assert_llm_credentials(self) -> "SystemConfig":

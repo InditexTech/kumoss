@@ -9,6 +9,8 @@ from typing import Any, Callable, override
 
 from src.domains.interfaces import IToolRegistry, IFileSystem, IGit
 from src.domains.dto import (
+    ComplianceCheckReport,
+    ComplianceContextDTO,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -22,6 +24,7 @@ from src.infrastructure.exceptions import (
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
 )
+from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -40,8 +43,20 @@ class ToolRegistry(IToolRegistry):
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+        self.__compliance_checker = None
+        self.__compliance_rules_provider: Callable[[], Any] | None = None
+        self.__compliance_passed = False
+        self.__compliance_check_count = 0
+        self.__chain_history = None
         self.__load_tools()
         self.__register_handlers()
+
+    def set_compliance_checker(self, checker, rules_provider: Callable[[], Any]) -> None:
+        self.__compliance_checker = checker
+        self.__compliance_rules_provider = rules_provider
+
+    def set_chain_history(self, history) -> None:
+        self.__chain_history = history
 
     def __load_tools(self):
         """Load tool definitions from JSON files"""
@@ -55,6 +70,8 @@ class ToolRegistry(IToolRegistry):
             "report_generator.json": ToolContext.REPORT_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
+            "inline_compliance.json": ToolContext.INLINE_COMPLIANCE,
         }
 
         for filename, context in tool_files.items():
@@ -101,6 +118,8 @@ class ToolRegistry(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
+            "report_compliance_findings": self.__handle_compliance_findings,
+            "check_compliance": self.__handle_check_compliance,
         }
 
     @override
@@ -355,6 +374,16 @@ class ToolRegistry(IToolRegistry):
         }
 
     def __handle_task_completion(self, parameters: dict[str, Any]) -> dict[str, str]:
+        if (
+            self.__compliance_checker is not None
+            and system_config.compliance.enabled
+            and not self.__compliance_passed
+        ):
+            raise ToolInferenceParamsError(
+                message="Cannot complete: compliance check has not passed. "
+                "Call check_compliance first and resolve all violations.",
+                error_code=400,
+            )
         status = parameters["status"]
         summary = parameters["final_summary"]
 
@@ -377,3 +406,41 @@ class ToolRegistry(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
+
+    def __handle_compliance_findings(
+        self, parameters: dict[str, Any]
+    ) -> ComplianceCheckReport:
+        return ComplianceCheckReport(
+            passed=parameters["passed"],
+            violations=parameters["violations"],
+            summary=parameters["summary"],
+            checked_rules=parameters["checked_rules"],
+        )
+
+    async def __handle_check_compliance(
+        self, parameters: dict[str, Any]
+    ) -> dict[str, Any]:
+        if self.__compliance_checker is None:
+            return ComplianceCheckReport(
+                passed=True, violations=[], summary="Compliance checker not configured", checked_rules=[],
+            ).model_dump()
+
+        self.__compliance_check_count += 1
+        if self.__compliance_check_count > system_config.compliance.max_retries:
+            if system_config.compliance.auto_pass_on_max_retries:
+                logging.warning("Compliance check max retries exceeded, auto-passing")
+                self.__compliance_passed = True
+                return ComplianceCheckReport(
+                    passed=True, violations=[], summary="Max compliance retries exceeded, auto-passed.", checked_rules=[],
+                ).model_dump()
+            logging.warning("Compliance check max retries exceeded, blocking")
+            return ComplianceCheckReport(
+                passed=False, violations=[], summary="Max compliance retries exceeded.", checked_rules=[],
+            ).model_dump()
+
+        rules = await self.__compliance_rules_provider()
+        history = self.__chain_history.serialize() if self.__chain_history else None
+        compliance_ctx = ComplianceContextDTO(rules=rules, history=history)
+        report = await self.__compliance_checker.check(context=compliance_ctx)
+        self.__compliance_passed = report.passed
+        return report.model_dump()
