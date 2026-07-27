@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI IAM Policy default configuration (statements, compartment scope).
+body: |
+  # OCI IAM Policy
+
+  For an IAM Policy, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `pol-<purpose>-<application>-<environment>`.
+  - Scope policies to compartments, not the tenancy, unless
+    cross-compartment access is explicitly required.
+  - Each policy should have a clear, single responsibility — do not
+    bundle unrelated permissions into one policy.
+  - Use the narrowest verb that satisfies the use case:
+    `inspect` < `read` < `use` < `manage`.
+  - Never use `manage all-resources in tenancy` without an explicit
+    user request.
+  - Policy statements should reference groups or dynamic groups,
+    never individual users.
+  - For compute workloads (instances, functions, container
+    instances), create a dynamic group with matching rules and
+    grant permissions via policy to the dynamic group.
+  - Dynamic group matching rules should be as specific as possible:
+    match on compartment OCID and resource type.
+  - Add a description to the policy resource explaining its
+    purpose.
+  - Apply freeform tags: Name.

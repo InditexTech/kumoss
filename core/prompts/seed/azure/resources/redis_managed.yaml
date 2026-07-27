@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Cache for Redis default configuration (networking, TLS, persistence, diagnostics).
+body: |
+  # Azure Cache for Redis (Managed)
+
+  For an Azure Cache for Redis, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `redis-<application>-<environment>`.
+  - SKU family and capacity should match the workload. Use Basic
+    C0/C1 for non-production and Standard C1+ or Premium P1+ for
+    production.
+  - Premium tier is required for VNet integration, clustering,
+    data persistence, and geo-replication. Use Standard tier only
+    when these features are not needed.
+  - Minimum TLS version set to 1.2.
+  - Non-SSL port must be disabled (enable_non_ssl_port = false).
+    All connections must use TLS.
+  - Public network access must be disabled for production. Use
+    private endpoints for network-isolated access.
+  - For Premium tier with VNet injection, deploy into a dedicated
+    subnet.
+  - Enable data persistence (RDB or AOF) for Premium tier in
+    production to survive restarts.
+  - Redis authentication (access keys) should be used alongside
+    Azure AD authentication where supported. Store the access key
+    in Key Vault.
+  - Maxmemory policy set to allkeys-lru unless the user specifies
+    a different eviction strategy.
+  - Define a maintenance window (patch schedule) to control when
+    updates occur.
+  - Enable diagnostic settings to send Redis server metrics and
+    logs to a Log Analytics workspace.
+  - For high availability in production, use Standard tier
+    (includes replication) or Premium tier with clustering and
+    zone redundancy.
+  - Apply standard tags: environment and managed_by.

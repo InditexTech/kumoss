@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Security guardrails and forbidden patterns for Kubernetes Terraform code.
+body: |
+  # Kubernetes — STRICTLY FORBIDDEN Actions
+
+  The following actions are forbidden in generated Terraform code
+  targeting Kubernetes. Violations must be corrected before the code
+  is delivered.
+
+  ## Pod Security
+  - Do NOT run containers as root (`run_as_user = 0`) or with
+    `privileged = true` unless explicitly requested.
+  - Do NOT set `host_network = true`, `host_pid = true`, or
+    `host_ipc = true` on pods.
+  - Do NOT use `allow_privilege_escalation = true` in security
+    contexts.
+  - Do NOT mount the Docker socket or container runtime socket
+    (`/var/run/docker.sock`, `/run/containerd/containerd.sock`)
+    into containers.
+  - Do NOT use `hostPath` volumes — they bypass namespace isolation
+    and expose the node filesystem to the pod. Use PVCs instead.
+  - Do NOT disable or set the seccomp profile to `Unconfined` —
+    use `RuntimeDefault` or a custom profile.
+  - Do NOT store secrets as plain-text ConfigMap values — use
+    `kubernetes_secret` resources or external secrets operators.
+  - Do NOT add `SYS_ADMIN`, `NET_RAW`, or `ALL` capabilities
+    unless explicitly requested with security justification.
+
+  ## RBAC
+  - Do NOT bind `cluster-admin` to application service accounts.
+  - Do NOT use wildcard (`*`) verbs and resources in Roles or
+    ClusterRoles for application workloads.
+  - Do NOT create ClusterRoleBindings for namespace-scoped access.
+  - Do NOT grant `escalate`, `bind`, or `impersonate` verbs to
+    application ServiceAccounts.
+  - Do NOT grant `pods/exec` or `pods/attach` to application
+    ServiceAccounts — these provide shell access to containers.
+
+  ## Workloads
+  - Do NOT deploy workloads into the `default`, `kube-system`,
+    `kube-public`, or `kube-node-lease` namespaces.
+  - Do NOT omit resource requests and limits on containers — pods
+    without requests are treated as BestEffort QoS and evicted first.
+  - Do NOT use `latest` as the container image tag — always pin
+    to a specific version or SHA digest.
+  - Do NOT omit liveness and readiness probes on long-running
+    containers — without them, Kubernetes cannot detect failures
+    or remove unready pods from service endpoints.
+  - Do NOT set a PodDisruptionBudget with `max_unavailable = 0` or
+    `min_available` equal to the total replicas — this blocks node
+    drains, upgrades, and cluster maintenance.
+
+  ## Networking
+  - Do NOT expose services externally without TLS termination.
+  - Do NOT create `NodePort` services with hardcoded port numbers
+    unless explicitly requested.
+  - Do NOT omit NetworkPolicies in production namespaces.
+
+  ## Data
+  - Do NOT set `reclaim_policy = "Delete"` on PersistentVolumes
+    holding production data without explicit confirmation.
+  - Do NOT disable PersistentVolumeClaim protection finalizers.

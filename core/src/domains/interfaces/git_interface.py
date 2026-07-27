@@ -11,11 +11,6 @@ from src.domains.dto import PullRequestDTO
 class IGit(ABC):
     @property
     @abstractmethod
-    def branch(self) -> str:
-        pass
-
-    @property
-    @abstractmethod
     def error_msg(self) -> str:
         pass
 
@@ -29,16 +24,24 @@ class IGit(ABC):
         self,
         repo_url: str,
         repository_name: str,
-        branch: str | None = None,
-        depth: int | None = None,
-        create_branch: bool = False,
+        *extra_args: str,
+        timeout: int = 300,
     ) -> bool:
         """Clone the repository at ``repo_url`` into ``repository_name``.
 
         ``branch`` is optional; when ``None``, the cloner uses the remote's
-        default branch. ``depth`` limits commit history (shallow clone).
-        When ``create_branch`` is True and ``branch`` is provided, the clone
+        default branch. When ``create_branch`` is True and ``branch`` is provided, the clone
         uses the default branch and then creates a new local branch.
+
+        ``extra_args`` are passed through verbatim to ``git clone``.
+        Use for optional flags that control the shape of the clone without
+        adding a dedicated method — for example ``--filter=blob:none`` to
+        skip fetching file blobs (partial clone) or ``--no-checkout`` to skip
+        populating the working tree.  These arguments are injected between
+        the built-in flags (``--depth``, ``--branch``) and the trailing
+        ``<repo> <dir>`` positionals.
+
+        ``timeout`` is the maximum seconds to wait for the clone subprocess.
         """
         pass
 
@@ -48,24 +51,33 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def checkout(self) -> None:
+    async def checkout(self, branch: str) -> None:
         pass
 
     @abstractmethod
-    async def commit(self) -> None:
+    async def commit_and_push(self, branch: str) -> None:
         pass
 
     @abstractmethod
     async def create_pr(
         self,
+        repository_url: str,
+        head_branch: str,
+        title: str,
         description: str,
-        repository_name: str,
-        target_branch: str,
     ) -> PullRequestDTO:
+        """Create a Pull Request
+
+        Args:
+            repository_url: The full repository URL.
+            head_branch: The branch where the changes are implemented.
+            title: The PR title.
+            description: The PR description.
+        """
         pass
 
     @abstractmethod
-    async def complete_pr(self, pr_id: int) -> bool:
+    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
         pass
 
     @abstractmethod

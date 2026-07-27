@@ -15,13 +15,13 @@ from src.shared.logger import logging
 class FileSystemUtils(IFileSystem):
     """Tool-oriented filesystem implementation for individual file operations."""
 
-    def __init__(self, root: Path, file_ext: list[str]):
+    def __init__(self, root: Path, file_ext: list[str] | None = None):
         """Caller MUST pass the actual IaC root directory; no discovery is performed.
 
         :param root: Absolute path to the IaC root directory.
         :param file_ext: Allowed file extensions.
         """
-        self.__file_ext = file_ext
+        self.__file_ext = file_ext if file_ext else ["tf", "tfvars"]
         self.__project_root_path = Path(root)
 
     @property
@@ -85,7 +85,7 @@ class FileSystemUtils(IFileSystem):
             )
 
             with open(file_path, "w", encoding="utf-8") as file:
-                file.write(modified_content)
+                _ = file.write(modified_content)
 
             logging.info(f"Successfully replaced content in file {target_file}")
             return True

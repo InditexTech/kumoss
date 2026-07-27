@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Virtual Cloud Network default configuration (CIDR, DNS, gateways).
+body: |
+  # OCI Virtual Cloud Network (VCN)
+
+  For a VCN, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `vcn-<application>-<environment>`.
+  - CIDR block should be /16 for production, /20 for
+    non-production unless the user specifies otherwise.
+  - Do not overlap CIDR blocks with other VCNs that may need
+    peering or on-premises connectivity.
+  - DNS label must be set to enable DNS hostnames within the VCN.
+  - Create the VCN in the compartment specified by the user; if
+    not specified, use the application compartment variable.
+  - Do not create an Internet Gateway, NAT Gateway, or Service
+    Gateway inline — use separate resources for each.
+  - Do not modify the default security list, default route table,
+    or default DHCP options — create new ones instead.
+  - Enable VCN flow logs for the VCN for audit and
+    troubleshooting.
+  - Apply freeform tags: Name.

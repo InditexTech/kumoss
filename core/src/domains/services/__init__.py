@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .compliance_check_service import ComplianceCheckService
+from .iac_root_detection_service import IacRootDetectionService
 from .llm_service import LLMOrchestrationService
 from .session_service import SessionService
 from .task_split_service import TaskSplitService
@@ -14,6 +15,7 @@ from .tracer_service import TracerService, trace_chain, trace_llm, trace_tool
 
 __all__ = [
     "ComplianceCheckService",
+    "IacRootDetectionService",
     "LLMOrchestrationService",
     "SessionService",
     "TaskSplitService",

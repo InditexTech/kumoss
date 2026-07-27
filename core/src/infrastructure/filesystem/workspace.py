@@ -5,18 +5,18 @@
 import shutil
 import tempfile
 from pathlib import Path
+from typing import final, override
 from uuid import UUID
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.filesystem.git_utils import GitUtils
+from src.infrastructure.exceptions import GitError, InvalidRepoURI
+from src.infrastructure.filesystem.file_system import FileSystemUtils
+from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
 from src.shared.logger import logging
 
 
-class InvalidRepoURI(Exception):
-    """Raised when `git ls-remote` rejects the URI."""
-
-
+@final
 class WorkspaceService(IWorkspace):
     """Implements IWorkspace using GitUtils for git ops and shutil for filesystem ops."""
 
@@ -27,13 +27,30 @@ class WorkspaceService(IWorkspace):
     def _base(self) -> Path:
         return self._override_base or system_config.paths.upload_folder
 
+    def __add_terraform_gitignore(self, path: Path) -> bool:
+        utils = FileSystemUtils(path)
+        with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
+            if not Path(utils.project_root / ".gitignore").exists():
+                return utils.write_file(
+                    target_file=".gitignore",
+                    content=f.read(),
+                    is_safe=False,
+                )
+        return True
+
+    @override
     async def validate_uri(self, repo_uri: str) -> None:
-        git = GitUtils(cwd=Path(tempfile.gettempdir()))
+
+        git = GitUtils(
+            git_provider=system_config.git.provider,
+            cwd=Path(tempfile.gettempdir()),
+        )
         if not await git.ls_remote(repo_uri):
             msg = git.error_msg or f"Cannot reach repository: {repo_uri}"
             logging.warning(f"git ls-remote failed for {repo_uri}: {msg}")
-            raise InvalidRepoURI(msg)
+            raise InvalidRepoURI(message=msg, error_code=400)
 
+    @override
     async def setup_call_dir(
         self,
         *,
@@ -41,33 +58,35 @@ class WorkspaceService(IWorkspace):
         call_id: UUID,
         repo_uri: str,
         branch: str | None,
-        create_branch: bool = False,
     ) -> Path:
-        call_dir = self._base / "sessions" / str(session_id) / str(call_id)
+        call_dir = self._base / str(session_id) / str(call_id)
         call_dir.parent.mkdir(parents=True, exist_ok=True)
 
         # GitUtils.clone_repository clones into `cwd / repository_name`.
         # We want it to land at `call_dir`, so cwd=parent and repository_name=call_id.
-        git = GitUtils(cwd=call_dir.parent)
+        git = GitUtils(git_provider=system_config.git.provider, cwd=call_dir.parent)
         ok = await git.clone_repository(
             repo_url=repo_uri,
             repository_name=str(call_id),
-            branch=branch,
-            depth=1,
-            create_branch=create_branch,
         )
         if not ok:
-            shutil.rmtree(call_dir, ignore_errors=True)
-            raise RuntimeError(f"git clone failed: {git.error_msg}")
+            raise GitError(f"git clone failed: {git.error_msg}", 500)
+
+        if not self.__add_terraform_gitignore(call_dir):
+            logging.warning("terraform gitignore couldn't be created")
+
+        git = GitUtils(git_provider=system_config.git.provider, cwd=call_dir)
+        await git.checkout(branch)
+        await git.commit_and_push(branch)
         return call_dir
 
-    async def push_and_cleanup(self, *, call_dir: Path, branch: str) -> None:
-        git = GitUtils(cwd=call_dir)
+    @override
+    async def push(self, *, call_dir: Path, branch: str) -> None:
+        git = GitUtils(git_provider=system_config.git.provider, cwd=call_dir)
         ok = await git.push_branch(branch)
         if not ok:
-            self.cleanup(call_dir)
-            raise RuntimeError(f"git push failed: {git.error_msg}")
-        self.cleanup(call_dir)
+            raise GitError(f"git push failed: {git.error_msg}", 500)
 
+    @override
     def cleanup(self, call_dir: Path) -> None:
         shutil.rmtree(call_dir, ignore_errors=True)

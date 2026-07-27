@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Container Apps default configuration (environment, scaling, ingress, identity).
+body: |
+  # Azure Container App
+
+  For a Container App, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Container Apps Environment
+  - Naming convention: `cae-<application>-<environment>`.
+  - Associate with a Log Analytics workspace for logging.
+  - Deploy into a VNet-integrated subnet for network isolation.
+    The subnet must be dedicated to the Container Apps environment
+    with a minimum /23 prefix.
+  - Set the environment to internal-only (no public access) unless
+    the user explicitly requires external ingress.
+  - Zone redundancy should be enabled for production.
+
+  ## Container App
+  - Naming convention: `ca-<application>-<service>-<environment>`.
+  - Enable system-assigned managed identity for secure access to
+    other Azure services.
+  - Ingress must be configured with HTTPS only (allow insecure
+    disabled). Set target port to match the container's listening
+    port.
+  - Set minimum replicas to 0 for non-production (scale to zero)
+    and at least 2 for production.
+  - Set maximum replicas based on expected load. Default to 10
+    unless the user specifies otherwise.
+  - Configure HTTP scaling rules by default. Add custom scaling
+    rules (KEDA scalers) only when the user specifies event-driven
+    triggers.
+  - Define resource limits (CPU and memory) per container. Default
+    to 0.5 CPU and 1Gi memory unless the user specifies otherwise.
+  - Store secrets in the Container App's secrets collection or
+    reference Azure Key Vault secrets — never hardcode sensitive
+    values in environment variables.
+  - Set revision mode to Single unless the user requires traffic
+    splitting across multiple revisions.
+  - Apply standard tags: environment and managed_by.

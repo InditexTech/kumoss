@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Cosmos DB default configuration (consistency, networking, backup, encryption).
+body: |
+  # Azure Cosmos DB
+
+  For a Cosmos DB account, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `cosmos-<application>-<environment>`.
+  - API type (SQL/NoSQL, MongoDB, Cassandra, Table, Gremlin) should
+    match the user's data model. Default to NoSQL if not specified.
+  - Consistency level set to Session (the most commonly used and
+    balanced option). Only change if the user explicitly requests
+    a different level (Strong, Bounded Staleness, Consistent
+    Prefix, or Eventual).
+  - Capacity mode set to Serverless for non-production and
+    variable workloads. Use Provisioned throughput with autoscale
+    for production workloads with predictable traffic.
+  - Geo-redundancy: enable automatic failover. For production,
+    configure at least one additional geo-replication location.
+  - Multi-region writes should be disabled unless explicitly
+    requested (adds cost and complexity).
+  - Public network access must be disabled.
+  - Configure a private endpoint in the consumer's subnet.
+  - Network ACLs default action set to Deny.
+  - Add a lifecycle block with ignore_changes on the IP range
+    filter, so changes to allowed IPs made outside Terraform are
+    not reverted.
+  - Backup policy set to Continuous (point-in-time restore) with
+    the 7-day tier. Use Periodic only when continuous is not
+    supported by the chosen API.
+  - Encryption at rest uses Microsoft-managed keys by default.
+    Use customer-managed keys only when explicitly requested.
+  - Add a lifecycle block with prevent_destroy to guard against
+    accidental deletion.
+  - Do not create any database or container initially unless the
+    user specifies the data model.
+  - Enable diagnostic settings to send logs and metrics to a Log
+    Analytics workspace.
+  - Apply standard tags: environment and managed_by.

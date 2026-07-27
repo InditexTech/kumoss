@@ -90,7 +90,8 @@ class TerraformValidationDTO:
 
 @dataclass
 class PullRequestDTO:
-    pr_id: int
+    id: int
+    url: str
     status: str
 
 
@@ -98,11 +99,6 @@ class PullRequestDTO:
 class PromptTemplateDTO:
     type: PromptsLibrary
     prompt: str
-
-
-class MainHistory(BaseModel):
-    user: str
-    assistant: str
 
 
 class Summary(BaseModel):
@@ -272,27 +268,6 @@ class ComplianceCheckReport(BaseModel):
     summary: str
     checked_rules: list[str]
 
-
-class SessionPayloadDTO(BaseModel):
-    """DTO for session payloads"""
-
-    id: str
-    response: str
-    main_history: MainHistory
-    full_history: list[dict[str, str]]
-    environment: str
-    cloud: str
-    project: str
-    validation: bool
-    branch_name: str
-    terraform_plan: str | None = None
-    terraform_targets: list[str] | None = None
-    terraform_report: (
-        TerraformPlanReport | TerraformDriftReport | TerraformApplyReport | None
-    ) = None
-    compliance_report: ComplianceCheckReport | None = None
-    pipeline_url: str | None = None
-    apply_allowed: bool = True
 
 
 @dataclass

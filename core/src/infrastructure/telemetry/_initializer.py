@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from opentelemetry.sdk.trace import TracerProvider, Tracer, SpanLimits
+from opentelemetry.sdk.trace import TracerProvider, SpanLimits
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import (
     SimpleSpanProcessor,
@@ -11,25 +11,25 @@ from opentelemetry.sdk.trace.export import (
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from openinference.semconv.resource import ResourceAttributes
+from opentelemetry.trace import Tracer
 
 from src.shared.config import system_config
-from src.infrastructure.exceptions import TracerProviderError
-from src.shared.constants import TracerProviderEnum
+from src.shared.constants import TracerProject
 from src.shared.logger import logging
 
 
 class ProvidersInitializer:
     def __init__(self):
-        self.__providers: dict[TracerProviderEnum, TracerProvider] = {}
+        self.__providers: dict[TracerProject, TracerProvider] = {}
         self.__init_providers()
         logging.debug("Tracer providers initialized successfully")
 
     @property
-    def providers(self) -> dict[TracerProviderEnum, TracerProvider]:
+    def providers(self) -> dict[TracerProject, TracerProvider]:
         return self.__providers
 
     def __init_providers(self) -> None:
-        for provider_name in TracerProviderEnum:
+        for provider_name in TracerProject:
             resource = Resource(
                 attributes={ResourceAttributes.PROJECT_NAME: provider_name.value}
             )
@@ -53,14 +53,13 @@ class ProvidersInitializer:
             self.__providers[provider_name] = tracer_provider
 
 
-_PROVIDERS: dict[TracerProviderEnum, TracerProvider] = ProvidersInitializer().providers
+_PROVIDERS: dict[TracerProject, TracerProvider] = ProvidersInitializer().providers
 
 
-def get_tracer(tracer_name: TracerProviderEnum) -> Tracer:
-    provider = _PROVIDERS.get(tracer_name)
-    if not provider:
-        raise TracerProviderError(
-            message=f"Tracer Provider {tracer_name} not found.",
-            error_code=404,
-        )
-    return provider.get_tracer(tracer_name.value)
+def get_tracer() -> Tracer:
+    provider = TracerProject.PRO_TERRAFORM_DAY2
+    if system_config.environment == "development":
+        provider = TracerProject.DEV_TERRAFORM_DAY2
+    elif system_config.environment == "staging":
+        provider = TracerProject.PRE_TERRAFORM_DAY2
+    return _PROVIDERS[provider].get_tracer(provider.value)

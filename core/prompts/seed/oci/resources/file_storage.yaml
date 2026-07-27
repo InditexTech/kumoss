@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI File Storage default configuration (file system, mount target, export).
+body: |
+  # OCI File Storage
+
+  For File Storage resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## File System
+  - Naming convention: `fss-<application>-<environment>`.
+  - Encryption uses Oracle-managed keys by default. Use a
+    customer-managed key (OCI Vault) when requested.
+  - Enable snapshots for backup and recovery. Schedule snapshot
+    policies based on RPO requirements.
+  - Clone file systems for testing or development rather than
+    copying data.
+  - Add a lifecycle block with prevent_destroy for production.
+
+  ## Mount Target
+  - Naming convention: `mt-<application>-<environment>`.
+  - Place the mount target in a private subnet.
+  - One mount target can serve multiple file systems — reuse mount
+    targets within the same subnet to reduce costs (each mount
+    target consumes a private IP and has an hourly charge).
+  - Assign an NSG to the mount target allowing NFS traffic
+    (TCP ports 111, 2048, 2049, 2050) only from the subnets that
+    need access.
+  - Set a hostname label for DNS resolution.
+
+  ## Export
+  - Export path convention: `/<application>-<environment>`.
+  - Export options should restrict access to specific source CIDRs
+    (the subnets mounting the file system).
+  - Use squash set to ROOT for production exports. Use NONE only
+    for trusted non-production environments.
+  - Require privileged source port (ports 1-1023) for production.
+  - Apply freeform tags: Name.

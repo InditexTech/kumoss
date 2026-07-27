@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-from src.domains.entities.history import History
+from src.domains.entities import SessionContext
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services.llm_service import LLMOrchestrationService
@@ -51,7 +51,7 @@ class TerraformValidationService:
     async def generate_and_validate(
         self,
         query: str,
-        history: History,
+        ctx: SessionContext,
         include_forbidden_actions: bool,
     ) -> TerraformValidationDTO:
         """
@@ -66,7 +66,7 @@ class TerraformValidationService:
             count=0,
         )
         validation_dto = TerraformValidationDTO.empty()
-        local_history = history.deepcopy()
+        local_history = ctx.history.deepcopy()
         while (
             not validation_dto.validation
             and validation_state.count < validation_state.max_tries
@@ -76,7 +76,7 @@ class TerraformValidationService:
 
             templates, abbreviations = await self.__template_svc.compose_template(
                 query=query,
-                history=history,
+                history=ctx.history,
             )
             chain_result: ToolResultDTO = await self.__llm_svc.generate(
                 query=query,
@@ -99,8 +99,8 @@ class TerraformValidationService:
                 history=local_history,
             )
             local_history.append_turn(query, str(chain_result.result))
-            summary: str | None = chain_result.result.get("final_summary")
-            self.__session_svc.append_summary(summary) if summary else None
+            # summary: str | None = chain_result.result.get("final_summary")
+            # self.__session_svc.append_summary(summary) if summary else None
 
             await self.__session_svc.update_status(
                 msg=query,
@@ -109,10 +109,10 @@ class TerraformValidationService:
                 history=local_history,
             )
 
-            await self.__git.commit()
+            await self.__git.commit_and_push(ctx.branch_name)
 
             validation_dto = await self.__validator.validate(
-                branch=self.__git.branch,
+                branch=ctx.branch_name,
                 targets=await self.__target_svc.generate(query, local_history),
             )
             query = validation_dto.feedback

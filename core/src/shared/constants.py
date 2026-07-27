@@ -7,12 +7,14 @@ from enum import Enum, unique
 
 @unique
 class LLMProvider(Enum):
-    # https://docs.anthropic.com/en/docs/about-claude/models#model-comparison
+    """All supported LLM models and providers"""
+
     HAIKU_BEDROCK = {
         "model_id": "anthropic.claude-3-5-haiku-20241022-v1:0",
         "max_input_tokens": 200_000,
         "max_output_tokens": 8_192,
         "provider": "anthropicBedrock",
+        "phoenix_id": "undefined",
     }
     HAIKU_VERTEX = {
         "model_id": "claude-haiku-4-5@20251001",
@@ -20,54 +22,64 @@ class LLMProvider(Enum):
         "max_output_tokens": 64_000,
         "provider": "anthropicVertex",
         "region": "europe-west1",
+        "phoenix_id": "claude-haiku-4-5-20251001",
     }
     SONNET_BEDROCK = {
         "model_id": "anthropic.claude-sonnet-4-20250514-v1:0",
         "max_input_tokens": 200_000,
         "max_output_tokens": 32_000,
         "provider": "anthropicBedrock",
+        "phoenix_id": "claude-4-sonnet-20250514",
     }
     SONNET_VERTEX = {
-        "model_id": "claude-sonnet-4-5@20250929",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 32_000,
+        "model_id": "claude-sonnet-4-6",
+        "max_input_tokens": 1_000_000,
+        "max_output_tokens": 64_000,
         "provider": "anthropicVertex",
         "region": "us-east5",
+        "phoenix_id": "claude-sonnet-4-6",
     }
     OPUS_BEDROCK = {
         "model_id": "anthropic.claude-3-opus-20240229-v1:0",
         "max_input_tokens": 200_000,
         "max_output_tokens": 4096,
         "provider": "anthropicBedrock",
+        "phoenix_id": "claude-3-opus-20240229",
     }
     OPUS_VERTEX = {
         "model_id": "claude-opus-4@20250514",
         "max_input_tokens": 200_000,
         "max_output_tokens": 32_000,
         "provider": "anthropicVertex",
+        "phoenix_id": "claude-4-opus-20250514",
     }
     GEMINI_PRO = {
         "model_id": "gemini-2.5-pro",
         "max_input_tokens": 1_048_576,
         "max_output_tokens": 65_535,
         "provider": "google",
+        "phoenix_id": "gemini-2.5-pro",
     }
     GEMINI_FLASH = {
         "model_id": "gemini-3-flash-preview",
         "max_input_tokens": 1_048_576,
         "max_output_tokens": 65_535,
         "provider": "google",
+        "phoenix_id": "gemini-3-flash-preview",
     }
     GEMINI_FLASH_LITE = {
         "model_id": "gemini-2.5-flash-lite",
         "max_input_tokens": 1_048_576,
         "max_output_tokens": 65_535,
         "provider": "google",
+        "phoenix_id": "gemini-2.5-flash-lite",
     }
 
 
 @unique
 class Embeddings(Enum):
+    """(DEPRECATED) All supported embedding models and providers"""
+
     OPENAI_LARGE_3 = {
         "model": "text-embedding-3-large",
         "output_dimension": 3_072,
@@ -81,16 +93,26 @@ class Embeddings(Enum):
 
 
 @unique
-class TemplateProvider(Enum):
+class TerraformProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
-    COMMON = "common"
+    AWS = "aws"
+    OCI = "oci"
+    KUBERNETES = "kubernetes"
 
 
 @unique
-class TracerProviderEnum(Enum):
-    """Defines all possible tracer providers.
-    Note: a tracer provider is defined as a project in Phoenix Collector
+class ReportType(Enum):
+    GENERATE = "generate"
+    DRIFT = "drift"
+    IMPORT = "import"
+    APPLY = "apply"
+
+
+@unique
+class TracerProject(Enum):
+    """Defines all possible tracer projects.
+    Note: a project in Phoenix is defined as a group of traces
     """
 
     DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
@@ -103,12 +125,15 @@ class TracerProviderEnum(Enum):
 
 @unique
 class SessionStatus(Enum):
+    """All possible Session states"""
+
     STARTED = "started"
     FILTERING = "filtering"
     GENERATING = "generating"
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
+    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
 
 
@@ -147,3 +172,12 @@ class ToolContext(Enum):
     GENERAL_TASK_COMPLETION = "general_task_completion"
     COMPLIANCE_CHECK = "compliance_check"
     INLINE_COMPLIANCE = "inline_compliance"
+
+
+@unique
+class GitProviderName(Enum):
+    """Defines all the supported git providers"""
+
+    GITHUB = "github.com"
+    AZURE_DEVOPS = "dev.azure.com"
+    GITLAB = "gitlab.com"

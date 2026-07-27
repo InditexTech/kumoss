@@ -1,0 +1,84 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import { useState, useCallback } from "react";
+import { STRINGS } from "@/constants/strings";
+import type { WizardStep } from "@/types/ui";
+import type { TerraformProvider } from "@/types/api";
+
+export interface WizardData {
+  query: string;
+  repositoryUrl: string;
+  provider: TerraformProvider | "";
+  cloudScope: string;
+  iacPath: string;
+}
+
+const INITIAL_DATA: WizardData = {
+  query: "",
+  repositoryUrl: "",
+  provider: "",
+  cloudScope: "",
+  iacPath: "",
+};
+
+export function useWizardNavigation() {
+  const [step, setStep] = useState<WizardStep>("query");
+  const [data, setData] = useState<WizardData>(INITIAL_DATA);
+
+  const promptMessage = useCallback(
+    (authStatus: string): string => {
+      if (authStatus === "loading") {
+        return `${STRINGS.wizard.checkingPermissions} ${data.cloudScope}`;
+      }
+      switch (step) {
+        case "query":
+          return STRINGS.wizard.promptQuery;
+        case "repository_url":
+          return STRINGS.wizard.promptRepository;
+        case "iac_path":
+          return STRINGS.wizard.promptIacPath;
+        case "provider":
+          return STRINGS.wizard.promptProvider;
+        case "cloud_scope":
+          return STRINGS.wizard.promptCloudScope;
+        default:
+          return "";
+      }
+    },
+    [step, data.cloudScope],
+  );
+
+  const placeholder = useCallback((): string => {
+    switch (step) {
+      case "query":
+        return STRINGS.wizard.placeholderQuery;
+      case "repository_url":
+        return STRINGS.wizard.placeholderRepository;
+      case "iac_path":
+        return "";
+      case "provider":
+        return "";
+      case "cloud_scope":
+        return STRINGS.wizard.placeholderCloudScope;
+      default:
+        return "";
+    }
+  }, [step]);
+
+  const resetNavigation = useCallback(() => {
+    setStep("query");
+    setData(INITIAL_DATA);
+  }, []);
+
+  return {
+    step,
+    setStep,
+    data,
+    setData,
+    promptMessage,
+    placeholder,
+    resetNavigation,
+  } as const;
+}

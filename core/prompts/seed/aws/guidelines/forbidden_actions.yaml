@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS actions Nebula must never generate (security and cost guardrails).
+body: |
+  # STRICTLY FORBIDDEN AWS ACTIONS
+
+  Never generate Terraform that performs any of the following. If a
+  request requires one of these, refuse and explain why.
+
+  ## Networking
+  - Security group ingress rules with `cidr_blocks = ["0.0.0.0/0"]`
+    on ports other than 80 and 443.
+  - Public IP addresses on RDS instances, ElastiCache clusters, or
+    internal-only EC2 instances.
+  - Disabling VPC flow logs on existing VPCs.
+  - Removing or replacing the default allow-all egress rule without
+    an explicit user request.
+
+  ## Identity and access
+  - IAM policies with `Effect: Allow` on `Resource: "*"` combined
+    with wildcard actions (`Action: "*"`).
+  - Creating IAM users with long-lived access keys.
+  - Attaching the `AdministratorAccess` or `PowerUserAccess` managed
+    policies without an explicit user request.
+  - Storing credentials in resource tags, descriptions, user data,
+    or Terraform outputs.
+
+  ## Data
+  - Disabling server-side encryption on S3 buckets, EBS volumes,
+    RDS instances, or DynamoDB tables.
+  - Setting S3 bucket ACLs to `public-read` or `public-read-write`.
+  - Disabling S3 Block Public Access settings.
+  - Deleting or replacing stateful resources (RDS, DynamoDB, S3)
+    without an explicit `lifecycle.prevent_destroy = true` override
+    request from the user.
+
+  ## Cost
+  - Provisioning compute-intensive instance families (e.g. `p5`,
+    `x2idn`, `u-*`) without an explicit user request.
+  - Creating resources with no auto-stop mechanism in non-production
+    environments.
+  - Provisioning provisioned-mode DynamoDB tables without explicit
+    capacity planning from the user.
+
+  Replace this body with your organization's authoritative
+  forbidden-action policy.

@@ -4,7 +4,7 @@
 
 import json
 from collections.abc import Iterator
-from typing import Any, Literal, override
+from typing import Any, Literal, cast, override
 from uuid import UUID
 
 from opentelemetry import trace
@@ -37,35 +37,32 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider, TracerProviderEnum
+from src.shared.constants import LLMProvider, TerraformProvider
 
 
 class PhoenixTracer(ITracer):
     def __init__(
         self,
-        provider_name: TracerProviderEnum,
         session_id: UUID,
         user_id: str,
-        project: str,
-        environment: str,
+        cloud: TerraformProvider,
+        iac_path: str,
         branch_name: str | None = None,
     ):
         """
         PhoenixTracer implements a concrete adapter to OTel for a Phoenix collector
         This class is tied with the lifetime of a single request or session.
 
-        :param provider_name: The telemetry provider to use for tracing
         :param session_id: Unique identifier for this tracing session
         :param user_id: Identifier for the user associated with this session
         :param project: The name of the selected project
-        :param environment: The environment of the selected project
         :param branch_name: The name of the git's branch name where the changes are being implemented
         """
-        self.__tracer: Tracer = get_tracer(provider_name)
-        self.__session_id: str = session_id.hex
+        self.__tracer: Tracer = get_tracer()
+        self.__session_id: str = str(session_id)
         self.__user_id: str = user_id
-        self.__project: str = project
-        self.__environment: str = environment
+        self.__terraform_prv: TerraformProvider = cloud
+        self.__iac_path: str = iac_path
         self.__branch_name: str = branch_name if branch_name else "undefined"
         self.__root_context: Context | None = None
 
@@ -85,8 +82,8 @@ class PhoenixTracer(ITracer):
                 {
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
-                    "project": self.__project,
-                    "environment": self.__environment,
+                    "cloud": self.__terraform_prv.name,
+                    "iac_path": self.__iac_path,
                     "branch_name": self.__branch_name,
                     **kwargs,
                 }
@@ -131,7 +128,7 @@ class PhoenixTracer(ITracer):
         self.__root_context = trace.set_span_in_context(span)
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(chain_type=kwargs["prompt"].type.name),
-            *_span_kind_attributes(OpenInferenceSpanKindValues.CHAIN),
+            *_span_kind_attributes(OpenInferenceSpanKindValues.AGENT),
             *_input_attributes(kwargs["query"]),
         ):
             span.set_attribute(attribute_key, attribute_value)
@@ -196,7 +193,7 @@ class PhoenixTracer(ITracer):
 
     @override
     def trace_tool(
-        self, start_time: int, output: Any, *args: list[Any], **kwargs: Any
+        self, start_time: int, output: ToolResultDTO, *args: list[Any], **kwargs: Any
     ) -> Span:
         """
         Creates and configures a span for tracing tool operations.
@@ -206,12 +203,14 @@ class PhoenixTracer(ITracer):
         :param kwargs: Keyword arguments containing the tool input
         :return: OpenTelemetry Span configured with tool-specific attributes
         """
-        tool_name: ToolCallDTO | None = kwargs.get("tool_call")
+        tool: ToolCallDTO | None = kwargs.get("tool_call")
         span = self.__tracer.start_span(
-            name=f"Tool call - {tool_name.name if tool_name else 'undefined'}",
+            name=f"Tool call - {tool.name if tool else 'undefined'}",
             start_time=start_time,
             context=self.__root_context,
         )
+        if tool and tool.name == "task_complete":
+            output = output.result.get("final_summary")
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
@@ -254,25 +253,9 @@ def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str
     Maps provider name to OpenInference value and yields the OpenInference model name attribute.
     """
     if any(key in provider_name.name.lower() for key in ["opus", "sonnet", "haiku"]):
-        if "sonnet" in provider_name.name.lower():
-            model_name = "claude-sonnet-4-5-20250929"
-        elif "haiku" in provider_name.name.lower():
-            model_name = "claude-haiku-4-5-20251001"
-        elif "opus" in provider_name.name.lower():
-            model_name = "claude-opus-4-1"
-        else:
-            model_name = "undefined"
         provider = OpenInferenceLLMProviderValues.ANTHROPIC.value
         system = OpenInferenceLLMSystemValues.ANTHROPIC.value
     elif "gemini" in provider_name.name.lower():
-        if "lite" in provider_name.name.lower():
-            model_name = "gemini-2.5-flash-lite"
-        elif "flash" in provider_name.name.lower():
-            model_name = "gemini-3-flash-preview"
-        elif "pro" in provider_name.name.lower():
-            model_name = "gemini-3-pro-preview"
-        else:
-            model_name = "undefined"
         provider = OpenInferenceLLMProviderValues.GOOGLE.value
         system = OpenInferenceLLMSystemValues.VERTEXAI.value
     else:
@@ -280,7 +263,7 @@ def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str
             message=f"Provider {provider_name.name} couldn't be mapped to OpenInference",
             error_code=404,
         )
-    yield SpanAttributes.LLM_MODEL_NAME, model_name
+    yield SpanAttributes.LLM_MODEL_NAME, cast(str, provider_name.value["phoenix_id"])
     yield SpanAttributes.LLM_PROVIDER, provider
     yield SpanAttributes.LLM_SYSTEM, system
 

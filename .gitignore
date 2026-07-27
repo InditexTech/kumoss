@@ -7,7 +7,7 @@
 .vscode/
 
 # Local dev compose overrides
-docker-compose.override.yml
+docker-compose.override.*
 
 # Distribution / packaging
 __pycache__
@@ -85,6 +85,10 @@ typings/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Frontend test coverage
+coverage/
+mocks/
 
 # IDE
 *workspace

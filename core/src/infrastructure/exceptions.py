@@ -137,3 +137,15 @@ class CliTimeoutError(ExceptionHandler):
     """Raised when a CLI command times out"""
 
     pass
+
+
+class InvalidRepoURI(ExceptionHandler):
+    """Raised when `git ls-remote` rejects the URI."""
+
+    pass
+
+
+class GitError(ExceptionHandler):
+    """General git error exception"""
+
+    pass

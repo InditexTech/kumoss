@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI OKE cluster default configuration (networking, node pools, encryption).
+body: |
+  # OCI OKE (Kubernetes) Cluster
+
+  For an OKE cluster, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Cluster
+  - Naming convention: `oke-<application>-<environment>`.
+  - Use the Enhanced cluster type for production (includes virtual
+    node pools, cluster add-on management, and workload identity).
+    Use Basic only for non-production cost optimization.
+  - Kubernetes version: use the latest supported version unless the
+    user specifies otherwise.
+  - Kubernetes API endpoint: private endpoint in a private subnet.
+    Public endpoint only for non-production or if explicitly
+    requested.
+  - Enable Kubernetes dashboard only if explicitly requested.
+  - Pod networking: use OCI VCN-Native Pod Networking (VCN-IP) for
+    production. Use flannel overlay only for non-production or when
+    IP address space is constrained.
+
+  ## Node Pools
+  - Naming convention: `np-<purpose>-<environment>`.
+  - Use flexible shapes (VM.Standard.E5.Flex) with configurable
+    OCPUs and memory.
+  - Place worker nodes in private subnets.
+  - Boot volume encryption must be enabled.
+  - Node count: 3 nodes across availability domains for production
+    high availability. 1-2 nodes for non-production.
+  - Enable auto-scaling for production node pools (min 3, max
+    based on capacity planning).
+  - Use Oracle Linux 8 as the node image.
+
+  ## Networking
+  - API endpoint subnet, worker node subnet, and service load
+    balancer subnet should be separate.
+  - Service load balancer subnet must be public for external-facing
+    services.
+  - Worker node subnet must be private with NAT Gateway for
+    outbound access.
+
+  ## Security
+  - Use OCI Vault for secrets encryption.
+  - Enable image verification policies for production clusters.
+  - Apply freeform tags: Name.

@@ -19,7 +19,7 @@ an internal source of truth (CMDB, Backstage, a spreadsheet, …) and
 return the canonical IaC repo for each.
 
 The service is internal-only: the core api forwards browser requests
-to it via `POST /v2/mapping/resolve`. It is not reachable from the
+to it via `POST /v1/mapping/resolve`. It is not reachable from the
 browser directly.
 
 ## What it does

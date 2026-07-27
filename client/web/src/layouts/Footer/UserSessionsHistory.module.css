@@ -1,0 +1,92 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.timeline {
+  padding: 0 2rem 1rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.title {
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.moreButton {
+  padding: 8px 24px;
+  font-size: 18px;
+  font-weight: 300;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  cursor: pointer;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.moreButton:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+}
+
+.moreButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.viewAll {
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: color 0.2s ease;
+}
+
+.viewAll:hover {
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
+.cardRow {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  cursor: grab;
+}
+
+.empty {
+  font-size: 19px;
+  font-weight: 300;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 40px 0;
+}
+
+.emptyCard {
+  width: 258px;
+  height: 220px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border-strong);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+@media screen and (max-width: 768px) {
+  .timeline {
+    padding: 0 24px 24px;
+  }
+
+}

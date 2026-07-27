@@ -28,13 +28,18 @@ Important: The templates list and abbreviations list operate independently. A re
 {% if ALREADY_SELECTED_TEMPLATES or ALREADY_SELECTED_ABBREVIATIONS %}
 <already_selected_context>
 {% if ALREADY_SELECTED_TEMPLATES %}
-The following templates have already been selected for this request: {{ ALREADY_SELECTED_TEMPLATES | join(', ') }}
+The following templates have already been selected for this request:
+{% for title, content in ALREADY_SELECTED_TEMPLATES.items() %}
+- **{{ title }}**:
+{{ content }}
+{% endfor %}
 {% endif %}
 {% if ALREADY_SELECTED_ABBREVIATIONS %}
 The following abbreviations have already been selected for this request: {{ ALREADY_SELECTED_ABBREVIATIONS | join(', ') }}
 {% endif %}
 Your task is to identify any ADDITIONAL related or dependent templates and abbreviations that should also be included but were not in the initial selection.
 Focus on infrastructure dependencies, shared services, and resources that are commonly deployed alongside the already-selected items.
+If the content of each template is present, use it to identify any other dependencies instead of guessing.
 Do NOT repeat items that are already selected unless you believe they were incorrectly chosen.
 </already_selected_context>
 {% endif %}

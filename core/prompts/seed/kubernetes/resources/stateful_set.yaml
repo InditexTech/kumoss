@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes StatefulSet default configuration (stable identity, persistent storage, ordered operations).
+body: |
+  # Kubernetes StatefulSet
+
+  For a StatefulSet, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<app>-<component>-<environment>`.
+  - Use StatefulSet when workloads need stable network identities,
+    stable persistent storage, or ordered deployment and scaling.
+    Do NOT use StatefulSet when a Deployment with PVCs would suffice.
+  - Set `replicas` based on the application quorum requirements.
+  - Set `revision_history_limit = 5` to control ControllerRevision
+    history.
+  - Set `min_ready_seconds` to a value that allows the pod to prove
+    stability before the controller proceeds to the next ordinal.
+  - `pod_management_policy`: default `OrderedReady` for ordered
+    startup; use `Parallel` only when pods are independent.
+  - `update_strategy`: use `RollingUpdate` with `partition = 0`
+    for full rollouts. Increase partition for canary deployments.
+  - Set `persistent_volume_claim_retention_policy`:
+    - `when_deleted = "Retain"` — keep PVCs when the StatefulSet
+      is deleted (safeguards data).
+    - `when_scaled = "Retain"` — keep PVCs when scaling down.
+    Change to `"Delete"` only for ephemeral data.
+  - Define `volume_claim_template` for each pod's persistent storage:
+    - Set appropriate `storage_class_name`.
+    - Size the `resources.requests.storage` for the workload.
+    - Use `access_modes = ["ReadWriteOnce"]` as default.
+  - Pair with a headless Service (`cluster_ip = "None"`) to provide
+    stable DNS entries per pod (`<pod>.<service>.<ns>.svc.cluster.local`).
+  - Apply the same security context, probes (including startup probe),
+    topology spread, and resource limits guidelines as Deployments.
+  - Set `automount_service_account_token = false` unless API access
+    is required.
+  - When an HPA manages replicas, add
+    `lifecycle { ignore_changes = [spec[0].replicas] }`.

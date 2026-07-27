@@ -139,7 +139,7 @@
       "rule": {
         "type": "file-existence",
         "options": {
-          "globsAny": ["package.json"]
+          "globsAny": ["**/package.json"]
         }
       }
     },

@@ -56,10 +56,10 @@ class TestSeedLoader(unittest.TestCase):
         self.assertEqual(SeedLoader(self.root).load(), [])
 
     def test_rejects_unknown_scope(self):
-        _write(self.root, "aws/guidelines/foo.yaml", "body: x\n")
+        _write(self.root, "onprem/guidelines/foo.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
-        self.assertIn("Invalid scope 'aws'", ctx.exception.message)
+        self.assertIn("Invalid scope 'onprem'", ctx.exception.message)
 
     def test_rejects_unknown_type(self):
         _write(self.root, "azure/snippets/foo.yaml", "body: x\n")

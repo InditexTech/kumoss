@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes RoleBinding default configuration (namespace-scoped subject-to-role mapping, immutability).
+body: |
+  # Kubernetes RoleBinding
+
+  For a RoleBinding, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `<subject>-<role>-rb`.
+  - Use RoleBinding for namespace-scoped permissions — prefer this
+    over ClusterRoleBinding for application workloads.
+  - `role_ref` can reference either a Role or a ClusterRole:
+    - `api_group = "rbac.authorization.k8s.io"`.
+    - `kind` — `Role` or `ClusterRole`.
+    - `name` — the role to bind.
+  - The `role_ref` field is immutable — changing it requires
+    deleting and recreating the RoleBinding.
+  - Binding a ClusterRole via RoleBinding scopes it to the
+    RoleBinding's namespace — useful for reusing common ClusterRoles
+    across namespaces without granting cluster-wide access.
+  - Define `subject` blocks specifying:
+    - `kind` — `ServiceAccount`, `User`, or `Group`.
+    - `name` — the subject identifier.
+    - `namespace` — required when kind is `ServiceAccount`.
+  - Apply standard labels for identification.

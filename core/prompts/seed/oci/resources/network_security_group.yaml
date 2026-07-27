@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Network Security Group default configuration (rules, VNIC attachment).
+body: |
+  # OCI Network Security Group (NSG)
+
+  For a Network Security Group, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `nsg-<purpose>-<application>-<environment>`.
+  - Prefer NSGs over Security Lists for granular, resource-level
+    traffic control. NSGs attach directly to VNICs.
+  - Create separate NSGs per tier (web, app, database) to enforce
+    micro-segmentation.
+  - Rules should reference other NSGs as sources/destinations where
+    possible instead of CIDR blocks, to decouple security from
+    network topology.
+  - All rules should be stateful unless the user explicitly
+    requests stateless.
+  - Egress: allow all outbound traffic unless the user specifies
+    restrictive egress.
+  - Ingress: deny all by default. Only open specific ports from
+    specific sources.
+  - Never open 0.0.0.0/0 ingress on ports other than 80 and 443.
+  - Maximum 5 NSGs per VNIC — plan grouping carefully.
+  - Apply freeform tags: Name.

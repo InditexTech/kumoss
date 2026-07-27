@@ -11,43 +11,32 @@ services:
     image: nebula-nginx:latest
     restart: on-failure
     build:
-      context: ./frontend
-      dockerfile: docker/local.nginx.Dockerfile
+      context: .
+      dockerfile: ./nginx/Dockerfile
     ports:
       - "80:80"
     expose:
       - 80
     depends_on:
-      - api
-      - webapp
+      - core
       - phoenix
     networks:
       - bridge-network
 
-  api:
-    image: nebula-fastapi:latest
+  core:
+    image: nebula-core:latest
     build:
       context: .
       dockerfile: ./Dockerfile
-    ports:
-      - "8000:8000"
+    expose:
+      - 8000
     env_file:
       - path: ./core/.env
-        required: false
-    environment:
-      # Stack-internal wiring (not secrets, not deployer-tunable). The
-      # bundled ./config.yaml is mounted read-only at /etc/nebula/config.yaml
-      # below; edit it (or override via docker-compose.override.yml) to
-      # customize.
-      - NEBULA_CONFIG=/etc/nebula/config.yaml
-      - PHOENIX_HOST=http://phoenix:6006/
-      # Cloned repos go on the shared `workspaces` volume so the
-      # IaC service can read the same paths.
-      # - NEBULA_UPLOAD_FOLDER=/workspaces
+        required: true
     volumes:
-      - ./config.yaml:/etc/nebula/config.yaml:ro
       - workspaces:/workspaces
     depends_on:
+      - core-db
       - notifications
       - mapping
       - iac
@@ -57,6 +46,19 @@ services:
         - action: sync
           path: ./core
           target: /usr/src/app
+    networks:
+      - bridge-network
+
+  core-db:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=nebula
+    expose:
+      - 5432
+    volumes:
+      - core_db_data:/var/lib/postgresql/data
     networks:
       - bridge-network
 
@@ -84,6 +86,20 @@ services:
     networks:
       - bridge-network
 
+  iac:
+    image: nebula-iac:latest
+    build:
+      context: ./services/iac
+    env_file:
+      - path: ./services/iac/.env
+        required: false
+    volumes:
+      - workspaces:/workspaces
+    expose:
+      - 8082
+    networks:
+      - bridge-network
+
   authz:
     image: nebula-authz:latest
     build:
@@ -99,65 +115,53 @@ services:
     networks:
       - bridge-network
 
-  iac:
-    image: nebula-iac:latest
-    build:
-      context: ./services/iac
-    env_file:
-      - path: ./services/iac/.env
-        required: false
-    volumes:
-      - workspaces:/workspaces
-    expose:
-      - 8082
-    networks:
-      - bridge-network
-
-  webapp:
-    image: nebula-web:latest
-    build:
-      context: ./frontend
-      dockerfile: ./docker/local.vite.Dockerfile
-    ports:
-      - "5173"
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend/user_portal
-          target: /user_portal
-    networks:
-      - bridge-network
-
   phoenix:
-    image: arizephoenix/phoenix:17.6.0
-    env_file:
-      - path: ./core/.env
-        required: false
-    ports:
-      - "6006"
-      - "4317"
+    image: arizephoenix/phoenix:19.4.0
+    expose:
+      - 6006
+      - 4317
     depends_on:
-      - db
+      - phoenix-db
     environment:
+      - PHOENIX_SQL_DATABASE_URL=postgresql://postgres:postgres@phoenix-db:5432/phoenix
       - PHOENIX_HOST_ROOT_PATH=/monitoring
+      - PHOENIX_ENABLE_MCP_SERVER=false
     networks:
       - bridge-network
 
-  db:
+  phoenix-db:
     image: postgres:17
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    ports:
-      - "5432"
+      - POSTGRES_DB=phoenix
+    expose:
+      - 5432
     volumes:
-      - database_data:/var/lib/postgresql/data
+      - phoenix_db_data:/var/lib/postgresql/data
     networks:
       - bridge-network
 
+  object-store:
+    image: quay.io/minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - object_store_data:/data
+    command: server /data --console-address ":9001"
+    # restart: unless-stopped
+
 volumes:
-  database_data:
+  core_db_data:
+    driver: local
+  phoenix_db_data:
+    driver: local
+  object_store_data:
     driver: local
   workspaces:
     driver: local

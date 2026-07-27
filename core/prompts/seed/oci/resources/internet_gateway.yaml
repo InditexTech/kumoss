@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Internet Gateway default configuration (VCN attachment, routing).
+body: |
+  # OCI Internet Gateway
+
+  For an Internet Gateway, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `igw-<application>-<environment>`.
+  - One Internet Gateway per VCN. OCI allows only one IGW per VCN.
+  - Enabled must be set to true. Set to false only to temporarily
+    disable internet access without removing the gateway.
+  - Add a route rule for 0.0.0.0/0 pointing to the Internet
+    Gateway in public subnet route tables only.
+  - Never add Internet Gateway routes to private subnet route
+    tables — private subnets use NAT Gateways for outbound access.
+  - The Internet Gateway is highly available by default — no
+    additional HA configuration is needed.
+  - Internet Gateways have no separate hourly charge — billing is
+    based on data transfer only.
+  - Apply freeform tags: Name.

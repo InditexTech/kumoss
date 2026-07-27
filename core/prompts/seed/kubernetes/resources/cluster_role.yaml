@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes ClusterRole default configuration (rules, aggregation, subresources, least privilege).
+body: |
+  # Kubernetes ClusterRole
+
+  For a ClusterRole, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `<app>-<purpose>-cr`.
+  - Use ClusterRole only when access spans multiple namespaces or
+    targets cluster-scoped resources (nodes, PVs, namespaces).
+  - For namespace-scoped access, prefer `kubernetes_role` instead.
+  - Define `rule` blocks with the narrowest set of `api_groups`,
+    `resources`, and `verbs` required.
+  - Avoid wildcard (`*`) verbs or resources — enumerate explicitly.
+  - Use `resource_names` to restrict access to specific named
+    resources when possible.
+  - When granting access to subresources, specify them explicitly
+    (e.g., `pods/log`, `pods/status`, `deployments/scale`). Never
+    grant `pods/exec` or `pods/attach` to application workloads.
+  - Never grant `escalate`, `bind`, or `impersonate` verbs to
+    application ServiceAccounts.
+  - For aggregated ClusterRoles, use `aggregation_rule` with label
+    selectors to compose roles from smaller building blocks.
+  - Pair with a `kubernetes_cluster_role_binding` to bind to
+    subjects (users, groups, or ServiceAccounts).
+  - Apply standard labels for identification.

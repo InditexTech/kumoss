@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Subnet default configuration (CIDR, access type, route table).
+body: |
+  # OCI Subnet
+
+  For a Subnet, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `snet-<purpose>-<application>-<environment>`.
+  - Use regional subnets (spanning all availability domains) unless
+    AD-specific placement is explicitly required.
+  - Default to private subnets. Only create public subnets for load
+    balancers, bastion hosts, or resources that explicitly need
+    direct internet access.
+  - CIDR block should be carved from the parent VCN CIDR with room
+    for growth. Typical sizes: /24 for general workloads, /28 for
+    small utility subnets.
+  - Set a DNS label for the subnet.
+  - Associate with a custom route table — do not use the VCN
+    default route table.
+  - Associate with a custom security list or Network Security Group
+    — do not rely on the default security list.
+  - For private subnets, the route table should include a NAT
+    Gateway rule for outbound internet access and a Service Gateway
+    rule for Oracle services.
+  - For public subnets, the route table should include an Internet
+    Gateway rule.
+  - Apply freeform tags: Name.

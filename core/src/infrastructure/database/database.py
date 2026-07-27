@@ -4,12 +4,12 @@
 
 """Minimal database client with only essential operations."""
 
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 from contextlib import asynccontextmanager
 
 from sqlalchemy import select, func, desc, asc
 
-from src.infrastructure.database.session import session_manager
+from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
 
@@ -20,8 +20,8 @@ class DatabaseClient:
     """Async database client with SQLAlchemy ORM support."""
 
     def __init__(self):
-        self.session_manager = session_manager
-        self._initialized = False
+        self.session_manager: SessionManager = session_manager
+        self._initialized: bool = False
 
     async def initialize(self, echo: bool = False) -> None:
         """Initialize the database client."""
@@ -31,12 +31,12 @@ class DatabaseClient:
 
         await self.session_manager.initialize(echo=echo)
 
-        await self._create_tables()
+        await self.__create_tables()
 
         self._initialized = True
         logging.info("Database client initialized")
 
-    async def _create_tables(self) -> None:
+    async def __create_tables(self) -> None:
         """Create all database tables if they don't exist."""
         try:
             async with self.session_manager.engine.begin() as conn:
@@ -64,17 +64,7 @@ class DatabaseClient:
         async with self.session_manager.transaction() as session:
             yield session
 
-    async def get_by(self, model: Type[T], **filters: Any) -> Optional[T]:
-        """Get a single record by filters."""
-        async with self.session() as session:
-            stmt = select(model)
-            for key, value in filters.items():
-                stmt = stmt.where(getattr(model, key) == value)
-
-            result = await session.execute(stmt)
-            return result.scalar_one_or_none()
-
-    async def create(self, model: Type[T], **data: Any) -> T:
+    async def create(self, model: type[T], **data: Any) -> T:
         """Create a new record."""
         async with self.transaction() as session:
             instance = model(**data)
@@ -83,33 +73,41 @@ class DatabaseClient:
             await session.refresh(instance)
             return instance
 
+    async def get_by(self, model: type[T], **filters: Any) -> T | None:
+        """Get a single record by filters."""
+        result, count = await self.__query(model=model, filters=filters)
+        if count != 1:
+            return None
+        return result[0]
+
     async def list_by(
         self,
-        model: Type[T],
+        model: type[T],
         order_by: str | None = None,
         order_desc: bool = True,
+        offset: int = 0,
+        limit: int | None = None,
         **filters: Any,
     ) -> list[T]:
         """Get all records matching filters."""
-        async with self.session() as session:
-            stmt = select(model)
-            for key, value in filters.items():
-                stmt = stmt.where(getattr(model, key) == value)
-            if order_by and hasattr(model, order_by):
-                col = getattr(model, order_by)
-                stmt = stmt.order_by(desc(col) if order_desc else asc(col))
-            result = await session.execute(stmt)
-            return list(result.scalars().all())
+        result, _ = await self.__query(
+            model=model,
+            order_by=order_by,
+            order_desc=order_desc,
+            offset=offset,
+            limit=limit,
+            filters=filters,
+        )
+        return result
 
-    async def query(
+    async def __query(
         self,
-        model: Type[T],
-        filters: dict[str, Any] | None = None,
-        extra_conditions: list | None = None,
+        model: type[T],
         order_by: str = "created_at",
         order_desc: bool = True,
-        offset: int = 0,
-        limit: int = 20,
+        offset: int | None = None,
+        limit: int | None = None,
+        filters: dict[str, Any] | None = None,
     ) -> tuple[list[T], int]:
         """Query records with filtering, ordering, and pagination.
         Returns (items, total_count).
@@ -124,24 +122,18 @@ class DatabaseClient:
                         stmt = stmt.where(getattr(model, key) == value)
                         count_stmt = count_stmt.where(getattr(model, key) == value)
 
-            if extra_conditions:
-                for condition in extra_conditions:
-                    stmt = stmt.where(condition)
-                    count_stmt = count_stmt.where(condition)
-
-            if hasattr(model, order_by):
+            if order_by and hasattr(model, order_by):
                 col = getattr(model, order_by)
                 stmt = stmt.order_by(desc(col) if order_desc else asc(col))
 
-            stmt = stmt.offset(offset).limit(limit)
+            if offset is not None:
+                stmt = stmt.offset(offset)
+            if limit is not None:
+                stmt = stmt.limit(limit)
 
             result = await session.execute(stmt)
             count_result = await session.execute(count_stmt)
             return list(result.scalars().all()), count_result.scalar_one()
-
-    async def health_check(self) -> dict:
-        """Check database health."""
-        return await self.session_manager.health_check()
 
 
 db = DatabaseClient()

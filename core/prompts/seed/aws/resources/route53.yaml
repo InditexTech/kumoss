@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Route 53 default configuration (hosted zones, records, health checks, routing).
+body: |
+  # AWS Route 53
+
+  For Route 53 resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Hosted Zone
+  - Naming convention for tags: `r53-<application>-<environment>`.
+  - For private hosted zones, associate the zone with the target
+    VPC so records resolve only within that VPC.
+  - Route 53 is a global service — hosted zones are not
+    region-scoped.
+  - Enable DNSSEC signing for public hosted zones when the domain
+    registrar supports DS record delegation.
+
+  ## Records
+  - Prefer alias records over CNAME for zone apex (e.g.
+    example.com) and for AWS resources (ALB, CloudFront, S3,
+    another Route 53 record). Alias records are free and support
+    zone-apex mapping.
+  - Set evaluate_target_health to true on alias records to enable
+    automatic DNS failover when the target is unhealthy.
+  - For standard records, use a TTL appropriate to the use case
+    (e.g. 300 seconds for general, 60 for records that change
+    frequently).
+
+  ## Health Checks
+  - Create health checks for any endpoint used in failover or
+    latency-based routing.
+  - Naming convention: `r53hc-<application>-<environment>`.
+  - Use HTTPS type on port 443 with a meaningful resource path
+    (e.g. /health).
+  - Set failure threshold to 3, request interval to 30 seconds.
+  - Enable latency measurement.
+  - Distribute health check regions across at least three regions
+    for reliable detection (e.g. us-east-1, eu-west-1,
+    ap-southeast-1).
+
+  ## Routing Policies
+  - For multi-region failover, use failover routing policy with
+    associated health checks.
+  - For latency-sensitive global traffic, use latency-based routing.
+  - For geographic compliance requirements, use geolocation routing.
+  - For private hosted zones combined with on-premises DNS, use
+    Route 53 Resolver for hybrid DNS resolution.

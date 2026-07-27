@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI networking conventions and best practices.
+body: |
+  # OCI Networking Guidelines
+
+  ## VCN Design
+  - One VCN per application or per environment depending on
+    isolation requirements.
+  - Use non-overlapping CIDR blocks sized for growth. Default to
+    /16 for production VCNs.
+  - Enable DNS resolution within the VCN.
+
+  ## Subnets
+  - Separate public and private subnets.
+  - Public subnets only for load balancers, bastion hosts, and
+    resources that require direct internet access.
+  - Application and database tiers belong in private subnets.
+  - Use regional subnets (spanning all ADs in the region) unless
+    AD-specific placement is explicitly required.
+
+  ## Gateways
+  - Internet Gateway for public subnet outbound/inbound traffic.
+  - NAT Gateway for private subnet outbound-only internet access.
+  - Service Gateway for access to Oracle services (Object Storage,
+    Autonomous Database) without traversing the internet.
+  - DRG (Dynamic Routing Gateway) for on-premises connectivity
+    or inter-VCN peering.
+
+  ## Security
+  - Use Network Security Groups (NSGs) over Security Lists for
+    granular, resource-level traffic control.
+  - Default Security List should not be modified — create new
+    security lists or NSGs instead.
+  - Never open 0.0.0.0/0 ingress on ports other than 80 and 443.
+  - Enable VCN Flow Logs for audit and troubleshooting.
+
+  ## Load Balancing
+  - Use flexible load balancers for HTTP/HTTPS workloads.
+  - Use network load balancers for TCP/UDP and low-latency
+    workloads.
+  - Place load balancers in public subnets; backends in private
+    subnets.
+
+  Replace this body with your organization's authoritative
+  networking standards.

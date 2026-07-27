@@ -7,12 +7,12 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from src.shared.constants import TracerProviderEnum, TemplateProvider, LLMProvider
+from src.shared.constants import TracerProject, TerraformProvider, LLMProvider
 
 
 class Settings:
     # Phoenix/Tracing configuration
-    PHOENIX_PROJECT_NAME: TracerProviderEnum = TracerProviderEnum.DEV_TERRAFORM_DRIFT
+    PHOENIX_PROJECT_NAME: TracerProject = TracerProject.DEV_TERRAFORM_DRIFT
 
     # Test session configuration
     SESSION_ID: uuid.UUID = uuid.uuid4()
@@ -22,13 +22,13 @@ class Settings:
     UPLOAD_DIR: Path = Path(tempfile.gettempdir())
 
     # Default project configuration
-    DEFAULT_PROJECT_NAME: str = "dcapaiadd"
-    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp"] = "azure"
+    DEFAULT_PROJECT_NAME: str = "nebula"
+    DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws", "oci", "kubernetes"] = "azure"
     DEFAULT_PROJECT_ENV: Literal["dev", "pre", "pro"] = "dev"
     DEFAULT_PROJECT_UID: str = f"{DEFAULT_PROJECT_NAME}_{SESSION_ID}"
 
     # Provider configuration
-    TEMPLATE_PROVIDER: TemplateProvider = TemplateProvider.AZURE
+    TEMPLATE_PROVIDER: TerraformProvider = TerraformProvider.AZURE
     LLM_PROVIDER: LLMProvider = LLMProvider.GEMINI_FLASH
     LLM_PROVIDER_SMALL: LLMProvider = LLMProvider.GEMINI_FLASH
 

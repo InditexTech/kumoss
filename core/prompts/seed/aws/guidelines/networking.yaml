@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS networking conventions (VPCs, subnets, gateways, security groups).
+body: |
+  # AWS Networking Guidelines
+
+  ## Topology
+  - Default to a multi-AZ VPC with public and private subnets per
+    availability zone.
+  - For multi-environment deployments, use separate VPCs per
+    environment (`dev`, `staging`, `prod`) connected through Transit
+    Gateway or VPC peering.
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs
+    or other VPCs that will be peered.
+  - Allocate `/16` per VPC by default; carve `/24` subnets within.
+  - Spread subnets across at least two availability zones.
+
+  ## Subnets
+  - Separate public subnets (with Internet Gateway route) from
+    private subnets (with NAT Gateway route).
+  - One subnet tier per function: `public`, `app`, `data`, `mgmt`.
+  - Use `map_public_ip_on_launch = false` on private subnets.
+
+  ## Route tables
+  - One route table per subnet tier.
+  - Public subnets route `0.0.0.0/0` through the Internet Gateway.
+  - Private subnets route `0.0.0.0/0` through a NAT Gateway
+    deployed in a public subnet.
+
+  ## Security groups
+  - One security group per workload, named `<application>-<tier>-sg`.
+  - Default-deny inbound; allow rules are explicit and narrow.
+  - Prefer referencing other security groups as sources instead of
+    CIDR blocks for intra-VPC traffic.
+  - Avoid inline `ingress`/`egress` blocks; use separate
+    `aws_security_group_rule` or `aws_vpc_security_group_ingress_rule`
+    resources for clarity and merge-safety.
+
+  ## VPC endpoints
+  - Prefer VPC gateway endpoints for S3 and DynamoDB (free).
+  - Use VPC interface endpoints (PrivateLink) for other AWS services
+    to keep traffic off the public internet.
+  - Place interface endpoints in private subnets.
+
+  ## NAT Gateways
+  - Deploy one NAT Gateway per availability zone for high
+    availability in production.
+  - A single NAT Gateway is acceptable for non-production
+    environments to reduce cost.
+
+  Replace this body with your organization's authoritative networking
+  standards.

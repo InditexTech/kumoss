@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes ClusterRoleBinding default configuration (subjects, role references, immutability).
+body: |
+  # Kubernetes ClusterRoleBinding
+
+  For a ClusterRoleBinding, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `<subject>-<role>-crb`.
+  - Use ClusterRoleBinding only when the bound ClusterRole needs
+    cluster-wide scope. For namespace-scoped access, use
+    `kubernetes_role_binding` instead.
+  - `role_ref` must reference an existing ClusterRole:
+    - `api_group = "rbac.authorization.k8s.io"`.
+    - `kind = "ClusterRole"`.
+    - `name` — the ClusterRole to bind.
+  - The `role_ref` field is immutable — changing it requires
+    deleting and recreating the ClusterRoleBinding.
+  - Define `subject` blocks specifying:
+    - `kind` — `ServiceAccount`, `User`, or `Group`.
+    - `name` — the subject identifier.
+    - `namespace` — required when kind is `ServiceAccount`.
+  - Never bind `cluster-admin` to application ServiceAccounts.
+  - Prefer binding to Groups over individual Users for human access.
+  - Apply standard labels for identification.

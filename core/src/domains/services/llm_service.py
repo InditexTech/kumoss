@@ -30,7 +30,7 @@ class LLMOrchestrationService:
         self,
         main_llm_provider: ILLMProvider,
         small_llm_provider: ILLMProvider,
-        tool_service: ToolOrchestrationService,
+        tool_service: ToolOrchestrationService | None = None,
     ):
         self.__main_llm = main_llm_provider
         self.__small_llm = small_llm_provider
@@ -40,7 +40,7 @@ class LLMOrchestrationService:
     async def generate_text(
         self,
         query: str,
-        prompt: PromptTemplateDTO,
+        prompt: PromptTemplateDTO = None,
         history: History | None = None,
         prefill: str | None = None,
         thinking: bool = False,
@@ -72,7 +72,7 @@ class LLMOrchestrationService:
         """
         response = await self.__small_llm.inference(
             msg=query,
-            system_prompt=prompt.prompt,
+            system_prompt=prompt.prompt if prompt else None,
             history=history,
             prefill=prefill,
             thinking=thinking,
@@ -120,6 +120,7 @@ class LLMOrchestrationService:
             - For multi-tool scenarios, continues until "task_complete" sentinel is executed
             - All tool executions and responses are automatically added to the conversation history
         """
+        assert self.__tool_svc is not None
         if len(tools) > 1:
             assert isinstance(sentinel_tool, ToolDefinitionDTO)
             assert sentinel_tool is not None

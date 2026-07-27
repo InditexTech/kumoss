@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Database for PostgreSQL Flexible Server default configuration (HA, networking, backups, monitoring).
+body: |
+  # Azure Database for PostgreSQL — Flexible Server
+
+  For a PostgreSQL Flexible Server, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `psql-<application>-<environment>`.
+  - Use the latest stable PostgreSQL major version unless the user
+    specifies otherwise.
+  - SKU tier set to Burstable (B-series) for non-production and
+    General Purpose (D-series) or Memory Optimized (E-series) for
+    production. Do not provision premium SKUs without explicit
+    request.
+  - Storage size should match the workload. Enable auto-grow so the
+    server scales storage automatically when nearing capacity.
+  - High availability must be enabled for production with
+    zone-redundant mode (standby in a different AZ). Use
+    same-zone HA only when zone-redundant is not available in the
+    region.
+  - Public network access must be disabled. Use VNet integration
+    (delegated subnet) for network-isolated access. The delegated
+    subnet must be dedicated to the Flexible Server.
+  - Private DNS zone must be linked to the VNet for name resolution.
+  - Authentication should use Azure AD (Entra ID) authentication
+    where possible. When password authentication is needed, store
+    the password in Key Vault — never hardcode it.
+  - Backup retention set to 7 days minimum. Geo-redundant backup
+    should be enabled for production.
+  - Define a maintenance window (day, hour) to control when
+    maintenance occurs.
+  - Enable diagnostic settings to send PostgreSQL logs and metrics
+    to a Log Analytics workspace.
+  - Add a lifecycle block with prevent_destroy.
+  - Server parameters should be configured via a separate
+    configuration resource for auditability.
+  - Apply standard tags: environment and managed_by.

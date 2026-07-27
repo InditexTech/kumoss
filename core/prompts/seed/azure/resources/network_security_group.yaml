@@ -2,46 +2,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure Network Security Group template with explicit allow rules.
+description: Azure Network Security Group default configuration (Zero Trust, rules, association).
 body: |
   # Azure Network Security Group
 
-  ```hcl
-  resource "azurerm_network_security_group" "this" {
-    name                = "nsg-${var.subnet_name}"
-    location            = var.location
-    resource_group_name = var.resource_group_name
+  For a Network Security Group (NSG), unless explicitly requested
+  otherwise, use the following default configuration:
 
-    tags = {
-      environment = var.environment
-      managed_by  = "terraform"
-    }
-  }
-
-  resource "azurerm_network_security_rule" "allow_https" {
-    name                        = "allow-https-inbound"
-    priority                    = 100
-    direction                   = "Inbound"
-    access                      = "Allow"
-    protocol                    = "Tcp"
-    source_port_range           = "*"
-    destination_port_range      = "443"
-    source_address_prefix       = var.allowed_source
-    destination_address_prefix  = "*"
-    resource_group_name         = var.resource_group_name
-    network_security_group_name = azurerm_network_security_group.this.name
-  }
-
-  resource "azurerm_subnet_network_security_group_association" "this" {
-    subnet_id                 = var.subnet_id
-    network_security_group_id = azurerm_network_security_group.this.id
-  }
-  ```
-
-  ## Notes
-  - Default behavior is implicit deny inbound from internet; this is
-    correct and should not be overridden.
-  - Never use `source_address_prefix = "*"` or `0.0.0.0/0` for
-    inbound rules. Always scope to a known CIDR or service tag.
-  - Use Azure service tags (`AzureLoadBalancer`, `Internet`,
-    `VirtualNetwork`) instead of literal CIDRs where possible.
+  - One NSG per subnet, named `nsg-<subnet-name>`.
+  - Immediately associate the NSG with its target subnet.
+  - Default inbound behavior is implicit deny from internet — do not
+    override this.
+  - Create allow rules as separate resources (not inline blocks) for
+    clarity and merge-safety.
+  - Every rule must have an explicit description explaining its
+    purpose.
+  - Never use source address `*` or `0.0.0.0/0` for inbound rules.
+    Always scope to a known CIDR range or an Azure service tag.
+  - Prefer Azure service tags (AzureLoadBalancer, Internet,
+    VirtualNetwork, AzureBastion) over literal CIDR blocks wherever
+    applicable.
+  - Outbound Internet access should only be allowed where explicitly
+    required.
+  - Apply standard tags: environment and managed_by.
+  - Priority numbering should start at 100 and increment in steps
+    of 100, leaving room for future insertions.

@@ -2,17 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from src.application.dto import SessionContext
-from src.application.exceptions import (
-    SessionConflict,
-    SessionForbidden,
-    SessionTerminal,
-)
-from src.application.iac_requests import _BaseIacRequest
+from src.application.iac_requests import BaseIacRequest
+from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
+from src.shared.constants import ReportType
 
 
 class SessionOrchestrationService:
@@ -22,72 +18,44 @@ class SessionOrchestrationService:
     try/finally to clear the in_flight flag.
     """
 
-    def _new_branch_name(self) -> str:
-        ts = datetime.utcnow().strftime("%Y-%m-%d_%H%M%S")
+    def __new_branch_name(self) -> str:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
         return f"Nebula/{ts}"
 
     async def resolve(
-        self, request: _BaseIacRequest, operation_type: str = "generate"
+        self, request: BaseIacRequest, operation_type: ReportType
     ) -> SessionContext:
-        if request.repo_uri is not None:
+        if request.session_id is None:
             return await self._create(request, operation_type)
-        return await self._load(request)
+        return await self._load(request, operation_type)
 
     async def _create(
-        self, request: _BaseIacRequest, operation_type: str = "generate"
+        self, request: BaseIacRequest, operation_type: ReportType
     ) -> SessionContext:
         sid = uuid4()
-        branch = self._new_branch_name()
-        await DatabaseService.start_session(
+        _ = await DatabaseService.create_session(
             session_id=sid,
             user_id=request.user_id,
             repo_uri=request.repo_uri,
-            cloud=request.cloud,
-            environment=request.environment,
-            branch_name=branch,
-            operation_type=operation_type,
+            terraform_prv=request.terraform_providers,
+            scope_id=request.scope_id,
+            branch_name=self.__new_branch_name(),
+            query=request.q,
             iac_path=request.iac_path,
         )
-        if not await DatabaseService.acquire_in_flight(str(sid)):
-            # Should not happen on a fresh row, but defend anyway.
-            raise SessionConflict("Failed to acquire in_flight lock on new session.")
-        return SessionContext(
-            session_id=sid,
-            user_id=request.user_id,
-            repo_uri=request.repo_uri,
-            cloud=request.cloud,
-            environment=request.environment,
-            branch_name=branch,
-            history=[],
-            is_first_call=True,
-            iac_path=request.iac_path,
-        )
+        sc = await DatabaseService.get_session_context(sid)
+        sc.set_report_type(operation_type)
+        return sc
 
-    async def _load(self, request: _BaseIacRequest) -> SessionContext:
-        row = await DatabaseService.load_session(request.session_id)
-        if row is None:
-            raise SessionTerminal(f"Session {request.session_id} not found.")
-        if row.user_id != request.user_id:
-            raise SessionForbidden(
-                f"Session {request.session_id} belongs to a different user."
-            )
-        if row.status != "active":
-            raise SessionTerminal(f"Session {request.session_id} is {row.status}.")
-        if not await DatabaseService.acquire_in_flight(request.session_id):
-            raise SessionConflict(
-                f"Session {request.session_id} already has a call in flight."
-            )
-        return SessionContext(
-            session_id=UUID(request.session_id),
-            user_id=row.user_id,
-            repo_uri=row.repo_uri,
-            cloud=row.cloud_provider,
-            environment=row.environment,
-            branch_name=row.branch_name,
-            history=list(row.history),
-            is_first_call=False,
-            iac_path=row.iac_path,
-        )
+    async def _load(
+        self, request: BaseIacRequest, operation_type: ReportType
+    ) -> SessionContext:
+        sc = await DatabaseService.get_session_context(request.session_id)
+        sc.set_report_type(operation_type)
+        return sc
+
+    async def acquire(self, session_id: UUID) -> None:
+        _ = await DatabaseService.acquire_in_flight(session_id)
 
     async def release(self, session_id: UUID) -> None:
-        await DatabaseService.release_in_flight(str(session_id))
+        _ = await DatabaseService.release_in_flight(session_id)

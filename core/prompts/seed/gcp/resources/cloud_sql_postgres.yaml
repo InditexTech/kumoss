@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud SQL for PostgreSQL default configuration (HA, networking, backups, maintenance).
+body: |
+  # GCP Cloud SQL for PostgreSQL
+
+  For a Cloud SQL for PostgreSQL instance, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Naming convention: `sql-<application>-<environment>`.
+  - Use the latest stable PostgreSQL major version unless the user
+    specifies otherwise.
+  - Database version format: POSTGRES_XX (e.g. POSTGRES_16).
+  - Tier set to db-custom-1-3840 (1 vCPU, 3.75 GB) for
+    non-production and db-custom-2-7680 or higher for production.
+    Adjust based on workload requirements.
+  - Availability type set to REGIONAL (HA with automatic failover)
+    for production. Use ZONAL for non-production.
+  - Disk type set to PD-SSD. Disk size should match the workload
+    with auto-resize enabled.
+  - Public IP must be disabled. Use private IP with a VPC
+    connection (private services access) for network isolation.
+  - Require SSL for all connections — set ssl_mode to
+    ENCRYPTED_ONLY or TRUSTED_CLIENT_CERTIFICATE_REQUIRED.
+  - Backup configuration must be enabled with point-in-time
+    recovery enabled. Backup retention set to 7 days minimum.
+    Transaction log retention set to 7 days.
+  - Define a backup start time that avoids peak usage hours.
+  - Define a maintenance window (day and hour) to control when
+    updates occur. Set update track to stable.
+  - Deletion protection must be enabled.
+  - Add a lifecycle block with prevent_destroy.
+  - Database flags should be configured for the workload (e.g.
+    log_min_duration_statement for slow query logging).
+  - Insights (Query Insights) should be enabled for performance
+    analysis, with query string length set to 1024 and plans per
+    minute set to 5.
+  - Passwords must be stored in Secret Manager — never hardcode
+    them. Consider using Cloud SQL IAM authentication for
+    application service accounts.
+  - Apply standard labels: environment and managed_by.

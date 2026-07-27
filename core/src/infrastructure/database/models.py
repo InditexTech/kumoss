@@ -4,109 +4,243 @@
 
 """Database models for Nebula application."""
 
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import final, override
 
 from sqlalchemy import (
-    CheckConstraint,
+    ForeignKey,
     String,
     Text,
     DateTime,
     Integer,
-    Boolean,
-    Float,
     JSON,
 )
-from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from src.shared.constants import (
+    GitProviderName,
+    ReportType,
+    SessionStatus,
+    TerraformProvider as TP,
+)
 
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
+
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
     )
 
 
-class GreenaiUsers(Base):
-    """GreenAI users table for storing user information."""
+@final
+class User(Base):
+    """Users table for storing user related information."""
 
-    __tablename__ = "greenai_users"
+    __tablename__ = "users"
 
-    username: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    teams_group_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    username: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    # relations
+    sessions: Mapped[list["Session"]] = relationship("Session", cascade="all, delete")
 
+    @override
     def __repr__(self) -> str:
-        return f"<GreenaiUsers(id={self.id}, username='{self.username}')>"
+        return f"<Users(id={self.id}, username='{self.username}')>"
 
 
-class UserSession(Base):
-    """One iterating session against a repo URI. Owns its history and last payload."""
+@final
+class Session(Base):
+    """"""
 
-    __tablename__ = "user_sessions"
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('active', 'completed', 'abandoned')",
-            name="user_sessions_status_check",
-        ),
+    __tablename__ = "sessions"
+
+    uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    in_flight: Mapped[bool] = mapped_column(default=False)
+    is_blocked: Mapped[bool] = mapped_column(default=False)
+    # relations
+    workspaces: Mapped[list["Workspace"]] = relationship(
+        "Workspace", cascade="all, delete"
+    )
+    pull_requests: Mapped[list["PullRequest"]] = relationship(
+        "PullRequest", cascade="all, delete"
+    )
+    terraform_providers: Mapped[list["TerraformProvider"]] = relationship(
+        "TerraformProvider", cascade="all, delete"
+    )
+    histories: Mapped[list["History"]] = relationship("History", cascade="all, delete")
+    statuses: Mapped[list["Status"]] = relationship("Status", cascade="all, delete")
+    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
+        "TerraformPlan", cascade="all, delete"
+    )
+    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    code_changes: Mapped[list["CodeChange"]] = relationship(
+        "CodeChange", cascade="all, delete"
     )
 
-    session_id: Mapped[str] = mapped_column(
-        PostgresUUID(as_uuid=False), nullable=False, unique=True, index=True
-    )
-    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    repo_uri: Mapped[str] = mapped_column(Text, nullable=False)
-    cloud_provider: Mapped[str] = mapped_column(String(50), nullable=False)
-    environment: Mapped[str] = mapped_column(String(50), nullable=False)
-    branch_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
-    in_flight: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    history: Mapped[list[dict[str, str]]] = mapped_column(
-        JSON, nullable=False, default=list
-    )
-    last_payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    operation_type: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="generate"
-    )
-    failure_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    pull_request_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    apply_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    iac_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
+    @override
     def __repr__(self) -> str:
-        return f"<UserSession(session_id='{self.session_id}', status='{self.status}')>"
+        return f"""<Session(session_id='{self.uuid}',
+                      in_flight='{self.in_flight}, is_blocked='{self.is_blocked}')>"""
 
 
-class SessionOperation(Base):
-    """Tracks individual operations within a session."""
+@final
+class Workspace(Base):
+    """"""
 
-    __tablename__ = "session_operations"
+    __tablename__ = "workspaces"
 
-    session_id: Mapped[str] = mapped_column(
-        PostgresUUID(as_uuid=False), nullable=False, index=True
-    )
-    operation_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    operation_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    operation_phase: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    operation_subtype: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    pipeline_run_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    terraform_targets: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
-    success: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    error_type: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    artifact_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    blob_container: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    blob_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    blob_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    content_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    uri: Mapped[str] = mapped_column(Text)
+    branch: Mapped[str] = mapped_column(String(254))
+    root_path: Mapped[str] = mapped_column(Text)
 
+    @override
     def __repr__(self) -> str:
-        return f"<SessionOperation(session_id='{self.session_id}', op=#{self.operation_number}, type='{self.operation_type}')>"
+        return f"<Workspace(session_id='{self.session_id}', uri={self.uri}')>"
+
+
+@final
+class TerraformProvider(Base):
+    """"""
+
+    __tablename__ = "terraform_providers"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    provider: Mapped[TP] = mapped_column()
+    scope_id: Mapped[str] = mapped_column(String(1016))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<TerraformProvider(session_id='{self.session_id}', name={self.provider}')>"
+
+
+@final
+class PullRequest(Base):
+    """"""
+
+    __tablename__ = "pull_requests"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    provider: Mapped[GitProviderName] = mapped_column(String(20))
+    url: Mapped[str] = mapped_column(String(254))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<PullRequest(session_id='{self.session_id}', url={self.url}')>"
+
+
+@final
+class History(Base):
+    """"""
+
+    __tablename__ = "histories"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    first_query: Mapped[str] = mapped_column(Text)
+    payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+
+    @override
+    def __repr__(self) -> str:
+        return f"<History(session_id='{self.session_id}', first_query={self.first_query}')>"
+
+
+@final
+class Status(Base):
+    """"""
+
+    __tablename__ = "statuses"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    status: Mapped[SessionStatus] = mapped_column(default=SessionStatus.STARTED)
+    message: Mapped[str] = mapped_column(Text)
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Status(session_id='{self.session_id}', status={self.status.name}')>"
+
+
+@final
+class Artifact(Base):
+    """"""
+
+    __tablename__ = "artifacts"
+
+    uri: Mapped[str] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(String(20))
+    file_size_bytes: Mapped[int] = mapped_column(Integer)
+    # relations
+    terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
+        "TerraformPlan", cascade="all, delete"
+    )
+    reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    code_changes: Mapped[list["CodeChange"]] = relationship(
+        "CodeChange", cascade="all, delete"
+    )
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Artifact(uri='{self.uri}', content_type='{self.content_type}')>"
+
+
+@final
+class TerraformPlan(Base):
+    """"""
+
+    __tablename__ = "terraform_plans"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
+    targets: Mapped[list[str]] = mapped_column(ARRAY(String))
+
+    @override
+    def __repr__(self) -> str:
+        return (
+            f"<TerraformPlan(session_id='{self.session_id}', targets='{self.targets}')>"
+        )
+
+
+@final
+class Report(Base):
+    """"""
+
+    __tablename__ = "reports"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
+    type: Mapped[ReportType] = mapped_column()
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Report(session_id='{self.session_id}', type='{self.type}')>"
+
+
+@final
+class CodeChange(Base):
+    """"""
+
+    __tablename__ = "code_changes"
+
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
+    file_name: Mapped[str] = mapped_column(String(254))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<CodeChange(session_id='{self.session_id}', file_name='{self.file_name}')>"

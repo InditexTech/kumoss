@@ -19,7 +19,7 @@ class _PromptFetcher:
     async def fetch(
         self,
         prompt_name: str,
-        scope: Literal["general", "azure", "gcp"],
+        scope: Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"],
         type: Literal["resources", "guidelines", "compliance"],
         tag: Literal["production", "development"],
     ) -> str:
@@ -71,4 +71,6 @@ if __name__ == "__main__":
 
         print()
 
-    main()
+    import asyncio
+
+    asyncio.run(main())

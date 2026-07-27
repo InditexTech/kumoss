@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS SageMaker default configuration (networking, encryption, endpoints, notebooks).
+body: |
+  # AWS SageMaker
+
+  For SageMaker resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## General
+  - Use a dedicated IAM execution role for SageMaker workloads
+    with least-privilege permissions. Do not reuse roles across
+    unrelated workloads.
+  - All data at rest must be encrypted with KMS (training data,
+    model artifacts, notebook volumes).
+  - All inter-container and container-to-S3 traffic must be
+    encrypted in transit by enabling inter-container encryption
+    and network isolation where supported.
+  - Apply standard tags: Name.
+
+  ## SageMaker Domain (Studio)
+  - Naming convention: `sm-domain-<application>-<environment>`.
+  - Network access type set to VPC-only for production. Use
+    public internet only for non-production experimentation.
+  - Deploy into private subnets with appropriate security groups.
+  - Authentication mode set to IAM. Use SSO mode only when the
+    organization uses IAM Identity Center.
+  - Default execution role should follow the IAM role template
+    defaults with permissions scoped to S3, ECR, and SageMaker
+    actions.
+
+  ## Notebooks (Studio or Notebook Instances)
+  - Prefer SageMaker Studio notebooks over legacy notebook
+    instances for better collaboration and lifecycle management.
+  - Root access must be disabled on notebook instances.
+  - Direct internet access must be disabled for notebook
+    instances in production — use a NAT Gateway for outbound
+    access.
+  - Volume encryption must be enabled with KMS.
+  - Set auto-stop idle timeout (via lifecycle configuration) to
+    avoid running costs on idle notebooks.
+
+  ## Training Jobs
+  - Store training data and model artifacts in S3 buckets
+    following the S3 bucket template defaults.
+  - Enable managed spot training for cost optimization on
+    fault-tolerant training jobs (up to 90% cost reduction).
+  - Set maximum runtime in seconds to prevent runaway jobs.
+  - Enable network isolation when the training job does not
+    need internet access.
+
+  ## Endpoints (inference)
+  - Naming convention:
+    `sm-endpoint-<model>-<environment>`.
+  - Use Serverless Inference for intermittent or unpredictable
+    traffic (scale to zero). Use Real-Time Inference with
+    auto-scaling for sustained production traffic.
+  - Deploy into private subnets with VPC configuration.
+  - Enable data capture for model monitoring and bias detection.
+  - Configure auto-scaling policies based on invocations per
+    instance.
+  - Enable model monitoring (data quality, model quality, bias
+    drift, feature attribution drift) for production endpoints.
+
+  ## Model Registry
+  - Register all production models in the SageMaker Model
+    Registry for versioning and approval workflows.
+  - Use model approval status (Approved, Rejected,
+    PendingManualApproval) to gate production deployments.

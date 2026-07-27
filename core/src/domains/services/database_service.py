@@ -2,179 +2,293 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import update
+from sqlalchemy.engine import CursorResult
 
+
+from src.domains.entities import SessionContext, Status
+from src.domains.exceptions import (
+    LastStatusError,
+    SessionConflict,
+    SessionTerminal,
+)
 from src.infrastructure.database.database import db
-from src.infrastructure.database.models import UserSession, SessionOperation
+from src.infrastructure.database.models import (
+    TerraformProvider as DbTerraformProvider,
+    PullRequest,
+    Status as DbStatus,
+    User,
+    Session,
+    Workspace,
+    History,
+)
+from src.shared.constants import SessionStatus, TerraformProvider
+from src.shared.utils.decorators import async_cache
 
 
 class DatabaseService:
-    """Stateless static helpers over the `user_sessions` table."""
+    """Stateless static DB helpers."""
 
     @staticmethod
-    async def start_session(
-        *,
-        session_id: UUID,
-        user_id: str,
-        repo_uri: str,
-        cloud: str,
-        environment: str,
-        branch_name: str,
-        operation_type: str = "generate",
-        iac_path: str | None = None,
-    ) -> UserSession:
+    @async_cache
+    async def __map_session_id(uuid: UUID) -> int | None:
+        session: Session | None = await db.get_by(Session, uuid=uuid)
+        return session.id if session is not None else None
+
+    @staticmethod
+    async def __load_session(uuid: UUID) -> Session | None:
+        session: Session | None = await db.get_by(Session, uuid=uuid)
+        return session
+
+    @staticmethod
+    @async_cache
+    async def __load_user_by_pk(pk: int) -> User | None:
+        user: User | None = await db.get_by(User, id=pk)
+        return user
+
+    @staticmethod
+    @async_cache
+    async def __load_user_by_username(username: str) -> User | None:
+        user: User | None = await db.get_by(User, username=username)
+        return user
+
+    @staticmethod
+    @async_cache
+    async def __load_workspace(session_id: UUID) -> Workspace | None:
+        sid = await DatabaseService.__map_session_id(session_id)
+        workspace: Workspace | None = await db.get_by(Workspace, session_id=sid)
+        return workspace
+
+    @staticmethod
+    @async_cache
+    async def __load_terraform_provider(session_id: UUID) -> DbTerraformProvider | None:
+        sid = await DatabaseService.__map_session_id(session_id)
+        tp: DbTerraformProvider | None = await db.get_by(
+            DbTerraformProvider, session_id=sid
+        )
+        return tp
+
+    @staticmethod
+    async def __load_history(session_id: UUID) -> History | None:
+        sid = await DatabaseService.__map_session_id(session_id)
+        his: History | None = await db.get_by(History, session_id=sid)
+        return his
+
+    @staticmethod
+    async def __load_pull_requests(session_id: UUID) -> list[PullRequest]:
+        sid = await DatabaseService.__map_session_id(session_id)
+        pr: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
+        return pr
+
+    @staticmethod
+    async def __create_status(
+        session_id: UUID, status: SessionStatus, msg: str
+    ) -> DbStatus:
+        sid = await DatabaseService.__map_session_id(session_id)
         return await db.create(
-            UserSession,
-            session_id=str(session_id),
-            user_id=user_id,
-            repo_uri=repo_uri,
-            cloud_provider=cloud,
-            environment=environment,
-            branch_name=branch_name,
-            status="active",
-            in_flight=False,
-            history=[],
-            last_payload=None,
-            operation_type=operation_type,
-            failure_reason=None,
-            pull_request_url=None,
-            apply_allowed=True,
-            iac_path=iac_path,
+            DbStatus,
+            session_id=sid,
+            status=status,
+            message=msg,
         )
 
     @staticmethod
-    async def load_session(session_id: str) -> Optional[UserSession]:
-        return await db.get_by(UserSession, session_id=session_id)
+    async def create_session(
+        session_id: UUID,
+        user_id: str,
+        repo_uri: str,
+        terraform_prv: TerraformProvider,
+        scope_id: str,
+        branch_name: str,
+        query: str,
+        iac_path: str | None = None,
+    ) -> Session:
+        user: User | None = await DatabaseService.__load_user_by_username(user_id)
+        if not user:
+            user = await db.create(User, username=user_id)
+        session: Session = await db.create(Session, user_id=user.id, uuid=session_id)
+        _ = await db.create(
+            Workspace,
+            session_id=session.id,
+            uri=repo_uri,
+            branch=branch_name,
+            root_path=iac_path,
+        )
+        _ = await db.create(
+            DbTerraformProvider,
+            session_id=session.id,
+            provider=terraform_prv,
+            scope_id=scope_id,
+        )
+        _ = await db.create(
+            History,
+            session_id=session.id,
+            first_query=query,
+        )
+        return session
 
     @staticmethod
-    async def acquire_in_flight(session_id: str) -> bool:
+    async def get_session_context(session_id: UUID) -> SessionContext:
+        session: Session | None = await DatabaseService.__load_session(session_id)
+        if session is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        user: User | None = await DatabaseService.__load_user_by_pk(session.user_id)
+        assert user is not None
+        workspace: Workspace | None = await DatabaseService.__load_workspace(session_id)
+        if workspace is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} does not have a workspace",
+                error_code=404,
+            )
+        terraform_prv: (
+            DbTerraformProvider | None
+        ) = await DatabaseService.__load_terraform_provider(session_id)
+        if terraform_prv is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} does not have an associated cloud provider",
+                error_code=404,
+            )
+        his: History | None = await DatabaseService.__load_history(session_id)
+        return SessionContext(
+            id=session.uuid,
+            user_id=user.username,
+            repo_uri=workspace.uri,
+            scope_id=terraform_prv.scope_id,
+            terraform_prv=terraform_prv.provider,
+            branch_name=workspace.branch,
+            iac_path=workspace.root_path,
+            is_blocked=session.is_blocked,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            history=his.payload if his else None,
+        )
+
+    @staticmethod
+    async def update_session(ctx: SessionContext) -> None:
+        async with db.transaction() as sess:
+            stmt = (
+                update(History)
+                .where(
+                    Session.uuid == ctx.id,
+                )
+                .values(
+                    payload=ctx.history.serialize(),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            res = await sess.execute(stmt)
+            if cast(CursorResult[Any], res).rowcount != 1:
+                raise SessionConflict(
+                    message=f"Failed to update history on session {ctx.id}.",
+                    error_code=500,
+                )
+
+    @staticmethod
+    async def acquire_in_flight(session_id: UUID) -> None:
         """Atomic compare-and-set: True if we won the lock, False otherwise."""
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
+                update(Session)
                 .where(
-                    UserSession.session_id == session_id,
-                    UserSession.in_flight.is_(False),
+                    Session.uuid == session_id,
                 )
-                .values(in_flight=True, updated_at=datetime.utcnow())
+                .values(in_flight=True, updated_at=datetime.now(timezone.utc))
             )
-            result = await sess.execute(stmt)
-            return result.rowcount == 1
+            res = await sess.execute(stmt)
+            if cast(CursorResult[Any], res).rowcount != 1:
+                raise SessionConflict(
+                    message=f"Failed to acquire in-flight lock on session {session_id}.",
+                    error_code=500,
+                )
 
     @staticmethod
-    async def release_in_flight(session_id: str) -> None:
+    async def release_in_flight(session_id: UUID) -> None:
+        """Atomic compare-and-set: True if we free lock, False otherwise."""
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(in_flight=False, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(in_flight=False, updated_at=datetime.now(timezone.utc))
             )
-            await sess.execute(stmt)
+            res = await sess.execute(stmt)
+            if cast(CursorResult[Any], res).rowcount != 1:
+                raise SessionConflict(
+                    message=f"Failed to release in-flight lock on session {session_id}.",
+                    error_code=500,
+                )
 
     @staticmethod
-    async def set_last_payload(session_id: str, payload: dict) -> None:
+    async def mark_session_status(
+        session_id: UUID, status: SessionStatus, msg: str
+    ) -> None:
+        # sid = await DatabaseService.__map_session_id(session_id)
+        # async with db.transaction() as sess:
+        #     stmt = (
+        #         update(Status)
+        #         .where(Session.uuid == sid)
+        #         .values(
+        #             status=status,
+        #             updated_at=datetime.now(timezone.utc),
+        #         )
+        #     )
+        #     res = await sess.execute(stmt)
+        #     if cast(CursorResult[Any], res).rowcount != 1:
+        #         logging.error(
+        #             f"error `mark_session_status` transaction session {session_id} "
+        #         )
+        _ = await DatabaseService.__create_status(session_id, status, msg)
+
+    @staticmethod
+    async def get_last_status(session_id: UUID) -> Status:
+        sid = await DatabaseService.__map_session_id(session_id)
+        status_model = await db.list_by(
+            model=DbStatus,
+            order_by="created_at",
+            order_desc=True,
+            limit=1,
+            session_id=sid,
+        )
+        if len(status_model) != 1:
+            raise LastStatusError(f"No status records for session {session_id}", 500)
+        return Status(status_model[0].status, status_model[0].message)
+
+    @staticmethod
+    async def mark_failed(session_id: UUID, msg: str) -> None:
+        await DatabaseService.mark_session_status(session_id, SessionStatus.FAILED, msg)
+
+    @staticmethod
+    async def mark_completed(session_id: UUID, msg: str) -> None:
+        await DatabaseService.mark_session_status(
+            session_id, SessionStatus.COMPLETED, msg
+        )
+
+    @staticmethod
+    async def set_lock(session_id: UUID, lock: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(last_payload=payload, updated_at=datetime.utcnow())
+                update(Session)
+                .where(Session.uuid == session_id)
+                .values(is_blocked=lock, updated_at=datetime.now(timezone.utc))
             )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def mark_completed(session_id: str) -> None:
-        async with db.transaction() as sess:
-            stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(status="completed", updated_at=datetime.utcnow())
-            )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def mark_failed(session_id: str, reason: str) -> None:
-        """Record a failure reason without changing the session status.
-
-        The session stays active so the user can retry. We just store the
-        most recent error message for admin visibility.
-        """
-        async with db.transaction() as sess:
-            stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(failure_reason=reason, updated_at=datetime.utcnow())
-            )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def set_pull_request_url(session_id: str, url: str) -> None:
-        """Persist the URL of the PR created for this session."""
-        async with db.transaction() as sess:
-            stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(pull_request_url=url, updated_at=datetime.utcnow())
-            )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def set_apply_allowed(session_id: str, allowed: bool) -> None:
-        """Set the apply_allowed flag (e.g. False when destructive changes detected)."""
-        async with db.transaction() as sess:
-            stmt = (
-                update(UserSession)
-                .where(UserSession.session_id == session_id)
-                .values(apply_allowed=allowed, updated_at=datetime.utcnow())
-            )
-            await sess.execute(stmt)
-
-    @staticmethod
-    async def toggle_apply_allowed(session_id: str, allowed: bool) -> None:
-        """Admin alias for set_apply_allowed — kept for back-compat."""
-        await DatabaseService.set_apply_allowed(session_id, allowed)
-
-    @staticmethod
-    async def append_history(session_id: str, turn: dict) -> None:
-        """Read-modify-write append. Safe under per-session in_flight guard."""
-        async with db.transaction() as sess:
-            stmt = select(UserSession).where(UserSession.session_id == session_id)
-            row = (await sess.execute(stmt)).scalar_one()
-            row.history = list(row.history) + [turn]
-            row.updated_at = datetime.utcnow()
-
-    @staticmethod
-    async def get_session(session_id: str) -> Optional[UserSession]:
-        # Back-compat alias used by remaining list/detail views.
-        return await DatabaseService.load_session(session_id)
+            res = await sess.execute(stmt)
+            return cast(CursorResult[Any], res).rowcount == 1
 
     @staticmethod
     async def list_sessions(
-        search: str | None = None,
-        status: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
-    ) -> tuple[list[UserSession], int]:
-        filters: dict = {}
-        if status:
-            filters["status"] = status
-
-        extra_conditions = []
-        if search:
-            pattern = f"%{search}%"
-            extra_conditions.append(
-                UserSession.user_id.ilike(pattern) | UserSession.repo_uri.ilike(pattern)
-            )
-
-        return await db.query(
-            UserSession,
-            filters=filters,
-            extra_conditions=extra_conditions,
+    ) -> tuple[list[Session], int]:
+        return await db.__query(  # FIXME
+            Session,
             order_by=order_by,
             order_desc=order_desc,
             offset=offset,
@@ -182,20 +296,11 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def get_operation(
-        session_id: str, operation_id: int
-    ) -> SessionOperation | None:
-        return await db.get_by(SessionOperation, session_id=session_id, id=operation_id)
-
-    @staticmethod
-    async def get_operations(
-        session_id: str,
-        order_by: str = "operation_number",
-        order_desc: bool = False,
-    ) -> list[SessionOperation]:
-        return await db.list_by(
-            SessionOperation,
-            order_by=order_by,
-            order_desc=order_desc,
-            session_id=session_id,
-        )
+    async def get_pull_requests(session_id: UUID) -> list[PullRequest]:
+        pr = await DatabaseService.__load_pull_requests(session_id)
+        if len(pr) == 0:
+            raise SessionTerminal(
+                message=f"Session {session_id} does not have any associated Pull Requests ",
+                error_code=404,
+            )
+        return pr

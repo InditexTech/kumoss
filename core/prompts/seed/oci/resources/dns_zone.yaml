@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI DNS Zone default configuration (zone type, records, views).
+body: |
+  # OCI DNS Zone
+
+  For a DNS Zone, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: use the actual domain name as the zone name
+    (e.g. `app.example.com`).
+  - Zone type set to PRIMARY. Use SECONDARY only for zone transfer
+    from an external DNS provider.
+  - Create the zone in the application compartment.
+  - For private DNS resolution within a VCN, use a private DNS
+    view attached to the VCN's DNS resolver.
+  - DNS records:
+    - A records for load balancer or instance IP addresses.
+    - CNAME records for aliases.
+    - Set TTL to 300 seconds (5 minutes) for standard records.
+    - Set TTL to 60 seconds for records that may change frequently
+      (failover scenarios).
+  - For DNSSEC, enable only when the parent zone supports DS
+    record delegation.
+  - Use steering policies (failover, load balance, geolocation)
+    when traffic management across regions is required.
+  - Apply freeform tags: Name.
