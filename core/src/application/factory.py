@@ -23,7 +23,6 @@ from src.infrastructure.tools.tool_registry import ToolRegistry
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git_utils import GitUtils
 from src.infrastructure.templates.factory import TemplateFactory
-from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.validators.factory import ValidatorFactory
 
@@ -287,13 +286,7 @@ class HandlerFactory:
             llm_service=llm_svc,
             template_service=template_svc,
         )
-        cloud = self.session_ctx.cloud
-        tag = system_config.environment
-
-        async def rules_provider() -> str:
-            return await remote_fetcher.fetch_core_guidelines(cloud, tag)
-
-        tool_registry.set_compliance_checker(compliance_svc, rules_provider)
+        tool_registry.set_compliance_checker(compliance_svc)
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()

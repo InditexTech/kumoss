@@ -137,6 +137,28 @@ class GCPTemplateAdapter(CommonTemplateAdapter):
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 
+    @override
+    async def render_compliance_checker(self, rules: str | None = None) -> str:
+        if rules is None:
+            try:
+                terraform_guidelines = await remote_fetcher.fetch(
+                    prompt_name="terraform", scope="general",
+                    type="guidelines", tag=system_config.environment,
+                )
+                resource_creation = await self.__fetch_gcp_guidelines("resource_creation")
+                permissions = await self.__fetch_gcp_guidelines("permissions")
+                rules = "\n\n".join([
+                    terraform_guidelines, resource_creation, permissions,
+                ])
+            except PhoenixPromptFetchError as e:
+                logging.error(f"Error template couldn't be fetched. Error: {e.message}")
+                raise RemoteTemplateFetcherError(
+                    message=f"Error fetching remote template. {e.message}",
+                    error_code=502,
+                )
+        t = self._get_template(self._core + "compliance_checker.jinja")
+        return t.render(RULES=rules)
+
     async def __fetch_gcp_guidelines(self, name: str) -> str:
         return await remote_fetcher.fetch(
             prompt_name=name,

@@ -46,24 +46,6 @@ class _PromptFetcher:
                 error_code=502,
             )
 
-    _CLOUD_GUIDELINE_NAMES: dict[str, list[str]] = {
-        "azure": ["resource_creation", "forbidden_actions", "networking", "permissions"],
-        "gcp": ["resource_creation", "permissions"],
-    }
-
-    async def fetch_core_guidelines(self, cloud: str, tag: str) -> str:
-        """Fetch general + cloud-specific guidelines and return them concatenated."""
-        general = await self.fetch(
-            prompt_name="terraform", scope="general",
-            type="guidelines", tag=tag,
-        )
-        cloud_rules = []
-        for name in self._CLOUD_GUIDELINE_NAMES.get(cloud, []):
-            cloud_rules.append(await self.fetch(
-                prompt_name=name, scope=cloud,
-                type="guidelines", tag=tag,
-            ))
-        return "\n\n".join([general] + cloud_rules)
 
 
 # singleton for caching prompts across different sessions

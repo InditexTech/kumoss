@@ -57,9 +57,8 @@ class CommonTemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    def render_compliance_checker(self, rules: str) -> str:
-        t = self._get_template(self._core + "compliance_checker.jinja")
-        return t.render(RULES=rules)
+    async def render_compliance_checker(self, rules: str | None = None) -> str:
+        raise NotImplementedError()
 
     @override
     async def render_iac_generator(

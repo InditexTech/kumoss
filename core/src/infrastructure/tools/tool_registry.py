@@ -44,16 +44,14 @@ class ToolRegistry(IToolRegistry):
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
         self.__compliance_checker = None
-        self.__compliance_rules_provider: Callable[[], Any] | None = None
         self.__compliance_passed = False
         self.__compliance_check_count = 0
         self.__chain_history = None
         self.__load_tools()
         self.__register_handlers()
 
-    def set_compliance_checker(self, checker, rules_provider: Callable[[], Any]) -> None:
+    def set_compliance_checker(self, checker) -> None:
         self.__compliance_checker = checker
-        self.__compliance_rules_provider = rules_provider
 
     def set_chain_history(self, history) -> None:
         self.__chain_history = history
@@ -438,9 +436,8 @@ class ToolRegistry(IToolRegistry):
                 passed=False, violations=[], summary="Max compliance retries exceeded.", checked_rules=[],
             ).model_dump()
 
-        rules = await self.__compliance_rules_provider()
         history = self.__chain_history.serialize() if self.__chain_history else None
-        compliance_ctx = ComplianceContextDTO(rules=rules, history=history)
+        compliance_ctx = ComplianceContextDTO(history=history)
         report = await self.__compliance_checker.check(context=compliance_ctx)
         self.__compliance_passed = report.passed
         return report.model_dump()

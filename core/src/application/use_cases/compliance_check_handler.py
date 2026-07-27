@@ -160,16 +160,12 @@ class ComplianceCheckHandler:
 
     async def __compose_rules(
         self, mode: str, phoenix_prompt_name: str | None
-    ) -> str:
-        cloud = self.__ctx.cloud
-        tag = system_config.environment
-
+    ) -> str | None:
         if mode == "plan_vs_custom":
             return await remote_fetcher.fetch(
                 prompt_name=phoenix_prompt_name,
-                scope=cloud,
+                scope=self.__ctx.cloud,
                 type="compliance",
-                tag=tag,
+                tag=system_config.environment,
             )
-
-        return await remote_fetcher.fetch_core_guidelines(cloud, tag)
+        return None

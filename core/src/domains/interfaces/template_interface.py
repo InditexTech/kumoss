@@ -70,5 +70,5 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_compliance_checker(self, rules: str) -> str:
+    async def render_compliance_checker(self, rules: str | None = None) -> str:
         pass

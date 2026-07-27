@@ -262,7 +262,7 @@ class ComplianceViolation(BaseModel):
 
 class ComplianceContextDTO(BaseModel):
     output_under_check: str | None = None
-    rules: str
+    rules: str | None = None
     history: list[dict[str, str]] | None = None
 
 

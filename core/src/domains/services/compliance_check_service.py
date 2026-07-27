@@ -34,8 +34,11 @@ class ComplianceCheckService:
             contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
         sentinel = self.__tool_svc.get_sentinel_tool(ToolContext.COMPLIANCE_CHECK)
+        render_kwargs = {}
+        if context.rules:
+            render_kwargs["rules"] = context.rules
         prompt = await self.__template_svc.render(
-            PromptsLibrary.COMPLIANCE_CHECKER, rules=context.rules
+            PromptsLibrary.COMPLIANCE_CHECKER, **render_kwargs
         )
         history = History(context.history) if context.history else None
 
