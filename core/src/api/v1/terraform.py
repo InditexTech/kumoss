@@ -22,7 +22,7 @@ from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
-from src.shared.constants import ReportType
+from src.shared.constants import OperationType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -33,13 +33,13 @@ _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest, operation_type: str = "generate"
+    request: BaseIacRequest, operation: OperationType
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity."""
     try:
         if request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
-        return await _orchestration.resolve(request, operation_type)
+        return await _orchestration.resolve(request, operation)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
@@ -61,6 +61,13 @@ def _make_runner(
         call_dir: Path | None = None
         try:
             await _orchestration.acquire(ctx.id)
+        except ExceptionHandler as e:
+            # We never got the lock: the session is already running or is
+            # finished. Write no status (the session is not ours to touch)
+            # and skip release (it would clobber the actual holder's lock).
+            logging.error(f"runner not started: {e.message} (session {ctx.id})")
+            return
+        try:
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
                 call_id=call_id,
@@ -74,7 +81,7 @@ def _make_runner(
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
-            await DatabaseService.mark_failed(str(ctx.id), msg)
+            await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
             _workspace.cleanup(call_dir)
@@ -90,7 +97,7 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.GENERATE)
+    ctx = await _resolve_or_raise(request, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -107,7 +114,7 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.DRIFT)
+    ctx = await _resolve_or_raise(request, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -124,7 +131,7 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.APPLY)
+    ctx = await _resolve_or_raise(request, OperationType.APPLY)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()

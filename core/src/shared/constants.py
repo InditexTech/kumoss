@@ -110,6 +110,13 @@ class ReportType(Enum):
 
 
 @unique
+class OperationType(Enum):
+    GENERATE = "generate"
+    DRIFT = "drift"
+    IMPORT = "import"
+
+
+@unique
 class TracerProject(Enum):
     """Defines all possible tracer projects.
     Note: a project in Phoenix is defined as a group of traces
@@ -133,7 +140,6 @@ class SessionStatus(Enum):
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
-    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
 
 
@@ -151,7 +157,7 @@ class PromptsLibrary(Enum):
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
     # messages
-    JOKER = "joker"
+    JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
     TASK_ACKNOWLEDGE = "task_acknowledge"
 

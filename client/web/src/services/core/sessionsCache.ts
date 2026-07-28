@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { UserSessionInfo } from "@/types/api";
+import type { SessionSummary } from "@/types/api";
 
 interface CachedSessions {
-  sessions: UserSessionInfo[];
+  sessions: SessionSummary[];
   total: number;
   fetchedAt: number;
 }
@@ -19,7 +19,7 @@ export function getCachedSessions(): CachedSessions | null {
   return null;
 }
 
-export function setCachedSessions(sessions: UserSessionInfo[], total: number) {
+export function setCachedSessions(sessions: SessionSummary[], total: number) {
   cache = { sessions, total, fetchedAt: Date.now() };
 }
 

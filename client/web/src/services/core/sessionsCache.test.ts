@@ -8,21 +8,21 @@ import {
   setCachedSessions,
   invalidateSessionsCache,
 } from "./sessionsCache";
-import type { UserSessionInfo } from "@/types/api";
+import type { SessionSummary } from "@/types/api";
 
-const makeFakeSession = (id: string): UserSessionInfo =>
-  ({
-    session_id: id,
-    user_id: "user@test.com",
-    repo_uri: "https://repo.example.com",
-    cloud_provider: "azure",
-    environment: "dev",
-    branch_name: "main",
-    status: "completed",
-    in_flight: false,
-    created_at: "2026-01-01T00:00:00Z",
-    updated_at: "2026-01-01T00:00:00Z",
-  }) as UserSessionInfo;
+const makeFakeSession = (id: string): SessionSummary => ({
+  uuid: id,
+  username: "user",
+  operation: "generate",
+  provider: "azure",
+  first_query: "create a resource group",
+  workspace_uri: "https://repo.example.com",
+  current_status: "completed",
+  in_flight: false,
+  is_blocked: false,
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+});
 
 describe("sessionsCache", () => {
   beforeEach(() => {
@@ -78,7 +78,7 @@ describe("sessionsCache", () => {
 
     const result = getCachedSessions();
     expect(result!.sessions).toHaveLength(2);
-    expect(result!.sessions[0].session_id).toBe("s2");
+    expect(result!.sessions[0].uuid).toBe("s2");
     expect(result!.total).toBe(10);
   });
 });

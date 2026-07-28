@@ -239,7 +239,33 @@ class DatabaseConfig(BaseModel):
         return self
 
 
-class SystemConfig(BaseModel):
+class RedisConfig(BaseModel):
+    """Connection settings for the Redis session store / cache.
+
+    The URL is referenced indirectly via an env-var name so any password
+    embedded in it stays out of the YAML. When the env var is unset the
+    docker-compose service default is used, so the OSS stack boots without
+    extra wiring.
+
+    Timeouts are deliberately aggressive: Redis is a cache, so a slow or
+    unreachable server should fail fast and let reads fall through to the
+    database instead of stalling requests.
+    """
+
+    redis_url_env: str = "NEBULA_REDIS_URL"
+    default_url: str = "redis://redis:6379/0"
+    max_connections: int = 20
+    socket_connect_timeout: float = 2.0
+    socket_timeout: float = 2.0
+    # Seconds a request may wait for a free pooled connection under a burst.
+    pool_timeout: float = 2.0
+
+    @property
+    def redis_url(self) -> str:
+        return _env(self.redis_url_env) or self.default_url
+
+
+class SystemConfig(BaseModel, frozen=True):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
@@ -248,6 +274,7 @@ class SystemConfig(BaseModel):
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    redis: RedisConfig = Field(default_factory=RedisConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)

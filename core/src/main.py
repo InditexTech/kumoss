@@ -15,10 +15,11 @@ from src.api.v1 import (
     logs,
     authorization,
     # admin,
-    # sessions,
+    session,
     mapping,
 )
 from src.infrastructure.database import db
+from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
@@ -35,6 +36,13 @@ async def lifespan(app: FastAPI):
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}")
+        raise
+
+    try:
+        await redis_client.initialize()
+        logging.info("Redis initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize redis: {e}")
         raise
 
     # Seed Phoenix with example prompts so a fresh deployment is runnable
@@ -55,6 +63,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logging.info("Shutting down Nebula application...")
+    await redis_client.close()
+    logging.info("Redis connection closed")
     await db.close()
     logging.info("Database connection closed")
 
@@ -83,5 +93,5 @@ app.include_router(repository.router, prefix="/v1")
 app.include_router(logs.router, prefix="/v1")
 app.include_router(authorization.router, prefix="/v1")
 # app.include_router(admin.router, prefix="/v1")
-# app.include_router(sessions.router, prefix="/v1")
+app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")

@@ -2,44 +2,151 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import unittest
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
+from src.infrastructure.redis import redis_client
+from src.shared.constants import (
+    OperationType,
+    ReportType,
+    SessionStatus,
+    TerraformProvider,
+)
 
 
-class TestSessionsList(unittest.IsolatedAsyncioTestCase):
+class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
+    """Contract tests for GET /v1/sessions and GET /v1/sessions/{id}."""
+
     async def asyncSetUp(self):
         await db.initialize()
+        await redis_client.initialize()
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        self.client = TestClient(app)
+        # Unique username per run so stale Redis mappings never leak in.
+        # Usernames are full emails, matching what the client sends.
+        self.username = f"user-{uuid4().hex[:8]}@example.com"
+        self.sid = uuid4()
+        _ = await DatabaseService.create_session(
+            session_id=self.sid,
+            user_id=self.username,
+            operation=OperationType.GENERATE,
+            repo_uri="https://example.com/foo.git",
+            terraform_prv=TerraformProvider.AZURE,
+            scope_id="sub-123",
+            branch_name="Nebula/x",
+            query="create a resource group",
+            iac_path="infra",
+        )
+        self.client = AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        )
 
     async def asyncTearDown(self):
+        await self.client.aclose()
+        await redis_client.close()
         await db.close()
 
-    def test_list_returns_sessions_with_new_fields(self):
-        sid = uuid4()
-        asyncio.run(
-            DatabaseService.start_session(
-                session_id=sid,
-                user_id="u",
-                repo_uri="https://example.com/foo.git",
-                cloud="azure",
-                environment="dev",
-                branch_name="Nebula/x",
-            )
-        )
-        resp = self.client.get("/v1/sessions/")
+    async def test_list_matches_contract(self):
+        resp = await self.client.get("/v1/sessions", params={"username": self.username})
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
-        # Body shape may be {items: [...]} or a list — accept either.
-        items = body.get("items", body) if isinstance(body, dict) else body
-        self.assertGreaterEqual(len(items), 1)
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["page"], 1)
+        self.assertEqual(body["total_pages"], 1)
+        item = body["items"][0]
+        self.assertEqual(item["uuid"], str(self.sid))
+        self.assertEqual(item["username"], self.username)
+        self.assertEqual(item["operation"], "generate")
+        self.assertEqual(item["provider"], "azure")
+        self.assertEqual(item["first_query"], "create a resource group")
+        self.assertEqual(item["workspace_uri"], "https://example.com/foo.git")
+        # No status rows yet: summaries fall back to STARTED.
+        self.assertEqual(item["current_status"], "started")
+        self.assertFalse(item["in_flight"])
+        self.assertFalse(item["is_blocked"])
+
+    async def test_detail_aggregates_rounds_and_artifacts(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.STARTED, "kick-off"
+        )
+        round_id = await DatabaseService.create_round(self.sid)
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "round 1", round_id=round_id
+        )
+        _ = await DatabaseService.add_report(
+            round_id=round_id,
+            report_type=ReportType.GENERATE,
+            uri="https://blob.example.com/report.json",
+            content_type="application/json",
+            file_size_bytes=512,
+        )
+        _ = await DatabaseService.add_terraform_plan(
+            round_id=round_id,
+            targets=["azurerm_resource_group.main"],
+            uri="https://blob.example.com/plan.txt",
+            content_type="text/plain",
+            file_size_bytes=2048,
+        )
+        _ = await DatabaseService.add_code_change(
+            round_id=round_id,
+            file_name="main.tf",
+            uri="https://blob.example.com/main.tf",
+            content_type="text/plain",
+            file_size_bytes=128,
+        )
+
+        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+
+        self.assertEqual(body["uuid"], str(self.sid))
+        self.assertEqual(body["operation"], "generate")
+        self.assertEqual(body["scope_id"], "sub-123")
+        self.assertEqual(body["workspace"]["branch"], "Nebula/x")
+        self.assertEqual(body["workspace"]["root_path"], "infra")
+        self.assertIsNone(body["pull_request"])
+        self.assertEqual(body["current_status"], "generating")
+        # Session-level timeline excludes round-level statuses.
+        self.assertEqual([s["status"] for s in body["statuses"]], ["started"])
+        # History is an admin-only field; absent on the user surface.
+        self.assertIsNone(body["history"])
+
+        self.assertEqual(len(body["rounds"]), 1)
+        rnd = body["rounds"][0]
+        self.assertEqual(rnd["number"], 1)
+        self.assertEqual([s["status"] for s in rnd["statuses"]], ["generating"])
+        self.assertEqual(rnd["report"]["url"], "https://blob.example.com/report.json")
+        self.assertEqual(rnd["plan"]["targets"], ["azurerm_resource_group.main"])
+        self.assertEqual(rnd["code_changes"][0]["file_name"], "main.tf")
+        self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
+
+    async def test_detail_unknown_session_is_404(self):
+        resp = await self.client.get(f"/v1/sessions/{uuid4()}")
+        self.assertEqual(resp.status_code, 404, resp.text)
+
+    async def test_list_filters(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
+        )
+
+        async def fetch(**params: str) -> int:
+            resp = await self.client.get(
+                "/v1/sessions", params={"username": self.username, **params}
+            )
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        self.assertEqual(await fetch(operation="generate"), 1)
+        self.assertEqual(await fetch(operation="drift"), 0)
+        self.assertEqual(await fetch(status="generating"), 1)
+        self.assertEqual(await fetch(status="failed"), 0)
+        self.assertEqual(await fetch(search="resource group"), 1)
+        self.assertEqual(await fetch(search="foo.git"), 1)
+        self.assertEqual(await fetch(search="no-match-xyz"), 0)

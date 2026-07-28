@@ -6,10 +6,9 @@
 from pathlib import Path
 from typing import override, Any
 from uuid import UUID
-from datetime import datetime
 
 from src.domains.entities.history import History
-from src.shared.constants import ReportType, TerraformProvider
+from src.shared.constants import TerraformProvider
 
 
 class SessionContext:
@@ -22,10 +21,7 @@ class SessionContext:
         terraform_prv: TerraformProvider,
         branch_name: str,
         iac_path: str,
-        created_at: datetime,
-        updated_at: datetime,
         history: list[dict[str, str]],
-        is_blocked: bool,
     ):
         self.__id = id
         self.__user_id = user_id
@@ -35,14 +31,10 @@ class SessionContext:
         self.__branch_name = branch_name
         self.__iac_path = iac_path
         self.__history: History = History(history)
-        self.__is_blocked: bool = is_blocked
-        self.__created_at: datetime = created_at
-        self.__updated_at: datetime = updated_at
         self.__artifacts: list[
             dict[str, Any]
         ]  # TODO: implement entity and services, interfaces...
         self.__call_dir: Path = None
-        self.__report_type = None
 
     @property
     def id(self) -> UUID:
@@ -65,14 +57,6 @@ class SessionContext:
         return self.__terraform_prv
 
     @property
-    def report_type(self) -> ReportType:
-        assert self.__report_type is not None
-        return self.__report_type
-
-    def set_report_type(self, type: ReportType) -> None:
-        self.__report_type = type
-
-    @property
     def branch_name(self) -> str:
         return self.__branch_name
 
@@ -92,10 +76,6 @@ class SessionContext:
     def set_call_dir(self, path: Path) -> None:
         self.__call_dir = path
 
-    @property
-    def is_blocked(self) -> bool:
-        return self.__is_blocked
-
     @override
     def __str__(self) -> str:
-        return f"session: {self.__id} (blocked={self.__is_blocked})"
+        return f"session: {self.__id}"

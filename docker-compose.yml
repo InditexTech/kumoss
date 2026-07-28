@@ -41,6 +41,7 @@ services:
       - mapping
       - iac
       - authz
+      - redis
     develop:
       watch:
         - action: sync
@@ -139,6 +140,13 @@ services:
       - 5432
     volumes:
       - phoenix_db_data:/var/lib/postgresql/data
+    networks:
+      - bridge-network
+
+  redis:
+    image: redis:8.8
+    expose:
+      - 6379
     networks:
       - bridge-network
 

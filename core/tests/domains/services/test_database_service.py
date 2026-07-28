@@ -2,278 +2,239 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+"""DatabaseService tests focused on the Redis cache staying truthful.
+
+Every mutation is paired with a read to prove the cached copy is fresh:
+the write paths write-through (they never delete), so a stale cache here
+would mean a broken write-through, not an unlucky TTL.
+"""
+
 import unittest
 from uuid import uuid4
 
+from src.domains.exceptions import (
+    LastStatusError,
+    SessionConflict,
+    SessionTerminal,
+)
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
+from src.infrastructure.redis import redis_client
+from src.shared.constants import OperationType, SessionStatus, TerraformProvider
 
 
-class TestStartSession(unittest.IsolatedAsyncioTestCase):
+class _SessionBase(unittest.IsolatedAsyncioTestCase):
+    """One fresh session per test, with DB wiped and unique cache keys."""
+
     async def asyncSetUp(self):
         await db.initialize()
-        # Wipe between tests so per-test state is independent.
+        await redis_client.initialize()
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-
-    async def asyncTearDown(self):
-        await db.close()
-
-    async def test_creates_active_row(self):
-        sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=sid,
-            user_id="alice@example.com",
+        # Unique username per run so stale Redis mappings never leak in.
+        self.username = f"user-{uuid4().hex[:8]}@example.com"
+        self.sid = uuid4()
+        _ = await DatabaseService.create_session(
+            session_id=self.sid,
+            user_id=self.username,
+            operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            cloud="azure",
-            environment="dev",
-            branch_name="Nebula/2026-05-06_120000",
-        )
-        row = await DatabaseService.load_session(str(sid))
-        self.assertEqual(row.user_id, "alice@example.com")
-        self.assertEqual(row.repo_uri, "https://example.com/foo.git")
-        self.assertEqual(row.branch_name, "Nebula/2026-05-06_120000")
-        self.assertEqual(row.status, "active")
-        self.assertFalse(row.in_flight)
-        self.assertEqual(row.history, [])
-        self.assertIsNone(row.last_payload)
-
-
-class TestInFlightFlag(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        await db.initialize()
-        async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        self.sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=self.sid,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
+            terraform_prv=TerraformProvider.AZURE,
+            scope_id="sub-123",
             branch_name="Nebula/x",
+            query="create a resource group",
+            iac_path="infra",
         )
 
     async def asyncTearDown(self):
+        await redis_client.close()
         await db.close()
 
-    async def test_acquire_returns_true_when_free(self):
-        ok = await DatabaseService.acquire_in_flight(str(self.sid))
-        self.assertTrue(ok)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertTrue(row.in_flight)
 
-    async def test_acquire_returns_false_when_already_in_flight(self):
-        await DatabaseService.acquire_in_flight(str(self.sid))
-        ok = await DatabaseService.acquire_in_flight(str(self.sid))
-        self.assertFalse(ok)
+class TestLastStatusFreshness(_SessionBase):
+    async def test_no_status_rows_raises(self):
+        with self.assertRaises(LastStatusError):
+            _ = await DatabaseService.get_last_status(self.sid)
 
-    async def test_release_clears_flag(self):
-        await DatabaseService.acquire_in_flight(str(self.sid))
-        await DatabaseService.release_in_flight(str(self.sid))
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertFalse(row.in_flight)
-
-
-class TestAppendHistory(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        await db.initialize()
-        async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        self.sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=self.sid,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
-            branch_name="Nebula/x",
+    async def test_reads_track_every_write(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
         )
+        status = await DatabaseService.get_last_status(self.sid)
+        self.assertEqual(status.status, SessionStatus.GENERATING)
 
-    async def asyncTearDown(self):
-        await db.close()
+        # The previous read cached GENERATING; the next write must win.
+        await DatabaseService.mark_completed(self.sid, "done")
+        status = await DatabaseService.get_last_status(self.sid)
+        self.assertEqual(status.status, SessionStatus.COMPLETED)
+        self.assertEqual(status.msg, "done")
 
-    async def test_appends_turns_in_order(self):
-        await DatabaseService.append_history(
-            str(self.sid), {"user": "hi", "assistant": "hello"}
-        )
-        await DatabaseService.append_history(
-            str(self.sid), {"user": "again", "assistant": "yes"}
-        )
-        row = await DatabaseService.load_session(str(self.sid))
+    async def test_summary_reflects_latest_status(self):
+        summary = await DatabaseService.get_session_summary(self.sid)
+        self.assertEqual(summary.current_status, SessionStatus.STARTED)
+
+        await DatabaseService.mark_failed(self.sid, "boom")
+        summary = await DatabaseService.get_session_summary(self.sid)
+        self.assertEqual(summary.current_status, SessionStatus.FAILED)
+
+
+class TestSessionContextFreshness(_SessionBase):
+    async def test_round_trips_through_the_cache(self):
+        ctx = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(ctx.id, self.sid)
+        self.assertEqual(ctx.user_id, self.username)
+        self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
+        self.assertEqual(ctx.scope_id, "sub-123")
+        self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
+        self.assertEqual(ctx.branch_name, "Nebula/x")
+        self.assertEqual(ctx.iac_path, "infra")
+        self.assertEqual(len(ctx.history), 0)
+
+        # Second read is served from the cache and must agree.
+        cached = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(cached.repo_uri, ctx.repo_uri)
+        self.assertEqual(cached.history.serialize(), ctx.history.serialize())
+
+    async def test_update_session_refreshes_cached_history(self):
+        ctx = await DatabaseService.get_session_context(self.sid)
+        ctx.history.append_turn(user_msg="hi", assistant_msg="hello")
+        await DatabaseService.update_session(ctx)
+
+        again = await DatabaseService.get_session_context(self.sid)
         self.assertEqual(
-            row.history,
-            [
-                {"user": "hi", "assistant": "hello"},
-                {"user": "again", "assistant": "yes"},
-            ],
+            again.history.serialize(), [{"user": "hi", "assistant": "hello"}]
         )
 
-
-class TestSetLastPayload(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        await db.initialize()
-        async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        self.sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=self.sid,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
-            branch_name="Nebula/x",
-        )
-
-    async def asyncTearDown(self):
-        await db.close()
-
-    async def test_overwrites_payload(self):
-        await DatabaseService.set_last_payload(str(self.sid), {"v": 1})
-        await DatabaseService.set_last_payload(str(self.sid), {"v": 2})
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.last_payload, {"v": 2})
-
-
-class TestMarkCompleted(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        await db.initialize()
-        async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        self.sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=self.sid,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
-            branch_name="Nebula/x",
-        )
-
-    async def asyncTearDown(self):
-        await db.close()
-
-    async def test_marks_completed(self):
-        await DatabaseService.mark_completed(str(self.sid))
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.status, "completed")
-
-
-class _ObservabilityBase(unittest.IsolatedAsyncioTestCase):
-    """Shared setUp / tearDown for observability-column tests."""
-
-    async def asyncSetUp(self):
-        await db.initialize()
-        async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
-        self.sid = uuid4()
-        await DatabaseService.start_session(
-            session_id=self.sid,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
-            branch_name="Nebula/x",
-            operation_type="generate",
-        )
-
-    async def asyncTearDown(self):
-        await db.close()
-
-
-class TestStartSessionOperationType(_ObservabilityBase):
-    async def test_operation_type_persisted(self):
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.operation_type, "generate")
-
-    async def test_operation_type_drift(self):
-        sid2 = uuid4()
-        await DatabaseService.start_session(
-            session_id=sid2,
-            user_id="u",
-            repo_uri="https://example.com/a.git",
-            cloud="azure",
-            environment="dev",
+    async def test_update_session_touches_only_its_own_history(self):
+        other_sid = uuid4()
+        _ = await DatabaseService.create_session(
+            session_id=other_sid,
+            user_id=self.username,
+            operation=OperationType.GENERATE,
+            repo_uri="https://example.com/bar.git",
+            terraform_prv=TerraformProvider.AZURE,
+            scope_id="sub-456",
             branch_name="Nebula/y",
-            operation_type="drift",
+            query="another one",
+            iac_path="infra",
         )
-        row = await DatabaseService.load_session(str(sid2))
-        self.assertEqual(row.operation_type, "drift")
 
-    async def test_apply_allowed_defaults_true(self):
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertTrue(row.apply_allowed)
+        ctx = await DatabaseService.get_session_context(self.sid)
+        ctx.history.append_turn(user_msg="hi", assistant_msg="hello")
+        await DatabaseService.update_session(ctx)
 
-    async def test_failure_reason_defaults_none(self):
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertIsNone(row.failure_reason)
-
-    async def test_pull_request_url_defaults_none(self):
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertIsNone(row.pull_request_url)
+        other = await DatabaseService.get_session_context(other_sid)
+        self.assertEqual(other.history.serialize(), [])
 
 
-class TestMarkFailed(_ObservabilityBase):
-    async def test_stores_failure_reason(self):
-        await DatabaseService.mark_failed(str(self.sid), "something went wrong")
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.failure_reason, "something went wrong")
+class TestPullRequestFreshness(_SessionBase):
+    async def test_add_overwrites_the_cached_empty_list(self):
+        # Prime the cache with the (valid) empty state.
+        with self.assertRaises(SessionTerminal):
+            _ = await DatabaseService.get_pull_requests(self.sid)
 
-    async def test_does_not_change_status(self):
-        await DatabaseService.mark_failed(str(self.sid), "boom")
-        row = await DatabaseService.load_session(str(self.sid))
-        # Status must remain active — no `failed` terminal state in v1.
-        self.assertEqual(row.status, "active")
-
-    async def test_overwrites_previous_reason(self):
-        await DatabaseService.mark_failed(str(self.sid), "first error")
-        await DatabaseService.mark_failed(str(self.sid), "second error")
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.failure_reason, "second error")
+        await DatabaseService.add_pull_request(
+            self.sid, "https://github.com/org/repo/pull/42"
+        )
+        prs = await DatabaseService.get_pull_requests(self.sid)
+        self.assertEqual(
+            [pr["url"] for pr in prs], ["https://github.com/org/repo/pull/42"]
+        )
 
 
-class TestSetPullRequestUrl(_ObservabilityBase):
-    async def test_persists_url(self):
-        url = "https://github.com/org/repo/pull/42"
-        await DatabaseService.set_pull_request_url(str(self.sid), url)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.pull_request_url, url)
+class TestLockStateIsFresh(_SessionBase):
+    async def test_lock_reads_track_writes(self):
+        lock = await DatabaseService.get_lock(self.sid)
+        self.assertFalse(lock.in_flight)
+        self.assertFalse(lock.is_blocked)
 
-    async def test_overwrites_previous_url(self):
-        await DatabaseService.set_pull_request_url(str(self.sid), "https://a.com/1")
-        await DatabaseService.set_pull_request_url(str(self.sid), "https://a.com/2")
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertEqual(row.pull_request_url, "https://a.com/2")
+        await DatabaseService.acquire_in_flight(self.sid)
+        self.assertTrue((await DatabaseService.get_lock(self.sid)).in_flight)
 
+        await DatabaseService.release_in_flight(self.sid)
+        self.assertFalse((await DatabaseService.get_lock(self.sid)).in_flight)
 
-class TestSetApplyAllowed(_ObservabilityBase):
-    async def test_set_false(self):
-        await DatabaseService.set_apply_allowed(str(self.sid), False)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertFalse(row.apply_allowed)
-
-    async def test_set_true_after_false(self):
-        await DatabaseService.set_apply_allowed(str(self.sid), False)
-        await DatabaseService.set_apply_allowed(str(self.sid), True)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertTrue(row.apply_allowed)
+        self.assertTrue(await DatabaseService.set_lock(self.sid, True))
+        self.assertTrue((await DatabaseService.get_lock(self.sid)).is_blocked)
 
 
-class TestToggleApplyAllowed(_ObservabilityBase):
-    async def test_toggle_false(self):
-        await DatabaseService.toggle_apply_allowed(str(self.sid), False)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertFalse(row.apply_allowed)
+class TestInFlightEnforcement(_SessionBase):
+    async def test_acquire_is_a_real_cas(self):
+        await DatabaseService.acquire_in_flight(self.sid)
+        with self.assertRaises(SessionConflict):
+            await DatabaseService.acquire_in_flight(self.sid)
+        await DatabaseService.release_in_flight(self.sid)
+        # Reacquirable after release.
+        await DatabaseService.acquire_in_flight(self.sid)
+        await DatabaseService.release_in_flight(self.sid)
 
-    async def test_toggle_true(self):
-        await DatabaseService.toggle_apply_allowed(str(self.sid), False)
-        await DatabaseService.toggle_apply_allowed(str(self.sid), True)
-        row = await DatabaseService.load_session(str(self.sid))
-        self.assertTrue(row.apply_allowed)
+    async def test_completed_session_cannot_be_resumed(self):
+        await DatabaseService.mark_completed(self.sid, "done")
+        with self.assertRaises(SessionTerminal):
+            await DatabaseService.acquire_in_flight(self.sid)
+
+    async def test_failed_session_cannot_be_resumed(self):
+        await DatabaseService.mark_failed(self.sid, "boom")
+        with self.assertRaises(SessionTerminal):
+            await DatabaseService.acquire_in_flight(self.sid)
+
+    async def test_live_statuses_do_not_block_acquire(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
+        )
+        await DatabaseService.acquire_in_flight(self.sid)
+        await DatabaseService.release_in_flight(self.sid)
+
+    async def test_unknown_session_is_not_found(self):
+        with self.assertRaises(SessionTerminal):
+            await DatabaseService.acquire_in_flight(uuid4())
+
+
+class TestFinishedSessionDetailCache(_SessionBase):
+    def _detail_key(self) -> str:
+        return f"nebula:v1:session:{self.sid}:detail"
+
+    async def test_live_session_detail_is_never_cached(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
+        )
+        _ = await DatabaseService.get_session_detail(self.sid)
+        raw = await redis_client.connection.client.get(self._detail_key())
+        self.assertIsNone(raw)
+
+    async def test_finished_detail_is_cached_and_identical(self):
+        await DatabaseService.mark_completed(self.sid, "done")
+        first = await DatabaseService.get_session_detail(self.sid)
+        raw = await redis_client.connection.client.get(self._detail_key())
+        self.assertIsNotNone(raw)
+        # Second read is served from the cache and must round-trip exactly.
+        second = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual(first, second)
+
+    async def test_admin_variant_is_not_served_from_cache(self):
+        await DatabaseService.mark_completed(self.sid, "done")
+        _ = await DatabaseService.get_session_detail(self.sid)  # populate
+        admin = await DatabaseService.get_session_detail(self.sid, include_history=True)
+        # The cached copy has history=None; the admin surface must not.
+        self.assertIsNotNone(admin.history)
+
+    async def test_set_lock_drops_the_cached_detail(self):
+        await DatabaseService.mark_completed(self.sid, "done")
+        _ = await DatabaseService.get_session_detail(self.sid)  # populate
+        self.assertTrue(await DatabaseService.set_lock(self.sid, True))
+        detail = await DatabaseService.get_session_detail(self.sid)
+        self.assertTrue(detail.is_blocked)
+
+    async def test_terminal_status_key_gets_a_long_ttl(self):
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
+        )
+        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        live_ttl = await redis_client.connection.client.ttl(status_key)
+        self.assertLessEqual(live_ttl, 6 * 60)
+
+        await DatabaseService.mark_completed(self.sid, "done")
+        terminal_ttl = await redis_client.connection.client.ttl(status_key)
+        self.assertGreater(terminal_ttl, 24 * 60 * 60)
