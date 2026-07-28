@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.infrastructure.llm._google_gemini import GoogleGemini
-from src.infrastructure.llm._anthropic_vertex import AnthropicVertex
+from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.shared.config import system_config
 from src.shared.constants import LLMProvider
 
@@ -16,26 +15,19 @@ class LLMFactory:
     ):
         self.__provider = provider
         self.__temperature = temperature
-        if provider.value["provider"] in ["google", "anthropicVertex"]:
-            creds_path = system_config.llm.google_application_credentials
-            sa_secret = system_config.llm.google_sa_secret
-            if creds_path and sa_secret:
-                with open(creds_path, "w") as f:
-                    _ = f.write(sa_secret)
+
+    def _get_provider_kwargs(self) -> dict:
+        model_id = self.__provider.value["model_id"]
+        provider_kwargs = system_config.llm.get_provider_credentials(model_id)
+        if region := self.__provider.value.get(
+            "region"
+        ):  # Prioritize region from LLMProvider enum if available
+            provider_kwargs["vertex_location"] = region
+        return provider_kwargs
 
     def get(self):
-        match self.__provider.value["provider"]:
-            case "anthropicVertex":
-                return AnthropicVertex(
-                    model=self.__provider,
-                    api_id=system_config.llm.google_vertex_project,
-                    temperature=self.__temperature,
-                )
-            case "google":
-                return GoogleGemini(
-                    model=self.__provider,
-                    api_id=system_config.llm.google_vertex_project,
-                    temperature=self.__temperature,
-                )
-            case _:
-                raise ValueError(f"Unsupported LLM {self.__provider.value['provider']}")
+        return LiteLLMAdapter(
+            model=self.__provider,
+            temperature=self.__temperature,
+            provider_kwargs=self._get_provider_kwargs(),
+        )

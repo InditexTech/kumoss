@@ -6,73 +6,63 @@ from enum import Enum, unique
 
 
 @unique
+class ProviderPrefix(Enum):
+    """Defines the possible provider prefixes (considered) for model_id prefix in LLMProvider (for LiteLLM)"""
+
+    VERTEX_AI = "vertex_ai"
+    BEDROCK = "bedrock"
+    OPENAI = "openai"
+    AZURE = "azure"
+    AZURE_AI = "azure_ai"
+
+
+@unique
 class LLMProvider(Enum):
     """All supported LLM models and providers"""
 
-    HAIKU_BEDROCK = {
-        "model_id": "anthropic.claude-3-5-haiku-20241022-v1:0",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 8_192,
-        "provider": "anthropicBedrock",
-        "phoenix_id": "undefined",
-    }
-    HAIKU_VERTEX = {
-        "model_id": "claude-haiku-4-5@20251001",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 64_000,
-        "provider": "anthropicVertex",
+    ## Anthropic (Vertex Routing: default, Bedrock Routing: commented out)
+    CLAUDE_HAIKU = {
+        "model_id": "vertex_ai/claude-haiku-4-5@20251001",
+        # "model_id": "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
+        "max_tokens": 64_000,
         "region": "europe-west1",
-        "phoenix_id": "claude-haiku-4-5-20251001",
     }
-    SONNET_BEDROCK = {
-        "model_id": "anthropic.claude-sonnet-4-20250514-v1:0",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 32_000,
-        "provider": "anthropicBedrock",
-        "phoenix_id": "claude-4-sonnet-20250514",
-    }
-    SONNET_VERTEX = {
-        "model_id": "claude-sonnet-4-6",
-        "max_input_tokens": 1_000_000,
-        "max_output_tokens": 64_000,
-        "provider": "anthropicVertex",
+    CLAUDE_SONNET = {
+        "model_id": "vertex_ai/claude-sonnet-4-6",
+        # "model_id": "bedrock/anthropic.claude-sonnet-4-20250514-v1:0",
+        "max_tokens": 64_000,
         "region": "us-east5",
-        "phoenix_id": "claude-sonnet-4-6",
     }
-    OPUS_BEDROCK = {
-        "model_id": "anthropic.claude-3-opus-20240229-v1:0",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 4096,
-        "provider": "anthropicBedrock",
-        "phoenix_id": "claude-3-opus-20240229",
+    CLAUDE_OPUS = {
+        "model_id": "vertex_ai/claude-opus-4@20250514",
+        # "model_id": "bedrock/anthropic.claude-3-opus-20240229-v1:0",
+        # "model_id": "azure_ai/claude-opus-4-1" # For Azure AI Studio (Anthropic) routing
+        "max_tokens": 32_000,
     }
-    OPUS_VERTEX = {
-        "model_id": "claude-opus-4@20250514",
-        "max_input_tokens": 200_000,
-        "max_output_tokens": 32_000,
-        "provider": "anthropicVertex",
-        "phoenix_id": "claude-4-opus-20250514",
-    }
+
+    ## Google Gemini (Vertex Routing)
     GEMINI_PRO = {
-        "model_id": "gemini-2.5-pro",
-        "max_input_tokens": 1_048_576,
-        "max_output_tokens": 65_535,
-        "provider": "google",
-        "phoenix_id": "gemini-2.5-pro",
+        "model_id": "vertex_ai/gemini-2.5-pro",
+        "max_tokens": 65_535,
     }
     GEMINI_FLASH = {
-        "model_id": "gemini-3-flash-preview",
-        "max_input_tokens": 1_048_576,
-        "max_output_tokens": 65_535,
-        "provider": "google",
-        "phoenix_id": "gemini-3-flash-preview",
+        "model_id": "vertex_ai/gemini-3-flash-preview",
+        "max_tokens": 65_535,
     }
     GEMINI_FLASH_LITE = {
-        "model_id": "gemini-2.5-flash-lite",
-        "max_input_tokens": 1_048_576,
-        "max_output_tokens": 65_535,
-        "provider": "google",
-        "phoenix_id": "gemini-2.5-flash-lite",
+        "model_id": "vertex_ai/gemini-2.5-flash-lite",
+        "max_tokens": 65_535,
+    }
+    ## OpenAI (OpenAI Routing)
+    GPT_5 = {
+        "model_id": "openai/gpt-5",
+        # "model_id": "azure/<your_deployment_name>" # For Azure OpenAI routing
+        "max_tokens": 65_535,
+    }
+    GPT_5_MINI = {
+        "model_id": "openai/gpt-5-mini",
+        # "model_id": "azure/<your_deployment_name>" # For Azure OpenAI routing
+        "max_tokens": 65_535,
     }
 
 

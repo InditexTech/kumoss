@@ -22,11 +22,12 @@ from __future__ import annotations
 
 import os
 import yaml
+from typing import ClassVar
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, LLMProvider
+from src.shared.constants import GitProviderName, LLMProvider, ProviderPrefix
 
 
 class ConfigError(ValueError):
@@ -67,51 +68,65 @@ class LlmConfig(BaseModel):
     """
 
     # `model` and `small_model` are LLMProvider enum names (see
-    # core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
-    # HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
+    # core/src/shared/constants.py::LLMProvider). Examples: CLAUDE_SONNET,
+    # CLAUDE_HAIKU, GEMINI_FLASH. The factory resolves
     # the name to the full provider/model/region tuple at startup.
-    model: LLMProvider = LLMProvider.SONNET_VERTEX
-    small_model: LLMProvider = LLMProvider.HAIKU_VERTEX
+    model: LLMProvider = LLMProvider.CLAUDE_SONNET
+    small_model: LLMProvider = LLMProvider.CLAUDE_HAIKU
     temperature: float = 0.1
     small_model_temperature: float = 0.1
 
-    aws_region: str = "us-west-2"
-    aws_bedrock_access_key_id_env: str = "AWS_ACCESS_KEY_ID"
-    aws_bedrock_secret_access_key_env: str = "AWS_SECRET_ACCESS_KEY"
-    google_application_credentials_env: str = "GOOGLE_APPLICATION_CREDENTIALS"
-    google_sa_secret_env: str = "GOOGLE_SA_SECRET"
-    google_vertex_project_env: str = "GOOGLE_VERTEX_ID"
+    # Maps the model_id prefix to the env vars that hold the credentials for that provider.
+    _PROVIDER_ENV: ClassVar[dict[str, dict[str, str]]] = {
+        ProviderPrefix.VERTEX_AI.value: {
+            "vertex_project": "VERTEXAI_PROJECT",
+            "vertex_location": "VERTEXAI_LOCATION",
+            "vertex_credentials": "GOOGLE_SA_SECRET",
+        },
+        ProviderPrefix.BEDROCK.value: {
+            "aws_access_key_id": "AWS_ACCESS_KEY_ID",
+            "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
+        },
+        ProviderPrefix.OPENAI.value: {
+            "api_key": "OPENAI_API_KEY",
+        },
+        ProviderPrefix.AZURE.value: {
+            "api_key": "AZURE_API_KEY",
+            "api_base": "AZURE_API_BASE",
+            "api_version": "AZURE_API_VERSION",
+        },
+        ProviderPrefix.AZURE_AI.value: {
+            "api_key": "AZURE_AI_API_KEY",
+            "api_base": "AZURE_AI_API_BASE",
+        },
+    }
 
     @field_validator("model", "small_model", mode="before")
     @classmethod
     def _coerce_model(cls, v: str | LLMProvider):
         if isinstance(v, str):
-            # Accept enum name or value
             try:
                 return LLMProvider[v]
             except KeyError:
                 return LLMProvider(v)
         return v
 
-    @property
-    def aws_bedrock_access_key_id(self) -> str:
-        return _env(self.aws_bedrock_access_key_id_env)
-
-    @property
-    def aws_bedrock_secret_access_key(self) -> str:
-        return _env(self.aws_bedrock_secret_access_key_env)
-
-    @property
-    def google_application_credentials(self) -> str:
-        return _env(self.google_application_credentials_env)
-
-    @property
-    def google_sa_secret(self) -> str:
-        return _env(self.google_sa_secret_env)
-
-    @property
-    def google_vertex_project(self) -> str:
-        return _env(self.google_vertex_project_env)
+    def get_provider_credentials(self, model_id: str) -> dict[str, str]:
+        prefix = model_id.split("/")[0]
+        if prefix not in self._PROVIDER_ENV:
+            raise ConfigError(
+                f"Unknown LLM provider prefix '{prefix}' in model_id '{model_id}'"
+                + f". Supported prefixes: {list(self._PROVIDER_ENV.keys())}"
+            )
+        env_map = self._PROVIDER_ENV.get(
+            prefix, self._PROVIDER_ENV[ProviderPrefix.VERTEX_AI.value]
+        )
+        credentials: dict[str, str] = {}
+        for key, env_name in env_map.items():
+            value = _env(env_name)
+            if value:
+                credentials[key] = value
+        return credentials
 
 
 class ServiceConfig(BaseModel):
@@ -256,46 +271,20 @@ class SystemConfig(BaseModel):
     def _assert_llm_credentials(self) -> SystemConfig:
         """Fail-fast on missing LLM credentials for the selected providers.
 
-        Only the providers actually referenced by ``llm.model`` / ``llm.small_model``
-        are required.
+        Derives the required env vars from the ``model_id`` prefix of each
+        selected model and checks them against ``LlmConfig._PROVIDER_ENV``.
         """
-        selected: list[str] = []
-        for field, name in (
-            ("model", self.llm.model),
-            ("small_model", self.llm.small_model),
-        ):
-            try:
-                selected.append(name.value["provider"])
-            except KeyError as e:
-                valid = ", ".join(p.name for p in LLMProvider)
-                raise ConfigError(
-                    f"llm.{field}={name!r} is not a known LLMProvider. Valid: {valid}"
-                ) from e
-
         missing: list[str] = []
-        if "anthropicBedrock" in selected:
-            if not self.llm.aws_bedrock_access_key_id:
-                missing.append(self.llm.aws_bedrock_access_key_id_env)
-            if not self.llm.aws_bedrock_secret_access_key:
-                missing.append(self.llm.aws_bedrock_secret_access_key_env)
-        if {"anthropicVertex", "google"} & set(selected):
-            # ADC: either GOOGLE_APPLICATION_CREDENTIALS (path to a key file)
-            # or GOOGLE_SA_SECRET (inline JSON) must resolve.
-            if not (
-                self.llm.google_application_credentials or self.llm.google_sa_secret
-            ):
-                missing.append(
-                    f"{self.llm.google_application_credentials_env} "
-                    + f"or {self.llm.google_sa_secret_env}"
-                )
-            if not self.llm.google_vertex_project:
-                missing.append(self.llm.google_vertex_project_env)
-
+        for field in ("model", "small_model"):
+            model_id = getattr(self.llm, field).value["model_id"]
+            prefix = model_id.split("/")[0]
+            env_map = self.llm._PROVIDER_ENV.get(prefix, {})
+            for _, env_name in env_map.items():
+                if not _env(env_name):
+                    missing.append(env_name)
         if missing:
             raise ConfigError(
-                "Missing credentials for selected LLM providers "
-                + f"({', '.join(sorted(set(selected)))}): "
-                + f"set env var(s) {', '.join(missing)}."
+                f"Missing LLM credentials: set env var(s) {', '.join(set(missing))}"
             )
         return self
 
