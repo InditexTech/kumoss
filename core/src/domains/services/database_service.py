@@ -476,7 +476,7 @@ class DatabaseService:
         )
         if workspace is None or provider is None:
             raise SessionTerminal(
-                message=f"Session {s.uuid} is missconfigured",
+                message=f"Session {s.uuid} is misconfigured",
                 error_code=500,
             )
         return SessionSummary(
