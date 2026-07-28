@@ -14,6 +14,9 @@
   text-align: center;
   font-feature-settings: 'tnum' on, 'lnum' on;
   flex-shrink: 0;
+  /* Dark theme surfaces are blue/indigo: chips switch from solid fills to
+     translucent tints with bright ink and a hairline ring. */
+  box-shadow: inset 0 0 0 1px var(--badge-ring, transparent);
 }
 
 /* ─── Green (create / completed / succeeded) ─── */
@@ -22,29 +25,33 @@
 .completed,
 .succeeded,
 .successfully_imported {
-  background-color: var(--color-create);
-  color: var(--color-create-bg);
+  background-color: light-dark(var(--color-create), rgba(74, 222, 128, 0.15));
+  color: light-dark(var(--color-create-bg), #86efac);
+  --badge-ring: light-dark(transparent, rgba(134, 239, 172, 0.32));
 }
 
-/* ─── Blue (generated) ─── */
+/* ─── Cyan (generated) — cyan so it separates from the indigo backdrop ─── */
 .generated {
-  background-color: var(--color-generated);
-  color: var(--color-generated-bg);
+  background-color: light-dark(var(--color-generated), rgba(56, 189, 248, 0.15));
+  color: light-dark(var(--color-generated-bg), #7dd3fc);
+  --badge-ring: light-dark(transparent, rgba(125, 211, 252, 0.32));
 }
 
 /* ─── Orange (update / partial) ─── */
 .update,
 .updated,
 .partial {
-  background-color: var(--color-update);
-  color: var(--color-update-bg);
+  background-color: light-dark(var(--color-update), rgba(251, 146, 60, 0.15));
+  color: light-dark(var(--color-update-bg), #fdba74);
+  --badge-ring: light-dark(transparent, rgba(253, 186, 116, 0.32));
 }
 
 /* ─── Purple (recreate) ─── */
 .recreate,
 .recreated {
-  background-color: var(--color-recreate);
-  color: var(--color-recreate-bg);
+  background-color: light-dark(var(--color-recreate), rgba(192, 132, 252, 0.16));
+  color: light-dark(var(--color-recreate-bg), #d8b4fe);
+  --badge-ring: light-dark(transparent, rgba(216, 180, 254, 0.32));
 }
 
 /* ─── Red (delete / failed) ─── */
@@ -52,22 +59,25 @@
 .deleted,
 .failed,
 .not_imported {
-  background-color: var(--color-delete);
-  color: var(--color-delete-bg);
+  background-color: light-dark(var(--color-delete), rgba(248, 113, 113, 0.16));
+  color: light-dark(var(--color-delete-bg), #fca5a5);
+  --badge-ring: light-dark(transparent, rgba(252, 165, 165, 0.35));
 }
 
-/* ─── Dark red (destroyed) ─── */
+/* ─── Dark red (destroyed) — heavier fill than failed ─── */
 .destroyed {
-  background-color: var(--color-destroyed);
-  color: var(--color-delete-bg);
+  background-color: light-dark(var(--color-destroyed), rgba(220, 38, 38, 0.35));
+  color: light-dark(var(--color-delete-bg), #fecaca);
+  --badge-ring: light-dark(transparent, rgba(252, 165, 165, 0.5));
 }
 
-/* ─── Gray (started / generating / neutral) ─── */
+/* ─── Neutral (started / generating / no change) ─── */
 .started,
 .generating,
 .no_change,
 .untracked,
 .default {
-  background-color: var(--color-started-bg);
-  color: var(--color-neutral-text);
+  background-color: light-dark(var(--color-started-bg), rgba(255, 255, 255, 0.08));
+  color: light-dark(var(--color-neutral-text), rgba(255, 255, 255, 0.78));
+  --badge-ring: light-dark(transparent, rgba(255, 255, 255, 0.3));
 }

@@ -209,7 +209,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 20, color: "rgba(0,0,0,0.4)" }} />
+                    <SearchIcon sx={{ fontSize: 20, color: "var(--tbl-ink-soft)" }} />
                   </InputAdornment>
                 ),
               },
@@ -266,7 +266,10 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
               ))}
             </Select>
           </FormControl>
-          <Typography variant="body2" sx={{ mr: 0.5, fontWeight: 300 }}>
+          <Typography
+            variant="body2"
+            sx={{ mr: 0.5, fontWeight: 300, color: "var(--tbl-ink-soft)" }}
+          >
             {startItem} - {total}
           </Typography>
           <IconButton

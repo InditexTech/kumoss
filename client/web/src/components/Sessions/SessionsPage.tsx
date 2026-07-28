@@ -59,19 +59,29 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     key: "project",
     header: "Project",
     width: "16%",
-    render: (s) => extractProjectName(s.workspace_uri),
+    className: styles.secondaryCell,
+    render: (s) => extractProjectName(s.repo_uri),
   },
   {
     key: "type",
     header: "Type",
     width: "8%",
-    render: (s) => s.operation,
+    className: styles.secondaryCell,
+    render: (s) => s.operation_type || "-",
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
-    render: (s) => s.provider,
+    className: styles.secondaryCell,
+    render: (s) => s.cloud_provider,
+  },
+  {
+    key: "env",
+    header: "Env",
+    width: "8%",
+    className: styles.secondaryCell,
+    render: (s) => s.environment,
   },
   {
     key: "status",
@@ -97,6 +107,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     key: "created",
     header: "Created",
     width: "12%",
+    className: styles.secondaryCell,
     render: (s) => formatDate(s.created_at),
   },
 ];
@@ -104,9 +115,75 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
 const adminColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "user",
-    header: "User",
-    width: "12%",
-    render: (s) => s.username ?? "-",
+    header: "Usuario",
+    width: "13%",
+    render: (s) => s.user_id.split("@")[0],
+  },
+  {
+    key: "query",
+    header: "Query",
+    width: "28%",
+    render: (s) => (
+      <span title={s.initial_query || ""}>
+        {truncate(s.initial_query)}
+      </span>
+    ),
+  },
+  {
+    key: "project",
+    header: "Project",
+    width: "13%",
+    className: styles.secondaryCell,
+    render: (s) =>
+      s.repository_id ? s.repository_id.replace(/_[^_]+$/, "") : "-",
+  },
+  {
+    key: "type",
+    header: "Type",
+    width: "8%",
+    className: styles.secondaryCell,
+    render: (s) => s.operation_type,
+  },
+  {
+    key: "cloud",
+    header: "Cloud",
+    width: "8%",
+    className: styles.secondaryCell,
+    render: (s) => s.cloud_provider,
+  },
+  {
+    key: "env",
+    header: "Env",
+    width: "8%",
+    className: styles.secondaryCell,
+    render: (s) => s.environment,
+  },
+  {
+    key: "status",
+    header: "Status",
+    width: "8%",
+    render: (s) => <StatusBadge variant={s.final_status || s.current_status} />,
+  },
+  {
+    key: "apply",
+    header: "Apply",
+    width: "5%",
+    className: styles.applyCell,
+    render: (s) =>
+      s.operation_type === "generate" || s.operation_type === "import" ? (
+        s.apply_allowed ? (
+          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
+        ) : (
+          <LockOutlinedIcon className={styles.applyIconLocked} />
+        )
+      ) : null,
+  },
+  {
+    key: "created",
+    header: "Created",
+    width: "9%",
+    className: styles.secondaryCell,
+    render: (s) => formatDate(s.created_at),
   },
   ...baseColumns,
 ];

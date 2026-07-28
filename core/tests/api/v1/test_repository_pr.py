@@ -41,15 +41,11 @@ class TestMergePR(unittest.IsolatedAsyncioTestCase):
                 },
             )
         self.assertEqual(resp.status_code, 200)
-        svc.merge.assert_awaited_once_with(
-            "00000000-0000-0000-0000-000000000001", 42
-        )
+        svc.merge.assert_awaited_once_with("00000000-0000-0000-0000-000000000001", 42)
 
     def test_merge_pr_unknown_session_returns_404(self):
         svc = _mock_merge_service(
-            AsyncMock(
-                side_effect=ExceptionHandler("Session not found.", 404)
-            )
+            AsyncMock(side_effect=ExceptionHandler("Session not found.", 404))
         )
         with patch(
             "src.api.v1.repository.StatelessFactory.get_merge_pr_service",

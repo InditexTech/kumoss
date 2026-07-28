@@ -34,7 +34,7 @@
   align-items: center !important;
   gap: 6px !important;
   padding: 8px 16px !important;
-  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+  border: 1px solid light-dark(#e5e7eb, rgba(255, 255, 255, 0.35)) !important;
   border-radius: 0 !important;
   background: transparent !important;
   text-transform: none !important;
@@ -63,7 +63,7 @@
 }
 
 .sectionTitle {
-  color: light-dark(#6b7280, #9ca3af);
+  color: light-dark(#6b7280, rgba(255, 255, 255, 0.6));
   margin: 0 0 16px 0;
 }
 
@@ -72,7 +72,8 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-  border: 1px solid light-dark(#e5e7eb, #262626);
+  border: 1px solid light-dark(#e5e7eb, rgba(255, 255, 255, 0.22));
+  background: light-dark(transparent, rgba(255, 255, 255, 0.04));
 }
 
 .userCardTop {
@@ -89,7 +90,7 @@
 .userAvatar {
   width: 48px;
   height: 48px;
-  border: 1px solid light-dark(#e5e7eb, #262626);
+  border: 1px solid light-dark(#e5e7eb, rgba(255, 255, 255, 0.28));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -113,7 +114,7 @@
 .userEmail {
   font-size: 12px;
   font-weight: 300;
-  color: light-dark(#9ca3af, #6b7280);
+  color: light-dark(#9ca3af, rgba(255, 255, 255, 0.55));
   margin: 0;
   letter-spacing: 0.5px;
 }
@@ -123,7 +124,7 @@
   align-items: center !important;
   gap: 6px !important;
   padding: 6px 14px !important;
-  border: 1px solid light-dark(#e5e7eb, #262626) !important;
+  border: 1px solid light-dark(#e5e7eb, rgba(255, 255, 255, 0.3)) !important;
   border-radius: 0 !important;
   background: transparent !important;
   text-transform: none !important;
@@ -134,42 +135,42 @@
 }
 
 .logoutButton:hover {
-  background: light-dark(rgba(220, 38, 38, 0.06), rgba(239, 68, 68, 0.1)) !important;
-  border-color: light-dark(#fca5a5, #7f1d1d) !important;
+  background: light-dark(rgba(220, 38, 38, 0.06), rgba(248, 113, 113, 0.14)) !important;
+  border-color: light-dark(#fca5a5, rgba(252, 165, 165, 0.55)) !important;
 }
 
 .logoutIcon {
   font-size: 18px !important;
-  color: light-dark(#6b7280, #9ca3af) !important;
+  color: light-dark(#6b7280, rgba(255, 255, 255, 0.7)) !important;
   transition: color 0.2s ease !important;
 }
 
 .logoutButton:hover .logoutIcon {
-  color: light-dark(#dc2626, #ef4444) !important;
+  color: light-dark(#dc2626, #fca5a5) !important;
 }
 
 .logoutText {
   font-size: 13px;
   font-weight: 300;
   letter-spacing: 1px;
-  color: light-dark(#6b7280, #9ca3af);
+  color: light-dark(#6b7280, rgba(255, 255, 255, 0.7));
   transition: color 0.2s ease;
 }
 
 .logoutButton:hover .logoutText {
-  color: light-dark(#dc2626, #ef4444) !important;
+  color: light-dark(#dc2626, #fca5a5) !important;
 }
 
 .placeholder {
   padding: 32px;
-  border: 1px dashed light-dark(#d1d5db, #374151);
+  border: 1px dashed light-dark(#d1d5db, rgba(255, 255, 255, 0.3));
   text-align: center;
 }
 
 .placeholderText {
   font-size: 14px;
   font-weight: 300;
-  color: light-dark(#9ca3af, #6b7280);
+  color: light-dark(#9ca3af, rgba(255, 255, 255, 0.55));
   letter-spacing: 1px;
   margin: 0;
 }

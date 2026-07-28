@@ -99,7 +99,6 @@ class TerraformProvider(Enum):
     AWS = "aws"
     OCI = "oci"
     KUBERNETES = "kubernetes"
-    COMMON = "common"
 
 
 @unique
