@@ -19,8 +19,7 @@ class PullRequestService:
         self.__git_utils = git_utils
 
     async def create_pr(self, ctx: SessionContext) -> PullRequestDTO:
-        await DatabaseService.add_pull_request(ctx.id, ctx.repo_uri)
-        return await self.__git_utils.create_pr(
+        dto = await self.__git_utils.create_pr(
             repository_url=ctx.repo_uri,
             head_branch=ctx.branch_name,
             title="TODO",
@@ -30,3 +29,5 @@ class PullRequestService:
                 + f" for a PR description: {ctx}"  # TODO: get artifact
             ),
         )
+        await DatabaseService.add_pull_request(ctx.id, dto.url)
+        return dto
