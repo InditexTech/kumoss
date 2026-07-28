@@ -117,7 +117,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:19.4.0
+    image: arizephoenix/phoenix:19.9.0
     expose:
       - 6006
       - 4317
@@ -150,18 +150,18 @@ services:
     networks:
       - bridge-network
 
-  object-store:
-    image: quay.io/minio/minio:latest
-    container_name: minio_storage
+  object-storage:
+    image: rustfs/rustfs:latest
+    environment:
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_ACCESS_KEY=rustfsadmin
+      - RUSTFS_SECRET_KEY=rustfsadmin
     ports:
       - "9000:9000"
       - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - object_store_data:/data
-    command: server /data --console-address ":9001"
+      - object_storage_data:/data
+    # command: server /data --console-address ":9001"
     # restart: unless-stopped
 
 volumes:
@@ -169,7 +169,7 @@ volumes:
     driver: local
   phoenix_db_data:
     driver: local
-  object_store_data:
+  object_storage_data:
     driver: local
   workspaces:
     driver: local
