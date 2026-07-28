@@ -16,14 +16,19 @@
   text-align: center;
 }
 
+/* Metadata columns read one step quieter than the query column */
+.secondaryCell {
+  --cell-ink: var(--tbl-ink-soft);
+}
+
 .applyIconOpen {
   font-size: 20px !important;
-  color: rgba(0, 0, 0, 0.5);
+  color: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.55));
 }
 
 .applyIconLocked {
   font-size: 20px !important;
-  color: var(--color-status-failed);
+  color: light-dark(var(--color-status-failed), #fca5a5);
 }
 
 .phoenixLink {
@@ -34,7 +39,7 @@
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #000000;
+  color: light-dark(#000000, rgba(255, 255, 255, 0.85));
   text-decoration: none;
   cursor: pointer;
 }

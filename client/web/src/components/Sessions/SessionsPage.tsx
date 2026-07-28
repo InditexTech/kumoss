@@ -67,24 +67,28 @@ const columns: ColumnDef<UserSessionInfo>[] = [
     key: "project",
     header: "Project",
     width: "16%",
+    className: styles.secondaryCell,
     render: (s) => extractProjectName(s.repo_uri),
   },
   {
     key: "type",
     header: "Type",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.operation_type || "-",
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.cloud_provider,
   },
   {
     key: "env",
     header: "Env",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.environment,
   },
   {
@@ -111,6 +115,7 @@ const columns: ColumnDef<UserSessionInfo>[] = [
     key: "created",
     header: "Created",
     width: "12%",
+    className: styles.secondaryCell,
     render: (s) => formatDate(s.created_at),
   },
 ];
@@ -136,6 +141,7 @@ const adminColumns: ColumnDef<AdminSessionInfo>[] = [
     key: "project",
     header: "Project",
     width: "13%",
+    className: styles.secondaryCell,
     render: (s) =>
       s.repository_id ? s.repository_id.replace(/_[^_]+$/, "") : "-",
   },
@@ -143,18 +149,21 @@ const adminColumns: ColumnDef<AdminSessionInfo>[] = [
     key: "type",
     header: "Type",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.operation_type,
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.cloud_provider,
   },
   {
     key: "env",
     header: "Env",
     width: "8%",
+    className: styles.secondaryCell,
     render: (s) => s.environment,
   },
   {
@@ -181,6 +190,7 @@ const adminColumns: ColumnDef<AdminSessionInfo>[] = [
     key: "created",
     header: "Created",
     width: "9%",
+    className: styles.secondaryCell,
     render: (s) => formatDate(s.created_at),
   },
 ];
