@@ -15,11 +15,15 @@ services:
       dockerfile: ./nginx/Dockerfile
     ports:
       - "80:80"
+      # Presigned artifact URLs: browser -> localhost:9000 -> nginx ->
+      # object-storage:9000 (see nginx/nginx.conf).
+      - "9000:9000"
     expose:
       - 80
     depends_on:
       - core
       - phoenix
+      - object-storage
     networks:
       - bridge-network
 
@@ -42,6 +46,7 @@ services:
       - iac
       - authz
       - redis
+      - object-storage
     develop:
       watch:
         - action: sync
@@ -156,13 +161,12 @@ services:
       - RUSTFS_CONSOLE_ENABLE=true
       - RUSTFS_ACCESS_KEY=rustfsadmin
       - RUSTFS_SECRET_KEY=rustfsadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    expose:
+      - 9000
     volumes:
       - object_storage_data:/data
-    # command: server /data --console-address ":9001"
-    # restart: unless-stopped
+    networks:
+      - bridge-network
 
 volumes:
   core_db_data:
