@@ -5,16 +5,16 @@
 from functools import cache
 
 from src.domains.interfaces import IObjectStorage
-from src.infrastructure.storage._aws import AWSObjectStorage
+from src.infrastructure.storage._s3 import S3ObjectStorage
 from src.shared.config import system_config
 from src.shared.constants import ObjectStorageProvider
 
 
 # Lazily initialized singletons.
 @cache
-def _rustfs() -> AWSObjectStorage:
+def _rustfs() -> S3ObjectStorage:
     cfg = system_config.storage
-    return AWSObjectStorage(
+    return S3ObjectStorage(
         bucket=cfg.bucket,
         region=cfg.region,
         endpoint_url=cfg.endpoint_url,
@@ -30,9 +30,9 @@ def _rustfs() -> AWSObjectStorage:
 
 
 @cache
-def _aws() -> AWSObjectStorage:
+def _s3() -> S3ObjectStorage:
     cfg = system_config.storage
-    return AWSObjectStorage(
+    return S3ObjectStorage(
         bucket=cfg.bucket,
         region=cfg.region,
         endpoint_url=None,
@@ -55,8 +55,8 @@ class ObjectStorageFactory:
         match self.__provider:
             case ObjectStorageProvider.RUSTFS:
                 return _rustfs()
-            case ObjectStorageProvider.AWS:
-                return _aws()
+            case ObjectStorageProvider.S3:
+                return _s3()
             case _:
                 raise NotImplementedError()
 

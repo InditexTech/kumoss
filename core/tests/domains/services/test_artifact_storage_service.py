@@ -28,7 +28,7 @@ from src.infrastructure.database.models import (
     TerraformPlan,
 )
 from src.infrastructure.redis import redis_client
-from src.infrastructure.storage._aws import AWSObjectStorage
+from src.infrastructure.storage._s3 import S3ObjectStorage
 from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 _ENDPOINT = "http://object-storage:9000"
@@ -100,7 +100,7 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
         self.round_id = await DatabaseService.create_round(self.sid)
 
         self.bucket = f"test-{uuid4().hex[:12]}"
-        self.storage = AWSObjectStorage(
+        self.storage = S3ObjectStorage(
             bucket=self.bucket,
             region="us-east-1",
             endpoint_url=_ENDPOINT,

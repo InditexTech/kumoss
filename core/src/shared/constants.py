@@ -191,4 +191,4 @@ class ObjectStorageProvider(Enum):
     """Defines all the supported object-storage backends for artifacts."""
 
     RUSTFS = "rustfs"
-    AWS = "aws"
+    S3 = "s3"

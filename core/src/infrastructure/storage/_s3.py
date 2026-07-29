@@ -31,7 +31,7 @@ def _error_code(e: ClientError) -> str:
 
 
 @final
-class AWSObjectStorage(IObjectStorage):
+class S3ObjectStorage(IObjectStorage):
     """S3-API adapter over sync boto3 (RustFS, MinIO, AWS S3).
 
     Blocking SDK calls run on the shared ``execute_pool`` thread pool;
@@ -43,9 +43,6 @@ class AWSObjectStorage(IObjectStorage):
     so ``__presign`` is built on ``public_endpoint_url`` (it never
     touches the network). With no custom endpoints (AWS) a single client
     on the regional default serves both roles.
-
-    No boto3/botocore exception escapes this class: everything is
-    translated to the ExceptionHandler-based domain exceptions.
     """
 
     def __init__(

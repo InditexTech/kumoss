@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Behavioral tests for ``AWSObjectStorage`` against the real RustFS.
+"""Behavioral tests for ``S3ObjectStorage`` against the real RustFS.
 
 Runs against the docker-compose ``object-storage`` service: signature
 compatibility, presigned-URL fetchability and error translation are
@@ -19,7 +19,7 @@ import httpx
 from botocore.client import Config as BotoConfig
 
 from src.domains.exceptions import ObjectNotFound, ObjectStorageUnavailable
-from src.infrastructure.storage._aws import AWSObjectStorage
+from src.infrastructure.storage._s3 import S3ObjectStorage
 
 _ENDPOINT = "http://object-storage:9000"
 _ACCESS_KEY = "rustfsadmin"
@@ -28,11 +28,11 @@ _REGION = "us-east-1"
 _EXPIRY = 172_800
 
 
-class TestAWSObjectStorage(unittest.IsolatedAsyncioTestCase):
+class TestS3ObjectStorage(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         # Unique bucket per test so runs never collide with dev data.
         self.bucket = f"test-{uuid4().hex[:12]}"
-        self.storage = AWSObjectStorage(
+        self.storage = S3ObjectStorage(
             bucket=self.bucket,
             region=_REGION,
             endpoint_url=_ENDPOINT,
@@ -106,7 +106,7 @@ class TestAWSObjectStorage(unittest.IsolatedAsyncioTestCase):
         self.assertIn("X-Amz-Expires=600", url)
 
     async def test_unreachable_endpoint_raises_unavailable(self):
-        down = AWSObjectStorage(
+        down = S3ObjectStorage(
             bucket=self.bucket,
             region=_REGION,
             endpoint_url="http://object-storage:9",  # nothing listens here

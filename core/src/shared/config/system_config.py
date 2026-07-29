@@ -270,8 +270,8 @@ class StorageConfig(BaseModel):
 
     The provider decides how endpoints are resolved (see the object-storage
     factory): RUSTFS — or any custom-endpoint S3-compatible server — uses
-    both URLs below; AWS ignores them and lets boto3 build the regional
-    default endpoint from ``region``.
+    both URLs below; S3 (real AWS S3) ignores them and lets boto3 build
+    the regional default endpoint from ``region``.
 
     Two endpoints exist because SigV4 binds the Host header: ``endpoint_url``
     is what the core's SDK calls hit from inside the compose network, while
@@ -281,7 +281,7 @@ class StorageConfig(BaseModel):
     Credentials follow the ``*_env`` indirection used across this file.
     For RUSTFS an unset env var falls back to the dev default so the OSS
     stack boots with zero config; boot fails outside development on that
-    default. For AWS, empty credentials mean boto3's default credential
+    default. For S3, empty credentials mean boto3's default credential
     chain (env vars, profile, IAM role) — the recommended setup.
     """
 
