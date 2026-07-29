@@ -192,3 +192,4 @@ class ObjectStorageProvider(Enum):
 
     RUSTFS = "rustfs"
     S3 = "s3"
+    STORAGE_ACCOUNT = "storage_account"

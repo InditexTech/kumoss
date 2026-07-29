@@ -106,8 +106,13 @@ http:
 # Object storage for generated artifacts (reports, terraform plans, code
 # changes). `provider` is ObjectStorageProvider enum names (see
 # core/src/shared/constants.py::ObjectStorageProvider): RUSTFS (the
-# bundled store, or any custom-endpoint S3-compatible server) or S3
-# (real AWS S3 on its regional default endpoints).
+# bundled store, or any custom-endpoint S3-compatible server), S3
+# (real AWS S3 on its regional default endpoints), or STORAGE_ACCOUNT
+# (a public Azure storage account — point both URLs at the account
+# blob endpoint https://<account>.blob.core.windows.net; the account
+# name is derived from endpoint_url, the container from `bucket`, and
+# the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
+# ignored).
 #
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h

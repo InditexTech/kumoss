@@ -6,6 +6,7 @@ from functools import cache
 
 from src.domains.interfaces import IObjectStorage
 from src.infrastructure.storage._s3 import S3ObjectStorage
+from src.infrastructure.storage._storage_account import StorageAccountObjectStorage
 from src.shared.config import system_config
 from src.shared.constants import ObjectStorageProvider
 
@@ -47,6 +48,22 @@ def _s3() -> S3ObjectStorage:
     )
 
 
+@cache
+def _storage_account() -> StorageAccountObjectStorage:
+    cfg = system_config.storage
+    return StorageAccountObjectStorage(
+        container=cfg.bucket,
+        account=cfg.storage_account_name,
+        endpoint_url=cfg.endpoint_url,
+        public_endpoint_url=cfg.public_endpoint_url,
+        account_key=cfg.account_key,
+        presign_expiry_seconds=cfg.presign_expiry_seconds,
+        connect_timeout=cfg.connect_timeout,
+        read_timeout=cfg.read_timeout,
+        max_attempts=cfg.max_attempts,
+    )
+
+
 class ObjectStorageFactory:
     def __init__(self, provider: ObjectStorageProvider):
         self.__provider = provider
@@ -57,6 +74,8 @@ class ObjectStorageFactory:
                 return _rustfs()
             case ObjectStorageProvider.S3:
                 return _s3()
+            case ObjectStorageProvider.STORAGE_ACCOUNT:
+                return _storage_account()
             case _:
                 raise NotImplementedError()
 

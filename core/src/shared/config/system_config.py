@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import yaml
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -271,18 +272,18 @@ class StorageConfig(BaseModel):
     The provider decides how endpoints are resolved (see the object-storage
     factory): RUSTFS — or any custom-endpoint S3-compatible server — uses
     both URLs below; S3 (real AWS S3) ignores them and lets boto3 build
-    the regional default endpoint from ``region``.
+    the regional default endpoint from ``region``; STORAGE_ACCOUNT (a
+    public Azure storage account) points both URLs at the account blob
+    endpoint ``https://<account>.blob.core.windows.net`` and derives the
+    account name from ``endpoint_url`` (``bucket`` then names the blob
+    container; ``region`` is ignored).
 
     Two endpoints exist because SigV4 binds the Host header: ``endpoint_url``
     is what the core's SDK calls hit from inside the compose network, while
     presigned GET URLs handed to the browser must be signed against the
-    host the browser will actually fetch, ``public_endpoint_url``.
-
-    Credentials follow the ``*_env`` indirection used across this file.
-    For RUSTFS an unset env var falls back to the dev default so the OSS
-    stack boots with zero config; boot fails outside development on that
-    default. For S3, empty credentials mean boto3's default credential
-    chain (env vars, profile, IAM role) — the recommended setup.
+    host the browser will actually fetch, ``public_endpoint_url``. Azure
+    account-key SAS has no such Host binding, so for STORAGE_ACCOUNT the
+    URLs only differ in emulator-style split setups.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
@@ -294,6 +295,7 @@ class StorageConfig(BaseModel):
     region: str = "us-east-1"
     access_key_env: str = "RUSTFS_ACCESS_KEY"
     secret_key_env: str = "RUSTFS_SECRET_KEY"
+    account_key_env: str = "STORAGE_ACCOUNT_KEY"
     connect_timeout: float = 3.0
     read_timeout: float = 10.0
     max_attempts: int = 3  # botocore standard-mode retries
@@ -317,6 +319,45 @@ class StorageConfig(BaseModel):
     @property
     def secret_key(self) -> str:
         return _env(self.secret_key_env, "rustfsadmin")
+
+    @property
+    def account_key(self) -> str:
+        return _env(self.account_key_env)
+
+    @property
+    def storage_account_name(self) -> str:
+        """Account name derived from ``endpoint_url`` (STORAGE_ACCOUNT).
+
+        The account is not configured separately — it is redundant with
+        the endpoint. Accepted forms: ``https://<account>.blob.<domain>``
+        (public clouds, sovereign clouds) and the emulator-style
+        path form ``http://<host>:<port>/<account>``.
+        """
+        parsed = urlparse(self.endpoint_url)
+        labels = (parsed.hostname or "").split(".")
+        if len(labels) >= 2 and labels[1] == "blob":
+            return labels[0]
+        path = parsed.path.strip("/")
+        if path and "/" not in path:
+            return path
+        raise ConfigError(
+            "storage.endpoint_url must be an account blob endpoint "
+            + "(https://<account>.blob.core.windows.net) when "
+            + "storage.provider is STORAGE_ACCOUNT; cannot derive an "
+            + f"account name from '{self.endpoint_url}'."
+        )
+
+    @model_validator(mode="after")
+    def _assert_storage_account_config(self) -> StorageConfig:
+        # Fail at boot, not on the first artifact write.
+        if self.provider is ObjectStorageProvider.STORAGE_ACCOUNT:
+            _ = self.storage_account_name  # raises when underivable
+            if not self.account_key:
+                raise ConfigError(
+                    "storage.provider STORAGE_ACCOUNT requires env var "
+                    + f"{self.account_key_env}."
+                )
+        return self
 
     @model_validator(mode="after")
     def _assert_presign_expiry(self) -> StorageConfig:
