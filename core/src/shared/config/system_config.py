@@ -314,12 +314,13 @@ class StorageConfig(BaseModel):
 
     @property
     def access_key(self) -> str:
-        return _env(self.access_key_env, "rustfsadmin")
+        default = "rustfsadmin" if self.provider is ObjectStorageProvider.RUSTFS else ""
+        return _env(self.access_key_env, default)
 
     @property
     def secret_key(self) -> str:
-        return _env(self.secret_key_env, "rustfsadmin")
-
+        default = "rustfsadmin" if self.provider is ObjectStorageProvider.RUSTFS else ""
+        return _env(self.secret_key_env, default)
     @property
     def account_key(self) -> str:
         return _env(self.account_key_env)

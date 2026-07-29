@@ -237,7 +237,7 @@ class TestStoreFailureModes(_RoundBase):
                 self.round_id,
                 ReportType.GENERATE,
                 "content",
-                content_type="application/octet-stream",  # 24 chars
+                content_type="application/" + ("x" * 60),  # >64 chars
             )
         self.assertEqual(caught.exception.error_code, 400)
         self.assertEqual(fake.puts, [])

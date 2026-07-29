@@ -66,7 +66,7 @@ class ArtifactStorageService:
             round_id: Round pk the report belongs to.
             report_type: Report flavour (GENERATE/DRIFT/IMPORT/APPLY).
             content: Report body; str is stored utf-8 encoded.
-            content_type: MIME type served on reads (max 20 chars).
+            content_type: MIME type served on reads (max 64 chars).
         """
         data = self.__encode(content)
         key = (
@@ -170,6 +170,14 @@ class ArtifactStorageService:
         db_write: Callable[[], Awaitable[int]],
     ) -> int:
         """Upload-then-record; compensating delete keeps rows truthful."""
+        if len(content_type) > 64:
+            raise ObjectStorageError(
+                message=(
+                    "content_type too long for artifacts.content_type (max 64): "
+                    + repr(content_type)
+                ),
+                error_code=400,
+            )
         await self.__storage.put(key, data, content_type)
         try:
             return await db_write()
