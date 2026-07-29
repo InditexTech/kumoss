@@ -49,6 +49,7 @@ from src.infrastructure.database.models import (
     History,
 )
 from src.infrastructure.redis import redis_client
+from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.constants import (
     GitProviderName,
@@ -95,7 +96,10 @@ _TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; written through on save
 _TTL_HISTORY = 2 * 24 * 60 * 60  # history payload; written through with context
 _TTL_STATUS = 5 * 60  # last status; volatile + user-facing, heal lost SETs fast
 _TTL_PR = 7 * 24 * 60 * 60  # pull requests; written through on add
-_TTL_DETAIL = 24 * 60 * 60  # finished-session aggregate; bounds the set_lock race
+# Finished-session aggregate; bounds the set_lock race. The aggregate
+# embeds presigned artifact URLs, so storage.presign_expiry_seconds must
+# outlive this TTL (+ jitter) — its config validator enforces a 30h floor.
+_TTL_DETAIL = 24 * 60 * 60
 
 # Session-level end states. Once a session's latest status is terminal it
 # never changes again (enforced by acquire_in_flight), so anything derived
@@ -583,12 +587,8 @@ class DatabaseService:
 
     @staticmethod
     def __artifact_url(artifact: Artifact) -> str:
-        """Client-fetchable URL for an artifact.
-
-        Signing seam: ``artifacts.uri`` is returned verbatim until a blob
-        storage backend with pre-signed URLs is wired in.
-        """
-        return artifact.uri
+        """Client-fetchable URL for an artifact."""
+        return default_object_storage().presigned_get_url(artifact.uri)
 
     @staticmethod
     def __artifact_fields(row: Report | TerraformPlan | CodeChange) -> dict[str, Any]:

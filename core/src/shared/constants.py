@@ -184,3 +184,12 @@ class GitProviderName(Enum):
     GITHUB = "github.com"
     AZURE_DEVOPS = "dev.azure.com"
     GITLAB = "gitlab.com"
+
+
+@unique
+class ObjectStorageProvider(Enum):
+    """Defines all the supported object-storage backends for artifacts."""
+
+    RUSTFS = "rustfs"
+    S3 = "s3"
+    STORAGE_ACCOUNT = "storage_account"

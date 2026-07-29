@@ -111,3 +111,21 @@ class LastStatusError(ExceptionHandler):
     """Get last status from DB error"""
 
     pass
+
+
+class ObjectStorageError(ExceptionHandler):
+    """Object-storage operation failed for a non-transient reason."""
+
+    pass
+
+
+class ObjectNotFound(ExceptionHandler):
+    """Requested object key does not exist in the store (HTTP 404)."""
+
+    pass
+
+
+class ObjectStorageUnavailable(ExceptionHandler):
+    """Object store unreachable or timing out (HTTP 503)."""
+
+    pass

@@ -15,11 +15,15 @@ services:
       dockerfile: ./nginx/Dockerfile
     ports:
       - "80:80"
+      # Presigned artifact URLs: browser -> localhost:9000 -> nginx ->
+      # object-storage:9000 (see nginx/nginx.conf).
+      - "9000:9000"
     expose:
       - 80
     depends_on:
       - core
       - phoenix
+      - object-storage
     networks:
       - bridge-network
 
@@ -42,6 +46,7 @@ services:
       - iac
       - authz
       - redis
+      - object-storage
     develop:
       watch:
         - action: sync
@@ -117,7 +122,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:19.4.0
+    image: arizephoenix/phoenix:19.9.0
     expose:
       - 6006
       - 4317
@@ -150,26 +155,25 @@ services:
     networks:
       - bridge-network
 
-  object-store:
-    image: quay.io/minio/minio:latest
-    container_name: minio_storage
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+  object-storage:
+    image: rustfs/rustfs:latest
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_ACCESS_KEY=rustfsadmin
+      - RUSTFS_SECRET_KEY=rustfsadmin
+    expose:
+      - 9000
     volumes:
-      - object_store_data:/data
-    command: server /data --console-address ":9001"
-    # restart: unless-stopped
+      - object_storage_data:/data
+    networks:
+      - bridge-network
 
 volumes:
   core_db_data:
     driver: local
   phoenix_db_data:
     driver: local
-  object_store_data:
+  object_storage_data:
     driver: local
   workspaces:
     driver: local
