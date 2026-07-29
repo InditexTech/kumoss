@@ -14,6 +14,7 @@ class ProviderPrefix(Enum):
     OPENAI = "openai"
     AZURE = "azure"
     AZURE_AI = "azure_ai"
+    GEMINI = "gemini"
 
 
 @unique
@@ -23,45 +24,50 @@ class LLMProvider(Enum):
     ## Anthropic (Vertex Routing: default, Bedrock Routing: commented out)
     CLAUDE_HAIKU = {
         "model_id": "vertex_ai/claude-haiku-4-5@20251001",
-        # "model_id": "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
+        # "model_id": "bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+        # "model_id": "azure_ai/claude-haiku-4-5",
         "max_tokens": 64_000,
         "region": "europe-west1",
     }
     CLAUDE_SONNET = {
         "model_id": "vertex_ai/claude-sonnet-4-6",
-        # "model_id": "bedrock/anthropic.claude-sonnet-4-20250514-v1:0",
+        # "model_id": "bedrock/eu.anthropic.claude-sonnet-4-20250514-v1:0",
+        # "model_id": "azure_ai/claude-sonnet-4-6",
         "max_tokens": 64_000,
         "region": "us-east5",
     }
     CLAUDE_OPUS = {
         "model_id": "vertex_ai/claude-opus-4@20250514",
-        # "model_id": "bedrock/anthropic.claude-3-opus-20240229-v1:0",
-        # "model_id": "azure_ai/claude-opus-4-1" # For Azure AI Studio (Anthropic) routing
+        # "model_id": "bedrock/eu.anthropic.claude-opus-4-20250514-v1:0",
+        # "model_id": "azure_ai/claude-opus-4-1",
         "max_tokens": 32_000,
     }
 
-    ## Google Gemini (Vertex Routing)
+    ## Google Gemini (Vertex Routing: default, Gemini API Routing: commented out)
     GEMINI_PRO = {
         "model_id": "vertex_ai/gemini-2.5-pro",
+        # "model_id": "gemini/gemini-2.5-pro",
         "max_tokens": 65_535,
     }
     GEMINI_FLASH = {
         "model_id": "vertex_ai/gemini-3-flash-preview",
+        # "model_id": "gemini/gemini-3-flash-preview",
         "max_tokens": 65_535,
     }
     GEMINI_FLASH_LITE = {
         "model_id": "vertex_ai/gemini-2.5-flash-lite",
+        # "model_id": "gemini/gemini-2.5-flash-lite",
         "max_tokens": 65_535,
     }
-    ## OpenAI (OpenAI Routing)
+    ## OpenAI (OpenAI Routing: default, Azure OpenAI Routing: commented out)
     GPT_5 = {
         "model_id": "openai/gpt-5",
-        # "model_id": "azure/<your_deployment_name>" # For Azure OpenAI routing
+        # "model_id": "azure/<your_deployment_name>",
         "max_tokens": 65_535,
     }
     GPT_5_MINI = {
         "model_id": "openai/gpt-5-mini",
-        # "model_id": "azure/<your_deployment_name>" # For Azure OpenAI routing
+        # "model_id": "azure/<your_deployment_name>",
         "max_tokens": 65_535,
     }
 

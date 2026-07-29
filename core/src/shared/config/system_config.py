@@ -83,12 +83,19 @@ class LlmConfig(BaseModel):
             "vertex_location": "VERTEXAI_LOCATION",
             "vertex_credentials": "GOOGLE_SA_SECRET",
         },
+        ProviderPrefix.GEMINI.value: {
+            "api_key": "GEMINI_API_KEY",
+        },
         ProviderPrefix.BEDROCK.value: {
             "aws_access_key_id": "AWS_ACCESS_KEY_ID",
             "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
+            "aws_region_name": "AWS_REGION_NAME",
+            # Bearer token is passed as `api_key` to LiteLLM
+            "api_key": "AWS_BEARER_TOKEN_BEDROCK",
         },
         ProviderPrefix.OPENAI.value: {
             "api_key": "OPENAI_API_KEY",
+            "api_base": "OPENAI_API_BASE",
         },
         ProviderPrefix.AZURE.value: {
             "api_key": "AZURE_API_KEY",
@@ -126,6 +133,12 @@ class LlmConfig(BaseModel):
             value = _env(env_name)
             if value:
                 credentials[key] = value
+
+        # Bedrock: bearer token (api_key) takes priority over access key / secret
+        if prefix == ProviderPrefix.BEDROCK.value and "api_key" in credentials:
+            credentials.pop("aws_access_key_id", None)
+            credentials.pop("aws_secret_access_key", None)
+
         return credentials
 
 
@@ -273,12 +286,29 @@ class SystemConfig(BaseModel):
 
         Derives the required env vars from the ``model_id`` prefix of each
         selected model and checks them against ``LlmConfig._PROVIDER_ENV``.
+
+        For Bedrock, the bearer token is an alternative to access key /
+        secret — having either set is enough.
         """
         missing: list[str] = []
         for field in ("model", "small_model"):
             model_id = getattr(self.llm, field).value["model_id"]
             prefix = model_id.split("/")[0]
             env_map = self.llm._PROVIDER_ENV.get(prefix, {})
+
+            if prefix == ProviderPrefix.BEDROCK.value:
+                has_bearer = bool(_env("AWS_BEARER_TOKEN_BEDROCK"))
+                has_keys = bool(
+                    _env("AWS_ACCESS_KEY_ID") and _env("AWS_SECRET_ACCESS_KEY")
+                )
+                if not has_bearer and not has_keys:
+                    missing.append(
+                        "AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)"
+                    )
+                if not _env("AWS_REGION_NAME"):
+                    missing.append("AWS_REGION_NAME")
+                continue
+
             for _, env_name in env_map.items():
                 if not _env(env_name):
                     missing.append(env_name)
