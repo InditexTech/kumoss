@@ -26,7 +26,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, LLMProvider
+from src.shared.constants import GitProviderName, LLMProvider, ObjectStorageProvider
 
 
 class ConfigError(ValueError):
@@ -265,6 +265,72 @@ class RedisConfig(BaseModel):
         return _env(self.redis_url_env) or self.default_url
 
 
+class StorageConfig(BaseModel):
+    """Object storage for generated artifacts (reports, plans, code changes).
+
+    The provider decides how endpoints are resolved (see the object-storage
+    factory): RUSTFS — or any custom-endpoint S3-compatible server — uses
+    both URLs below; AWS ignores them and lets boto3 build the regional
+    default endpoint from ``region``.
+
+    Two endpoints exist because SigV4 binds the Host header: ``endpoint_url``
+    is what the core's SDK calls hit from inside the compose network, while
+    presigned GET URLs handed to the browser must be signed against the
+    host the browser will actually fetch, ``public_endpoint_url``.
+
+    Credentials follow the ``*_env`` indirection used across this file.
+    For RUSTFS an unset env var falls back to the dev default so the OSS
+    stack boots with zero config; boot fails outside development on that
+    default. For AWS, empty credentials mean boto3's default credential
+    chain (env vars, profile, IAM role) — the recommended setup.
+    """
+
+    # `provider` is ObjectStorageProvider enum names (see
+    # core/src/shared/constants.py::ObjectStorageProvider).
+    provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
+    bucket: str = "nebula-artifacts"
+    endpoint_url: str = "http://object-storage:9000"
+    public_endpoint_url: str = "http://localhost:9000"
+    region: str = "us-east-1"
+    access_key_env: str = "RUSTFS_ACCESS_KEY"
+    secret_key_env: str = "RUSTFS_SECRET_KEY"
+    connect_timeout: float = 3.0
+    read_timeout: float = 10.0
+    max_attempts: int = 3  # botocore standard-mode retries
+    presign_expiry_seconds: int = 172_800  # 48h
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _coerce_provider(cls, v: str | ObjectStorageProvider):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return ObjectStorageProvider[v]
+            except KeyError:
+                return ObjectStorageProvider(v)
+        return v
+
+    @property
+    def access_key(self) -> str:
+        return _env(self.access_key_env, "rustfsadmin")
+
+    @property
+    def secret_key(self) -> str:
+        return _env(self.secret_key_env, "rustfsadmin")
+
+    @model_validator(mode="after")
+    def _assert_presign_expiry(self) -> StorageConfig:
+        # Floor: 30h > the 24h (+10% jitter) cached finished-session detail
+        # that embeds these URLs. Ceiling: SigV4 refuses expiries over 7d.
+        if not 108_000 <= self.presign_expiry_seconds <= 604_800:
+            raise ConfigError(
+                "storage.presign_expiry_seconds must be between 108000 (30h, "
+                + "to outlive the cached session detail aggregate) and 604800 "
+                + f"(the SigV4 7-day limit); got {self.presign_expiry_seconds}."
+            )
+        return self
+
+
 class SystemConfig(BaseModel, frozen=True):
     environment: str = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
@@ -275,6 +341,7 @@ class SystemConfig(BaseModel, frozen=True):
     paths: PathsConfig = Field(default_factory=PathsConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)

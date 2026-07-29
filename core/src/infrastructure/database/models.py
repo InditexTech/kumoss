@@ -207,7 +207,7 @@ class Artifact(Base):
     __tablename__ = "artifacts"
 
     uri: Mapped[str] = mapped_column(Text)
-    content_type: Mapped[str] = mapped_column(String(20))
+    content_type: Mapped[str] = mapped_column(String(64))
     file_size_bytes: Mapped[int] = mapped_column(Integer)
     # relations
     terraform_plans: Mapped[list["TerraformPlan"]] = relationship(

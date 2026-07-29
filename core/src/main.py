@@ -21,6 +21,7 @@ from src.api.v1 import (
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
+from src.infrastructure.storage import default_object_storage
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
@@ -43,6 +44,15 @@ async def lifespan(app: FastAPI):
         logging.info("Redis initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize redis: {e}")
+        raise
+
+    # A missing bucket would fail every artifact write in a worse place,
+    # so surface a broken store at boot like db/redis.
+    try:
+        await default_object_storage().ensure_bucket()
+        logging.info("Object storage initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize object storage: {e}")
         raise
 
     # Seed Phoenix with example prompts so a fresh deployment is runnable

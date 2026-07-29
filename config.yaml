@@ -103,6 +103,23 @@ http:
   cors_origins:
     - "http://localhost"
 
+# Object storage for generated artifacts (reports, terraform plans, code
+# changes). `provider` is ObjectStorageProvider enum names (see
+# core/src/shared/constants.py::ObjectStorageProvider): RUSTFS (the
+# bundled store, or any custom-endpoint S3-compatible server) or AWS
+# (real S3 on its regional default endpoints).
+#
+# `presign_expiry_seconds` must outlive the 24h cached finished-session
+# aggregate that embeds these URLs: the core refuses values under 30h
+# (108000) or over the SigV4 7-day limit (604800).
+storage:
+  provider: "RUSTFS"
+  bucket: "nebula-artifacts"
+  endpoint_url: "http://object-storage:9000"
+  public_endpoint_url: "http://localhost:9000"
+  region: "us-east-1"
+  presign_expiry_seconds: 172800
+
 # Git push provider + author. Credentials (username + PAT) are read from
 # env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
 # disable push-credential setup (push will then need mounted
@@ -110,7 +127,7 @@ http:
 #
 # `provider` is GitProviderName enum names (see
 # core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
-# AZURE_DEVOPS.
+# AZURE_DEVOPS, GITLAB.
 git:
   provider: "GITHUB"
   author_name: "Nebula"

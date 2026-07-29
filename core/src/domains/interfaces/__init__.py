@@ -6,6 +6,7 @@ from .filesystem_interface import IFileSystem
 from .git_interface import IGit
 from .iac_root_detector_interface import IIacRootDetector
 from .llm_interface import ILLMProvider
+from .object_storage_interface import IObjectStorage
 from .template_interface import ITemplate
 from .terraform_validator_interface import ITerraformValidator
 from .tool_registry_interface import IToolRegistry
@@ -16,6 +17,7 @@ __all__ = [
     "IGit",
     "IIacRootDetector",
     "ILLMProvider",
+    "IObjectStorage",
     "ITemplate",
     "ITerraformValidator",
     "IToolRegistry",
