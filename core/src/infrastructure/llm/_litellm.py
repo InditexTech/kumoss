@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportArgumentType=false, reportOptionalMemberAccess=false
-# import asyncio
+import asyncio
 import json
 
-# from dataclasses import dataclass, asdict
-from typing import Any  # ,override
+from typing import Any
 
 import litellm
-# from litellm import acompletion
+from litellm.types.utils import ModelResponse, Choices, Message, Usage
 
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.dto import (
     LLMResponseDTO,
-    # LLMMetadata,
+    LLMMetadata,
     ToolCallDTO,
     ToolResultDTO,
     ToolDefinitionDTO,
@@ -23,12 +22,15 @@ from src.domains.dto import (
 from src.domains.entities.history import History
 from src.domains.services.tracer_service import trace_llm
 from src.infrastructure.exceptions import (
-    # InferenceCallAPIError,
+    InferenceCallAPIError,
+    InferenceCallWebSearchNotSupported,
     InferenceCallThinkingToolError,
     InferenceCallWebSearchTools,
 )
 from src.shared.constants import LLMProvider
-# from src.shared.logger import logging
+from src.shared.logger import logging
+
+litellm.drop_params = True
 
 
 class LiteLLMAdapter(ILLMProvider):
@@ -51,9 +53,6 @@ class LiteLLMAdapter(ILLMProvider):
         self.__temperature = temperature
         self.__provider_kwargs = provider_kwargs or {}
 
-        # Set the global drop_params flag to True to avoid sending unnecessary parameters
-        litellm.drop_params = True
-
     @trace_llm
     async def inference(
         self,
@@ -69,80 +68,148 @@ class LiteLLMAdapter(ILLMProvider):
                 message="Inference cannot be invoked with tools and thinking enabled.",
                 error_code=400,
             )
-        if web_search and tools:
-            raise InferenceCallWebSearchTools(
-                message="Inference cannot be invoked with tools and web search enabled.",
-                error_code=400,
-            )
-        if web_search and thinking:
-            raise InferenceCallThinkingToolError(
-                message="Inference cannot be invoked with thinking and web search enabled.",
-                error_code=400,
-            )
+        if web_search:
+            if not litellm.supports_web_search(self.__model.value["model_id"]):
+                raise InferenceCallWebSearchNotSupported(
+                    message="The model does not support web search, but web search was requested.",
+                    error_code=400,
+                )
+            if tools:
+                raise InferenceCallWebSearchTools(
+                    message="Inference cannot be invoked with tools and web search enabled.",
+                    error_code=400,
+                )
+            if thinking:
+                raise InferenceCallThinkingToolError(
+                    message="Inference cannot be invoked with thinking and web search enabled.",
+                    error_code=400,
+                )
 
-        # local_history = self.__format_history(history, msg)
+        model_id = self.__model.value["model_id"]
+        max_tokens = self.__model.value["max_tokens"]
+        local_history = self.__format_history(history, msg)
 
-        # async def generate_inference() -> Message | None:
-        #     for i in range(4):
-        #         try:
-        #             return await self.__client.messages.create(
-        #                 model=self.__model.value["model_id"],
-        #                 messages=local_history,
-        #                 max_tokens=self.__model.value["max_tokens"],
-        #                 system=system_prompt if system_prompt else NOT_GIVEN,
-        #                 temperature=1.0 if thinking else self.__temperature,
-        #                 thinking=ThinkingConfigEnabledParam(
-        #                     budget_tokens=int(
-        #                         int(self.__model.value["max_tokens"]) * 0.75
-        #                     ),
-        #                     type="enabled",
-        #                 )
-        #                 if thinking
-        #                 else NOT_GIVEN,
-        #                 tool_choice=ToolChoiceAnyParam(
-        #                     type="any", disable_parallel_tool_use=False
-        #                 )
-        #                 if tools
-        #                 else NOT_GIVEN,
-        #                 tools=self.__format_tools(tools) if tools else NOT_GIVEN,
-        #             )
-        #         # https://docs.anthropic.com/en/api/errors
-        #         except RateLimitError as e:
-        #             logging.error(f"Anthropic Vertex rate limit error: {e.message}")
-        #         except APIError as e:
-        #             logging.error(f"Anthropic Vertex API error: {e.message}")
-        #         logging.info(f" retry no {i + 1}/4 in 30 seconds...")
-        #         await asyncio.sleep(30)
-        #         if i == 3:
-        #             raise InferenceCallAPIError(
-        #                 message=f"Inference calls to {self.__model.name} have been exhausted.",
-        #                 error_code=502,
-        #             )
+        if system_prompt:
+            local_history.insert(0, {"role": "system", "content": system_prompt})
 
-        # response = await generate_inference()
+        if web_search and not self.__web_search_is_native():
+            for attempt in range(4):
+                try:
+                    response = await self.__aresponses_web_search(
+                        local_history, max_tokens
+                    )
+                    break
+                except litellm.RateLimitError as e:
+                    logging.error(f"LiteLLM aresponses rate limit error: {e.message}")
+                except litellm.APIError as e:
+                    logging.error(f"LiteLLM aresponses API error: {e.message}")
 
-        # return LLMResponseDTO(
-        #     text=response.content[1 if thinking else 0].text
-        #     if isinstance(response.content[1 if thinking else 0], TextBlock)
-        #     else "",
-        #     metadata=LLMMetadata(
-        #         finish_reason=self.__map_stop_reason(response.stop_reason),
-        #         model=response.model,
-        #         input_tokens=response.usage.input_tokens,
-        #         output_tokens=response.usage.output_tokens,
-        #     ),
-        #     tool_calls=[
-        #         ToolCallDTO(
-        #             id=call.id,
-        #             name=call.name,
-        #             parameters=call.input,
-        #         )
-        #         for call in response.content
-        #         if isinstance(call, ToolUseBlock)
-        #     ],
-        #     thinking=response.content[0].thinking if thinking else None,
-        # )
-        pass
+                logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
+                await asyncio.sleep(30)
+            else:
+                raise InferenceCallAPIError(
+                    message=f"Inference calls (aresponses) to {self.__model.name} have been exhausted.",
+                    error_code=502,
+                )
+        else:
+            kwargs: dict[str, Any] = {
+                "model": model_id,
+                "messages": local_history,
+                "max_tokens": max_tokens,
+                "temperature": 1.0 if thinking else self.__temperature,
+                "num_retries": 3,
+                "timeout": 120,
+                **self.__provider_kwargs,
+            }
+
+            if tools:
+                kwargs["tools"] = self.__format_tools(tools)
+                kwargs["tool_choice"] = "required"
+
+            if thinking:
+                kwargs["reasoning_effort"] = "medium"
+
+            if web_search:
+                kwargs["web_search_options"] = {"search_context_size": "medium"}
+
+            try:
+                response = await litellm.acompletion(**kwargs)
+            except litellm.APIError as e:
+                logging.error(f"LiteLLM API error: {e.message}")
+                raise InferenceCallAPIError(
+                    message=f"Inference call to {self.__model.name} failed: {e.message}",
+                    error_code=getattr(e, "status_code", 502),
+                )
+
+        message = response.choices[0].message
+
+        return LLMResponseDTO(
+            text=message.content or "",
+            metadata=LLMMetadata(
+                finish_reason=self.__map_stop_reason(response.choices[0].finish_reason),
+                model=response.model,
+                input_tokens=response.usage.prompt_tokens,
+                output_tokens=response.usage.completion_tokens,
+            ),
+            tool_calls=[
+                ToolCallDTO(
+                    id=tc.id,
+                    name=tc.function.name,
+                    parameters=json.loads(tc.function.arguments),
+                )
+                for tc in (message.tool_calls or [])
+            ],
+            thinking=getattr(message, "reasoning_content", None) if thinking else None,
+        )
+
+    def __web_search_is_native(self) -> bool:
+        """Check if the model supports native web search."""
+        model_id = self.__model.value["model_id"]
+        info = litellm.get_model_info(model_id)
+        params = info.get("supported_openai_params") or []
+        return "web_search_options" in params
+
+    async def __aresponses_web_search(
+        self, messages: list[dict], max_tokens: int
+    ) -> ModelResponse:
+        """Use aresponses to perform web search with models that don't support native web search.
+        Like gpt-5-mini, gpt-5, gpt-4o, gpt-4.1, ...
+        """
+        model_id = self.__model.value["model_id"]
+
+        resp = await litellm.aresponses(
+            model=model_id,
+            input=messages,
+            tools=[{"type": "web_search_preview", "search_context_size": "medium"}],
+            max_output_tokens=max_tokens,
+            temperature=self.__temperature,
+            timeout=120,
+            **self.__provider_kwargs,
+        )
+
+        text = ""
+        for item in resp.output:
+            if hasattr(item, "content"):
+                for block in item.content:
+                    if hasattr(block, "text"):
+                        text += block.text or ""
+
+        usage = resp.usage
+        return ModelResponse(
+            model=resp.model or model_id,
+            choices=[
+                Choices(
+                    index=0,
+                    message=Message(content=text, role="assistant"),
+                    finish_reason="stop",
+                )
+            ],
+            usage=Usage(
+                prompt_tokens=usage.input_tokens if usage else 0,
+                completion_tokens=usage.output_tokens if usage else 0,
+                total_tokens=usage.total_tokens if usage else 0,
+            ),
+        )
 
     def __format_tools(self, tools: list[ToolDefinitionDTO]) -> list[dict[str, Any]]:
         output: list[dict[str, Any]] = []
