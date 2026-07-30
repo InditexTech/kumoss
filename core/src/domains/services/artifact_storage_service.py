@@ -36,8 +36,7 @@ class ArtifactStorageService:
     """Uploads round artifacts to object storage and records the DB rows.
 
     The stored ``artifacts.uri`` is the object KEY;
-    ``DatabaseService.__artifact_url`` presigns it at read time (absolute
-    ``http(s)://`` uris pass through for legacy rows). Upload happens
+    ``DatabaseService.__artifact_url`` presigns it at read time . Upload happens
     before the row insert; a failed insert triggers a best-effort
     compensating delete so no row ever points at a missing object, while
     an orphaned object is harmless garbage.
