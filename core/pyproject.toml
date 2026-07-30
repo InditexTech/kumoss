@@ -34,4 +34,5 @@ dependencies = [
 dev = [
     "basedpyright>=1.39.9",
     "debugpy>=1.8.21",
+    "openapi-python-client==0.29.0",
 ]

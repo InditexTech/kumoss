@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import final, override
 from uuid import UUID
+from uuid import uuid4
 
 from src.domains.interfaces.workspace_interface import IWorkspace
 from src.infrastructure.exceptions import GitError, InvalidRepoURI
@@ -53,12 +54,11 @@ class WorkspaceService(IWorkspace):
     @override
     async def setup_call_dir(
         self,
-        *,
         session_id: UUID,
-        call_id: UUID,
         repo_uri: str,
         branch: str | None,
     ) -> Path:
+        call_id = uuid4()
         call_dir = self._base / str(session_id) / str(call_id)
         call_dir.parent.mkdir(parents=True, exist_ok=True)
 
