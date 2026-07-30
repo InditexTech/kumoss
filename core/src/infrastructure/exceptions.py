@@ -49,6 +49,12 @@ class InferenceCallThinkingToolError(ExceptionHandler):
     pass
 
 
+class InferenceCallWebSearchNotSupported(ExceptionHandler):
+    """Raised when an inference is invoked with web search enabled but the model does not support it"""
+
+    pass
+
+
 class InferenceCallWebSearchTools(ExceptionHandler):
     """Raised when an inference is invoked with tools and web search enabled"""
 
