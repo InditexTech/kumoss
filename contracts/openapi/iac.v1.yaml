@@ -6,14 +6,16 @@ openapi: 3.1.0
 info:
   title: Nebula IaC Service
   version: "1.0.0"
-  summary: Run terraform init/validate/plan against a checked-out workspace.
+  summary: Run terraform init/validate/plan/apply/import against a checked-out workspace.
   description: |
     The IaC service runs the Terraform CLI (`init`, `validate`,
-    `plan`) against a workspace and returns structured results. It is the
-    inner loop of Nebula's "generate then validate" cycle: the LLM
-    iterates on the workspace contents and asks the IaC service
-    after each change whether the configuration is valid and what changes
-    a `plan` would produce.
+    `plan`, `apply`, `import`) against a workspace and returns structured
+    results. It is the inner loop of Nebula's "generate then validate"
+    cycle: the LLM iterates on the workspace contents and asks the IaC
+    service after each change whether the configuration is valid and what
+    changes a `plan` would produce. Beyond that loop, the service can
+    `apply` a successful plan and `import` existing cloud resources into
+    the workspace's Terraform state.
 
     The OSS reference implementation under `services/iac/` runs
     `terraform` directly via subprocess and operates on a docker-compose
@@ -41,6 +43,10 @@ servers:
 tags:
   - name: validate
     description: Run terraform validation against a workspace.
+  - name: apply
+    description: Apply the Terraform configuration in a workspace.
+  - name: import
+    description: Import existing cloud resources into Terraform state.
   - name: ops
     description: Operational endpoints (liveness, readiness).
 
@@ -127,6 +133,158 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
+  /v1/apply:
+    post:
+      operationId: apply
+      tags: [apply]
+      summary: Apply the Terraform configuration in a workspace.
+      description: |
+        Runs `terraform plan` (with optional `-target=` filters) and, if
+        the plan succeeds, `terraform apply` of that plan against the
+        workspace at `workspace_path`. Returns terraform's output and a
+        boolean success flag. Terraform-level failures (plan or apply)
+        return 200 with `success: false` and diagnostics in `feedback`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyRequest"
+      responses:
+        "200":
+          description: Apply completed (whether or not it succeeded).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplyResponse"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from the
+            implementation. Distinct from a Terraform-level failure
+            (which returns 200 with `success: false`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites
+            (cloud credentials, terraform binary, configured state
+            backend, etc.).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/import:
+    post:
+      operationId: import_resource
+      tags: [import]
+      summary: Import an existing cloud resource into Terraform state.
+      description: |
+        Runs `terraform import` against the workspace at `workspace_path`,
+        bringing the existing cloud resource identified by `resource_id`
+        under the Terraform resource address `address` in the workspace's
+        state. Terraform-level failures return 200 with `success: false`
+        and diagnostics in `feedback`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+      responses:
+        "200":
+          description: Import completed (whether or not it succeeded).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResponse"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from the
+            implementation. Distinct from a Terraform-level failure
+            (which returns 200 with `success: false`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites
+            (cloud credentials, terraform binary, configured state
+            backend, etc.).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
   /healthz:
     get:
       operationId: healthz
@@ -167,6 +325,15 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
         branch:
           type: [string, "null"]
           description: |
@@ -222,6 +389,114 @@ components:
           description: Echoes the `targets` from the request.
           items:
             type: string
+
+    ApplyRequest:
+      type: object
+      required: [workspace_path]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
+        targets:
+          type: array
+          description: |
+            Optional `terraform plan -target=` filters. When omitted or
+            empty, the entire configuration is planned and applied.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1024
+          maxItems: 256
+
+    ApplyResponse:
+      type: object
+      required: [success, feedback, terraform_output]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          description: |
+            True if `terraform plan` and `terraform apply` both succeeded.
+        feedback:
+          type: string
+          description: |
+            Human-readable diagnostics. On failure, this contains the
+            terraform CLI's stderr. On success, this is typically empty.
+        terraform_output:
+          type: string
+          description: |
+            Terraform's output (text). Contains the plan output when the
+            plan failed, otherwise the apply output.
+
+    ImportRequest:
+      type: object
+      required: [workspace_path, address, resource_id]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
+        address:
+          type: string
+          description: |
+            Terraform resource address to import into, e.g.
+            `azurerm_resource_group.main`.
+          minLength: 1
+          maxLength: 4096
+        resource_id:
+          type: string
+          description: |
+            Provider-specific identifier of the existing cloud resource,
+            e.g. an Azure resource ID or an AWS ARN.
+          minLength: 1
+          maxLength: 4096
+
+    ImportResponse:
+      type: object
+      required: [success, feedback]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          description: True if `terraform import` succeeded.
+        feedback:
+          type: string
+          description: |
+            Human-readable diagnostics. On failure, this contains the
+            terraform CLI's stderr. On success, this is typically empty.
 
     Health:
       type: object
