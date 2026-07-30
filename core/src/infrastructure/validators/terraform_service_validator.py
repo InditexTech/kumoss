@@ -68,7 +68,7 @@ class TerraformServiceValidator(ITerraformValidator):
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
-            timeout=httpx.Timeout(120.0),  # terraform plan can take a while
+            timeout=httpx.Timeout(cfg.timeout),
         )
         body = ValidateRequest(
             workspace_path=str(self.__workspace_path),

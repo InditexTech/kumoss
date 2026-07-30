@@ -121,11 +121,16 @@ class ServiceConfig(BaseModel):
     ``token_env`` names the environment variable holding the bearer token
     the core sends with every call. Looking the token up indirectly
     keeps secrets out of this file.
+
+    ``timeout`` is the per-request budget in seconds for outbound HTTP
+    calls to the service. The IaC service runs terraform pipelines
+    synchronously, so its calls can legitimately take minutes.
     """
 
     enabled: bool = False
     endpoint: str = ""
     token_env: str = ""
+    timeout: float = 300.0
 
     @property
     def token(self) -> str:
@@ -321,6 +326,7 @@ class StorageConfig(BaseModel):
     def secret_key(self) -> str:
         default = "rustfsadmin" if self.provider is ObjectStorageProvider.RUSTFS else ""
         return _env(self.secret_key_env, default)
+
     @property
     def account_key(self) -> str:
         return _env(self.account_key_env)
