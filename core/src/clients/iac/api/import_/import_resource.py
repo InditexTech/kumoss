@@ -100,8 +100,8 @@ def sync_detailed(
      Runs `terraform import` against the workspace at `workspace_path`,
     bringing the existing cloud resource identified by `resource_id`
     under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures return 200 with `success: false`
-    and diagnostics in `feedback`.
+    state. Terraform-level failures (init or import) return 200 with
+    `success: false` and diagnostics in `feedback`.
 
     Args:
         body (ImportRequest):
@@ -135,8 +135,8 @@ def sync(
      Runs `terraform import` against the workspace at `workspace_path`,
     bringing the existing cloud resource identified by `resource_id`
     under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures return 200 with `success: false`
-    and diagnostics in `feedback`.
+    state. Terraform-level failures (init or import) return 200 with
+    `success: false` and diagnostics in `feedback`.
 
     Args:
         body (ImportRequest):
@@ -165,8 +165,8 @@ async def asyncio_detailed(
      Runs `terraform import` against the workspace at `workspace_path`,
     bringing the existing cloud resource identified by `resource_id`
     under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures return 200 with `success: false`
-    and diagnostics in `feedback`.
+    state. Terraform-level failures (init or import) return 200 with
+    `success: false` and diagnostics in `feedback`.
 
     Args:
         body (ImportRequest):
@@ -198,8 +198,8 @@ async def asyncio(
      Runs `terraform import` against the workspace at `workspace_path`,
     bringing the existing cloud resource identified by `resource_id`
     under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures return 200 with `success: false`
-    and diagnostics in `feedback`.
+    state. Terraform-level failures (init or import) return 200 with
+    `success: false` and diagnostics in `feedback`.
 
     Args:
         body (ImportRequest):

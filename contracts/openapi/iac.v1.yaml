@@ -142,8 +142,9 @@ paths:
         Runs `terraform plan` (with optional `-target=` filters) and, if
         the plan succeeds, `terraform apply` of that plan against the
         workspace at `workspace_path`. Returns terraform's output and a
-        boolean success flag. Terraform-level failures (plan or apply)
-        return 200 with `success: false` and diagnostics in `feedback`.
+        boolean success flag. Terraform-level failures (init, plan, or
+        apply) return 200 with `success: false` and diagnostics in
+        `feedback`.
       security:
         - bearerAuth: []
       requestBody:
@@ -218,8 +219,8 @@ paths:
         Runs `terraform import` against the workspace at `workspace_path`,
         bringing the existing cloud resource identified by `resource_id`
         under the Terraform resource address `address` in the workspace's
-        state. Terraform-level failures return 200 with `success: false`
-        and diagnostics in `feedback`.
+        state. Terraform-level failures (init or import) return 200 with
+        `success: false` and diagnostics in `feedback`.
       security:
         - bearerAuth: []
       requestBody:
@@ -433,7 +434,8 @@ components:
         success:
           type: boolean
           description: |
-            True if `terraform plan` and `terraform apply` both succeeded.
+            True if `terraform init`, `terraform plan`, and
+            `terraform apply` all succeeded.
         feedback:
           type: string
           description: |
@@ -491,7 +493,9 @@ components:
       properties:
         success:
           type: boolean
-          description: True if `terraform import` succeeded.
+          description: |
+            True if `terraform init` and `terraform import` both
+            succeeded.
         feedback:
           type: string
           description: |

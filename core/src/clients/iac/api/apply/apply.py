@@ -100,8 +100,9 @@ def sync_detailed(
      Runs `terraform plan` (with optional `-target=` filters) and, if
     the plan succeeds, `terraform apply` of that plan against the
     workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (plan or apply)
-    return 200 with `success: false` and diagnostics in `feedback`.
+    boolean success flag. Terraform-level failures (init, plan, or
+    apply) return 200 with `success: false` and diagnostics in
+    `feedback`.
 
     Args:
         body (ApplyRequest):
@@ -135,8 +136,9 @@ def sync(
      Runs `terraform plan` (with optional `-target=` filters) and, if
     the plan succeeds, `terraform apply` of that plan against the
     workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (plan or apply)
-    return 200 with `success: false` and diagnostics in `feedback`.
+    boolean success flag. Terraform-level failures (init, plan, or
+    apply) return 200 with `success: false` and diagnostics in
+    `feedback`.
 
     Args:
         body (ApplyRequest):
@@ -165,8 +167,9 @@ async def asyncio_detailed(
      Runs `terraform plan` (with optional `-target=` filters) and, if
     the plan succeeds, `terraform apply` of that plan against the
     workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (plan or apply)
-    return 200 with `success: false` and diagnostics in `feedback`.
+    boolean success flag. Terraform-level failures (init, plan, or
+    apply) return 200 with `success: false` and diagnostics in
+    `feedback`.
 
     Args:
         body (ApplyRequest):
@@ -198,8 +201,9 @@ async def asyncio(
      Runs `terraform plan` (with optional `-target=` filters) and, if
     the plan succeeds, `terraform apply` of that plan against the
     workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (plan or apply)
-    return 200 with `success: false` and diagnostics in `feedback`.
+    boolean success flag. Terraform-level failures (init, plan, or
+    apply) return 200 with `success: false` and diagnostics in
+    `feedback`.
 
     Args:
         body (ApplyRequest):

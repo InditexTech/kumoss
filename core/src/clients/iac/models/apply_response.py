@@ -16,7 +16,8 @@ T = TypeVar("T", bound="ApplyResponse")
 class ApplyResponse:
     """
     Attributes:
-        success (bool): True if `terraform plan` and `terraform apply` both succeeded.
+        success (bool): True if `terraform init`, `terraform plan`, and
+            `terraform apply` all succeeded.
         feedback (str): Human-readable diagnostics. On failure, this contains the
             terraform CLI's stderr. On success, this is typically empty.
         terraform_output (str): Terraform's output (text). Contains the plan output when the

@@ -16,7 +16,8 @@ T = TypeVar("T", bound="ImportResponse")
 class ImportResponse:
     """
     Attributes:
-        success (bool): True if `terraform import` succeeded.
+        success (bool): True if `terraform init` and `terraform import` both
+            succeeded.
         feedback (str): Human-readable diagnostics. On failure, this contains the
             terraform CLI's stderr. On success, this is typically empty.
     """
