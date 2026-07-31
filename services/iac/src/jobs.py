@@ -103,7 +103,7 @@ class JobRecord:
 
     def to_model(self) -> Job:
         return Job(
-            job_id=self.job_id,
+            job_id=uuid.UUID(self.job_id),
             kind=self.kind,
             status=self.status,
             created_at=self.created_at,
