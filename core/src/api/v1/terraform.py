@@ -81,8 +81,7 @@ def _make_runner(
             await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
-            if call_dir:
-                _workspace.cleanup(call_dir.parent)
+            _workspace.cleanup(call_dir)
             await _orchestration.release(ctx.id)
 
     return runner
