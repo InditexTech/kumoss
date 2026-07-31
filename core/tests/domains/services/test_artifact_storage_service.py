@@ -97,7 +97,7 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
             query="create a resource group",
             iac_path="infra",
         )
-        self.round_id = await DatabaseService.create_round(self.sid)
+        self.round_id = await DatabaseService.create_round(self.sid, "add a vnet")
 
         self.bucket = f"test-{uuid4().hex[:12]}"
         self.storage = S3ObjectStorage(
@@ -195,8 +195,9 @@ class TestStoreArtifacts(_RoundBase):
         )
 
         detail = await DatabaseService.get_session_detail(self.sid)
-        self.assertEqual(len(detail.rounds), 1)
-        report_ref = detail.rounds[0].report
+        # Round 1 is opened by create_session; ours is round 2.
+        self.assertEqual(len(detail.rounds), 2)
+        report_ref = detail.rounds[1].report
         self.assertIsNotNone(report_ref)
         assert report_ref is not None
         # Signed by the config-selected singleton: assert shape, not host.

@@ -98,7 +98,7 @@ class TerraformProvider(Enum):
     GCP = "gcp"
     AWS = "aws"
     OCI = "oci"
-    KUBERNETES = "kubernetes"
+    K8S = "kubernetes"
 
 
 @unique
@@ -140,6 +140,7 @@ class SessionStatus(Enum):
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
+    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
 
 

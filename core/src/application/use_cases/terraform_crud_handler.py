@@ -61,7 +61,7 @@ class TerraformCRUDHandler:
             try:
                 ok, explanation = await self.__filter_request_svc.filter(q, ctx.history)
                 if not ok:
-                    # TODO
+                    ctx.history.append_turn(q, explanation)
                     return
 
                 predictive_targets = await self.__target_svc.generate_predictive(
@@ -100,3 +100,4 @@ class TerraformCRUDHandler:
                 TracerService.reset_current_tracer(tracer_token)
 
         return background_task
+

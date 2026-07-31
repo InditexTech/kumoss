@@ -73,12 +73,13 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(item["is_blocked"])
 
     async def test_detail_aggregates_rounds_and_artifacts(self):
+        # Attaches to round 1, opened by create_session.
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.STARTED, "kick-off"
         )
-        round_id = await DatabaseService.create_round(self.sid)
+        round_id = await DatabaseService.create_round(self.sid, "add a vnet")
         await DatabaseService.mark_session_status(
-            self.sid, SessionStatus.GENERATING, "round 1", round_id=round_id
+            self.sid, SessionStatus.GENERATING, "round 2", round_id=round_id
         )
         _ = await DatabaseService.add_report(
             round_id=round_id,
@@ -101,6 +102,9 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             content_type="text/plain",
             file_size_bytes=128,
         )
+        await DatabaseService.add_pull_request(
+            self.sid, "https://github.com/org/repo/pull/42"
+        )
 
         resp = await self.client.get(f"/v1/sessions/{self.sid}")
         self.assertEqual(resp.status_code, 200, resp.text)
@@ -111,21 +115,35 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["scope_id"], "sub-123")
         self.assertEqual(body["workspace"]["branch"], "Nebula/x")
         self.assertEqual(body["workspace"]["root_path"], "infra")
-        self.assertIsNone(body["pull_request"])
+        # Pull requests live inside their round, not at session level.
+        self.assertNotIn("pull_request", body)
+        self.assertNotIn("pull_requests", body)
         self.assertEqual(body["current_status"], "generating")
-        # Session-level timeline excludes round-level statuses.
-        self.assertEqual([s["status"] for s in body["statuses"]], ["started"])
+        # Session-level timeline spans all rounds.
+        self.assertEqual(
+            [s["status"] for s in body["statuses"]], ["started", "generating"]
+        )
         # History is an admin-only field; absent on the user surface.
         self.assertIsNone(body["history"])
 
-        self.assertEqual(len(body["rounds"]), 1)
-        rnd = body["rounds"][0]
-        self.assertEqual(rnd["number"], 1)
+        self.assertEqual(len(body["rounds"]), 2)
+        first = body["rounds"][0]
+        self.assertEqual(first["number"], 1)
+        self.assertEqual([s["status"] for s in first["statuses"]], ["started"])
+        self.assertEqual(first["pull_requests"], [])
+        rnd = body["rounds"][1]
+        self.assertEqual(rnd["number"], 2)
         self.assertEqual([s["status"] for s in rnd["statuses"]], ["generating"])
-        self.assertEqual(rnd["report"]["url"], "https://blob.example.com/report.json")
+        # URLs are presigned by the object-storage singleton; the stored
+        # key must be embedded in the signed URL.
+        self.assertIn("report.json", rnd["report"]["url"])
         self.assertEqual(rnd["plan"]["targets"], ["azurerm_resource_group.main"])
         self.assertEqual(rnd["code_changes"][0]["file_name"], "main.tf")
         self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
+        self.assertEqual(
+            rnd["pull_requests"],
+            [{"provider": "GITHUB", "url": "https://github.com/org/repo/pull/42"}],
+        )
 
     async def test_detail_unknown_session_is_404(self):
         resp = await self.client.get(f"/v1/sessions/{uuid4()}")

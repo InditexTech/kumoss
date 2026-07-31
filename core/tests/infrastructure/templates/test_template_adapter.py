@@ -77,7 +77,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_compute_instance_content"],
     },
-    TerraformProvider.KUBERNETES: {
+    TerraformProvider.K8S: {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -131,7 +131,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         await self._run_prompt_compositor_test(TerraformProvider.OCI)
 
     async def test_render_prompt_compositor_kubernetes(self):
-        await self._run_prompt_compositor_test(TerraformProvider.KUBERNETES)
+        await self._run_prompt_compositor_test(TerraformProvider.K8S)
 
 
 if __name__ == "__main__":

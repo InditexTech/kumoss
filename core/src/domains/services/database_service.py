@@ -52,7 +52,6 @@ from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.constants import (
-    GitProviderName,
     OperationType,
     ReportType,
     SessionStatus,
@@ -80,7 +79,7 @@ from src.shared.constants import (
 # concurrent work, so it is always read fresh from the session row.
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
-# status is terminal (COMPLETED / FAILED) it can never change again —
+# status is terminal (COMPLETED / UNCOMPLETED / FAILED) it can never change again —
 # ``acquire_in_flight`` enforces this — so the full detail aggregate is
 # cached and the last-status key gets a long TTL. The only mutation still
 # possible on a finished session is the admin ``set_lock`` toggle, which
@@ -89,7 +88,7 @@ from src.shared.constants import (
 # Keys are namespaced and versioned so a schema change can drop everything
 # by bumping the prefix.
 
-_CACHE_NS = "nebula:v1"
+_CACHE_NS = "nebula:v2"
 
 _TTL_FACTS = 4 * 24 * 60 * 60  # write-once facts; immutable, safe to keep long
 _TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; written through on save
@@ -104,7 +103,9 @@ _TTL_DETAIL = 24 * 60 * 60
 # Session-level end states. Once a session's latest status is terminal it
 # never changes again (enforced by acquire_in_flight), so anything derived
 # from it is safe to cache aggressively.
-_TERMINAL = frozenset({SessionStatus.COMPLETED, SessionStatus.FAILED})
+_TERMINAL = frozenset(
+    {SessionStatus.COMPLETED, SessionStatus.UNCOMPLETED, SessionStatus.FAILED}
+)
 
 
 def _ttl(base: int) -> int:
@@ -300,17 +301,28 @@ class DatabaseService:
 
     @staticmethod
     async def __load_pull_requests(sid: int | None) -> list[dict[str, str]]:
-        prs: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
+        async with db.session() as sess:
+            stmt = (
+                select(PullRequest)
+                .join(Round, PullRequest.round_id == Round.id)
+                .where(Round.session_id == sid)
+                .order_by(Round.number, PullRequest.id)
+            )
+            prs = list((await sess.execute(stmt)).scalars().all())
         # Empty list is a valid cacheable state (most sessions have none).
-        # The provider column is a plain string; normalize it to the same
-        # token get_session_detail exposes.
-        return [
-            {
-                "provider": DatabaseService.__git_provider_token(pr.provider),
-                "url": pr.url,
-            }
-            for pr in prs
-        ]
+        return [{"provider": pr.provider.name, "url": pr.url} for pr in prs]
+
+    @staticmethod
+    async def __latest_round_id(sid: int) -> int | None:
+        """Pk of the session's highest-numbered round, or None if none exist."""
+        async with db.session() as sess:
+            stmt = (
+                select(Round.id)
+                .where(Round.session_id == sid)
+                .order_by(Round.number.desc())
+                .limit(1)
+            )
+            return (await sess.execute(stmt)).scalar_one_or_none()
 
     @staticmethod
     async def __pull_requests(session_id: UUID) -> list[dict[str, str]]:
@@ -330,6 +342,21 @@ class DatabaseService:
         session_id: UUID, status: SessionStatus, msg: str, round_id: int | None = None
     ) -> DbStatus:
         sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        # round_id is NOT NULL: statuses always belong to a round. Callers
+        # that don't target a specific round attach to the latest one
+        # (every session has round 1 from create_session).
+        if round_id is None:
+            round_id = await DatabaseService.__latest_round_id(sid)
+        if round_id is None:
+            raise SessionConflict(
+                message=f"Session {session_id} has no rounds; cannot record a status.",
+                error_code=409,
+            )
         return await db.create(
             DbStatus,
             session_id=sid,
@@ -385,6 +412,14 @@ class DatabaseService:
             History,
             session_id=session.id,
             first_query=query,
+        )
+        # Every session opens with round 1: statuses and pull requests
+        # reference a round (NOT NULL), so one must exist from the start.
+        _ = await db.create(
+            Round,
+            session_id=session.id,
+            number=1,
+            query=query,
         )
 
         # Write-through the write-once facts so the first read is a cache hit.
@@ -634,17 +669,12 @@ class DatabaseService:
                 )
                 for c in sorted(r.code_changes, key=lambda c: (c.created_at, c.id))
             ],
+            pull_requests=[
+                PullRequestRef(provider=pr.provider.name, url=pr.url)
+                for pr in sorted(r.pull_requests, key=lambda pr: (pr.created_at, pr.id))
+            ],
             created_at=r.created_at,
         )
-
-    @staticmethod
-    def __git_provider_token(value: GitProviderName | str) -> str:
-        if isinstance(value, GitProviderName):
-            return value.name
-        try:
-            return GitProviderName(value).name
-        except ValueError:
-            return str(value)
 
     @staticmethod
     async def get_session_detail(
@@ -671,10 +701,10 @@ class DatabaseService:
                 .options(
                     selectinload(Session.workspaces),
                     selectinload(Session.terraform_providers),
-                    selectinload(Session.pull_requests),
                     selectinload(Session.histories),
                     selectinload(Session.statuses),
                     selectinload(Session.rounds).selectinload(Round.statuses),
+                    selectinload(Session.rounds).selectinload(Round.pull_requests),
                     selectinload(Session.rounds)
                     .selectinload(Round.reports)
                     .selectinload(Report.artifact),
@@ -703,14 +733,13 @@ class DatabaseService:
         workspace = s.workspaces[0]
         provider = s.terraform_providers[0]
         history = s.histories[0] if s.histories else None
-        last_pr = max(
-            s.pull_requests, key=lambda pr: (pr.created_at, pr.id), default=None
-        )
         # max(id) is the append-order proxy for "latest" — the same
         # convention get_last_status and the list_sessions filter use.
         current = max(s.statuses, key=lambda st: st.id, default=None)
+        # Every status belongs to a round (NOT NULL); the session-level
+        # view is the full timeline across all rounds.
         session_statuses = sorted(
-            (st for st in s.statuses if st.round_id is None),
+            s.statuses,
             key=lambda st: (st.created_at, st.id),
         )
 
@@ -732,12 +761,6 @@ class DatabaseService:
                 root_path=workspace.root_path,
             ),
             scope_id=provider.scope_id,
-            pull_request=PullRequestRef(
-                provider=DatabaseService.__git_provider_token(last_pr.provider),
-                url=last_pr.url,
-            )
-            if last_pr
-            else None,
             statuses=[DatabaseService.__status_entry(st) for st in session_statuses],
             rounds=[DatabaseService.__round_detail(r) for r in s.rounds],
             history=history.payload if include_history and history else None,
@@ -809,7 +832,8 @@ class DatabaseService:
         """Compare-and-set the in-flight lock, refusing finished sessions.
 
         One atomic UPDATE is both the CAS (``in_flight`` must be false) and
-        the terminal guard (latest status must not be COMPLETED/FAILED), so
+        the terminal guard (latest status must not be COMPLETED/
+        UNCOMPLETED/FAILED), so
         two runners can never both win the lock and a finished session can
         never be resumed — which is what makes finished sessions safe to
         cache aggressively.
@@ -875,7 +899,8 @@ class DatabaseService:
         msg: str,
         round_id: int | None = None,
     ) -> None:
-        """Append a status row; pass ``round_id`` for round-level statuses."""
+        """Append a status row; attaches to the session's latest round
+        unless ``round_id`` targets a specific one."""
         _ = await DatabaseService.__create_status(session_id, status, msg, round_id)
         # Write-through the new latest status (see cache notes above).
         await redis_client.set_json(
@@ -928,6 +953,12 @@ class DatabaseService:
         )
 
     @staticmethod
+    async def mark_uncompleted(session_id: UUID, msg: str) -> None:
+        await DatabaseService.mark_session_status(
+            session_id, SessionStatus.UNCOMPLETED, msg
+        )
+
+    @staticmethod
     async def set_lock(session_id: UUID, lock: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (
@@ -951,12 +982,12 @@ class DatabaseService:
     # and live sessions are never cached in the detail key.
 
     @staticmethod
-    async def create_round(session_id: UUID) -> int:
+    async def create_round(session_id: UUID, query: str) -> int:
         """Open the next generation round for a session, returning its pk.
 
-        Numbering relies on the session's in-flight lock (one runner per
-        session); the unique constraint on (session_id, number) backstops
-        any race.
+        ``query`` is the user prompt that opened the round. Numbering
+        relies on the session's in-flight lock (one runner per session);
+        the unique constraint on (session_id, number) backstops any race.
         """
         sid = await DatabaseService.__map_session_id(session_id)
         if sid is None:
@@ -968,7 +999,9 @@ class DatabaseService:
             Round, order_by="number", order_desc=True, limit=1, session_id=sid
         )
         number = last[0].number + 1 if last else 1
-        round_: Round = await db.create(Round, session_id=sid, number=number)
+        round_: Round = await db.create(
+            Round, session_id=sid, number=number, query=query
+        )
         return round_.id
 
     @staticmethod
@@ -1043,13 +1076,24 @@ class DatabaseService:
 
     @staticmethod
     async def add_pull_request(session_id: UUID, url: str) -> None:
-        """Persist a new Pull Request and write-through the refreshed list."""
+        """Persist a new Pull Request on the session's latest round and
+        write-through the refreshed list."""
         sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        round_id = await DatabaseService.__latest_round_id(sid)
+        if round_id is None:
+            raise SessionConflict(
+                message=f"Session {session_id} has no rounds; cannot attach a pull request.",
+                error_code=409,
+            )
         _ = await db.create(
             PullRequest,
-            session_id=sid,
-            # The column is String(20): store the enum's value, not the enum.
-            provider=system_config.git.provider.value,
+            round_id=round_id,
+            provider=system_config.git.provider,
             url=url,
         )
         # Re-read and write-through instead of deleting (see cache notes above).
@@ -1058,3 +1102,4 @@ class DatabaseService:
             _k_pull_requests(session_id), prs, ttl=_ttl(_TTL_PR)
         )
         _ = await redis_client.invalidate(_k_detail(session_id))
+
