@@ -9,31 +9,27 @@ from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 
-T = TypeVar("T", bound="ApplyResponse")
+T = TypeVar("T", bound="ImportResult")
 
 
 @_attrs_define
-class ApplyResponse:
-    """
+class ImportResult:
+    """Result of an `import` job.
+
     Attributes:
-        success (bool): True if `terraform init`, `terraform plan`, and
-            `terraform apply` all succeeded.
+        success (bool): True if `terraform init` and `terraform import` both
+            succeeded.
         feedback (str): Human-readable diagnostics. On failure, this contains the
             terraform CLI's stderr. On success, this is typically empty.
-        terraform_output (str): Terraform's output (text). Contains the plan output when the
-            plan failed, otherwise the apply output.
     """
 
     success: bool
     feedback: str
-    terraform_output: str
 
     def to_dict(self) -> dict[str, Any]:
         success = self.success
 
         feedback = self.feedback
-
-        terraform_output = self.terraform_output
 
         field_dict: dict[str, Any] = {}
 
@@ -41,7 +37,6 @@ class ApplyResponse:
             {
                 "success": success,
                 "feedback": feedback,
-                "terraform_output": terraform_output,
             }
         )
 
@@ -54,12 +49,9 @@ class ApplyResponse:
 
         feedback = d.pop("feedback")
 
-        terraform_output = d.pop("terraform_output")
-
-        apply_response = cls(
+        import_result = cls(
             success=success,
             feedback=feedback,
-            terraform_output=terraform_output,
         )
 
-        return apply_response
+        return import_result

@@ -10,8 +10,8 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.apply_request import ApplyRequest
-from ...models.apply_response import ApplyResponse
 from ...models.apply_response_400 import ApplyResponse400
+from ...models.job_accepted import JobAccepted
 from ...models.problem import Problem
 from ...types import Response
 
@@ -37,11 +37,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ApplyResponse | ApplyResponse400 | Problem | None:
-    if response.status_code == 200:
-        response_200 = ApplyResponse.from_dict(response.json())
+) -> ApplyResponse400 | JobAccepted | Problem | None:
+    if response.status_code == 202:
+        response_202 = JobAccepted.from_dict(response.json())
 
-        return response_200
+        return response_202
 
     if response.status_code == 400:
         response_400 = ApplyResponse400.from_dict(response.json())
@@ -81,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ApplyResponse | ApplyResponse400 | Problem]:
+) -> Response[ApplyResponse400 | JobAccepted | Problem]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -94,14 +94,17 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
     body: ApplyRequest,
-) -> Response[ApplyResponse | ApplyResponse400 | Problem]:
-    """Apply the Terraform configuration in a workspace.
+) -> Response[ApplyResponse400 | JobAccepted | Problem]:
+    """Enqueue an apply job for a workspace.
 
-     Runs `terraform plan` (with optional `-target=` filters) and, if
-    the plan succeeds, `terraform apply` of that plan against the
-    workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (init, plan, or
-    apply) return 200 with `success: false` and diagnostics in
+     Enqueues a job that runs `terraform plan` (with optional
+    `-target=` filters) and, if the plan succeeds,
+    `terraform apply` of that plan against the workspace at
+    `workspace_path`, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
+    carries terraform's output and a boolean success flag.
+    Terraform-level failures (init, plan, or apply) end the job as
+    `succeeded` with `success: false` and diagnostics in
     `feedback`.
 
     Args:
@@ -112,7 +115,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApplyResponse | ApplyResponse400 | Problem]
+        Response[ApplyResponse400 | JobAccepted | Problem]
     """
 
     kwargs = _get_kwargs(
@@ -130,14 +133,17 @@ def sync(
     *,
     client: AuthenticatedClient,
     body: ApplyRequest,
-) -> ApplyResponse | ApplyResponse400 | Problem | None:
-    """Apply the Terraform configuration in a workspace.
+) -> ApplyResponse400 | JobAccepted | Problem | None:
+    """Enqueue an apply job for a workspace.
 
-     Runs `terraform plan` (with optional `-target=` filters) and, if
-    the plan succeeds, `terraform apply` of that plan against the
-    workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (init, plan, or
-    apply) return 200 with `success: false` and diagnostics in
+     Enqueues a job that runs `terraform plan` (with optional
+    `-target=` filters) and, if the plan succeeds,
+    `terraform apply` of that plan against the workspace at
+    `workspace_path`, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
+    carries terraform's output and a boolean success flag.
+    Terraform-level failures (init, plan, or apply) end the job as
+    `succeeded` with `success: false` and diagnostics in
     `feedback`.
 
     Args:
@@ -148,7 +154,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApplyResponse | ApplyResponse400 | Problem
+        ApplyResponse400 | JobAccepted | Problem
     """
 
     return sync_detailed(
@@ -161,14 +167,17 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
     body: ApplyRequest,
-) -> Response[ApplyResponse | ApplyResponse400 | Problem]:
-    """Apply the Terraform configuration in a workspace.
+) -> Response[ApplyResponse400 | JobAccepted | Problem]:
+    """Enqueue an apply job for a workspace.
 
-     Runs `terraform plan` (with optional `-target=` filters) and, if
-    the plan succeeds, `terraform apply` of that plan against the
-    workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (init, plan, or
-    apply) return 200 with `success: false` and diagnostics in
+     Enqueues a job that runs `terraform plan` (with optional
+    `-target=` filters) and, if the plan succeeds,
+    `terraform apply` of that plan against the workspace at
+    `workspace_path`, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
+    carries terraform's output and a boolean success flag.
+    Terraform-level failures (init, plan, or apply) end the job as
+    `succeeded` with `success: false` and diagnostics in
     `feedback`.
 
     Args:
@@ -179,7 +188,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApplyResponse | ApplyResponse400 | Problem]
+        Response[ApplyResponse400 | JobAccepted | Problem]
     """
 
     kwargs = _get_kwargs(
@@ -195,14 +204,17 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
     body: ApplyRequest,
-) -> ApplyResponse | ApplyResponse400 | Problem | None:
-    """Apply the Terraform configuration in a workspace.
+) -> ApplyResponse400 | JobAccepted | Problem | None:
+    """Enqueue an apply job for a workspace.
 
-     Runs `terraform plan` (with optional `-target=` filters) and, if
-    the plan succeeds, `terraform apply` of that plan against the
-    workspace at `workspace_path`. Returns terraform's output and a
-    boolean success flag. Terraform-level failures (init, plan, or
-    apply) return 200 with `success: false` and diagnostics in
+     Enqueues a job that runs `terraform plan` (with optional
+    `-target=` filters) and, if the plan succeeds,
+    `terraform apply` of that plan against the workspace at
+    `workspace_path`, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
+    carries terraform's output and a boolean success flag.
+    Terraform-level failures (init, plan, or apply) end the job as
+    `succeeded` with `success: false` and diagnostics in
     `feedback`.
 
     Args:
@@ -213,7 +225,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApplyResponse | ApplyResponse400 | Problem
+        ApplyResponse400 | JobAccepted | Problem
     """
 
     return (

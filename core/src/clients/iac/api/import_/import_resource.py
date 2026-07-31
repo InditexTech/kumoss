@@ -11,7 +11,7 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.import_request import ImportRequest
 from ...models.import_resource_response_400 import ImportResourceResponse400
-from ...models.import_response import ImportResponse
+from ...models.job_accepted import JobAccepted
 from ...models.problem import Problem
 from ...types import Response
 
@@ -37,11 +37,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ImportResourceResponse400 | ImportResponse | Problem | None:
-    if response.status_code == 200:
-        response_200 = ImportResponse.from_dict(response.json())
+) -> ImportResourceResponse400 | JobAccepted | Problem | None:
+    if response.status_code == 202:
+        response_202 = JobAccepted.from_dict(response.json())
 
-        return response_200
+        return response_202
 
     if response.status_code == 400:
         response_400 = ImportResourceResponse400.from_dict(response.json())
@@ -81,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ImportResourceResponse400 | ImportResponse | Problem]:
+) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -94,13 +94,16 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
     body: ImportRequest,
-) -> Response[ImportResourceResponse400 | ImportResponse | Problem]:
-    """Import an existing cloud resource into Terraform state.
+) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
+    """Enqueue a job importing an existing cloud resource into Terraform state.
 
-     Runs `terraform import` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by `resource_id`
-    under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures (init or import) return 200 with
+     Enqueues a job that runs `terraform import` against the
+    workspace at `workspace_path`, bringing the existing cloud
+    resource identified by `resource_id` under the Terraform
+    resource address `address` in the workspace's state, then
+    returns `202 Accepted` immediately. Poll
+    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
+    failures (init or import) end the job as `succeeded` with
     `success: false` and diagnostics in `feedback`.
 
     Args:
@@ -111,7 +114,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ImportResourceResponse400 | ImportResponse | Problem]
+        Response[ImportResourceResponse400 | JobAccepted | Problem]
     """
 
     kwargs = _get_kwargs(
@@ -129,13 +132,16 @@ def sync(
     *,
     client: AuthenticatedClient,
     body: ImportRequest,
-) -> ImportResourceResponse400 | ImportResponse | Problem | None:
-    """Import an existing cloud resource into Terraform state.
+) -> ImportResourceResponse400 | JobAccepted | Problem | None:
+    """Enqueue a job importing an existing cloud resource into Terraform state.
 
-     Runs `terraform import` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by `resource_id`
-    under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures (init or import) return 200 with
+     Enqueues a job that runs `terraform import` against the
+    workspace at `workspace_path`, bringing the existing cloud
+    resource identified by `resource_id` under the Terraform
+    resource address `address` in the workspace's state, then
+    returns `202 Accepted` immediately. Poll
+    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
+    failures (init or import) end the job as `succeeded` with
     `success: false` and diagnostics in `feedback`.
 
     Args:
@@ -146,7 +152,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ImportResourceResponse400 | ImportResponse | Problem
+        ImportResourceResponse400 | JobAccepted | Problem
     """
 
     return sync_detailed(
@@ -159,13 +165,16 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
     body: ImportRequest,
-) -> Response[ImportResourceResponse400 | ImportResponse | Problem]:
-    """Import an existing cloud resource into Terraform state.
+) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
+    """Enqueue a job importing an existing cloud resource into Terraform state.
 
-     Runs `terraform import` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by `resource_id`
-    under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures (init or import) return 200 with
+     Enqueues a job that runs `terraform import` against the
+    workspace at `workspace_path`, bringing the existing cloud
+    resource identified by `resource_id` under the Terraform
+    resource address `address` in the workspace's state, then
+    returns `202 Accepted` immediately. Poll
+    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
+    failures (init or import) end the job as `succeeded` with
     `success: false` and diagnostics in `feedback`.
 
     Args:
@@ -176,7 +185,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ImportResourceResponse400 | ImportResponse | Problem]
+        Response[ImportResourceResponse400 | JobAccepted | Problem]
     """
 
     kwargs = _get_kwargs(
@@ -192,13 +201,16 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
     body: ImportRequest,
-) -> ImportResourceResponse400 | ImportResponse | Problem | None:
-    """Import an existing cloud resource into Terraform state.
+) -> ImportResourceResponse400 | JobAccepted | Problem | None:
+    """Enqueue a job importing an existing cloud resource into Terraform state.
 
-     Runs `terraform import` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by `resource_id`
-    under the Terraform resource address `address` in the workspace's
-    state. Terraform-level failures (init or import) return 200 with
+     Enqueues a job that runs `terraform import` against the
+    workspace at `workspace_path`, bringing the existing cloud
+    resource identified by `resource_id` under the Terraform
+    resource address `address` in the workspace's state, then
+    returns `202 Accepted` immediately. Poll
+    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
+    failures (init or import) end the job as `succeeded` with
     `success: false` and diagnostics in `feedback`.
 
     Args:
@@ -209,7 +221,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ImportResourceResponse400 | ImportResponse | Problem
+        ImportResourceResponse400 | JobAccepted | Problem
     """
 
     return (

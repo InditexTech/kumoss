@@ -9,12 +9,13 @@ from typing import Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
 
-T = TypeVar("T", bound="ValidateResponse")
+T = TypeVar("T", bound="ValidateResult")
 
 
 @_attrs_define
-class ValidateResponse:
-    """
+class ValidateResult:
+    """Result of a `validate` job.
+
     Attributes:
         validation (bool): True if `terraform init`, `terraform validate`, and
             `terraform plan` (when run) all succeeded AND, when
@@ -65,11 +66,11 @@ class ValidateResponse:
 
         terraform_targets = cast(list[str], d.pop("terraform_targets"))
 
-        validate_response = cls(
+        validate_result = cls(
             validation=validation,
             feedback=feedback,
             terraform_plan=terraform_plan,
             terraform_targets=terraform_targets,
         )
 
-        return validate_response
+        return validate_result

@@ -35,9 +35,9 @@ class ValidateRequest:
             empty, the entire configuration is planned.
         get_drift (bool | Unset): When true and the plan succeeds, the implementation parses
             the plan JSON and summarises any resource changes (drift) in
-            the `feedback` field of the response, with `validation` set
-            to `false` if drift is non-empty. Useful for "is anything
-            different from what's deployed?" queries.
+            the `feedback` field of the job result, with `validation`
+            set to `false` if drift is non-empty. Useful for "is
+            anything different from what's deployed?" queries.
              Default: False.
     """
 
