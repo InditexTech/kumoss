@@ -4,10 +4,10 @@
 
 """Thin async wrapper around the terraform CLI.
 
-Just enough to drive `init`, `validate`, `plan`, and to read back the
-plan JSON for drift detection. Implementations that need more (state
-locking, custom backends, policy as code) should extend this or
-substitute their own.
+Just enough to drive `init`, `validate`, `plan`, `apply`, and `import`,
+and to read back the plan JSON for drift detection. Implementations
+that need more (state locking, custom backends, policy as code) should
+extend this or substitute their own.
 """
 
 from __future__ import annotations
@@ -61,6 +61,24 @@ async def plan(
 
 async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResult:
     return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd)
+
+
+async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+    return await _run(
+        binary,
+        ["apply", "-no-color", "-input=false", "-auto-approve", plan_file],
+        cwd,
+    )
+
+
+async def import_resource(
+    binary: str, cwd: Path, address: str, resource_id: str
+) -> CommandResult:
+    return await _run(
+        binary,
+        ["import", "-no-color", "-input=false", address, resource_id],
+        cwd,
+    )
 
 
 def parse_drift(plan_json_text: str) -> list[dict]:

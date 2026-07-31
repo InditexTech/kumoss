@@ -123,25 +123,42 @@ class ServiceConfig(BaseModel):
     keeps secrets out of this file.
 
     ``timeout`` is the per-request budget in seconds for outbound HTTP
-    calls to the service. The IaC service runs terraform pipelines
-    synchronously, so its calls can legitimately take minutes.
+    calls to the service. Every service call returns promptly (long
+    work runs as asynchronous jobs the core polls), so this only needs
+    to cover a single request/response round trip.
     """
 
     enabled: bool = False
     endpoint: str = ""
     token_env: str = ""
-    timeout: float = 300.0
+    timeout: float = 30.0
 
     @property
     def token(self) -> str:
         return _env(self.token_env)
 
 
+class IacServiceConfig(ServiceConfig):
+    """IaC service wiring plus its async-job polling knobs.
+
+    The IaC service enqueues terraform pipelines and returns a job id
+    immediately; the core then polls ``GET /v1/jobs/{job_id}`` every
+    ``job_poll_interval`` seconds until the job is terminal.
+    ``job_timeout`` bounds the total wait for one job — it must cover
+    both the FIFO queue wait (jobs on the same workspace run one at a
+    time) and the pipeline itself, so keep it above the service's own
+    subprocess budget (2700s in the reference deployment).
+    """
+
+    job_poll_interval: float = 5.0
+    job_timeout: float = 3600.0
+
+
 class ServicesConfig(BaseModel):
     notifications: ServiceConfig = Field(default_factory=ServiceConfig)
     mapping: ServiceConfig = Field(default_factory=ServiceConfig)
     authz: ServiceConfig = Field(default_factory=ServiceConfig)
-    iac: ServiceConfig = Field(default_factory=ServiceConfig)
+    iac: IacServiceConfig = Field(default_factory=IacServiceConfig)
 
 
 class OrchestrationConfig(BaseModel):

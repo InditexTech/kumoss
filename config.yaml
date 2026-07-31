@@ -49,7 +49,10 @@ llm:
 
 # Microservice wiring. `endpoint` is the base URL the core calls.
 # `token_env` is the name of the env var that holds the bearer token
-# the core sends on every request. Any enabled service whose token_env
+# the core sends on every request. `timeout` is the per-request HTTP
+# budget in seconds — every call returns promptly (long work runs as
+# asynchronous jobs the core polls), so it only needs to cover one
+# request/response round trip. Any enabled service whose token_env
 # resolves to an empty value will refuse the core's boot — flip
 # `enabled: false` to skip a service entirely.
 services:
@@ -57,18 +60,24 @@ services:
     enabled: true
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
+    timeout: 30.0
   mapping:
     enabled: true
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
+    timeout: 30.0
   authz:
     enabled: false
     endpoint: "http://authz:8083"
     token_env: "NEBULA_AUTHZ_TOKEN"
+    timeout: 30.0
   iac:
     enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
+    timeout: 30.0
+    job_poll_interval: 5.0
+    job_timeout: 3600.0
 
 # Iteration limits and batch sizes for the core's orchestration loops.
 # Raise carefully — these bound runaway-loop costs.
@@ -85,6 +94,30 @@ orchestration:
 # `workspaces` volume so both see the same cloned-repo paths.
 paths:
   upload_folder: "/workspaces"
+
+# Databases (Nebula postgres + Phoenix collector). Connection URLs embed
+# credentials, so they are referenced indirectly: these keys name the
+# env vars that hold the actual URLs (defaults shown). Override only to
+# read different env var names. The core refuses to boot when either
+# env var resolves empty.
+database:
+  nebula_database_url_env: "NEBULA_SQL_DATABASE_URL"
+  phoenix_database_url_env: "PHOENIX_SQL_DATABASE_URL"
+
+# Redis session store / cache. The URL may embed a password, so it is
+# read from the env var named by `redis_url_env`; when that env var is
+# unset, `default_url` (the docker-compose service) is used. Timeouts
+# (seconds) are deliberately aggressive: Redis is a cache, so a slow or
+# unreachable server should fail fast and let reads fall through to the
+# database instead of stalling requests. `pool_timeout` is how long a
+# request may wait for a free pooled connection under a burst.
+redis:
+  redis_url_env: "NEBULA_REDIS_URL"
+  default_url: "redis://redis:6379/0"
+  max_connections: 20
+  socket_connect_timeout: 2.0
+  socket_timeout: 2.0
+  pool_timeout: 2.0
 
 # OTel telemetry. `collector_url` is a base URL; the OTLP endpoint is
 # computed at use time as `f"{collector_url}v1/traces"`. Phoenix is
@@ -117,12 +150,18 @@ http:
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
 # (108000) or over the SigV4 7-day limit (604800).
+#
+# `connect_timeout` / `read_timeout` are per-request budgets in seconds;
+# `max_attempts` is the botocore standard-mode retry count.
 storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
+  connect_timeout: 3.0
+  read_timeout: 10.0
+  max_attempts: 3
   presign_expiry_seconds: 172800
 
 # Git push provider + author. Credentials (username + PAT) are read from
