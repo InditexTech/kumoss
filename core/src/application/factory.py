@@ -22,7 +22,7 @@ from src.domains.services import (
 
 # Infrastructure layer imports
 from src.domains.services.task_split_service import TaskSplitService
-from src.infrastructure.external.gemini_web_search import GeminiWebSearch
+from src.infrastructure.external.litellm_web_search import LiteLLMWebSearch
 from src.infrastructure.tools.tool_registry import ToolRegistry
 from src.infrastructure.filesystem import (
     FileSystemUtils,
@@ -115,8 +115,10 @@ class ApplicationFactory:
             tool_registry=ToolRegistry(
                 filesystem=file_utils,
                 git=git_utils,
-                web_search=GeminiWebSearch(
-                    gemini=self.get_llm_adapter(system_config.llm.small_model, 0.5)
+                web_search=LiteLLMWebSearch(
+                    litellm=self.get_llm_adapter(
+                        system_config.llm.get_model_config("small_model"), 0.5
+                    )
                 ),
             )
         )

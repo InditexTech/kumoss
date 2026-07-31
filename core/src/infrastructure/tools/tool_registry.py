@@ -16,7 +16,7 @@ from src.domains.dto import (
     TerraformPlanReport,
     TerraformApplyReport,
 )
-from src.infrastructure.external.gemini_web_search import GeminiWebSearch
+from src.infrastructure.external.litellm_web_search import LiteLLMWebSearch
 from src.infrastructure.exceptions import (
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
@@ -32,7 +32,7 @@ class ToolRegistry(IToolRegistry):
         self,
         filesystem: IFileSystem,
         git: IGit,
-        web_search: GeminiWebSearch,
+        web_search: LiteLLMWebSearch,
     ):
         self.__filesystem = filesystem
         self.__git = git
