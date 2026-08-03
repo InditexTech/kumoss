@@ -233,8 +233,10 @@ def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if isinstance(payload, ToolResultDTO) and payload.name == "task_complete":
-        payload = payload.result.get("summary")
+    if isinstance(payload, ToolResultDTO) and (
+        payload.result.get("summary") or payload.result.get("explanation")
+    ):
+        payload = payload.result.get("summary") or payload.result.get("explanation")
     yield SpanAttributes.OUTPUT_VALUE, str(payload)
     yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
 
