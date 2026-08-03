@@ -75,7 +75,7 @@ class TerraformDriftHandler:
                 await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
+                        PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.FILTERING,
                 )

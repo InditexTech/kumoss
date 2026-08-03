@@ -46,7 +46,7 @@ class ReportService:
 
         await self.__session_svc.update_status(
             msg="Infrastructure successfully validated. Generating report.",
-            prompt=await self.__template_svc.render(PromptsLibrary.TASK_ACKNOWLEDGE),
+            prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             status=SessionStatus.REPORT,
             history=history,
         )

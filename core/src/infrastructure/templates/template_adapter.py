@@ -52,11 +52,6 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    def render_task_acknowledge(self) -> str:
-        t = self._get_template(self._message + "task_acknowledge.jinja")
-        return t.render()
-
-    @override
     def render_status_update(self) -> str:
         t = self._get_template(self._message + "status_update.jinja")
         return t.render()

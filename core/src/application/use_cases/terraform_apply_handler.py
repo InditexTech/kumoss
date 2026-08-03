@@ -63,7 +63,7 @@ class TerraformApplyHandler:
                     msg="The code has been generated and now Terraform Apply is "
                     + "running in the background.",
                     prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
+                        PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.STARTED,
                 )

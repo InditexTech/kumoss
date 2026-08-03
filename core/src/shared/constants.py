@@ -130,7 +130,6 @@ class PromptsLibrary(Enum):
     # messages
     JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
-    TASK_ACKNOWLEDGE = "task_acknowledge"
 
 
 @unique

@@ -43,7 +43,6 @@ class TemplateOrchestrationService:
             # messages
             "joker": self.__templates.render_joker,
             "status_update": self.__templates.render_status_update,
-            "task_acknowledge": self.__templates.render_task_acknowledge,
         }
 
     async def render(self, prompt: PromptsLibrary, **kwargs: Any) -> PromptTemplateDTO:

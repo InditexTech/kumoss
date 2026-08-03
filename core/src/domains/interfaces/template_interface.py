@@ -62,9 +62,5 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_task_acknowledge(self) -> str:
-        pass
-
-    @abstractmethod
     def render_iac_import(self) -> str:
         pass
