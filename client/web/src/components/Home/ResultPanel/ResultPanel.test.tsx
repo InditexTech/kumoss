@@ -27,7 +27,7 @@ const mockReport: TerraformReport = {
   execution_summary: "Plan: 2 to add, 1 to change",
   potential_impact: {
     banner: { level: "medium", title: "Medium Impact", description: "Some resources will change" },
-    summary_paragraph: "Impact summary here",
+    summary: "Impact summary here",
     bullet_points: [{ title: "DB changes", description: "Database will be modified" }],
   },
   estimated_costs: {

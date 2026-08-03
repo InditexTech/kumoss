@@ -234,7 +234,7 @@ def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     payload can be serialized as JSON, otherwise as a string.
     """
     if isinstance(payload, ToolResultDTO) and payload.name == "task_complete":
-        payload = payload.result.get("final_summary")
+        payload = payload.result.get("summary")
     yield SpanAttributes.OUTPUT_VALUE, str(payload)
     yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
 
@@ -426,7 +426,7 @@ def _llm_output_message_attributes(
                 + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                 tool.name,
             )
-            # summary = tool.parameters.get("final_summary")
+            # summary = tool.parameters.get("summary")
             # explanation = tool.parameters.get("explanation")
             yield (
                 f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{idx}."

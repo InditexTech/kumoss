@@ -94,7 +94,7 @@ class TerraformValidationService:
                 history=local_history,
             )
             local_history.append_turn(query, str(chain_result.result))
-            # summary: str | None = chain_result.result.get("final_summary")
+            # summary: str | None = chain_result.result.get("summary")
             # self.__session_svc.append_summary(summary) if summary else None
 
             await self.__session_svc.update_status(

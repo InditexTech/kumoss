@@ -304,11 +304,11 @@ class ToolRegistry(IToolRegistry):
     def __handle_report_drift_generator(
         self, parameters: dict[str, Any]
     ) -> TerraformDriftReport:
-        summary = parameters["remediation_summary"]
+        summary = parameters["summary"]
         status = parameters["status"]
         resources = parameters["remediated_resources"]
         return TerraformDriftReport(
-            remediation_summary=summary,
+            summary=summary,
             status=status,
             remediated_resources=resources,
         )
@@ -316,13 +316,13 @@ class ToolRegistry(IToolRegistry):
     def __handle_report_apply_generator(
         self, parameters: dict[str, Any]
     ) -> TerraformApplyReport:
-        apply_summary = parameters["apply_summary"]
+        summary = parameters["summary"]
         status = parameters["status"]
         execution_summary = parameters["execution_summary"]
         resource_changes = parameters["resource_changes"]
         recommendations = parameters["recommendations"]
         return TerraformApplyReport(
-            apply_summary=apply_summary,
+            summary=summary,
             status=status,
             execution_summary=execution_summary,
             resource_changes=resource_changes,
@@ -356,11 +356,11 @@ class ToolRegistry(IToolRegistry):
 
     def __handle_task_completion(self, parameters: dict[str, Any]) -> dict[str, str]:
         status = parameters["status"]
-        summary = parameters["final_summary"]
+        summary = parameters["summary"]
 
         return {
             "status": status,
-            "final_summary": summary,
+            "summary": summary,
         }
 
     def __handle_task_splitter(

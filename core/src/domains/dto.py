@@ -137,7 +137,7 @@ class PotentialImpact(BaseModel):
     """Human-readable analysis of the overall consequences and implications of applying the Terraform plan"""
 
     banner: ImpactBanner
-    summary_paragraph: str
+    summary: str
     bullet_points: list[ImpactPoint]
 
 
@@ -216,7 +216,7 @@ class TerraformDriftReport(BaseModel):
     Details which files and resources were changed, specific changes made, and remediation reasons.
     """
 
-    remediation_summary: str
+    summary: str
     status: Literal["Succeeded", "Partial", "Failed"]
     remediated_resources: list[TerraformDriftResource]
 
@@ -249,7 +249,7 @@ class TerraformApplyReport(BaseModel):
     including success/failure status and any issues encountered.
     """
 
-    apply_summary: TerraformApplySummary
+    summary: TerraformApplySummary
     status: Literal["Success", "Partial", "Failed"]
     execution_summary: str
     resource_changes: list[TerraformApplyChange]
@@ -381,4 +381,3 @@ class PaginatedSessionSummary(BaseModel):
     page: int
     page_size: int
     total_pages: int
-
