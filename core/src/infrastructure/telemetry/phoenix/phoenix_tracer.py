@@ -233,10 +233,12 @@ def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if isinstance(payload, ToolResultDTO) and (
-        payload.result.get("summary") or payload.result.get("explanation")
-    ):
-        payload = payload.result.get("summary") or payload.result.get("explanation")
+    if isinstance(payload, ToolResultDTO) and isinstance(payload.result, dict):
+        payload = (
+            cast(str, payload.result.get("summary"))
+            or cast(str, payload.result.get("explanation"))
+            or payload
+        )
     yield SpanAttributes.OUTPUT_VALUE, str(payload)
     yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
 
@@ -428,12 +430,9 @@ def _llm_output_message_attributes(
                 + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
                 tool.name,
             )
-            # summary = tool.parameters.get("summary")
-            # explanation = tool.parameters.get("explanation")
             yield (
                 f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{idx}."
                 + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-                # json.dumps(tool.parameters) if not (summary or explanation) else (summary or explanation)
                 json.dumps(tool.parameters),
             )
             idx += 1

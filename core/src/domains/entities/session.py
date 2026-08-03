@@ -16,6 +16,7 @@ class SessionContext:
         self,
         id: UUID,
         user_id: str,
+        round_id: int,
         repo_uri: str,
         scope_id: str,
         terraform_prv: TerraformProvider,
@@ -25,7 +26,7 @@ class SessionContext:
     ):
         self.__id = id
         self.__user_id = user_id
-        self.__round_id: int = 0
+        self.__round_id = round_id
         self.__repo_uri = repo_uri
         self.__scope_id = scope_id
         self.__terraform_prv = terraform_prv
@@ -49,8 +50,8 @@ class SessionContext:
     def round_id(self) -> int:
         return self.__round_id
 
-    def next_round(self) -> None:
-        self.__round_id += 1
+    def set_round(self, rid: int) -> None:
+        self.__round_id = rid
 
     @property
     def repo_uri(self) -> str:

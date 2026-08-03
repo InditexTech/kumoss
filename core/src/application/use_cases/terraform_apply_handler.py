@@ -11,7 +11,6 @@ from src.domains.services import (
     TracerService,
     SessionService,
 )
-from src.application.services.generate_payload_service import GeneratePayloadService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.constants import SessionStatus, TracerProject, PromptsLibrary
 from src.shared.config import system_config
@@ -25,13 +24,11 @@ class TerraformApplyHandler:
         apply_service,
         session_service: SessionService,
         template_service: TemplateOrchestrationService,
-        payload_svc: GeneratePayloadService,
         session_ctx: SessionContext,
     ):
         self.__apply_svc = apply_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__payload_svc = payload_svc
         self.__ctx = session_ctx
 
     async def handle(

@@ -56,7 +56,7 @@ class ArtifactStorageService:
         round_id: int,
         report_type: ReportType,
         content: str | bytes,
-        content_type: ContentType = ContentType.JSON,
+        content_type: ContentType,
     ) -> int:
         """Persist a round report; returns the reports row pk.
 

@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-from src.domains.entities import SessionContext
+from src.domains.entities import History
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services.llm_service import LLMOrchestrationService
@@ -42,11 +42,13 @@ class TerraformValidationService:
         self.__session_svc = session_service
         self.__tool_orchestration = tool_orchestration_service
         self.__target_svc = target_service
+        self.__count: int = 0
 
     async def generate_and_validate(
         self,
-        query: str,
-        ctx: SessionContext,
+        q: str,
+        history: History,
+        branch_name: str,
         include_forbidden_actions: bool,
     ) -> TerraformValidationDTO:
         """
@@ -56,25 +58,24 @@ class TerraformValidationService:
         :param history: task conversation history
         :return: last validation state ValidationDTO
         """
-        validation_state = ValidationState(
-            max_tries=system_config.orchestration.max_validation_iteration,
-            count=0,
-        )
-        validation_dto = TerraformValidationDTO.empty()
-        local_history = ctx.history.deepcopy()
+        first_q = q
+        validation = TerraformValidationDTO.empty()
+        local_history = history.deepcopy()
         while (
-            not validation_dto.validation
-            and validation_state.count < validation_state.max_tries
+            not validation.validation
+            and self.__count < system_config.orchestration.max_validation_iteration
         ):
-            validation_state.count += 1
-            logging.debug(validation_state)
+            self.__count += 1
+            logging.debug(
+                f"Validation service {self.__count}/{system_config.orchestration.max_validation_iteration}"
+            )
 
             templates, abbreviations = await self.__template_svc.compose_template(
-                query=query,
-                history=ctx.history,
+                query=q,
+                history=history,
             )
-            chain_result: ToolResultDTO = await self.__llm_svc.generate(
-                query=query,
+            task_complete: ToolResultDTO = await self.__llm_svc.generate(
+                query=q,
                 tools=self.__tool_orchestration.get_available_tools(
                     contexts=[
                         ToolContext.EXTERNAL_INFORMATION,
@@ -93,23 +94,22 @@ class TerraformValidationService:
                 ),
                 history=local_history,
             )
-            local_history.append_turn(query, str(chain_result.result))
-            # summary: str | None = chain_result.result.get("summary")
-            # self.__session_svc.append_summary(summary) if summary else None
+            local_history.append_turn(q, task_complete.result.get("summary"))
 
-            await self.__session_svc.update_status(
-                msg=query,
+            _ = await self.__session_svc.update_status(
+                msg=q,
                 prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
                 status=SessionStatus.GENERATING,
                 history=local_history,
             )
 
-            await self.__git.commit_and_push(ctx.branch_name)
+            await self.__git.commit_and_push(branch_name)
 
-            validation_dto = await self.__validator.validate(
-                branch=ctx.branch_name,
-                targets=await self.__target_svc.generate(query, local_history),
+            validation = await self.__validator.validate(
+                branch=branch_name,
+                targets=await self.__target_svc.generate(q, local_history),
             )
-            query = validation_dto.feedback
+            q = validation.feedback
 
-        return validation_dto
+        history.append_turn(first_q, local_history.get_last_turn().assistant)
+        return validation

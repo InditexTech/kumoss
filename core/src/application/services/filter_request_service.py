@@ -27,9 +27,9 @@ class FilterRequestService:
         self.__session_svc = session_service
 
     async def filter(self, q: str, history: History) -> tuple[bool, str]:
-        await self.__session_svc.update_status(
+        _ = await self.__session_svc.update_status(
             msg=q,
-            prompt=await self.__template_svc.render(PromptsLibrary.TASK_ACKNOWLEDGE),
+            prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             status=SessionStatus.FILTERING,
         )
         response: ToolResultDTO = await self.__llm_svc.generate(

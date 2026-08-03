@@ -28,7 +28,7 @@ class SessionService:
         status: SessionStatus,
         prompt: PromptTemplateDTO | None = None,
         history: History | None = None,
-    ) -> None:
+    ) -> str:
         """Update the session with a new status and a message.
         Optionally, use an LLM to generate the msg.
 
@@ -53,10 +53,11 @@ class SessionService:
             msg=cast(str, msg),
             round_id=self.__ctx.round_id,
         )
+        return msg
 
-    async def next_round_id(self, q: str) -> None:
-        self.__ctx.next_round()
-        _ = await DatabaseService.create_round(self.__ctx.id, q)
+    async def set_round_id(self, q: str) -> None:
+        rid = await DatabaseService.create_round(self.__ctx.id, q)
+        self.__ctx.set_round(rid)
 
     async def save(self) -> None:
         await DatabaseService.update_history(self.__ctx)

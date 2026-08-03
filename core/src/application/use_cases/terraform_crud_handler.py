@@ -5,6 +5,7 @@
 from collections.abc import Coroutine
 from typing import Callable, Any
 
+from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.filter_request_service import FilterRequestService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
@@ -24,27 +25,26 @@ from src.shared.exceptions import ExceptionHandler
 class TerraformCRUDHandler:
     def __init__(
         self,
+        session_ctx: SessionContext,
         session_service: SessionService,
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         filter_request_service: FilterRequestService,
-        report_svc: ReportService,
-        target_svc: TerraformTargetService,
-        drift_svc: TerraformDriftService,
-        session_ctx: SessionContext,
+        report_service: ReportService,
+        target_service: TerraformTargetService,
+        drift_service: TerraformDriftService,
     ):
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__report_svc = report_svc
+        self.__report_svc = report_service
         self.__filter_request_svc = filter_request_service
-        self.__target_svc = target_svc
-        self.__drift_svc = drift_svc
+        self.__target_svc = target_service
+        self.__drift_svc = drift_service
         self.__ctx = session_ctx
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
-        local_hist = ctx.history.deepcopy()
 
         async def background_task():
 
@@ -58,12 +58,12 @@ class TerraformCRUDHandler:
                 )
             )
             try:
-                await self.__session_svc.next_round_id(q)
+                await self.__session_svc.set_round_id(q)
 
-                ok, explanation = await self.__filter_request_svc.filter(q, local_hist)
+                ok, explanation = await self.__filter_request_svc.filter(q, ctx.history)
                 if not ok:
                     ctx.history.append_turn(q, explanation)
-                    await self.__session_svc.update_status(
+                    _ = await self.__session_svc.update_status(
                         msg=explanation,
                         status=SessionStatus.UNCOMPLETED,
                     )
@@ -78,20 +78,32 @@ class TerraformCRUDHandler:
                         max_iterations=2,
                     )
 
-                _ = await self.__validation_svc.generate_and_validate(
-                    query=q, ctx=ctx, include_forbidden_actions=True
+                validation = await self.__validation_svc.generate_and_validate(
+                    q=q,
+                    history=ctx.history,
+                    branch_name=ctx.branch_name,
+                    include_forbidden_actions=True,
                 )
+                if not validation.validation:
+                    fail_msg = self.__report_svc.summarize_problem(
+                        validation.feedback, ctx.history
+                    )
+                    raise TerraformValidationFailedError(
+                        message=fail_msg,
+                        error_code=500,
+                    )
                 _ = await self.__report_svc.generate_report(
+                    ctx=ctx,
                     type=ReportType.GENERATE,
-                    query=q,
-                    history=local_hist,
+                    content=validation.terraform_plan,
                 )
             except ExceptionHandler as e:
-                await self.__session_svc.update_status(
+                _ = await self.__session_svc.update_status(
                     msg=e.message, status=SessionStatus.FAILED
                 )
                 raise
             finally:
                 TracerService.reset_current_tracer(tracer_token)
+                await self.__session_svc.save()
 
         return background_task

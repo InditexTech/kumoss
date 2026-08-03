@@ -18,11 +18,13 @@ from src.domains.services import (
     TerraformTargetService,
     TerraformValidationService,
     ToolOrchestrationService,
+    TaskSplitService,
+    ArtifactStorageService,
 )
 
 # Infrastructure layer imports
-from src.domains.services.task_split_service import TaskSplitService
 from src.infrastructure.external.gemini_web_search import GeminiWebSearch
+from src.infrastructure.storage import default_object_storage
 from src.infrastructure.tools.tool_registry import ToolRegistry
 from src.infrastructure.filesystem import (
     FileSystemUtils,
@@ -37,9 +39,9 @@ from src.infrastructure.validators.factory import ValidatorFactory
 # Application layer imports
 from src.application.services import (
     FilterRequestService,
-    GeneratePayloadService,
     TerraformDriftService,
     PullRequestService,
+    ReportService,
 )
 from src.application.use_cases import (
     TerraformCRUDHandler,
@@ -153,6 +155,9 @@ class ApplicationFactory:
             detector=IacRootDetector(),
         )
 
+    def _get_artifact_storage_service(self) -> ArtifactStorageService:
+        return ArtifactStorageService(default_object_storage())
+
     def _get_terraform_target_service(
         self,
         tool_service: ToolOrchestrationService,
@@ -223,32 +228,30 @@ class ApplicationFactory:
         self,
         session_service: SessionService,
         second_llm_service: LLMOrchestrationService,
-        tool_svc: ToolOrchestrationService,
+        tool_service: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
     ):
         return FilterRequestService(
             session_service=session_service,
             second_llm_service=second_llm_service,
-            tool_service=tool_svc,
+            tool_service=tool_service,
             template_service=template_service,
         )
 
-    def _get_payload_generation_service(
+    def _get_report_service(
         self,
-        session_service: SessionService,
         second_llm_service: LLMOrchestrationService,
-        tool_svc: ToolOrchestrationService,
+        tool_service: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
-        filesystem_utils: FileSystemUtils,
-        git_utils: GitUtils,
-    ) -> GeneratePayloadService:
-        return GeneratePayloadService(
-            session_service=session_service,
+        session_service: SessionService,
+        artifact_service: ArtifactStorageService,
+    ) -> ReportService:
+        return ReportService(
             second_llm_service=second_llm_service,
-            tool_service=tool_svc,
+            tool_service=tool_service,
             template_service=template_service,
-            git_utils=git_utils,
-            filesystem=filesystem_utils,
+            session_service=session_service,
+            artifact_service=artifact_service,
         )
 
     def _get_drift_service(
@@ -256,11 +259,14 @@ class ApplicationFactory:
         validation_service: TerraformValidationService,
         validator_provider: ITerraformValidator,
         split_service: TaskSplitService,
+        artifact_service: ArtifactStorageService,
     ) -> TerraformDriftService:
         return TerraformDriftService(
+            session_context=self.__ctx,
             validation_service=validation_service,
             validator_provider=validator_provider,
             split_service=split_service,
+            artifact_service=artifact_service,
         )
 
     # --- Providers for Top-Level Use Cases ---
@@ -279,12 +285,16 @@ class ApplicationFactory:
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()
+        artifact_svc = self._get_artifact_storage_service()
         git_utils = self._get_git_utils(file_utils.project_root)
         tool_svc = self._get_tool_service(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
+        report_svc = self._get_report_service(
+            llm_svc, tool_svc, template_svc, session_svc, artifact_svc
+        )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_validator_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
@@ -297,21 +307,26 @@ class ApplicationFactory:
             validator_provider=validator_prv,
         )
         filter_svc = self._get_filter_request_service(
-            session_svc, llm_svc, tool_svc, template_svc
-        )
-        payload_svc = self._get_payload_generation_service(
-            session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
-        )
-        drift_svc = self._get_drift_service(validation_svc, validator_prv, split_svc)
-        return TerraformCRUDHandler(
-            validation_service=validation_svc,
             session_service=session_svc,
+            second_llm_service=llm_svc,
+            tool_service=tool_svc,
             template_service=template_svc,
-            payload_svc=payload_svc,
-            filter_request_service=filter_svc,
-            target_svc=target_svc,
-            drift_svc=drift_svc,
+        )
+        drift_svc = self._get_drift_service(
+            validation_service=validation_svc,
+            validator_provider=validator_prv,
+            split_service=split_svc,
+            artifact_service=artifact_svc,
+        )
+        return TerraformCRUDHandler(
             session_ctx=self.__ctx,
+            session_service=session_svc,
+            validation_service=validation_svc,
+            template_service=template_svc,
+            filter_request_service=filter_svc,
+            report_service=report_svc,
+            target_service=target_svc,
+            drift_service=drift_svc,
         )
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
@@ -336,15 +351,11 @@ class ApplicationFactory:
         filter_svc = self._get_filter_request_service(
             session_svc, llm_svc, tool_svc, template_svc
         )
-        payload_svc = self._get_payload_generation_service(
-            session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
-        )
         drift_svc = self._get_drift_service(validation_svc, validator_prv, split_svc)
         return TerraformDriftHandler(
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            payload_svc=payload_svc,
             filter_request_service=filter_svc,
             validator_provider=validator_prv,
             tool_service=tool_svc,
@@ -361,9 +372,6 @@ class ApplicationFactory:
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
-        payload_svc = self._get_payload_generation_service(
-            session_svc, llm_svc, tool_svc, template_svc, file_utils, git_utils
-        )
         # OSS reference has no apply impl; the route remains so the API
         # surface is stable but always errors with a clear message. Provide
         # your own IApplyInfrastructure to enable apply.
@@ -372,6 +380,5 @@ class ApplicationFactory:
             apply_service=apply_svc,
             session_service=session_svc,
             template_service=template_svc,
-            payload_svc=payload_svc,
             session_ctx=self.__ctx,
         )

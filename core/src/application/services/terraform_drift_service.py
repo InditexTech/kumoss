@@ -65,8 +65,9 @@ class TerraformDriftService:
             for idx, group_ops in enumerate(operations):
                 logging.debug(f"Operation {idx + 1}/{len(operations)}: {group_ops}")
                 _ = await self.__validation_svc.generate_and_validate(
-                    query=str(group_ops),
-                    ctx=self.__ctx,
+                    q=str(group_ops),
+                    history=self.__ctx.history,
+                    branch_name=self.__ctx.branch_name,
                     include_forbidden_actions=False,
                 )
         if validation:

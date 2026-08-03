@@ -256,6 +256,9 @@ class TerraformApplyReport(BaseModel):
     recommendations: list[str]
 
 
+Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
+
+
 @dataclass
 class TerraformPlanResource:
     type: str  # tf resource type

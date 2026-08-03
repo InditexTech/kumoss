@@ -79,7 +79,7 @@ from src.shared.constants import (
 # concurrent work, so it is always read fresh from the session row.
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
-# status is terminal (COMPLETED / UNCOMPLETED / FAILED) it can never change again —
+# status is terminal (COMPLETED / FAILED) it can never change again —
 # ``acquire_in_flight`` enforces this — so the full detail aggregate is
 # cached and the last-status key gets a long TTL. The only mutation still
 # possible on a finished session is the admin ``set_lock`` toggle, which
@@ -169,6 +169,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
     return {
         "id": str(ctx.id),
         "user_id": ctx.user_id,
+        "round_id": ctx.round_id,
         "repo_uri": ctx.repo_uri,
         "scope_id": ctx.scope_id,
         "terraform_prv": ctx.terraform_prv.value,
@@ -182,6 +183,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
     return SessionContext(
         id=UUID(data["id"]),
         user_id=data["user_id"],
+        round_id=data["round_id"],
         repo_uri=data["repo_uri"],
         scope_id=data["scope_id"],
         terraform_prv=TerraformProvider(data["terraform_prv"]),
@@ -337,13 +339,20 @@ class DatabaseService:
 
     @staticmethod
     async def __create_status(
-        session_id: UUID, status: SessionStatus, msg: str, round_id: int
+        session_id: UUID, status: SessionStatus, msg: str, round_id: int | None = None
     ) -> DbStatus:
         sid = await DatabaseService.__map_session_id(session_id)
         if sid is None:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
+            )
+        if not round_id:
+            round_id = await DatabaseService.__latest_round_id(sid)
+        if not round_id:
+            raise SessionConflict(
+                message=f"Session {session_id} has no rounds; cannot record a status.",
+                error_code=409,
             )
         return await db.create(
             DbStatus,
@@ -401,8 +410,6 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
-        # Every session opens with round 1: statuses and pull requests
-        # reference a round (NOT NULL), so one must exist from the start.
         _ = await db.create(
             Round,
             session_id=session.id,
@@ -437,11 +444,12 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username, workspace, provider, payload = await asyncio.gather(
+            username, workspace, provider, payload, round_id = await asyncio.gather(
                 DatabaseService.__map_user_name(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
                 DatabaseService.__history_payload(session_id),
+                DatabaseService.__latest_round_id(session.id),
             )
             if username is None:
                 raise SessionTerminal(
@@ -458,9 +466,15 @@ class DatabaseService:
                     message=f"Session {session_id} does not have an associated cloud provider",
                     error_code=404,
                 )
+            if round_id is None:
+                raise SessionConflict(
+                    message=f"Session {session_id} does not have an associated round.",
+                    error_code=404,
+                )
             ctx = SessionContext(
                 id=session.uuid,
                 user_id=username,
+                round_id=round_id,
                 repo_uri=workspace.uri,
                 scope_id=provider.scope_id,
                 terraform_prv=provider.provider,
@@ -818,8 +832,7 @@ class DatabaseService:
         """Compare-and-set the in-flight lock, refusing finished sessions.
 
         One atomic UPDATE is both the CAS (``in_flight`` must be false) and
-        the terminal guard (latest status must not be COMPLETED/
-        UNCOMPLETED/FAILED), so
+        the terminal guard (latest status must not be COMPLETED/FAILED), so
         two runners can never both win the lock and a finished session can
         never be resumed — which is what makes finished sessions safe to
         cache aggressively.
@@ -883,7 +896,7 @@ class DatabaseService:
         session_id: UUID,
         status: SessionStatus,
         msg: str,
-        round_id: int,
+        round_id: int | None = None,
     ) -> None:
         """Append a status row; attaches to the session's latest round
         unless ``round_id`` targets a specific one."""
