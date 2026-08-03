@@ -32,12 +32,12 @@ class LLMProvider(Enum):
         "phoenix_id": "claude-4-sonnet-20250514",
     }
     SONNET_VERTEX = {
-        "model_id": "claude-sonnet-4-6",
+        "model_id": "claude-sonnet-4-5",
         "max_input_tokens": 1_000_000,
         "max_output_tokens": 64_000,
         "provider": "anthropicVertex",
         "region": "us-east5",
-        "phoenix_id": "claude-sonnet-4-6",
+        "phoenix_id": "claude-sonnet-4-5",
     }
     OPUS_BEDROCK = {
         "model_id": "anthropic.claude-3-opus-20240229-v1:0",
@@ -73,22 +73,6 @@ class LLMProvider(Enum):
         "max_output_tokens": 65_535,
         "provider": "google",
         "phoenix_id": "gemini-2.5-flash-lite",
-    }
-
-
-@unique
-class Embeddings(Enum):
-    """(DEPRECATED) All supported embedding models and providers"""
-
-    OPENAI_LARGE_3 = {
-        "model": "text-embedding-3-large",
-        "output_dimension": 3_072,
-        "provider": "openai",
-    }
-    OPENAI_SMALL_3 = {
-        "model": "text-embedding-3-small",
-        "output_dimension": 1_536,
-        "provider": "openai",
     }
 
 

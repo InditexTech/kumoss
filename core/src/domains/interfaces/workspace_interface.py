@@ -23,9 +23,7 @@ class IWorkspace(ABC):
     @abstractmethod
     async def setup_call_dir(
         self,
-        *,
         session_id: UUID,
-        call_id: UUID,
         repo_uri: str,
         branch: str | None,
     ) -> Path:

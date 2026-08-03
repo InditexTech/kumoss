@@ -10,11 +10,11 @@ from typing import Any, Self, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="ValidateResponse400")
+T = TypeVar("T", bound="ApplyResponse400")
 
 
 @_attrs_define
-class ValidateResponse400:
+class ApplyResponse400:
     """ """
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -29,10 +29,10 @@ class ValidateResponse400:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        validate_response_400 = cls()
+        apply_response_400 = cls()
 
-        validate_response_400.additional_properties = d
-        return validate_response_400
+        apply_response_400.additional_properties = d
+        return apply_response_400
 
     @property
     def additional_keys(self) -> list[str]:

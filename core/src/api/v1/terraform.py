@@ -5,7 +5,6 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
@@ -57,7 +56,6 @@ def _make_runner(
     """
 
     async def runner():
-        call_id = uuid4()
         call_dir: Path | None = None
         try:
             await _orchestration.acquire(ctx.id)
@@ -70,7 +68,6 @@ def _make_runner(
         try:
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
-                call_id=call_id,
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
             )

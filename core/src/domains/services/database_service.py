@@ -422,8 +422,6 @@ class DatabaseService:
             query=query,
         )
 
-        # Write-through the write-once facts so the first read is a cache hit.
-        # All rows are committed above, so these values match the DB.
         await redis_client.set_json_many(
             [
                 (_k_sid(session_id), session.id, _ttl(_TTL_FACTS)),

@@ -11,11 +11,11 @@ from attrs import define as _attrs_define
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="ValidateRequest")
+T = TypeVar("T", bound="ApplyRequest")
 
 
 @_attrs_define
-class ValidateRequest:
+class ApplyRequest:
     """
     Attributes:
         workspace_path (str): Absolute filesystem path to the Terraform workspace as visible
@@ -27,25 +27,13 @@ class ValidateRequest:
             fallback when the credentials resolved for the workspace do
             not already carry a scope. Implementations MAY ignore it when
             the resolved credentials are fully specified.
-        branch (None | str | Unset): Informational: the branch name the workspace was checked out
-            from. Implementations MAY include it in logs / traces but the
-            actual validation operates on whatever is currently on disk
-            at `workspace_path`.
         targets (list[str] | Unset): Optional `terraform plan -target=` filters. When omitted or
-            empty, the entire configuration is planned.
-        get_drift (bool | Unset): When true and the plan succeeds, the implementation parses
-            the plan JSON and summarises any resource changes (drift) in
-            the `feedback` field of the job result, with `validation`
-            set to `false` if drift is non-empty. Useful for "is
-            anything different from what's deployed?" queries.
-             Default: False.
+            empty, the entire configuration is planned and applied.
     """
 
     workspace_path: str
     scope_id: None | str | Unset = UNSET
-    branch: None | str | Unset = UNSET
     targets: list[str] | Unset = UNSET
-    get_drift: bool | Unset = False
 
     def to_dict(self) -> dict[str, Any]:
         workspace_path = self.workspace_path
@@ -56,17 +44,9 @@ class ValidateRequest:
         else:
             scope_id = self.scope_id
 
-        branch: None | str | Unset
-        if isinstance(self.branch, Unset):
-            branch = UNSET
-        else:
-            branch = self.branch
-
         targets: list[str] | Unset = UNSET
         if not isinstance(self.targets, Unset):
             targets = self.targets
-
-        get_drift = self.get_drift
 
         field_dict: dict[str, Any] = {}
 
@@ -77,12 +57,8 @@ class ValidateRequest:
         )
         if scope_id is not UNSET:
             field_dict["scope_id"] = scope_id
-        if branch is not UNSET:
-            field_dict["branch"] = branch
         if targets is not UNSET:
             field_dict["targets"] = targets
-        if get_drift is not UNSET:
-            field_dict["get_drift"] = get_drift
 
         return field_dict
 
@@ -100,25 +76,12 @@ class ValidateRequest:
 
         scope_id = _parse_scope_id(d.pop("scope_id", UNSET))
 
-        def _parse_branch(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        branch = _parse_branch(d.pop("branch", UNSET))
-
         targets = cast(list[str], d.pop("targets", UNSET))
 
-        get_drift = d.pop("get_drift", UNSET)
-
-        validate_request = cls(
+        apply_request = cls(
             workspace_path=workspace_path,
             scope_id=scope_id,
-            branch=branch,
             targets=targets,
-            get_drift=get_drift,
         )
 
-        return validate_request
+        return apply_request

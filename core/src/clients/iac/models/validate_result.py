@@ -5,16 +5,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
 
-T = TypeVar("T", bound="ValidateResponse")
+T = TypeVar("T", bound="ValidateResult")
 
 
 @_attrs_define
-class ValidateResponse:
-    """
+class ValidateResult:
+    """Result of a `validate` job.
+
     Attributes:
         validation (bool): True if `terraform init`, `terraform validate`, and
             `terraform plan` (when run) all succeeded AND, when
@@ -55,7 +56,7 @@ class ValidateResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
         validation = d.pop("validation")
 
@@ -65,11 +66,11 @@ class ValidateResponse:
 
         terraform_targets = cast(list[str], d.pop("terraform_targets"))
 
-        validate_response = cls(
+        validate_result = cls(
             validation=validation,
             feedback=feedback,
             terraform_plan=terraform_plan,
             terraform_targets=terraform_targets,
         )
 
-        return validate_response
+        return validate_result
