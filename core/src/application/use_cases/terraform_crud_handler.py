@@ -6,7 +6,7 @@ from collections.abc import Coroutine
 from typing import Callable, Any
 
 from src.application.services.filter_request_service import FilterRequestService
-from src.application.services.generate_payload_service import GeneratePayloadService
+from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.entities.session import SessionContext
 from src.domains.services import (
@@ -17,9 +17,8 @@ from src.domains.services import (
     TerraformTargetService,
 )
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import SessionStatus
+from src.shared.constants import ReportType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
-from src.shared.logger import logging
 
 
 class TerraformCRUDHandler:
@@ -29,7 +28,7 @@ class TerraformCRUDHandler:
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         filter_request_service: FilterRequestService,
-        payload_svc: GeneratePayloadService,
+        report_svc: ReportService,
         target_svc: TerraformTargetService,
         drift_svc: TerraformDriftService,
         session_ctx: SessionContext,
@@ -37,7 +36,7 @@ class TerraformCRUDHandler:
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__payload_svc = payload_svc
+        self.__report_svc = report_svc
         self.__filter_request_svc = filter_request_service
         self.__target_svc = target_svc
         self.__drift_svc = drift_svc
@@ -45,7 +44,7 @@ class TerraformCRUDHandler:
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
-        # hist = ctx.history.deepcopy()
+        local_hist = ctx.history.deepcopy()
 
         async def background_task():
 
@@ -59,37 +58,33 @@ class TerraformCRUDHandler:
                 )
             )
             try:
-                ok, explanation = await self.__filter_request_svc.filter(q, ctx.history)
+                await self.__session_svc.next_round_id(q)
+
+                ok, explanation = await self.__filter_request_svc.filter(q, local_hist)
                 if not ok:
                     ctx.history.append_turn(q, explanation)
+                    await self.__session_svc.update_status(
+                        msg=explanation,
+                        status=SessionStatus.UNCOMPLETED,
+                    )
                     return
 
                 predictive_targets = await self.__target_svc.generate_predictive(
                     query=q, history=ctx.history, include_forbidden_actions=True
                 )
                 if predictive_targets:
-                    drift_result = await self.__drift_svc.detect_and_resolve_drift(
-                        branch=ctx.branch_name,
+                    _ = await self.__drift_svc.detect_and_resolve_drift(
                         targets=predictive_targets,
-                        history=ctx.history,
                         max_iterations=2,
                     )
-                    if drift_result.validation:
-                        logging.warning(
-                            "Drift pre-check completed, resources are synchronized"
-                        )
-                    else:
-                        logging.warning("Drift resolution completed but issues remain")
 
-                validation_result = await self.__validation_svc.generate_and_validate(
+                _ = await self.__validation_svc.generate_and_validate(
                     query=q, ctx=ctx, include_forbidden_actions=True
                 )
-                await self.__payload_svc.generate(
-                    response="",
-                    command="TODO",
-                    history=ctx.history,
-                    branch=ctx.branch_name,
-                    validation=validation_result,
+                _ = await self.__report_svc.generate_report(
+                    type=ReportType.GENERATE,
+                    query=q,
+                    history=local_hist,
                 )
             except ExceptionHandler as e:
                 await self.__session_svc.update_status(
@@ -100,4 +95,3 @@ class TerraformCRUDHandler:
                 TracerService.reset_current_tracer(tracer_token)
 
         return background_task
-

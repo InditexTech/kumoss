@@ -88,7 +88,7 @@ from src.shared.constants import (
 # Keys are namespaced and versioned so a schema change can drop everything
 # by bumping the prefix.
 
-_CACHE_NS = "nebula:v2"
+_CACHE_NS = "nebula:v1"
 
 _TTL_FACTS = 4 * 24 * 60 * 60  # write-once facts; immutable, safe to keep long
 _TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; written through on save
@@ -103,9 +103,7 @@ _TTL_DETAIL = 24 * 60 * 60
 # Session-level end states. Once a session's latest status is terminal it
 # never changes again (enforced by acquire_in_flight), so anything derived
 # from it is safe to cache aggressively.
-_TERMINAL = frozenset(
-    {SessionStatus.COMPLETED, SessionStatus.UNCOMPLETED, SessionStatus.FAILED}
-)
+_TERMINAL = frozenset({SessionStatus.COMPLETED, SessionStatus.FAILED})
 
 
 def _ttl(base: int) -> int:
@@ -339,23 +337,13 @@ class DatabaseService:
 
     @staticmethod
     async def __create_status(
-        session_id: UUID, status: SessionStatus, msg: str, round_id: int | None = None
+        session_id: UUID, status: SessionStatus, msg: str, round_id: int
     ) -> DbStatus:
         sid = await DatabaseService.__map_session_id(session_id)
         if sid is None:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
-            )
-        # round_id is NOT NULL: statuses always belong to a round. Callers
-        # that don't target a specific round attach to the latest one
-        # (every session has round 1 from create_session).
-        if round_id is None:
-            round_id = await DatabaseService.__latest_round_id(sid)
-        if round_id is None:
-            raise SessionConflict(
-                message=f"Session {session_id} has no rounds; cannot record a status.",
-                error_code=409,
             )
         return await db.create(
             DbStatus,
@@ -779,7 +767,7 @@ class DatabaseService:
         return detail
 
     @staticmethod
-    async def update_session(ctx: SessionContext) -> None:
+    async def update_history(ctx: SessionContext) -> None:
         sid = await DatabaseService.__map_session_id(ctx.id)
         if sid is None:
             raise SessionConflict(
@@ -895,7 +883,7 @@ class DatabaseService:
         session_id: UUID,
         status: SessionStatus,
         msg: str,
-        round_id: int | None = None,
+        round_id: int,
     ) -> None:
         """Append a status row; attaches to the session's latest round
         unless ``round_id`` targets a specific one."""
@@ -1100,4 +1088,3 @@ class DatabaseService:
             _k_pull_requests(session_id), prs, ttl=_ttl(_TTL_PR)
         )
         _ = await redis_client.invalidate(_k_detail(session_id))
-

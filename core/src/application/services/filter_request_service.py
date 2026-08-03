@@ -26,19 +26,19 @@ class FilterRequestService:
         self.__template_svc = template_service
         self.__session_svc = session_service
 
-    async def filter(self, request: str, history: History) -> tuple[bool, str]:
+    async def filter(self, q: str, history: History) -> tuple[bool, str]:
         await self.__session_svc.update_status(
-            msg=request,
+            msg=q,
             prompt=await self.__template_svc.render(PromptsLibrary.TASK_ACKNOWLEDGE),
             status=SessionStatus.FILTERING,
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
-            query=request,
+            query=q,
             tools=self.__tool_svc.get_available_tools([ToolContext.DOMAIN_FILTERING]),
             prompt=await self.__template_svc.render(PromptsLibrary.DOMAIN_FILTER),
             history=history,
         )
         rationale: str = cast(str, response.result["explanation"])
-        history.append_turn(request, rationale)
+        history.append_turn(q, rationale)
 
         return response.result["status"], rationale

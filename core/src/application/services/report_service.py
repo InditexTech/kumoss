@@ -16,8 +16,10 @@ from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.shared.constants import ReportType, SessionStatus, ToolContext, PromptsLibrary
 
+_Report = TerraformPlanReport | TerraformDriftReport | TerraformApplyReport
 
-class GenerateReportService:
+
+class ReportService:
     def __init__(
         self,
         second_llm_service: LLMOrchestrationService,
@@ -30,12 +32,12 @@ class GenerateReportService:
         self.__template_svc = template_service
         self.__session_svc = session_service
 
-    async def generate(
+    async def generate_report(
         self,
+        report_type: ReportType,
         query: str,
         history: History,
-        report_type: ReportType,
-    ) -> TerraformPlanReport | TerraformDriftReport | TerraformApplyReport:
+    ) -> _Report:
         tool_index = {
             ReportType.GENERATE: 0,
             ReportType.DRIFT: 1,

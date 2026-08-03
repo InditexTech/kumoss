@@ -25,6 +25,7 @@ class SessionContext:
     ):
         self.__id = id
         self.__user_id = user_id
+        self.__round_id: int = 0
         self.__repo_uri = repo_uri
         self.__scope_id = scope_id
         self.__terraform_prv = terraform_prv
@@ -43,6 +44,13 @@ class SessionContext:
     @property
     def user_id(self) -> str:
         return self.__user_id
+
+    @property
+    def round_id(self) -> int:
+        return self.__round_id
+
+    def next_round(self) -> None:
+        self.__round_id += 1
 
     @property
     def repo_uri(self) -> str:
@@ -78,4 +86,4 @@ class SessionContext:
 
     @override
     def __str__(self) -> str:
-        return f"session: {self.__id}"
+        return f"session: {self.__id}"

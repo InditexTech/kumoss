@@ -101,20 +101,6 @@ class OperationType(Enum):
 
 
 @unique
-class TracerProject(Enum):
-    """Defines all possible tracer projects.
-    Note: a project in Phoenix is defined as a group of traces
-    """
-
-    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
-    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
-    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
-    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
-    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
-    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
-
-
-@unique
 class SessionStatus(Enum):
     """All possible Session states"""
 
@@ -178,3 +164,25 @@ class ObjectStorageProvider(Enum):
     RUSTFS = "rustfs"
     S3 = "s3"
     STORAGE_ACCOUNT = "storage_account"
+
+
+@unique
+class TracerProject(Enum):
+    """Defines all possible tracer projects.
+    Note: a project in Phoenix is defined as a group of traces
+    """
+
+    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
+    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
+    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
+    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
+    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
+    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
+
+
+@unique
+class ContentType(Enum):
+    """Defines all possible content types for artifact updload"""
+
+    TEXT = "text/plain"
+    JSON = "application/json"

@@ -280,7 +280,7 @@ class TestInFlightEnforcement(_SessionBase):
 
 class TestFinishedSessionDetailCache(_SessionBase):
     def _detail_key(self) -> str:
-        return f"nebula:v2:session:{self.sid}:detail"
+        return f"nebula:v1:session:{self.sid}:detail"
 
     async def test_live_session_detail_is_never_cached(self):
         await DatabaseService.mark_session_status(
@@ -317,7 +317,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "working"
         )
-        status_key = f"nebula:v2:session:{self.sid}:status:last"
+        status_key = f"nebula:v1:session:{self.sid}:status:last"
         live_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertLessEqual(live_ttl, 6 * 60)
 
@@ -327,7 +327,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
 
     async def test_uncompleted_is_terminal_for_the_cache(self):
         await DatabaseService.mark_uncompleted(self.sid, "gave up")
-        status_key = f"nebula:v2:session:{self.sid}:status:last"
+        status_key = f"nebula:v1:session:{self.sid}:status:last"
         terminal_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertGreater(terminal_ttl, 24 * 60 * 60)
 
