@@ -10,6 +10,7 @@ from typing import Any
 
 import litellm
 from litellm.types.utils import ModelResponse, Choices, Message, Usage
+from litellm.exceptions import APIError, RateLimitError
 
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.dto import (
@@ -27,7 +28,6 @@ from src.infrastructure.exceptions import (
     InferenceCallThinkingToolError,
     InferenceCallWebSearchTools,
 )
-from src.shared.constants import LLMProvider
 from src.shared.logger import logging
 
 litellm.drop_params = True
@@ -36,8 +36,9 @@ litellm.drop_params = True
 class LiteLLMAdapter(ILLMProvider):
     def __init__(
         self,
-        model: LLMProvider,
+        model: str,
         temperature: float,
+        max_tokens: int,
         provider_kwargs: dict[str, Any] = None,
     ) -> None:
         """LiteLLM-based LLM adapter for unified multi-provider inference.
@@ -49,8 +50,9 @@ class LiteLLMAdapter(ILLMProvider):
         reason mapping are ready.
         """
         self.__model = model
-        self.__provider = model.value["model_id"].split("/")[0]
+        self.__provider = model.split("/")[0]
         self.__temperature = temperature
+        self.__max_tokens = max_tokens
         self.__provider_kwargs = provider_kwargs or {}
 
     @trace_llm
@@ -69,7 +71,7 @@ class LiteLLMAdapter(ILLMProvider):
                 error_code=400,
             )
         if web_search:
-            if not litellm.supports_web_search(self.__model.value["model_id"]):
+            if not litellm.supports_web_search(self.__model):
                 raise InferenceCallWebSearchNotSupported(
                     message="The model does not support web search, but web search was requested.",
                     error_code=400,
@@ -85,8 +87,8 @@ class LiteLLMAdapter(ILLMProvider):
                     error_code=400,
                 )
 
-        model_id = self.__model.value["model_id"]
-        max_tokens = self.__model.value["max_tokens"]
+        model_id = self.__model
+        max_tokens = self.__max_tokens
         local_history = self.__format_history(history, msg)
 
         if system_prompt:
@@ -99,16 +101,16 @@ class LiteLLMAdapter(ILLMProvider):
                         local_history, max_tokens
                     )
                     break
-                except litellm.RateLimitError as e:
+                except RateLimitError as e:
                     logging.error(f"LiteLLM aresponses rate limit error: {e.message}")
-                except litellm.APIError as e:
+                except APIError as e:
                     logging.error(f"LiteLLM aresponses API error: {e.message}")
 
                 logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
                 await asyncio.sleep(30)
             else:
                 raise InferenceCallAPIError(
-                    message=f"Inference calls (aresponses) to {self.__model.name} have been exhausted.",
+                    message=f"Inference calls (aresponses) to {self.__model} have been exhausted.",
                     error_code=502,
                 )
         else:
@@ -137,7 +139,7 @@ class LiteLLMAdapter(ILLMProvider):
             except litellm.APIError as e:
                 logging.error(f"LiteLLM API error: {e.message}")
                 raise InferenceCallAPIError(
-                    message=f"Inference call to {self.__model.name} failed: {e.message}",
+                    message=f"Inference call to {self.__model} failed: {e.message}",
                     error_code=getattr(e, "status_code", 502),
                 )
 
@@ -164,7 +166,7 @@ class LiteLLMAdapter(ILLMProvider):
 
     def __web_search_is_native(self) -> bool:
         """Check if the model supports native web search."""
-        model_id = self.__model.value["model_id"]
+        model_id = self.__model
         info = litellm.get_model_info(model_id)
         params = info.get("supported_openai_params") or []
         return "web_search_options" in params
@@ -175,7 +177,7 @@ class LiteLLMAdapter(ILLMProvider):
         """Use aresponses to perform web search with models that don't support native web search.
         Like gpt-5-mini, gpt-5, gpt-4o, gpt-4.1, ...
         """
-        model_id = self.__model.value["model_id"]
+        model_id = self.__model
 
         resp = await litellm.aresponses(
             model=model_id,

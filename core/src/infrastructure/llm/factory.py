@@ -4,30 +4,27 @@
 
 from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.shared.config import system_config
-from src.shared.constants import LLMProvider
 
 
 class LLMFactory:
     def __init__(
         self,
-        provider: LLMProvider,
+        model_id: str,
         temperature: float,
+        max_tokens: int,
     ):
-        self.__provider = provider
+        self.__model_id = model_id
         self.__temperature = temperature
+        self.__max_tokens = max_tokens
 
     def _get_provider_kwargs(self) -> dict:
-        model_id = self.__provider.value["model_id"]
-        provider_kwargs = system_config.llm.get_provider_credentials(model_id)
-        if region := self.__provider.value.get(
-            "region"
-        ):  # Prioritize region from LLMProvider enum if available
-            provider_kwargs["vertex_location"] = region
+        provider_kwargs = system_config.llm.get_provider_credentials(self.__model_id)
         return provider_kwargs
 
     def get(self):
         return LiteLLMAdapter(
-            model=self.__provider,
+            model=self.__model_id,
             temperature=self.__temperature,
+            max_tokens=self.__max_tokens,
             provider_kwargs=self._get_provider_kwargs(),
         )

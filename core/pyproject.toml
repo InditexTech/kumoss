@@ -35,4 +35,5 @@ dependencies = [
 dev = [
     "basedpyright>=1.39.9",
     "debugpy>=1.8.21",
+    "ipython>=9.16.1",
 ]

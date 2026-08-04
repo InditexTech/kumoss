@@ -31,21 +31,54 @@ oidc:
 admin:
   default_root_email: ""
 
-# LLM provider selection.
+# LLM model selection.
 #
-# `model` and `small_model` are LLMProvider enum names (see
-# core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
-# HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
-# the name to the full provider/model/region tuple at startup.
+# `model_id` and `small_model_id` use the LiteLLM "provider/model"
+# format. The provider prefix (before the "/") determines which
+# credentials are required — see LLMProvider in constants.py.
 #
 # The core fails fast at boot if the selected providers' credentials
 # (looked up from env vars) are missing.
+#
+# ── Anthropic (via Vertex AI) ──
+#   model_id: "vertex_ai/claude-sonnet-4-6"
+#   model_id: "vertex_ai/claude-haiku-4-5@20251001"
+#   model_id: "vertex_ai/claude-opus-4@20250514"
+#
+# ── Anthropic (via Bedrock) ──
+#   model_id: "bedrock/eu.anthropic.claude-sonnet-4-20250514-v1:0"
+#   model_id: "bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+#   model_id: "bedrock/eu.anthropic.claude-opus-4-20250514-v1:0"
+#
+# ── Anthropic (via Azure AI) ──
+#   model_id: "azure_ai/claude-sonnet-4-6"
+#   model_id: "azure_ai/claude-haiku-4-5"
+#   model_id: "azure_ai/claude-opus-4-1"
+#
+# ── Google Gemini (via Vertex AI) ──
+#   model_id: "vertex_ai/gemini-2.5-pro"
+#   model_id: "vertex_ai/gemini-3-flash-preview"
+#   model_id: "vertex_ai/gemini-2.5-flash-lite"
+#
+# ── Google Gemini (via Gemini API) ──
+#   model_id: "gemini/gemini-2.5-pro"
+#   model_id: "gemini/gemini-3-flash-preview"
+#   model_id: "gemini/gemini-2.5-flash-lite"
+#
+# ── OpenAI ──
+#   model_id: "openai/gpt-5"
+#   model_id: "openai/gpt-5-mini"
+#
+# ── OpenAI (via Azure) ──
+#   model_id: "azure/<your_deployment_name>"
+#
 llm:
-  model: "SONNET_VERTEX"
-  small_model: "HAIKU_VERTEX"
+  model: "vertex_ai/claude-sonnet-4-6"
+  model_max_tokens: 64000
+  small_model: "vertex_ai/claude-haiku-4-5@20251001"
+  small_model_max_tokens: 64000
   temperature: 0.1
   small_model_temperature: 0.1
-  aws_region: "us-west-2"
 
 # Microservice wiring. `endpoint` is the base URL the core calls.
 # `token_env` is the name of the env var that holds the bearer token

@@ -27,7 +27,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, LLMProvider, ProviderPrefix
+from src.shared.constants import GitProviderName, ProviderPrefix
 
 
 class ConfigError(ValueError):
@@ -71,10 +71,12 @@ class LlmConfig(BaseModel):
     # core/src/shared/constants.py::LLMProvider). Examples: CLAUDE_SONNET,
     # CLAUDE_HAIKU, GEMINI_FLASH. The factory resolves
     # the name to the full provider/model/region tuple at startup.
-    model: LLMProvider = LLMProvider.CLAUDE_SONNET
-    small_model: LLMProvider = LLMProvider.CLAUDE_HAIKU
+    model: str = "vertex_ai/claude-sonnet-4-6"
+    small_model: str = "vertex_ai/claude-haiku-4-5@20251001"
     temperature: float = 0.1
     small_model_temperature: float = 0.1
+    model_max_tokens: int = 64000
+    small_model_max_tokens: int = 32000
 
     # Maps the model_id prefix to the env vars that hold the credentials for that provider.
     _PROVIDER_ENV: ClassVar[dict[str, dict[str, str]]] = {
@@ -107,16 +109,6 @@ class LlmConfig(BaseModel):
             "api_base": "AZURE_AI_API_BASE",
         },
     }
-
-    @field_validator("model", "small_model", mode="before")
-    @classmethod
-    def _coerce_model(cls, v: str | LLMProvider):
-        if isinstance(v, str):
-            try:
-                return LLMProvider[v]
-            except KeyError:
-                return LLMProvider(v)
-        return v
 
     def get_provider_credentials(self, model_id: str) -> dict[str, str]:
         prefix = model_id.split("/")[0]
@@ -292,7 +284,7 @@ class SystemConfig(BaseModel):
         """
         missing: list[str] = []
         for field in ("model", "small_model"):
-            model_id = getattr(self.llm, field).value["model_id"]
+            model_id = getattr(self.llm, field)
             prefix = model_id.split("/")[0]
             env_map = self.llm._PROVIDER_ENV.get(prefix, {})
 
