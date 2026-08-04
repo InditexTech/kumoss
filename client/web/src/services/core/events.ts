@@ -97,7 +97,8 @@ export function subscribeToSession(
           }
         }
 
-        return;
+        if (controller.signal.aborted) return;
+        throw new Error("SSE stream closed");
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         if (attempt < SSE_MAX_RETRIES) continue;
