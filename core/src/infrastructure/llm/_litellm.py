@@ -136,7 +136,7 @@ class LiteLLMAdapter(ILLMProvider):
 
             try:
                 response = await litellm.acompletion(**kwargs)
-            except litellm.APIError as e:
+            except APIError as e:
                 logging.error(f"LiteLLM API error: {e.message}")
                 raise InferenceCallAPIError(
                     message=f"Inference call to {self.__model} failed: {e.message}",
