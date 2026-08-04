@@ -10,10 +10,11 @@ from src.domains.services import SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
+from src.domains.value_objects import Conventions
 from src.shared.constants import ToolContext, PromptsLibrary
 
 
-class FilterRequestService:
+class RequestsFilterService:
     def __init__(
         self,
         second_llm_service: LLMOrchestrationService,
@@ -26,11 +27,23 @@ class FilterRequestService:
         self.__template_svc = template_service
         self.__session_svc = session_service
 
-    async def filter(self, q: str, history: History) -> tuple[bool, str]:
+    async def filter(
+        self, q: str, history: History, conventions: Conventions
+    ) -> tuple[bool, str]:
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
-            tools=self.__tool_svc.get_available_tools([ToolContext.DOMAIN_FILTERING]),
-            prompt=await self.__template_svc.render(PromptsLibrary.DOMAIN_FILTER),
+            tools=self.__tool_svc.get_available_tools(
+                [ToolContext.WORKSPACE_INSPECTION]
+            ),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                context=ToolContext.REQUESTS_FILTER
+            ),
+            prompt=await self.__template_svc.render(
+                prompt=PromptsLibrary.REQUESTS_FILTER,
+                resources=conventions.templates,
+                abbreviations=conventions.abbreviations,
+                include_forbidden_actions=True,
+            ),
             history=history,
         )
         rationale: str = cast(str, response.result["explanation"])

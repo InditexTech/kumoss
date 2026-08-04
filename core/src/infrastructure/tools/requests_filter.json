@@ -1,0 +1,20 @@
+[
+  {
+    "name": "requests_filter",
+    "description": "Reports whether the user's request is within the domain of Infrastructure as Code (IaC) generation using Terraform and can be fulfilled with the information provided and the current workspace state. This tool must be called as the final action, after inspecting the workspace, before attempting to construct any infrastructure information or proceeding with IaC generation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "boolean",
+          "description": "True if the user's request is directly related to generating, defining, or managing cloud infrastructure using Terraform AND can be fulfilled with the information provided and the current workspace state. False if the request is a general question, is outside the scope of IaC generation, violates a restriction, or lacks the information required to act."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "A concise sentence explaining why the user's request is or is not considered relevant and fulfillable. When the request cannot be fulfilled, state exactly what is out of scope or what information is missing."
+        }
+      },
+      "required": ["status", "explanation"]
+    }
+  }
+]

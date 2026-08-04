@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Criteria for assessing whether a user request is in scope and fulfillable.
+body: |
+  # Request Assessment Guidelines
+
+  Apply these criteria when deciding whether a request can be fulfilled.
+
+  ## In scope
+  - Creating, modifying, or deleting cloud infrastructure managed with
+    Terraform.
+  - Questions that resolve directly into such changes.
+
+  ## Fulfillable
+  - The request names (or unambiguously implies) the resources involved.
+  - Resources referenced as existing are actually present in the workspace.
+  - Required parameters are provided or derivable from workspace conventions.
+  - The change does not violate any prohibited action.
+
+  ## Not fulfillable — reject and explain what is missing
+  - References to resources, files, or environments absent from the
+    workspace.
+  - Requests too vague to map to concrete resources or parameters.
+  - Requests that require information only the user can supply.
+
+  Replace this body with your organization's authoritative request-triage
+  criteria. These defaults are deliberately generic.

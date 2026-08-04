@@ -32,7 +32,7 @@ class TemplateOrchestrationService:
     def __register_renderers(self):
         self.__template_renderers = {
             # core
-            "domain_filter": self.__templates.render_domain_filter,
+            "requests_filter": self.__templates.render_requests_filter,
             "task_splitter": self.__templates.render_task_splitter,
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,

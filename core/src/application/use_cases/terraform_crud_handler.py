@@ -6,7 +6,7 @@ from collections.abc import Coroutine
 from typing import Callable, Any
 
 from src.application.exceptions import TerraformValidationFailedError
-from src.application.services.filter_request_service import FilterRequestService
+from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.entities.session import SessionContext
@@ -29,7 +29,7 @@ class TerraformCRUDHandler:
         session_service: SessionService,
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
-        filter_request_service: FilterRequestService,
+        requests_filter_service: RequestsFilterService,
         report_service: ReportService,
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
@@ -38,7 +38,7 @@ class TerraformCRUDHandler:
         self.__session_svc = session_service
         self.__template_svc = template_service
         self.__report_svc = report_service
-        self.__filter_request_svc = filter_request_service
+        self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
         self.__ctx = session_ctx
@@ -67,12 +67,11 @@ class TerraformCRUDHandler:
                     ),
                     status=SessionStatus.FILTERING,
                 )
-                conventions = await self.__template_svc.compose_template(
-                    query=q,
-                    history=ctx.history,
-                )
+                conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                ok, rationale = await self.__filter_request_svc.filter(q, ctx.history)
+                ok, rationale = await self.__requests_filter_svc.filter(
+                    q, ctx.history, conventions
+                )
                 if not ok:
                     _ = await self.__session_svc.update_status(
                         msg=rationale,

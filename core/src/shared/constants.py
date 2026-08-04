@@ -119,7 +119,7 @@ class PromptsLibrary(Enum):
     """Defines all possible base template prompts"""
 
     # core
-    DOMAIN_FILTER = "domain_filter"
+    REQUESTS_FILTER = "requests_filter"
     TASK_SPLITTER = "task_splitter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
@@ -136,7 +136,7 @@ class PromptsLibrary(Enum):
 class ToolContext(Enum):
     """Defines different contexts where tools can be used"""
 
-    DOMAIN_FILTERING = "domain_filtering"
+    REQUESTS_FILTER = "requests_filter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"

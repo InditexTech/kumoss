@@ -38,7 +38,7 @@ from src.infrastructure.validators.factory import ValidatorFactory
 
 # Application layer imports
 from src.application.services import (
-    FilterRequestService,
+    RequestsFilterService,
     TerraformDriftService,
     PullRequestService,
     ReportService,
@@ -224,14 +224,14 @@ class ApplicationFactory:
             llm_service=llm_svc,
         )
 
-    def _get_filter_request_service(
+    def _get_requests_filter_service(
         self,
         session_service: SessionService,
         second_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
     ):
-        return FilterRequestService(
+        return RequestsFilterService(
             session_service=session_service,
             second_llm_service=second_llm_service,
             tool_service=tool_service,
@@ -306,7 +306,7 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        filter_svc = self._get_filter_request_service(
+        filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
             second_llm_service=llm_svc,
             tool_service=tool_svc,
@@ -323,7 +323,7 @@ class ApplicationFactory:
             session_service=session_svc,
             validation_service=validation_svc,
             template_service=template_svc,
-            filter_request_service=filter_svc,
+            requests_filter_service=filter_svc,
             report_service=report_svc,
             target_service=target_svc,
             drift_service=drift_svc,
@@ -348,7 +348,7 @@ class ApplicationFactory:
             target_service=target_svc,
             validator_provider=validator_prv,
         )
-        filter_svc = self._get_filter_request_service(
+        filter_svc = self._get_requests_filter_service(
             session_svc, llm_svc, tool_svc, template_svc
         )
         drift_svc = self._get_drift_service(validation_svc, validator_prv, split_svc)
@@ -356,7 +356,7 @@ class ApplicationFactory:
             validation_service=validation_svc,
             session_service=session_svc,
             template_service=template_svc,
-            filter_request_service=filter_svc,
+            requests_filter_service=filter_svc,
             validator_provider=validator_prv,
             tool_service=tool_svc,
             target_service=target_svc,

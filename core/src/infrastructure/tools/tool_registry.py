@@ -48,7 +48,7 @@ class ToolRegistry(IToolRegistry):
         tool_files = {
             "file_manipulation.json": ToolContext.FILE_OPERATIONS,
             "workspace_inspection.json": ToolContext.WORKSPACE_INSPECTION,
-            "domain_filter.json": ToolContext.DOMAIN_FILTERING,
+            "requests_filter.json": ToolContext.REQUESTS_FILTER,
             "task_splitter.json": ToolContext.TASK_SPLITTER,
             "prompt_compositor.json": ToolContext.PROMPT_COMPOSITOR,
             "target_generator.json": ToolContext.TARGET_GENERATOR,
@@ -96,7 +96,7 @@ class ToolRegistry(IToolRegistry):
             "generate_terraform_drift_report": self.__handle_report_drift_generator,
             "generate_terraform_apply_report": self.__handle_report_apply_generator,
             # Domain tools
-            "check_domain_relevance": self.__handle_domain_relevance,
+            "requests_filter": self.__handle_requests_filter,
             "construct_information": self.__handle_construct_information,
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
@@ -279,7 +279,7 @@ class ToolRegistry(IToolRegistry):
         explanation = parameters.get("explanation", "")
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
-                message=f"Target generation inference hasn't return expected structure. got={targets}",
+                message=f"Target generation inference hasn't return the expected structure. got={targets}",
                 error_code=500,
             )
         return {
@@ -329,14 +329,14 @@ class ToolRegistry(IToolRegistry):
             recommendations=recommendations,
         )
 
-    def __handle_domain_relevance(
+    def __handle_requests_filter(
         self, parameters: dict[str, Any]
     ) -> dict[str, bool | str]:
         status = parameters["status"]
         explanation = parameters["explanation"]
         if not isinstance(status, bool):
             raise ToolInferenceParamsError(
-                message=f"Domain relevance inference hasn't return expected structure. got={status}",
+                message=f"Requests filter inference hasn't return the expected structure. got={status}",
                 error_code=500,
             )
         return {"status": status, "explanation": explanation}

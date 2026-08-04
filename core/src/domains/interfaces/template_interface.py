@@ -42,7 +42,12 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_domain_filter(self) -> str:
+    async def render_requests_filter(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+        include_forbidden_actions: bool,
+    ) -> str:
         pass
 
     @abstractmethod
