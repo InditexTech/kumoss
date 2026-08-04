@@ -13,8 +13,9 @@ from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.terraform_target_service import TerraformTargetService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
+from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import PromptsLibrary, SessionStatus, ToolContext
+from src.shared.constants import PromptsLibrary, ToolContext
 from src.shared.logger import logging
 
 
@@ -49,6 +50,7 @@ class TerraformValidationService:
         q: str,
         history: History,
         branch_name: str,
+        conventions: Conventions,
         include_forbidden_actions: bool,
     ) -> TerraformValidationDTO:
         """
@@ -70,10 +72,6 @@ class TerraformValidationService:
                 f"Validation service {self.__count}/{system_config.orchestration.max_validation_iteration}"
             )
 
-            templates, abbreviations = await self.__template_svc.compose_template(
-                query=q,
-                history=history,
-            )
             task_complete: ToolResultDTO = await self.__llm_svc.generate(
                 query=q,
                 tools=self.__tool_orchestration.get_available_tools(
@@ -88,20 +86,13 @@ class TerraformValidationService:
                 ),
                 prompt=await self.__template_svc.render(
                     prompt=PromptsLibrary.IAC_GENERATOR,
-                    resources=templates,
-                    abbreviations=abbreviations,
+                    resources=conventions.templates,
+                    abbreviations=conventions.abbreviations,
                     include_forbidden_actions=include_forbidden_actions,
                 ),
                 history=local_history,
             )
             local_history.append_turn(q, task_complete.result.get("summary"))
-
-            _ = await self.__session_svc.update_status(
-                msg=q,
-                prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
-                status=SessionStatus.GENERATING,
-                history=local_history,
-            )
 
             await self.__git.commit_and_push(branch_name)
 

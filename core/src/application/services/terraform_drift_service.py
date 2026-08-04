@@ -10,6 +10,7 @@ from src.domains.services import (
     TerraformValidationService,
     TaskSplitService,
 )
+from src.domains.value_objects import Conventions
 from src.shared.logger import logging
 
 
@@ -31,6 +32,7 @@ class TerraformDriftService:
     async def detect_and_resolve_drift(
         self,
         targets: list[str],
+        conventions: Conventions,
         max_iterations: int,
     ) -> TerraformValidationDTO:
         validation = TerraformValidationDTO.empty()
@@ -68,6 +70,7 @@ class TerraformDriftService:
                     q=str(group_ops),
                     history=self.__ctx.history,
                     branch_name=self.__ctx.branch_name,
+                    conventions=conventions,
                     include_forbidden_actions=False,
                 )
         if validation:

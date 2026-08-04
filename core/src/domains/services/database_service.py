@@ -27,7 +27,7 @@ from src.domains.dto import (
     WorkspaceRef,
 )
 from src.domains.entities import SessionContext
-from src.domains.value_objects import Lock, ProviderFacts, Status, WorkspaceFacts
+from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
@@ -74,9 +74,6 @@ from src.shared.constants import (
 #     cannot go stale that way. The TTL is only a backstop for a lost
 #     write-through SET (Redis briefly down), so volatile keys keep it
 #     short.
-#
-# Lock state (in_flight / is_blocked) is deliberately NOT cached: it gates
-# concurrent work, so it is always read fresh from the session row.
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
 # status is terminal (COMPLETED / FAILED) it can never change again —
@@ -811,21 +808,6 @@ class DatabaseService:
             ]
         )
         _ = await redis_client.invalidate(_k_detail(ctx.id))
-
-    @staticmethod
-    async def get_lock(session_id: UUID) -> Lock:
-        """A session's concurrency lock state, always read fresh.
-
-        Deliberately uncached: lock state gates concurrent work, so it must
-        reflect the row, not a possibly stale copy.
-        """
-        session: Session | None = await DatabaseService.__load_session(session_id)
-        if session is None:
-            raise SessionTerminal(
-                message=f"Session {session_id} not found.",
-                error_code=404,
-            )
-        return Lock(in_flight=session.in_flight, is_blocked=session.is_blocked)
 
     @staticmethod
     async def acquire_in_flight(session_id: UUID) -> None:

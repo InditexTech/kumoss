@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .status import Status
-from .lock import Lock
 from .workspace_facts import WorkspaceFacts
 from .provider_facts import ProviderFacts
+from .conventions import Conventions
 
 __all__ = [
     "Status",
-    "Lock",
     "WorkspaceFacts",
     "ProviderFacts",
+    "Conventions",
 ]

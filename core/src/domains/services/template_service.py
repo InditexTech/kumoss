@@ -11,6 +11,7 @@ from src.domains.exceptions import TemplateRendererNotFound, TemplateRendererArg
 from src.domains.interfaces.template_interface import ITemplate
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
+from src.domains.value_objects import Conventions
 from src.shared.constants import PromptsLibrary, ToolContext
 from src.shared.logger import logging
 
@@ -77,7 +78,7 @@ class TemplateOrchestrationService:
         self,
         query: str,
         history: History,
-    ) -> tuple[list[str], list[str]]:
+    ) -> Conventions:
         """
         Runs a two-pass prompt compositor chain and returns a tuple with a list of
         related_templates, and a list of related abbreviatnios based on the user query
@@ -129,4 +130,4 @@ class TemplateOrchestrationService:
             f"Prompt compositor merged abbreviations: {merged_abbreviations} "
         )
 
-        return (merged_templates, merged_abbreviations)
+        return Conventions(merged_templates, merged_abbreviations)

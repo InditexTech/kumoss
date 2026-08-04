@@ -66,7 +66,7 @@ class TerraformServiceValidator(ITerraformValidator):
         targets: list[str],
         get_drift: bool = False,
     ) -> TerraformValidationDTO:
-        await self.__session_svc.update_status(
+        _ = await self.__session_svc.update_status(
             msg="Waiting for infrastructure as code to be validated.",
             status=SessionStatus.VALIDATING,
         )

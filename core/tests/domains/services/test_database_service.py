@@ -225,22 +225,6 @@ class TestRounds(_SessionBase):
         )
 
 
-class TestLockStateIsFresh(_SessionBase):
-    async def test_lock_reads_track_writes(self):
-        lock = await DatabaseService.get_lock(self.sid)
-        self.assertFalse(lock.in_flight)
-        self.assertFalse(lock.is_blocked)
-
-        await DatabaseService.acquire_in_flight(self.sid)
-        self.assertTrue((await DatabaseService.get_lock(self.sid)).in_flight)
-
-        await DatabaseService.release_in_flight(self.sid)
-        self.assertFalse((await DatabaseService.get_lock(self.sid)).in_flight)
-
-        self.assertTrue(await DatabaseService.set_lock(self.sid, True))
-        self.assertTrue((await DatabaseService.get_lock(self.sid)).is_blocked)
-
-
 class TestInFlightEnforcement(_SessionBase):
     async def test_acquire_is_a_real_cas(self):
         await DatabaseService.acquire_in_flight(self.sid)

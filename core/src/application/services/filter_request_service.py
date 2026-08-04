@@ -10,7 +10,7 @@ from src.domains.services import SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.shared.constants import SessionStatus, ToolContext, PromptsLibrary
+from src.shared.constants import ToolContext, PromptsLibrary
 
 
 class FilterRequestService:
@@ -27,11 +27,6 @@ class FilterRequestService:
         self.__session_svc = session_service
 
     async def filter(self, q: str, history: History) -> tuple[bool, str]:
-        _ = await self.__session_svc.update_status(
-            msg=q,
-            prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
-            status=SessionStatus.FILTERING,
-        )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
             tools=self.__tool_svc.get_available_tools([ToolContext.DOMAIN_FILTERING]),

@@ -18,7 +18,7 @@ from src.domains.services import (
     TerraformTargetService,
 )
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import ReportType, SessionStatus
+from src.shared.constants import PromptsLibrary, ReportType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -60,21 +60,44 @@ class TerraformCRUDHandler:
             try:
                 await self.__session_svc.set_round_id(q)
 
-                ok, explanation = await self.__filter_request_svc.filter(q, ctx.history)
+                _ = await self.__session_svc.update_status(
+                    msg=q,
+                    prompt=await self.__template_svc.render(
+                        PromptsLibrary.STATUS_UPDATE
+                    ),
+                    status=SessionStatus.FILTERING,
+                )
+                conventions = await self.__template_svc.compose_template(
+                    query=q,
+                    history=ctx.history,
+                )
+
+                ok, rationale = await self.__filter_request_svc.filter(q, ctx.history)
                 if not ok:
-                    ctx.history.append_turn(q, explanation)
                     _ = await self.__session_svc.update_status(
-                        msg=explanation,
+                        msg=rationale,
                         status=SessionStatus.UNCOMPLETED,
                     )
                     return
 
+                _ = await self.__session_svc.update_status(
+                    msg=q,
+                    prompt=await self.__template_svc.render(
+                        PromptsLibrary.STATUS_UPDATE
+                    ),
+                    status=SessionStatus.GENERATING,
+                )
+
                 predictive_targets = await self.__target_svc.generate_predictive(
-                    query=q, history=ctx.history, include_forbidden_actions=True
+                    query=q,
+                    history=ctx.history,
+                    conventions=conventions,
+                    include_forbidden_actions=True,
                 )
                 if predictive_targets:
                     _ = await self.__drift_svc.detect_and_resolve_drift(
                         targets=predictive_targets,
+                        conventions=conventions,
                         max_iterations=2,
                     )
 
@@ -82,11 +105,13 @@ class TerraformCRUDHandler:
                     q=q,
                     history=ctx.history,
                     branch_name=ctx.branch_name,
+                    conventions=conventions,
                     include_forbidden_actions=True,
                 )
                 if not validation.validation:
                     fail_msg = self.__report_svc.summarize_problem(
-                        validation.feedback, ctx.history
+                        feedback=validation.feedback,
+                        history=ctx.history,
                     )
                     raise TerraformValidationFailedError(
                         message=fail_msg,
