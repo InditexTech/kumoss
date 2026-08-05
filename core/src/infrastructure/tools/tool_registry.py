@@ -279,7 +279,7 @@ class ToolRegistry(IToolRegistry):
         explanation = parameters.get("explanation", "")
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
-                message=f"Target generation inference hasn't return the expected structure. got={targets}",
+                message=f"Target generation inference hasn't returned the expected structure. got={targets}",
                 error_code=500,
             )
         return {
@@ -336,7 +336,7 @@ class ToolRegistry(IToolRegistry):
         explanation = parameters["explanation"]
         if not isinstance(status, bool):
             raise ToolInferenceParamsError(
-                message=f"Requests filter inference hasn't return the expected structure. got={status}",
+                message=f"Requests filter inference hasn't returned the expected structure. got={status}",
                 error_code=500,
             )
         return {"status": status, "explanation": explanation}
@@ -370,7 +370,7 @@ class ToolRegistry(IToolRegistry):
         explanation = parameters.get("explanation", "")
         if not isinstance(operations, list):
             raise ToolInferenceParamsError(
-                message=f"Task Splitter inference hasn't return expected structure. got={operations}",
+                message=f"Task Splitter inference hasn't returned the expected structure. got={operations}",
                 error_code=500,
             )
         return {

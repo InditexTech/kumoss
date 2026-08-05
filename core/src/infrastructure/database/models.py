@@ -182,7 +182,7 @@ class Round(Base):
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     number: Mapped[int] = mapped_column(Integer)
-    query: Mapped[str] = mapped_column(String)
+    query: Mapped[str] = mapped_column(Text)
     # relations
     statuses: Mapped[list["Status"]] = relationship("Status")
     pull_requests: Mapped[list["PullRequest"]] = relationship(
