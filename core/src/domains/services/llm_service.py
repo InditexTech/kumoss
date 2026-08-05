@@ -155,7 +155,7 @@ class LLMOrchestrationService:
             local_history.append_turn(tools_result, response.tool_calls)
             tools_result = await self.__tool_svc.execute_tool_calls(response.tool_calls)
             if len(tools) == 1:  # check for single tool execution (no sentinel tool)
-                return tools_result[0]
+                return tools_result[-1]
             if not tools_result:
                 logging.warning(f"Error inference - no tool reponse: {response}")
                 tools_result = "you MUST use a tool"
