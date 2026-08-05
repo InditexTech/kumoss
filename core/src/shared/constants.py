@@ -181,7 +181,6 @@ class TracerProject(Enum):
 
 @unique
 class ContentType(Enum):
-    """Defines all possible content types for artifact updload"""
-
+    """Defines all possible content types for artifact upload"""
     TEXT = "text/plain"
     JSON = "application/json"

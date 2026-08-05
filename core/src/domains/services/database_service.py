@@ -466,7 +466,7 @@ class DatabaseService:
             if round_id is None:
                 raise SessionConflict(
                     message=f"Session {session_id} does not have an associated round.",
-                    error_code=404,
+                    error_code=409,
                 )
             ctx = SessionContext(
                 id=session.uuid,
