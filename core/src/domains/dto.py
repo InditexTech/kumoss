@@ -137,7 +137,7 @@ class PotentialImpact(BaseModel):
     """Human-readable analysis of the overall consequences and implications of applying the Terraform plan"""
 
     banner: ImpactBanner
-    summary_paragraph: str
+    summary: str
     bullet_points: list[ImpactPoint]
 
 
@@ -216,7 +216,7 @@ class TerraformDriftReport(BaseModel):
     Details which files and resources were changed, specific changes made, and remediation reasons.
     """
 
-    remediation_summary: str
+    summary: str
     status: Literal["Succeeded", "Partial", "Failed"]
     remediated_resources: list[TerraformDriftResource]
 
@@ -249,11 +249,14 @@ class TerraformApplyReport(BaseModel):
     including success/failure status and any issues encountered.
     """
 
-    apply_summary: TerraformApplySummary
+    summary: TerraformApplySummary
     status: Literal["Success", "Partial", "Failed"]
     execution_summary: str
     resource_changes: list[TerraformApplyChange]
     recommendations: list[str]
+
+
+Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
 
 
 @dataclass
@@ -311,6 +314,16 @@ class CodeChangeRef(ArtifactRef):
     file_name: str
 
 
+class PullRequestRef(BaseModel):
+    """Read model: a pull request opened during a round.
+
+    ``provider`` is the GitProviderName token (e.g. "GITHUB"), not the host.
+    """
+
+    provider: str
+    url: str
+
+
 class RoundDetail(BaseModel):
     """Read model: one generation round with its statuses and artifacts."""
 
@@ -320,6 +333,7 @@ class RoundDetail(BaseModel):
     report: ArtifactRef | None
     plan: TerraformPlanRef | None
     code_changes: list[CodeChangeRef]
+    pull_requests: list[PullRequestRef]
     created_at: datetime
 
 
@@ -329,16 +343,6 @@ class WorkspaceRef(BaseModel):
     uri: str
     branch: str
     root_path: str | None
-
-
-class PullRequestRef(BaseModel):
-    """Read model: a pull request opened by a session.
-
-    ``provider`` is the GitProviderName token (e.g. "GITHUB"), not the host.
-    """
-
-    provider: str
-    url: str
 
 
 class SessionSummary(BaseModel):
@@ -360,14 +364,13 @@ class SessionSummary(BaseModel):
 class SessionDetail(SessionSummary):
     """Read model: the full session aggregate for the detail endpoint.
 
-    ``statuses`` holds session-level entries only (round_id IS NULL);
-    round-level statuses live inside their round. ``history`` is populated
-    on admin surfaces only.
+    ``statuses`` is the session's full status timeline across all rounds;
+    the same entries also appear inside their round. Pull requests live
+    inside their round. ``history`` is populated on admin surfaces only.
     """
 
     workspace: WorkspaceRef
     scope_id: str
-    pull_request: PullRequestRef | None
     statuses: list[StatusEntry]
     rounds: list[RoundDetail]
     history: list[dict[str, str]] | None = None

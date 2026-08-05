@@ -82,7 +82,7 @@ class TerraformProvider(Enum):
     GCP = "gcp"
     AWS = "aws"
     OCI = "oci"
-    KUBERNETES = "kubernetes"
+    K8S = "kubernetes"
 
 
 @unique
@@ -101,20 +101,6 @@ class OperationType(Enum):
 
 
 @unique
-class TracerProject(Enum):
-    """Defines all possible tracer projects.
-    Note: a project in Phoenix is defined as a group of traces
-    """
-
-    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
-    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
-    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
-    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
-    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
-    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
-
-
-@unique
 class SessionStatus(Enum):
     """All possible Session states"""
 
@@ -124,6 +110,7 @@ class SessionStatus(Enum):
     VALIDATING = "validating"
     REPORT = "report"
     COMPLETED = "completed"
+    UNCOMPLETED = "uncompleted"
     FAILED = "failed"
 
 
@@ -132,7 +119,7 @@ class PromptsLibrary(Enum):
     """Defines all possible base template prompts"""
 
     # core
-    DOMAIN_FILTER = "domain_filter"
+    REQUESTS_FILTER = "requests_filter"
     TASK_SPLITTER = "task_splitter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
@@ -143,14 +130,13 @@ class PromptsLibrary(Enum):
     # messages
     JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
-    TASK_ACKNOWLEDGE = "task_acknowledge"
 
 
 @unique
 class ToolContext(Enum):
     """Defines different contexts where tools can be used"""
 
-    DOMAIN_FILTERING = "domain_filtering"
+    REQUESTS_FILTER = "requests_filter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
@@ -177,3 +163,24 @@ class ObjectStorageProvider(Enum):
     RUSTFS = "rustfs"
     S3 = "s3"
     STORAGE_ACCOUNT = "storage_account"
+
+
+@unique
+class TracerProject(Enum):
+    """Defines all possible tracer projects.
+    Note: a project in Phoenix is defined as a group of traces
+    """
+
+    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
+    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
+    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
+    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
+    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
+    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
+
+
+@unique
+class ContentType(Enum):
+    """Defines all possible content types for artifact upload"""
+    TEXT = "text/plain"
+    JSON = "application/json"

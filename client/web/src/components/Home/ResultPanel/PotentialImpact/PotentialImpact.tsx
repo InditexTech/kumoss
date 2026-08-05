@@ -11,7 +11,7 @@ import styles from "./PotentialImpact.module.css";
 type ImpactData = NonNullable<TerraformReport["potential_impact"]>;
 
 export function PotentialImpactCard({ impact }: { impact: ImpactData }) {
-  const { banner, summary_paragraph } = impact;
+  const { banner, summary } = impact;
   if (!banner) return null;
 
   const level = banner.level as "high" | "medium" | "low";
@@ -22,9 +22,9 @@ export function PotentialImpactCard({ impact }: { impact: ImpactData }) {
       <Typography variant="headline" component="h2" className={`${styles.impactLevel} ${styles[level] || ""}`}>
         {getLevelLabel(level)}
       </Typography>
-      {(summary_paragraph || banner.description) && (
+      {(summary || banner.description) && (
         <Typography variant="subtitle2" className={styles.impactDescription}>
-          {summary_paragraph || banner.description}
+          {summary || banner.description}
         </Typography>
       )}
     </div>
@@ -38,7 +38,7 @@ export function ImpactDetail({
   impact: ImpactData;
   onClose: () => void;
 }) {
-  const { banner, summary_paragraph, bullet_points } = impact;
+  const { banner, summary, bullet_points } = impact;
   const level = (banner?.level ?? "low") as "high" | "medium" | "low";
 
   return (
@@ -62,15 +62,15 @@ export function ImpactDetail({
 
         <Typography variant="label" className={styles.impactSectionLabel}>DETAILS</Typography>
         <div className={styles.impactDetailsValue}>
-          {(summary_paragraph || banner?.description) && (
+          {(summary || banner?.description) && (
             <Typography variant="body2" className={styles.impactSectionBody}>
-              {summary_paragraph || banner?.description}
+              {summary || banner?.description}
             </Typography>
           )}
 
           {banner?.description &&
-            summary_paragraph &&
-            banner.description !== summary_paragraph && (
+            summary &&
+            banner.description !== summary && (
               <Typography variant="body2" className={styles.impactSectionBody}>{banner.description}</Typography>
             )}
 

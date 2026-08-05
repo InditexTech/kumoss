@@ -7,6 +7,7 @@ from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import ToolDefinitionDTO, ToolResultDTO
+from src.domains.value_objects import Conventions
 from src.shared.constants import ToolContext, PromptsLibrary
 
 
@@ -37,12 +38,12 @@ class TerraformTargetService:
         return response.result["targets"]
 
     async def generate_predictive(
-        self, query: str, history: History, include_forbidden_actions: bool = False
+        self,
+        query: str,
+        history: History,
+        conventions: Conventions,
+        include_forbidden_actions: bool = False,
     ) -> list[str]:
-        templates, abbreviations = await self.__template_svc.compose_template(
-            query=query,
-            history=history,
-        )
 
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[
@@ -58,8 +59,8 @@ class TerraformTargetService:
             ),
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR,
-                resources=templates,
-                abbreviations=abbreviations,
+                resources=conventions.templates,
+                abbreviations=conventions.abbreviations,
                 include_forbidden_actions=include_forbidden_actions,
             ),
             history=history,

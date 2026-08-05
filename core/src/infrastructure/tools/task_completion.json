@@ -9,14 +9,14 @@
           "type": "boolean",
           "description": "The final status of the task. `true` if succeeded, `false` otherwise."
         },
-        "final_summary": {
+        "summary": {
           "type": "string",
           "description": "A detailed, human-readable narrative of the entire operation from start to finish. Explain your reasoning and the sequence of actions taken. Synthesize the 'why' behind the tool calls (e.g., 'First, I listed the files to understand the project structure. Then, I read main.tf to identify the outdated module version. Finally, I used replace_in_file to update the module source to the correct version.'). This summary is the primary communication to the user."
         }
       },
       "required": [
         "status",
-        "final_summary"
+        "summary"
       ]
     }
   }

@@ -10,3 +10,9 @@ class ReportGenerationError(ExceptionHandler):
     """Report generation inference error"""
 
     pass
+
+
+class TerraformValidationFailedError(ExceptionHandler):
+    """Raised when Terraform validation loop has been exhausted and failed"""
+
+    pass

@@ -19,9 +19,14 @@ from src.domains.exceptions import (
 )
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
-from src.infrastructure.database.models import Base
+from src.infrastructure.database.models import Base, PullRequest, Round, Session, User
 from src.infrastructure.redis import redis_client
-from src.shared.constants import OperationType, SessionStatus, TerraformProvider
+from src.shared.constants import (
+    GitProviderName,
+    OperationType,
+    SessionStatus,
+    TerraformProvider,
+)
 
 
 class _SessionBase(unittest.IsolatedAsyncioTestCase):
@@ -143,21 +148,81 @@ class TestPullRequestFreshness(_SessionBase):
             [pr["url"] for pr in prs], ["https://github.com/org/repo/pull/42"]
         )
 
+    async def test_pr_attaches_to_the_latest_round(self):
+        _ = await DatabaseService.create_round(self.sid, "add a vnet")
+        await DatabaseService.add_pull_request(
+            self.sid, "https://github.com/org/repo/pull/7"
+        )
 
-class TestLockStateIsFresh(_SessionBase):
-    async def test_lock_reads_track_writes(self):
-        lock = await DatabaseService.get_lock(self.sid)
-        self.assertFalse(lock.in_flight)
-        self.assertFalse(lock.is_blocked)
+        detail = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual(len(detail.rounds), 2)
+        self.assertEqual(detail.rounds[0].pull_requests, [])
+        self.assertEqual(
+            [pr.url for pr in detail.rounds[1].pull_requests],
+            ["https://github.com/org/repo/pull/7"],
+        )
+        # The session-scoped read still aggregates across rounds.
+        prs = await DatabaseService.get_pull_requests(self.sid)
+        self.assertEqual(
+            [pr["url"] for pr in prs], ["https://github.com/org/repo/pull/7"]
+        )
 
-        await DatabaseService.acquire_in_flight(self.sid)
-        self.assertTrue((await DatabaseService.get_lock(self.sid)).in_flight)
+    async def test_session_without_rounds_rejects_prs(self):
+        # Only possible for rows written outside create_session (which
+        # always opens round 1); the guard must still be explicit.
+        orphan_uuid = uuid4()
+        user = await db.get_by(User, username=self.username)
+        _ = await db.create(
+            Session,
+            user_id=user.id,
+            uuid=orphan_uuid,
+            operation=OperationType.GENERATE,
+        )
+        with self.assertRaises(SessionConflict):
+            await DatabaseService.add_pull_request(
+                orphan_uuid, "https://github.com/org/repo/pull/9"
+            )
 
-        await DatabaseService.release_in_flight(self.sid)
-        self.assertFalse((await DatabaseService.get_lock(self.sid)).in_flight)
+    async def test_provider_round_trips_as_native_enum(self):
+        await DatabaseService.add_pull_request(
+            self.sid, "https://github.com/org/repo/pull/1"
+        )
+        row = await db.get_by(PullRequest, url="https://github.com/org/repo/pull/1")
+        self.assertIsNotNone(row)
+        self.assertIs(row.provider, GitProviderName.GITHUB)
+        prs = await DatabaseService.get_pull_requests(self.sid)
+        self.assertEqual(prs[0]["provider"], "GITHUB")
 
-        self.assertTrue(await DatabaseService.set_lock(self.sid, True))
-        self.assertTrue((await DatabaseService.get_lock(self.sid)).is_blocked)
+
+class TestRounds(_SessionBase):
+    async def test_create_session_opens_round_one(self):
+        detail = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual([r.number for r in detail.rounds], [1])
+        row = await db.get_by(Round, number=1)
+        self.assertEqual(row.query, "create a resource group")
+
+    async def test_create_round_increments_number_and_stores_query(self):
+        rid = await DatabaseService.create_round(self.sid, "add a vnet")
+        row = await db.get_by(Round, id=rid)
+        self.assertEqual(row.number, 2)
+        self.assertEqual(row.query, "add a vnet")
+
+    async def test_statuses_attach_to_the_latest_round(self):
+        rid = await DatabaseService.create_round(self.sid, "add a vnet")
+        await DatabaseService.mark_session_status(
+            self.sid, SessionStatus.GENERATING, "working"
+        )
+        detail = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual(detail.rounds[0].statuses, [])
+        self.assertEqual(
+            [st.status for st in detail.rounds[1].statuses],
+            [SessionStatus.GENERATING],
+        )
+        self.assertEqual(detail.rounds[1].id, rid)
+        # The session-level timeline spans all rounds.
+        self.assertEqual(
+            [st.status for st in detail.statuses], [SessionStatus.GENERATING]
+        )
 
 
 class TestInFlightEnforcement(_SessionBase):
@@ -177,6 +242,11 @@ class TestInFlightEnforcement(_SessionBase):
 
     async def test_failed_session_cannot_be_resumed(self):
         await DatabaseService.mark_failed(self.sid, "boom")
+        with self.assertRaises(SessionTerminal):
+            await DatabaseService.acquire_in_flight(self.sid)
+
+    async def test_uncompleted_session_cannot_be_resumed(self):
+        await DatabaseService.mark_uncompleted(self.sid, "gave up")
         with self.assertRaises(SessionTerminal):
             await DatabaseService.acquire_in_flight(self.sid)
 
@@ -238,3 +308,15 @@ class TestFinishedSessionDetailCache(_SessionBase):
         await DatabaseService.mark_completed(self.sid, "done")
         terminal_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertGreater(terminal_ttl, 24 * 60 * 60)
+
+    async def test_uncompleted_is_terminal_for_the_cache(self):
+        await DatabaseService.mark_uncompleted(self.sid, "gave up")
+        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        terminal_ttl = await redis_client.connection.client.ttl(status_key)
+        self.assertGreater(terminal_ttl, 24 * 60 * 60)
+
+        first = await DatabaseService.get_session_detail(self.sid)
+        raw = await redis_client.connection.client.get(self._detail_key())
+        self.assertIsNotNone(raw)
+        second = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual(first, second)

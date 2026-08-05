@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Literal
+# from functools import lru_cache
 
 import httpx
 from phoenix.client import AsyncClient
@@ -15,7 +16,7 @@ class _PromptFetcher:
     def __init__(self):
         self.__client = AsyncClient(base_url=system_config.telemetry.collector_url)
 
-    # @functools.lru_cache(maxsize=None)
+    # @lru_cache() - we want to fetch the latest version of the tag at runtime
     async def fetch(
         self,
         prompt_name: str,

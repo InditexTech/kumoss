@@ -27,7 +27,7 @@ from src.domains.dto import (
     WorkspaceRef,
 )
 from src.domains.entities import SessionContext
-from src.domains.value_objects import Lock, ProviderFacts, Status, WorkspaceFacts
+from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
@@ -52,7 +52,6 @@ from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.constants import (
-    GitProviderName,
     OperationType,
     ReportType,
     SessionStatus,
@@ -75,9 +74,6 @@ from src.shared.constants import (
 #     cannot go stale that way. The TTL is only a backstop for a lost
 #     write-through SET (Redis briefly down), so volatile keys keep it
 #     short.
-#
-# Lock state (in_flight / is_blocked) is deliberately NOT cached: it gates
-# concurrent work, so it is always read fresh from the session row.
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
 # status is terminal (COMPLETED / FAILED) it can never change again —
@@ -170,6 +166,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
     return {
         "id": str(ctx.id),
         "user_id": ctx.user_id,
+        "round_id": ctx.round_id,
         "repo_uri": ctx.repo_uri,
         "scope_id": ctx.scope_id,
         "terraform_prv": ctx.terraform_prv.value,
@@ -183,6 +180,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
     return SessionContext(
         id=UUID(data["id"]),
         user_id=data["user_id"],
+        round_id=data["round_id"],
         repo_uri=data["repo_uri"],
         scope_id=data["scope_id"],
         terraform_prv=TerraformProvider(data["terraform_prv"]),
@@ -300,17 +298,28 @@ class DatabaseService:
 
     @staticmethod
     async def __load_pull_requests(sid: int | None) -> list[dict[str, str]]:
-        prs: list[PullRequest] = await db.list_by(PullRequest, session_id=sid)
+        async with db.session() as sess:
+            stmt = (
+                select(PullRequest)
+                .join(Round, PullRequest.round_id == Round.id)
+                .where(Round.session_id == sid)
+                .order_by(Round.number, PullRequest.id)
+            )
+            prs = list((await sess.execute(stmt)).scalars().all())
         # Empty list is a valid cacheable state (most sessions have none).
-        # The provider column is a plain string; normalize it to the same
-        # token get_session_detail exposes.
-        return [
-            {
-                "provider": DatabaseService.__git_provider_token(pr.provider),
-                "url": pr.url,
-            }
-            for pr in prs
-        ]
+        return [{"provider": pr.provider.name, "url": pr.url} for pr in prs]
+
+    @staticmethod
+    async def __latest_round_id(sid: int) -> int | None:
+        """Pk of the session's highest-numbered round, or None if none exist."""
+        async with db.session() as sess:
+            stmt = (
+                select(Round.id)
+                .where(Round.session_id == sid)
+                .order_by(Round.number.desc())
+                .limit(1)
+            )
+            return (await sess.execute(stmt)).scalar_one_or_none()
 
     @staticmethod
     async def __pull_requests(session_id: UUID) -> list[dict[str, str]]:
@@ -330,6 +339,18 @@ class DatabaseService:
         session_id: UUID, status: SessionStatus, msg: str, round_id: int | None = None
     ) -> DbStatus:
         sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        if not round_id:
+            round_id = await DatabaseService.__latest_round_id(sid)
+        if not round_id:
+            raise SessionConflict(
+                message=f"Session {session_id} has no rounds; cannot record a status.",
+                error_code=409,
+            )
         return await db.create(
             DbStatus,
             session_id=sid,
@@ -386,6 +407,12 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
+        _ = await db.create(
+            Round,
+            session_id=session.id,
+            number=1,
+            query=query,
+        )
 
         await redis_client.set_json_many(
             [
@@ -414,11 +441,12 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username, workspace, provider, payload = await asyncio.gather(
+            username, workspace, provider, payload, round_id = await asyncio.gather(
                 DatabaseService.__map_user_name(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
                 DatabaseService.__history_payload(session_id),
+                DatabaseService.__latest_round_id(session.id),
             )
             if username is None:
                 raise SessionTerminal(
@@ -435,9 +463,15 @@ class DatabaseService:
                     message=f"Session {session_id} does not have an associated cloud provider",
                     error_code=404,
                 )
+            if round_id is None:
+                raise SessionConflict(
+                    message=f"Session {session_id} does not have an associated round.",
+                    error_code=409,
+                )
             ctx = SessionContext(
                 id=session.uuid,
                 user_id=username,
+                round_id=round_id,
                 repo_uri=workspace.uri,
                 scope_id=provider.scope_id,
                 terraform_prv=provider.provider,
@@ -632,17 +666,12 @@ class DatabaseService:
                 )
                 for c in sorted(r.code_changes, key=lambda c: (c.created_at, c.id))
             ],
+            pull_requests=[
+                PullRequestRef(provider=pr.provider.name, url=pr.url)
+                for pr in sorted(r.pull_requests, key=lambda pr: (pr.created_at, pr.id))
+            ],
             created_at=r.created_at,
         )
-
-    @staticmethod
-    def __git_provider_token(value: GitProviderName | str) -> str:
-        if isinstance(value, GitProviderName):
-            return value.name
-        try:
-            return GitProviderName(value).name
-        except ValueError:
-            return str(value)
 
     @staticmethod
     async def get_session_detail(
@@ -669,10 +698,10 @@ class DatabaseService:
                 .options(
                     selectinload(Session.workspaces),
                     selectinload(Session.terraform_providers),
-                    selectinload(Session.pull_requests),
                     selectinload(Session.histories),
                     selectinload(Session.statuses),
                     selectinload(Session.rounds).selectinload(Round.statuses),
+                    selectinload(Session.rounds).selectinload(Round.pull_requests),
                     selectinload(Session.rounds)
                     .selectinload(Round.reports)
                     .selectinload(Report.artifact),
@@ -701,14 +730,13 @@ class DatabaseService:
         workspace = s.workspaces[0]
         provider = s.terraform_providers[0]
         history = s.histories[0] if s.histories else None
-        last_pr = max(
-            s.pull_requests, key=lambda pr: (pr.created_at, pr.id), default=None
-        )
         # max(id) is the append-order proxy for "latest" — the same
         # convention get_last_status and the list_sessions filter use.
         current = max(s.statuses, key=lambda st: st.id, default=None)
+        # Every status belongs to a round (NOT NULL); the session-level
+        # view is the full timeline across all rounds.
         session_statuses = sorted(
-            (st for st in s.statuses if st.round_id is None),
+            s.statuses,
             key=lambda st: (st.created_at, st.id),
         )
 
@@ -730,12 +758,6 @@ class DatabaseService:
                 root_path=workspace.root_path,
             ),
             scope_id=provider.scope_id,
-            pull_request=PullRequestRef(
-                provider=DatabaseService.__git_provider_token(last_pr.provider),
-                url=last_pr.url,
-            )
-            if last_pr
-            else None,
             statuses=[DatabaseService.__status_entry(st) for st in session_statuses],
             rounds=[DatabaseService.__round_detail(r) for r in s.rounds],
             history=history.payload if include_history and history else None,
@@ -756,7 +778,7 @@ class DatabaseService:
         return detail
 
     @staticmethod
-    async def update_session(ctx: SessionContext) -> None:
+    async def update_history(ctx: SessionContext) -> None:
         sid = await DatabaseService.__map_session_id(ctx.id)
         if sid is None:
             raise SessionConflict(
@@ -786,21 +808,6 @@ class DatabaseService:
             ]
         )
         _ = await redis_client.invalidate(_k_detail(ctx.id))
-
-    @staticmethod
-    async def get_lock(session_id: UUID) -> Lock:
-        """A session's concurrency lock state, always read fresh.
-
-        Deliberately uncached: lock state gates concurrent work, so it must
-        reflect the row, not a possibly stale copy.
-        """
-        session: Session | None = await DatabaseService.__load_session(session_id)
-        if session is None:
-            raise SessionTerminal(
-                message=f"Session {session_id} not found.",
-                error_code=404,
-            )
-        return Lock(in_flight=session.in_flight, is_blocked=session.is_blocked)
 
     @staticmethod
     async def acquire_in_flight(session_id: UUID) -> None:
@@ -873,7 +880,8 @@ class DatabaseService:
         msg: str,
         round_id: int | None = None,
     ) -> None:
-        """Append a status row; pass ``round_id`` for round-level statuses."""
+        """Append a status row; attaches to the session's latest round
+        unless ``round_id`` targets a specific one."""
         _ = await DatabaseService.__create_status(session_id, status, msg, round_id)
         # Write-through the new latest status (see cache notes above).
         await redis_client.set_json(
@@ -926,6 +934,12 @@ class DatabaseService:
         )
 
     @staticmethod
+    async def mark_uncompleted(session_id: UUID, msg: str) -> None:
+        await DatabaseService.mark_session_status(
+            session_id, SessionStatus.UNCOMPLETED, msg
+        )
+
+    @staticmethod
     async def set_lock(session_id: UUID, lock: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (
@@ -949,12 +963,12 @@ class DatabaseService:
     # and live sessions are never cached in the detail key.
 
     @staticmethod
-    async def create_round(session_id: UUID) -> int:
+    async def create_round(session_id: UUID, query: str) -> int:
         """Open the next generation round for a session, returning its pk.
 
-        Numbering relies on the session's in-flight lock (one runner per
-        session); the unique constraint on (session_id, number) backstops
-        any race.
+        ``query`` is the user prompt that opened the round. Numbering
+        relies on the session's in-flight lock (one runner per session);
+        the unique constraint on (session_id, number) backstops any race.
         """
         sid = await DatabaseService.__map_session_id(session_id)
         if sid is None:
@@ -966,7 +980,9 @@ class DatabaseService:
             Round, order_by="number", order_desc=True, limit=1, session_id=sid
         )
         number = last[0].number + 1 if last else 1
-        round_: Round = await db.create(Round, session_id=sid, number=number)
+        round_: Round = await db.create(
+            Round, session_id=sid, number=number, query=query
+        )
         return round_.id
 
     @staticmethod
@@ -1041,13 +1057,24 @@ class DatabaseService:
 
     @staticmethod
     async def add_pull_request(session_id: UUID, url: str) -> None:
-        """Persist a new Pull Request and write-through the refreshed list."""
+        """Persist a new Pull Request on the session's latest round and
+        write-through the refreshed list."""
         sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        round_id = await DatabaseService.__latest_round_id(sid)
+        if round_id is None:
+            raise SessionConflict(
+                message=f"Session {session_id} has no rounds; cannot attach a pull request.",
+                error_code=409,
+            )
         _ = await db.create(
             PullRequest,
-            session_id=sid,
-            # The column is String(20): store the enum's value, not the enum.
-            provider=system_config.git.provider.value,
+            round_id=round_id,
+            provider=system_config.git.provider,
             url=url,
         )
         # Re-read and write-through instead of deleting (see cache notes above).
