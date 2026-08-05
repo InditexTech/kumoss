@@ -173,14 +173,18 @@ class TracerProject(Enum):
 
     DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
     DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
+    DEV_TERRAFORM_IMPORT = "dev-terraform-import"
     PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
     PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
+    PRE_TERRAFORM_IMPORT = "pre-terraform-import"
     PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
     PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
+    PRO_TERRAFORM_IMPORT = "pro-terraform-import"
 
 
 @unique
 class ContentType(Enum):
     """Defines all possible content types for artifact upload"""
+
     TEXT = "text/plain"
     JSON = "application/json"

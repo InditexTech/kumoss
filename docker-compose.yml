@@ -122,7 +122,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:19.9.0
+    image: arizephoenix/phoenix:19.17.0
     expose:
       - 6006
       - 4317

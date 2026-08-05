@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from src.domains.services import TracerService
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities.session import SessionContext
 from src.application.factory import ApplicationFactory
@@ -21,6 +22,7 @@ from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
+from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.constants import OperationType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/iac", tags=["Infrastructure as Code"])
 
 _workspace = WorkspaceService()
 _orchestration = SessionOrchestrationService()
+_tracer = TracerService()
 
 
 async def _resolve_or_raise(
@@ -65,6 +68,16 @@ def _make_runner(
             # and skip release (it would clobber the actual holder's lock).
             logging.error(f"runner not started: {e.message} (session {ctx.id})")
             return
+        tracer_token = _tracer.set_current_tracer(
+            tracer=PhoenixTracer(
+                session_id=ctx.id,
+                user_id=ctx.user_id,
+                branch_name=ctx.branch_name,
+                cloud=ctx.terraform_prv,
+                iac_path=ctx.iac_path,
+                operation=ctx.operation,
+            )
+        )
         try:
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
@@ -81,6 +94,7 @@ def _make_runner(
             await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
+            _tracer.reset_current_tracer(tracer_token)
             _workspace.cleanup(call_dir)
             await _orchestration.release(ctx.id)
 

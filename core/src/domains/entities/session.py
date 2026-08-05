@@ -8,7 +8,7 @@ from typing import override, Any
 from uuid import UUID
 
 from src.domains.entities.history import History
-from src.shared.constants import TerraformProvider
+from src.shared.constants import OperationType, TerraformProvider
 
 
 class SessionContext:
@@ -22,6 +22,7 @@ class SessionContext:
         terraform_prv: TerraformProvider,
         branch_name: str,
         iac_path: str,
+        operation_type: OperationType,
         history: list[dict[str, str]],
     ):
         self.__id = id
@@ -32,6 +33,7 @@ class SessionContext:
         self.__terraform_prv = terraform_prv
         self.__branch_name = branch_name
         self.__iac_path = iac_path
+        self.__operation = operation_type
         self.__history: History = History(history)
         self.__artifacts: list[
             dict[str, Any]
@@ -72,6 +74,10 @@ class SessionContext:
     @property
     def iac_path(self) -> str:
         return self.__iac_path
+
+    @property
+    def operation(self) -> OperationType:
+        return self.__operation
 
     @property
     def history(self) -> History:
