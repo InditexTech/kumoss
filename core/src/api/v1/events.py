@@ -56,7 +56,7 @@ async def subscribe_events(
     async def event_stream():
         sid = UUID(session_id)
         i = 0
-        await sleep(10)  # Wait for acknowledge message
+        yield ": keepalive\n\n"
         while True:
             i += 1
             try:
@@ -73,7 +73,7 @@ async def subscribe_events(
                 break
 
             payload = {
-                "status_msg": status.status.value,
+                "status_msg": status.status.name,
                 "detail": {
                     "message": status.msg.replace('"', ""),  # Sanitize msg
                 },
@@ -89,4 +89,12 @@ async def subscribe_events(
 
             await sleep(5)
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
