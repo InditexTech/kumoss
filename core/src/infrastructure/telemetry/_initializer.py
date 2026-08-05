@@ -43,7 +43,7 @@ def _route_tracer_project(operation: OperationType) -> TracerProject:
                     return TracerProject.DEV_TERRAFORM_IMPORT
                 case "staging":
                     return TracerProject.PRE_TERRAFORM_IMPORT
-
+    raise ValueError(f"Unsupported tracer routing: operation={operation.value!r}, environment={system_config.environment!r}")
 
 class ProvidersInitializer:
     def __init__(self):
