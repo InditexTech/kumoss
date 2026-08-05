@@ -77,7 +77,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_compute_instance_content"],
     },
-    TerraformProvider.KUBERNETES: {
+    TerraformProvider.K8S: {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -131,7 +131,29 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         await self._run_prompt_compositor_test(TerraformProvider.OCI)
 
     async def test_render_prompt_compositor_kubernetes(self):
-        await self._run_prompt_compositor_test(TerraformProvider.KUBERNETES)
+        await self._run_prompt_compositor_test(TerraformProvider.K8S)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_requests_filter(self, mock_fetch: AsyncMock):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_requests_filter(
+            resources=["storage_account"],
+            abbreviations=["sta-"],
+            include_forbidden_actions=True,
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("mocked_requests_response", prompt)
+        self.assertIn("mocked_storage_account_response", prompt)
+        self.assertIn("Missing parameters NEVER block a creation request", prompt)
+        self.assertIn("When in doubt about parameters, accept", prompt)
+        self.assertNotIn("lacks information required to act", prompt)
 
 
 if __name__ == "__main__":

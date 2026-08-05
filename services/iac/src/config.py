@@ -28,14 +28,17 @@ class Config:
       misconfigured image fails fast instead of on the first request.
     - ``allow_plan_without_creds``: when false (default), `terraform plan`
       is skipped if no cloud-credential env vars are present and the
-      service returns success after `validate`. When true, `plan` is
+      job result reports success after `validate`. When true, `plan` is
       always attempted (may fail for credential reasons, surfaced in
       `feedback`).
+    - ``job_ttl``: seconds a terminal job record stays pollable at
+      `GET /v1/jobs/{job_id}` before it is swept (then 404).
     """
 
     expected_token: str
     terraform_binary: str
     allow_plan_without_creds: bool
+    job_ttl: int = 3600
 
     def __post_init__(self) -> None:
         if not terraform_available(self.terraform_binary):
@@ -53,6 +56,7 @@ class Config:
                 "NEBULA_IAC_ALLOW_PLAN_WITHOUT_CREDS", "false"
             ).lower()
             == "true",
+            job_ttl=int(os.environ.get("NEBULA_IAC_JOB_TTL") or "3600"),
         )
 
 

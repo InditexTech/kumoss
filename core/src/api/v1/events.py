@@ -75,13 +75,13 @@ async def subscribe_events(
                 break
 
             payload = {
-                "status_msg": status.status,
+                "status_msg": status.status.value,
                 "detail": {
                     "message": status.msg.replace('"', ""),  # Sanitize msg
                 },
             }
 
-            yield f"data: {json.dumps(payload)}\n\n"  # FIXME
+            yield f"data: {json.dumps(payload)}\n\n"
 
             if (
                 status.status == SessionStatus.COMPLETED

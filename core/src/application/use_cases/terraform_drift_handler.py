@@ -14,13 +14,12 @@ from src.domains.services import (
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
+    TaskSplitService,
 )
 from src.application.services import (
-    GeneratePayloadService,
-    FilterRequestService,
+    RequestsFilterService,
     TerraformDriftService,
 )
-from src.domains.services.task_split_service import TaskSplitService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.config import system_config
 from src.shared.constants import (
@@ -36,8 +35,7 @@ class TerraformDriftHandler:
         session_service: SessionService,
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
-        filter_request_service: FilterRequestService,
-        payload_svc: GeneratePayloadService,
+        requests_filter_service: RequestsFilterService,
         validator_provider: ITerraformValidator,
         tool_service: ToolOrchestrationService,
         target_service: TerraformTargetService,
@@ -48,8 +46,7 @@ class TerraformDriftHandler:
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__payload_svc = payload_svc
-        self.__filter_request_svc = filter_request_service
+        self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
         self.__ctx = session_ctx
@@ -75,11 +72,11 @@ class TerraformDriftHandler:
                 await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
+                        PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.FILTERING,
                 )
-                status, explanation = await self.__filter_request_svc.filter(q, hist)
+                status, explanation = await self.__requests_filter_svc.filter(q, hist)
                 if not status:
                     await self.__payload_svc.generate(
                         response=explanation,

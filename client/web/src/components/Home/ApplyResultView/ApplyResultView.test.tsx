@@ -42,7 +42,7 @@ const mockResults: ApplyResultsData = {
     execution_summary: "3 of 4 resources applied successfully",
     resource_changes: mockChanges,
     recommendations: ["Review quota limits", "Check network rules"],
-    apply_summary: { total_resources: 4, created: 1, updated: 1, destroyed: 1, failed: 1 },
+    summary: { total_resources: 4, created: 1, updated: 1, destroyed: 1, failed: 1 },
   },
 };
 

@@ -54,9 +54,9 @@ async def sessions_list(
 async def session_detail(session_id: UUID) -> SessionDetail:
     """The complete read model for the session detail view.
 
-    Returns the session facts (workspace, provider, pull request, first
-    query), the session-level status timeline, and one entry per
-    generation round containing its statuses and artifacts (report, plan,
+    Returns the session facts (workspace, provider, first query), the
+    session's full status timeline, and one entry per generation round
+    containing its statuses, pull requests, and artifacts (report, plan,
     code changes) with client-fetchable URLs.
 
     Clients subscribed to the push channel should refetch this endpoint

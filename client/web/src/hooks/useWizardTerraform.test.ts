@@ -105,7 +105,7 @@ describe("useWizardTerraform", () => {
     const payload = makePayload({
       terraform_report: {
         status: "Success",
-        apply_summary: {
+        summary: {
           total_resources: 1,
           created: 1,
           updated: 0,

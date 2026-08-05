@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from src.domains.exceptions import ObjectStorageError
 from src.domains.interfaces import IObjectStorage
 from src.domains.services.database_service import DatabaseService
-from src.shared.constants import ReportType
+from src.shared.constants import ContentType, ReportType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -36,8 +36,7 @@ class ArtifactStorageService:
     """Uploads round artifacts to object storage and records the DB rows.
 
     The stored ``artifacts.uri`` is the object KEY;
-    ``DatabaseService.__artifact_url`` presigns it at read time (absolute
-    ``http(s)://`` uris pass through for legacy rows). Upload happens
+    ``DatabaseService.__artifact_url`` presigns it at read time. Upload happens
     before the row insert; a failed insert triggers a best-effort
     compensating delete so no row ever points at a missing object, while
     an orphaned object is harmless garbage.
@@ -57,7 +56,7 @@ class ArtifactStorageService:
         round_id: int,
         report_type: ReportType,
         content: str | bytes,
-        content_type: str = "application/json",
+        content_type: ContentType,
     ) -> int:
         """Persist a round report; returns the reports row pk.
 
@@ -76,13 +75,13 @@ class ArtifactStorageService:
         return await self.__store(
             key,
             data,
-            content_type,
+            content_type.value,
             f"session {session_id} round {round_id}",
             lambda: DatabaseService.add_report(
                 round_id=round_id,
                 report_type=report_type,
                 uri=key,
-                content_type=content_type,
+                content_type=content_type.value,
                 file_size_bytes=len(data),
             ),
         )
@@ -93,7 +92,7 @@ class ArtifactStorageService:
         round_id: int,
         targets: list[str],
         content: str | bytes,
-        content_type: str = "text/plain",
+        content_type: ContentType = ContentType.TEXT,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -109,13 +108,13 @@ class ArtifactStorageService:
         return await self.__store(
             key,
             data,
-            content_type,
+            content_type.value,
             f"session {session_id} round {round_id}",
             lambda: DatabaseService.add_terraform_plan(
                 round_id=round_id,
                 targets=targets,
                 uri=key,
-                content_type=content_type,
+                content_type=content_type.value,
                 file_size_bytes=len(data),
             ),
         )
@@ -126,7 +125,7 @@ class ArtifactStorageService:
         round_id: int,
         file_name: str,
         content: str | bytes,
-        content_type: str = "text/plain",
+        content_type: ContentType = ContentType.TEXT,
     ) -> int:
         """Persist a round code change; returns the code_changes row pk.
 
@@ -146,13 +145,13 @@ class ArtifactStorageService:
         return await self.__store(
             key,
             data,
-            content_type,
+            content_type.value,
             f"session {session_id} round {round_id}",
             lambda: DatabaseService.add_code_change(
                 round_id=round_id,
                 file_name=file_name,
                 uri=key,
-                content_type=content_type,
+                content_type=content_type.value,
                 file_size_bytes=len(data),
             ),
         )

@@ -81,9 +81,6 @@ class Session(Base):
     workspaces: Mapped[list["Workspace"]] = relationship(
         "Workspace", cascade="all, delete"
     )
-    pull_requests: Mapped[list["PullRequest"]] = relationship(
-        "PullRequest", cascade="all, delete"
-    )
     terraform_providers: Mapped[list["TerraformProvider"]] = relationship(
         "TerraformProvider", cascade="all, delete"
     )
@@ -136,13 +133,13 @@ class PullRequest(Base):
 
     __tablename__ = "pull_requests"
 
-    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    provider: Mapped[GitProviderName] = mapped_column(String(20))
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
+    provider: Mapped[GitProviderName] = mapped_column()
     url: Mapped[str] = mapped_column(String(254))
 
     @override
     def __repr__(self) -> str:
-        return f"<PullRequest(session_id='{self.session_id}', url={self.url}')>"
+        return f"<PullRequest(round_id='{self.round_id}', url={self.url}')>"
 
 
 @final
@@ -167,7 +164,7 @@ class Status(Base):
     __tablename__ = "statuses"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    round_id: Mapped[int | None] = mapped_column(ForeignKey("rounds.id"), index=True)
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     status: Mapped[SessionStatus] = mapped_column(default=SessionStatus.STARTED)
     message: Mapped[str] = mapped_column(Text)
 
@@ -185,8 +182,12 @@ class Round(Base):
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     number: Mapped[int] = mapped_column(Integer)
+    query: Mapped[str] = mapped_column(Text)
     # relations
     statuses: Mapped[list["Status"]] = relationship("Status")
+    pull_requests: Mapped[list["PullRequest"]] = relationship(
+        "PullRequest", cascade="all, delete"
+    )
     terraform_plans: Mapped[list["TerraformPlan"]] = relationship(
         "TerraformPlan", cascade="all, delete"
     )
