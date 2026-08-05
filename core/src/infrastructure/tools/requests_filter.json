@@ -1,17 +1,17 @@
 [
   {
     "name": "requests_filter",
-    "description": "Reports whether the user's request is within the domain of Infrastructure as Code (IaC) generation using Terraform and can be fulfilled with the information provided and the current workspace state. This tool must be called as the final action, after inspecting the workspace, before attempting to construct any infrastructure information or proceeding with IaC generation.",
+    "description": "Reports whether the user's request is within the domain of Infrastructure as Code (IaC) generation using Terraform and is actionable in the current workspace given its conventions, module templates, and state. This tool must be called as the final action, after inspecting the workspace, before attempting to construct any infrastructure information or proceeding with IaC generation.",
     "parameters": {
       "type": "object",
       "properties": {
         "status": {
           "type": "boolean",
-          "description": "True if the user's request is directly related to generating, defining, or managing cloud infrastructure using Terraform AND can be fulfilled with the information provided and the current workspace state. False if the request is a general question, is outside the scope of IaC generation, violates a restriction, or lacks the information required to act."
+          "description": "True if the user's request involves creating, modifying, or deleting cloud infrastructure with Terraform and can be executed in this workspace. Missing parameters never make it False: naming conventions, resource module templates, and workspace state supply the defaults. False ONLY if the request is outside the scope of IaC generation, violates a prohibited action, targets an existing resource that cannot be unambiguously identified from the request, workspace, or history, or references as existing something not present in the workspace."
         },
         "explanation": {
           "type": "string",
-          "description": "A concise sentence explaining why the user's request is or is not considered relevant and fulfillable. When the request cannot be fulfilled, state exactly what is out of scope or what information is missing."
+          "description": "A concise explanation of the verdict. When accepting, enumerate the defaults and assumptions being applied (e.g., which existing resource group, name per naming conventions, remaining settings from the module template) — this is passed to the downstream generation chains. When rejecting, state exactly what is out of scope, prohibited, ambiguous, or missing from the workspace."
         }
       },
       "required": ["status", "explanation"]
