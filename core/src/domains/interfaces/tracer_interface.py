@@ -14,12 +14,16 @@ from src.shared.constants import LLMProvider
 class ITracer(ABC):
     @abstractmethod
     def trace_terraform(
-        self, terraformDTO: TerraformValidationDTO, **kwargs: Any
+        self,
+        terraformDTO: TerraformValidationDTO,
+        start_time: int | None = None,
+        **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
         :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
 

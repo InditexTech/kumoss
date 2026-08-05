@@ -12,13 +12,15 @@ from src.application.services.terraform_drift_service import TerraformDriftServi
 from src.domains.entities.session import SessionContext
 from src.domains.services import (
     SessionService,
-    TracerService,
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
 )
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import PromptsLibrary, ReportType, SessionStatus
+from src.shared.constants import (
+    PromptsLibrary,
+    ReportType,
+    SessionStatus,
+)
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -47,16 +49,6 @@ class TerraformCRUDHandler:
         ctx = self.__ctx
 
         async def background_task():
-
-            tracer_token = TracerService.set_current_tracer(
-                tracer=PhoenixTracer(
-                    session_id=ctx.id,
-                    user_id=ctx.user_id,
-                    branch_name=ctx.branch_name,
-                    cloud=ctx.terraform_prv,
-                    iac_path=ctx.iac_path,
-                )
-            )
             try:
                 await self.__session_svc.set_round_id(q)
 
@@ -127,7 +119,6 @@ class TerraformCRUDHandler:
                 )
                 raise
             finally:
-                TracerService.reset_current_tracer(tracer_token)
                 await self.__session_svc.save()
 
         return background_task

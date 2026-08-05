@@ -10,7 +10,6 @@ from src.domains.interfaces import ITerraformValidator
 from src.domains.services import (
     ToolOrchestrationService,
     SessionService,
-    TracerService,
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
@@ -20,7 +19,6 @@ from src.application.services import (
     RequestsFilterService,
     TerraformDriftService,
 )
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.config import system_config
 from src.shared.constants import (
     SessionStatus,
@@ -59,15 +57,6 @@ class TerraformDriftHandler:
 
         async def background_task():
 
-            tracer_token = TracerService.set_current_tracer(
-                tracer=PhoenixTracer(
-                    session_id=ctx.id,
-                    user_id=ctx.user_id,
-                    branch_name=ctx.branch_name,
-                    cloud=ctx.terraform_prv,
-                    iac_path=ctx.iac_path,
-                )
-            )
             try:
                 await self.__session_svc.update_status(
                     msg=q,
@@ -108,6 +97,6 @@ class TerraformDriftHandler:
                 )
                 raise
             finally:
-                TracerService.reset_current_tracer(tracer_token)
+                pass
 
         return background_task

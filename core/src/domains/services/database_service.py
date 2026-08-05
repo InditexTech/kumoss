@@ -163,12 +163,14 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
     Only the constructor inputs are stored; transient state (``call_dir``,
     artifacts) is intentionally left out of the cache.
     """
+
     return {
         "id": str(ctx.id),
         "user_id": ctx.user_id,
         "round_id": ctx.round_id,
         "repo_uri": ctx.repo_uri,
         "scope_id": ctx.scope_id,
+        "operation_type": ctx.operation.value,
         "terraform_prv": ctx.terraform_prv.value,
         "branch_name": ctx.branch_name,
         "iac_path": ctx.iac_path,
@@ -183,6 +185,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         round_id=data["round_id"],
         repo_uri=data["repo_uri"],
         scope_id=data["scope_id"],
+        operation_type=OperationType(data["operation_type"]),
         terraform_prv=TerraformProvider(data["terraform_prv"]),
         branch_name=data["branch_name"],
         iac_path=data["iac_path"],
@@ -474,6 +477,7 @@ class DatabaseService:
                 round_id=round_id,
                 repo_uri=workspace.uri,
                 scope_id=provider.scope_id,
+                operation_type=session.operation,
                 terraform_prv=provider.provider,
                 branch_name=workspace.branch,
                 iac_path=workspace.root_path,

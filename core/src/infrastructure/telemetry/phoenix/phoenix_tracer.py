@@ -37,7 +37,11 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import LLMProvider, TerraformProvider
+from src.shared.constants import (
+    LLMProvider,
+    OperationType,
+    TerraformProvider,
+)
 
 
 class PhoenixTracer(ITracer):
@@ -47,7 +51,8 @@ class PhoenixTracer(ITracer):
         user_id: str,
         cloud: TerraformProvider,
         iac_path: str,
-        branch_name: str | None = None,
+        operation: OperationType,
+        branch_name: str,
     ):
         """
         PhoenixTracer implements a concrete adapter to OTel for a Phoenix collector
@@ -55,15 +60,15 @@ class PhoenixTracer(ITracer):
 
         :param session_id: Unique identifier for this tracing session
         :param user_id: Identifier for the user associated with this session
-        :param project: The name of the selected project
+        :param project: The Phoenix project traces are sent to
         :param branch_name: The name of the git's branch name where the changes are being implemented
         """
-        self.__tracer: Tracer = get_tracer()
+        self.__tracer: Tracer = get_tracer(operation)
         self.__session_id: str = str(session_id)
         self.__user_id: str = user_id
         self.__terraform_prv: TerraformProvider = cloud
         self.__iac_path: str = iac_path
-        self.__branch_name: str = branch_name if branch_name else "undefined"
+        self.__branch_name: str = branch_name
         self.__root_context: Context | None = None
 
     def __metadata_attributes(
@@ -92,16 +97,22 @@ class PhoenixTracer(ITracer):
 
     @override
     def trace_terraform(
-        self, terraformDTO: TerraformValidationDTO, **kwargs: Any
+        self,
+        terraformDTO: TerraformValidationDTO,
+        start_time: int | None = None,
+        **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
         :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
         span = self.__tracer.start_span(
-            name=f"Terraform - validation {terraformDTO.validation}"
+            name=f"Terraform - validation {terraformDTO.validation}",
+            context=self.__root_context,
+            start_time=start_time,
         )
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
@@ -177,11 +188,13 @@ class PhoenixTracer(ITracer):
         )
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
-            *_input_attributes(kwargs),
+            *_input_attributes(kwargs["msg"]),
             *_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
             *_llm_model_name_attributes(provider),
             *_llm_invocation_parameters_attributes(invocation_params),
-            *_llm_input_messages_attributes(kwargs["msg"], kwargs.get("history")),
+            *_llm_input_messages_attributes(
+                kwargs["msg"], kwargs.get("history"), kwargs.get("system_prompt")
+            ),
             *_llm_tools(kwargs.get("tools")),
             *_output_llm_attributes(response),
             *_llm_output_message_attributes(response),
@@ -212,11 +225,28 @@ class PhoenixTracer(ITracer):
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.TOOL),
-            *_input_attributes(kwargs or args),
+            *_tool_attributes(tool, output),
+            *_input_attributes(tool.parameters if tool else (kwargs or args)),
             *_output_attributes(output),
         ):
             span.set_attribute(attribute_key, attribute_value)
         return span
+
+
+def _serialize(payload: Any) -> tuple[str, str]:
+    """
+    Serializes a payload to a JSON string with JSON mime type when possible,
+    otherwise to a plain string with text mime type.
+    """
+    if isinstance(payload, str):
+        return payload, OpenInferenceMimeTypeValues.TEXT.value
+    try:
+        return (
+            json.dumps(payload, ensure_ascii=False, default=str),
+            OpenInferenceMimeTypeValues.JSON.value,
+        )
+    except (TypeError, ValueError):
+        return str(payload), OpenInferenceMimeTypeValues.TEXT.value
 
 
 def _input_attributes(payload: Any) -> Iterator[tuple[str, str]]:
@@ -224,8 +254,9 @@ def _input_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     Yields the OpenInference input value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    yield SpanAttributes.INPUT_VALUE, str(payload)
-    yield SpanAttributes.INPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
+    value, mime_type = _serialize(payload)
+    yield SpanAttributes.INPUT_VALUE, value
+    yield SpanAttributes.INPUT_MIME_TYPE, mime_type
 
 
 def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
@@ -239,8 +270,24 @@ def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
             or cast(str, payload.result.get("explanation"))
             or payload
         )
-    yield SpanAttributes.OUTPUT_VALUE, str(payload)
-    yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
+    value, mime_type = _serialize(payload)
+    yield SpanAttributes.OUTPUT_VALUE, value
+    yield SpanAttributes.OUTPUT_MIME_TYPE, mime_type
+
+
+def _tool_attributes(
+    tool_call: ToolCallDTO | None, output: ToolResultDTO
+) -> Iterator[tuple[str, str]]:
+    """
+    Yields the OpenInference tool attributes for a TOOL span: the tool name,
+    the result id (tool.id links back to the originating tool_call.id) and
+    the call parameters as a JSON string.
+    """
+    if not tool_call:
+        return
+    yield SpanAttributes.TOOL_NAME, tool_call.name
+    yield SpanAttributes.TOOL_ID, output.tool_call_id or tool_call.id
+    yield SpanAttributes.TOOL_PARAMETERS, json.dumps(tool_call.parameters, ensure_ascii=False, default=str)
 
 
 def _span_kind_attributes(
@@ -272,18 +319,37 @@ def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str
     yield SpanAttributes.LLM_SYSTEM, system
 
 
+_BULKY_INVOCATION_KEYS = {
+    "messages",
+    "contents",
+    "system",
+    "system_instruction",
+    "tools",
+}
+
+
 def _llm_invocation_parameters_attributes(
     invocation_parameters: dict[str, Any],
 ) -> Iterator[tuple[str, str]]:
     """
     Yields the OpenInference invocation parameters attribute as a JSON string.
+    Message, system prompt and tool payloads are excluded: they are already
+    traced as dedicated llm.input_messages / llm.tools attributes.
     """
+    params: dict[str, Any] = {}
     for k, v in invocation_parameters.items():
-        if not isinstance(v, (int | str | float | bool | None)):
-            invocation_parameters[k] = str(v)
+        if k in _BULKY_INVOCATION_KEYS:
+            continue
+        if hasattr(v, "model_dump"):  # e.g. Gemini's GenerateContentConfig
+            v = {
+                ck: cv
+                for ck, cv in v.model_dump(exclude_none=True, mode="json").items()
+                if ck not in _BULKY_INVOCATION_KEYS
+            }
+        params[k] = v
     yield (
         SpanAttributes.LLM_INVOCATION_PARAMETERS,
-        json.dumps(obj=invocation_parameters, ensure_ascii=False),
+        json.dumps(obj=params, ensure_ascii=False, default=str),
     )
 
 
@@ -309,57 +375,59 @@ def _llm_tools(tools: list[ToolDefinitionDTO]) -> Iterator[tuple[str, str]]:
 def _llm_input_messages_attributes(
     query: str | list[ToolResultDTO],
     history: History | None,
+    system_prompt: str | None = None,
 ) -> Iterator[tuple[str, str]]:
     """
     Yields the OpenInference input messages attributes for each message in the list.
     """
 
-    def _trace_tool_result(
-        tool_result: ToolResultDTO, idx: int
+    def _trace_tool_results(
+        tool_results: list[ToolResultDTO], msg_idx: int
+    ) -> Iterator[tuple[str, str]]:
+        for i, t in enumerate(tool_results):
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx + i}.{MessageAttributes.MESSAGE_ROLE}",
+                "tool",
+            )
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx + i}.{MessageAttributes.MESSAGE_TOOL_CALL_ID}",
+                t.tool_call_id,
+            )
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx + i}.{MessageAttributes.MESSAGE_CONTENT}",
+                str(t.result) if t.result else str(t.error_message),
+            )
+
+    def _trace_tool_calls(
+        tool_calls: list[ToolCallDTO], msg_idx: int
     ) -> Iterator[tuple[str, str]]:
         yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-            + f"{ToolCallAttributes.TOOL_CALL_ID}",
-            tool_result.tool_call_id,
-        )
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
-            str(tool_result.result)
-            if tool_result.result
-            else str(tool_result.error_message),
-        )
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
-            "user",
-        )
-
-    def _trace_tool_call(tool_call: ToolCallDTO, idx: int) -> Iterator[tuple[str, str]]:
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-            + f"{ToolCallAttributes.TOOL_CALL_ID}",
-            tool_call.id,
-        )
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-            + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
-            tool_call.name,
-        )
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.0."
-            + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
-            json.dumps(tool_call.parameters),
-        )
-        yield (
-            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
+            f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx}.{MessageAttributes.MESSAGE_ROLE}",
             "assistant",
         )
+        for i, t in enumerate(tool_calls):
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}."
+                + f"{ToolCallAttributes.TOOL_CALL_ID}",
+                t.id,
+            )
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}."
+                + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
+                t.name,
+            )
+            yield (
+                f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx}.{MessageAttributes.MESSAGE_TOOL_CALLS}.{i}."
+                + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
+                json.dumps(t.parameters),
+            )
 
     def _trace_text_msg(
-        msg: str, role: Literal["user", "assistant"], idx: int
+        msg: str, role: Literal["system", "user", "assistant"], idx: int
     ) -> Iterator[tuple[str, str]]:
         yield (
             f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_CONTENT}",
-            msg,
+            msg if isinstance(msg, str) else str(msg),
         )
         yield (
             f"{SpanAttributes.LLM_INPUT_MESSAGES}.{idx}.{MessageAttributes.MESSAGE_ROLE}",
@@ -367,22 +435,24 @@ def _llm_input_messages_attributes(
         )
 
     idx = 0
+    if system_prompt:
+        yield from _trace_text_msg(system_prompt, "system", idx)
+        idx += 1
     if history:
         for turn in history:
-            if isinstance(turn.user, list) and isinstance(turn.user[0], ToolResultDTO):
-                yield from _trace_tool_result(turn.user[0], idx)
+            if isinstance(turn.user, list):
+                yield from _trace_tool_results(turn.user, idx)
+                idx += len(turn.user)
             else:
                 yield from _trace_text_msg(turn.user, "user", idx)
-            idx += 1
-            if isinstance(turn.assistant, list) and isinstance(
-                turn.assistant[0], ToolCallDTO
-            ):
-                yield from _trace_tool_call(turn.assistant[0], idx)
+                idx += 1
+            if isinstance(turn.assistant, list):
+                yield from _trace_tool_calls(turn.assistant, idx)
             else:
                 yield from _trace_text_msg(turn.assistant, "assistant", idx)
             idx += 1
-    if isinstance(query, list) and isinstance(query[0], ToolResultDTO):
-        yield from _trace_tool_result(query[0], idx)
+    if isinstance(query, list):
+        yield from _trace_tool_results(query, idx)
     else:
         yield from _trace_text_msg(query, "user", idx)
 
@@ -392,15 +462,20 @@ def _output_llm_attributes(response: LLMResponseDTO) -> Iterator[tuple[str, str]
     Yields the OpenInference output value attribute as a JSON string for tool calls,
     or as plain text for text responses, along with the appropriate MIME type.
     """
-    if response.text:
-        yield SpanAttributes.OUTPUT_VALUE, response.text
-        yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
-    elif response.tool_calls:
+    if response.tool_calls:
+        tool_calls = [tc.__dict__ for tc in response.tool_calls]
         yield (
             SpanAttributes.OUTPUT_VALUE,
-            json.dumps([tc.__dict__ for tc in response.tool_calls]),
+            json.dumps(
+                {"text": response.text, "tool_calls": tool_calls}
+                if response.text
+                else tool_calls
+            ),
         )
         yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.JSON.value
+    else:
+        yield SpanAttributes.OUTPUT_VALUE, response.text
+        yield SpanAttributes.OUTPUT_MIME_TYPE, OpenInferenceMimeTypeValues.TEXT.value
 
 
 def _llm_output_message_attributes(
@@ -423,8 +498,12 @@ def _llm_output_message_attributes(
             f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_ROLE}",
             "assistant",
         )
-        idx = 0
-        for tool in response.tool_calls:
+        for idx, tool in enumerate(response.tool_calls):
+            yield (
+                f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{idx}."
+                + f"{ToolCallAttributes.TOOL_CALL_ID}",
+                tool.id,
+            )
             yield (
                 f"{SpanAttributes.LLM_OUTPUT_MESSAGES}.0.{MessageAttributes.MESSAGE_TOOL_CALLS}.{idx}."
                 + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_NAME}",
@@ -435,7 +514,6 @@ def _llm_output_message_attributes(
                 + f"{ToolCallAttributes.TOOL_CALL_FUNCTION_ARGUMENTS_JSON}",
                 json.dumps(tool.parameters),
             )
-            idx += 1
 
 
 def _llm_token_usage_attributes(
