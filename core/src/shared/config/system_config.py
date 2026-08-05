@@ -27,7 +27,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, ProviderPrefix
+from src.shared.constants import GitProviderName, LLMProviderPrefix
 
 
 class ConfigError(ValueError):
@@ -80,31 +80,31 @@ class LlmConfig(BaseModel):
 
     # Maps the model_id prefix to the env vars that hold the credentials for that provider.
     _PROVIDER_ENV: ClassVar[dict[str, dict[str, str]]] = {
-        ProviderPrefix.VERTEX_AI.value: {
+        LLMProviderPrefix.VERTEX_AI.value: {
             "vertex_project": "VERTEXAI_PROJECT",
             "vertex_location": "VERTEXAI_LOCATION",
             "vertex_credentials": "GOOGLE_SA_SECRET",
         },
-        ProviderPrefix.GEMINI.value: {
+        LLMProviderPrefix.GEMINI.value: {
             "api_key": "GEMINI_API_KEY",
         },
-        ProviderPrefix.BEDROCK.value: {
+        LLMProviderPrefix.BEDROCK.value: {
             "aws_access_key_id": "AWS_ACCESS_KEY_ID",
             "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
             "aws_region_name": "AWS_REGION_NAME",
             # Bearer token is passed as `api_key` to LiteLLM
             "api_key": "AWS_BEARER_TOKEN_BEDROCK",
         },
-        ProviderPrefix.OPENAI.value: {
+        LLMProviderPrefix.OPENAI.value: {
             "api_key": "OPENAI_API_KEY",
             "api_base": "OPENAI_API_BASE",
         },
-        ProviderPrefix.AZURE.value: {
+        LLMProviderPrefix.AZURE.value: {
             "api_key": "AZURE_API_KEY",
             "api_base": "AZURE_API_BASE",
             "api_version": "AZURE_API_VERSION",
         },
-        ProviderPrefix.AZURE_AI.value: {
+        LLMProviderPrefix.AZURE_AI.value: {
             "api_key": "AZURE_AI_API_KEY",
             "api_base": "AZURE_AI_API_BASE",
         },
@@ -118,7 +118,7 @@ class LlmConfig(BaseModel):
                 + f". Supported prefixes: {list(self._PROVIDER_ENV.keys())}"
             )
         env_map = self._PROVIDER_ENV.get(
-            prefix, self._PROVIDER_ENV[ProviderPrefix.VERTEX_AI.value]
+            prefix, self._PROVIDER_ENV[LLMProviderPrefix.VERTEX_AI.value]
         )
         credentials: dict[str, str] = {}
         for key, env_name in env_map.items():
@@ -127,7 +127,7 @@ class LlmConfig(BaseModel):
                 credentials[key] = value
 
         # Bedrock: bearer token (api_key) takes priority over access key / secret
-        if prefix == ProviderPrefix.BEDROCK.value and "api_key" in credentials:
+        if prefix == LLMProviderPrefix.BEDROCK.value and "api_key" in credentials:
             credentials.pop("aws_access_key_id", None)
             credentials.pop("aws_secret_access_key", None)
 
@@ -288,7 +288,7 @@ class SystemConfig(BaseModel):
             prefix = model_id.split("/")[0]
             env_map = self.llm._PROVIDER_ENV.get(prefix, {})
 
-            if prefix == ProviderPrefix.BEDROCK.value:
+            if prefix == LLMProviderPrefix.BEDROCK.value:
                 has_bearer = bool(_env("AWS_BEARER_TOKEN_BEDROCK"))
                 has_keys = bool(
                     _env("AWS_ACCESS_KEY_ID") and _env("AWS_SECRET_ACCESS_KEY")

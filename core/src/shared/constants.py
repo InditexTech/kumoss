@@ -6,7 +6,7 @@ from enum import Enum, unique
 
 
 @unique
-class ProviderPrefix(Enum):
+class LLMProviderPrefix(Enum):
     """Defines the possible provider prefixes (considered) for model_id prefix in LLMProvider (for LiteLLM)"""
 
     VERTEX_AI = "vertex_ai"
