@@ -56,9 +56,7 @@ async def subscribe_events(
     async def event_stream():
         sid = UUID(session_id)
         i = 0
-        for _ in range(5):
-            yield ": keepalive\n\n"
-            await sleep(2)
+        yield ": keepalive\n\n"
         while True:
             i += 1
             try:
