@@ -91,18 +91,6 @@ class TracerProviderError(ExceptionHandler):
     pass
 
 
-class ProviderOpenInferenceNotFound(ExceptionHandler):
-    """Raised when an OpenInference provider couldn't be found"""
-
-    pass
-
-
-class TracerRootContextError(ExceptionHandler):
-    """Raised when a child Span didn't find parent span context"""
-
-    pass
-
-
 class RipgrepError(ExceptionHandler):
     """Raised when an error is found when executing the ripgrep command"""
 

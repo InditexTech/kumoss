@@ -12,8 +12,6 @@ dependencies = [
     "fastapi[standard]>=0.139.2",
     "httpx[http2]>=0.28.1",
     "deepdiff>=9.1.0",
-    "anthropic[vertex]>=0.118.0",
-    "google-genai>=2.14.0",
     "jinja2>=3.1.6",
     "arize-phoenix>=19.4.0",
     "openinference-semantic-conventions>=0.1.30",
@@ -29,6 +27,7 @@ dependencies = [
     "mcp==1.28.1",
     "litellm>=1.93.0",
     "google-cloud-aiplatform>=1.163.0",
+    "openinference-instrumentation-litellm>=0.1.35",
 ]
 
 [dependency-groups]

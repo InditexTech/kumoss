@@ -12,6 +12,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from openinference.semconv.resource import ResourceAttributes
 from opentelemetry.trace import Tracer
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
 from src.shared.config import system_config
 from src.shared.constants import TracerProject
@@ -56,10 +57,17 @@ class ProvidersInitializer:
 _PROVIDERS: dict[TracerProject, TracerProvider] = ProvidersInitializer().providers
 
 
-def get_tracer() -> Tracer:
-    provider = TracerProject.PRO_TERRAFORM_DAY2
+def _active_project() -> TracerProject:
     if system_config.environment == "development":
-        provider = TracerProject.DEV_TERRAFORM_DAY2
-    elif system_config.environment == "staging":
-        provider = TracerProject.PRE_TERRAFORM_DAY2
-    return _PROVIDERS[provider].get_tracer(provider.value)
+        return TracerProject.DEV_TERRAFORM_DAY2
+    if system_config.environment == "staging":
+        return TracerProject.PRE_TERRAFORM_DAY2
+    return TracerProject.PRO_TERRAFORM_DAY2
+
+
+def get_tracer() -> Tracer:
+    project = _active_project()
+    return _PROVIDERS[project].get_tracer(project.value)
+
+
+LiteLLMInstrumentor().instrument(tracer_provider=_PROVIDERS[_active_project()])

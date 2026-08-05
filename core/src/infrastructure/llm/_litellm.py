@@ -21,7 +21,6 @@ from src.domains.dto import (
     ToolDefinitionDTO,
 )
 from src.domains.entities.history import History
-from src.domains.services.tracer_service import trace_llm
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallWebSearchNotSupported,
@@ -55,7 +54,6 @@ class LiteLLMAdapter(ILLMProvider):
         self.__max_tokens = max_tokens
         self.__provider_kwargs = provider_kwargs or {}
 
-    @trace_llm
     async def inference(
         self,
         msg: str | list[ToolResultDTO],

@@ -7,7 +7,7 @@ from enum import Enum, unique
 
 @unique
 class LLMProviderPrefix(Enum):
-    """Defines the possible provider prefixes (considered) for model_id prefix in LLMProvider (for LiteLLM)"""
+    """Defines the possible provider prefixes for LiteLLM model_id routing strings."""
 
     VERTEX_AI = "vertex_ai"
     BEDROCK = "bedrock"

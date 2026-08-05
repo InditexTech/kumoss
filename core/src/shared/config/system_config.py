@@ -67,10 +67,9 @@ class LlmConfig(BaseModel):
     nothing sensitive lives in the YAML.
     """
 
-    # `model` and `small_model` are LLMProvider enum names (see
-    # core/src/shared/constants.py::LLMProvider). Examples: CLAUDE_SONNET,
-    # CLAUDE_HAIKU, GEMINI_FLASH. The factory resolves
-    # the name to the full provider/model/region tuple at startup.
+    # `model` and `small_model` are LiteLLM model_id strings with a
+    # provider prefix. Examples: "vertex_ai/claude-sonnet-4-6",
+    # "bedrock/claude-haiku-4-5@20251001", "openai/gpt-5".
     model: str = "vertex_ai/claude-sonnet-4-6"
     small_model: str = "vertex_ai/claude-haiku-4-5@20251001"
     temperature: float = 0.1
