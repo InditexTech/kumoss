@@ -23,7 +23,9 @@ export interface SseConnection {
 export function subscribeToSession(
   sessionId: string,
   headers?: Record<string, string>,
+  opts?: { retryBaseMs?: number },
 ): SseConnection {
+  const retryBaseMs = opts?.retryBaseMs ?? SSE_RETRY_BASE_MS;
   const controller = new AbortController();
 
   const connection: SseConnection = {
@@ -39,7 +41,7 @@ export function subscribeToSession(
       if (controller.signal.aborted) return;
 
       if (attempt > 0) {
-        const delay = SSE_RETRY_BASE_MS * 2 ** (attempt - 1);
+        const delay = retryBaseMs * 2 ** (attempt - 1);
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, delay);
           controller.signal.addEventListener(
@@ -133,6 +135,7 @@ export async function getSessionData(
 
 export type SessionCheckResult =
   | { status: "completed" }
+  | { status: "failed" }
   | { status: "in_progress" }
   | { status: "not_found" };
 
@@ -145,6 +148,7 @@ export async function checkSessionStatus(
       `/api/v1/sessions/${encodeURIComponent(sessionId)}`,
     );
     if (data.current_status === "completed") return { status: "completed" };
+    if (data.current_status === "failed") return { status: "failed" };
     return { status: "in_progress" };
   } catch (err) {
     if (err instanceof ApiError && err.status === 404)

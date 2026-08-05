@@ -154,11 +154,10 @@ export function useTerraformActions() {
 
         dispatch({ type: "STREAMING", sessionId });
 
-        const es = subscribeToSession(sessionId);
-        eventSourceRef.current = es;
-        resetInactivityTimer(es);
-
-        es.onmessage = (event) => {
+        // Bound to a specific connection so reconnects don't act on a stale one
+        const createMessageHandler = (es: SseConnection) => (event: {
+          data: string;
+        }) => {
           resetInactivityTimer(es);
           try {
             const data: SseEventData = JSON.parse(event.data);
@@ -228,6 +227,11 @@ export function useTerraformActions() {
           }
         };
 
+        const es = subscribeToSession(sessionId);
+        eventSourceRef.current = es;
+        resetInactivityTimer(es);
+        es.onmessage = createMessageHandler(es);
+
         es.onerror = () => {
           es.close();
           eventSourceRef.current = null;
@@ -253,11 +257,24 @@ export function useTerraformActions() {
                 return;
               }
 
+              if (result.status === "failed") {
+                const failMsg = "Process failed";
+                dispatch({ type: "ERROR", message: failMsg });
+                setAssistantMsgState((prev) => ({
+                  ...prev,
+                  pipelineStep: PHASE.COMPLETE,
+                  sseStatus: EVENT_STATUS.FAILED,
+                  msg: failMsg,
+                }));
+                notifyIfHidden("Pipeline failed", { body: failMsg });
+                return;
+              }
+
               if (result.status === "in_progress") {
                 const newEs = subscribeToSession(sessionId);
                 eventSourceRef.current = newEs;
                 resetInactivityTimer(newEs);
-                newEs.onmessage = es.onmessage;
+                newEs.onmessage = createMessageHandler(newEs);
                 newEs.onerror = () => {
                   newEs.close();
                   eventSourceRef.current = null;

@@ -259,11 +259,43 @@ describe("useTerraformActions", () => {
     expect(result.current.state.status).toBe("streaming");
 
     // Second connection should work normally
+    const secondConnection = mockSseConnection;
     await act(async () => {
-      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      secondConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
     });
 
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    // COMPLETED must close the reconnected connection, not the stale one
+    expect(secondConnection.close).toHaveBeenCalled();
+  });
+
+  it("SSE error + failed = error state with failure notification", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "failed" });
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "error", message: "Process failed" });
+      });
+    });
+
+    // No reconnect attempt for a terminal failed session
+    expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Pipeline failed",
+      expect.objectContaining({ body: "Process failed" }),
+    );
   });
 
   it("SSE error + recovery failure = error state", async () => {

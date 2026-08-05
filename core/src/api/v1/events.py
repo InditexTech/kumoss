@@ -75,7 +75,7 @@ async def subscribe_events(
                 break
 
             payload = {
-                "status_msg": status.status.value,
+                "status_msg": status.status.name,
                 "detail": {
                     "message": status.msg.replace('"', ""),  # Sanitize msg
                 },

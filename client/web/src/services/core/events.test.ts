@@ -63,16 +63,16 @@ describe("subscribeToSession", () => {
     );
 
     const onerror = vi.fn();
-    const conn = subscribeToSession("bad-session");
+    const conn = subscribeToSession("bad-session", undefined, { retryBaseMs: 20 });
     conn.onerror = onerror;
 
     await vi.waitFor(() => {
       expect(onerror).toHaveBeenCalled();
-    }, { timeout: 30_000 });
+    }, { timeout: 3000 });
 
     expect(onerror).toHaveBeenCalledTimes(1);
     conn.close();
-  }, 35_000);
+  });
 
   it("retries on transient failure and delivers events on success", async () => {
     let callCount = 0;
@@ -98,18 +98,55 @@ describe("subscribeToSession", () => {
 
     const received: unknown[] = [];
     const onerror = vi.fn();
-    const conn = subscribeToSession("retry-session");
+    const conn = subscribeToSession("retry-session", undefined, { retryBaseMs: 20 });
     conn.onmessage = (event) => received.push(JSON.parse(event.data));
     conn.onerror = onerror;
 
     await vi.waitFor(() => {
       expect(received).toHaveLength(1);
-    }, { timeout: 15_000 });
+    }, { timeout: 3000 });
 
     expect(onerror).not.toHaveBeenCalled();
     expect(callCount).toBeGreaterThanOrEqual(2);
     conn.close();
-  }, 20_000);
+  });
+
+  it("retries when the stream closes unexpectedly without abort", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("/api/v1/events/subscribe/:sessionId", () => {
+        callCount++;
+        const stream = new ReadableStream({
+          start(controller) {
+            if (callCount > 1) {
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ status_msg: "COMPLETED", detail: { message: "Done." } })}\n\n`),
+              );
+            }
+            // First connection closes without delivering anything
+            controller.close();
+          },
+        });
+        return new HttpResponse(stream, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }),
+    );
+
+    const received: unknown[] = [];
+    const onerror = vi.fn();
+    const conn = subscribeToSession("drop-session", undefined, { retryBaseMs: 20 });
+    conn.onmessage = (event) => received.push(JSON.parse(event.data));
+    conn.onerror = onerror;
+
+    await vi.waitFor(() => {
+      expect(received).toHaveLength(1);
+    }, { timeout: 3000 });
+
+    expect(onerror).not.toHaveBeenCalled();
+    expect(callCount).toBeGreaterThanOrEqual(2);
+    conn.close();
+  });
 
   it("close() during retry delay aborts without calling onerror", async () => {
     server.use(
@@ -212,6 +249,17 @@ describe("checkSessionStatus", () => {
 
     const result = await checkSessionStatus("sess-done");
     expect(result).toEqual({ status: "completed" });
+  });
+
+  it("returns failed when session has current_status=failed", async () => {
+    server.use(
+      http.get("/api/v1/sessions/:sessionId", () => {
+        return HttpResponse.json({ current_status: "failed" });
+      }),
+    );
+
+    const result = await checkSessionStatus("sess-failed");
+    expect(result).toEqual({ status: "failed" });
   });
 
   it("returns in_progress when session is still running", async () => {
