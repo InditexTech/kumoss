@@ -23,7 +23,6 @@ from src.domains.dto import (
 from src.domains.entities.history import History
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
-    InferenceCallWebSearchNotSupported,
     InferenceCallThinkingToolError,
     InferenceCallWebSearchTools,
 )
@@ -69,11 +68,6 @@ class LiteLLMAdapter(ILLMProvider):
                 error_code=400,
             )
         if web_search:
-            if not litellm.supports_web_search(self.__model):
-                raise InferenceCallWebSearchNotSupported(
-                    message="The model does not support web search, but web search was requested.",
-                    error_code=400,
-                )
             if tools:
                 raise InferenceCallWebSearchTools(
                     message="Inference cannot be invoked with tools and web search enabled.",

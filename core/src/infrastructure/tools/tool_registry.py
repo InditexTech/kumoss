@@ -18,9 +18,12 @@ from src.domains.dto import (
 )
 from src.infrastructure.external.litellm_web_search import LiteLLMWebSearch
 from src.infrastructure.exceptions import (
+    InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
+    InferenceCallAPIError,
+    WebSearchToolNoContent,
 )
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
@@ -267,10 +270,19 @@ class ToolRegistry(IToolRegistry):
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:
         query = parameters["query"]
         explanation = parameters.get("explanation", "")
-        return {
-            "web_search": await self.__web_search.search(query),
-            "explanation": explanation,
-        }
+        # This avoid entering in a loop of calling web_search when the tool is not supported by the provider
+        try:
+            result = await self.__web_search.search(query)
+        except (
+            InferenceCallWebSearchNotSupported,
+            InferenceCallAPIError,
+            WebSearchToolNoContent,
+        ) as e:
+            return {
+                "web_search": f"Web search is unavailable: {e.message}. Do NOT retry web_search — use your existing knowledge instead.",
+                "explanation": explanation,
+            }
+        return {"web_search": result, "explanation": explanation}
 
     def __handle_target_generator(
         self, parameters: dict[str, Any]
