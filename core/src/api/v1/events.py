@@ -7,7 +7,7 @@ from asyncio import sleep
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
@@ -53,24 +53,18 @@ async def subscribe_events(
     - Connection remains open until session completion or failure
     """
 
+    sid = UUID(session_id)
+
     async def event_stream():
-        sid = UUID(session_id)
         i = 0
         yield ": keepalive\n\n"
-        while True:
+        for _ in range(system_config.orchestration.max_session_events_iteration):
             i += 1
             try:
                 status: Status = await DatabaseService.get_last_status(sid)
             except ExceptionHandler as e:
                 logging.error(e.message)
-                await sleep(5)
                 continue
-
-            if i == system_config.orchestration.max_session_events_iteration:
-                logging.error(
-                    f"SSE max iterations reached, closing stream. session_id={session_id}"
-                )
-                break
 
             payload = {
                 "status_msg": status.status.name,
@@ -89,6 +83,15 @@ async def subscribe_events(
 
             await sleep(5)
 
+        logging.error(
+            f"SSE max iterations reached, closing stream. session_id={session_id}"
+        )
+
+    await sleep(2)
+    try:
+        _ = await DatabaseService.get_session_summary(sid)
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
