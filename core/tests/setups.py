@@ -55,11 +55,10 @@ def _setup_tracer():
     global _TOKEN
     _TOKEN = TracerService.set_current_tracer(
         PhoenixTracer(
-            provider_name=Settings.PHOENIX_PROJECT_NAME,
             session_id=Settings.SESSION_ID,
             user_id=Settings.USER_ID,
-            project=Settings.DEFAULT_PROJECT_NAME,
-            environment=Settings.DEFAULT_PROJECT_ENV,
+            cloud=Settings.TEMPLATE_PROVIDER,
+            iac_path="/test",
         )
     )
 
