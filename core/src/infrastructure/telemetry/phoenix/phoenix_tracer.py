@@ -111,7 +111,6 @@ class PhoenixTracer(ITracer):
         """
         span = self.__tracer.start_span(
             name=f"Terraform - validation {terraformDTO.validation}",
-            context=self.__root_context,
             start_time=start_time,
         )
         for attribute_key, attribute_value in (
@@ -287,7 +286,10 @@ def _tool_attributes(
         return
     yield SpanAttributes.TOOL_NAME, tool_call.name
     yield SpanAttributes.TOOL_ID, output.tool_call_id or tool_call.id
-    yield SpanAttributes.TOOL_PARAMETERS, json.dumps(tool_call.parameters, ensure_ascii=False, default=str)
+    yield (
+        SpanAttributes.TOOL_PARAMETERS,
+        json.dumps(tool_call.parameters, ensure_ascii=False, default=str),
+    )
 
 
 def _span_kind_attributes(

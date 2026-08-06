@@ -56,7 +56,7 @@ class WorkspaceService(IWorkspace):
         self,
         session_id: UUID,
         repo_uri: str,
-        branch: str | None,
+        branch: str,
     ) -> Path:
         call_id = uuid4()
         call_dir = self._base / str(session_id) / str(call_id)
@@ -79,13 +79,6 @@ class WorkspaceService(IWorkspace):
         await git.checkout(branch)
         await git.commit_and_push(branch)
         return call_dir
-
-    @override
-    async def push(self, *, call_dir: Path, branch: str) -> None:
-        git = GitUtils(git_provider=system_config.git.provider, cwd=call_dir)
-        ok = await git.push_branch(branch)
-        if not ok:
-            raise GitError(f"git push failed: {git.error_msg}", 500)
 
     @override
     def cleanup(self, call_dir: Path) -> None:

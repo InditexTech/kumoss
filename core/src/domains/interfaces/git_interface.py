@@ -89,19 +89,38 @@ class IGit(ABC):
         pass
 
     @abstractmethod
+    async def get_untracked_files(self) -> list[str]:
+        """get_untracked_files returns a list of file names that are not tracked by git and
+        are gitirnored"""
+        pass
+
+    @abstractmethod
     async def get_changed_files(
-        self, diff_filter: Literal["A", "M", "AM"]
+        self,
+        working_tree: bool,
+        diff_filter: Literal["A", "M", "AM"],
     ) -> list[str]:
         """This function return a list of files that has been modified or created
-        since the current branch has been created based on the given filter.
-        A: added
-        M: modified
+        based on the given filter.
+
+        Args:
+            working_tree: Whether the output only includes unstaged changes in the working tree.
+            diff_filter: A - added | M - modified
         """
         pass
 
     @abstractmethod
-    async def show_diff(self) -> str:
-        """show_diff returns a plain text string containing the diff for all the STAGED and COMMITED files
+    async def show_diff(
+        self,
+        working_tree: bool,
+        full_content: bool,
+        file_path: str = None,
+    ) -> str:
+        """show_diff returns a plain text string containing the diff for files tracked by git.STAGED and COMMITED files
         SINCE the current branch diverged from the default branch
+
+        Args:
+            wroking_tree: Whether the output only includes unstaged changes in the working tree.
+            full_content: Unify all the content lines - not just the changed ones.
         """
         pass

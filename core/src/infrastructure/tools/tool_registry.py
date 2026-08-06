@@ -252,14 +252,14 @@ class ToolRegistry(IToolRegistry):
 
     async def __handle_diff_history(self, parameters: dict[str, Any]) -> dict[str, str]:
         explanation = parameters["explanation"]
-        result = await self.__git.show_diff()
+        result = await self.__git.show_diff(working_tree=False, full_content=False)
         result += "\nUntracked changes:\n" + str(
             [
                 f"{file}:\n"
                 + self.__filesystem.read_file(
                     target_file=file,
                 )
-                for file in await self.__git.get_changed_files("A")
+                for file in await self.__git.get_untracked_files()
             ]
         )
         return {"diff": result, "explanation": explanation}

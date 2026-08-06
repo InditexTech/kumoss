@@ -161,40 +161,60 @@ class GitUtils(IGit):
         return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
 
     @override
-    async def show_diff(self) -> str:
-        """show_diff returns a plain text string containing the diff for all the STAGED and COMMITED files
-        SINCE the current branch diverged from the default branch
-        """
-        if not self._handle_return_code(
-            cmd := await self.__cli.execute(
-                [
-                    "git",
-                    "--no-pager",
-                    "diff",
-                    "--no-color",
-                    "--find-renames",
-                    "--no-prefix",
-                    "--ignore-space-change",
-                    "--relative",
-                    await self._get_default_branch_commit_id(),
-                ]
-            )
-        ):
+    async def show_diff(
+        self,
+        working_tree: bool,
+        full_content: bool,
+        file_path: str = None,
+    ) -> str:
+        cmd = [
+            "git",
+            "--no-pager",
+            "diff",
+            "--no-color",
+            "--find-renames",
+            "--no-prefix",
+            "--ignore-space-change",
+            "--relative",
+            "HEAD",
+        ]
+        if full_content:
+            cmd.insert(3, "--unified=1000")
+        if not working_tree:
+            cmd.insert(8, await self._get_default_branch_commit_id())
+        if file_path:
+            cmd.extend(["--", file_path])
+        if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 message=self.__error_msg,
                 error_code=502,
             )
+        logging.debug(cmd)
         return cmd.stdout.decode()
 
     @override
+    async def get_untracked_files(self) -> list[str]:
+        cmd = [
+            "git",
+            "--no-pager",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+        ]
+        if not self._handle_return_code(output := await self.__cli.execute(cmd)):
+            raise ExceptionHandler(
+                error_code=500,
+                message=f"Git error when fetching changed files: {self.__error_msg}",
+            )
+        logging.debug(cmd)
+        return output.stdout.decode("utf-8").strip().splitlines()
+
+    @override
     async def get_changed_files(
-        self, diff_filter: Literal["A", "M", "AM"]
+        self,
+        working_tree: bool,
+        diff_filter: Literal["A", "M", "AM"],
     ) -> list[str]:
-        """This function return a list of files that has been modified or created
-        since the current branch has been created based on the given filter.
-        A: added
-        M: modified
-        """
         cmd = [
             "git",
             "--no-pager",
@@ -202,14 +222,16 @@ class GitUtils(IGit):
             "--name-only",
             f"--diff-filter={diff_filter}",
             "--relative",
-            await self._get_default_branch_commit_id(),
             "HEAD",
         ]
+        if not working_tree:
+            cmd.insert(6, await self._get_default_branch_commit_id())
         if not self._handle_return_code(output := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 error_code=500,
                 message=f"Git error when fetching changed files: {self.__error_msg}",
             )
+        logging.debug(cmd)
         return output.stdout.decode("utf-8").strip().splitlines()
 
     async def _get_default_branch_commit_id(self) -> str:

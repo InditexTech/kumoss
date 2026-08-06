@@ -52,7 +52,7 @@ class FileSystemUtils(IFileSystem):
             logging.info(f"The file {target_file} does not exist, it will be created.")
 
         with open(file_path, "w", encoding="utf-8") as file:
-            file.write(content)
+            _ = file.write(content)
 
         if not file_path.exists():
             raise ExceptionHandler(

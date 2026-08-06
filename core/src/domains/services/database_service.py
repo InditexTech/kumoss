@@ -410,18 +410,12 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
-        round = await db.create(
-            Round,
-            session_id=session.id,
-            number=1,
-            query=query,
-        )
-        st = await db.create(
-            DbStatus,
-            session_id=session.id,
-            round_id=round.id,
+        round_id = await DatabaseService.create_round(session_id, query)
+        _ = await DatabaseService.__create_status(
+            session_id=session_id,
             status=SessionStatus.STARTED,
-            message=f"Session '{str(session_id)}' started.",
+            msg=f"Session '{str(session_id)}' started.",
+            round_id=round_id,
         )
 
         await redis_client.set_json_many(
@@ -438,11 +432,6 @@ class DatabaseService:
                     _ttl(_TTL_FACTS),
                 ),
                 (_k_first_query(session_id), query, _ttl(_TTL_FACTS)),
-                (
-                    _k_last_status(session_id),
-                    {"status": st.status, "message": st.message},
-                    _ttl(_TTL_STATUS),
-                ),
             ]
         )
         return session
@@ -911,10 +900,11 @@ class DatabaseService:
 
     @staticmethod
     async def get_last_status(session_id: UUID) -> Status:
+
         async def _load() -> dict[str, str] | None:
             sid = await DatabaseService.__map_session_id(session_id)
-            # max(id) is the append-order proxy for "latest", immune to
-            # created_at ties (same convention as the list_sessions filter).
+            if not sid:
+                return None
             status_model = await db.list_by(
                 model=DbStatus,
                 order_by="id",

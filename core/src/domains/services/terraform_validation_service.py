@@ -48,11 +48,8 @@ class TerraformValidationService:
         self.__artifact_svc = artifact_service
         self.__count: int = 0
 
-    async def __upload_changed_files(
-        self, ctx: SessionContext, file_names: list[str]
-    ) -> None:
-        for name in file_names:
-            content = self.__files.read_file(name)
+    async def __upload_changed_files(self, ctx: SessionContext) -> None:
+        async def __upload(name: str, content: str) -> None:
             _ = await self.__artifact_svc.store_code_change(
                 session_id=ctx.id,
                 round_id=ctx.round_id,
@@ -60,6 +57,23 @@ class TerraformValidationService:
                 content=content,
                 content_type=ContentType.TEXT,
             )
+
+        tracked_file_names: list[str] = await self.__git.get_changed_files(
+            working_tree=True,
+            diff_filter="AM",
+        )
+        for name in tracked_file_names:
+            content = await self.__git.show_diff(
+                working_tree=True,
+                full_content=True,
+                file_path=name,
+            )
+            await __upload(name, content)
+
+        untracked_file_names: list[str] = await self.__git.get_untracked_files()
+        for name in untracked_file_names:
+            content = self.__files.read_file(name)
+            await __upload(name, content)
 
     async def generate_and_validate(
         self,
@@ -110,9 +124,7 @@ class TerraformValidationService:
 
             local_history.append_turn(q, task_complete.result.get("summary"))
 
-            await self.__upload_changed_files(
-                ctx, await self.__git.get_changed_files("AM")
-            )
+            await self.__upload_changed_files(ctx)
             await self.__git.commit_and_push(ctx.branch_name)
 
             validation = await self.__validator.validate(
