@@ -33,7 +33,7 @@ admin:
 
 # LLM model selection.
 #
-# `model_id` and `small_model_id` use the LiteLLM "provider/model"
+# `model` and `small_model` use the LiteLLM "provider/model"
 # format. The provider prefix (before the "/") determines which
 # credentials are required — see LLMProvider in constants.py.
 #
@@ -41,36 +41,36 @@ admin:
 # (looked up from env vars) are missing.
 #
 # ── Anthropic (via Vertex AI) ──
-#   model_id: "vertex_ai/claude-sonnet-4-6"
-#   model_id: "vertex_ai/claude-haiku-4-5@20251001"
-#   model_id: "vertex_ai/claude-opus-4@20250514"
+#   model: "vertex_ai/claude-sonnet-4-6"
+#   model: "vertex_ai/claude-haiku-4-5@20251001"
+#   model: "vertex_ai/claude-opus-4@20250514"
 #
 # ── Anthropic (via Bedrock) ──
-#   model_id: "bedrock/eu.anthropic.claude-sonnet-4-20250514-v1:0"
-#   model_id: "bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0"
-#   model_id: "bedrock/eu.anthropic.claude-opus-4-20250514-v1:0"
+#   model: "bedrock/eu.anthropic.claude-sonnet-4-20250514-v1:0"
+#   model: "bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+#   model: "bedrock/eu.anthropic.claude-opus-4-20250514-v1:0"
 #
 # ── Anthropic (via Azure AI) ──
-#   model_id: "azure_ai/claude-sonnet-4-6"
-#   model_id: "azure_ai/claude-haiku-4-5"
-#   model_id: "azure_ai/claude-opus-4-1"
+#   model: "azure_ai/claude-sonnet-4-6"
+#   model: "azure_ai/claude-haiku-4-5"
+#   model: "azure_ai/claude-opus-4-1"
 #
 # ── Google Gemini (via Vertex AI) ──
-#   model_id: "vertex_ai/gemini-2.5-pro"
-#   model_id: "vertex_ai/gemini-3-flash-preview"
-#   model_id: "vertex_ai/gemini-2.5-flash-lite"
+#   model: "vertex_ai/gemini-2.5-pro"
+#   model: "vertex_ai/gemini-3-flash-preview"
+#   model: "vertex_ai/gemini-2.5-flash-lite"
 #
 # ── Google Gemini (via Gemini API) ──
-#   model_id: "gemini/gemini-2.5-pro"
-#   model_id: "gemini/gemini-3-flash-preview"
-#   model_id: "gemini/gemini-2.5-flash-lite"
+#   model: "gemini/gemini-2.5-pro"
+#   model: "gemini/gemini-3-flash-preview"
+#   model: "gemini/gemini-2.5-flash-lite"
 #
 # ── OpenAI ──
-#   model_id: "openai/gpt-5"
-#   model_id: "openai/gpt-5-mini"
+#   model: "openai/gpt-5"
+#   model: "openai/gpt-5-mini"
 #
 # ── OpenAI (via Azure) ──
-#   model_id: "azure/<your_deployment_name>"
+#   model: "azure/<your_deployment_name>"
 #
 llm:
   model: "vertex_ai/claude-sonnet-4-6"
