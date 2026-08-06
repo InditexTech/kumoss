@@ -122,12 +122,15 @@ class StorageAccountObjectStorage(IObjectStorage):
             pass
 
     @execute_pool
-    def __put_sync(self, key: str, data: bytes, content_type: str) -> None:
+    def __put_sync(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         # overwrite=True: parity with S3 put semantics (last write wins).
         _ = self.__client.get_blob_client(self.__container, key).upload_blob(
             data,
             overwrite=True,
             content_settings=ContentSettings(content_type=content_type),
+            metadata=metadata,
         )
 
     @execute_pool
@@ -158,9 +161,11 @@ class StorageAccountObjectStorage(IObjectStorage):
             self.__raise_translated(e, "ensure_bucket", "")
 
     @override
-    async def put(self, key: str, data: bytes, content_type: str) -> None:
+    async def put(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         try:
-            await self.__put_sync(key, data, content_type)
+            await self.__put_sync(key, data, content_type, metadata)
         except Exception as e:
             self.__raise_translated(e, "put", key)
 

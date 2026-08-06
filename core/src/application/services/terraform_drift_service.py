@@ -55,6 +55,17 @@ class TerraformDriftService:
                     targets=targets,
                     content=validation.terraform_plan,
                     content_type=ContentType.TEXT,
+                    is_drift=False,
+                )
+
+            if validation.feedback:
+                _ = await self.__artifact_svc.store_terraform_plan(
+                    session_id=self.__ctx.id,
+                    round_id=self.__ctx.round_id,
+                    targets=targets,
+                    content=validation.feedback,
+                    content_type=ContentType.TEXT,
+                    is_drift=True,
                 )
 
             # break if drift validation is successful

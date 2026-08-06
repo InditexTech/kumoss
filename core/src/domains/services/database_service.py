@@ -410,7 +410,7 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
-        round_id = await DatabaseService.create_round(session_id, query)
+        round_id = await DatabaseService.create_round(session_id, "undefined")
         _ = await DatabaseService.__create_status(
             session_id=session_id,
             status=SessionStatus.STARTED,

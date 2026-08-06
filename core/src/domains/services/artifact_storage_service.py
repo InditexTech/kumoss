@@ -57,6 +57,7 @@ class ArtifactStorageService:
         report_type: ReportType,
         content: str | bytes,
         content_type: ContentType,
+        metadata: dict[str, str] = None,
     ) -> int:
         """Persist a round report; returns the reports row pk.
 
@@ -66,6 +67,7 @@ class ArtifactStorageService:
             report_type: Report flavour (GENERATE/DRIFT/IMPORT/APPLY).
             content: Report body; str is stored utf-8 encoded.
             content_type: MIME type served on reads (max 64 chars).
+            metadata: Metadata attached to the object.
         """
         data = self.__encode(content)
         key = (
@@ -73,11 +75,12 @@ class ArtifactStorageService:
             + f"/reports/{report_type.value}-{_token()}.json"
         )
         return await self.__store(
-            key,
-            data,
-            content_type.value,
-            f"session {session_id} round {round_id}",
-            lambda: DatabaseService.add_report(
+            key=key,
+            data=data,
+            content_type=content_type.value,
+            metadata=metadata if metadata else {},
+            context=f"session {session_id} round {round_id}",
+            db_write=lambda: DatabaseService.add_report(
                 round_id=round_id,
                 report_type=report_type,
                 uri=key,
@@ -93,6 +96,8 @@ class ArtifactStorageService:
         targets: list[str],
         content: str | bytes,
         content_type: ContentType,
+        metadata: dict[str, str] = None,
+        is_drift: bool = False,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -102,15 +107,20 @@ class ArtifactStorageService:
             targets: Terraform targets the plan covers.
             content: Plan body; str is stored utf-8 encoded.
             content_type: MIME type served on reads (max 20 chars).
+            metadata: Metadata attached to the object.
         """
         data = self.__encode(content)
-        key = f"sessions/{session_id}/rounds/{round_id}" + f"/plans/plan-{_token()}.txt"
+        key = (
+            f"sessions/{session_id}/rounds/{round_id}"
+            + f"/plans/{'drift' if is_drift else 'plan'}-{_token()}.txt"
+        )
         return await self.__store(
-            key,
-            data,
-            content_type.value,
-            f"session {session_id} round {round_id}",
-            lambda: DatabaseService.add_terraform_plan(
+            key=key,
+            data=data,
+            content_type=content_type.value,
+            metadata=metadata if metadata else {},
+            context=f"session {session_id} round {round_id}",
+            db_write=lambda: DatabaseService.add_terraform_plan(
                 round_id=round_id,
                 targets=targets,
                 uri=key,
@@ -126,6 +136,7 @@ class ArtifactStorageService:
         file_name: str,
         content: str | bytes,
         content_type: ContentType,
+        metadata: dict[str, str] = None,
     ) -> int:
         """Persist a round code change; returns the code_changes row pk.
 
@@ -136,18 +147,22 @@ class ArtifactStorageService:
                 verbatim in the DB, sanitized inside the object key.
             content: File body; str is stored utf-8 encoded.
             content_type: MIME type served on reads (max 20 chars).
+            metadata: Metadata attached to the object.
         """
         data = self.__encode(content)
         key = (
             f"sessions/{session_id}/rounds/{round_id}"
             + f"/changes/{_token()}-{_safe_name(file_name)}"
         )
+        if not metadata:
+            metadata = {}
         return await self.__store(
-            key,
-            data,
-            content_type.value,
-            f"session {session_id} round {round_id}",
-            lambda: DatabaseService.add_code_change(
+            key=key,
+            data=data,
+            content_type=content_type.value,
+            metadata=metadata if metadata else {},
+            context=f"session {session_id} round {round_id}",
+            db_write=lambda: DatabaseService.add_code_change(
                 round_id=round_id,
                 file_name=file_name,
                 uri=key,
@@ -165,6 +180,7 @@ class ArtifactStorageService:
         key: str,
         data: bytes,
         content_type: str,
+        metadata: dict[str, str],
         context: str,
         db_write: Callable[[], Awaitable[int]],
     ) -> int:
@@ -177,7 +193,7 @@ class ArtifactStorageService:
                 ),
                 error_code=400,
             )
-        await self.__storage.put(key, data, content_type)
+        await self.__storage.put(key, data, content_type, metadata)
         try:
             return await db_write()
         except Exception as e:

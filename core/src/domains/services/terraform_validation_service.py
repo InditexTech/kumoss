@@ -8,7 +8,7 @@ from src.domains.entities import SessionContext
 from src.domains.interfaces import IFileSystem
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.interfaces.git_interface import IGit
-from src.domains.services import ArtifactStorageService
+from src.domains.services import ArtifactStorageService, SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.terraform_target_service import TerraformTargetService
@@ -16,8 +16,9 @@ from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import ContentType, PromptsLibrary, ToolContext
+from src.shared.constants import ContentType, PromptsLibrary, SessionStatus, ToolContext
 from src.shared.logger import logging
+from src.shared.exceptions import ExceptionHandler
 
 
 @dataclass
@@ -32,6 +33,7 @@ class TerraformValidationService:
         validator: ITerraformValidator,
         git: IGit,
         files: IFileSystem,
+        session_service: SessionService,
         template_service: TemplateOrchestrationService,
         llm_service: LLMOrchestrationService,
         tool_orchestration_service: ToolOrchestrationService,
@@ -41,6 +43,7 @@ class TerraformValidationService:
         self.__validator = validator
         self.__git = git
         self.__files = files
+        self.__session_svc = session_service
         self.__template_svc = template_service
         self.__llm_svc = llm_service
         self.__tool_orchestration = tool_orchestration_service
@@ -49,13 +52,14 @@ class TerraformValidationService:
         self.__count: int = 0
 
     async def __upload_changed_files(self, ctx: SessionContext) -> None:
-        async def __upload(name: str, content: str) -> None:
+        async def __upload(name: str, content: str, **metadata: str) -> None:
             _ = await self.__artifact_svc.store_code_change(
                 session_id=ctx.id,
                 round_id=ctx.round_id,
                 file_name=name,
                 content=content,
                 content_type=ContentType.TEXT,
+                metadata=metadata,
             )
 
         tracked_file_names: list[str] = await self.__git.get_changed_files(
@@ -68,12 +72,16 @@ class TerraformValidationService:
                 full_content=True,
                 file_path=name,
             )
-            await __upload(name, content)
+            await __upload(name, content, new_file="false")
 
         untracked_file_names: list[str] = await self.__git.get_untracked_files()
         for name in untracked_file_names:
-            content = self.__files.read_file(name)
-            await __upload(name, content)
+            try:
+                content = self.__files.read_file(name)
+            except ExceptionHandler as e:
+                logging.warning(f"Error reading file '{name}': {e.message}")
+                continue
+            await __upload(name, content, new_file="true")
 
     async def generate_and_validate(
         self,
@@ -99,6 +107,11 @@ class TerraformValidationService:
             self.__count += 1
             logging.debug(
                 f"Validation service {self.__count}/{system_config.orchestration.max_validation_iteration}"
+            )
+            _ = await self.__session_svc.update_status(
+                msg=q,
+                prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
+                status=SessionStatus.GENERATING,
             )
 
             task_complete: ToolResultDTO = await self.__llm_svc.generate(

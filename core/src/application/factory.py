@@ -196,6 +196,7 @@ class ApplicationFactory:
         self,
         git_utils: GitUtils,
         file_utils: FileSystemUtils,
+        session_service: SessionService,
         template_service: TemplateOrchestrationService,
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
@@ -207,6 +208,7 @@ class ApplicationFactory:
             validator=validator_provider,
             git=git_utils,
             files=file_utils,
+            session_service=session_service,
             template_service=template_service,
             llm_service=main_llm_service,
             tool_orchestration_service=tool_service,
@@ -302,6 +304,7 @@ class ApplicationFactory:
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
+            session_service=session_svc,
             template_service=template_svc,
             main_llm_service=llm_svc,
             tool_service=tool_svc,

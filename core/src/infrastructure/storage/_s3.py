@@ -159,9 +159,15 @@ class S3ObjectStorage(IObjectStorage):
                 raise
 
     @execute_pool
-    def __put_sync(self, key: str, data: bytes, content_type: str) -> None:
+    def __put_sync(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         self.__client.put_object(
-            Bucket=self.__bucket, Key=key, Body=data, ContentType=content_type
+            Bucket=self.__bucket,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+            Metadata=metadata,
         )
 
     @execute_pool
@@ -195,9 +201,11 @@ class S3ObjectStorage(IObjectStorage):
             self.__raise_translated(e, "ensure_bucket", "")
 
     @override
-    async def put(self, key: str, data: bytes, content_type: str) -> None:
+    async def put(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         try:
-            await self.__put_sync(key, data, content_type)
+            await self.__put_sync(key, data, content_type, metadata)
         except Exception as e:
             self.__raise_translated(e, "put", key)
 

@@ -20,13 +20,16 @@ class IObjectStorage(ABC):
         pass
 
     @abstractmethod
-    async def put(self, key: str, data: bytes, content_type: str) -> None:
+    async def put(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         """Store ``data`` at ``key``.
 
         Args:
             key: Opaque object key (no scheme, no bucket).
             data: Full object body.
             content_type: MIME type served back on reads.
+            metadata: Metadata attached to the object.
         """
         pass
 
