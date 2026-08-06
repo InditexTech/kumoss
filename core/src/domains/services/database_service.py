@@ -410,11 +410,18 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
-        _ = await db.create(
+        round = await db.create(
             Round,
             session_id=session.id,
             number=1,
             query=query,
+        )
+        st = await db.create(
+            DbStatus,
+            session_id=session.id,
+            round_id=round.id,
+            status=SessionStatus.STARTED,
+            message=f"Session '{str(session_id)}' started.",
         )
 
         await redis_client.set_json_many(
@@ -431,6 +438,11 @@ class DatabaseService:
                     _ttl(_TTL_FACTS),
                 ),
                 (_k_first_query(session_id), query, _ttl(_TTL_FACTS)),
+                (
+                    _k_last_status(session_id),
+                    {"status": st.status, "message": st.message},
+                    _ttl(_TTL_STATUS),
+                ),
             ]
         )
         return session
