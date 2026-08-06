@@ -55,7 +55,7 @@ class SessionService:
         )
         return msg
 
-    async def set_round_id(self, q: str) -> None:
+    async def next_round(self, q: str) -> None:
         rid = await DatabaseService.create_round(self.__ctx.id, q)
         self.__ctx.set_round(rid)
 

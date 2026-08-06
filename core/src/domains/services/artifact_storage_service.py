@@ -92,7 +92,7 @@ class ArtifactStorageService:
         round_id: int,
         targets: list[str],
         content: str | bytes,
-        content_type: ContentType = ContentType.TEXT,
+        content_type: ContentType,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -125,7 +125,7 @@ class ArtifactStorageService:
         round_id: int,
         file_name: str,
         content: str | bytes,
-        content_type: ContentType = ContentType.TEXT,
+        content_type: ContentType,
     ) -> int:
         """Persist a round code change; returns the code_changes row pk.
 

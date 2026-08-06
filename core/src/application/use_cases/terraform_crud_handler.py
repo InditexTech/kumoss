@@ -50,8 +50,6 @@ class TerraformCRUDHandler:
 
         async def background_task():
             try:
-                await self.__session_svc.set_round_id(q)
-
                 _ = await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
@@ -94,8 +92,7 @@ class TerraformCRUDHandler:
 
                 validation = await self.__validation_svc.generate_and_validate(
                     q=q,
-                    history=ctx.history,
-                    branch_name=ctx.branch_name,
+                    ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
                 )
@@ -119,6 +116,7 @@ class TerraformCRUDHandler:
                 )
                 raise
             finally:
+                await self.__session_svc.next_round(q)
                 await self.__session_svc.save()
 
         return background_task

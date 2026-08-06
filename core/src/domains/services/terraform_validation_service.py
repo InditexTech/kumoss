@@ -4,18 +4,19 @@
 
 from dataclasses import dataclass
 
-from src.domains.entities import History
+from src.domains.entities import SessionContext
+from src.domains.interfaces import IFileSystem
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.interfaces.git_interface import IGit
+from src.domains.services import ArtifactStorageService
 from src.domains.services.llm_service import LLMOrchestrationService
-from src.domains.services.session_service import SessionService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.terraform_target_service import TerraformTargetService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import PromptsLibrary, ToolContext
+from src.shared.constants import ContentType, PromptsLibrary, ToolContext
 from src.shared.logger import logging
 
 
@@ -30,26 +31,40 @@ class TerraformValidationService:
         self,
         validator: ITerraformValidator,
         git: IGit,
+        files: IFileSystem,
         template_service: TemplateOrchestrationService,
         llm_service: LLMOrchestrationService,
-        session_service: SessionService,
         tool_orchestration_service: ToolOrchestrationService,
         target_service: TerraformTargetService,
+        artifact_service: ArtifactStorageService,
     ):
         self.__validator = validator
         self.__git = git
+        self.__files = files
         self.__template_svc = template_service
         self.__llm_svc = llm_service
-        self.__session_svc = session_service
         self.__tool_orchestration = tool_orchestration_service
         self.__target_svc = target_service
+        self.__artifact_svc = artifact_service
         self.__count: int = 0
+
+    async def __upload_changed_files(
+        self, ctx: SessionContext, file_names: list[str]
+    ) -> None:
+        for name in file_names:
+            content = self.__files.read_file(name)
+            _ = await self.__artifact_svc.store_code_change(
+                session_id=ctx.id,
+                round_id=ctx.round_id,
+                file_name=name,
+                content=content,
+                content_type=ContentType.TEXT,
+            )
 
     async def generate_and_validate(
         self,
         q: str,
-        history: History,
-        branch_name: str,
+        ctx: SessionContext,
         conventions: Conventions,
         include_forbidden_actions: bool,
     ) -> TerraformValidationDTO:
@@ -62,7 +77,7 @@ class TerraformValidationService:
         """
         first_q = q
         validation = TerraformValidationDTO.empty()
-        local_history = history.deepcopy()
+        local_history = ctx.history.deepcopy()
         while (
             not validation.validation
             and self.__count < system_config.orchestration.max_validation_iteration
@@ -92,15 +107,27 @@ class TerraformValidationService:
                 ),
                 history=local_history,
             )
+
             local_history.append_turn(q, task_complete.result.get("summary"))
 
-            await self.__git.commit_and_push(branch_name)
+            await self.__upload_changed_files(
+                ctx, await self.__git.get_changed_files("AM")
+            )
+            await self.__git.commit_and_push(ctx.branch_name)
 
             validation = await self.__validator.validate(
-                branch=branch_name,
+                branch=ctx.branch_name,
                 targets=await self.__target_svc.generate(q, local_history),
             )
+            _ = await self.__artifact_svc.store_terraform_plan(
+                session_id=ctx.id,
+                round_id=ctx.round_id,
+                targets=validation.terraform_targets,
+                content=validation.terraform_plan,
+                content_type=ContentType.TEXT,
+            )
+
             q = validation.feedback
 
-        history.append_turn(first_q, local_history.get_last_turn().assistant)
+        ctx.history.append_turn(first_q, local_history.get_last_turn().assistant)
         return validation

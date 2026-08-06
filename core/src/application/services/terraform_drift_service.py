@@ -11,6 +11,7 @@ from src.domains.services import (
     TaskSplitService,
 )
 from src.domains.value_objects import Conventions
+from src.shared.constants import ContentType
 from src.shared.logger import logging
 
 
@@ -53,6 +54,7 @@ class TerraformDriftService:
                     round_id=self.__ctx.round_id,
                     targets=targets,
                     content=validation.terraform_plan,
+                    content_type=ContentType.TEXT,
                 )
 
             # break if drift validation is successful
@@ -68,8 +70,7 @@ class TerraformDriftService:
                 logging.debug(f"Operation {idx + 1}/{len(operations)}: {group_ops}")
                 _ = await self.__validation_svc.generate_and_validate(
                     q=str(group_ops),
-                    history=self.__ctx.history,
-                    branch_name=self.__ctx.branch_name,
+                    ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
                 )
