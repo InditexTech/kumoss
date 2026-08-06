@@ -15,6 +15,7 @@ on the POST; everything after submission surfaces through the job.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 from uuid import UUID
 
@@ -202,14 +203,12 @@ async def _run_validate(body: ValidateRequest, workspace: Path) -> ValidateResul
             config.terraform_binary, workspace, plan_file
         )
         if show_result.ok:
-            drift = tf.parse_drift(show_result.stdout)
-            if drift:
-                return ValidateResult(
-                    validation=False,
-                    feedback=str(drift),
-                    terraform_plan=plan_result.stdout,
-                    terraform_targets=body.targets,
-                )
+            return ValidateResult(
+                validation=False,
+                feedback=json.dumps(show_result.stdout),
+                terraform_plan=plan_result.stdout,
+                terraform_targets=body.targets,
+            )
 
     return ValidateResult(
         validation=True,
