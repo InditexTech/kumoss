@@ -95,17 +95,15 @@ def sync_detailed(
     client: AuthenticatedClient,
     body: ApplyRequest,
 ) -> Response[ApplyResponse400 | JobAccepted | Problem]:
-    """Enqueue an apply job for a workspace.
+    """Enqueue a `terraform apply` job for a plan file.
 
-     Enqueues a job that runs `terraform plan` (with optional
-    `-target=` filters) and, if the plan succeeds,
-    `terraform apply` of that plan against the workspace at
-    `workspace_path`, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
-    carries terraform's output and a boolean success flag.
-    Terraform-level failures (init, plan, or apply) end the job as
-    `succeeded` with `success: false` and diagnostics in
-    `feedback`.
+     Enqueues a job that runs `terraform apply <plan_file>` against
+    the workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The `plan_file` must have been written by a previous
+    `plan` job on the same workspace; applying is exactly the
+    changes recorded in that file.
 
     Args:
         body (ApplyRequest):
@@ -134,17 +132,15 @@ def sync(
     client: AuthenticatedClient,
     body: ApplyRequest,
 ) -> ApplyResponse400 | JobAccepted | Problem | None:
-    """Enqueue an apply job for a workspace.
+    """Enqueue a `terraform apply` job for a plan file.
 
-     Enqueues a job that runs `terraform plan` (with optional
-    `-target=` filters) and, if the plan succeeds,
-    `terraform apply` of that plan against the workspace at
-    `workspace_path`, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
-    carries terraform's output and a boolean success flag.
-    Terraform-level failures (init, plan, or apply) end the job as
-    `succeeded` with `success: false` and diagnostics in
-    `feedback`.
+     Enqueues a job that runs `terraform apply <plan_file>` against
+    the workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The `plan_file` must have been written by a previous
+    `plan` job on the same workspace; applying is exactly the
+    changes recorded in that file.
 
     Args:
         body (ApplyRequest):
@@ -168,17 +164,15 @@ async def asyncio_detailed(
     client: AuthenticatedClient,
     body: ApplyRequest,
 ) -> Response[ApplyResponse400 | JobAccepted | Problem]:
-    """Enqueue an apply job for a workspace.
+    """Enqueue a `terraform apply` job for a plan file.
 
-     Enqueues a job that runs `terraform plan` (with optional
-    `-target=` filters) and, if the plan succeeds,
-    `terraform apply` of that plan against the workspace at
-    `workspace_path`, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
-    carries terraform's output and a boolean success flag.
-    Terraform-level failures (init, plan, or apply) end the job as
-    `succeeded` with `success: false` and diagnostics in
-    `feedback`.
+     Enqueues a job that runs `terraform apply <plan_file>` against
+    the workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The `plan_file` must have been written by a previous
+    `plan` job on the same workspace; applying is exactly the
+    changes recorded in that file.
 
     Args:
         body (ApplyRequest):
@@ -205,17 +199,15 @@ async def asyncio(
     client: AuthenticatedClient,
     body: ApplyRequest,
 ) -> ApplyResponse400 | JobAccepted | Problem | None:
-    """Enqueue an apply job for a workspace.
+    """Enqueue a `terraform apply` job for a plan file.
 
-     Enqueues a job that runs `terraform plan` (with optional
-    `-target=` filters) and, if the plan succeeds,
-    `terraform apply` of that plan against the workspace at
-    `workspace_path`, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
-    carries terraform's output and a boolean success flag.
-    Terraform-level failures (init, plan, or apply) end the job as
-    `succeeded` with `success: false` and diagnostics in
-    `feedback`.
+     Enqueues a job that runs `terraform apply <plan_file>` against
+    the workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The `plan_file` must have been written by a previous
+    `plan` job on the same workspace; applying is exactly the
+    changes recorded in that file.
 
     Args:
         body (ApplyRequest):

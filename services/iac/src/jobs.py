@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""In-memory job registry for asynchronous terraform pipelines.
+"""In-memory job registry for asynchronous terraform operations.
 
 Submissions create an ``asyncio.Task`` that waits on the workspace's
-FIFO queue, runs the pipeline, and records the outcome on the
+FIFO queue, runs the operation, and records the outcome on the
 ``JobRecord``. Two failure planes are kept distinct:
 
-* Terraform-level failures are returned by the pipeline as a result
-  with a false success flag — the job still ends ``succeeded``.
+* Terraform-level failures are returned by the operation as a result
+  with a non-zero ``exit_code`` — the job still ends ``succeeded``.
 * Service-level faults (unexpected exceptions, cancellation on
   shutdown) end the job ``failed`` with a ``Problem`` whose ``status``
   is the HTTP code an equivalent synchronous API would have returned.
@@ -33,18 +33,16 @@ from http import HTTPStatus
 from pathlib import Path
 
 from .models import (
-    ApplyResult,
-    ImportResult,
     Job,
     JobKind,
     JobStatus,
+    OperationResult,
     Problem,
-    ValidateResult,
 )
 
 logger = logging.getLogger(__name__)
 
-JobResult = ValidateResult | ApplyResult | ImportResult
+JobResult = OperationResult
 Pipeline = Callable[[], Awaitable[JobResult]]
 
 

@@ -15,10 +15,8 @@ from ..models.job_kind import JobKind
 from ..models.job_status import JobStatus
 
 if TYPE_CHECKING:
-    from ..models.apply_result import ApplyResult
-    from ..models.import_result import ImportResult
+    from ..models.operation_result import OperationResult
     from ..models.problem import Problem
-    from ..models.validate_result import ValidateResult
 
 
 T = TypeVar("T", bound="Job")
@@ -32,27 +30,24 @@ class Job:
 
         Attributes:
             job_id (UUID):
-            kind (JobKind): Which terraform pipeline the job runs.
+            kind (JobKind): Which terraform command the job runs.
             status (JobStatus): `queued`: accepted, waiting for its workspace's FIFO queue.
-                `running`: terraform pipeline executing.
-                `succeeded`: pipeline ran to completion — inspect `result` for
-                the terraform-level outcome (which may carry false flags).
+                `running`: terraform command executing.
+                `succeeded`: command ran to completion — inspect `result` for
+                the terraform-level outcome (`exit_code` may be non-zero).
                 `failed`: service-level fault — inspect `error`.
             created_at (datetime.datetime): When the job was accepted (UTC).
             started_at (datetime.datetime | None): When the job left the queue and began running, or null while
                 still `queued`.
             finished_at (datetime.datetime | None): When the job reached a terminal state, or null.
-            result (ApplyResult | ImportResult | None | ValidateResult): Non-null iff `status` is `succeeded`. The variant
-                matches
-                `kind` (`validate` → ValidateResult, `apply` → ApplyResult,
-                `import` → ImportResult); the variants are also structurally
-                distinguishable by their required fields, in the order
-                listed.
+            result (None | OperationResult): Non-null iff `status` is `succeeded`: the raw outcome of
+                the terraform command, regardless of `kind`.
             error (None | Problem): Non-null iff `status` is `failed`. The embedded `status`
                 member is the HTTP status code an equivalent synchronous
-                API would have returned (e.g. 500 credential retrieval
-                failure, 422 unresolvable credentials, 504 subprocess
-                timeout, 503 shut down before completion).
+
+                API would have returned (e.g. 500 unexpected execution
+                failure, 504 subprocess timeout, 503 shut down before
+                completion).
     """
 
     job_id: UUID
@@ -61,14 +56,12 @@ class Job:
     created_at: datetime.datetime
     started_at: datetime.datetime | None
     finished_at: datetime.datetime | None
-    result: ApplyResult | ImportResult | None | ValidateResult
+    result: None | OperationResult
     error: None | Problem
 
     def to_dict(self) -> dict[str, Any]:
-        from ..models.apply_result import ApplyResult
-        from ..models.import_result import ImportResult
+        from ..models.operation_result import OperationResult
         from ..models.problem import Problem
-        from ..models.validate_result import ValidateResult
 
         job_id = str(self.job_id)
 
@@ -91,11 +84,7 @@ class Job:
             finished_at = self.finished_at
 
         result: dict[str, Any] | None
-        if (
-            isinstance(self.result, ValidateResult)
-            or isinstance(self.result, ApplyResult)
-            or isinstance(self.result, ImportResult)
-        ):
+        if isinstance(self.result, OperationResult):
             result = self.result.to_dict()
         else:
             result = self.result
@@ -125,10 +114,8 @@ class Job:
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.apply_result import ApplyResult
-        from ..models.import_result import ImportResult
+        from ..models.operation_result import OperationResult
         from ..models.problem import Problem
-        from ..models.validate_result import ValidateResult
 
         d = dict(src_dict)
         job_id = UUID(d.pop("job_id"))
@@ -169,36 +156,18 @@ class Job:
 
         finished_at = _parse_finished_at(d.pop("finished_at"))
 
-        def _parse_result(
-            data: object,
-        ) -> ApplyResult | ImportResult | None | ValidateResult:
+        def _parse_result(data: object) -> None | OperationResult:
             if data is None:
                 return data
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                result_type_0 = ValidateResult.from_dict(data)
+                result_type_0 = OperationResult.from_dict(data)
 
                 return result_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            try:
-                if not isinstance(data, dict):
-                    raise TypeError()
-                result_type_1 = ApplyResult.from_dict(data)
-
-                return result_type_1
-            except (TypeError, ValueError, AttributeError, KeyError):
-                pass
-            try:
-                if not isinstance(data, dict):
-                    raise TypeError()
-                result_type_2 = ImportResult.from_dict(data)
-
-                return result_type_2
-            except (TypeError, ValueError, AttributeError, KeyError):
-                pass
-            return cast(ApplyResult | ImportResult | None | ValidateResult, data)
+            return cast(None | OperationResult, data)
 
         result = _parse_result(d.pop("result"))
 

@@ -4,16 +4,22 @@
 
 """ITerraformValidator implementation that delegates to the IaC service.
 
-This is the OSS-default validator. It calls the IaC microservice
-(contracts/openapi/iac.v1.yaml) over HTTP using the generated client:
-the POST enqueues a validation job and returns a job id immediately,
-then the core polls ``GET /v1/jobs/{job_id}`` until the job is
-terminal. Terraform-level failures surface inside the job's
-``ValidateResult`` (false flag + feedback); service-level faults end
-the job ``failed`` and are raised here as ExceptionHandler errors.
-The service operates on a workspace path that must be visible to it;
-the docker-compose setup mounts a shared volume into both the core and
-the IaC service so that paths line up.
+This is the OSS-default validator. The IaC microservice
+(contracts/openapi/iac.v1.yaml) is a raw terraform executor: each POST
+enqueues a job running exactly one terraform command and the job's
+result is the command's raw ``{exit_code, stdout, stderr}``. All
+orchestration lives here: this class sequences ``init`` → ``validate``
+→ ``plan`` (→ ``show`` under ``get_drift``), decides the validation
+boolean, and parses the plan JSON into the drift summary. Each
+operation is submitted with the generated client and polled at
+``GET /v1/jobs/{job_id}`` until terminal; a non-zero ``exit_code`` is
+a terraform-level failure reported through the returned DTO, while a
+``failed`` job is a service-level fault raised as an ExceptionHandler
+error. The ``branch`` argument is kept for interface compatibility but
+is not sent to the service — validation operates on whatever is on
+disk at the workspace path, which must be visible to the service (the
+docker-compose setup mounts a shared volume into both the core and the
+IaC service so that paths line up).
 """
 
 from __future__ import annotations
@@ -22,21 +28,28 @@ import asyncio
 import json
 import time
 from pathlib import Path
+from types import ModuleType
 from typing import override
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 
 from ._utils import TerraformUtils
+from src.clients.iac.api.init import init as init_op
 from src.clients.iac.api.jobs import get_job as get_job_op
+from src.clients.iac.api.plan import plan as plan_op
+from src.clients.iac.api.show import show as show_op
 from src.clients.iac.api.validate import validate as validate_op
 from src.clients.iac.client import AuthenticatedClient
+from src.clients.iac.models.init_request import InitRequest
 from src.clients.iac.models.job import Job
 from src.clients.iac.models.job_accepted import JobAccepted
 from src.clients.iac.models.job_status import JobStatus
+from src.clients.iac.models.operation_result import OperationResult
+from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
+from src.clients.iac.models.show_request import ShowRequest
 from src.clients.iac.models.validate_request import ValidateRequest
-from src.clients.iac.models.validate_result import ValidateResult
 from src.clients.iac.types import UNSET
 from src.domains.dto import TerraformValidationDTO
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
@@ -45,12 +58,14 @@ from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
 from src.shared.constants import SessionStatus
-from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
 
 
+OperationRequest = InitRequest | ValidateRequest | PlanRequest | ShowRequest
+
+
 class TerraformValidator(ITerraformValidator):
-    """Validate by calling the IaC microservice."""
+    """Validate by orchestrating raw terraform jobs on the IaC service."""
 
     def __init__(
         self,
@@ -86,52 +101,125 @@ class TerraformValidator(ITerraformValidator):
             token=cfg.token,
             timeout=httpx.Timeout(cfg.timeout),
         )
-        body = ValidateRequest(
-            workspace_path=str(self.__workspace_path),
-            branch=branch if branch else UNSET,
-            targets=targets,
-            get_drift=get_drift,
-        )
+        workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                accepted = await validate_op.asyncio(client=c, body=body)
-                if not isinstance(accepted, JobAccepted):
-                    raise ExceptionHandler(
-                        f"IaC service did not accept the validation job: {accepted!r}",
-                        502,
+                init_res = await self.__run_op(
+                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                )
+                if init_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=init_res.stderr or "terraform init failed",
+                        terraform_plan="",
+                        terraform_targets=targets,
                     )
-                job = await self.__poll_job(c, accepted.job_id, cfg)
+
+                validate_res = await self.__run_op(
+                    c, validate_op, ValidateRequest(workspace_path=workspace), cfg
+                )
+                if validate_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=validate_res.stderr or "terraform validate failed",
+                        terraform_plan="",
+                        terraform_targets=targets,
+                    )
+
+                plan_file = f"{uuid4().hex}.plan"
+                plan_res = await self.__run_op(
+                    c,
+                    plan_op,
+                    PlanRequest(
+                        workspace_path=workspace,
+                        plan_file=plan_file,
+                        targets=targets,
+                    ),
+                    cfg,
+                )
+                if plan_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=plan_res.stderr or "terraform plan failed",
+                        terraform_plan=plan_res.stdout,
+                        terraform_targets=targets,
+                    )
+
+                if not get_drift:
+                    return TerraformValidationDTO(
+                        validation=True,
+                        feedback="",
+                        terraform_plan=plan_res.stdout,
+                        terraform_targets=targets,
+                    )
+
+                show_res = await self.__run_op(
+                    c,
+                    show_op,
+                    ShowRequest(workspace_path=workspace, plan_file=plan_file),
+                    cfg,
+                )
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
+        if show_res.exit_code != 0:
+            return TerraformValidationDTO(
+                validation=False,
+                feedback=show_res.stderr or "terraform show failed",
+                terraform_plan=plan_res.stdout,
+                terraform_targets=targets,
+            )
+
+        try:
+            plan_json = json.loads(show_res.stdout)
+        except json.JSONDecodeError as e:
+            raise ExceptionHandler(
+                f"terraform show succeeded but returned unparseable JSON: {e}", 502
+            ) from e
+
+        drift = TerraformUtils.plan_to_drift(plan_json=plan_json, reversed=True)
+        return TerraformValidationDTO(
+            validation=not drift,
+            feedback=json.dumps(drift) if drift else "",
+            terraform_plan=plan_res.stdout,
+            terraform_targets=targets,
+        )
+
+    async def __run_op(
+        self,
+        client: AuthenticatedClient,
+        submit_module: ModuleType,
+        body: OperationRequest,
+        cfg: IacServiceConfig,
+    ) -> OperationResult:
+        """Submit one terraform operation and poll it to completion.
+
+        Returns the raw OperationResult (the caller decides what a
+        non-zero exit code means); anything else — a rejected
+        submission, a ``failed`` job, or an unexpected result shape —
+        is a service-level fault raised as an ExceptionHandler error.
+        """
+        op_name = submit_module.__name__.rsplit(".", 1)[-1]
+        accepted = await submit_module.asyncio(client=client, body=body)
+        if not isinstance(accepted, JobAccepted):
+            raise ExceptionHandler(
+                f"IaC service did not accept the {op_name} job: {accepted!r}", 502
+            )
+        job = await self.__poll_job(client, accepted.job_id, cfg)
         if job.status is JobStatus.FAILED:
             raise ExceptionHandler(
-                "IaC validation job failed on the service: "
+                f"IaC {op_name} job failed on the service: "
                 + self.__problem_text(job.error),
                 502,
             )
-
         result = job.result
-        if not isinstance(result, ValidateResult):
+        if not isinstance(result, OperationResult):
             raise ExceptionHandler(
                 f"IaC service returned an unexpected job result: {result!r}", 502
             )
-        if result.validation and result.feedback:
-            logging.warning(result.feedback)
-
-        return TerraformValidationDTO(
-            validation=result.validation,
-            feedback=TerraformUtils.plan_to_drift(
-                plan_json=json.loads(result.feedback),
-                reversed=True,
-            )
-            if get_drift
-            else result.feedback,
-            terraform_plan=result.terraform_plan,
-            terraform_targets=list(result.terraform_targets),
-        )
+        return result
 
     async def __poll_job(
         self,
@@ -141,7 +229,7 @@ class TerraformValidator(ITerraformValidator):
     ) -> Job:
         """Poll GET /v1/jobs/{job_id} until the job is terminal.
 
-        ``cfg.job_timeout`` bounds the total wait (queue + pipeline); a
+        ``cfg.job_timeout`` bounds the total wait (queue + command); a
         non-``Job`` poll response means the job is gone (404 after a
         service restart or retention expiry) or unparseable — either
         way it will never finish, so fail immediately.
@@ -151,14 +239,14 @@ class TerraformValidator(ITerraformValidator):
             job = await get_job_op.asyncio(job_id=job_id, client=client)
             if not isinstance(job, Job):
                 raise ExceptionHandler(
-                    f"IaC service lost or rejected validation job {job_id}: {job!r}",
+                    f"IaC service lost or rejected job {job_id}: {job!r}",
                     502,
                 )
             if job.status in (JobStatus.SUCCEEDED, JobStatus.FAILED):
                 return job
             if time.monotonic() >= deadline:
                 raise ExceptionHandler(
-                    f"IaC validation job {job_id} did not finish within "
+                    f"IaC job {job_id} did not finish within "
                     + f"{cfg.job_timeout:.0f}s (last status: {job.status}).",
                     504,
                 )

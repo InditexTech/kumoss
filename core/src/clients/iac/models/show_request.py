@@ -11,11 +11,11 @@ from attrs import define as _attrs_define
 
 from ..types import UNSET, Unset
 
-T = TypeVar("T", bound="ApplyRequest")
+T = TypeVar("T", bound="ShowRequest")
 
 
 @_attrs_define
-class ApplyRequest:
+class ShowRequest:
     """
     Attributes:
         workspace_path (str): Absolute filesystem path to the Terraform workspace as visible
@@ -23,9 +23,8 @@ class ApplyRequest:
             this is a path on the shared volume mounted into both the
             core and the IaC service.
         plan_file (str): Filename (not a path) of a plan file previously written by a
-            `plan` job on this workspace; `apply` executes exactly the
-            changes recorded in it. Restricted to a single path segment
-            so it cannot escape the workspace.
+            `plan` job on this workspace. Restricted to a single path
+            segment so it cannot escape the workspace.
         scope_id (None | str | Unset): Cloud provider scope the operation targets — Azure:
             subscription id, GCP: project id, AWS: account id. Used as a
             fallback when the credentials resolved for the workspace do
@@ -77,10 +76,10 @@ class ApplyRequest:
 
         scope_id = _parse_scope_id(d.pop("scope_id", UNSET))
 
-        apply_request = cls(
+        show_request = cls(
             workspace_path=workspace_path,
             plan_file=plan_file,
             scope_id=scope_id,
         )
 
-        return apply_request
+        return show_request
