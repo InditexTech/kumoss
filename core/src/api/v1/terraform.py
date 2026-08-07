@@ -63,9 +63,7 @@ def _make_runner(
         try:
             await _orchestration.acquire(ctx.id)
         except ExceptionHandler as e:
-            # We never got the lock: the session is already running or is
-            # finished. Write no status (the session is not ours to touch)
-            # and skip release (it would clobber the actual holder's lock).
+            # never got the lock: the session is already running or is finished.
             logging.error(f"runner not started: {e.message} (session {ctx.id})")
             return
         tracer_token = _tracer.set_current_tracer(
@@ -85,7 +83,6 @@ def _make_runner(
                 branch=ctx.branch_name,
             )
             ctx.set_call_dir(call_dir / ctx.iac_path)
-            await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
             run_handler = await build_handler(ctx)
             await run_handler()
         except ExceptionHandler as e:

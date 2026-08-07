@@ -252,16 +252,16 @@ class ToolRegistry(IToolRegistry):
 
     async def __handle_diff_history(self, parameters: dict[str, Any]) -> dict[str, str]:
         explanation = parameters["explanation"]
-        result = await self.__git.show_diff()
-        result += "\nUntracked changes:\n" + str(
-            [
-                f"{file}:\n"
-                + self.__filesystem.read_file(
-                    target_file=file,
-                )
-                for file in await self.__git.get_changed_files("A")
-            ]
-        )
+        result = await self.__git.show_diff(working_tree=False, full_content=False)
+        untracked_files: list[str] = []
+        for file in await self.__git.get_untracked_files():
+            try:
+                content = self.__filesystem.read_file(file)
+            except ExceptionHandler as e:
+                logging.warning(f"Error reading file: {e.message}")
+                continue
+            untracked_files.append(f"{file}:\n{content}")
+        result += "\nUntracked changes:\n" + "\n".join(untracked_files)
         return {"diff": result, "explanation": explanation}
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:

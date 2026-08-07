@@ -19,6 +19,7 @@ the IaC service so that paths line up.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import override
@@ -26,6 +27,7 @@ from uuid import UUID
 
 import httpx
 
+from ._utils import TerraformUtils
 from src.clients.iac.api.jobs import get_job as get_job_op
 from src.clients.iac.api.validate import validate as validate_op
 from src.clients.iac.client import AuthenticatedClient
@@ -47,7 +49,7 @@ from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
 
 
-class TerraformServiceValidator(ITerraformValidator):
+class TerraformValidator(ITerraformValidator):
     """Validate by calling the IaC microservice."""
 
     def __init__(
@@ -118,9 +120,15 @@ class TerraformServiceValidator(ITerraformValidator):
             )
         if result.validation and result.feedback:
             logging.warning(result.feedback)
+
         return TerraformValidationDTO(
             validation=result.validation,
-            feedback=result.feedback,
+            feedback=TerraformUtils.plan_to_drift(
+                plan_json=json.loads(result.feedback),
+                reversed=True,
+            )
+            if get_drift
+            else result.feedback,
             terraform_plan=result.terraform_plan,
             terraform_targets=list(result.terraform_targets),
         )

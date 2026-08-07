@@ -13,7 +13,6 @@ extend this or substitute their own.
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,30 +78,6 @@ async def import_resource(
         ["import", "-no-color", "-input=false", address, resource_id],
         cwd,
     )
-
-
-def parse_drift(plan_json_text: str) -> list[dict]:
-    """Return resource_changes entries that aren't no-ops.
-
-    Equivalent to the existing core's TerraformUtils.plan_to_drift; kept
-    minimal here so the service has no shared dependencies.
-    """
-    try:
-        plan = json.loads(plan_json_text)
-    except json.JSONDecodeError:
-        return []
-    changes = plan.get("resource_changes") or []
-    drift: list[dict] = []
-    for entry in changes:
-        actions = (entry.get("change") or {}).get("actions") or []
-        if actions and actions != ["no-op"]:
-            drift.append(
-                {
-                    "address": entry.get("address"),
-                    "actions": actions,
-                }
-            )
-    return drift
 
 
 def random_plan_filename() -> str:

@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logging.info("Starting Nebula application...")
     try:
-        await db.initialize(echo=True)
+        await db.initialize(echo=False)
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}")

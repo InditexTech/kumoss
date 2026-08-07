@@ -5,7 +5,7 @@
 from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
 from src.domains.services.session_service import SessionService
 from src.infrastructure.filesystem import FileSystemUtils
-from src.infrastructure.validators import TerraformServiceValidator
+from src.infrastructure.validators import TerraformValidator
 
 
 class ValidatorFactory:
@@ -28,7 +28,7 @@ class ValidatorFactory:
         self.__file_utils = file_utils
 
     def get(self) -> ITerraformValidator:
-        return TerraformServiceValidator(
+        return TerraformValidator(
             workspace_path=self.__file_utils.project_root,
             session_service=self.__session_svc,
         )

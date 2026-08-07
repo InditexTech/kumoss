@@ -20,6 +20,12 @@ dev = [
     "httpx>=0.28",
 ]
 
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.9",
+]
+
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

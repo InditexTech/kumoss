@@ -195,21 +195,25 @@ class ApplicationFactory:
     def _get_terraform_validation_service(
         self,
         git_utils: GitUtils,
+        file_utils: FileSystemUtils,
+        session_service: SessionService,
         template_service: TemplateOrchestrationService,
         main_llm_service: LLMOrchestrationService,
-        session_service: SessionService,
         tool_service: ToolOrchestrationService,
         target_service: TerraformTargetService,
         validator_provider: ITerraformValidator,
+        artifact_service: ArtifactStorageService,
     ) -> TerraformValidationService:
         return TerraformValidationService(
             validator=validator_provider,
             git=git_utils,
+            files=file_utils,
+            session_service=session_service,
             template_service=template_service,
             llm_service=main_llm_service,
-            session_service=session_service,
             tool_orchestration_service=tool_service,
             target_service=target_service,
+            artifact_service=artifact_service,
         )
 
     # --- Providers for Application Building Blocks ---
@@ -299,12 +303,14 @@ class ApplicationFactory:
         validator_prv = self._get_validator_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
+            file_utils=file_utils,
+            session_service=session_svc,
             template_service=template_svc,
             main_llm_service=llm_svc,
-            session_service=session_svc,
             tool_service=tool_svc,
             target_service=target_svc,
             validator_provider=validator_prv,
+            artifact_service=artifact_svc,
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
@@ -341,9 +347,9 @@ class ApplicationFactory:
         validator_prv = self._get_validator_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
+            file_utils=file_utils,
             template_service=template_svc,
             main_llm_service=llm_svc,
-            session_service=session_svc,
             tool_service=tool_svc,
             target_service=target_svc,
             validator_provider=validator_prv,
