@@ -10,7 +10,7 @@ from .template_service import TemplateOrchestrationService
 from .terraform_target_service import TerraformTargetService
 from .terraform_validation_service import TerraformValidationService
 from .tool_service import ToolOrchestrationService
-from .tracer_service import TracerService, trace_chain, trace_tool
+from .tracer_service import TracerService, trace_chain, trace_llm, trace_tool
 
 __all__ = [
     "IacRootDetectionService",
@@ -23,5 +23,6 @@ __all__ = [
     "ToolOrchestrationService",
     "TracerService",
     "trace_chain",
+    "trace_llm",
     "trace_tool",
 ]
