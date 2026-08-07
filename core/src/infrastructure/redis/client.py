@@ -82,7 +82,7 @@ class RedisClient:
                 + "value not cached, stale reads possible until TTL"
             )
 
-    async def _decode(self, key: str, raw: str) -> Any | None:
+    async def _decode(self, key: str, raw: str | bytes) -> Any | None:
         """JSON-decode a cached entry; a corrupt entry is dropped as a miss."""
         try:
             return json.loads(raw)

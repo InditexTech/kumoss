@@ -91,7 +91,7 @@ class IGit(ABC):
     @abstractmethod
     async def get_untracked_files(self) -> list[str]:
         """get_untracked_files returns a list of file names that are not tracked by git and
-        are gitirnored"""
+        are not ignored by standard excludes (e.g. .gitignore)."""
         pass
 
     @abstractmethod

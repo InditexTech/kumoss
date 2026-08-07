@@ -181,7 +181,7 @@ class GitUtils(IGit):
         if full_content:
             cmd.insert(3, "--unified=1000")
         if not working_tree:
-            cmd.insert(8, await self._get_default_branch_commit_id())
+            cmd.insert(cmd.index("HEAD"), await self._get_default_branch_commit_id())
         if file_path:
             cmd.extend(["--", file_path])
         if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
