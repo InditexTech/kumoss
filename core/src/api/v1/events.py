@@ -53,7 +53,10 @@ async def subscribe_events(
     - Connection remains open until session completion or failure
     """
 
-    sid = UUID(session_id)
+    try:
+        sid = UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid session_id")
 
     async def event_stream():
         i = 0
@@ -64,6 +67,7 @@ async def subscribe_events(
                 status: Status = await DatabaseService.get_last_status(sid)
             except ExceptionHandler as e:
                 logging.error(e.message)
+                await sleep(4)
                 continue
 
             payload = {
