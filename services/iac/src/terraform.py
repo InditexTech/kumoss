@@ -4,16 +4,15 @@
 
 """Thin async wrapper around the terraform CLI.
 
-Just enough to drive `init`, `validate`, `plan`, `apply`, and `import`,
-and to read back the plan JSON for drift detection. Implementations
-that need more (state locking, custom backends, policy as code) should
-extend this or substitute their own.
+Just enough to drive `init`, `validate`, `plan`, `show`, `apply`, and
+`import`, one command per call. Implementations that need more (state
+locking, custom backends, policy as code) should extend this or
+substitute their own.
 """
 
 from __future__ import annotations
 
 import asyncio
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +22,7 @@ class CommandResult:
     ok: bool
     stdout: str
     stderr: str
+    exit_code: int = 0
 
 
 async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
@@ -38,6 +38,7 @@ async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
         ok=proc.returncode == 0,
         stdout=stdout_bytes.decode("utf-8", errors="replace"),
         stderr=stderr_bytes.decode("utf-8", errors="replace"),
+        exit_code=proc.returncode if proc.returncode is not None else -1,
     )
 
 
@@ -78,7 +79,3 @@ async def import_resource(
         ["import", "-no-color", "-input=false", address, resource_id],
         cwd,
     )
-
-
-def random_plan_filename() -> str:
-    return f"{uuid.uuid4().hex}.plan"

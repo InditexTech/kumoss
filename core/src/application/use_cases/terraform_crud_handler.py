@@ -70,14 +70,6 @@ class TerraformCRUDHandler:
                     )
                     return
 
-                _ = await self.__session_svc.update_status(
-                    msg=q,
-                    prompt=await self.__template_svc.render(
-                        PromptsLibrary.STATUS_UPDATE
-                    ),
-                    status=SessionStatus.GENERATING,
-                )
-
                 predictive_targets = await self.__target_svc.generate_predictive(
                     query=q,
                     history=ctx.history,

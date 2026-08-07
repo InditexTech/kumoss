@@ -22,9 +22,9 @@ class JobAccepted:
     Attributes:
         job_id (UUID): Identifier to poll at `GET /v1/jobs/{job_id}`.
         status (JobStatus): `queued`: accepted, waiting for its workspace's FIFO queue.
-            `running`: terraform pipeline executing.
-            `succeeded`: pipeline ran to completion — inspect `result` for
-            the terraform-level outcome (which may carry false flags).
+            `running`: terraform command executing.
+            `succeeded`: command ran to completion — inspect `result` for
+            the terraform-level outcome (`exit_code` may be non-zero).
             `failed`: service-level fault — inspect `error`.
     """
 

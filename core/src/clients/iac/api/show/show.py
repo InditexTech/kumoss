@@ -9,22 +9,22 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.import_request import ImportRequest
-from ...models.import_resource_response_400 import ImportResourceResponse400
 from ...models.job_accepted import JobAccepted
 from ...models.problem import Problem
+from ...models.show_request import ShowRequest
+from ...models.show_response_400 import ShowResponse400
 from ...types import Response
 
 
 def _get_kwargs(
     *,
-    body: ImportRequest,
+    body: ShowRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/v1/import",
+        "url": "/v1/show",
     }
 
     _kwargs["json"] = body.to_dict()
@@ -37,14 +37,14 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ImportResourceResponse400 | JobAccepted | Problem | None:
+) -> JobAccepted | Problem | ShowResponse400 | None:
     if response.status_code == 202:
         response_202 = JobAccepted.from_dict(response.json())
 
         return response_202
 
     if response.status_code == 400:
-        response_400 = ImportResourceResponse400.from_dict(response.json())
+        response_400 = ShowResponse400.from_dict(response.json())
 
         return response_400
 
@@ -81,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
+) -> Response[JobAccepted | Problem | ShowResponse400]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -93,28 +93,26 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-    body: ImportRequest,
-) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
-    """Enqueue a `terraform import` job for a workspace.
+    body: ShowRequest,
+) -> Response[JobAccepted | Problem | ShowResponse400]:
+    """Enqueue a `terraform show -json` job for a plan file.
 
-     Enqueues a job that runs `terraform import <address>
-    <resource_id>` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by
-    `resource_id` under the Terraform resource address `address` in
-    the workspace's state, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
-    the command's exit code and raw output. The workspace must
-    already be initialised (submit an `init` job first).
+     Enqueues a job that runs `terraform show -json <plan_file>`
+    against the workspace at `workspace_path`, then returns
+    `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+    the OperationResult: on exit code 0, `stdout` is the plan's
+    machine-readable JSON representation. The `plan_file` must have
+    been written by a previous `plan` job on the same workspace.
 
     Args:
-        body (ImportRequest):
+        body (ShowRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ImportResourceResponse400 | JobAccepted | Problem]
+        Response[JobAccepted | Problem | ShowResponse400]
     """
 
     kwargs = _get_kwargs(
@@ -131,28 +129,26 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-    body: ImportRequest,
-) -> ImportResourceResponse400 | JobAccepted | Problem | None:
-    """Enqueue a `terraform import` job for a workspace.
+    body: ShowRequest,
+) -> JobAccepted | Problem | ShowResponse400 | None:
+    """Enqueue a `terraform show -json` job for a plan file.
 
-     Enqueues a job that runs `terraform import <address>
-    <resource_id>` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by
-    `resource_id` under the Terraform resource address `address` in
-    the workspace's state, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
-    the command's exit code and raw output. The workspace must
-    already be initialised (submit an `init` job first).
+     Enqueues a job that runs `terraform show -json <plan_file>`
+    against the workspace at `workspace_path`, then returns
+    `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+    the OperationResult: on exit code 0, `stdout` is the plan's
+    machine-readable JSON representation. The `plan_file` must have
+    been written by a previous `plan` job on the same workspace.
 
     Args:
-        body (ImportRequest):
+        body (ShowRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ImportResourceResponse400 | JobAccepted | Problem
+        JobAccepted | Problem | ShowResponse400
     """
 
     return sync_detailed(
@@ -164,28 +160,26 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-    body: ImportRequest,
-) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
-    """Enqueue a `terraform import` job for a workspace.
+    body: ShowRequest,
+) -> Response[JobAccepted | Problem | ShowResponse400]:
+    """Enqueue a `terraform show -json` job for a plan file.
 
-     Enqueues a job that runs `terraform import <address>
-    <resource_id>` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by
-    `resource_id` under the Terraform resource address `address` in
-    the workspace's state, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
-    the command's exit code and raw output. The workspace must
-    already be initialised (submit an `init` job first).
+     Enqueues a job that runs `terraform show -json <plan_file>`
+    against the workspace at `workspace_path`, then returns
+    `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+    the OperationResult: on exit code 0, `stdout` is the plan's
+    machine-readable JSON representation. The `plan_file` must have
+    been written by a previous `plan` job on the same workspace.
 
     Args:
-        body (ImportRequest):
+        body (ShowRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ImportResourceResponse400 | JobAccepted | Problem]
+        Response[JobAccepted | Problem | ShowResponse400]
     """
 
     kwargs = _get_kwargs(
@@ -200,28 +194,26 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-    body: ImportRequest,
-) -> ImportResourceResponse400 | JobAccepted | Problem | None:
-    """Enqueue a `terraform import` job for a workspace.
+    body: ShowRequest,
+) -> JobAccepted | Problem | ShowResponse400 | None:
+    """Enqueue a `terraform show -json` job for a plan file.
 
-     Enqueues a job that runs `terraform import <address>
-    <resource_id>` against the workspace at `workspace_path`,
-    bringing the existing cloud resource identified by
-    `resource_id` under the Terraform resource address `address` in
-    the workspace's state, then returns `202 Accepted` immediately.
-    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
-    the command's exit code and raw output. The workspace must
-    already be initialised (submit an `init` job first).
+     Enqueues a job that runs `terraform show -json <plan_file>`
+    against the workspace at `workspace_path`, then returns
+    `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+    the OperationResult: on exit code 0, `stdout` is the plan's
+    machine-readable JSON representation. The `plan_file` must have
+    been written by a previous `plan` job on the same workspace.
 
     Args:
-        body (ImportRequest):
+        body (ShowRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ImportResourceResponse400 | JobAccepted | Problem
+        JobAccepted | Problem | ShowResponse400
     """
 
     return (

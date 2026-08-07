@@ -85,7 +85,7 @@ class TerraformDriftService:
                     conventions=conventions,
                     include_forbidden_actions=False,
                 )
-        if validation:
+        if validation.validation:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:
             logging.warning(

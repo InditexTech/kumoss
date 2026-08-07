@@ -17,8 +17,7 @@ class TerraformUtils:
     ) -> list[dict[str, Any]]:
         if float(plan_json["format_version"]) >= 2.0:
             raise ExceptionHandler(
-                message="Terraform plan json output major format change."
-                + "Please contact with the devops team",
+                message="Terraform plan json output major format change.",
                 error_code=500,
             )
         resources = TerraformUtils.__get_resource_changes(plan_json)
