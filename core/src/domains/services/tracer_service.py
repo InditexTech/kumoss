@@ -46,8 +46,11 @@ def trace_terraform(
     @wraps(func)
     async def wrapper(*args, **kwargs) -> TerraformValidationDTO:
         tracer = TracerService.get_current_tracer()
+        start = time.time()
         output: TerraformValidationDTO = await func(*args, **kwargs)
-        span = tracer.trace_terraform(output, **kwargs)
+        span = tracer.trace_terraform(
+            output, start_time=int(start * 1_000_000_000), **kwargs
+        )
         span.set_status(Status(StatusCode.OK))
         span.end()
 

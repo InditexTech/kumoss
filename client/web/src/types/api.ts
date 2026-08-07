@@ -139,31 +139,103 @@ export interface AuthorizeResponse {
 
 // ─── Sessions (/api/v1/sessions/*) ─────────────────────────
 
-export interface UserSessionInfo {
-  session_id: string;
-  user_id: string;
-  repo_uri: string;
-  cloud_provider: string;
-  environment: string;
-  branch_name: string;
-  status: string;
+export type OperationType = "generate" | "drift" | "import";
+
+export type SessionStatus =
+  | "started"
+  | "filtering"
+  | "generating"
+  | "validating"
+  | "report"
+  | "completed"
+  | "uncompleted"
+  | "failed";
+
+/** Session-level statuses; anything else belongs to a round. */
+export const TERMINAL_STATUSES: SessionStatus[] = [
+  "completed",
+  "uncompleted",
+  "failed",
+];
+
+export interface StatusEntry {
+  status: SessionStatus;
+  message: string | null;
+  created_at: string;
+}
+
+/**
+ * A client-fetchable artifact produced during a round. `id` is the pk of
+ * the typed row (report / plan / code change), not the storage row.
+ */
+export interface ArtifactRef {
+  id: number;
+  url: string;
+  content_type: string | null;
+  file_size_bytes: number | null;
+  created_at: string;
+}
+
+export interface TerraformPlanRef extends ArtifactRef {
+  targets: string[];
+}
+
+export interface CodeChangeRef extends ArtifactRef {
+  file_name: string;
+}
+
+/** One generation iteration with its statuses and artifacts. */
+export interface RoundDetail {
+  id: number;
+  number: number;
+  statuses: StatusEntry[];
+  report: ArtifactRef | null;
+  plan: TerraformPlanRef | null;
+  code_changes: CodeChangeRef[];
+  created_at: string;
+}
+
+export interface WorkspaceRef {
+  uri: string;
+  branch: string;
+  root_path: string | null;
+}
+
+/** `provider` is the enum token (e.g. "GITHUB"), not the host name. */
+export interface PullRequestRef {
+  provider: string;
+  url: string;
+}
+
+export interface SessionSummary {
+  uuid: string;
+  username: string | null;
+  operation: OperationType;
+  provider: TerraformProvider;
+  first_query: string | null;
+  workspace_uri: string;
+  current_status: SessionStatus;
   in_flight: boolean;
+  is_blocked: boolean;
   created_at: string;
   updated_at: string;
-  initial_query?: string | null;
-  operation_type?: string | null;
-  apply_allowed: boolean;
-  iac_path?: string | null;
 }
 
-export type UserSessionsListResponse = PaginatedResponse<UserSessionInfo>;
-
-// ─── Sessions & Admin Shared (/api/v1/sessions/* & /api/v1/admin/*) ─
-
-export interface ApplyAllowedResponse {
-  session_id: string;
-  apply_allowed: boolean;
+/**
+ * Full session aggregate. `statuses` holds session-level entries only;
+ * round-level statuses live inside their round. `history` is populated
+ * on admin surfaces only and arrives as raw backend turns.
+ */
+export interface SessionDetail extends SessionSummary {
+  workspace: WorkspaceRef;
+  scope_id: string;
+  pull_request: PullRequestRef | null;
+  statuses: StatusEntry[];
+  rounds: RoundDetail[];
+  history?: unknown[] | null;
 }
+
+export type PaginatedSessionSummary = PaginatedResponse<SessionSummary>;
 
 // ─── Users (/api/v1/users/*) ────────────────────────────────
 
@@ -172,60 +244,4 @@ export interface UserMeResponse {
   email?: string | null;
   name?: string | null;
   roles: string[];
-}
-
-// ─── Admin (/api/v1/admin/*) ────────────────────────────────
-
-export interface AdminSessionInfo {
-  // Persisted columns
-  session_id: string;
-  user_id: string;
-  repo_uri: string;
-  cloud_provider: string;
-  environment: string;
-  branch_name: string;
-  status: string;
-  in_flight: boolean;
-  created_at: string;
-  updated_at: string;
-  // Observability columns
-  operation_type: string;
-  failure_reason: string | null;
-  pull_request_url: string | null;
-  apply_allowed: boolean;
-  iac_path: string | null;
-  // Computed fields
-  is_active: boolean;
-  current_status: string;
-  final_status: string | null;
-  initial_query: string | null;
-  repository_id: string;
-  completed_at: string | null;
-  duration_seconds: number | null;
-}
-
-export type SessionsListResponse = PaginatedResponse<AdminSessionInfo>;
-
-export interface AdminOperationItem {
-  id: number;
-  operation_number: number;
-  operation_type: string;
-  operation_phase: string | null;
-  operation_subtype: string | null;
-  success: boolean | null;
-  duration_seconds: number | null;
-  error_message: string | null;
-  artifact_type: string | null;
-  blob_url: string | null;
-  file_size_bytes: number | null;
-  content_type: string | null;
-  terraform_targets: string[] | null;
-  pipeline_run_id: string | null;
-  created_at: string;
-}
-
-export interface AdminSessionDetailResponse {
-  session: AdminSessionInfo;
-  operations: AdminOperationItem[];
-  full_history?: HistoryEntry[];
 }

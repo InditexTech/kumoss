@@ -15,11 +15,14 @@ from src.api.v1 import (
     logs,
     authorization,
     # admin,
-    # sessions,
+    session,
     mapping,
 )
 from src.infrastructure.database import db
+from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
+from src.infrastructure.storage import default_object_storage
+from src.infrastructure.telemetry._initializer import shutdown_tracer_providers
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
@@ -35,6 +38,22 @@ async def lifespan(app: FastAPI):
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}")
+        raise
+
+    try:
+        await redis_client.initialize()
+        logging.info("Redis initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize redis: {e}")
+        raise
+
+    # A missing bucket would fail every artifact write in a worse place,
+    # so surface a broken store at boot like db/redis.
+    try:
+        await default_object_storage().ensure_bucket()
+        logging.info("Object storage initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize object storage: {e}")
         raise
 
     # Seed Phoenix with example prompts so a fresh deployment is runnable
@@ -55,6 +74,10 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logging.info("Shutting down Nebula application...")
+    shutdown_tracer_providers()
+    logging.info("Tracer providers flushed and shut down")
+    await redis_client.close()
+    logging.info("Redis connection closed")
     await db.close()
     logging.info("Database connection closed")
 
@@ -83,5 +106,5 @@ app.include_router(repository.router, prefix="/v1")
 app.include_router(logs.router, prefix="/v1")
 app.include_router(authorization.router, prefix="/v1")
 # app.include_router(admin.router, prefix="/v1")
-# app.include_router(sessions.router, prefix="/v1")
+app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")

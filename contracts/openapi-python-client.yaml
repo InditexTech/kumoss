@@ -2,9 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Configuration for openapi-python-client.
-# Used by `make generate-clients` to regenerate the typed HTTP clients in
+# Configuration for openapi-python-client (pinned in core's dev dependency
+# group). Used to regenerate the typed HTTP clients in
 # `core/src/clients/<service>/` from each `contracts/openapi/<service>.v*.yaml`.
+#
+# Regenerate once per service, from `core/`:
+#
+#   uv run openapi-python-client generate \
+#     --path ../contracts/openapi/<service>.v1.yaml \
+#     --config ../contracts/openapi-python-client.yaml \
+#     --meta none \
+#     --output-path src/clients/<service> \
+#     --overwrite
 #
 # Keep both options below stable across services so generated code looks the
 # same everywhere (matters for review).

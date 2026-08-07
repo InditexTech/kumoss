@@ -25,12 +25,10 @@ export {
 export { authorizeUser } from "./core/authorization";
 
 export {
-  listSessions,
+  listUserSessions,
   getSessionDetail,
-  toggleApplyAllowed,
-} from "./core/admin";
-
-export { listUserSessions, checkApplyAllowed } from "./core/sessions";
+  checkApplyAllowed,
+} from "./core/sessions";
 
 export { resolveProject } from "./mapper/mapper";
 

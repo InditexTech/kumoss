@@ -5,12 +5,13 @@
 import json
 from asyncio import sleep
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
-from src.domains.entities import Status
+from src.domains.value_objects import Status
 from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
 from src.shared.constants import SessionStatus
@@ -53,12 +54,13 @@ async def subscribe_events(
     """
 
     async def event_stream():
+        sid = UUID(session_id)
         i = 0
-        await sleep(10)  # Wait for acknowledge message
+        yield ": keepalive\n\n"
         while True:
             i += 1
             try:
-                status: Status = await DatabaseService.get_last_status(session_id)
+                status: Status = await DatabaseService.get_last_status(sid)
             except ExceptionHandler as e:
                 logging.error(e.message)
                 await sleep(5)
@@ -71,7 +73,7 @@ async def subscribe_events(
                 break
 
             payload = {
-                "status_msg": status.status,
+                "status_msg": status.status.name,
                 "detail": {
                     "message": status.msg.replace('"', ""),  # Sanitize msg
                 },
@@ -87,4 +89,12 @@ async def subscribe_events(
 
             await sleep(5)
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

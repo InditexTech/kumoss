@@ -18,6 +18,7 @@ import {
 import {
   subscribeToSession,
   getSessionData,
+  checkSessionStatus,
   type SseConnection,
 } from "@/services/core/events";
 import { useAssistantMsg } from "@/contexts/AssistantMsgContext";
@@ -153,11 +154,10 @@ export function useTerraformActions() {
 
         dispatch({ type: "STREAMING", sessionId });
 
-        const es = subscribeToSession(sessionId);
-        eventSourceRef.current = es;
-        resetInactivityTimer(es);
-
-        es.onmessage = (event) => {
+        // Bound to a specific connection so reconnects don't act on a stale one
+        const createMessageHandler = (es: SseConnection) => (event: {
+          data: string;
+        }) => {
           resetInactivityTimer(es);
           try {
             const data: SseEventData = JSON.parse(event.data);
@@ -227,14 +227,77 @@ export function useTerraformActions() {
           }
         };
 
+        const es = subscribeToSession(sessionId);
+        eventSourceRef.current = es;
+        resetInactivityTimer(es);
+        es.onmessage = createMessageHandler(es);
+
         es.onerror = () => {
           es.close();
           eventSourceRef.current = null;
           clearInactivityTimer();
-          dispatch({
-            type: "ERROR",
-            message: "Connection to server lost",
-          });
+
+          checkSessionStatus(sessionId)
+            .then(async (result) => {
+              if (result.status === "completed") {
+                dispatch({ type: "SUCCESS", sessionId });
+                setAssistantMsgState((prev) => ({
+                  ...prev,
+                  pipelineStep: PHASE.COMPLETE,
+                }));
+                notifyIfHidden("Pipeline completed", {
+                  body: "Your infrastructure changes are ready for review.",
+                });
+                try {
+                  const payload = await getSessionData(sessionId);
+                  onCompleted?.(payload);
+                } catch (err) {
+                  console.error("Failed to fetch session data:", err);
+                }
+                return;
+              }
+
+              if (result.status === "failed") {
+                const failMsg = "Process failed";
+                dispatch({ type: "ERROR", message: failMsg });
+                setAssistantMsgState((prev) => ({
+                  ...prev,
+                  pipelineStep: PHASE.COMPLETE,
+                  sseStatus: EVENT_STATUS.FAILED,
+                  msg: failMsg,
+                }));
+                notifyIfHidden("Pipeline failed", { body: failMsg });
+                return;
+              }
+
+              if (result.status === "in_progress") {
+                const newEs = subscribeToSession(sessionId);
+                eventSourceRef.current = newEs;
+                resetInactivityTimer(newEs);
+                newEs.onmessage = createMessageHandler(newEs);
+                newEs.onerror = () => {
+                  newEs.close();
+                  eventSourceRef.current = null;
+                  clearInactivityTimer();
+                  dispatch({
+                    type: "ERROR",
+                    message: "Connection to server lost",
+                  });
+                };
+                return;
+              }
+
+              dispatch({
+                type: "ERROR",
+                message: "Connection to server lost",
+              });
+            })
+            .catch(() => {
+              dispatch({
+                type: "ERROR",
+                message: "Connection to server lost",
+              });
+            });
         };
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;

@@ -24,6 +24,7 @@ dependencies = [
     "azure-storage-blob>=12.30.0",
     "graphql-core<3.3.0",
     "pyyaml>=6.0",
+    "redis==8.0.1",
     "mcp==1.28.1",
     "litellm>=1.93.0",
     "google-cloud-aiplatform>=1.163.0",
@@ -33,5 +34,6 @@ dependencies = [
 dev = [
     "basedpyright>=1.39.9",
     "debugpy>=1.8.21",
+    "openapi-python-client==0.29.0",
     "ipython>=9.16.1",
 ]

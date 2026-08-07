@@ -21,13 +21,19 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
+from typing import Literal
 import yaml
 from typing import ClassVar
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, LLMProviderPrefix
+from src.shared.constants import (
+    GitProviderName,
+    LLMProviderPrefix,
+    ObjectStorageProvider,
+)
 
 
 class ConfigError(ValueError):
@@ -139,22 +145,44 @@ class ServiceConfig(BaseModel):
     ``token_env`` names the environment variable holding the bearer token
     the core sends with every call. Looking the token up indirectly
     keeps secrets out of this file.
+
+    ``timeout`` is the per-request budget in seconds for outbound HTTP
+    calls to the service. Every service call returns promptly (long
+    work runs as asynchronous jobs the core polls), so this only needs
+    to cover a single request/response round trip.
     """
 
     enabled: bool = False
     endpoint: str = ""
     token_env: str = ""
+    timeout: float = 30.0
 
     @property
     def token(self) -> str:
         return _env(self.token_env)
 
 
+class IacServiceConfig(ServiceConfig):
+    """IaC service wiring plus its async-job polling knobs.
+
+    The IaC service enqueues terraform pipelines and returns a job id
+    immediately; the core then polls ``GET /v1/jobs/{job_id}`` every
+    ``job_poll_interval`` seconds until the job is terminal.
+    ``job_timeout`` bounds the total wait for one job — it must cover
+    both the FIFO queue wait (jobs on the same workspace run one at a
+    time) and the pipeline itself, so keep it above the service's own
+    subprocess budget (2700s in the reference deployment).
+    """
+
+    job_poll_interval: float = 5.0
+    job_timeout: float = 3600.0
+
+
 class ServicesConfig(BaseModel):
     notifications: ServiceConfig = Field(default_factory=ServiceConfig)
     mapping: ServiceConfig = Field(default_factory=ServiceConfig)
     authz: ServiceConfig = Field(default_factory=ServiceConfig)
-    iac: ServiceConfig = Field(default_factory=ServiceConfig)
+    iac: IacServiceConfig = Field(default_factory=IacServiceConfig)
 
 
 class OrchestrationConfig(BaseModel):
@@ -258,8 +286,144 @@ class DatabaseConfig(BaseModel):
         return self
 
 
-class SystemConfig(BaseModel):
-    environment: str = "development"  # development | staging | production
+class RedisConfig(BaseModel):
+    """Connection settings for the Redis session store / cache.
+
+    The URL is referenced indirectly via an env-var name so any password
+    embedded in it stays out of the YAML. When the env var is unset the
+    docker-compose service default is used, so the OSS stack boots without
+    extra wiring.
+
+    Timeouts are deliberately aggressive: Redis is a cache, so a slow or
+    unreachable server should fail fast and let reads fall through to the
+    database instead of stalling requests.
+    """
+
+    redis_url_env: str = "NEBULA_REDIS_URL"
+    default_url: str = "redis://redis:6379/0"
+    max_connections: int = 20
+    socket_connect_timeout: float = 2.0
+    socket_timeout: float = 2.0
+    # Seconds a request may wait for a free pooled connection under a burst.
+    pool_timeout: float = 2.0
+
+    @property
+    def redis_url(self) -> str:
+        return _env(self.redis_url_env) or self.default_url
+
+
+class StorageConfig(BaseModel):
+    """Object storage for generated artifacts (reports, plans, code changes).
+
+    The provider decides how endpoints are resolved (see the object-storage
+    factory): RUSTFS — or any custom-endpoint S3-compatible server — uses
+    both URLs below; S3 (real AWS S3) ignores them and lets boto3 build
+    the regional default endpoint from ``region``; STORAGE_ACCOUNT (a
+    public Azure storage account) points both URLs at the account blob
+    endpoint ``https://<account>.blob.core.windows.net`` and derives the
+    account name from ``endpoint_url`` (``bucket`` then names the blob
+    container; ``region`` is ignored).
+
+    Two endpoints exist because SigV4 binds the Host header: ``endpoint_url``
+    is what the core's SDK calls hit from inside the compose network, while
+    presigned GET URLs handed to the browser must be signed against the
+    host the browser will actually fetch, ``public_endpoint_url``. Azure
+    account-key SAS has no such Host binding, so for STORAGE_ACCOUNT the
+    URLs only differ in emulator-style split setups.
+    """
+
+    # `provider` is ObjectStorageProvider enum names (see
+    # core/src/shared/constants.py::ObjectStorageProvider).
+    provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
+    bucket: str = "nebula-artifacts"
+    endpoint_url: str = "http://object-storage:9000"
+    public_endpoint_url: str = "http://localhost:9000"
+    region: str = "us-east-1"
+    access_key_env: str = "RUSTFS_ACCESS_KEY"
+    secret_key_env: str = "RUSTFS_SECRET_KEY"
+    account_key_env: str = "STORAGE_ACCOUNT_KEY"
+    connect_timeout: float = 3.0
+    read_timeout: float = 10.0
+    max_attempts: int = 3  # botocore standard-mode retries
+    presign_expiry_seconds: int = 172_800  # 48h
+
+    @field_validator("provider", mode="before")
+    @classmethod
+    def _coerce_provider(cls, v: str | ObjectStorageProvider):
+        if isinstance(v, str):
+            # Accept enum name or value
+            try:
+                return ObjectStorageProvider[v]
+            except KeyError:
+                return ObjectStorageProvider(v)
+        return v
+
+    @property
+    def access_key(self) -> str:
+        default = "rustfsadmin" if self.provider is ObjectStorageProvider.RUSTFS else ""
+        return _env(self.access_key_env, default)
+
+    @property
+    def secret_key(self) -> str:
+        default = "rustfsadmin" if self.provider is ObjectStorageProvider.RUSTFS else ""
+        return _env(self.secret_key_env, default)
+
+    @property
+    def account_key(self) -> str:
+        return _env(self.account_key_env)
+
+    @property
+    def storage_account_name(self) -> str:
+        """Account name derived from ``endpoint_url`` (STORAGE_ACCOUNT).
+
+        The account is not configured separately — it is redundant with
+        the endpoint. Accepted forms: ``https://<account>.blob.<domain>``
+        (public clouds, sovereign clouds) and the emulator-style
+        path form ``http://<host>:<port>/<account>``.
+        """
+        parsed = urlparse(self.endpoint_url)
+        labels = (parsed.hostname or "").split(".")
+        if len(labels) >= 2 and labels[1] == "blob":
+            return labels[0]
+        path = parsed.path.strip("/")
+        if path and "/" not in path:
+            return path
+        raise ConfigError(
+            "storage.endpoint_url must be an account blob endpoint "
+            + "(https://<account>.blob.core.windows.net) when "
+            + "storage.provider is STORAGE_ACCOUNT; cannot derive an "
+            + f"account name from '{self.endpoint_url}'."
+        )
+
+    @model_validator(mode="after")
+    def _assert_storage_account_config(self) -> StorageConfig:
+        # Fail at boot, not on the first artifact write.
+        if self.provider is ObjectStorageProvider.STORAGE_ACCOUNT:
+            _ = self.storage_account_name  # raises when underivable
+            if not self.account_key:
+                raise ConfigError(
+                    "storage.provider STORAGE_ACCOUNT requires env var "
+                    + f"{self.account_key_env}."
+                )
+        return self
+
+    @model_validator(mode="after")
+    def _assert_presign_expiry(self) -> StorageConfig:
+        # Floor: 30h > the 24h (+10% jitter) cached finished-session detail
+        # that embeds these URLs. Ceiling: SigV4 refuses expiries over 7d.
+        if not 108_000 <= self.presign_expiry_seconds <= 604_800:
+            raise ConfigError(
+                "storage.presign_expiry_seconds must be between 108000 (30h, "
+                + "to outlive the cached session detail aggregate) and 604800 "
+                + f"(the SigV4 7-day limit); got {self.presign_expiry_seconds}."
+            )
+        return self
+
+
+class SystemConfig(BaseModel, frozen=True):
+    environment: Literal["development", "staging", "production"] = (
+        "development"  # development | staging | production
+    )
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
@@ -267,6 +431,8 @@ class SystemConfig(BaseModel):
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    redis: RedisConfig = Field(default_factory=RedisConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)

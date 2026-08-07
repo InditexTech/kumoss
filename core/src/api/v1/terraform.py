@@ -5,10 +5,10 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
+from src.domains.services import TracerService
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities.session import SessionContext
 from src.application.factory import ApplicationFactory
@@ -22,7 +22,8 @@ from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
-from src.shared.constants import ReportType
+from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.shared.constants import OperationType
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -30,16 +31,17 @@ router = APIRouter(prefix="/iac", tags=["Infrastructure as Code"])
 
 _workspace = WorkspaceService()
 _orchestration = SessionOrchestrationService()
+_tracer = TracerService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest, operation_type: str = "generate"
+    request: BaseIacRequest, operation: OperationType
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity."""
     try:
         if request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
-        return await _orchestration.resolve(request, operation_type)
+        return await _orchestration.resolve(request, operation)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
@@ -57,13 +59,28 @@ def _make_runner(
     """
 
     async def runner():
-        call_id = uuid4()
         call_dir: Path | None = None
         try:
             await _orchestration.acquire(ctx.id)
+        except ExceptionHandler as e:
+            # We never got the lock: the session is already running or is
+            # finished. Write no status (the session is not ours to touch)
+            # and skip release (it would clobber the actual holder's lock).
+            logging.error(f"runner not started: {e.message} (session {ctx.id})")
+            return
+        tracer_token = _tracer.set_current_tracer(
+            tracer=PhoenixTracer(
+                session_id=ctx.id,
+                user_id=ctx.user_id,
+                branch_name=ctx.branch_name,
+                cloud=ctx.terraform_prv,
+                iac_path=ctx.iac_path,
+                operation=ctx.operation,
+            )
+        )
+        try:
             call_dir = await _workspace.setup_call_dir(
                 session_id=ctx.id,
-                call_id=call_id,
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
             )
@@ -74,9 +91,10 @@ def _make_runner(
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
-            await DatabaseService.mark_failed(str(ctx.id), msg)
+            await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
+            _tracer.reset_current_tracer(tracer_token)
             _workspace.cleanup(call_dir)
             await _orchestration.release(ctx.id)
 
@@ -90,7 +108,7 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.GENERATE)
+    ctx = await _resolve_or_raise(request, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -107,7 +125,7 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.DRIFT)
+    ctx = await _resolve_or_raise(request, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -124,7 +142,7 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, ReportType.APPLY)
+    ctx = await _resolve_or_raise(request, OperationType.APPLY)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()

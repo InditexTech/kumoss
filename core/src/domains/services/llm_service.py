@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportArgumentType=false, reportReturnType=false
+
 from src.domains.entities.history import History
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -129,7 +130,7 @@ class LLMOrchestrationService:
         local_history = history.deepcopy() if history else History()
 
         response = LLMResponseDTO.empty()
-        tools_result = query
+        tools_result: str | list[ToolResultDTO] = query
         total_executions = 0
         while not self.__sentinel_executed(sentinel_tool, response.tool_calls, tools):
             if (
@@ -158,7 +159,8 @@ class LLMOrchestrationService:
             if len(tools) == 1:  # check for single tool execution (no sentinel tool)
                 return tools_result[-1]
             if not tools_result:
-                logging.warning(f"Error inference no tool reponse: {response}")
+                logging.warning(f"Error inference - no tool response: {response}")
+
                 tools_result = "you MUST use a tool"
             total_executions += 1
 

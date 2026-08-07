@@ -37,6 +37,8 @@ const mockGetSessionData = vi.fn().mockResolvedValue({
   apply_allowed: true,
 });
 
+const mockCheckSessionStatus = vi.fn();
+
 const mockNotifyIfHidden = vi.fn();
 
 vi.mock("@/services/workflows/terraform_action", () => ({
@@ -46,6 +48,7 @@ vi.mock("@/services/workflows/terraform_action", () => ({
 vi.mock("@/services/core/events", () => ({
   subscribeToSession: (...args: unknown[]) => mockSubscribe(...(args as [string])),
   getSessionData: (...args: unknown[]) => mockGetSessionData(...(args as [string])),
+  checkSessionStatus: (...args: unknown[]) => mockCheckSessionStatus(...(args as [string])),
 }));
 
 vi.mock("@/hooks/useBrowserNotification", () => ({
@@ -171,7 +174,9 @@ describe("useTerraformActions", () => {
     expect(mockNotifyIfHidden).toHaveBeenCalledWith("Pipeline failed", expect.objectContaining({ body: "Generation failed" }));
   });
 
-  it("SSE connection error sets error state", async () => {
+  it("SSE error + not_found = error state", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "not_found" });
+
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });
     const { result } = renderHook(() => useTerraformActions(), { wrapper });
@@ -184,8 +189,135 @@ describe("useTerraformActions", () => {
       mockSseConnection.onerror?.();
     });
 
-    expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
+      });
+    });
+
     expect(mockSseConnection.close).toHaveBeenCalled();
+  });
+
+  it("SSE error + completed = success recovery", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "completed" });
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onCompleted = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onCompleted);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+      });
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onCompleted).toHaveBeenCalled();
+      });
+    });
+
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Pipeline completed",
+      expect.objectContaining({ body: "Your infrastructure changes are ready for review." }),
+    );
+  });
+
+  it("SSE error + in_progress = reconnect", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "in_progress" });
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams);
+    });
+
+    const firstConnection = mockSseConnection;
+
+    await act(async () => {
+      firstConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(mockSubscribe).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    // Still streaming after reconnect
+    expect(result.current.state.status).toBe("streaming");
+
+    // Second connection should work normally
+    const secondConnection = mockSseConnection;
+    await act(async () => {
+      secondConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+    });
+
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    // COMPLETED must close the reconnected connection, not the stale one
+    expect(secondConnection.close).toHaveBeenCalled();
+  });
+
+  it("SSE error + failed = error state with failure notification", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "failed" });
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "error", message: "Process failed" });
+      });
+    });
+
+    // No reconnect attempt for a terminal failed session
+    expect(mockSubscribe).toHaveBeenCalledTimes(1);
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Pipeline failed",
+      expect.objectContaining({ body: "Process failed" }),
+    );
+  });
+
+  it("SSE error + recovery failure = error state", async () => {
+    mockCheckSessionStatus.mockRejectedValueOnce(new Error("Network error"));
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
+      });
+    });
   });
 
   it("workflow error (runTerraformActionWorkflow throws) sets error state", async () => {

@@ -18,28 +18,12 @@ class LLMProviderPrefix(Enum):
 
 
 @unique
-class Embeddings(Enum):
-    """(DEPRECATED) All supported embedding models and providers"""
-
-    OPENAI_LARGE_3 = {
-        "model": "text-embedding-3-large",
-        "output_dimension": 3_072,
-        "provider": "openai",
-    }
-    OPENAI_SMALL_3 = {
-        "model": "text-embedding-3-small",
-        "output_dimension": 1_536,
-        "provider": "openai",
-    }
-
-
-@unique
 class TerraformProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"
     AWS = "aws"
     OCI = "oci"
-    KUBERNETES = "kubernetes"
+    K8S = "kubernetes"
 
 
 @unique
@@ -51,17 +35,10 @@ class ReportType(Enum):
 
 
 @unique
-class TracerProject(Enum):
-    """Defines all possible tracer projects.
-    Note: a project in Phoenix is defined as a group of traces
-    """
-
-    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
-    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
-    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
-    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
-    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
-    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
+class OperationType(Enum):
+    GENERATE = "generate"
+    DRIFT = "drift"
+    IMPORT = "import"
 
 
 @unique
@@ -83,7 +60,7 @@ class PromptsLibrary(Enum):
     """Defines all possible base template prompts"""
 
     # core
-    DOMAIN_FILTER = "domain_filter"
+    REQUESTS_FILTER = "requests_filter"
     TASK_SPLITTER = "task_splitter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
@@ -92,16 +69,15 @@ class PromptsLibrary(Enum):
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
     # messages
-    JOKER = "joker"
+    JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
-    TASK_ACKNOWLEDGE = "task_acknowledge"
 
 
 @unique
 class ToolContext(Enum):
     """Defines different contexts where tools can be used"""
 
-    DOMAIN_FILTERING = "domain_filtering"
+    REQUESTS_FILTER = "requests_filter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
@@ -119,3 +95,37 @@ class GitProviderName(Enum):
     GITHUB = "github.com"
     AZURE_DEVOPS = "dev.azure.com"
     GITLAB = "gitlab.com"
+
+
+@unique
+class ObjectStorageProvider(Enum):
+    """Defines all the supported object-storage backends for artifacts."""
+
+    RUSTFS = "rustfs"
+    S3 = "s3"
+    STORAGE_ACCOUNT = "storage_account"
+
+
+@unique
+class TracerProject(Enum):
+    """Defines all possible tracer projects.
+    Note: a project in Phoenix is defined as a group of traces
+    """
+
+    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
+    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
+    DEV_TERRAFORM_IMPORT = "dev-terraform-import"
+    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
+    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
+    PRE_TERRAFORM_IMPORT = "pre-terraform-import"
+    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
+    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
+    PRO_TERRAFORM_IMPORT = "pro-terraform-import"
+
+
+@unique
+class ContentType(Enum):
+    """Defines all possible content types for artifact upload"""
+
+    TEXT = "text/plain"
+    JSON = "application/json"

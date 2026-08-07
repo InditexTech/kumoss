@@ -3,17 +3,43 @@
 # SPDX-License-Identifier: Apache-2.0
 
 openapi: 3.1.0
+
 info:
   title: Nebula IaC Service
   version: "1.0.0"
-  summary: Run terraform init/validate/plan against a checked-out workspace.
+  summary: Run terraform validate/apply/import pipelines as asynchronous jobs against a checked-out workspace.
   description: |
     The IaC service runs the Terraform CLI (`init`, `validate`,
-    `plan`) against a workspace and returns structured results. It is the
-    inner loop of Nebula's "generate then validate" cycle: the LLM
-    iterates on the workspace contents and asks the IaC service
-    after each change whether the configuration is valid and what changes
-    a `plan` would produce.
+    `plan`, `apply`, `import`) against a workspace. Every POST
+    endpoint enqueues a **job** and returns `202 Accepted` with a job
+    id immediately; the terraform pipeline runs in the background.
+    Clients fetch progress and results by polling
+    `GET /v1/jobs/{job_id}`.
+
+    Jobs targeting the same `workspace_path` execute one at a time in
+    submission (FIFO) order; jobs for different workspaces may run
+    concurrently. A submission is never rejected because the
+    workspace is busy — it queues.
+
+    Two failure planes are kept distinct:
+
+    * **Terraform-level failures** (a failing `init`, `validate`,
+      `plan`, `apply`, or `import`, or detected drift) are normal
+      outcomes: the job ends `succeeded` and its `result` carries a
+      false success flag plus the CLI's diagnostics in `feedback`.
+    * **Service-level faults** (credential resolution failure,
+      subprocess timeout, unexpected errors, shutdown) end the job as
+      `failed` with a `Problem` document in `error`; the embedded
+      `status` is the HTTP status code an equivalent synchronous API
+      would have returned.
+
+    Errors detectable at submission time (missing/invalid token,
+    malformed body, missing workspace, missing terraform binary) are
+    still reported synchronously on the POST.
+
+    Polling an expired or unknown job returns 404. The OSS reference impl keeps jobs in
+    memory, so a restart also loses them — clients MUST treat an
+    unexpected 404 as job loss and resubmit if needed.
 
     The OSS reference implementation under `services/iac/` runs
     `terraform` directly via subprocess and operates on a docker-compose
@@ -32,7 +58,9 @@ info:
     url: https://github.com/inditex/app-nebulaapp
   license:
     name: Apache-2.0
+
     url: https://www.apache.org/licenses/LICENSE-2.0
+
 
 servers:
   - url: http://iac:8082
@@ -41,27 +69,37 @@ servers:
 tags:
   - name: validate
     description: Run terraform validation against a workspace.
+  - name: apply
+    description: Apply the Terraform configuration in a workspace.
+  - name: import
+    description: Import existing cloud resources into Terraform state.
+  - name: jobs
+    description: Poll asynchronous job status and results.
   - name: ops
     description: Operational endpoints (liveness, readiness).
 
 paths:
   /v1/validate:
     post:
+
       operationId: validate
       tags: [validate]
-      summary: Validate the Terraform configuration in a workspace.
+      summary: Enqueue a validation job for a workspace.
       description: |
-        Runs `terraform init`, `terraform validate`, and (if the workspace
-        validates) `terraform plan` against the workspace at
-        `workspace_path`. Returns the raw plan output and a boolean
-        success flag. When `get_drift` is true and the plan succeeds, the
-        plan JSON is parsed and any drift is summarised in the `feedback`
-        field.
+        Enqueues a job that runs `terraform init`, `terraform
+        validate`, and (if the workspace validates) `terraform plan`
+        against the workspace at `workspace_path`, then returns
+        `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+        the ValidateResult, which carries the raw plan output and a
+        boolean success flag. When `get_drift` is true and the plan
+        succeeds, the plan JSON is parsed and any drift is summarised
+
+        in the result's `feedback` field.
 
         Implementations that require cloud credentials (the reference
         impl uses the standard Terraform provider env vars: ARM_*,
-        GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
-        than producing a misleading `validation: false`.
+        GOOGLE_*, AWS_*) resolve them while the job runs; resolution
+        failures end the job as `failed`.
       security:
         - bearerAuth: []
       requestBody:
@@ -71,12 +109,116 @@ paths:
             schema:
               $ref: "#/components/schemas/ValidateRequest"
       responses:
-        "200":
-          description: Validation completed (whether or not it passed).
+        "202":
+          description: |
+            Job accepted and queued. Jobs for the same `workspace_path`
+            run one at a time in submission order; poll
+            `GET /v1/jobs/{job_id}` for progress and the result.
+          headers:
+
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ValidateResponse"
+                $ref: "#/components/schemas/JobAccepted"
+        "400":
+          description: |
+
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from
+            the implementation. Distinct from a Terraform-level
+            failure, which surfaces in the job result.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites needed
+            to accept jobs (terraform binary, configured state backend,
+            etc.). Prerequisites only checked while the job runs (e.g.
+            cloud credentials) surface as a `failed` job instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+
+  /v1/apply:
+    post:
+
+      operationId: apply
+      tags: [apply]
+      summary: Enqueue an apply job for a workspace.
+      description: |
+        Enqueues a job that runs `terraform plan` (with optional
+        `-target=` filters) and, if the plan succeeds,
+        `terraform apply` of that plan against the workspace at
+        `workspace_path`, then returns `202 Accepted` immediately.
+        Poll `GET /v1/jobs/{job_id}` for the ApplyResult, which
+        carries terraform's output and a boolean success flag.
+        Terraform-level failures (init, plan, or apply) end the job as
+        `succeeded` with `success: false` and diagnostics in
+        `feedback`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplyRequest"
+      responses:
+        "202":
+
+          description: |
+            Job accepted and queued. Jobs for the same `workspace_path`
+            run one at a time in submission order; poll
+            `GET /v1/jobs/{job_id}` for progress and the result.
+          headers:
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+
+                $ref: "#/components/schemas/JobAccepted"
         "400":
           description: |
             Request could not be parsed at the transport layer. The OSS
@@ -104,24 +246,174 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "404":
           description: |
-            `workspace_path` does not exist or is not accessible from the
-            implementation. Distinct from a Terraform-level validation
-            failure (which returns 200 with `validation: false`).
+            `workspace_path` does not exist or is not accessible from
+            the implementation. Distinct from a Terraform-level
+            failure, which surfaces in the job result.
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
         "422":
           description: Request body failed schema validation.
+
           content:
             application/problem+json:
+
               schema:
                 $ref: "#/components/schemas/Problem"
         "503":
           description: |
-            Implementation is running but missing prerequisites
-            (cloud credentials, terraform binary, configured state
-            backend, etc.).
+            Implementation is running but missing prerequisites needed
+            to accept jobs (terraform binary, configured state backend,
+            etc.). Prerequisites only checked while the job runs (e.g.
+
+            cloud credentials) surface as a `failed` job instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/import:
+    post:
+      operationId: import_resource
+      tags: [import]
+      summary: Enqueue a job importing an existing cloud resource into Terraform state.
+      description: |
+        Enqueues a job that runs `terraform import` against the
+        workspace at `workspace_path`, bringing the existing cloud
+        resource identified by `resource_id` under the Terraform
+        resource address `address` in the workspace's state, then
+        returns `202 Accepted` immediately. Poll
+        `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
+        failures (init or import) end the job as `succeeded` with
+        `success: false` and diagnostics in `feedback`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+      responses:
+        "202":
+
+          description: |
+            Job accepted and queued. Jobs for the same `workspace_path`
+            run one at a time in submission order; poll
+            `GET /v1/jobs/{job_id}` for progress and the result.
+          headers:
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+
+                $ref: "#/components/schemas/JobAccepted"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from
+            the implementation. Distinct from a Terraform-level
+            failure, which surfaces in the job result.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+
+          content:
+            application/problem+json:
+
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites needed
+            to accept jobs (terraform binary, configured state backend,
+            etc.). Prerequisites only checked while the job runs (e.g.
+            cloud credentials) surface as a `failed` job instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/jobs/{job_id}:
+    get:
+      operationId: get_job
+      tags: [jobs]
+      summary: Fetch the status and result of a previously submitted job.
+      description: |
+        Returns the job's current status and, once it reaches a
+        terminal state, its outcome: `result` for `succeeded` jobs,
+        `error` for `failed` ones. Clients poll this endpoint after a
+        `202 Accepted` submission until the status is `succeeded` or
+        `failed`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: The `job_id` returned by the submitting endpoint.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Current job state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            No job with this id: it never existed, its retention period
+
+            elapsed, or the implementation lost it (the OSS reference
+            impl keeps jobs in memory and forgets them on restart).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: "`job_id` is not a valid UUID."
           content:
             application/problem+json:
               schema:
@@ -167,6 +459,16 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+
+            the resolved credentials are fully specified.
+          maxLength: 1024
         branch:
           type: [string, "null"]
           description: |
@@ -180,32 +482,39 @@ components:
           description: |
             Optional `terraform plan -target=` filters. When omitted or
             empty, the entire configuration is planned.
+
           items:
             type: string
+
             minLength: 1
             maxLength: 1024
           maxItems: 256
         get_drift:
+
           type: boolean
           default: false
           description: |
             When true and the plan succeeds, the implementation parses
             the plan JSON and summarises any resource changes (drift) in
-            the `feedback` field of the response, with `validation` set
-            to `false` if drift is non-empty. Useful for "is anything
-            different from what's deployed?" queries.
+            the `feedback` field of the job result, with `validation`
+            set to `false` if drift is non-empty. Useful for "is
+            anything different from what's deployed?" queries.
 
-    ValidateResponse:
+    ValidateResult:
       type: object
+      description: Result of a `validate` job.
       required: [validation, feedback, terraform_plan, terraform_targets]
       additionalProperties: false
       properties:
         validation:
           type: boolean
+
           description: |
             True if `terraform init`, `terraform validate`, and
+
             `terraform plan` (when run) all succeeded AND, when
             `get_drift` was requested, no drift was detected.
+
         feedback:
           type: string
           description: |
@@ -223,6 +532,208 @@ components:
           items:
             type: string
 
+    ApplyRequest:
+      type: object
+      required: [workspace_path]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
+        targets:
+
+          type: array
+          description: |
+            Optional `terraform plan -target=` filters. When omitted or
+            empty, the entire configuration is planned and applied.
+
+          items:
+            type: string
+
+            minLength: 1
+            maxLength: 1024
+          maxItems: 256
+
+    ApplyResult:
+      type: object
+      description: Result of an `apply` job.
+      required: [success, feedback, terraform_output]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          description: |
+            True if `terraform init`, `terraform plan`, and
+            `terraform apply` all succeeded.
+        feedback:
+          type: string
+          description: |
+            Human-readable diagnostics. On failure, this contains the
+            terraform CLI's stderr. On success, this is typically empty.
+        terraform_output:
+          type: string
+          description: |
+            Terraform's output (text). Contains the plan output when the
+            plan failed, otherwise the apply output.
+
+    ImportRequest:
+      type: object
+      required: [workspace_path, address, resource_id]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
+        address:
+          type: string
+          description: |
+            Terraform resource address to import into, e.g.
+            `azurerm_resource_group.main`.
+          minLength: 1
+          maxLength: 4096
+        resource_id:
+          type: string
+
+          description: |
+            Provider-specific identifier of the existing cloud resource,
+            e.g. an Azure resource ID or an AWS ARN.
+          minLength: 1
+          maxLength: 4096
+
+    ImportResult:
+      type: object
+      description: Result of an `import` job.
+      required: [success, feedback]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          description: |
+            True if `terraform init` and `terraform import` both
+            succeeded.
+        feedback:
+          type: string
+          description: |
+            Human-readable diagnostics. On failure, this contains the
+            terraform CLI's stderr. On success, this is typically empty.
+
+    JobStatus:
+      type: string
+      enum: [queued, running, succeeded, failed]
+      description: |
+        `queued`: accepted, waiting for its workspace's FIFO queue.
+        `running`: terraform pipeline executing.
+        `succeeded`: pipeline ran to completion — inspect `result` for
+        the terraform-level outcome (which may carry false flags).
+        `failed`: service-level fault — inspect `error`.
+
+    JobKind:
+      type: string
+      enum: [validate, apply, import]
+      description: Which terraform pipeline the job runs.
+
+    JobAccepted:
+      type: object
+      description: Returned by the submitting endpoints when a job is enqueued.
+      required: [job_id, status]
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+          format: uuid
+          description: Identifier to poll at `GET /v1/jobs/{job_id}`.
+        status:
+          $ref: "#/components/schemas/JobStatus"
+          description: Always `queued` at submission time.
+
+    Job:
+      type: object
+      description: |
+        A submitted terraform job. All keys are always present;
+        `started_at`, `finished_at`, `result`, and `error` are null
+        until they become meaningful.
+      required:
+        [job_id, kind, status, created_at, started_at, finished_at, result, error]
+      additionalProperties: false
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/JobKind"
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        created_at:
+          type: string
+          format: date-time
+          description: When the job was accepted (UTC).
+        started_at:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            When the job left the queue and began running, or null while
+            still `queued`.
+        finished_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the job reached a terminal state, or null.
+        result:
+          description: |
+            Non-null iff `status` is `succeeded`. The variant matches
+            `kind` (`validate` → ValidateResult, `apply` → ApplyResult,
+            `import` → ImportResult); the variants are also structurally
+            distinguishable by their required fields, in the order
+            listed.
+          oneOf:
+            - $ref: "#/components/schemas/ValidateResult"
+            - $ref: "#/components/schemas/ApplyResult"
+            - $ref: "#/components/schemas/ImportResult"
+            - type: "null"
+        error:
+          description: |
+            Non-null iff `status` is `failed`. The embedded `status`
+            member is the HTTP status code an equivalent synchronous
+
+            API would have returned (e.g. 500 credential retrieval
+            failure, 422 unresolvable credentials, 504 subprocess
+            timeout, 503 shut down before completion).
+          oneOf:
+            - $ref: "#/components/schemas/Problem"
+            - type: "null"
+
     Health:
       type: object
       required: [status]
@@ -233,9 +744,11 @@ components:
           enum: [ok]
 
     Problem:
+
       type: object
       description: |
         Problem details for HTTP APIs (RFC 7807).
+
       required: [type, title, status]
       properties:
         type:
@@ -253,3 +766,4 @@ components:
         instance:
           type: string
           format: uri-reference
+
