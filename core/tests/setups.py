@@ -58,7 +58,9 @@ def _setup_tracer():
             session_id=Settings.SESSION_ID,
             user_id=Settings.USER_ID,
             cloud=Settings.TEMPLATE_PROVIDER,
+            operation=Settings.DEFAULT_OPERATION,
             iac_path="/test",
+            branch_name="test_branch",
         )
     )
 

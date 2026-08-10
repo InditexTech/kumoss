@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Literal
 
-from src.shared.constants import TracerProject, TerraformProvider
+from src.shared.constants import TracerProject, TerraformProvider, OperationType
 
 
 class Settings:
@@ -26,6 +26,7 @@ class Settings:
     DEFAULT_PROJECT_CLOUD: Literal["azure", "gcp", "aws", "oci", "kubernetes"] = "azure"
     DEFAULT_PROJECT_ENV: Literal["dev", "pre", "pro"] = "dev"
     DEFAULT_PROJECT_UID: str = f"{DEFAULT_PROJECT_NAME}_{SESSION_ID}"
+    DEFAULT_OPERATION: OperationType = OperationType.GENERATE
 
     # Provider configuration
     TEMPLATE_PROVIDER: TerraformProvider = TerraformProvider.AZURE
