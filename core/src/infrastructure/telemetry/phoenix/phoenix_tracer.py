@@ -326,13 +326,12 @@ def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
 
     # Adapt the provider prefix to OpenInference provider value and find the system
     provider = _PREFIX_TO_PROVIDER.get(model.split("/")[0], None)
-    system = None
+    system = "unknown"
     for substrings, sys in _MODEL_TO_SYSTEM:
         if any(substring in model_name.lower() for substring in substrings):
             system = sys
             break
-
-    if not provider or not system:
+    if not provider:
         raise ProviderOpenInferenceNotFound(
             message=f"Provider {model} couldn't be mapped to OpenInference",
             error_code=404,
