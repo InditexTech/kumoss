@@ -35,7 +35,7 @@ admin:
 #
 # `model` and `small_model` use the LiteLLM "provider/model"
 # format. The provider prefix (before the "/") determines which
-# credentials are required — see LLMProvider in constants.py.
+# credentials are required — see LLMProviderPrefix in constants.py.
 #
 # The core fails fast at boot if the selected providers' credentials
 # (looked up from env vars) are missing.
