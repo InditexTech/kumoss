@@ -18,7 +18,7 @@ from src.domains.dto import (
     PromptTemplateDTO,
 )
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import TerraformProvider, PromptsLibrary
+from src.shared.constants import TerraformProvider, PromptsLibrary, OperationType
 
 
 def _make_tracer(**overrides) -> PhoenixTracer:
@@ -27,6 +27,7 @@ def _make_tracer(**overrides) -> PhoenixTracer:
         user_id="test-user",
         cloud=TerraformProvider.AZURE,
         iac_path="/workspaces/test",
+        operation=OperationType.GENERATE,
         branch_name="feat/test",
     )
     defaults.update(overrides)
