@@ -42,11 +42,9 @@ class LiteLLMAdapter(ILLMProvider):
     ) -> None:
         """LiteLLM-based LLM adapter for unified multi-provider inference.
 
-        Wraps litellm.acompletion to route requests to any supported provider
-        (Vertex AI, Bedrock, OpenAI, Azure, Azure AI, Gemini) using OpenAI-
-        compatible formatting. The inference method is pending implementation;
-        helper methods for tool formatting, history construction, and stop
-        reason mapping are ready.
+        Wraps litellm.acompletion / litellm.aresponses to route requests to any supported
+        provider (Vertex AI, Bedrock, OpenAI, Azure, Azure AI, Gemini) using OpenAI-
+        compatible formatting, including tool calling, optional "thinking", and web search.
         """
         self.__model = model
         self.__provider = model.split("/")[0]
