@@ -116,7 +116,12 @@ class LlmConfig(BaseModel):
     }
 
     def get_provider_credentials(self, model_id: str) -> dict[str, str]:
-        prefix = model_id.split("/")[0]
+        if "/" not in model_id:
+            raise ConfigError(
+                f"Invalid LiteLLM model_id '{model_id}': expected '<prefix>/<model>'. "
+                + f"Supported prefixes: {list(self._PROVIDER_ENV.keys())}"
+            )
+        prefix = model_id.split("/", 1)[0]
         if prefix not in self._PROVIDER_ENV:
             raise ConfigError(
                 f"Unknown LLM provider prefix '{prefix}' in model_id '{model_id}'"
