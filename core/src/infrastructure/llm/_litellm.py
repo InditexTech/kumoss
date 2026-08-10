@@ -54,6 +54,10 @@ class LiteLLMAdapter(ILLMProvider):
         self.__max_tokens = max_tokens
         self.__provider_kwargs = provider_kwargs or {}
 
+    @property
+    def model(self) -> str:
+        return self.__model
+
     @trace_llm
     async def inference(
         self,

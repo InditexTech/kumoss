@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from opentelemetry.trace import Span
 
@@ -121,22 +121,53 @@ class TestTraceTerraformDecorator(unittest.IsolatedAsyncioTestCase):
 
             result = await dummy_terraform()
             self.assertIs(result, tf_dto)
-            mock_tracer.trace_terraform.assert_called_once_with(tf_dto)
+            mock_tracer.trace_terraform.assert_called_once()
+            call_args = mock_tracer.trace_terraform.call_args
+            self.assertIs(call_args[0][0], tf_dto)
+            self.assertIn("start_time", call_args[1])
+            self.assertIsInstance(call_args[1]["start_time"], int)
             mock_span.set_status.assert_called_once()
             mock_span.end.assert_called_once()
         finally:
             TracerService.reset_current_tracer(token)
 
 
-class TestTraceLlmRemoved(unittest.TestCase):
-    def test_trace_llm_not_in_services_all(self):
-        import src.domains.services as svc_module
+class TestTraceLlmDecorator(unittest.IsolatedAsyncioTestCase):
+    async def test_trace_llm_captures_params_and_traces(self):
+        mock_tracer = MagicMock(spec=ITracer)
+        mock_span = MagicMock(spec=Span)
+        mock_tracer.trace_llm.return_value = mock_span
 
-        self.assertNotIn("trace_llm", svc_module.__all__)
+        token = TracerService.set_current_tracer(mock_tracer)
+        try:
+            from src.domains.services.tracer_service import trace_llm
 
-    def test_trace_llm_not_importable_from_services(self):
-        with self.assertRaises(ImportError):
-            from src.domains.services import trace_llm  # noqa: F401
+            @trace_llm
+            async def fake_inference(self, msg=None, **kwargs):
+                import litellm
+
+                await litellm.acompletion(model="test", messages=[])
+                return MagicMock(
+                    text="ok",
+                    tool_calls=[],
+                    metadata=MagicMock(input_tokens=1, output_tokens=2),
+                )
+
+            adapter_mock = MagicMock()
+            adapter_mock.model = "vertex_ai/claude-sonnet-4-6"
+
+            with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
+                mock_ac.return_value = MagicMock()
+                await fake_inference(adapter_mock, msg="hello")
+
+            mock_tracer.trace_llm.assert_called_once()
+            call_kwargs = mock_tracer.trace_llm.call_args[1]
+            self.assertEqual(call_kwargs["model"], "vertex_ai/claude-sonnet-4-6")
+            self.assertIsNotNone(call_kwargs["invocation_params"])
+            mock_span.set_status.assert_called_once()
+            mock_span.end.assert_called_once()
+        finally:
+            TracerService.reset_current_tracer(token)
 
 
 if __name__ == "__main__":

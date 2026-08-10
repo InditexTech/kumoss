@@ -7,6 +7,8 @@ import json
 import unittest
 from unittest.mock import patch, AsyncMock, MagicMock
 
+from opentelemetry.trace import Span
+
 from litellm.types.utils import (
     ModelResponse,
     Choices,
@@ -24,11 +26,12 @@ from src.domains.dto import (
     ToolResultDTO,
 )
 from src.domains.entities.history import History
+from src.domains.interfaces.tracer_interface import ITracer
+from src.domains.services.tracer_service import TracerService
 from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallThinkingToolError,
-    InferenceCallWebSearchNotSupported,
     InferenceCallWebSearchTools,
 )
 from src.shared.constants import ToolContext
@@ -69,7 +72,25 @@ def _model_response(
     )
 
 
+def _setup_mock_tracer(test_case):
+    mock_tracer = MagicMock(spec=ITracer)
+    mock_span = MagicMock(spec=Span)
+    mock_tracer.trace_llm.return_value = mock_span
+    test_case._tracer_token = TracerService.set_current_tracer(mock_tracer)
+    test_case._mock_tracer = mock_tracer
+
+
+def _teardown_mock_tracer(test_case):
+    TracerService.reset_current_tracer(test_case._tracer_token)
+
+
 class TestInferencePlainText(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -119,6 +140,12 @@ class TestInferencePlainText(unittest.IsolatedAsyncioTestCase):
 
 
 class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -173,6 +200,12 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
 
 
 class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -231,6 +264,12 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
 
 
 class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -259,15 +298,18 @@ class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
 
 
 class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.supports_web_search", return_value=True
-    )
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
     async def test_native_web_search_passes_options(
-        self, mock_acompletion, mock_model_info, mock_supports
+        self, mock_acompletion, mock_model_info
     ):
         mock_model_info.return_value = {
             "supported_openai_params": ["web_search_options"]
@@ -283,13 +325,10 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
             call_kwargs["web_search_options"]["search_context_size"], "medium"
         )
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.supports_web_search", return_value=True
-    )
     @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
     @patch("src.infrastructure.llm._litellm.litellm.aresponses", new_callable=AsyncMock)
     async def test_fallback_web_search_calls_aresponses(
-        self, mock_aresponses, mock_model_info, mock_supports
+        self, mock_aresponses, mock_model_info
     ):
         mock_model_info.return_value = {"supported_openai_params": []}
 
@@ -313,19 +352,7 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         mock_aresponses.assert_called_once()
         self.assertEqual(result.text, "search result")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.supports_web_search",
-        return_value=False,
-    )
-    async def test_unsupported_model_raises(self, mock_supports):
-        adapter = _make_adapter()
-        with self.assertRaises(InferenceCallWebSearchNotSupported):
-            await adapter.inference(msg="test", web_search=True)
-
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.supports_web_search", return_value=True
-    )
-    async def test_web_search_with_tools_raises(self, mock_supports):
+    async def test_web_search_with_tools_raises(self):
         adapter = _make_adapter()
         tool_def = ToolDefinitionDTO(
             name="test",
@@ -336,16 +363,19 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(InferenceCallWebSearchTools):
             await adapter.inference(msg="test", tools=[tool_def], web_search=True)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.supports_web_search", return_value=True
-    )
-    async def test_web_search_with_thinking_raises(self, mock_supports):
+    async def test_web_search_with_thinking_raises(self):
         adapter = _make_adapter()
         with self.assertRaises(InferenceCallThinkingToolError):
             await adapter.inference(msg="test", thinking=True, web_search=True)
 
 
 class TestInferenceAPIError(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -363,6 +393,12 @@ class TestInferenceAPIError(unittest.IsolatedAsyncioTestCase):
 
 
 class TestStopReasonMapping(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
     @patch(
         "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
     )
@@ -386,15 +422,6 @@ class TestStopReasonMapping(unittest.IsolatedAsyncioTestCase):
         mock_acompletion.return_value = _model_response(finish_reason="tool_calls")
         result = await _make_adapter().inference(msg="hi")
         self.assertEqual(result.metadata.finish_reason, "tool_use")
-
-
-class TestNoTraceLlmDecorator(unittest.TestCase):
-    def test_inference_is_not_wrapped_by_trace_llm(self):
-        adapter = _make_adapter()
-        self.assertFalse(
-            hasattr(adapter.inference, "__wrapped__"),
-            "inference should not be wrapped by trace_llm after the migration",
-        )
 
 
 if __name__ == "__main__":

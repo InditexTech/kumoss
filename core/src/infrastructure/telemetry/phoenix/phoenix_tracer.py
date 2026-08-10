@@ -37,11 +37,7 @@ from src.infrastructure.exceptions import (
     TracerRootContextError,
     ProviderOpenInferenceNotFound,
 )
-from src.shared.constants import (
-    LLMProvider,
-    OperationType,
-    TerraformProvider,
-)
+from src.shared.constants import OperationType, TerraformProvider, LLMProviderPrefix
 
 
 class PhoenixTracer(ITracer):
@@ -161,7 +157,7 @@ class PhoenixTracer(ITracer):
     def trace_llm(
         self,
         start_time: int,
-        provider: LLMProvider,
+        model: str,
         invocation_params: Any,
         response: LLMResponseDTO,
         **kwargs: Any,
@@ -170,7 +166,7 @@ class PhoenixTracer(ITracer):
         Creates and configures a span for tracing LLM inference calls.
 
         :param start_time: Start time of the LLM call in nanoseconds since epoch
-        :param provider: The LLM provider being used (e.g., Anthropic, Google)
+        :param model: The LLM model being used (e.g., vertex_ai/claude-sonnet-4-6)
         :param invocation_params: Parameters passed to the LLM API call
         :param response: The LLM response containing text, tool calls, and metadata
         :param kwargs: Additional keyword arguments including messages, tools, and history
@@ -190,7 +186,7 @@ class PhoenixTracer(ITracer):
             *self.__metadata_attributes(),
             *_input_attributes(kwargs["msg"]),
             *_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
-            *_llm_model_name_attributes(provider),
+            *_llm_model_name_attributes(model),
             *_llm_invocation_parameters_attributes(invocation_params),
             *_llm_input_messages_attributes(
                 kwargs["msg"], kwargs.get("history"), kwargs.get("system_prompt")
@@ -302,22 +298,47 @@ def _span_kind_attributes(
     yield SpanAttributes.OPENINFERENCE_SPAN_KIND, kind.value
 
 
-def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str, str]]:
+def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
     """
     Maps provider name to OpenInference value and yields the OpenInference model name attribute.
     """
-    if any(key in provider_name.name.lower() for key in ["opus", "sonnet", "haiku"]):
-        provider = OpenInferenceLLMProviderValues.ANTHROPIC.value
-        system = OpenInferenceLLMSystemValues.ANTHROPIC.value
-    elif "gemini" in provider_name.name.lower():
-        provider = OpenInferenceLLMProviderValues.GOOGLE.value
-        system = OpenInferenceLLMSystemValues.VERTEXAI.value
-    else:
+    # prefix → OpenInference provider
+    _PREFIX_TO_PROVIDER = {
+        LLMProviderPrefix.VERTEX_AI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
+        LLMProviderPrefix.BEDROCK.value: OpenInferenceLLMProviderValues.AWS.value,
+        LLMProviderPrefix.OPENAI.value: OpenInferenceLLMProviderValues.OPENAI.value,
+        LLMProviderPrefix.AZURE.value: OpenInferenceLLMProviderValues.AZURE.value,
+        LLMProviderPrefix.AZURE_AI.value: OpenInferenceLLMProviderValues.AZURE.value,
+        LLMProviderPrefix.GEMINI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
+    }
+
+    # model substring → OpenInference system (the actual LLM maker)
+    _MODEL_TO_SYSTEM = [
+        (
+            ["claude", "opus", "sonnet", "haiku"],
+            OpenInferenceLLMSystemValues.ANTHROPIC.value,
+        ),
+        (["gemini"], OpenInferenceLLMSystemValues.VERTEXAI.value),
+        (["gpt", "o1", "o3", "o4"], OpenInferenceLLMSystemValues.OPENAI.value),
+    ]
+
+    model_name = model.split("/")[-1]
+
+    # Adapt the provider prefix to OpenInference provider value and find the system
+    provider = _PREFIX_TO_PROVIDER.get(model.split("/")[0], None)
+    system = None
+    for substrings, sys in _MODEL_TO_SYSTEM:
+        if any(substring in model_name.lower() for substring in substrings):
+            system = sys
+            break
+
+    if not provider or not system:
         raise ProviderOpenInferenceNotFound(
-            message=f"Provider {provider_name.name} couldn't be mapped to OpenInference",
+            message=f"Provider {model} couldn't be mapped to OpenInference",
             error_code=404,
         )
-    yield SpanAttributes.LLM_MODEL_NAME, cast(str, provider_name.value["phoenix_id"])
+
+    yield SpanAttributes.LLM_MODEL_NAME, cast(str, model_name)
     yield SpanAttributes.LLM_PROVIDER, provider
     yield SpanAttributes.LLM_SYSTEM, system
 
