@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 from opentelemetry.trace import Span
 
@@ -142,11 +142,11 @@ class TestTraceLlmDecorator(unittest.IsolatedAsyncioTestCase):
         try:
             from src.domains.services.tracer_service import trace_llm
 
+            invocation_params = {"model": "test", "messages": []}
+
             @trace_llm
             async def fake_inference(self, msg=None, **kwargs):
-                import litellm
-
-                await litellm.acompletion(model="test", messages=[])
+                self._last_invocation_params = invocation_params
                 return MagicMock(
                     text="ok",
                     tool_calls=[],
@@ -156,14 +156,12 @@ class TestTraceLlmDecorator(unittest.IsolatedAsyncioTestCase):
             adapter_mock = MagicMock()
             adapter_mock.model = "vertex_ai/claude-sonnet-4-6"
 
-            with patch("litellm.acompletion", new_callable=AsyncMock) as mock_ac:
-                mock_ac.return_value = MagicMock()
-                await fake_inference(adapter_mock, msg="hello")
+            await fake_inference(adapter_mock, msg="hello")
 
             mock_tracer.trace_llm.assert_called_once()
             call_kwargs = mock_tracer.trace_llm.call_args[1]
             self.assertEqual(call_kwargs["model"], "vertex_ai/claude-sonnet-4-6")
-            self.assertIsNotNone(call_kwargs["invocation_params"])
+            self.assertEqual(call_kwargs["invocation_params"], invocation_params)
             mock_span.set_status.assert_called_once()
             mock_span.end.assert_called_once()
         finally:

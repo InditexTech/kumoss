@@ -51,6 +51,7 @@ class LiteLLMAdapter(ILLMProvider):
         self.__temperature = temperature
         self.__max_tokens = max_tokens
         self.__provider_kwargs = provider_kwargs or {}
+        self._last_invocation_params: dict[str, Any] | None = None
 
     @property
     def model(self) -> str:
@@ -130,6 +131,7 @@ class LiteLLMAdapter(ILLMProvider):
             if web_search:
                 kwargs["web_search_options"] = {"search_context_size": "medium"}
 
+            self._last_invocation_params = kwargs
             try:
                 response = await litellm.acompletion(**kwargs)
             except APIError as e:
@@ -175,15 +177,17 @@ class LiteLLMAdapter(ILLMProvider):
         """
         model_id = self.__model
 
-        resp = await litellm.aresponses(
-            model=model_id,
-            input=messages,
-            tools=[{"type": "web_search_preview", "search_context_size": "medium"}],
-            max_output_tokens=max_tokens,
-            temperature=self.__temperature,
-            timeout=120,
+        aresponses_kwargs = {
+            "model": model_id,
+            "input": messages,
+            "tools": [{"type": "web_search_preview", "search_context_size": "medium"}],
+            "max_output_tokens": max_tokens,
+            "temperature": self.__temperature,
+            "timeout": 120,
             **self.__provider_kwargs,
-        )
+        }
+        self._last_invocation_params = aresponses_kwargs
+        resp = await litellm.aresponses(**aresponses_kwargs)
 
         text = ""
         for item in resp.output:

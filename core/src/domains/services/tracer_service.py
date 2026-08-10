@@ -9,7 +9,6 @@ from collections.abc import Coroutine
 from typing import Callable
 from contextvars import ContextVar, Token
 
-import litellm
 from opentelemetry.trace import Status, StatusCode
 
 from src.domains.dto import TerraformValidationDTO
@@ -81,42 +80,22 @@ def trace_chain(func: Callable) -> Callable:
 def trace_llm(func: Callable) -> Callable:
     """
     Decorator that automatically traces LLM function calls with comprehensive telemetry data.
-    Uses monkey patching to intercept litellm.acompletion / litellm.aresponses and capture
-    invocation parameters transparently.
+    Reads invocation parameters from self._last_invocation_params, set by the
+    adapter before each litellm call. Per-instance state, so concurrent requests
+    do not interfere.
     """
 
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Coroutine:
         self_instance = args[0]
-        captured_llm_params = None
-
-        original_acompletion = litellm.acompletion
-        original_aresponses = litellm.aresponses
-
-        async def monkey_acompletion(*monkey_args, **monkey_kwargs):
-            nonlocal captured_llm_params
-            captured_llm_params = monkey_kwargs
-            return await original_acompletion(*monkey_args, **monkey_kwargs)
-
-        async def monkey_aresponses(*monkey_args, **monkey_kwargs):
-            nonlocal captured_llm_params
-            captured_llm_params = monkey_kwargs
-            return await original_aresponses(*monkey_args, **monkey_kwargs)
-
-        litellm.acompletion = monkey_acompletion
-        litellm.aresponses = monkey_aresponses
 
         start = time.time()
-        try:
-            output = await func(*args, **kwargs)
-        finally:
-            litellm.acompletion = original_acompletion
-            litellm.aresponses = original_aresponses
+        output = await func(*args, **kwargs)
 
         span = TracerService.get_current_tracer().trace_llm(
             start_time=int(start * 1_000_000_000),  # epoch in ns
             model=self_instance.model,
-            invocation_params=captured_llm_params,
+            invocation_params=self_instance._last_invocation_params,
             response=output,
             **kwargs,
         )

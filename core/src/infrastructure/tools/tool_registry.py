@@ -270,7 +270,7 @@ class ToolRegistry(IToolRegistry):
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:
         query = parameters["query"]
         explanation = parameters.get("explanation", "")
-        # This avoid entering in a loop of calling web_search when the tool is not supported by the provider
+        # This avoids entering in a loop of calling web_search when the tool is not supported by the provider
         try:
             result = await self.__web_search.search(query)
         except (
