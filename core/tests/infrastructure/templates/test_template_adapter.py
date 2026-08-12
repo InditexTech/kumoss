@@ -155,6 +155,83 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("When in doubt about parameters, accept", prompt)
         self.assertNotIn("lacks information required to act", prompt)
 
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_predictive_target_calculator_with_resources(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_predictive_target_calculator(
+            resources=["storage_account", "key_vault"],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("storage_account", prompt)
+        self.assertIn("key_vault", prompt)
+        self.assertIn("mocked_predictive_targets_response", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("/test/project", prompt)
+
+        self.assertNotIn("GENERAL_TERRAFORM_GUIDELINES", prompt)
+        self.assertNotIn("FORBIDDEN_ACTIONS", prompt)
+        self.assertNotIn("NETWORKING", prompt)
+        self.assertNotIn("PERMISSIONS", prompt)
+        self.assertNotIn("CONCRETE_IMPLEMENTATION", prompt)
+        self.assertNotIn("RESOURCE_CREATION", prompt)
+        self.assertNotIn("abbreviations", prompt.lower())
+
+        mock_fetch.assert_called_once_with(
+            prompt_name="predictive_targets",
+            scope="general",
+            type="guidelines",
+            tag=mock_fetch.call_args.kwargs["tag"],
+        )
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_predictive_target_calculator_empty_resources(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_predictive_target_calculator(
+            resources=[],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertNotIn("<relevant_resource_templates>", prompt)
+        self.assertIn("mocked_predictive_targets_response", prompt)
+        self.assertIn("diff_history", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_predictive_target_calculator_no_template_bodies_fetched(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        _ = await adapter.render_predictive_target_calculator(
+            resources=["storage_account"],
+        )
+
+        fetch_calls = [call.kwargs["prompt_name"] for call in mock_fetch.call_args_list]
+        self.assertEqual(fetch_calls, ["predictive_targets"])
+        for call in mock_fetch.call_args_list:
+            self.assertNotIn("resources", call.kwargs.get("scope", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,7 +42,6 @@ class TerraformTargetService:
         query: str,
         history: History,
         conventions: Conventions,
-        include_forbidden_actions: bool = False,
     ) -> list[str]:
 
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
@@ -60,8 +59,6 @@ class TerraformTargetService:
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR,
                 resources=conventions.templates,
-                abbreviations=conventions.abbreviations,
-                include_forbidden_actions=include_forbidden_actions,
             ),
             history=history,
         )

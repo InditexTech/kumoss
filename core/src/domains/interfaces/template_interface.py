@@ -20,8 +20,6 @@ class ITemplate(ABC):
     async def render_predictive_target_calculator(
         self,
         resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
         pass
 
