@@ -195,7 +195,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         "apply": ("FOR APPLY REPORTS", "generate_terraform_apply_report"),
     }
 
-    def _run_report_generator_test(self, report_type: ReportType, branch: str):
+    def _run_report_generator_test(self, report_type: ReportType, branch: str | None):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
@@ -217,7 +217,8 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self._run_report_generator_test(ReportType.GENERATE, branch="plan")
 
     def test_render_report_generator_import(self):
-        self._run_report_generator_test(ReportType.IMPORT, branch="plan")
+        # IMPORT has no dedicated report workflow: no branch is rendered
+        self._run_report_generator_test(ReportType.IMPORT, branch=None)
 
     def test_render_report_generator_drift(self):
         self._run_report_generator_test(ReportType.DRIFT, branch="drift")
