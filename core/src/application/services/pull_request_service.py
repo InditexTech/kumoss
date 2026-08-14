@@ -38,12 +38,21 @@ class PullRequestService:
             ),
             history=self.__ctx.history,
         )
-        result: dict[str, str] = response.result
+        if not response.success or not isinstance(response.result, dict):
+            raise RuntimeError(
+                f"PR generation failed: {response.error_message or response.result}"
+            )
+
+        title = response.result.get("title")
+        description = response.result.get("description")
+        if not isinstance(title, str) or not isinstance(description, str):
+            raise RuntimeError(f"PR generation returned invalid payload: {response.result}")
+
         dto = await self.__git_utils.create_pr(
             repository_url=self.__ctx.repo_uri,
             head_branch=self.__ctx.branch_name,
-            title=result["title"],
-            description=result["description"],
+            title=title,
+            description=description,
         )
         await DatabaseService.add_pull_request(self.__ctx.id, dto.url)
         return dto
