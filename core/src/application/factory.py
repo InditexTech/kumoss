@@ -69,9 +69,7 @@ class ApplicationFactory:
     # These providers create the concrete implementations for the utils
 
     def _get_file_utils(self, path: Path | None = None) -> FileSystemUtils:
-        assert path is not None or (
-            self.__ctx is not None and self.__ctx.iac_path is not None
-        )
+        assert path is not None or self.__ctx is not None
         return FileSystemUtils(root=self.__ctx.call_dir if self.__ctx else path)
 
     def _get_git_utils(self, path: Path) -> GitUtils:

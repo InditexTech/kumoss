@@ -171,8 +171,6 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("<operation_type>", prompt)
         self.assertIn(operation_type.value, prompt)
         self.assertIn("generate_pull_request", prompt)
-        self.assertIn("<tool_calling>", prompt)
-        self.assertIn("diff_history", prompt)
         self.assertIn("## Summary", prompt)
         for op, marker in self.PR_GENERATOR_MARKERS.items():
             if op is operation_type:

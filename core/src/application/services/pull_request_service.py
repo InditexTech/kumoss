@@ -28,11 +28,8 @@ class PullRequestService:
 
     async def create_pr(self) -> PullRequestDTO:
         response: ToolResultDTO = await self.__llm_svc.generate(
-            query="I need you to create PR",
-            tools=self.__tool_svc.get_available_tools(
-                contexts=[ToolContext.WORKSPACE_INSPECTION]
-            ),
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.PR_GENERATOR),
+            query="Create a pull request from this IaC session.",
+            tools=[self.__tool_svc.get_sentinel_tool(ToolContext.PR_GENERATOR)],
             prompt=await self.__template_svc.render(
                 PromptsLibrary.PR_GENERATOR, operation_type=self.__ctx.operation
             ),
@@ -46,7 +43,9 @@ class PullRequestService:
         title = response.result.get("title")
         description = response.result.get("description")
         if not isinstance(title, str) or not isinstance(description, str):
-            raise RuntimeError(f"PR generation returned invalid payload: {response.result}")
+            raise RuntimeError(
+                f"PR generation returned invalid payload: {response.result}"
+            )
 
         dto = await self.__git_utils.create_pr(
             repository_url=self.__ctx.repo_uri,

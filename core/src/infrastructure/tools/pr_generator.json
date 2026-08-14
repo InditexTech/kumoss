@@ -1,7 +1,7 @@
 [
   {
     "name": "generate_pull_request",
-    "description": "Reports the final pull request title and description generated from the user's request, the conversation history of the IaC session, and the inspected workspace changes. This tool must be called as the final action, after retrieving the changes with `diff_history`; its parameters are used verbatim to open the pull request on the git provider.",
+    "description": "Reports the final pull request title and description generated from the user's request and the conversation history of the IaC session. This tool must be called as the final action; its parameters are used verbatim to open the pull request on the git provider.",
     "parameters": {
       "type": "object",
       "properties": {
