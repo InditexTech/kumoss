@@ -181,15 +181,15 @@ class GitUtils(IGit):
         if full_content:
             cmd.insert(3, "--unified=1000")
         if not working_tree:
-            cmd.insert(cmd.index("HEAD"), await self._get_default_branch_commit_id())
+            cmd.insert(cmd.index("HEAD"), await self._get_default_branch_commit_id())
         if file_path:
             cmd.extend(["--", file_path])
+        logging.debug(cmd)
         if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 message=self.__error_msg,
                 error_code=502,
             )
-        logging.debug(cmd)
         return cmd.stdout.decode()
 
     @override
@@ -201,12 +201,12 @@ class GitUtils(IGit):
             "--others",
             "--exclude-standard",
         ]
+        logging.debug(cmd)
         if not self._handle_return_code(output := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 error_code=500,
                 message=f"Git error when fetching changed files: {self.__error_msg}",
             )
-        logging.debug(cmd)
         return output.stdout.decode("utf-8").strip().splitlines()
 
     @override
@@ -226,12 +226,12 @@ class GitUtils(IGit):
         ]
         if not working_tree:
             cmd.insert(6, await self._get_default_branch_commit_id())
+        logging.debug(cmd)
         if not self._handle_return_code(output := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 error_code=500,
                 message=f"Git error when fetching changed files: {self.__error_msg}",
             )
-        logging.debug(cmd)
         return output.stdout.decode("utf-8").strip().splitlines()
 
     async def _get_default_branch_commit_id(self) -> str:

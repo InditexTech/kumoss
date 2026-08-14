@@ -29,9 +29,14 @@ async def complete_pr(
     ],
     id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
+    uuid = UUID(session_id)
     try:
-        service = ApplicationFactory().get_pull_request_service()
-        await service.merge(session_id, id)
+        prs: list[dict[str, str]] = await DatabaseService.get_pull_requests(uuid)
+        if not prs:
+            raise HTTPException(
+                status_code=404, detail=f"No PRs found for session id '{session_id}'"
+            )
+        await ApplicationFactory().get_pull_request_service().merge(prs[-1]["url"], id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -54,13 +59,9 @@ async def create_pr(
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     pr_svc = ApplicationFactory(session_ctx=ctx).get_pull_request_service()
-    # if session.status != SessionStatus.REPORT.value:
-    #     raise HTTPException(
-    #         status_code=409, detail=f"Session {session_id} is {session.status}."
-    #     )
 
     try:
-        pr_details = await pr_svc.create_pr(ctx)
+        pr_details = await pr_svc.create_pr()
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 

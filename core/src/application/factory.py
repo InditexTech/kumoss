@@ -223,9 +223,13 @@ class ApplicationFactory:
         git_utils = self._get_git_utils(file_utils.project_root)
         tool_svc = self._get_tool_service(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
+        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
         return PullRequestService(
+            session_ctx=self.__ctx,
             git_utils=git_utils,
             llm_service=llm_svc,
+            tool_service=tool_svc,
+            template_service=template_svc,
         )
 
     def _get_requests_filter_service(

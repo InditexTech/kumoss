@@ -4,7 +4,7 @@
 
 # pyright: reportAttributeAccessIssue=false
 from pathlib import Path
-from typing import override, Any
+from typing import override
 from uuid import UUID
 
 from src.domains.entities.history import History
@@ -35,9 +35,6 @@ class SessionContext:
         self.__iac_path = iac_path
         self.__operation = operation_type
         self.__history: History = History(history)
-        self.__artifacts: list[
-            dict[str, Any]
-        ]  # TODO: implement entity and services, interfaces...
         self.__call_dir: Path = None
 
     @property
