@@ -279,7 +279,7 @@ class ToolRegistry(IToolRegistry):
             WebSearchToolNoContent,
         ) as e:
             return {
-                "web_search": f"Web search is unavailable: {e.message}. Do NOT retry web_search — use your existing knowledge instead.",
+                "web_search": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
                 "explanation": explanation,
             }
         return {"web_search": result, "explanation": explanation}
