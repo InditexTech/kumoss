@@ -53,6 +53,7 @@ class ToolRegistry(IToolRegistry):
             "prompt_compositor.json": ToolContext.PROMPT_COMPOSITOR,
             "target_generator.json": ToolContext.TARGET_GENERATOR,
             "report_generator.json": ToolContext.REPORT_GENERATOR,
+            "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
         }
@@ -97,6 +98,7 @@ class ToolRegistry(IToolRegistry):
             "generate_terraform_apply_report": self.__handle_report_apply_generator,
             # Domain tools
             "requests_filter": self.__handle_requests_filter,
+            "generate_pull_request": self.__handle_pr_generator,
             "construct_information": self.__handle_construct_information,
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
@@ -340,6 +342,17 @@ class ToolRegistry(IToolRegistry):
                 error_code=500,
             )
         return {"status": status, "explanation": explanation}
+
+    def __handle_pr_generator(self, parameters: dict[str, Any]) -> dict[str, str]:
+        title = parameters["title"]
+        description = parameters["description"]
+        if not isinstance(title, str) or not isinstance(description, str):
+            raise ToolInferenceParamsError(
+                message="PR generation inference hasn't returned the expected structure."
+                + f" got=title={title}, description={description}",
+                error_code=500,
+            )
+        return {"title": title, "description": description}
 
     def __handle_construct_information(
         self, parameters: dict[str, Any]

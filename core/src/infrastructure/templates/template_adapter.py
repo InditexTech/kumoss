@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, final, override
+from typing import Any, final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
-from src.shared.constants import TerraformProvider
+from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 
 @final
@@ -28,9 +28,14 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    def render_report_generator(self, report_type: Literal["plan", "drift"]) -> str:
+    def render_report_generator(self, report_type: ReportType) -> str:
         t = self._get_template(self._core + "report_generator.jinja")
-        return t.render(REPORT_TYPE=report_type)
+        return t.render(REPORT_TYPE=report_type.value)
+
+    @override
+    def render_pr_generator(self, operation_type: OperationType) -> str:
+        t = self._get_template(self._core + "pr_generator.jinja")
+        return t.render(OPERATION_TYPE=operation_type.value)
 
     @override
     async def render_requests_filter(

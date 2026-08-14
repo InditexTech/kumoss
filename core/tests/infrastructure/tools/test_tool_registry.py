@@ -7,7 +7,9 @@ import unittest
 
 from src.application.commands import TerraformCRUDCommand, AdvancedOptions
 from src.application.factory import HandlerFactory
+from src.infrastructure.exceptions import ToolInferenceParamsError
 from src.infrastructure.tools.tool_registry import ToolRegistry
+from src.shared.constants import ToolContext
 from tests.setups import setup_repository, clean_resources
 
 from tests.settings import Settings
@@ -47,6 +49,26 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         output = self.main_service._ToolRegistry__handle_grep_search(test_input)
         print(output)
         self.assertIsInstance(output, str)
+
+    async def test_handle_pr_generator(self):
+        test_input = {
+            "title": "Add storage account for the billing app",
+            "description": "## Summary\nAdds a storage account.",
+        }
+        output = self.main_service._ToolRegistry__handle_pr_generator(test_input)
+        self.assertEqual(output, test_input)
+
+    async def test_handle_pr_generator_invalid_params(self):
+        with self.assertRaises(ToolInferenceParamsError):
+            self.main_service._ToolRegistry__handle_pr_generator(
+                {"title": 123, "description": "whatever"}
+            )
+
+    async def test_pr_generator_single_tool_context(self):
+        tools = self.main_service.get_available_tools(ToolContext.PR_GENERATOR)
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0].name, "generate_pull_request")
+        self.assertEqual(set(tools[0].parameters["required"]), {"title", "description"})
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
 from abc import ABC, abstractmethod
+
+from src.shared.constants import OperationType, ReportType
 
 
 class ITemplate(ABC):
@@ -30,7 +31,11 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_report_generator(self, report_type: Literal["plan", "drift"]) -> str:
+    def render_report_generator(self, report_type: ReportType) -> str:
+        pass
+
+    @abstractmethod
+    def render_pr_generator(self, operation_type: OperationType) -> str:
         pass
 
     @abstractmethod
