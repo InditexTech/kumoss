@@ -19,39 +19,9 @@ You MUST inspect the current Terraform repository to understand what resources a
 Your final output must be a list of target strings representing ONLY the existing resources that will be impacted.
 </objective>
 
-<code_structure_guidelines>
-{{ GENERAL_TERRAFORM_GUIDELINES }}
-</code_structure_guidelines>
-
-<resource_creation_rules>
-{{ RESOURCE_CREATION }}
-</resource_creation_rules>
-
-{% if FORBIDDEN_ACTIONS %}
-<prohibited_actions_and_files>
-{{ FORBIDDEN_ACTIONS }}
-</prohibited_actions_and_files>
-{% endif %}
-
-{% if NETWORKING %}
-<networking_restrictions>
-{{ NETWORKING }}
-</networking_restrictions>
-{% endif %}
-
-<permissions_guidelines>
-{{ PERMISSIONS }}
-</permissions_guidelines>
-
-{% if CONCRETE_IMPLEMENTATION %}
-<concrete_implementation_rules>
-{{ CONCRETE_IMPLEMENTATION }}
-</concrete_implementation_rules>
-{% endif %}
-
 <instructions>
 1. **Inspect the workspace** to understand the current Terraform infrastructure:
-   - Use `list_files` to see the Terraform file structure
+   - Use `list_dir` to see the Terraform file structure
    - Use `read_file` to read relevant .tf files and understand existing resources
    - Use `bulk_grep_search` to find specific resource definitions (e.g., search for "resource \"azurerm_key_vault\"" or "module \"")
    - Identify what resources currently exist in the repository (both direct resources AND module calls)
@@ -63,14 +33,12 @@ Your final output must be a list of target strings representing ONLY the existin
 2. **Analyze the user's request** to understand what infrastructure changes they want
 
 3. **Apply the rules** to determine which EXISTING resources will be MODIFIED:
-   - Based on RESOURCE_CREATION rules, identify if existing resources need to be updated
-   - Based on NETWORKING rules, identify if existing network resources will be affected
-   - Based on PERMISSIONS rules, identify if existing IAM/RBAC resources will be modified
    - Consider dependencies: if adding a secret to an existing KeyVault, the KeyVault resource itself might be modified
    - **IMPORTANT**: If a resource is created by a module, you MUST target the entire module
    - **CRITICAL**: If you see BOTH a `data.azurerm_X.name` AND a `module.X_name`, the module creates the resource. The data source is just a reference. Target the MODULE, not the data source.
 
 4. **Generate targets for existing resources that will be modified**:
+   - **REQUIRED**: Always use the `diff_history` tool as the source of truth for changes that must NOT generate targets: anything already generated in the current branch/session is not drift and must be excluded from the target list.
    - For direct resources: use format `resource_type.resource_name` (e.g., `azurerm_key_vault.kvt_001`)
    - For module-created resources: use format `module.module_name` (e.g., `module.keyvault_002`)
    - Do NOT include resources that will be newly created (they don't exist yet)
@@ -78,37 +46,19 @@ Your final output must be a list of target strings representing ONLY the existin
    - **CRITICAL**: If drift is detected on a resource created by a module, target the MODULE (e.g., `module.keyvault_002`), NOT the data source
    - ONLY include resources/modules that currently exist in the .tf files and will be affected
 
-5. **Use the `generate_terraform_targets` tool** to output your findings
+5. **Use the `generate_terraform_targets` tool** to output your findings. If no existing resources will be modified (pure creation scenario), return an empty targets list.
 
-Example scenarios:
-- User asks to "add a secret to KeyVault kvt_001"
-  → Inspect repo → Find kvt_001 exists
-  → This KeyVault will be modified (new secret added)
-  → Target: `<resource>/<module>.kvt_001`
-  
-- User asks to "create storage account with key in existing KeyVault"
-  → Inspect repo → Find azurerm_key_vault.main_kvt exists
-  → KeyVault will be modified (new secret for storage key)
-  → Target: `azurerm_key_vault.main_kvt`
-  → Do NOT include the storage account (it doesn't exist yet)
-
-- User asks to "add a subnet to the virtual network"
-  → Inspect repo → Find azurerm_virtual_network.vnet_main exists
-  → VNet might be modified (depends on implementation)
-  → Also check if azurerm_resource_group exists and might be affected
-  → Targets: resources that exist and will change
-
-- **Drift scenario with module-created resource**:
-  → User reports drift in tags of keyvault_002
-  → Inspect repo → Find `module "keyvault_002"` exists (creates the Key Vault)
-  → Also find `data.azurerm_key_vault.kvt_002` exists (just a reference to read the created Key Vault)
-  → **CRITICAL**: The drift is on the ACTUAL resource created by the module, not the data source
-  → Target: `module.keyvault_002` (NOT `data.azurerm_key_vault.kvt_002`)
-  → The data source is read-only and cannot have drift; only the module that creates the resource can be modified
+<examples>
+- "create storage account with key in existing KeyVault" — the repo contains `azurerm_key_vault.main_kvt`. The KeyVault is modified (new secret for the storage key), so target `azurerm_key_vault.main_kvt`. Do NOT target the storage account — it does not exist yet.
+- "add a secret to KeyVault kvt_001" — the repo contains `module "keyvault_001"` AND `data.azurerm_key_vault.kvt_001`. The module creates the resource; the data source is a read-only reference. Target `module.keyvault_001`, NOT the data source.
+- Drift detected on tags of keyvault_002 — the repo contains `module "keyvault_002"` and `data.azurerm_key_vault.kvt_002`. The drift is on the resource created by the module. Target `module.keyvault_002`.
+- `diff_history` shows `module "keyvault_003"` was added in the current branch — this is intentional pending work from a previous round, not drift. Exclude `module.keyvault_003` from the target list even if the workspace inspection finds it.
+- "create a new storage account" — no existing resources will be modified. Return an empty targets list.
+</examples>
 </instructions>
 
 <constraints>
-- You MUST inspect the workspace first using tools like `list_files` and `read_file`
+- You MUST inspect the workspace first using tools like `list_dir` and `read_file`
 - Target strings MUST be in the format `resource_type.resource_name` or `module.module_name`
 - Do NOT include quotes (single or double) in the target strings
 - Do NOT include Terraform `data` sources in your output (they are read-only and cannot be modified)
@@ -121,19 +71,22 @@ Example scenarios:
 
 <tool_calling>
 You have tools at your disposal:
-1. **REQUIRED**: First use `list_files` to see the Terraform file structure
+1. **REQUIRED**: First use `list_dir` to see the Terraform file structure
 2. **REQUIRED**: Use `read_file` to read relevant .tf files and identify existing resources  
-3. Analyze the user's request against the rules
-4. Determine which existing resources will be modified
-5. **REQUIRED**: Call `generate_terraform_targets` with your identified existing resources
+3. **REQUIRED**: Always use the `diff_history` tool as the source of truth for changes that must NOT generate targets: anything already generated in the current branch/session is not drift and must be excluded from the target list.
+4. Analyze the user's request against the rules and the source of truth
+5. Determine which existing resources will be modified
+6. **REQUIRED**: Call `generate_terraform_targets` with your identified existing resources
 </tool_calling>
 
-<critical_note>
-This is NOT about predicting what will be created. This is about identifying what ALREADY EXISTS and will be MODIFIED.
-If no existing resources will be modified (pure creation scenario), return an empty targets list.
+{% if RELEVANT_TEMPLATES %}
+<relevant_resource_templates>
+The following resource template names were identified as relevant to the user's request:
+{{ RELEVANT_TEMPLATES | join(', ') }}
+Use them as hints for which existing resources and modules to look for in the workspace.
+</relevant_resource_templates>
+{% endif %}
 
-**Important distinction**:
-- `data "azurerm_key_vault" "kvt_002"` = READ-ONLY reference (cannot be modified, never target this)
-- `module "keyvault_002"` = ACTUAL resource creation (can be modified, target this for drift fixes)
-- If BOTH exist in the repo and drift is detected, the module created the resource. Target the MODULE.
-</critical_note>
+<business_targeting_policies>
+{{ PREDICTIVE_TARGETS_GUIDELINES }}
+</business_targeting_policies>

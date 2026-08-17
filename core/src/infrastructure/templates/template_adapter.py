@@ -88,16 +88,19 @@ class TemplateAdapter(ITemplate):
     async def render_predictive_target_calculator(
         self,
         resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions
+        guidelines = await remote_fetcher.fetch(
+            prompt_name="predictive_targets",
+            scope="general",
+            type="guidelines",
+            tag=system_config.environment,
         )
-        base_template = self._get_template(
-            self._core + "predictive_target_calculator.jinja"
+        t = self._get_template(self._core + "predictive_target_calculator.jinja")
+        return t.render(
+            RELEVANT_TEMPLATES=resources,
+            PREDICTIVE_TARGETS_GUIDELINES=guidelines,
+            CWD=self._cwd,
         )
-        return base_template.render(**context)
 
     @override
     async def render_prompt_compositor(

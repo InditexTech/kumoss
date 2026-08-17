@@ -74,7 +74,6 @@ class TerraformCRUDHandler:
                     query=q,
                     history=ctx.history,
                     conventions=conventions,
-                    include_forbidden_actions=True,
                 )
                 if predictive_targets:
                     _ = await self.__drift_svc.detect_and_resolve_drift(
