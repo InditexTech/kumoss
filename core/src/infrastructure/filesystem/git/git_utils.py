@@ -162,7 +162,11 @@ class GitUtils(IGit):
                 "--abbrev-ref",
                 "origin/HEAD",
             ]
-        logging.debug(cmd)
+        logging.debug(
+            ["git", "ls-remote", "--symref", "<repository>", "HEAD"]
+            if ls_remote
+            else cmd
+        )
         if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 message=self.__error_msg,
