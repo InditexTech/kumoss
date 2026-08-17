@@ -34,13 +34,11 @@ async def complete_pr(
 ) -> JSONResponse:
     uuid = UUID(session_id)
     try:
-        prs: list[dict[str, str]] = await DatabaseService.get_pull_requests(uuid)
-        if not prs:
-            raise HTTPException(
-                status_code=404, detail=f"No PRs found for session id '{session_id}'"
-            )
-        repo_url = prs[-1]["url"]
-        await ApplicationFactory.get_git_utils(repo_url).complete_pr(id)
+        try:
+            ctx = await DatabaseService.get_session_context(uuid)
+        except ExceptionHandler as e:
+            raise HTTPException(status_code=e.error_code, detail=e.message)
+        await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
