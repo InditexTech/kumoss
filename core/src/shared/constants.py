@@ -98,6 +98,7 @@ class OperationType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
+    APPLY = "apply"
 
 
 @unique
@@ -109,6 +110,7 @@ class SessionStatus(Enum):
     GENERATING = "generating"
     VALIDATING = "validating"
     REPORT = "report"
+    APPLY = "apply"
     COMPLETED = "completed"
     UNCOMPLETED = "uncompleted"
     FAILED = "failed"
@@ -190,3 +192,4 @@ class ContentType(Enum):
 
     TEXT = "text/plain"
     JSON = "application/json"
+

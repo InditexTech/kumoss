@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from src.domains.entities import SessionContext
 from src.domains.interfaces import IFileSystem
-from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
+from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import ArtifactStorageService, SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
@@ -30,7 +30,7 @@ class ValidationState:
 class TerraformValidationService:
     def __init__(
         self,
-        validator: ITerraformValidator,
+        validator: ITerraform,
         git: IGit,
         files: IFileSystem,
         session_service: SessionService,
@@ -144,15 +144,17 @@ class TerraformValidationService:
                 branch=ctx.branch_name,
                 targets=await self.__target_svc.generate(q, local_history),
             )
-            _ = await self.__artifact_svc.store_terraform_plan(
-                session_id=ctx.id,
-                round_id=ctx.round_id,
-                targets=validation.terraform_targets,
-                content=validation.terraform_plan,
-                content_type=ContentType.TEXT,
-            )
+            if validation.terraform_plan:
+                _ = await self.__artifact_svc.store_terraform_plan(
+                    session_id=ctx.id,
+                    round_id=ctx.round_id,
+                    targets=validation.terraform_targets,
+                    content=validation.terraform_plan,
+                    content_type=ContentType.TEXT,
+                )
 
             q = validation.feedback
 
         ctx.history.append_turn(first_q, local_history.get_last_turn().assistant)
         return validation
+

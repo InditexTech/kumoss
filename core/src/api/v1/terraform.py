@@ -138,6 +138,11 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
+    if request.session_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Missing session ID",
+        )
     ctx = await _resolve_or_raise(request, OperationType.APPLY)
 
     async def build(context: SessionContext):
@@ -146,3 +151,4 @@ async def apply_infrastructure(
 
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}
+

@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for TerraformValidator (raw-op orchestration).
+"""Unit tests for Terraform (raw-op orchestration).
 
 The generated client op modules are mocked, so no IaC service is
-needed: these cover the init → validate → plan (→ show) sequencing,
-the validation boolean and drift parsing now owned by the core, and
-the mapping of the two failure planes — a succeeded job with a
-non-zero exit_code maps to a DTO with validation=False, while
-failed/lost/rejected jobs raise ExceptionHandler with the equivalent
-HTTP code.
+needed: these cover the init → validate → plan (→ show) validation
+sequencing and the init → plan → apply sequencing, the validation
+boolean and drift parsing now owned by the core, and the mapping of
+the two failure planes — a succeeded job with a non-zero exit_code
+maps to a DTO with validation=False, while failed/lost/rejected jobs
+raise ExceptionHandler with the equivalent HTTP code.
 """
 
 import json
@@ -28,7 +28,7 @@ from src.clients.iac.models.job_status import JobStatus
 from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
 from src.domains.services.tracer_service import TracerService
-from src.infrastructure.validators import terraform_validator as tv
+from src.infrastructure.terraform import terraform as tv
 from src.shared.config.system_config import IacServiceConfig
 from src.shared.exceptions import ExceptionHandler
 
@@ -74,7 +74,9 @@ def _job(status: JobStatus, kind: JobKind, result=None, error=None) -> Job:
     )
 
 
-class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
+class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
+    """Shared fixtures: tracer/session mocks, config patch, op patching."""
+
     def setUp(self):
         tracer_patcher = patch.object(
             TracerService, "get_current_tracer", return_value=MagicMock()
@@ -83,7 +85,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(tracer_patcher.stop)
 
         self.session_svc = AsyncMock()
-        self.validator = tv.TerraformValidator(
+        self.terraform = tv.Terraform(
             workspace_path=Path("/workspaces/demo"),
             session_service=self.session_svc,
         )
@@ -107,13 +109,13 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         return cfg
 
     def _patch_ops(self, **outcomes) -> tuple[dict[str, AsyncMock], AsyncMock]:
-        """Patch the four op modules and the job poll.
+        """Patch the five op modules and the job poll.
 
-        ``outcomes`` maps op name (init/validate/plan/show) to either an
-        OperationResult (the op's job succeeds with it), a Job (the
-        poll returns it verbatim), or a non-JobAccepted submit response
-        (Problem / None). Ops without an outcome fail the test if
-        submitted.
+        ``outcomes`` maps op name (init/validate/plan/show/apply) to
+        either an OperationResult (the op's job succeeds with it), a
+        Job (the poll returns it verbatim), or a non-JobAccepted submit
+        response (Problem / None). Ops without an outcome fail the test
+        if submitted.
         """
         jobs_by_id: dict[uuid.UUID, Job] = {}
         submit_mocks: dict[str, AsyncMock] = {}
@@ -122,6 +124,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             ("validate", tv.validate_op),
             ("plan", tv.plan_op),
             ("show", tv.show_op),
+            ("apply", tv.apply_op),
         ):
             if name not in outcomes:
                 mock = AsyncMock(
@@ -155,6 +158,8 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(patcher.stop)
         return submit_mocks, poll_mock
 
+
+class TestTerraformValidate(_TerraformTestCase):
     async def test_all_ops_succeed_without_drift(self):
         self._use_config()
         submit_mocks, _ = self._patch_ops(
@@ -164,7 +169,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             show=_ok(stdout=NO_CHANGES_PLAN_JSON),
         )
 
-        dto = await self.validator.validate(
+        dto = await self.terraform.validate(
             branch="main", targets=["module.db"], get_drift=True
         )
 
@@ -188,7 +193,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             show=_ok(stdout=DRIFTED_PLAN_JSON),
         )
 
-        dto = await self.validator.validate(branch="main", targets=[], get_drift=True)
+        dto = await self.terraform.validate(branch="main", targets=[], get_drift=True)
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.terraform_plan, "plan output")
@@ -211,7 +216,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             plan=_ok(stdout="plan output"),
         )
 
-        dto = await self.validator.validate(branch="main", targets=[], get_drift=False)
+        dto = await self.terraform.validate(branch="main", targets=[], get_drift=False)
 
         self.assertTrue(dto.validation)
         self.assertEqual(dto.feedback, "")
@@ -222,7 +227,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         self._use_config()
         self._patch_ops(init=_failed_cmd("Error: backend init failed"))
 
-        dto = await self.validator.validate(branch="main", targets=["module.db"])
+        dto = await self.terraform.validate(branch="main", targets=["module.db"])
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.feedback, "Error: backend init failed")
@@ -237,7 +242,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             plan=_failed_cmd("Error: auth", stdout="partial plan"),
         )
 
-        dto = await self.validator.validate(branch="main", targets=[], get_drift=True)
+        dto = await self.terraform.validate(branch="main", targets=[], get_drift=True)
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.feedback, "Error: auth")
@@ -252,7 +257,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
             show=_ok(stdout=NO_CHANGES_PLAN_JSON),
         )
 
-        _ = await self.validator.validate(branch="main", targets=[], get_drift=True)
+        _ = await self.terraform.validate(branch="main", targets=[], get_drift=True)
 
         plan_file = submit_mocks["plan"].await_args.kwargs["body"].plan_file
         show_file = submit_mocks["show"].await_args.kwargs["body"].plan_file
@@ -269,7 +274,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.validator.validate(branch="main", targets=[])
+            await self.terraform.validate(branch="main", targets=[])
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("Key Vault unreachable", ctx.exception.message)
 
@@ -278,7 +283,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         self._patch_ops(init=_job(JobStatus.RUNNING, kind=JobKind.INIT))
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.validator.validate(branch="main", targets=[])
+            await self.terraform.validate(branch="main", targets=[])
         self.assertEqual(ctx.exception.error_code, 504)
 
     async def test_submit_rejection_raises_502(self):
@@ -291,7 +296,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
                 self._patch_ops(init=rejected)
 
                 with self.assertRaises(ExceptionHandler) as ctx:
-                    await self.validator.validate(branch="main", targets=[])
+                    await self.terraform.validate(branch="main", targets=[])
                 self.assertEqual(ctx.exception.error_code, 502)
 
     async def test_poll_problem_raises_502(self):
@@ -305,7 +310,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(patcher.stop)
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.validator.validate(branch="main", targets=[])
+            await self.terraform.validate(branch="main", targets=[])
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("lost or rejected", ctx.exception.message)
 
@@ -316,7 +321,7 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.validator.validate(branch="main", targets=[])
+            await self.terraform.validate(branch="main", targets=[])
         self.assertEqual(ctx.exception.error_code, 502)
 
     async def test_unparseable_show_json_raises_502(self):
@@ -329,8 +334,88 @@ class TestTerraformValidator(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.validator.validate(branch="main", targets=[], get_drift=True)
+            await self.terraform.validate(branch="main", targets=[], get_drift=True)
         self.assertEqual(ctx.exception.error_code, 502)
+
+
+class TestTerraformApply(_TerraformTestCase):
+    async def test_apply_success(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=_ok(),
+            plan=_ok(stdout="plan output"),
+            apply=_ok(stdout="apply output"),
+        )
+
+        dto = await self.terraform.apply(targets=["module.foo"])
+
+        self.assertTrue(dto.validation)
+        self.assertEqual(dto.feedback, "")
+        self.assertEqual(dto.terraform_plan, "apply output")
+        self.assertEqual(dto.terraform_targets, ["module.foo"])
+        self.session_svc.update_status.assert_awaited_once()
+        submit_mocks["validate"].assert_not_awaited()
+        submit_mocks["show"].assert_not_awaited()
+
+        plan_body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(plan_body.targets, ["module.foo"])
+        apply_body = submit_mocks["apply"].await_args.kwargs["body"]
+        self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
+        self.assertEqual(apply_body.plan_file, plan_body.plan_file)
+
+    async def test_apply_init_failure_returns_dto_with_stderr(self):
+        self._use_config()
+        self._patch_ops(init=_failed_cmd("Error: backend init failed"))
+
+        dto = await self.terraform.apply(targets=["module.foo"])
+
+        self.assertFalse(dto.validation)
+        self.assertEqual(dto.feedback, "Error: backend init failed")
+        self.assertEqual(dto.terraform_plan, "")
+        self.assertEqual(dto.terraform_targets, ["module.foo"])
+
+    async def test_apply_plan_failure_returns_stdout_as_plan(self):
+        self._use_config()
+        self._patch_ops(
+            init=_ok(),
+            plan=_failed_cmd("Error: auth", stdout="partial plan"),
+        )
+
+        dto = await self.terraform.apply(targets=[])
+
+        self.assertFalse(dto.validation)
+        self.assertEqual(dto.feedback, "Error: auth")
+        self.assertEqual(dto.terraform_plan, "partial plan")
+
+    async def test_apply_command_failure_maps_to_validation_false(self):
+        self._use_config()
+        self._patch_ops(
+            init=_ok(),
+            plan=_ok(stdout="plan output"),
+            apply=_failed_cmd("Error: apply", stdout="partial apply"),
+        )
+
+        dto = await self.terraform.apply(targets=[])
+
+        self.assertFalse(dto.validation)
+        self.assertEqual(dto.feedback, "Error: apply")
+        self.assertEqual(dto.terraform_plan, "partial apply")
+
+    async def test_apply_failed_job_raises_502_with_problem_detail(self):
+        self._use_config()
+        error = Problem(
+            title="Internal Server Error", status=500, detail="state lock held"
+        )
+        self._patch_ops(
+            init=_ok(),
+            plan=_ok(),
+            apply=_job(JobStatus.FAILED, kind=JobKind.APPLY, error=error),
+        )
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.apply(targets=[])
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("state lock held", ctx.exception.message)
 
 
 if __name__ == "__main__":

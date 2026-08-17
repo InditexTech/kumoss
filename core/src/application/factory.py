@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import final
 
 from src.domains.entities.session import SessionContext
-from src.domains.interfaces import ILLMProvider, ITerraformValidator
+from src.domains.interfaces import ILLMProvider, ITerraform
 from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
@@ -34,7 +34,7 @@ from src.infrastructure.filesystem import (
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.llm.factory import LLMFactory
-from src.infrastructure.validators.factory import ValidatorFactory
+from src.infrastructure.terraform.factory import TerraformFactory
 
 # Application layer imports
 from src.application.services import (
@@ -182,12 +182,12 @@ class ApplicationFactory:
             template_service=template_service,
         )
 
-    def _get_validator_provider(
+    def _get_terraform_provider(
         self,
         file_utils: FileSystemUtils,
         session_service: SessionService,
-    ) -> ITerraformValidator:
-        return ValidatorFactory(
+    ) -> ITerraform:
+        return TerraformFactory(
             session_service=session_service,
             file_utils=file_utils,
         ).get()
@@ -201,7 +201,7 @@ class ApplicationFactory:
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         target_service: TerraformTargetService,
-        validator_provider: ITerraformValidator,
+        validator_provider: ITerraform,
         artifact_service: ArtifactStorageService,
     ) -> TerraformValidationService:
         return TerraformValidationService(
@@ -266,7 +266,7 @@ class ApplicationFactory:
     def _get_drift_service(
         self,
         validation_service: TerraformValidationService,
-        validator_provider: ITerraformValidator,
+        validator_provider: ITerraform,
         split_service: TaskSplitService,
         artifact_service: ArtifactStorageService,
     ) -> TerraformDriftService:
@@ -307,7 +307,7 @@ class ApplicationFactory:
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
-        validator_prv = self._get_validator_provider(file_utils, session_svc)
+        validator_prv = self._get_terraform_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -353,7 +353,7 @@ class ApplicationFactory:
         )
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
-        validator_prv = self._get_validator_provider(file_utils, session_svc)
+        validator_prv = self._get_terraform_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -382,20 +382,20 @@ class ApplicationFactory:
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
         file_utils = self._get_file_utils()
-        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
-        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
+        artifact_svc = self._get_artifact_storage_service()
+        tool_svc = self._get_tool_service_static()
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(
-            file_utils.project_root, llm_svc, tool_svc
+        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        report_svc = self._get_report_service(
+            llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
-        # OSS reference has no apply impl; the route remains so the API
-        # surface is stable but always errors with a clear message. Provide
-        # your own IApplyInfrastructure to enable apply.
-        apply_svc = ""
+        terraform_svc = self._get_terraform_provider(file_utils, session_svc)
         return TerraformApplyHandler(
-            apply_service=apply_svc,
+            terraform_service=terraform_svc,
             session_service=session_svc,
+            report_service=report_svc,
             template_service=template_svc,
             session_ctx=self.__ctx,
         )
+
