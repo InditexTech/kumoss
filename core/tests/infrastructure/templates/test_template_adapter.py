@@ -9,7 +9,7 @@ from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
-from src.shared.constants import TerraformProvider
+from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 
 PROVIDER_TEST_CASES = {
@@ -155,82 +155,76 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("When in doubt about parameters, accept", prompt)
         self.assertNotIn("lacks information required to act", prompt)
 
-    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def test_render_predictive_target_calculator_with_resources(
-        self, mock_fetch: AsyncMock
-    ):
-        mock_fetch.side_effect = lambda prompt_name, **_: (
-            f"mocked_{prompt_name}_response"
-        )
+    PR_GENERATOR_MARKERS = {
+        OperationType.GENERATE: "introduces new or modified Terraform infrastructure",
+        OperationType.DRIFT: "remediates configuration drift",
+        OperationType.IMPORT: "under Terraform management",
+    }
 
+    def _run_pr_generator_test(self, operation_type: OperationType):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
-        prompt = await adapter.render_predictive_target_calculator(
-            resources=["storage_account", "key_vault"],
-        )
+        prompt = adapter.render_pr_generator(operation_type=operation_type)
 
         self.assertIsInstance(prompt, str)
-        self.assertIn("storage_account", prompt)
-        self.assertIn("key_vault", prompt)
-        self.assertIn("mocked_predictive_targets_response", prompt)
-        self.assertIn("diff_history", prompt)
-        self.assertIn("/test/project", prompt)
+        self.assertIn("<operation_type>", prompt)
+        self.assertIn(operation_type.value, prompt)
+        self.assertIn("generate_pull_request", prompt)
+        self.assertIn("## Summary", prompt)
+        for op, marker in self.PR_GENERATOR_MARKERS.items():
+            if op is operation_type:
+                self.assertIn(marker, prompt)
+            else:
+                self.assertNotIn(marker, prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("OperationType", prompt)
 
-        self.assertNotIn("GENERAL_TERRAFORM_GUIDELINES", prompt)
-        self.assertNotIn("FORBIDDEN_ACTIONS", prompt)
-        self.assertNotIn("NETWORKING", prompt)
-        self.assertNotIn("PERMISSIONS", prompt)
-        self.assertNotIn("CONCRETE_IMPLEMENTATION", prompt)
-        self.assertNotIn("RESOURCE_CREATION", prompt)
-        self.assertNotIn("abbreviations", prompt.lower())
+    def test_render_pr_generator_generate(self):
+        self._run_pr_generator_test(OperationType.GENERATE)
 
-        mock_fetch.assert_called_once_with(
-            prompt_name="predictive_targets",
-            scope="general",
-            type="guidelines",
-            tag=mock_fetch.call_args.kwargs["tag"],
-        )
+    def test_render_pr_generator_drift(self):
+        self._run_pr_generator_test(OperationType.DRIFT)
 
-    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def test_render_predictive_target_calculator_empty_resources(
-        self, mock_fetch: AsyncMock
-    ):
-        mock_fetch.side_effect = lambda prompt_name, **_: (
-            f"mocked_{prompt_name}_response"
-        )
+    def test_render_pr_generator_import(self):
+        self._run_pr_generator_test(OperationType.IMPORT)
 
+    REPORT_GENERATOR_MARKERS = {
+        "plan": ("FOR PLAN ANALYSIS REPORTS", "generate_terraform_plan_report"),
+        "drift": ("FOR DRIFT REMEDIATION REPORTS", "generate_terraform_drift_report"),
+        "apply": ("FOR APPLY REPORTS", "generate_terraform_apply_report"),
+    }
+
+    def _run_report_generator_test(self, report_type: ReportType, branch: str | None):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
-        prompt = await adapter.render_predictive_target_calculator(
-            resources=[],
-        )
+        prompt = adapter.render_report_generator(report_type=report_type)
 
         self.assertIsInstance(prompt, str)
-        self.assertNotIn("<relevant_resource_templates>", prompt)
-        self.assertIn("mocked_predictive_targets_response", prompt)
-        self.assertIn("diff_history", prompt)
+        self.assertIn("<report_type>", prompt)
+        self.assertIn(report_type.value, prompt)
+        for key, markers in self.REPORT_GENERATOR_MARKERS.items():
+            for marker in markers:
+                if key == branch:
+                    self.assertIn(marker, prompt)
+                else:
+                    self.assertNotIn(marker, prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("ReportType", prompt)
 
-    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def test_render_predictive_target_calculator_no_template_bodies_fetched(
-        self, mock_fetch: AsyncMock
-    ):
-        mock_fetch.side_effect = lambda prompt_name, **_: (
-            f"mocked_{prompt_name}_response"
-        )
+    def test_render_report_generator_generate(self):
+        self._run_report_generator_test(ReportType.GENERATE, branch="plan")
 
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
-        _ = await adapter.render_predictive_target_calculator(
-            resources=["storage_account"],
-        )
+    def test_render_report_generator_import(self):
+        # IMPORT has no dedicated report workflow: no branch is rendered
+        self._run_report_generator_test(ReportType.IMPORT, branch=None)
 
-        fetch_calls = [call.kwargs["prompt_name"] for call in mock_fetch.call_args_list]
-        self.assertEqual(fetch_calls, ["predictive_targets"])
-        for call in mock_fetch.call_args_list:
-            self.assertNotIn("resources", call.kwargs.get("scope", ""))
+    def test_render_report_generator_drift(self):
+        self._run_report_generator_test(ReportType.DRIFT, branch="drift")
+
+    def test_render_report_generator_apply(self):
+        self._run_report_generator_test(ReportType.APPLY, branch="apply")
 
 
 if __name__ == "__main__":

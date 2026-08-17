@@ -162,3 +162,6 @@ def trace_tool(func: Callable) -> Callable:
         return output
 
     return wrapper
+
+
+tracer = TracerService()

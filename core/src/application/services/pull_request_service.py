@@ -2,32 +2,60 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import PullRequestDTO
+from src.domains.dto import PullRequestDTO, ToolResultDTO
 from src.domains.entities import SessionContext
 from src.domains.interfaces.git_interface import IGit
+from src.domains.services import TemplateOrchestrationService, ToolOrchestrationService
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
+from src.shared.constants import PromptsLibrary, ToolContext
+from src.shared.exceptions import ExceptionHandler
 
 
 class PullRequestService:
     def __init__(
         self,
+        session_ctx: SessionContext | None,
         git_utils: IGit,
         llm_service: LLMOrchestrationService,
+        tool_service: ToolOrchestrationService,
+        template_service: TemplateOrchestrationService,
     ):
-        self.__llm_svc = llm_service
+        self.__ctx = session_ctx
         self.__git_utils = git_utils
+        self.__llm_svc = llm_service
+        self.__tool_svc = tool_service
+        self.__template_svc = template_service
 
-    async def create_pr(self, ctx: SessionContext) -> PullRequestDTO:
-        dto = await self.__git_utils.create_pr(
-            repository_url=ctx.repo_uri,
-            head_branch=ctx.branch_name,
-            title="TODO",
-            # title=session.history.get_first_turn.user, # session history property getter
-            description=await self.__llm_svc.generate_text(
-                "transform the following data into markdown format"
-                + f" for a PR description: {ctx}"  # TODO: get artifact
+    async def create_pr(self) -> PullRequestDTO:
+        assert self.__ctx is not None
+        response: ToolResultDTO = await self.__llm_svc.generate(
+            query="Create a pull request from this IaC session.",
+            tools=[self.__tool_svc.get_sentinel_tool(ToolContext.PR_GENERATOR)],
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.PR_GENERATOR, operation_type=self.__ctx.operation
             ),
+            history=self.__ctx.history,
         )
-        await DatabaseService.add_pull_request(ctx.id, dto.url)
+        if not response.success or not isinstance(response.result, dict):
+            raise ExceptionHandler(
+                message=f"PR generation failed: {response.error_message or response.result}",
+                error_code=500,
+            )
+
+        title = response.result.get("title")
+        description = response.result.get("description")
+        if not isinstance(title, str) or not isinstance(description, str):
+            raise ExceptionHandler(
+                message=f"PR generation returned invalid payload: {response.result}",
+                error_code=500,
+            )
+
+        dto = await self.__git_utils.create_pr(
+            repository_url=self.__ctx.repo_uri,
+            head_branch=self.__ctx.branch_name,
+            title=title,
+            description=description,
+        )
+        await DatabaseService.add_pull_request(self.__ctx.id, dto.url, dto.id)
         return dto

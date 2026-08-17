@@ -127,6 +127,7 @@ class PromptsLibrary(Enum):
     PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
+    PR_GENERATOR = "pr_generator"
     # messages
     JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
@@ -140,6 +141,7 @@ class ToolContext(Enum):
     PROMPT_COMPOSITOR = "prompt_compositor"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
+    PR_GENERATOR = "pr_generator"
     FILE_OPERATIONS = "file_operations"
     WORKSPACE_INSPECTION = "workspace_inspection"
     EXTERNAL_INFORMATION = "external_information"

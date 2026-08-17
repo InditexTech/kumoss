@@ -103,7 +103,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             file_size_bytes=128,
         )
         await DatabaseService.add_pull_request(
-            self.sid, "https://github.com/org/repo/pull/42"
+            self.sid, "https://github.com/org/repo/pull/42", 42
         )
 
         resp = await self.client.get(f"/v1/sessions/{self.sid}")
@@ -142,7 +142,13 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
         self.assertEqual(
             rnd["pull_requests"],
-            [{"provider": "GITHUB", "url": "https://github.com/org/repo/pull/42"}],
+            [
+                {
+                    "provider": "GITHUB",
+                    "url": "https://github.com/org/repo/pull/42",
+                    "number": 42,
+                }
+            ],
         )
 
     async def test_detail_unknown_session_is_404(self):

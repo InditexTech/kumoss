@@ -141,17 +141,18 @@ class TestPullRequestFreshness(_SessionBase):
             _ = await DatabaseService.get_pull_requests(self.sid)
 
         await DatabaseService.add_pull_request(
-            self.sid, "https://github.com/org/repo/pull/42"
+            self.sid, "https://github.com/org/repo/pull/42", 42
         )
         prs = await DatabaseService.get_pull_requests(self.sid)
         self.assertEqual(
-            [pr["url"] for pr in prs], ["https://github.com/org/repo/pull/42"]
+            [pr.url for pr in prs], ["https://github.com/org/repo/pull/42"]
         )
+        self.assertEqual([pr.number for pr in prs], [42])
 
     async def test_pr_attaches_to_the_latest_round(self):
         _ = await DatabaseService.create_round(self.sid, "add a vnet")
         await DatabaseService.add_pull_request(
-            self.sid, "https://github.com/org/repo/pull/7"
+            self.sid, "https://github.com/org/repo/pull/7", 7
         )
 
         detail = await DatabaseService.get_session_detail(self.sid)
@@ -163,9 +164,7 @@ class TestPullRequestFreshness(_SessionBase):
         )
         # The session-scoped read still aggregates across rounds.
         prs = await DatabaseService.get_pull_requests(self.sid)
-        self.assertEqual(
-            [pr["url"] for pr in prs], ["https://github.com/org/repo/pull/7"]
-        )
+        self.assertEqual([pr.url for pr in prs], ["https://github.com/org/repo/pull/7"])
 
     async def test_session_without_rounds_rejects_prs(self):
         # Only possible for rows written outside create_session (which
@@ -180,18 +179,18 @@ class TestPullRequestFreshness(_SessionBase):
         )
         with self.assertRaises(SessionConflict):
             await DatabaseService.add_pull_request(
-                orphan_uuid, "https://github.com/org/repo/pull/9"
+                orphan_uuid, "https://github.com/org/repo/pull/9", 9
             )
 
     async def test_provider_round_trips_as_native_enum(self):
         await DatabaseService.add_pull_request(
-            self.sid, "https://github.com/org/repo/pull/1"
+            self.sid, "https://github.com/org/repo/pull/1", 1
         )
         row = await db.get_by(PullRequest, url="https://github.com/org/repo/pull/1")
         self.assertIsNotNone(row)
         self.assertIs(row.provider, GitProviderName.GITHUB)
         prs = await DatabaseService.get_pull_requests(self.sid)
-        self.assertEqual(prs[0]["provider"], "GITHUB")
+        self.assertEqual(prs[0].provider, "GITHUB")
 
 
 class TestRounds(_SessionBase):
