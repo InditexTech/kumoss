@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from litellm import Router
+
 from src.infrastructure.llm._litellm import LiteLLMAdapter
-from src.shared.config import system_config
 
 
 class LLMFactory:
@@ -12,19 +13,17 @@ class LLMFactory:
         model_id: str,
         temperature: float,
         max_tokens: int,
+        router: Router,
     ):
         self.__model_id = model_id
         self.__temperature = temperature
         self.__max_tokens = max_tokens
+        self.__router = router
 
-    def _get_provider_kwargs(self) -> dict:
-        provider_kwargs = system_config.llm.get_provider_credentials(self.__model_id)
-        return provider_kwargs
-
-    def get(self):
+    def get(self) -> LiteLLMAdapter:
         return LiteLLMAdapter(
             model=self.__model_id,
             temperature=self.__temperature,
             max_tokens=self.__max_tokens,
-            provider_kwargs=self._get_provider_kwargs(),
+            router=self.__router,
         )

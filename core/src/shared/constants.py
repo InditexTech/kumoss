@@ -6,18 +6,6 @@ from enum import Enum, unique
 
 
 @unique
-class LLMProviderPrefix(Enum):
-    """Defines the possible provider prefixes for LiteLLM model_id routing strings."""
-
-    VERTEX_AI = "vertex_ai"
-    BEDROCK = "bedrock"
-    OPENAI = "openai"
-    AZURE = "azure"
-    AZURE_AI = "azure_ai"
-    GEMINI = "gemini"
-
-
-@unique
 class TerraformProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"

@@ -15,8 +15,6 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -33,11 +31,8 @@ from src.domains.dto import (
 from src.domains.entities.history import History
 from src.domains.interfaces.tracer_interface import ITracer
 from src.infrastructure.telemetry._initializer import get_tracer
-from src.infrastructure.exceptions import (
-    TracerRootContextError,
-    ProviderOpenInferenceNotFound,
-)
-from src.shared.constants import OperationType, TerraformProvider, LLMProviderPrefix
+from src.infrastructure.exceptions import TracerRootContextError
+from src.shared.constants import OperationType, TerraformProvider
 
 
 class PhoenixTracer(ITracer):
@@ -298,48 +293,46 @@ def _span_kind_attributes(
     yield SpanAttributes.OPENINFERENCE_SPAN_KIND, kind.value
 
 
+_LITELLM_TO_OI_PROVIDER: dict[str, str] = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "cohere": "cohere",
+    "mistral": "mistralai",
+    "vertex_ai": "google",
+    "vertex_ai_beta": "google",
+    "gemini": "google",
+    "azure": "azure",
+    "azure_ai": "azure",
+    "bedrock": "aws",
+    "sagemaker": "aws",
+    "xai": "xai",
+    "deepseek": "deepseek",
+    "groq": "groq",
+    "fireworks_ai": "fireworks",
+    "moonshot": "moonshot",
+    "cerebras": "cerebras",
+    "perplexity": "perplexity",
+    "together_ai": "together",
+}
+
+
 def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
     """
-    Maps provider name to OpenInference value and yields the OpenInference model name attribute.
+    Resolves provider from a litellm model string using litellm.get_llm_provider(),
+    mirroring the approach of openinference-instrumentation-litellm.
     """
-    # prefix → OpenInference provider
-    _PREFIX_TO_PROVIDER = {
-        LLMProviderPrefix.VERTEX_AI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
-        LLMProviderPrefix.BEDROCK.value: OpenInferenceLLMProviderValues.AWS.value,
-        LLMProviderPrefix.OPENAI.value: OpenInferenceLLMProviderValues.OPENAI.value,
-        LLMProviderPrefix.AZURE.value: OpenInferenceLLMProviderValues.AZURE.value,
-        LLMProviderPrefix.AZURE_AI.value: OpenInferenceLLMProviderValues.AZURE.value,
-        LLMProviderPrefix.GEMINI.value: OpenInferenceLLMProviderValues.GOOGLE.value,
-    }
+    import litellm
 
-    # model substring → OpenInference system (the actual LLM maker)
-    _MODEL_TO_SYSTEM = [
-        (
-            ["claude", "opus", "sonnet", "haiku"],
-            OpenInferenceLLMSystemValues.ANTHROPIC.value,
-        ),
-        (["gemini"], OpenInferenceLLMSystemValues.VERTEXAI.value),
-        (["gpt", "o1", "o3", "o4"], OpenInferenceLLMSystemValues.OPENAI.value),
-    ]
+    try:
+        model_name, llm_provider, *_ = litellm.get_llm_provider(model)
+    except Exception:
+        yield SpanAttributes.LLM_MODEL_NAME, model
+        return
 
-    model_name = model.split("/")[-1]
-
-    # Adapt the provider prefix to OpenInference provider value and find the system
-    provider = _PREFIX_TO_PROVIDER.get(model.split("/")[0], None)
-    system = "unknown"
-    for substrings, sys in _MODEL_TO_SYSTEM:
-        if any(substring in model_name.lower() for substring in substrings):
-            system = sys
-            break
-    if not provider:
-        raise ProviderOpenInferenceNotFound(
-            message=f"Provider {model} couldn't be mapped to OpenInference",
-            error_code=404,
-        )
-
-    yield SpanAttributes.LLM_MODEL_NAME, cast(str, model_name)
-    yield SpanAttributes.LLM_PROVIDER, provider
-    yield SpanAttributes.LLM_SYSTEM, system
+    yield SpanAttributes.LLM_MODEL_NAME, model_name
+    oi_provider = _LITELLM_TO_OI_PROVIDER.get(llm_provider)
+    if oi_provider:
+        yield SpanAttributes.LLM_PROVIDER, oi_provider
 
 
 _BULKY_INVOCATION_KEYS = {

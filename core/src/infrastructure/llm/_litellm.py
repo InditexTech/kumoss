@@ -9,6 +9,7 @@ import json
 from typing import Any
 
 import litellm
+from litellm import Router
 from litellm.types.utils import ModelResponse, Choices, Message, Usage
 from litellm.exceptions import APIError, RateLimitError
 
@@ -29,8 +30,6 @@ from src.infrastructure.exceptions import (
 )
 from src.shared.logger import logging
 
-litellm.drop_params = True
-
 
 class LiteLLMAdapter(ILLMProvider):
     def __init__(
@@ -38,22 +37,12 @@ class LiteLLMAdapter(ILLMProvider):
         model: str,
         temperature: float,
         max_tokens: int,
-        provider_kwargs: dict[str, Any] = None,
+        router: Router,
     ) -> None:
-        """LiteLLM-based LLM adapter for unified multi-provider inference.
-
-        Wraps litellm.acompletion / litellm.aresponses to route requests to any supported
-
-        provider (Vertex AI, Bedrock, OpenAI, Azure, Azure AI, Gemini) using OpenAI-
-
-        compatible formatting, including tool calling, optional "thinking", and web search.
-
-        """
         self.__model = model
-        self.__provider = model.split("/")[0]
         self.__temperature = temperature
         self.__max_tokens = max_tokens
-        self.__provider_kwargs = provider_kwargs or {}
+        self.__router = router
         self._last_invocation_params: dict[str, Any] | None = None
 
     @property
@@ -121,7 +110,6 @@ class LiteLLMAdapter(ILLMProvider):
                 "temperature": 1.0 if thinking else self.__temperature,
                 "num_retries": 3,
                 "timeout": 120,
-                **self.__provider_kwargs,
             }
 
             if tools:
@@ -136,7 +124,7 @@ class LiteLLMAdapter(ILLMProvider):
 
             self._last_invocation_params = kwargs
             try:
-                response = await litellm.acompletion(**kwargs)
+                response = await self.__router.acompletion(**kwargs, drop_params=True)
             except APIError as e:
                 logging.error(f"LiteLLM API error: {e.message}")
                 raise InferenceCallAPIError(
@@ -168,7 +156,10 @@ class LiteLLMAdapter(ILLMProvider):
     def __web_search_is_native(self) -> bool:
         """Check if the model supports native web search."""
         model_id = self.__model
-        info = litellm.get_model_info(model_id)
+        try:
+            info = litellm.get_model_info(model_id)
+        except Exception:
+            return False
         params = info.get("supported_openai_params") or []
         return "web_search_options" in params
 
@@ -187,10 +178,9 @@ class LiteLLMAdapter(ILLMProvider):
             "max_output_tokens": max_tokens,
             "temperature": self.__temperature,
             "timeout": 120,
-            **self.__provider_kwargs,
         }
         self._last_invocation_params = aresponses_kwargs
-        resp = await litellm.aresponses(**aresponses_kwargs)
+        resp = await self.__router.aresponses(**aresponses_kwargs, drop_params=True)
 
         text = ""
         for item in resp.output:

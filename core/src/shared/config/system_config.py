@@ -21,17 +21,16 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Any, Literal
 import yaml
-from typing import ClassVar
 from pathlib import Path
 from urllib.parse import urlparse
 
+from litellm import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
     GitProviderName,
-    LLMProviderPrefix,
     ObjectStorageProvider,
 )
 
@@ -62,86 +61,66 @@ class AdminConfig(BaseModel):
 
 
 class LlmConfig(BaseModel):
-    """LLM provider selection + per-provider credential references.
+    """LLM provider selection via LiteLLM Router.
 
-    The core uses two models per workflow: a ``model`` for high-quality
-    reasoning steps and a faster/cheaper ``small_model`` for filler work
-    (status updates, classifiers, secondary calls). Both temperatures are
-    deployer-tunable.
+    The core uses two model roles per workflow: ``model`` for high-quality
+    reasoning and ``small_model`` for cheaper filler work.  Both are
+    LiteLLM model-id strings (``provider/model``) that must match a
+    ``model_name`` entry in ``model_list``.
 
-    Provider credentials are referenced indirectly via env-var names so
-    nothing sensitive lives in the YAML.
+    ``model_list`` follows the LiteLLM Router format.  Credential values
+    use the ``os.environ/VAR_NAME`` syntax so secrets stay in env vars;
+    the validator checks every such reference at boot.
+
+    When ``model_list`` is empty, minimal entries are auto-generated and
+    credentials are resolved by LiteLLM at call time (deferred failure).
+
+    Refer to https://docs.litellm.ai/docs/providers for provider-specific
+    credential keys and to https://models.litellm.ai/ for model IDs.
     """
 
-    # `model` and `small_model` are LiteLLM model_id strings with a
-    # provider prefix. Examples: "vertex_ai/claude-sonnet-4-6",
-    # "bedrock/claude-haiku-4-5@20251001", "openai/gpt-5".
     model: str = "vertex_ai/claude-sonnet-4-6"
     small_model: str = "vertex_ai/claude-haiku-4-5@20251001"
     temperature: float = 0.1
     small_model_temperature: float = 0.1
     model_max_tokens: int = 64000
     small_model_max_tokens: int = 32000
+    model_list: list[dict[str, Any]] = Field(default_factory=list)
 
-    # Maps the model_id prefix to the env vars that hold the credentials for that provider.
-    _PROVIDER_ENV: ClassVar[dict[str, dict[str, str]]] = {
-        LLMProviderPrefix.VERTEX_AI.value: {
-            "vertex_project": "VERTEXAI_PROJECT",
-            "vertex_location": "VERTEXAI_LOCATION",
-            "vertex_credentials": "GOOGLE_SA_SECRET",
-        },
-        LLMProviderPrefix.GEMINI.value: {
-            "api_key": "GEMINI_API_KEY",
-        },
-        LLMProviderPrefix.BEDROCK.value: {
-            "aws_access_key_id": "AWS_ACCESS_KEY_ID",
-            "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
-            "aws_region_name": "AWS_REGION_NAME",
-            # Bearer token is passed as `api_key` to LiteLLM
-            "api_key": "AWS_BEARER_TOKEN_BEDROCK",
-        },
-        LLMProviderPrefix.OPENAI.value: {
-            "api_key": "OPENAI_API_KEY",
-            "api_base": "OPENAI_API_BASE",
-        },
-        LLMProviderPrefix.AZURE.value: {
-            "api_key": "AZURE_API_KEY",
-            "api_base": "AZURE_API_BASE",
-            "api_version": "AZURE_API_VERSION",
-        },
-        LLMProviderPrefix.AZURE_AI.value: {
-            "api_key": "AZURE_AI_API_KEY",
-            "api_base": "AZURE_AI_API_BASE",
-        },
-    }
-
-    def get_provider_credentials(self, model_id: str) -> dict[str, str]:
-        if "/" not in model_id:
+    @model_validator(mode="after")
+    def _assert_llm_credentials(self) -> "LlmConfig":
+        """Fail-fast on missing env vars referenced via os.environ/ in model_list."""
+        missing: list[str] = []
+        for entry in self.model_list:
+            model_name = entry.get("model_name", "?")
+            for value in entry.get("litellm_params", {}).values():
+                if isinstance(value, str) and value.startswith("os.environ/"):
+                    env_var = value[len("os.environ/") :]
+                    if not os.environ.get(env_var):
+                        missing.append(f"${env_var} (for {model_name})")
+        if missing:
             raise ConfigError(
-                f"Invalid LiteLLM model_id '{model_id}': expected '<prefix>/<model>'. "
-                + f"Supported prefixes: {list(self._PROVIDER_ENV.keys())}"
+                "LLM credentials missing from environment: "
+                + "; ".join(missing)
+                + ". Set the listed env vars or update llm.model_list in config.yaml."
             )
-        prefix = model_id.split("/", 1)[0]
-        if prefix not in self._PROVIDER_ENV:
-            raise ConfigError(
-                f"Unknown LLM provider prefix '{prefix}' in model_id '{model_id}'"
-                + f". Supported prefixes: {list(self._PROVIDER_ENV.keys())}"
-            )
-        env_map = self._PROVIDER_ENV.get(
-            prefix, self._PROVIDER_ENV[LLMProviderPrefix.VERTEX_AI.value]
-        )
-        credentials: dict[str, str] = {}
-        for key, env_name in env_map.items():
-            value = _env(env_name)
-            if value:
-                credentials[key] = value
+        return self
 
-        # Bedrock: bearer token (api_key) takes priority over access key / secret
-        if prefix == LLMProviderPrefix.BEDROCK.value and "api_key" in credentials:
-            credentials.pop("aws_access_key_id", None)
-            credentials.pop("aws_secret_access_key", None)
-
-        return credentials
+    def create_router(self) -> Router:
+        if self.model_list:
+            return Router(model_list=self.model_list)
+        seen: set[str] = set()
+        entries: list[dict[str, Any]] = []
+        for model_id in (self.model, self.small_model):
+            if model_id not in seen:
+                seen.add(model_id)
+                entries.append(
+                    {
+                        "model_name": model_id,
+                        "litellm_params": {"model": model_id},
+                    }
+                )
+        return Router(model_list=entries)
 
 
 class ServiceConfig(BaseModel):
@@ -441,44 +420,6 @@ class SystemConfig(BaseModel, frozen=True):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
-
-    @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> SystemConfig:
-        """Fail-fast on missing LLM credentials for the selected providers.
-
-        Derives the required env vars from the ``model_id`` prefix of each
-        selected model and checks them against ``LlmConfig._PROVIDER_ENV``.
-
-        For Bedrock, the bearer token is an alternative to access key /
-        secret — having either set is enough.
-        """
-        missing: list[str] = []
-        for field in ("model", "small_model"):
-            model_id = getattr(self.llm, field)
-            prefix = model_id.split("/")[0]
-            env_map = self.llm._PROVIDER_ENV.get(prefix, {})
-
-            if prefix == LLMProviderPrefix.BEDROCK.value:
-                has_bearer = bool(_env("AWS_BEARER_TOKEN_BEDROCK"))
-                has_keys = bool(
-                    _env("AWS_ACCESS_KEY_ID") and _env("AWS_SECRET_ACCESS_KEY")
-                )
-                if not has_bearer and not has_keys:
-                    missing.append(
-                        "AWS_BEARER_TOKEN_BEDROCK or (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY)"
-                    )
-                if not _env("AWS_REGION_NAME"):
-                    missing.append("AWS_REGION_NAME")
-                continue
-
-            for _, env_name in env_map.items():
-                if not _env(env_name):
-                    missing.append(env_name)
-        if missing:
-            raise ConfigError(
-                f"Missing LLM credentials: set env var(s) {', '.join(set(missing))}"
-            )
-        return self
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":

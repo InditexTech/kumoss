@@ -23,7 +23,6 @@ from src.domains.services import (
 )
 
 # Infrastructure layer imports
-from src.infrastructure.external.litellm_web_search import LiteLLMWebSearch
 from src.infrastructure.storage import default_object_storage
 from src.infrastructure.tools.tool_registry import ToolRegistry
 from src.infrastructure.filesystem import (
@@ -58,6 +57,8 @@ from src.shared.config import system_config
 
 @final
 class ApplicationFactory:
+    _router = system_config.llm.create_router()
+
     def __init__(
         self,
         session_ctx: SessionContext | None = None,
@@ -90,6 +91,7 @@ class ApplicationFactory:
             model_id=model_id,
             max_tokens=max_tokens,
             temperature=temperature,
+            router=ApplicationFactory._router,
         ).get()
 
     @staticmethod
@@ -123,12 +125,10 @@ class ApplicationFactory:
             tool_registry=ToolRegistry(
                 filesystem=file_utils,
                 git=git_utils,
-                web_search=LiteLLMWebSearch(
-                    litellm=self.get_llm_adapter(
-                        system_config.llm.small_model,
-                        system_config.llm.small_model_max_tokens,
-                        0.5,
-                    ),
+                web_search=ApplicationFactory.get_llm_adapter(
+                    system_config.llm.small_model,
+                    system_config.llm.small_model_max_tokens,
+                    0.5,
                 ),
             )
         )

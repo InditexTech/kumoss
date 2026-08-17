@@ -6,7 +6,7 @@ import json
 import inspect
 from pathlib import Path
 from typing import Any, Callable, override
-
+from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.interfaces import IToolRegistry, IFileSystem, IGit
 from src.domains.dto import (
     TerraformDriftReport,
@@ -16,14 +16,12 @@ from src.domains.dto import (
     TerraformPlanReport,
     TerraformApplyReport,
 )
-from src.infrastructure.external.litellm_web_search import LiteLLMWebSearch
 from src.infrastructure.exceptions import (
     InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
     InferenceCallAPIError,
-    WebSearchToolNoContent,
 )
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
@@ -35,7 +33,7 @@ class ToolRegistry(IToolRegistry):
         self,
         filesystem: IFileSystem,
         git: IGit,
-        web_search: LiteLLMWebSearch,
+        web_search: ILLMProvider,
     ):
         self.__filesystem = filesystem
         self.__git = git
@@ -270,19 +268,22 @@ class ToolRegistry(IToolRegistry):
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:
         query = parameters["query"]
         explanation = parameters.get("explanation", "")
-        # This avoids entering in a loop of calling web_search when the tool is not supported by the provider
         try:
-            result = await self.__web_search.search(query)
+            response = await self.__web_search.inference(msg=query, web_search=True)
         except (
             InferenceCallWebSearchNotSupported,
             InferenceCallAPIError,
-            WebSearchToolNoContent,
         ) as e:
             return {
                 "web_search": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
                 "explanation": explanation,
             }
-        return {"web_search": result, "explanation": explanation}
+        if not response.text:
+            return {
+                "web_search": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+                "explanation": explanation,
+            }
+        return {"web_search": response.text, "explanation": explanation}
 
     def __handle_target_generator(
         self, parameters: dict[str, Any]
