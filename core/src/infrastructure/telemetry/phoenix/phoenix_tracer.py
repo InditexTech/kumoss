@@ -279,6 +279,7 @@ def _output_attributes(
         payload = (
             cast(str, payload.result.get("summary"))
             or cast(str, payload.result.get("explanation"))
+            or cast(str, payload.result.get("description"))
             or payload
         )
     value, mime_type = _serialize(payload)

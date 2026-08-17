@@ -27,7 +27,7 @@ from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 
-class ToolRegistry(IToolRegistry):
+class ToolRegistryWorkspace(IToolRegistry):
     def __init__(
         self,
         filesystem: IFileSystem,
@@ -344,12 +344,12 @@ class ToolRegistry(IToolRegistry):
         return {"status": status, "explanation": explanation}
 
     def __handle_pr_generator(self, parameters: dict[str, Any]) -> dict[str, str]:
-        title = parameters.get("title")
-        description = parameters.get("description")
+        title = parameters.get("title")
+        description = parameters.get("description")
         if not isinstance(title, str) or not isinstance(description, str):
             raise ToolInferenceParamsError(
                 message="PR generation inference hasn't returned the expected structure."
-                + f" got={parameters}",
+                + f" got={parameters}",
                 error_code=500,
             )
         return {"title": title, "description": description}

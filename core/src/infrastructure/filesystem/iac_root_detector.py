@@ -97,6 +97,7 @@ class IacRootDetector(IIacRootDetector):
         clone_dir = Path(tempfile.mkdtemp(prefix="iac-root-"))
         try:
             git = GitUtils(
+                uri=repo_uri,
                 git_provider=system_config.git.provider,
                 cwd=clone_dir,
             )
