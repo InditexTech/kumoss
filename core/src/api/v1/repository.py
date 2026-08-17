@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from src.application.factory import ApplicationFactory
 from src.domains.dto import PullRequestDTO
+from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
@@ -19,26 +20,23 @@ router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
 
 @router.patch(
-    path="/merge_pr", summary="merge the PR with ID `id` into the default branch"
+    path="/merge_pr", summary="Merge the session's PR into the default branch"
 )
 async def complete_pr(
     session_id: Annotated[
         str,
         Body(
-            description="Session id whose branch should be turned into a PR.",
+            description="Session id whose pull request should be merged.",
             pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             embed=True,
         ),
     ],
-    id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
     uuid = UUID(session_id)
     try:
-        try:
-            ctx = await DatabaseService.get_session_context(uuid)
-        except ExceptionHandler as e:
-            raise HTTPException(status_code=e.error_code, detail=e.message)
-        await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(id)
+        ctx = await DatabaseService.get_session_context(uuid)
+        pr = (await DatabaseService.get_pull_requests(uuid))[-1]
+        await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -57,7 +55,7 @@ async def create_pr(
 ) -> PullRequestDTO:
     uuid = UUID(session_id)
     try:
-        ctx = await DatabaseService.get_session_context(uuid)
+        ctx: SessionContext = await DatabaseService.get_session_context(uuid)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     pr_svc = ApplicationFactory(ctx).get_pull_request_service()

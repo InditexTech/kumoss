@@ -57,5 +57,5 @@ class PullRequestService:
             title=title,
             description=description,
         )
-        await DatabaseService.add_pull_request(self.__ctx.id, dto.url)
+        await DatabaseService.add_pull_request(self.__ctx.id, dto.url, dto.id)
         return dto

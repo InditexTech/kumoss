@@ -150,7 +150,8 @@ def _k_history(session_id: UUID) -> str:
 
 
 def _k_pull_requests(session_id: UUID) -> str:
-    return f"{_CACHE_NS}:session:{session_id}:prs"
+    # v2: entries carry "number"; a new key keeps pre-change caches out.
+    return f"{_CACHE_NS}:session:{session_id}:prs:v2"
 
 
 def _k_detail(session_id: UUID) -> str:
@@ -300,7 +301,7 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def __load_pull_requests(sid: int | None) -> list[dict[str, str]]:
+    async def __load_pull_requests(sid: int | None) -> list[dict[str, str | int]]:
         async with db.session() as sess:
             stmt = (
                 select(PullRequest)
@@ -310,7 +311,10 @@ class DatabaseService:
             )
             prs = list((await sess.execute(stmt)).scalars().all())
         # Empty list is a valid cacheable state (most sessions have none).
-        return [{"provider": pr.provider.name, "url": pr.url} for pr in prs]
+        return [
+            {"provider": pr.provider.name, "url": pr.url, "number": pr.number}
+            for pr in prs
+        ]
 
     @staticmethod
     async def __latest_round_id(sid: int) -> int | None:
@@ -325,10 +329,10 @@ class DatabaseService:
             return (await sess.execute(stmt)).scalar_one_or_none()
 
     @staticmethod
-    async def __pull_requests(session_id: UUID) -> list[dict[str, str]]:
+    async def __pull_requests(session_id: UUID) -> list[dict[str, str | int]]:
         """Cached read of all pull requests for a session."""
 
-        async def _load() -> list[dict[str, str]]:
+        async def _load() -> list[dict[str, str | int]]:
             sid = await DatabaseService.__map_session_id(session_id)
             return await DatabaseService.__load_pull_requests(sid)
 
@@ -672,7 +676,7 @@ class DatabaseService:
                 for c in sorted(r.code_changes, key=lambda c: (c.created_at, c.id))
             ],
             pull_requests=[
-                PullRequestRef(provider=pr.provider.name, url=pr.url)
+                PullRequestRef(provider=pr.provider.name, url=pr.url, number=pr.number)
                 for pr in sorted(r.pull_requests, key=lambda pr: (pr.created_at, pr.id))
             ],
             created_at=r.created_at,
@@ -1052,17 +1056,17 @@ class DatabaseService:
         return change.id
 
     @staticmethod
-    async def get_pull_requests(session_id: UUID) -> list[dict[str, str]]:
+    async def get_pull_requests(session_id: UUID) -> list[PullRequestRef]:
         prs = await DatabaseService.__pull_requests(session_id)
         if not prs:
             raise SessionTerminal(
                 message=f"Session {session_id} does not have any associated Pull Requests",
                 error_code=404,
             )
-        return prs
+        return [PullRequestRef(**pr) for pr in prs]
 
     @staticmethod
-    async def add_pull_request(session_id: UUID, url: str) -> None:
+    async def add_pull_request(session_id: UUID, url: str, number: int) -> None:
         """Persist a new Pull Request on the session's latest round and
         write-through the refreshed list."""
         sid = await DatabaseService.__map_session_id(session_id)
@@ -1081,6 +1085,7 @@ class DatabaseService:
             PullRequest,
             round_id=round_id,
             provider=system_config.git.provider,
+            number=number,
             url=url,
         )
         # Re-read and write-through instead of deleting (see cache notes above).
