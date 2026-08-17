@@ -15,7 +15,7 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def ls_remote(self, repo_uri: str) -> bool:
+    async def ls_remote(self) -> bool:
         """Return True if the remote URI is reachable, False otherwise."""
         pass
 
@@ -77,7 +77,7 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
+    async def complete_pr(self, pr_id: int) -> None:
         pass
 
     @abstractmethod
@@ -91,7 +91,7 @@ class IGit(ABC):
     @abstractmethod
     async def get_untracked_files(self) -> list[str]:
         """get_untracked_files returns a list of file names that are not tracked by git and
-        are not ignored by standard excludes (e.g. .gitignore)."""
+        are not ignored by standard excludes (e.g. .gitignore)."""
         pass
 
     @abstractmethod

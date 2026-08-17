@@ -36,7 +36,13 @@ class ToolsDefinitionEmpty(ExceptionHandler):
 
 
 class HistoryLastTurnError(ExceptionHandler):
-    """Raised when trying to fetch the last history Turn on an empty history"""
+    """Raised when trying to fetch the last history Turn from an empty history"""
+
+    pass
+
+
+class HistoryFirstTurnError(ExceptionHandler):
+    """Raised when trying to fetch the first history Turn from an empty history"""
 
     pass
 

@@ -9,7 +9,10 @@ from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.application.factory import ApplicationFactory
+from src.domains.dto import PullRequestDTO
 from src.domains.services.database_service import DatabaseService
+from src.domains.services.tracer_service import tracer
+from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
@@ -36,7 +39,8 @@ async def complete_pr(
             raise HTTPException(
                 status_code=404, detail=f"No PRs found for session id '{session_id}'"
             )
-        await ApplicationFactory().get_pull_request_service().merge(prs[-1]["url"], id)
+        repo_url = prs[-1]["url"]
+        await ApplicationFactory.get_git_utils(repo_url).complete_pr(id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -52,26 +56,35 @@ async def create_pr(
             embed=True,
         ),
     ],
-) -> JSONResponse:
+) -> PullRequestDTO:
     uuid = UUID(session_id)
     try:
         ctx = await DatabaseService.get_session_context(uuid)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    pr_svc = ApplicationFactory(session_ctx=ctx).get_pull_request_service()
+    pr_svc = ApplicationFactory(ctx).get_pull_request_service()
 
+    tracer_token = tracer.set_current_tracer(
+        tracer=PhoenixTracer(
+            session_id=ctx.id,
+            user_id=ctx.user_id,
+            branch_name=ctx.branch_name,
+            cloud=ctx.terraform_prv,
+            iac_path=ctx.iac_path,
+            operation=ctx.operation,
+        )
+    )
     try:
         pr_details = await pr_svc.create_pr()
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
+    finally:
+        tracer.reset_current_tracer(tracer_token)
 
     # TODO: define when a session is completed
     # await DatabaseService.mark_completed(session_id)
 
-    return JSONResponse(
-        content={"id": pr_details.id, "status": pr_details.status},
-        status_code=200,
-    )
+    return pr_details
 
 
 @router.post(
@@ -88,7 +101,7 @@ async def parse_repository(
     ],
 ) -> JSONResponse:
     try:
-        service = ApplicationFactory().get_iac_root_detection_service()
+        service = ApplicationFactory.get_iac_root_detection_service()
         roots = await service.detect_roots(repo_uri)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

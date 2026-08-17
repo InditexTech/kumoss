@@ -25,7 +25,7 @@ from src.domains.services import (
 # Infrastructure layer imports
 from src.infrastructure.external.gemini_web_search import GeminiWebSearch
 from src.infrastructure.storage import default_object_storage
-from src.infrastructure.tools.tool_registry import ToolRegistry
+from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
     FileSystemUtils,
     GitUtils,
@@ -51,7 +51,6 @@ from src.application.use_cases import (
 
 # Shared imports
 from src.shared.constants import (
-    TerraformProvider,
     LLMProvider,
 )
 from src.shared.config import system_config
@@ -61,19 +60,23 @@ from src.shared.config import system_config
 class ApplicationFactory:
     def __init__(
         self,
-        session_ctx: SessionContext | None = None,
+        session_ctx: SessionContext,
     ):
-        self.__ctx: SessionContext | None = session_ctx
+        self.__ctx: SessionContext = session_ctx
 
     # --- Providers for Infrastructure Components ---
     # These providers create the concrete implementations for the utils
 
     def _get_file_utils(self, path: Path | None = None) -> FileSystemUtils:
-        assert path is not None or self.__ctx is not None
-        return FileSystemUtils(root=self.__ctx.call_dir if self.__ctx else path)
+        return FileSystemUtils(root=path or self.__ctx.call_dir)
 
-    def _get_git_utils(self, path: Path) -> GitUtils:
+    @staticmethod
+    def get_git_utils(
+        repo_uri: str,
+        path: Path | None = None,
+    ) -> GitUtils:
         return GitUtils(
+            uri=repo_uri,
             git_provider=system_config.git.provider,
             cwd=path,
         )
@@ -108,11 +111,11 @@ class ApplicationFactory:
             tool_service=tool_service,
         )
 
-    def _get_tool_service(
+    def _get_tool_service_workspace(
         self, file_utils: IFileSystem, git_utils: IGit
     ) -> ToolOrchestrationService:
         return ToolOrchestrationService(
-            tool_registry=ToolRegistry(
+            tool_registry=ToolRegistryWorkspace(
                 filesystem=file_utils,
                 git=git_utils,
                 web_search=GeminiWebSearch(
@@ -121,25 +124,23 @@ class ApplicationFactory:
             )
         )
 
+    def _get_tool_service_static(self) -> ToolOrchestrationService:
+        return ToolOrchestrationService(tool_registry=ToolRegistryStatic())
+
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
-        assert self.__ctx is not None
         return SessionService(
             llm_service=second_llm_service, session_context=self.__ctx
         )
 
     def _get_template_service(
         self,
+        call_dir: Path,
         llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
-        file_utils: IFileSystem,
-        provider: TerraformProvider | None = None,
     ):
-        assert provider is not None or (
-            self.__ctx is not None and self.__ctx.terraform_prv is not None
-        )
         template_adapter = TemplateAdapter(
-            template_provider=self.__ctx.terraform_prv if self.__ctx else provider,
-            cwd=str(file_utils.project_root),
+            template_provider=self.__ctx.terraform_prv,
+            cwd=call_dir.as_posix(),
         )
         return TemplateOrchestrationService(
             templates=template_adapter,
@@ -147,7 +148,8 @@ class ApplicationFactory:
             tool_service=tool_service,
         )
 
-    def get_iac_root_detection_service(self) -> IacRootDetectionService:
+    @staticmethod
+    def get_iac_root_detection_service() -> IacRootDetectionService:
         return IacRootDetectionService(
             workspace=WorkspaceService(),
             detector=IacRootDetector(),
@@ -217,11 +219,12 @@ class ApplicationFactory:
     # --- Providers for Application Building Blocks ---
 
     def get_pull_request_service(self) -> PullRequestService:
-        file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils.project_root)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        git_utils = self.get_git_utils(self.__ctx.repo_uri)
+        tool_svc = self._get_tool_service_static()
         llm_svc = self._get_default_llm_service(tool_svc)
-        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        template_svc = self._get_template_service(
+            system_config.paths.upload_folder, llm_svc, tool_svc
+        )
         return PullRequestService(
             session_ctx=self.__ctx,
             git_utils=git_utils,
@@ -292,11 +295,13 @@ class ApplicationFactory:
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()
         artifact_svc = self._get_artifact_storage_service()
-        git_utils = self._get_git_utils(file_utils.project_root)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        template_svc = self._get_template_service(
+            file_utils.project_root, llm_svc, tool_svc
+        )
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
@@ -339,11 +344,13 @@ class ApplicationFactory:
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
         file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils.project_root)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        template_svc = self._get_template_service(
+            file_utils.project_root, llm_svc, tool_svc
+        )
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_validator_provider(file_utils, session_svc)
@@ -375,8 +382,8 @@ class ApplicationFactory:
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
         file_utils = self._get_file_utils()
-        git_utils = self._get_git_utils(file_utils.project_root)
-        tool_svc = self._get_tool_service(file_utils, git_utils)
+        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)

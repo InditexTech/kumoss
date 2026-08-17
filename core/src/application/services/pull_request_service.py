@@ -14,7 +14,7 @@ from src.shared.constants import PromptsLibrary, ToolContext
 class PullRequestService:
     def __init__(
         self,
-        session_ctx: SessionContext,
+        session_ctx: SessionContext | None,
         git_utils: IGit,
         llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
@@ -27,6 +27,7 @@ class PullRequestService:
         self.__template_svc = template_service
 
     async def create_pr(self) -> PullRequestDTO:
+        assert self.__ctx is not None
         response: ToolResultDTO = await self.__llm_svc.generate(
             query="Create a pull request from this IaC session.",
             tools=[self.__tool_svc.get_sentinel_tool(ToolContext.PR_GENERATOR)],
@@ -55,6 +56,3 @@ class PullRequestService:
         )
         await DatabaseService.add_pull_request(self.__ctx.id, dto.url)
         return dto
-
-    async def merge(self, url: str, pr_id: int) -> None:
-        await self.__git_utils.complete_pr(url, pr_id)
