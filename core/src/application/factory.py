@@ -386,7 +386,9 @@ class ApplicationFactory:
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        template_svc = self._get_template_service(
+            file_utils.project_root, llm_svc, tool_svc
+        )
         # OSS reference has no apply impl; the route remains so the API
         # surface is stable but always errors with a clear message. Provide
         # your own IApplyInfrastructure to enable apply.

@@ -30,13 +30,14 @@ class ToolRegistryStatic(IToolRegistry):
     def __init__(self):
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
-        self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+        self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
+            self._handlers()
+        )
         self.__load_tools()
-        self.__register_handlers()
 
-    def __load_tools(self):
-        """Load tool definitions from JSON files"""
-        tool_files = {
+    def _tool_files(self) -> dict[str, ToolContext]:
+        """Map JSON definition files to their tool context. Subclasses extend."""
+        return {
             "requests_filter.json": ToolContext.REQUESTS_FILTER,
             "task_splitter.json": ToolContext.TASK_SPLITTER,
             "prompt_compositor.json": ToolContext.PROMPT_COMPOSITOR,
@@ -47,7 +48,9 @@ class ToolRegistryStatic(IToolRegistry):
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
         }
 
-        for filename, context in tool_files.items():
+    def __load_tools(self):
+        """Load tool definitions from JSON files"""
+        for filename, context in self._tool_files().items():
             file_path = self.__tools_directory / filename
             if file_path.exists():
                 self.__load_tool_file(file_path, context)
@@ -67,9 +70,9 @@ class ToolRegistryStatic(IToolRegistry):
             self.__tool_definitions[tool_def.name] = tool_def
             logging.info(f"Loaded tool: {tool_def.name} from {file_path.name}")
 
-    def __register_handlers(self):
-        """Register tool execution handlers"""
-        self.__tool_handlers = {
+    def _handlers(self) -> dict[str, Callable[[dict[str, Any]], Any]]:
+        """Map tool names to execution handlers. Subclasses extend."""
+        return {
             # Report tools
             "generate_terraform_plan_report": self.__handle_report_plan_generator,
             "generate_terraform_drift_report": self.__handle_report_drift_generator,

@@ -9,6 +9,7 @@ from src.domains.services import TemplateOrchestrationService, ToolOrchestration
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.shared.constants import PromptsLibrary, ToolContext
+from src.shared.exceptions import ExceptionHandler
 
 
 class PullRequestService:
@@ -37,15 +38,17 @@ class PullRequestService:
             history=self.__ctx.history,
         )
         if not response.success or not isinstance(response.result, dict):
-            raise RuntimeError(
-                f"PR generation failed: {response.error_message or response.result}"
+            raise ExceptionHandler(
+                message=f"PR generation failed: {response.error_message or response.result}",
+                error_code=500,
             )
 
         title = response.result.get("title")
         description = response.result.get("description")
         if not isinstance(title, str) or not isinstance(description, str):
-            raise RuntimeError(
-                f"PR generation returned invalid payload: {response.result}"
+            raise ExceptionHandler(
+                message=f"PR generation returned invalid payload: {response.result}",
+                error_code=500,
             )
 
         dto = await self.__git_utils.create_pr(
