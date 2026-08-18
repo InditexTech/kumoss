@@ -26,7 +26,7 @@ import yaml
 from pathlib import Path
 from urllib.parse import urlparse
 
-from litellm import Router
+from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
@@ -79,12 +79,14 @@ class LlmConfig(BaseModel):
     credential keys and to https://models.litellm.ai/ for model IDs.
     """
 
-    model: str = "vertex_ai/claude-sonnet-4-6"
-    small_model: str = "vertex_ai/claude-haiku-4-5@20251001"
+    model: str = "azure_ai/claude-sonnet-5"
     temperature: float = 0.1
+    max_output_tokens: int = 32000
+
+    small_model: str = "azure_ai/claude-haiku-4-5"
     small_model_temperature: float = 0.1
-    model_max_tokens: int = 64000
-    small_model_max_tokens: int = 32000
+    small_model_max_output_tokens: int = 32000
+
     model_list: list[dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -464,3 +466,4 @@ class SystemConfig(BaseModel, frozen=True):
 
 # Module-level singleton used across the application.
 system_config = SystemConfig.load()
+

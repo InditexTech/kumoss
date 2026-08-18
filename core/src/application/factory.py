@@ -124,16 +124,24 @@ class ApplicationFactory:
             tool_registry=ToolRegistryWorkspace(
                 filesystem=file_utils,
                 git=git_utils,
-                web_search=ApplicationFactory.get_llm_adapter(
-                    system_config.llm.small_model,
-                    system_config.llm.small_model_max_tokens,
-                    0.5,
+                llm=ApplicationFactory.get_llm_adapter(
+                    model_id=system_config.llm.small_model,
+                    max_tokens=system_config.llm.small_model_max_output_tokens,
+                    temperature=0.5,
                 ),
             )
         )
 
     def _get_tool_service_static(self) -> ToolOrchestrationService:
-        return ToolOrchestrationService(tool_registry=ToolRegistryStatic())
+        return ToolOrchestrationService(
+            tool_registry=ToolRegistryStatic(
+                llm=ApplicationFactory.get_llm_adapter(
+                    model_id=system_config.llm.small_model,
+                    max_tokens=system_config.llm.small_model_max_output_tokens,
+                    temperature=0.5,
+                ),
+            )
+        )
 
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
         return SessionService(
@@ -294,11 +302,11 @@ class ApplicationFactory:
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
             main_llm=system_config.llm.model,
-            main_max_tokens=system_config.llm.model_max_tokens,
+            main_max_tokens=system_config.llm.max_output_tokens,
             main_temp=system_config.llm.temperature,
             small_llm=system_config.llm.small_model,
             small_temp=system_config.llm.small_model_temperature,
-            small_max_tokens=system_config.llm.small_model_max_tokens,
+            small_max_tokens=system_config.llm.small_model_max_output_tokens,
             tool_service=tool_svc,
         )
 
