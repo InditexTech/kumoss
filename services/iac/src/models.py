@@ -67,6 +67,20 @@ class ImportRequest(BaseModel):
     resource_id: str = Field(min_length=1, max_length=4096)
 
 
+class StateResourceIdsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workspace_path: str = Field(min_length=1, max_length=4096)
+    scope_id: str | None = Field(default=None, max_length=1024)
+
+
+class ScopeResourceIdsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workspace_path: str = Field(min_length=1, max_length=4096)
+    scope_id: str = Field(min_length=1, max_length=1024)
+
+
 class OperationResult(BaseModel):
     """Raw outcome of the single terraform command a job ran."""
 
@@ -93,7 +107,10 @@ class Problem(BaseModel):
     instance: str | None = None
 
 
-JobKind = Literal["init", "validate", "plan", "show", "apply", "import"]
+JobKind = Literal[
+    "init", "validate", "plan", "show", "apply", "import",
+    "state_resource_ids", "scope_resource_ids",
+]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
 

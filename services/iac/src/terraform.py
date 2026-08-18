@@ -63,6 +63,10 @@ async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResul
     return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd)
 
 
+async def show_state_json(binary: str, cwd: Path) -> CommandResult:
+    return await _run(binary, ["show", "-json", "-no-color"], cwd)
+
+
 async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
     return await _run(
         binary,

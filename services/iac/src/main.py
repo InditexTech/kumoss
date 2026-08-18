@@ -26,6 +26,8 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from . import providers as prov
+from . import state as st
 from . import terraform as tf
 from .auth import verify_bearer_token
 from .config import Config, terraform_available
@@ -41,7 +43,9 @@ from .models import (
     OperationResult,
     PlanRequest,
     Problem,
+    ScopeResourceIdsRequest,
     ShowRequest,
+    StateResourceIdsRequest,
     ValidateRequest,
 )
 
@@ -279,6 +283,46 @@ async def import_resource(
         lambda: tf.import_resource(
             config.terraform_binary, workspace, body.address, body.resource_id
         ),
+    )
+
+
+@app.post(
+    "/v1/import/state-resource-ids",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["import"],
+)
+async def state_resource_ids(
+    body: StateResourceIdsRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> JobAccepted:
+    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    return _submit(
+        "state_resource_ids",
+        workspace,
+        response,
+        lambda: st.state_resource_ids(config.terraform_binary, workspace),
+    )
+
+
+@app.post(
+    "/v1/import/scope-resource-ids",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["import"],
+)
+async def scope_resource_ids(
+    body: ScopeResourceIdsRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> JobAccepted:
+    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    return _submit(
+        "scope_resource_ids",
+        workspace,
+        response,
+        lambda: prov.scope_resource_ids(workspace, body.scope_id),
     )
 
 

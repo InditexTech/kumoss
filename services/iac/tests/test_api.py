@@ -16,6 +16,7 @@ credentials.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from contextlib import contextmanager
@@ -385,3 +386,102 @@ def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -
             },
         )
     assert response.status_code == 404
+
+
+def test_state_resource_ids_rejects_empty_workspace() -> None:
+    with _client_with() as client:
+        response = client.post(
+            "/v1/import/state-resource-ids",
+            json={"workspace_path": ""},
+        )
+    assert response.status_code == 422
+
+
+def test_state_resource_ids_returns_202_and_extracts_ids(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    state_json = json.dumps({
+        "format_version": "1.0",
+        "values": {
+            "root_module": {
+                "resources": [
+                    {
+                        "address": "azurerm_resource_group.main",
+                        "mode": "managed",
+                        "type": "azurerm_resource_group",
+                        "values": {"id": "/subscriptions/sub-1/resourceGroups/rg-main"},
+                    }
+                ]
+            }
+        }
+    })
+    tf_result = CommandResult(ok=True, stdout=state_json, stderr="", exit_code=0)
+
+    with _client_with() as client:
+        with patch(
+            "src.terraform.show_state_json",
+            new_callable=AsyncMock,
+            return_value=tf_result,
+        ):
+            response = client.post(
+                "/v1/import/state-resource-ids",
+                json={"workspace_path": str(workspace)},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "state_resource_ids"
+    ids = json.loads(body["result"]["stdout"])
+    assert ids == ["/subscriptions/sub-1/resourceGroups/rg-main"]
+
+
+@pytest.mark.asyncio
+async def test_show_state_json_invokes_terraform_correctly(tmp_path: Path) -> None:
+    with patch("src.terraform._run", new_callable=AsyncMock) as mock_run:
+        mock_run.return_value = CommandResult(ok=True, stdout="{}", stderr="", exit_code=0)
+        from src.terraform import show_state_json
+        result = await show_state_json("sh", tmp_path)
+    mock_run.assert_awaited_once_with("sh", ["show", "-json", "-no-color"], tmp_path)
+    assert result.exit_code == 0
+
+
+def test_scope_resource_ids_returns_202_and_lists_resources(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (workspace / ".terraform.lock.hcl").write_text(
+        'provider "registry.terraform.io/hashicorp/azurerm" {\n  version = "3.116.0"\n}\n'
+    )
+
+    azure_ids = ["/subscriptions/sub-1/resourceGroups/rg-main"]
+    az_result = CommandResult(
+        ok=True, stdout=json.dumps(azure_ids), stderr="", exit_code=0
+    )
+
+    with _client_with() as client:
+        with patch(
+            "src.providers.azure.list_resource_ids",
+            new_callable=AsyncMock,
+            return_value=az_result,
+        ):
+            response = client.post(
+                "/v1/import/scope-resource-ids",
+                json={"workspace_path": str(workspace), "scope_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "scope_resource_ids"
+    ids = json.loads(body["result"]["stdout"])
+    assert ids == ["/subscriptions/sub-1/resourceGroups/rg-main"]
+
+
+def test_scope_resource_ids_requires_scope_id() -> None:
+    with _client_with() as client:
+        response = client.post(
+            "/v1/import/scope-resource-ids",
+            json={"workspace_path": "/tmp"},
+        )
+    assert response.status_code == 422
