@@ -6,7 +6,7 @@ from typing import Callable, Any
 from collections.abc import Coroutine
 
 from src.domains.entities import SessionContext
-from src.domains.interfaces import ITerraformValidator
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ToolOrchestrationService,
     SessionService,
@@ -34,7 +34,7 @@ class TerraformDriftHandler:
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
-        validator_provider: ITerraformValidator,
+        validator_provider: ITerraform,
         tool_service: ToolOrchestrationService,
         target_service: TerraformTargetService,
         split_service: TaskSplitService,

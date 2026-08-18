@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .terraform_validator import TerraformValidator
+from .terraform import Terraform
 
 __all__ = [
-    "TerraformValidator",
+    "Terraform",
 ]

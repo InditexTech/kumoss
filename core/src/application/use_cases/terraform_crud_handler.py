@@ -89,7 +89,7 @@ class TerraformCRUDHandler:
                     include_forbidden_actions=True,
                 )
                 if not validation.validation:
-                    fail_msg = self.__report_svc.summarize_problem(
+                    fail_msg = await self.__report_svc.summarize_problem(
                         feedback=validation.feedback,
                         history=ctx.history,
                     )

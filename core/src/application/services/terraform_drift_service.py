@@ -4,7 +4,7 @@
 
 from src.domains.dto import TerraformValidationDTO
 from src.domains.entities import SessionContext
-from src.domains.interfaces import ITerraformValidator
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
     TerraformValidationService,
@@ -20,7 +20,7 @@ class TerraformDriftService:
         self,
         session_context: SessionContext,
         validation_service: TerraformValidationService,
-        validator_provider: ITerraformValidator,
+        validator_provider: ITerraform,
         split_service: TaskSplitService,
         artifact_service: ArtifactStorageService,
     ):
