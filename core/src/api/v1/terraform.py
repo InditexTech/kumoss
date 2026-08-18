@@ -34,7 +34,7 @@ _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest, operation: OperationType
+    request: BaseIacRequest, operation: OperationType = None
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity."""
     try:
@@ -138,7 +138,12 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, OperationType.APPLY)
+    if request.session_id is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Missing session ID",
+        )
+    ctx = await _resolve_or_raise(request)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()

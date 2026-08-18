@@ -23,9 +23,9 @@ class SessionOrchestrationService:
         return f"Nebula/{ts}"
 
     async def resolve(
-        self, request: BaseIacRequest, operation: OperationType
+        self, request: BaseIacRequest, operation: OperationType | None = None
     ) -> SessionContext:
-        if request.session_id is None:
+        if request.session_id is None and operation is not None:
             return await self._create(request, operation)
         return await self._load(request)
 

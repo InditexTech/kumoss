@@ -151,43 +151,62 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        self.client = TestClient(app)
+        # Hand the engine back: async connections are bound to the loop
+        # that created them, and the seeding coroutine and the TestClient
+        # lifespan each run their own loop.
+        await db.close()
 
     async def asyncTearDown(self):
         self._patch.stop()
         import shutil
 
         shutil.rmtree(self.tmp, ignore_errors=True)
-        await db.close()
 
     def test_apply_iteration_call_returns_202(self):
         import asyncio
         from uuid import uuid4
         from src.domains.services.database_service import DatabaseService
+        from src.infrastructure.redis import redis_client
+        from src.shared.constants import OperationType, TerraformProvider
 
         sid = uuid4()
-        asyncio.run(
-            DatabaseService.start_session(
-                session_id=sid,
-                user_id="u",
-                repo_uri=_bare_remote(self.tmp),
-                cloud="azure",
-                environment="dev",
-                branch_name="Nebula/apply-x",
-            )
-        )
+        # Unique per run: the user->pk mapping is cached in redis with a
+        # TTL that outlives the table drop/create in asyncSetUp.
+        uid = f"u-{sid.hex[:8]}"
+
+        async def seed():
+            await db.initialize()
+            await redis_client.initialize()
+            try:
+                await DatabaseService.create_session(
+                    session_id=sid,
+                    user_id=uid,
+                    operation=OperationType.GENERATE,
+                    repo_uri=_bare_remote(self.tmp),
+                    terraform_prv=TerraformProvider.AZURE,
+                    scope_id="dev",
+                    branch_name="Nebula/apply-x",
+                    query="seed",
+                    iac_path="",
+                )
+            finally:
+                await redis_client.close()
+                await db.close()
+
+        asyncio.run(seed())
         # Apply will return 202 even though the branch doesn't yet exist on
         # origin -- the iteration clone will fail in the background. That's
         # acceptable: the endpoint contract is purely the synchronous shape.
-        resp = self.client.post(
-            "/v1/iac/apply",
-            json={
-                "session_id": str(sid),
-                "user_id": "u",
-                "q": "apply",
-                "terraform_targets": ["module.foo"],
-            },
-        )
+        with TestClient(app) as client:
+            resp = client.post(
+                "/v1/iac/apply",
+                json={
+                    "session_id": str(sid),
+                    "user_id": uid,
+                    "q": "apply",
+                    "terraform_targets": ["module.foo"],
+                },
+            )
         self.assertEqual(resp.status_code, 202, resp.text)
 
 
@@ -204,37 +223,56 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        self.client = TestClient(app)
+        # Hand the engine back: async connections are bound to the loop
+        # that created them, and the seeding coroutine and the TestClient
+        # lifespan each run their own loop.
+        await db.close()
 
     async def asyncTearDown(self):
         self._patch.stop()
         import shutil
 
         shutil.rmtree(self.tmp, ignore_errors=True)
-        await db.close()
 
     def test_second_call_on_active_session_returns_409(self):
         from uuid import uuid4
         from src.domains.services.database_service import DatabaseService
+        from src.infrastructure.redis import redis_client
+        from src.shared.constants import OperationType, TerraformProvider
         import asyncio
 
         sid = uuid4()
-        asyncio.run(
-            DatabaseService.start_session(
-                session_id=sid,
-                user_id="u",
-                repo_uri=_bare_remote(self.tmp),
-                cloud="azure",
-                environment="dev",
-                branch_name="Nebula/x",
-            )
-        )
-        asyncio.run(DatabaseService.acquire_in_flight(str(sid)))
+        # Unique per run: the user->pk mapping is cached in redis with a
+        # TTL that outlives the table drop/create in asyncSetUp.
+        uid = f"u-{sid.hex[:8]}"
 
-        resp = self.client.post(
-            "/v1/iac/generate",
-            json={"session_id": str(sid), "user_id": "u", "q": "iter"},
-        )
+        async def seed():
+            await db.initialize()
+            await redis_client.initialize()
+            try:
+                await DatabaseService.create_session(
+                    session_id=sid,
+                    user_id=uid,
+                    operation=OperationType.GENERATE,
+                    repo_uri=_bare_remote(self.tmp),
+                    terraform_prv=TerraformProvider.AZURE,
+                    scope_id="dev",
+                    branch_name="Nebula/x",
+                    query="seed",
+                    iac_path="",
+                )
+                await DatabaseService.acquire_in_flight(str(sid))
+            finally:
+                await redis_client.close()
+                await db.close()
+
+        asyncio.run(seed())
+
+        with TestClient(app) as client:
+            resp = client.post(
+                "/v1/iac/generate",
+                json={"session_id": str(sid), "user_id": uid, "q": "iter"},
+            )
         self.assertEqual(resp.status_code, 409, resp.text)
 
 

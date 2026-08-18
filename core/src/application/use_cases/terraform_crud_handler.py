@@ -56,6 +56,7 @@ class TerraformCRUDHandler:
                         PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.FILTERING,
+                    history=ctx.history,
                 )
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
@@ -89,7 +90,7 @@ class TerraformCRUDHandler:
                     include_forbidden_actions=True,
                 )
                 if not validation.validation:
-                    fail_msg = self.__report_svc.summarize_problem(
+                    fail_msg = await self.__report_svc.summarize_problem(
                         feedback=validation.feedback,
                         history=ctx.history,
                     )

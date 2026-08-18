@@ -160,7 +160,6 @@ class LLMOrchestrationService:
                 return tools_result[-1]
             if not tools_result:
                 logging.warning(f"Error inference - no tool response: {response}")
-
                 tools_result = "you MUST use a tool"
             total_executions += 1
 

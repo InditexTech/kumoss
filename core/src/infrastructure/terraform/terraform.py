@@ -2,24 +2,23 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""ITerraformValidator implementation that delegates to the IaC service.
+"""ITerraform implementation that delegates to the IaC service.
 
-This is the OSS-default validator. The IaC microservice
+This is the OSS-default terraform service. The IaC microservice
 (contracts/openapi/iac.v1.yaml) is a raw terraform executor: each POST
 enqueues a job running exactly one terraform command and the job's
 result is the command's raw ``{exit_code, stdout, stderr}``. All
 orchestration lives here: this class sequences ``init`` → ``validate``
-→ ``plan`` (→ ``show`` under ``get_drift``), decides the validation
+→ ``plan`` (→ ``show`` under ``get_drift``) for validation and
+``init`` → ``plan`` → ``apply`` for applies, decides the validation
 boolean, and parses the plan JSON into the drift summary. Each
 operation is submitted with the generated client and polled at
 ``GET /v1/jobs/{job_id}`` until terminal; a non-zero ``exit_code`` is
 a terraform-level failure reported through the returned DTO, while a
 ``failed`` job is a service-level fault raised as an ExceptionHandler
 error. The ``branch`` argument is kept for interface compatibility but
-is not sent to the service — validation operates on whatever is on
-disk at the workspace path, which must be visible to the service (the
-docker-compose setup mounts a shared volume into both the core and the
-IaC service so that paths line up).
+is not sent to the service — every operation runs on whatever is on
+disk at the workspace path, which must be visible to the service.
 """
 
 from __future__ import annotations
@@ -34,13 +33,15 @@ from uuid import UUID, uuid4
 
 import httpx
 
-from ._utils import TerraformUtils
+from .utils import TerraformUtils
+from src.clients.iac.api.apply import apply as apply_op
 from src.clients.iac.api.init import init as init_op
 from src.clients.iac.api.jobs import get_job as get_job_op
 from src.clients.iac.api.plan import plan as plan_op
 from src.clients.iac.api.show import show as show_op
 from src.clients.iac.api.validate import validate as validate_op
 from src.clients.iac.client import AuthenticatedClient
+from src.clients.iac.models.apply_request import ApplyRequest
 from src.clients.iac.models.init_request import InitRequest
 from src.clients.iac.models.job import Job
 from src.clients.iac.models.job_accepted import JobAccepted
@@ -52,7 +53,7 @@ from src.clients.iac.models.show_request import ShowRequest
 from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.types import UNSET
 from src.domains.dto import TerraformValidationDTO
-from src.domains.interfaces.terraform_validator_interface import ITerraformValidator
+from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.session_service import SessionService
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
@@ -61,11 +62,13 @@ from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 
-OperationRequest = InitRequest | ValidateRequest | PlanRequest | ShowRequest
+OperationRequest = (
+    InitRequest | ValidateRequest | PlanRequest | ShowRequest | ApplyRequest
+)
 
 
-class TerraformValidator(ITerraformValidator):
-    """Validate by orchestrating raw terraform jobs on the IaC service."""
+class Terraform(ITerraform):
+    """Validate and apply by orchestrating raw terraform jobs on the IaC service."""
 
     def __init__(
         self,
@@ -184,6 +187,91 @@ class TerraformValidator(ITerraformValidator):
             validation=not drift,
             feedback=json.dumps(drift) if drift else "",
             terraform_plan=plan_res.stdout,
+            terraform_targets=targets,
+        )
+
+    @trace_terraform
+    @override
+    async def apply(
+        self,
+        targets: list[str],
+    ) -> TerraformValidationDTO:
+        _ = await self.__session_svc.update_status(
+            msg="Applying infrastructure changes.",
+            status=SessionStatus.APPLY,
+        )
+
+        cfg = system_config.services.iac
+        if not cfg.enabled or not cfg.endpoint:
+            raise ExceptionHandler(
+                message="IaC service is disabled or has no endpoint; cannot apply. "
+                + "Enable services.iac in the system config.",
+                error_code=500,
+            )
+
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__run_op(
+                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                )
+                if init_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=init_res.stderr or "terraform init failed",
+                        terraform_plan="",
+                        terraform_targets=targets,
+                    )
+
+                # The service applies a saved plan file, which must come from
+                # a plan job on this same (fresh) workspace clone — the plan
+                # is computed at apply time, not pinned from a prior review.
+                plan_file = f"{uuid4().hex}.plan"
+                plan_res = await self.__run_op(
+                    c,
+                    plan_op,
+                    PlanRequest(
+                        workspace_path=workspace,
+                        plan_file=plan_file,
+                        targets=targets,
+                    ),
+                    cfg,
+                )
+                if plan_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=plan_res.stderr or "terraform plan failed",
+                        terraform_plan=plan_res.stdout,
+                        terraform_targets=targets,
+                    )
+
+                apply_res = await self.__run_op(
+                    c,
+                    apply_op,
+                    ApplyRequest(workspace_path=workspace, plan_file=plan_file),
+                    cfg,
+                )
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+        if apply_res.exit_code != 0:
+            return TerraformValidationDTO(
+                validation=False,
+                feedback=apply_res.stderr or "terraform apply failed",
+                terraform_plan=apply_res.stdout,
+                terraform_targets=targets,
+            )
+        return TerraformValidationDTO(
+            validation=True,
+            feedback="",
+            terraform_plan=apply_res.stdout,
             terraform_targets=targets,
         )
 

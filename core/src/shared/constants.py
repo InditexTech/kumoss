@@ -38,6 +38,7 @@ class SessionStatus(Enum):
     GENERATING = "generating"
     VALIDATING = "validating"
     REPORT = "report"
+    APPLY = "apply"
     COMPLETED = "completed"
     UNCOMPLETED = "uncompleted"
     FAILED = "failed"
