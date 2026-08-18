@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from src.domains.services import TracerService
+from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities.session import SessionContext
 from src.application.factory import ApplicationFactory
@@ -31,7 +31,6 @@ router = APIRouter(prefix="/iac", tags=["Infrastructure as Code"])
 
 _workspace = WorkspaceService()
 _orchestration = SessionOrchestrationService()
-_tracer = TracerService()
 
 
 async def _resolve_or_raise(
@@ -63,12 +62,10 @@ def _make_runner(
         try:
             await _orchestration.acquire(ctx.id)
         except ExceptionHandler as e:
-            # We never got the lock: the session is already running or is
-            # finished. Write no status (the session is not ours to touch)
-            # and skip release (it would clobber the actual holder's lock).
+            # never got the lock: the session is already running or is finished.
             logging.error(f"runner not started: {e.message} (session {ctx.id})")
             return
-        tracer_token = _tracer.set_current_tracer(
+        tracer_token = tracer.set_current_tracer(
             tracer=PhoenixTracer(
                 session_id=ctx.id,
                 user_id=ctx.user_id,
@@ -85,7 +82,6 @@ def _make_runner(
                 branch=ctx.branch_name,
             )
             ctx.set_call_dir(call_dir / ctx.iac_path)
-            await _workspace.push(call_dir=call_dir, branch=ctx.branch_name)
             run_handler = await build_handler(ctx)
             await run_handler()
         except ExceptionHandler as e:
@@ -94,7 +90,7 @@ def _make_runner(
             await DatabaseService.mark_failed(ctx.id, msg)
             return
         finally:
-            _tracer.reset_current_tracer(tracer_token)
+            tracer.reset_current_tracer(tracer_token)
             _workspace.cleanup(call_dir)
             await _orchestration.release(ctx.id)
 

@@ -4,12 +4,14 @@
 
 """Unit tests for the IaC reference implementation.
 
-These cover the contract surface: healthz, auth, request validation,
-the 404-on-missing-workspace path, the 503 when terraform isn't
-installed, the async job lifecycle (202 submit → poll to terminal),
-per-workspace FIFO queueing, job expiry, and a plan-skipped (no creds)
-success path. They do NOT exercise an actual `terraform plan` against
-a cloud — that requires network and credentials.
+These cover the contract surface: healthz, auth, request validation
+(including the `plan_file` path-traversal guard), the
+404-on-missing-workspace path, the 503 when terraform isn't installed,
+the async job lifecycle (202 submit → poll to terminal), the raw
+{exit_code, stdout, stderr} pass-through for every operation,
+per-workspace FIFO queueing, and job expiry. They do NOT exercise an
+actual terraform run against a cloud — that requires network and
+credentials.
 """
 
 from __future__ import annotations
@@ -20,18 +22,37 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
+from src.terraform import CommandResult
+
+
+# (endpoint, terraform function to stub, extra request fields)
+OPERATIONS = [
+    ("/v1/init", "src.terraform.init", {}),
+    ("/v1/validate", "src.terraform.validate", {}),
+    ("/v1/plan", "src.terraform.plan", {"plan_file": "x.plan"}),
+    ("/v1/show", "src.terraform.show_plan_json", {"plan_file": "x.plan"}),
+    ("/v1/apply", "src.terraform.apply", {"plan_file": "x.plan"}),
+    (
+        "/v1/import",
+        "src.terraform.import_resource",
+        {
+            "address": "azurerm_resource_group.main",
+            "resource_id": "/subscriptions/x/resourceGroups/y",
+        },
+    ),
+]
 
 
 @contextmanager
 def _client_with(
     token: str = "",
     terraform_binary: str = "sh",
-    allow_plan_without_creds: bool = False,
     job_ttl: int = 3600,
 ):
     # `sh` stands in for terraform so Config's fail-fast binary check
@@ -40,7 +61,6 @@ def _client_with(
     service_main.config = Config(
         expected_token=token,
         terraform_binary=terraform_binary,
-        allow_plan_without_creds=allow_plan_without_creds,
         job_ttl=job_ttl,
     )
     # Fresh queue/registry per test so job records don't leak across tests.
@@ -82,72 +102,83 @@ def test_healthz_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_validate_requires_token_when_configured() -> None:
+def test_init_requires_token_when_configured() -> None:
     with _client_with(token="expected") as client:
         response = client.post(
-            "/v1/validate",
+            "/v1/init",
             json={"workspace_path": "/tmp/anywhere"},
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_validate_503_when_terraform_missing() -> None:
+def test_init_503_when_terraform_missing() -> None:
     with _client_with() as client:
         with patch("src.main.terraform_available", return_value=False):
             response = client.post(
-                "/v1/validate",
+                "/v1/init",
                 json={"workspace_path": "/tmp"},
             )
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_validate_404_when_workspace_missing(tmp_path: Path) -> None:
+def test_init_404_when_workspace_missing(tmp_path: Path) -> None:
     # The service should 404 before enqueueing anything because the
     # workspace path is bogus.
     with _client_with() as client:
         response = client.post(
-            "/v1/validate",
+            "/v1/init",
             json={"workspace_path": str(tmp_path / "does-not-exist")},
         )
     assert response.status_code == 404
 
 
-def test_validate_request_validation_returns_problem_json() -> None:
+def test_init_request_validation_returns_problem_json() -> None:
     with _client_with() as client:
         response = client.post(
-            "/v1/validate",
+            "/v1/init",
             json={"workspace_path": ""},  # min_length=1
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_validate_rejects_empty_target_string() -> None:
+def test_plan_rejects_empty_target_string() -> None:
     with _client_with() as client:
         response = client.post(
-            "/v1/validate",
-            json={"workspace_path": "/tmp", "targets": [""]},
+            "/v1/plan",
+            json={"workspace_path": "/tmp", "targets": [""], "plan_file": "x.plan"},
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_validate_submit_returns_202_with_location(tmp_path: Path) -> None:
-    """Submission returns 202 + JobAccepted and a Location header."""
-    from src.terraform import CommandResult
+@pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/show", "/v1/apply"])
+def test_plan_file_traversal_rejected(endpoint: str) -> None:
+    """`plan_file` lands in `-out` / `show` / `apply` argv: anything
+    that isn't a single path segment must be rejected at the schema."""
+    with _client_with() as client:
+        response = client.post(
+            endpoint,
+            json={"workspace_path": "/tmp", "plan_file": "../evil"},
+        )
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
 
+
+def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
+    """Submission returns 202 + JobAccepted and a Location header."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
-    init_failed = CommandResult(ok=False, stdout="", stderr="nope")
+    init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with() as client:
         with patch(
             "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
         ):
             response = client.post(
-                "/v1/validate",
+                "/v1/init",
                 json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
@@ -165,8 +196,6 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     import threading
     from datetime import datetime
 
-    from src.terraform import CommandResult
-
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -175,16 +204,15 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     async def blocked_init(*args, **kwargs):
         while not release.is_set():
             await asyncio.sleep(0.005)
-        # Fail init so the pipeline short-circuits to a false-flag result.
-        return CommandResult(ok=False, stdout="", stderr="init stubbed")
+        return CommandResult(ok=False, stdout="", stderr="init stubbed", exit_code=1)
 
     with _client_with() as client:
         with patch("src.terraform.init", side_effect=blocked_init):
             first = client.post(
-                "/v1/validate", json={"workspace_path": str(workspace)}
+                "/v1/init", json={"workspace_path": str(workspace)}
             ).json()["job_id"]
             second = client.post(
-                "/v1/validate", json={"workspace_path": str(workspace)}
+                "/v1/init", json={"workspace_path": str(workspace)}
             ).json()["job_id"]
 
             # Wait for the first job to be running, then check the second
@@ -204,135 +232,73 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
 
     assert first_body["status"] == "succeeded"
     assert second_body["status"] == "succeeded"
-    assert first_body["result"]["validation"] is False
+    assert first_body["result"]["exit_code"] == 1
     # FIFO: the second job started only after the first finished.
     assert datetime.fromisoformat(second_body["started_at"]) >= datetime.fromisoformat(
         first_body["finished_at"]
     )
 
 
-def test_validate_init_failure_succeeds_with_validation_false(tmp_path: Path) -> None:
-    """`terraform init` failure is a Terraform-level failure: the job
-    ends `succeeded` with validation=false and the CLI stderr in the
-    result's feedback — not a `failed` job."""
-    from src.terraform import CommandResult
-
+@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
+def test_op_job_returns_raw_result_verbatim(
+    endpoint: str, tf_target: str, extra: dict, tmp_path: Path
+) -> None:
+    """A terraform-level failure is a `succeeded` job whose result is
+    the raw {exit_code, stdout, stderr} — not a `failed` job, and not
+    interpreted by the service."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
-    init_failed = CommandResult(
-        ok=False, stdout="", stderr="Error: backend init failed"
+    failed = CommandResult(
+        ok=False, stdout="partial output", stderr="Error: it broke", exit_code=1
     )
     with _client_with() as client:
-        with patch(
-            "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+        with patch(tf_target, new_callable=AsyncMock, return_value=failed):
             response = client.post(
-                "/v1/validate",
-                json={"workspace_path": str(workspace), "targets": ["module.db"]},
+                endpoint,
+                json={"workspace_path": str(workspace), **extra},
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
     assert body["status"] == "succeeded"
-    assert body["kind"] == "validate"
+    assert body["kind"] == endpoint.removeprefix("/v1/")
     assert body["error"] is None
-    result = body["result"]
-    assert result["validation"] is False
-    assert "backend init failed" in result["feedback"]
-    assert result["terraform_plan"] == ""
-    assert result["terraform_targets"] == ["module.db"]
+    assert body["result"] == {
+        "exit_code": 1,
+        "stdout": "partial output",
+        "stderr": "Error: it broke",
+    }
 
 
-def test_apply_init_failure_succeeds_with_success_false(tmp_path: Path) -> None:
-    from src.terraform import CommandResult
-
+def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> None:
+    """The plan job passes the request's targets and plan_file through
+    to the terraform wrapper unchanged."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
-    init_failed = CommandResult(
-        ok=False, stdout="", stderr="Error: backend init failed"
-    )
+    ok = CommandResult(ok=True, stdout="Plan: 1 to add", stderr="", exit_code=0)
     with _client_with() as client:
         with patch(
-            "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+            "src.terraform.plan", new_callable=AsyncMock, return_value=ok
+        ) as plan_mock:
             response = client.post(
-                "/v1/apply",
-                json={"workspace_path": str(workspace)},
-            )
-            assert response.status_code == 202
-            body = _poll_until_terminal(client, response.json()["job_id"])
-    assert body["status"] == "succeeded"
-    assert body["kind"] == "apply"
-    result = body["result"]
-    assert result["success"] is False
-    assert "backend init failed" in result["feedback"]
-    assert result["terraform_output"] == ""
-
-
-def test_import_init_failure_succeeds_with_success_false(tmp_path: Path) -> None:
-    from src.terraform import CommandResult
-
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-
-    init_failed = CommandResult(
-        ok=False, stdout="", stderr="Error: backend init failed"
-    )
-    with _client_with() as client:
-        with patch(
-            "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
-        ):
-            response = client.post(
-                "/v1/import",
+                "/v1/plan",
                 json={
                     "workspace_path": str(workspace),
-                    "address": "azurerm_resource_group.main",
-                    "resource_id": "/subscriptions/x/resourceGroups/y",
+                    "targets": ["module.db"],
+                    "plan_file": "abc123.plan",
                 },
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
     assert body["status"] == "succeeded"
-    assert body["kind"] == "import"
-    result = body["result"]
-    assert result["success"] is False
-    assert "backend init failed" in result["feedback"]
-
-
-def test_validate_plan_skipped_without_creds(tmp_path: Path) -> None:
-    """When init+validate pass but no cloud credentials are configured,
-    the job succeeds with validation=true and an explanatory feedback,
-    without running `terraform plan`."""
-    from src.terraform import CommandResult
-
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-
-    ok = CommandResult(ok=True, stdout="", stderr="")
-    with _client_with() as client:
-        with (
-            patch("src.terraform.init", new_callable=AsyncMock, return_value=ok),
-            patch("src.terraform.validate", new_callable=AsyncMock, return_value=ok),
-            patch("src.main.have_cloud_credentials", return_value=False),
-            patch("src.terraform.plan", new_callable=AsyncMock) as plan_mock,
-        ):
-            response = client.post(
-                "/v1/validate",
-                json={"workspace_path": str(workspace)},
-            )
-            assert response.status_code == 202
-            body = _poll_until_terminal(client, response.json()["job_id"])
-    assert body["status"] == "succeeded"
-    result = body["result"]
-    assert result["validation"] is True
-    assert "plan skipped" in result["feedback"]
-    plan_mock.assert_not_called()
+    assert body["result"]["exit_code"] == 0
+    plan_mock.assert_awaited_once_with("sh", workspace, ["module.db"], "abc123.plan")
 
 
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
-    """An unexpected exception in the pipeline is a service-level fault:
-    the job ends `failed` with a 500 problem."""
+    """An unexpected exception in the operation is a service-level
+    fault: the job ends `failed` with a 500 problem."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -343,7 +309,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
             side_effect=RuntimeError("subprocess exploded"),
         ):
             response = client.post(
-                "/v1/validate",
+                "/v1/init",
                 json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
@@ -377,18 +343,16 @@ def test_get_job_requires_token_when_configured() -> None:
 
 def test_job_expires_after_ttl(tmp_path: Path) -> None:
     """With job_ttl=0, a terminal job is swept on the next poll → 404."""
-    from src.terraform import CommandResult
-
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
-    init_failed = CommandResult(ok=False, stdout="", stderr="nope")
+    init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with(job_ttl=0) as client:
         with patch(
             "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
         ):
             response = client.post(
-                "/v1/validate",
+                "/v1/init",
                 json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
@@ -407,40 +371,17 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
                 raise AssertionError("terminal job was never swept")
 
 
-def test_validate_accepts_scope_id() -> None:
-    """scope_id is accepted without 422 (extra='forbid' would reject unknown fields)."""
+@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
+def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -> None:
+    """scope_id is accepted without 422 (extra='forbid' would reject
+    unknown fields); the 404 comes from the nonexistent workspace."""
     with _client_with() as client:
         response = client.post(
-            "/v1/validate",
+            endpoint,
             json={
                 "workspace_path": "/tmp/does-not-exist",
                 "scope_id": "sub-uuid-1234",
-            },
-        )
-    assert response.status_code == 404
-
-
-def test_apply_accepts_scope_id() -> None:
-    with _client_with() as client:
-        response = client.post(
-            "/v1/apply",
-            json={
-                "workspace_path": "/tmp/does-not-exist",
-                "scope_id": "sub-uuid-1234",
-            },
-        )
-    assert response.status_code == 404
-
-
-def test_import_accepts_scope_id() -> None:
-    with _client_with() as client:
-        response = client.post(
-            "/v1/import",
-            json={
-                "workspace_path": "/tmp/does-not-exist",
-                "scope_id": "sub-uuid-1234",
-                "address": "azurerm_resource_group.main",
-                "resource_id": "/subscriptions/sub-1/resourceGroups/rg",
+                **extra,
             },
         )
     assert response.status_code == 404

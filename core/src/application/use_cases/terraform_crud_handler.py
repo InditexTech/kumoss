@@ -21,7 +21,6 @@ from src.shared.constants import (
     ReportType,
     SessionStatus,
 )
-from src.shared.exceptions import ExceptionHandler
 
 
 class TerraformCRUDHandler:
@@ -50,8 +49,7 @@ class TerraformCRUDHandler:
 
         async def background_task():
             try:
-                await self.__session_svc.set_round_id(q)
-
+                await self.__session_svc.next_round(q)
                 _ = await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
@@ -65,25 +63,17 @@ class TerraformCRUDHandler:
                     q, ctx.history, conventions
                 )
                 if not ok:
+                    ctx.history.append_turn(q, rationale)
                     _ = await self.__session_svc.update_status(
                         msg=rationale,
                         status=SessionStatus.UNCOMPLETED,
                     )
                     return
 
-                _ = await self.__session_svc.update_status(
-                    msg=q,
-                    prompt=await self.__template_svc.render(
-                        PromptsLibrary.STATUS_UPDATE
-                    ),
-                    status=SessionStatus.GENERATING,
-                )
-
                 predictive_targets = await self.__target_svc.generate_predictive(
                     query=q,
                     history=ctx.history,
                     conventions=conventions,
-                    include_forbidden_actions=True,
                 )
                 if predictive_targets:
                     _ = await self.__drift_svc.detect_and_resolve_drift(
@@ -94,8 +84,7 @@ class TerraformCRUDHandler:
 
                 validation = await self.__validation_svc.generate_and_validate(
                     q=q,
-                    history=ctx.history,
-                    branch_name=ctx.branch_name,
+                    ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
                 )
@@ -113,11 +102,6 @@ class TerraformCRUDHandler:
                     type=ReportType.GENERATE,
                     content=validation.terraform_plan,
                 )
-            except ExceptionHandler as e:
-                _ = await self.__session_svc.update_status(
-                    msg=e.message, status=SessionStatus.FAILED
-                )
-                raise
             finally:
                 await self.__session_svc.save()
 

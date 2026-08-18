@@ -95,16 +95,16 @@ def sync_detailed(
     client: AuthenticatedClient,
     body: ImportRequest,
 ) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
-    """Enqueue a job importing an existing cloud resource into Terraform state.
+    """Enqueue a `terraform import` job for a workspace.
 
-     Enqueues a job that runs `terraform import` against the
-    workspace at `workspace_path`, bringing the existing cloud
-    resource identified by `resource_id` under the Terraform
-    resource address `address` in the workspace's state, then
-    returns `202 Accepted` immediately. Poll
-    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
-    failures (init or import) end the job as `succeeded` with
-    `success: false` and diagnostics in `feedback`.
+     Enqueues a job that runs `terraform import <address>
+    <resource_id>` against the workspace at `workspace_path`,
+    bringing the existing cloud resource identified by
+    `resource_id` under the Terraform resource address `address` in
+    the workspace's state, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
+    the command's exit code and raw output. The workspace must
+    already be initialised (submit an `init` job first).
 
     Args:
         body (ImportRequest):
@@ -133,16 +133,16 @@ def sync(
     client: AuthenticatedClient,
     body: ImportRequest,
 ) -> ImportResourceResponse400 | JobAccepted | Problem | None:
-    """Enqueue a job importing an existing cloud resource into Terraform state.
+    """Enqueue a `terraform import` job for a workspace.
 
-     Enqueues a job that runs `terraform import` against the
-    workspace at `workspace_path`, bringing the existing cloud
-    resource identified by `resource_id` under the Terraform
-    resource address `address` in the workspace's state, then
-    returns `202 Accepted` immediately. Poll
-    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
-    failures (init or import) end the job as `succeeded` with
-    `success: false` and diagnostics in `feedback`.
+     Enqueues a job that runs `terraform import <address>
+    <resource_id>` against the workspace at `workspace_path`,
+    bringing the existing cloud resource identified by
+    `resource_id` under the Terraform resource address `address` in
+    the workspace's state, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
+    the command's exit code and raw output. The workspace must
+    already be initialised (submit an `init` job first).
 
     Args:
         body (ImportRequest):
@@ -166,16 +166,16 @@ async def asyncio_detailed(
     client: AuthenticatedClient,
     body: ImportRequest,
 ) -> Response[ImportResourceResponse400 | JobAccepted | Problem]:
-    """Enqueue a job importing an existing cloud resource into Terraform state.
+    """Enqueue a `terraform import` job for a workspace.
 
-     Enqueues a job that runs `terraform import` against the
-    workspace at `workspace_path`, bringing the existing cloud
-    resource identified by `resource_id` under the Terraform
-    resource address `address` in the workspace's state, then
-    returns `202 Accepted` immediately. Poll
-    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
-    failures (init or import) end the job as `succeeded` with
-    `success: false` and diagnostics in `feedback`.
+     Enqueues a job that runs `terraform import <address>
+    <resource_id>` against the workspace at `workspace_path`,
+    bringing the existing cloud resource identified by
+    `resource_id` under the Terraform resource address `address` in
+    the workspace's state, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
+    the command's exit code and raw output. The workspace must
+    already be initialised (submit an `init` job first).
 
     Args:
         body (ImportRequest):
@@ -202,16 +202,16 @@ async def asyncio(
     client: AuthenticatedClient,
     body: ImportRequest,
 ) -> ImportResourceResponse400 | JobAccepted | Problem | None:
-    """Enqueue a job importing an existing cloud resource into Terraform state.
+    """Enqueue a `terraform import` job for a workspace.
 
-     Enqueues a job that runs `terraform import` against the
-    workspace at `workspace_path`, bringing the existing cloud
-    resource identified by `resource_id` under the Terraform
-    resource address `address` in the workspace's state, then
-    returns `202 Accepted` immediately. Poll
-    `GET /v1/jobs/{job_id}` for the ImportResult. Terraform-level
-    failures (init or import) end the job as `succeeded` with
-    `success: false` and diagnostics in `feedback`.
+     Enqueues a job that runs `terraform import <address>
+    <resource_id>` against the workspace at `workspace_path`,
+    bringing the existing cloud resource identified by
+    `resource_id` under the Terraform resource address `address` in
+    the workspace's state, then returns `202 Accepted` immediately.
+    Poll `GET /v1/jobs/{job_id}` for the OperationResult carrying
+    the command's exit code and raw output. The workspace must
+    already be initialised (submit an `init` job first).
 
     Args:
         body (ImportRequest):

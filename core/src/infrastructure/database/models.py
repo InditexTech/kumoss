@@ -135,6 +135,7 @@ class PullRequest(Base):
 
     round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     provider: Mapped[GitProviderName] = mapped_column()
+    number: Mapped[int] = mapped_column()
     url: Mapped[str] = mapped_column(String(254))
 
     @override

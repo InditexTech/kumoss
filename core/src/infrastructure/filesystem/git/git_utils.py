@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 #
 # SPDX-License-Identifier: Apache-2.0
+import re
 
 import subprocess
 from datetime import datetime
@@ -21,9 +22,11 @@ from src.shared.logger import logging
 class GitUtils(IGit):
     def __init__(
         self,
+        uri: str,
         git_provider: GitProviderName,
         cwd: Path = None,
     ):
+        self.__uri = uri
         self.__provider = GitProviderFactory(git_provider).get()
         self.__cli: Cli = Cli(
             (cwd if cwd else system_config.paths.upload_folder).resolve().as_posix(),
@@ -37,11 +40,11 @@ class GitUtils(IGit):
         return self.__error_msg
 
     @override
-    async def ls_remote(self, repo_uri: str) -> bool:
-        logging.info(f"git ls-remote {repo_uri}")
+    async def ls_remote(self) -> bool:
+        logging.info(f"git ls-remote {self.__uri}")
         return self._handle_return_code(
             await self.__cli.execute(
-                ["git", "ls-remote", "--exit-code", repo_uri],
+                ["git", "ls-remote", "--exit-code", self.__uri],
                 20,
             )
         )
@@ -115,14 +118,14 @@ class GitUtils(IGit):
         return await self.__provider.create_pr(
             repository_url=repository_url,
             head=head_branch,
-            base=await self.get_default_branch(),
+            base=await self.get_default_branch(True),
             title=title,
             description=description,
         )
 
     @override
-    async def complete_pr(self, repository_url: str, pr_id: int) -> None:
-        await self.__provider.complete_pr(repository_url, pr_id)
+    async def complete_pr(self, pr_id: int) -> None:
+        await self.__provider.complete_pr(self.__uri, pr_id)
 
     @override
     async def get_remote_url(self) -> str:
@@ -143,43 +146,67 @@ class GitUtils(IGit):
         return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
 
     @override
-    async def get_default_branch(self) -> str:
-        if not self._handle_return_code(
-            cmd := await self.__cli.execute(
-                [
-                    "git",
-                    "rev-parse",
-                    "--abbrev-ref",
-                    "origin/HEAD",
-                ]
-            )
-        ):
+    async def get_default_branch(self, ls_remote: bool = False) -> str:
+        if ls_remote:
+            cmd = [
+                "git",
+                "ls-remote",
+                "--symref",
+                self.__uri,
+                "HEAD",
+            ]
+        else:
+            cmd = [
+                "git",
+                "rev-parse",
+                "--abbrev-ref",
+                "origin/HEAD",
+            ]
+        logging.debug(
+            ["git", "ls-remote", "--symref", "<repository>", "HEAD"]
+            if ls_remote
+            else cmd
+        )
+        if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 message=self.__error_msg,
                 error_code=502,
             )
+        if ls_remote:
+            match = re.search(r"ref:\s+refs/heads/(\S+)\s+HEAD", cmd.stdout.decode())
+            if match is None:
+                raise ExceptionHandler(
+                    message="No match git default branch ls-remote", error_code=500
+                )
+            return match.group(1)
         return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
 
     @override
-    async def show_diff(self) -> str:
-        """show_diff returns a plain text string containing the diff for all the STAGED and COMMITED files
-        SINCE the current branch diverged from the default branch
-        """
-        if not self._handle_return_code(
-            cmd := await self.__cli.execute(
-                [
-                    "git",
-                    "--no-pager",
-                    "diff",
-                    "--no-color",
-                    "--find-renames",
-                    "--no-prefix",
-                    "--ignore-space-change",
-                    "--relative",
-                    await self._get_default_branch_commit_id(),
-                ]
-            )
-        ):
+    async def show_diff(
+        self,
+        working_tree: bool,
+        full_content: bool,
+        file_path: str = None,
+    ) -> str:
+        cmd = [
+            "git",
+            "--no-pager",
+            "diff",
+            "--no-color",
+            "--find-renames",
+            "--no-prefix",
+            "--ignore-space-change",
+            "--relative",
+            "HEAD",
+        ]
+        if full_content:
+            cmd.insert(3, "--unified=1000")
+        if not working_tree:
+            cmd.insert(cmd.index("HEAD"), await self._get_default_branch_commit_id())
+        if file_path:
+            cmd.extend(["--", file_path])
+        logging.debug(cmd)
+        if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 message=self.__error_msg,
                 error_code=502,
@@ -187,14 +214,28 @@ class GitUtils(IGit):
         return cmd.stdout.decode()
 
     @override
+    async def get_untracked_files(self) -> list[str]:
+        cmd = [
+            "git",
+            "--no-pager",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+        ]
+        logging.debug(cmd)
+        if not self._handle_return_code(output := await self.__cli.execute(cmd)):
+            raise ExceptionHandler(
+                error_code=500,
+                message=f"Git error when fetching changed files: {self.__error_msg}",
+            )
+        return output.stdout.decode("utf-8").strip().splitlines()
+
+    @override
     async def get_changed_files(
-        self, diff_filter: Literal["A", "M", "AM"]
+        self,
+        working_tree: bool,
+        diff_filter: Literal["A", "M", "AM"],
     ) -> list[str]:
-        """This function return a list of files that has been modified or created
-        since the current branch has been created based on the given filter.
-        A: added
-        M: modified
-        """
         cmd = [
             "git",
             "--no-pager",
@@ -202,9 +243,11 @@ class GitUtils(IGit):
             "--name-only",
             f"--diff-filter={diff_filter}",
             "--relative",
-            await self._get_default_branch_commit_id(),
             "HEAD",
         ]
+        if not working_tree:
+            cmd.insert(6, await self._get_default_branch_commit_id())
+        logging.debug(cmd)
         if not self._handle_return_code(output := await self.__cli.execute(cmd)):
             raise ExceptionHandler(
                 error_code=500,

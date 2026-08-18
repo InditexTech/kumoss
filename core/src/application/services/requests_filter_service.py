@@ -47,6 +47,5 @@ class RequestsFilterService:
             history=history,
         )
         rationale: str = cast(str, response.result["explanation"])
-        history.append_turn(q, rationale)
 
         return response.result["status"], rationale

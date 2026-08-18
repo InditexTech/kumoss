@@ -25,13 +25,9 @@ class IWorkspace(ABC):
         self,
         session_id: UUID,
         repo_uri: str,
-        branch: str | None,
+        branch: str,
     ) -> Path:
         """Shallow-clone into the per-call directory. Returns the dir path."""
-
-    @abstractmethod
-    async def push(self, *, call_dir: Path, branch: str) -> None:
-        """Push the branch to origin."""
 
     @abstractmethod
     def cleanup(self, call_dir: Path) -> None:

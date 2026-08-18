@@ -1,0 +1,20 @@
+[
+  {
+    "name": "generate_pull_request",
+    "description": "Reports the final pull request title and description generated from the user's request and the conversation history of the IaC session. This tool must be called as the final action; its parameters are used verbatim to open the pull request on the git provider.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Pull request title. Imperative mood, sentence case, maximum 72 characters, no trailing period, plain text (no markdown). Must name the key resources or components affected, e.g. 'Add storage account and blob container for the billing app'."
+        },
+        "description": {
+          "type": "string",
+          "description": "Pull request description in GitHub-flavored markdown with exactly three sections: '## Summary' (what this PR does and why, 1-2 sentences), '## Changes' (bullet list of concrete resource and file changes), and '## Context' (the original user request plus the assumptions, defaults, and relevant session findings a reviewer needs). Technical identifiers in backticks. Never include secrets or credentials."
+        }
+      },
+      "required": ["title", "description"]
+    }
+  }
+]

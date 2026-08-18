@@ -64,7 +64,7 @@ class RedisClient:
 
     # --- Fail-open primitives ---------------------------------------------
 
-    async def _safe_get(self, key: str) -> str | None:
+    async def _safe_get(self, key: str) -> str | bytes | None:
         try:
             return await self._client.get(key)
         except _FAIL_OPEN_ERRORS as e:
@@ -79,10 +79,10 @@ class RedisClient:
         except _FAIL_OPEN_ERRORS as e:
             logging.warning(
                 f"Redis SET {key} failed ({e}); "
-                "value not cached, stale reads possible until TTL"
+                + "value not cached, stale reads possible until TTL"
             )
 
-    async def _decode(self, key: str, raw: str) -> Any | None:
+    async def _decode(self, key: str, raw: str | bytes) -> Any | None:
         """JSON-decode a cached entry; a corrupt entry is dropped as a miss."""
         try:
             return json.loads(raw)

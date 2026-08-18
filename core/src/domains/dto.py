@@ -318,10 +318,12 @@ class PullRequestRef(BaseModel):
     """Read model: a pull request opened during a round.
 
     ``provider`` is the GitProviderName token (e.g. "GITHUB"), not the host.
+    ``number`` is the pull request's id at the provider.
     """
 
     provider: str
     url: str
+    number: int
 
 
 class RoundDetail(BaseModel):

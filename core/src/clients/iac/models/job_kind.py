@@ -8,6 +8,9 @@ from enum import Enum
 class JobKind(str, Enum):
     APPLY = "apply"
     IMPORT = "import"
+    INIT = "init"
+    PLAN = "plan"
+    SHOW = "show"
     VALIDATE = "validate"
 
     def __str__(self) -> str:

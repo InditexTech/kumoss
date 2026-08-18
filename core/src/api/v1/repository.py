@@ -9,29 +9,34 @@ from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.application.factory import ApplicationFactory
+from src.domains.dto import PullRequestDTO
+from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
+from src.domains.services.tracer_service import tracer
+from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
 
 @router.patch(
-    path="/merge_pr", summary="merge the PR with ID `id` into the default branch"
+    path="/merge_pr", summary="Merge the session's PR into the default branch"
 )
 async def complete_pr(
     session_id: Annotated[
         str,
         Body(
-            description="Session id whose branch should be turned into a PR.",
+            description="Session id whose pull request should be merged.",
             pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             embed=True,
         ),
     ],
-    id: Annotated[int, Body(description="Pull Request ID.")],
 ) -> JSONResponse:
+    uuid = UUID(session_id)
     try:
-        service = ApplicationFactory().get_pull_request_service()
-        await service.merge(session_id, id)
+        ctx = await DatabaseService.get_session_context(uuid)
+        pr = (await DatabaseService.get_pull_requests(uuid))[-1]
+        await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
@@ -47,30 +52,35 @@ async def create_pr(
             embed=True,
         ),
     ],
-) -> JSONResponse:
+) -> PullRequestDTO:
     uuid = UUID(session_id)
     try:
-        ctx = await DatabaseService.get_session_context(uuid)
+        ctx: SessionContext = await DatabaseService.get_session_context(uuid)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    pr_svc = ApplicationFactory(session_ctx=ctx).get_pull_request_service()
-    # if session.status != SessionStatus.REPORT.value:
-    #     raise HTTPException(
-    #         status_code=409, detail=f"Session {session_id} is {session.status}."
-    #     )
+    pr_svc = ApplicationFactory(ctx).get_pull_request_service()
 
+    tracer_token = tracer.set_current_tracer(
+        tracer=PhoenixTracer(
+            session_id=ctx.id,
+            user_id=ctx.user_id,
+            branch_name=ctx.branch_name,
+            cloud=ctx.terraform_prv,
+            iac_path=ctx.iac_path,
+            operation=ctx.operation,
+        )
+    )
     try:
-        pr_details = await pr_svc.create_pr(ctx)
+        pr_details = await pr_svc.create_pr()
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
+    finally:
+        tracer.reset_current_tracer(tracer_token)
 
     # TODO: define when a session is completed
     # await DatabaseService.mark_completed(session_id)
 
-    return JSONResponse(
-        content={"id": pr_details.id, "status": pr_details.status},
-        status_code=200,
-    )
+    return pr_details
 
 
 @router.post(
@@ -87,7 +97,7 @@ async def parse_repository(
     ],
 ) -> JSONResponse:
     try:
-        service = ApplicationFactory().get_iac_root_detection_service()
+        service = ApplicationFactory.get_iac_root_detection_service()
         roots = await service.detect_roots(repo_uri)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

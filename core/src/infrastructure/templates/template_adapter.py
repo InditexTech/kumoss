@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, Literal, final, override
+from typing import Any, final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
-from src.shared.constants import TerraformProvider
+from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 
 @final
@@ -28,9 +28,14 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    def render_report_generator(self, report_type: Literal["plan", "drift"]) -> str:
+    def render_report_generator(self, report_type: ReportType) -> str:
         t = self._get_template(self._core + "report_generator.jinja")
-        return t.render(REPORT_TYPE=report_type)
+        return t.render(REPORT_TYPE=report_type.value)
+
+    @override
+    def render_pr_generator(self, operation_type: OperationType) -> str:
+        t = self._get_template(self._core + "pr_generator.jinja")
+        return t.render(OPERATION_TYPE=operation_type.value)
 
     @override
     async def render_requests_filter(
@@ -88,16 +93,19 @@ class TemplateAdapter(ITemplate):
     async def render_predictive_target_calculator(
         self,
         resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions
+        guidelines = await remote_fetcher.fetch(
+            prompt_name="predictive_targets",
+            scope="general",
+            type="guidelines",
+            tag=system_config.environment,
         )
-        base_template = self._get_template(
-            self._core + "predictive_target_calculator.jinja"
+        t = self._get_template(self._core + "predictive_target_calculator.jinja")
+        return t.render(
+            RELEVANT_TEMPLATES=resources,
+            PREDICTIVE_TARGETS_GUIDELINES=guidelines,
+            CWD=self._cwd,
         )
-        return base_template.render(**context)
 
     @override
     async def render_prompt_compositor(

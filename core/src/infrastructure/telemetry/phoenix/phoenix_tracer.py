@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import dataclasses
 import json
 from collections.abc import Iterator
 from typing import Any, Literal, cast, override
@@ -19,6 +20,7 @@ from openinference.semconv.trace import (
     ToolAttributes,
     ToolCallAttributes,
 )
+from pydantic import BaseModel
 
 from src.domains.dto import (
     TerraformValidationDTO,
@@ -102,7 +104,6 @@ class PhoenixTracer(ITracer):
         """
         span = self.__tracer.start_span(
             name=f"Terraform - validation {terraformDTO.validation}",
-            context=self.__root_context,
             start_time=start_time,
         )
         for attribute_key, attribute_value in (
@@ -144,7 +145,7 @@ class PhoenixTracer(ITracer):
         :param kwargs: Keyword arguments containing the prompt, history and other parameters
         :return: OpenTelemetry Span configured with chain-specific attributes
         """
-        for attribute_key, attribute_value in (*_output_attributes(output),):
+        for attribute_key, attribute_value in (*_output_attributes(output, True),):
             span.set_attribute(attribute_key, attribute_value)
         return span
 
@@ -231,6 +232,10 @@ def _serialize(payload: Any) -> tuple[str, str]:
     """
     if isinstance(payload, str):
         return payload, OpenInferenceMimeTypeValues.TEXT.value
+    if isinstance(payload, BaseModel):
+        return payload.model_dump_json(), OpenInferenceMimeTypeValues.JSON.value
+    if dataclasses.is_dataclass(payload):
+        payload = dataclasses.asdict(payload)
     try:
         return (
             json.dumps(payload, ensure_ascii=False, default=str),
@@ -250,15 +255,22 @@ def _input_attributes(payload: Any) -> Iterator[tuple[str, str]]:
     yield SpanAttributes.INPUT_MIME_TYPE, mime_type
 
 
-def _output_attributes(payload: Any) -> Iterator[tuple[str, str]]:
+def _output_attributes(
+    payload: Any, filter_md: bool = False
+) -> Iterator[tuple[str, str]]:
     """
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if isinstance(payload, ToolResultDTO) and isinstance(payload.result, dict):
+    if (
+        filter_md
+        and isinstance(payload, ToolResultDTO)
+        and isinstance(payload.result, dict)
+    ):
         payload = (
             cast(str, payload.result.get("summary"))
             or cast(str, payload.result.get("explanation"))
+            or cast(str, payload.result.get("description"))
             or payload
         )
     value, mime_type = _serialize(payload)

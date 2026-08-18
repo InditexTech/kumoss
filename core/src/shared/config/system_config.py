@@ -149,13 +149,15 @@ class ServiceConfig(BaseModel):
 class IacServiceConfig(ServiceConfig):
     """IaC service wiring plus its async-job polling knobs.
 
-    The IaC service enqueues terraform pipelines and returns a job id
-    immediately; the core then polls ``GET /v1/jobs/{job_id}`` every
-    ``job_poll_interval`` seconds until the job is terminal.
+    The IaC service enqueues one terraform command per job and returns
+    a job id immediately; the core then polls ``GET /v1/jobs/{job_id}``
+    every ``job_poll_interval`` seconds until the job is terminal.
     ``job_timeout`` bounds the total wait for one job — it must cover
     both the FIFO queue wait (jobs on the same workspace run one at a
-    time) and the pipeline itself, so keep it above the service's own
-    subprocess budget (2700s in the reference deployment).
+    time) and the command itself, so keep it above the service's own
+    subprocess budget (2700s in the reference deployment). A validation
+    run submits several jobs in sequence (init, validate, plan, and
+    show when drift is requested), each with its own ``job_timeout``.
     """
 
     job_poll_interval: float = 5.0
