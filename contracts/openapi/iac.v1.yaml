@@ -615,6 +615,194 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
 
+  /v1/import/state-resource-ids:
+    post:
+      operationId: state_resource_ids
+      tags: [import]
+      summary: Enqueue a job that lists resource IDs currently tracked in the Terraform state.
+      description: |
+        Enqueues a job that inspects the Terraform state in the
+        workspace at `workspace_path` and returns the cloud-provider
+        resource IDs of every resource instance currently tracked,
+        then returns `202 Accepted` immediately. Poll
+        `GET /v1/jobs/{job_id}` for the OperationResult: on exit
+        code 0, `stdout` is a JSON array of ID strings (provider-
+        specific identifiers, e.g. Azure resource IDs or AWS ARNs).
+
+        Callers in the import workflow use this to discover which
+        resources are already under Terraform management and skip
+        them when importing. The workspace must already be
+        initialised (submit an `init` job first).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StateResourceIdsRequest"
+      responses:
+        "202":
+          description: |
+            Job accepted and queued. Jobs for the same `workspace_path`
+            run one at a time in submission order; poll
+            `GET /v1/jobs/{job_id}` for progress and the result.
+          headers:
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAccepted"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from
+            the implementation. Distinct from a terraform-level
+            failure, which surfaces in the job result.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites needed
+            to accept jobs (terraform binary, configured state backend,
+            etc.). Faults that only surface while the job runs end the
+            job as `failed` instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/import/scope-resource-ids:
+    post:
+      operationId: scope_resource_ids
+      tags: [import]
+      summary: Enqueue a job that lists resource IDs present within a cloud provider scope.
+      description: |
+        Enqueues a job that queries the cloud provider for all
+        resource IDs that exist within the given `scope_id` (Azure
+        subscription, GCP project, AWS account, etc.), then returns
+        `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
+        the OperationResult: on exit code 0, `stdout` is a JSON
+        array of ID strings (provider-specific identifiers).
+
+        The `workspace_path` is used for provider context and
+        credential resolution — the implementation determines the
+        target cloud from the workspace's Terraform configuration.
+        The workspace must already be initialised (submit an `init`
+        job first).
+
+        Callers in the import workflow use this to discover which
+        cloud resources exist and could be imported into Terraform
+        state.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScopeResourceIdsRequest"
+      responses:
+        "202":
+          description: |
+            Job accepted and queued. Jobs for the same `workspace_path`
+            run one at a time in submission order; poll
+            `GET /v1/jobs/{job_id}` for progress and the result.
+          headers:
+            Location:
+              description: URL of the created job resource.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAccepted"
+        "400":
+          description: |
+            Request could not be parsed at the transport layer. The OSS
+            reference impl returns the framework-default body for this
+            case (see `application/json`).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "403":
+          description: Token is valid but not authorized to call this endpoint.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          description: |
+            `workspace_path` does not exist or is not accessible from
+            the implementation. Distinct from a terraform-level
+            failure, which surfaces in the job result.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: |
+            Implementation is running but missing prerequisites needed
+            to accept jobs (terraform binary, configured state backend,
+            etc.). Faults that only surface while the job runs end the
+            job as `failed` instead.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
   /v1/jobs/{job_id}:
     get:
       operationId: get_job
@@ -892,6 +1080,55 @@ components:
           minLength: 1
           maxLength: 4096
 
+    StateResourceIdsRequest:
+      type: object
+      required: [workspace_path]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+          maxLength: 1024
+
+    ScopeResourceIdsRequest:
+      type: object
+      required: [workspace_path, scope_id]
+      additionalProperties: false
+      properties:
+        workspace_path:
+          type: string
+          description: |
+            Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. Needed for provider context and
+            credential resolution — the implementation determines the
+            target cloud from the workspace's Terraform configuration.
+          minLength: 1
+          maxLength: 4096
+          examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: string
+          description: |
+            Cloud provider scope to query — Azure: subscription id, GCP:
+            project id, AWS: account id. The implementation enumerates all
+            resource IDs within this scope.
+          minLength: 1
+          maxLength: 1024
+
     OperationResult:
       type: object
       description: |
@@ -930,7 +1167,7 @@ components:
 
     JobKind:
       type: string
-      enum: [init, validate, plan, show, apply, import]
+      enum: [init, validate, plan, show, apply, import, state_resource_ids, scope_resource_ids]
       description: Which terraform command the job runs.
 
     JobAccepted:
