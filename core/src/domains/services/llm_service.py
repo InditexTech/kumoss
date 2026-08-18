@@ -42,7 +42,6 @@ class LLMOrchestrationService:
         query: str,
         prompt: PromptTemplateDTO = None,
         history: History | None = None,
-        prefill: str | None = None,
         thinking: bool = False,
     ) -> str:
         """
@@ -58,10 +57,9 @@ class LLMOrchestrationService:
                 for the LLM behavior. If None, no system prompt is used. Defaults to None.
         :param history: (History, optional): Conversation history to maintain context across
                 multiple interactions. If None, starts with empty history. Defaults to None.
-        :param prefill: (str, optional): Text to prefill the LLM's response, guiding the
-                beginning of the output. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation and reasoning process. Defaults to False.
+
 
         :return: str: The generated text response from the LLM.
 
@@ -74,7 +72,6 @@ class LLMOrchestrationService:
             msg=query,
             system_prompt=prompt.prompt if prompt else None,
             history=history,
-            prefill=prefill,
             thinking=thinking,
         )
         return response.text
@@ -107,8 +104,6 @@ class LLMOrchestrationService:
                 for the LLM behavior. If None, no system prompt is used. Defaults to None.
         :param history: (History, optional): (read only) Conversation history to maintain context across
                 multiple interactions. If None, starts with empty history. Defaults to None.
-        :param prefill: (str, optional): Text to prefill the LLM's response, guiding the
-                beginning of the output. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation. Defaults to False.
 

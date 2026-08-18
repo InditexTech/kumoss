@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import inspect
 import time
 from typing import Any
 from functools import wraps
@@ -81,58 +80,22 @@ def trace_chain(func: Callable) -> Callable:
 def trace_llm(func: Callable) -> Callable:
     """
     Decorator that automatically traces LLM function calls with comprehensive telemetry data.
-    Uses monkey patching to intercept LLM API calls and capture invocation parameters.
+    Reads invocation parameters from self._last_invocation_params, set by the
+    adapter before each litellm call. Per-instance state, so concurrent requests
+    do not interfere.
     """
 
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Coroutine:
         self_instance = args[0]
-        captured_llm_params = None
-        try:
-            original_call = (
-                self_instance.client.messages.create  # implementation defined Anthropic
-            )
-        except AttributeError:
-            original_call = (
-                self_instance.client.aio.models.generate_content
-            )  # implementation defined Google Gemini
-
-        async def monkey_call(*monkey_args, **monkey_kwargs):
-            nonlocal captured_llm_params
-
-            sig = inspect.signature(original_call)
-            bound_args = sig.bind(*monkey_args, **monkey_kwargs)
-            bound_args.apply_defaults()
-            captured_llm_params = bound_args.arguments
-
-            return await original_call(*monkey_args, **monkey_kwargs)
-
-        try:
-            self_instance.client.messages.create = (
-                monkey_call  # implementation defined Anthropic
-            )
-        except AttributeError:
-            self_instance.client.aio.models.generate_content = (
-                monkey_call  # implementation defined Google Gemini
-            )
 
         start = time.time()
-        try:
-            output = await func(*args, **kwargs)
-        finally:
-            try:
-                self_instance.client.messages.create = (
-                    original_call  # implementation defined Anthropic
-                )
-            except AttributeError:
-                self_instance.client.aio.models.generate_content = (
-                    original_call  # implementation defined Google Gemini
-                )
+        output = await func(*args, **kwargs)
 
         span = TracerService.get_current_tracer().trace_llm(
             start_time=int(start * 1_000_000_000),  # epoch in ns
-            provider=self_instance.provider,
-            invocation_params=captured_llm_params,
+            model=self_instance.model,
+            invocation_params=self_instance._last_invocation_params,
             response=output,
             **kwargs,
         )

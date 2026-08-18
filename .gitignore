@@ -94,3 +94,5 @@ mocks/
 # IDE
 *workspace
 
+# Local Tests
+local_test/

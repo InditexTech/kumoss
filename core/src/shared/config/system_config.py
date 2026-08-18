@@ -21,14 +21,19 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
-from typing import Literal
+from typing import Any, Literal
 import yaml
 from pathlib import Path
 from urllib.parse import urlparse
 
+import litellm
+from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from src.shared.constants import GitProviderName, LLMProvider, ObjectStorageProvider
+from src.shared.constants import (
+    GitProviderName,
+    ObjectStorageProvider,
+)
 
 
 class ConfigError(ValueError):
@@ -57,63 +62,69 @@ class AdminConfig(BaseModel):
 
 
 class LlmConfig(BaseModel):
-    """LLM provider selection + per-provider credential references.
+    """LLM provider selection via LiteLLM Router.
 
-    The core uses two models per workflow: a ``model`` for high-quality
-    reasoning steps and a faster/cheaper ``small_model`` for filler work
-    (status updates, classifiers, secondary calls). Both temperatures are
-    deployer-tunable.
+    The core uses two model roles per workflow: ``model`` for high-quality
+    reasoning and ``small_model`` for cheaper filler work.  Both are
+    LiteLLM model-id strings (``provider/model``) that must match a
+    ``model_name`` entry in ``model_list``.
 
-    Provider credentials are referenced indirectly via env-var names so
-    nothing sensitive lives in the YAML.
+    ``model_list`` follows the LiteLLM Router format.  Credential values
+    use the ``os.environ/VAR_NAME`` syntax so secrets stay in env vars;
+    the validator checks every such reference at boot.
+
+    When ``model_list`` is empty, minimal entries are auto-generated and
+    credentials are resolved by LiteLLM at call time (deferred failure).
+
+    Refer to https://docs.litellm.ai/docs/providers for provider-specific
+    credential keys and to https://models.litellm.ai/ for model IDs.
     """
 
-    # `model` and `small_model` are LLMProvider enum names (see
-    # core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
-    # HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
-    # the name to the full provider/model/region tuple at startup.
-    model: LLMProvider = LLMProvider.SONNET_VERTEX
-    small_model: LLMProvider = LLMProvider.HAIKU_VERTEX
+    model: str = "azure_ai/claude-sonnet-5"
     temperature: float = 0.1
+    max_output_tokens: int = 32000
+
+    small_model: str = "azure_ai/claude-haiku-4-5"
     small_model_temperature: float = 0.1
+    small_model_max_output_tokens: int = 32000
 
-    aws_region: str = "us-west-2"
-    aws_bedrock_access_key_id_env: str = "AWS_ACCESS_KEY_ID"
-    aws_bedrock_secret_access_key_env: str = "AWS_SECRET_ACCESS_KEY"
-    google_application_credentials_env: str = "GOOGLE_APPLICATION_CREDENTIALS"
-    google_sa_secret_env: str = "GOOGLE_SA_SECRET"
-    google_vertex_project_env: str = "GOOGLE_VERTEX_ID"
+    model_list: list[dict[str, Any]] = Field(default_factory=list)
 
-    @field_validator("model", "small_model", mode="before")
-    @classmethod
-    def _coerce_model(cls, v: str | LLMProvider):
-        if isinstance(v, str):
-            # Accept enum name or value
-            try:
-                return LLMProvider[v]
-            except KeyError:
-                return LLMProvider(v)
-        return v
+    @model_validator(mode="after")
+    def _assert_llm_credentials(self) -> "LlmConfig":
+        """Fail-fast on missing env vars referenced via os.environ/ in model_list."""
+        missing: list[str] = []
+        for entry in self.model_list:
+            if litellm_params := entry.get("litellm_params", {}):
+                model = litellm_params.get("model", "")
+                result = litellm.validate_environment(model=model)
 
-    @property
-    def aws_bedrock_access_key_id(self) -> str:
-        return _env(self.aws_bedrock_access_key_id_env)
+                if missing_keys := result.get("missing_keys"):
+                    missing.extend(missing_keys)
 
-    @property
-    def aws_bedrock_secret_access_key(self) -> str:
-        return _env(self.aws_bedrock_secret_access_key_env)
+        if missing:
+            raise ConfigError(
+                "LLM credentials missing from environment: "
+                + "; ".join(missing)
+                + ". Set the listed env vars or update llm.model_list in config.yaml."
+            )
+        return self
 
-    @property
-    def google_application_credentials(self) -> str:
-        return _env(self.google_application_credentials_env)
-
-    @property
-    def google_sa_secret(self) -> str:
-        return _env(self.google_sa_secret_env)
-
-    @property
-    def google_vertex_project(self) -> str:
-        return _env(self.google_vertex_project_env)
+    def create_router(self) -> Router:
+        if self.model_list:
+            return Router(model_list=self.model_list)
+        seen: set[str] = set()
+        entries: list[dict[str, Any]] = []
+        for model_id in (self.model, self.small_model):
+            if model_id not in seen:
+                seen.add(model_id)
+                entries.append(
+                    {
+                        "model_name": model_id,
+                        "litellm_params": {"model": model_id},
+                    }
+                )
+        return Router(model_list=entries)
 
 
 class ServiceConfig(BaseModel):
@@ -415,53 +426,6 @@ class SystemConfig(BaseModel, frozen=True):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
-
-    @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> SystemConfig:
-        """Fail-fast on missing LLM credentials for the selected providers.
-
-        Only the providers actually referenced by ``llm.model`` / ``llm.small_model``
-        are required.
-        """
-        selected: list[str] = []
-        for field, name in (
-            ("model", self.llm.model),
-            ("small_model", self.llm.small_model),
-        ):
-            try:
-                selected.append(name.value["provider"])
-            except KeyError as e:
-                valid = ", ".join(p.name for p in LLMProvider)
-                raise ConfigError(
-                    f"llm.{field}={name!r} is not a known LLMProvider. Valid: {valid}"
-                ) from e
-
-        missing: list[str] = []
-        if "anthropicBedrock" in selected:
-            if not self.llm.aws_bedrock_access_key_id:
-                missing.append(self.llm.aws_bedrock_access_key_id_env)
-            if not self.llm.aws_bedrock_secret_access_key:
-                missing.append(self.llm.aws_bedrock_secret_access_key_env)
-        if {"anthropicVertex", "google"} & set(selected):
-            # ADC: either GOOGLE_APPLICATION_CREDENTIALS (path to a key file)
-            # or GOOGLE_SA_SECRET (inline JSON) must resolve.
-            if not (
-                self.llm.google_application_credentials or self.llm.google_sa_secret
-            ):
-                missing.append(
-                    f"{self.llm.google_application_credentials_env} "
-                    + f"or {self.llm.google_sa_secret_env}"
-                )
-            if not self.llm.google_vertex_project:
-                missing.append(self.llm.google_vertex_project_env)
-
-        if missing:
-            raise ConfigError(
-                "Missing credentials for selected LLM providers "
-                + f"({', '.join(sorted(set(selected)))}): "
-                + f"set env var(s) {', '.join(missing)}."
-            )
-        return self
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":

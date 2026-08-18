@@ -347,4 +347,3 @@ class Terraform(ITerraform):
         if error.detail and error.detail is not UNSET:
             return f"{error.title}: {error.detail}"
         return error.title
-

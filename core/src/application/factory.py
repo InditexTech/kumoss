@@ -23,7 +23,6 @@ from src.domains.services import (
 )
 
 # Infrastructure layer imports
-from src.infrastructure.external.gemini_web_search import GeminiWebSearch
 from src.infrastructure.storage import default_object_storage
 from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
@@ -50,9 +49,6 @@ from src.application.use_cases import (
 )
 
 # Shared imports
-from src.shared.constants import (
-    LLMProvider,
-)
 from src.shared.config import system_config
 
 
@@ -85,27 +81,34 @@ class ApplicationFactory:
     # These providers construct the domain services, injecting infrastructure components.
 
     @staticmethod
-    def get_llm_adapter(provider: LLMProvider, temperature: float) -> ILLMProvider:
+    def get_llm_adapter(
+        model_id: str, max_tokens: int, temperature: float
+    ) -> ILLMProvider:
         return LLMFactory(
-            provider=provider,
+            model_id=model_id,
+            max_tokens=max_tokens,
             temperature=temperature,
         ).get()
 
     @staticmethod
     def _get_llm_service(
-        main_llm: LLMProvider,
+        main_llm: str,
         main_temp: float,
-        small_llm: LLMProvider,
+        main_max_tokens: int,
+        small_llm: str,
         small_temp: float,
+        small_max_tokens: int,
         tool_service: ToolOrchestrationService | None = None,
     ) -> LLMOrchestrationService:
         return LLMOrchestrationService(
             main_llm_provider=ApplicationFactory.get_llm_adapter(
-                provider=main_llm,
+                model_id=main_llm,
+                max_tokens=main_max_tokens,
                 temperature=main_temp,
             ),
             small_llm_provider=ApplicationFactory.get_llm_adapter(
-                provider=small_llm,
+                model_id=small_llm,
+                max_tokens=small_max_tokens,
                 temperature=small_temp,
             ),
             tool_service=tool_service,
@@ -118,14 +121,24 @@ class ApplicationFactory:
             tool_registry=ToolRegistryWorkspace(
                 filesystem=file_utils,
                 git=git_utils,
-                web_search=GeminiWebSearch(
-                    gemini=self.get_llm_adapter(system_config.llm.small_model, 0.5)
+                llm=ApplicationFactory.get_llm_adapter(
+                    model_id=system_config.llm.small_model,
+                    max_tokens=system_config.llm.small_model_max_output_tokens,
+                    temperature=0.5,
                 ),
             )
         )
 
     def _get_tool_service_static(self) -> ToolOrchestrationService:
-        return ToolOrchestrationService(tool_registry=ToolRegistryStatic())
+        return ToolOrchestrationService(
+            tool_registry=ToolRegistryStatic(
+                llm=ApplicationFactory.get_llm_adapter(
+                    model_id=system_config.llm.small_model,
+                    max_tokens=system_config.llm.small_model_max_output_tokens,
+                    temperature=0.5,
+                ),
+            )
+        )
 
     def _get_session_service(self, second_llm_service: LLMOrchestrationService):
         return SessionService(
@@ -286,9 +299,11 @@ class ApplicationFactory:
     ) -> LLMOrchestrationService:
         return self._get_llm_service(
             main_llm=system_config.llm.model,
+            main_max_tokens=system_config.llm.max_output_tokens,
             main_temp=system_config.llm.temperature,
             small_llm=system_config.llm.small_model,
             small_temp=system_config.llm.small_model_temperature,
+            small_max_tokens=system_config.llm.small_model_max_output_tokens,
             tool_service=tool_svc,
         )
 

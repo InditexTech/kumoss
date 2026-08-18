@@ -7,7 +7,7 @@ import inspect
 from pathlib import Path
 from typing import Any, Callable, override
 
-from src.domains.interfaces import IToolRegistry
+from src.domains.interfaces import ILLMProvider, IToolRegistry
 from src.domains.dto import (
     TerraformDriftReport,
     ToolCallDTO,
@@ -17,6 +17,8 @@ from src.domains.dto import (
     TerraformApplyReport,
 )
 from src.infrastructure.exceptions import (
+    InferenceCallAPIError,
+    InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
@@ -27,7 +29,8 @@ from src.shared.logger import logging
 
 
 class ToolRegistryStatic(IToolRegistry):
-    def __init__(self):
+    def __init__(self, llm: ILLMProvider):
+        self.__llm = llm
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -46,6 +49,8 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            # External information
+            "web_search": self.__handle_web_search,
         }
 
     def __load_tools(self):
@@ -294,3 +299,17 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
+
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
+        query = parameters["query"]
+        try:
+            response = await self.__llm.inference(msg=query, web_search=True)
+        except (
+            InferenceCallWebSearchNotSupported,
+            InferenceCallAPIError,
+        ) as e:
+            return f"Web search is unavailable: {e.message}. Do NOT retry web_search."
+
+        if not response.text:
+            return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
+        return response.text
