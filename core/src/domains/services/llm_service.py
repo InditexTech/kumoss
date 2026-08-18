@@ -157,7 +157,7 @@ class LLMOrchestrationService:
             if len(tools) == 1:  # check for single tool execution (no sentinel tool)
                 return tools_result[-1]
             if not tools_result:
-                logging.warning(f"Error inference - no tool response: {response}")
+                logging.warning(f"Error inference - no tool response: {response}")
                 tools_result = "you MUST use a tool"
             total_executions += 1
 

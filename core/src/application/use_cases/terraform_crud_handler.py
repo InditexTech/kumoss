@@ -56,6 +56,7 @@ class TerraformCRUDHandler:
                         PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.FILTERING,
+                    history=ctx.history,
                 )
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 

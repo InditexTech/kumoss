@@ -46,7 +46,7 @@ class ReportService:
             ReportType.GENERATE: 0,
             ReportType.DRIFT: 1,
             ReportType.APPLY: 2,
-        }.get(type, 0)
+        }.get(type)
 
         _ = await self.__session_svc.update_status(
             msg="Infrastructure successfully validated. Generating report",
