@@ -54,12 +54,10 @@ Short description of what this project does and why it exists.
 | **Fireworks AI** | `fireworks_ai/<model-name>` | `FIREWORKS_AI_API_KEY` | `api_key` | e.g., `fireworks_ai/accounts/fireworks/models/llama-v3p3-70b-instruct` |
 | **OpenRouter** | `openrouter/<model-name>` | `OPENROUTER_API_KEY` | `api_key` | e.g., `openrouter/anthropic/claude-3.5-sonnet` |
 | **Perplexity AI** | `perplexity/<model-name>` | `PERPLEXITYAI_API_KEY` | `api_key` | e.g., `perplexity/sonar-pro` |
-
 | **Cerebras** | `cerebras/<model-name>` | `CEREBRAS_API_KEY` | `api_key` | e.g., `cerebras/llama3.3-70b` |
 | **SambaNova** | `sambanova/<model-name>` | `SAMBANOVA_API_KEY` | `api_key` | e.g., `sambanova/Meta-Llama-3.3-70B-Instruct` |
 | **DeepInfra** | `deepinfra/<model-name>` | `DEEPINFRA_API_KEY` | `api_key` | e.g., `deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct` |
 | **Anyscale** | `anyscale/<model-name>` | `ANYSCALE_API_KEY` | `api_key` | e.g., `anyscale/meta-llama/Llama-3-70b-chat-hf` |
-
 | **Replicate** | `replicate/<model-name>` | `REPLICATE_API_KEY` (or `REPLICATE_API_TOKEN`) | `api_key` | e.g., `replicate/meta/meta-llama-3-70b-instruct` |
 | **Voyage AI** (Embeddings) | `voyage/<model-name>` | `VOYAGE_API_KEY` | `api_key` | e.g., `voyage/voyage-3` |
 | **AI21** | `ai21/<model-name>` | `AI21_API_KEY` | `api_key` | e.g., `ai21/jamba-1.5-large` |
