@@ -104,8 +104,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             )
         return "\n".join(["\n".join(r) for r in results])
 
-    async def __handle_diff_history(self, parameters: dict[str, Any]) -> dict[str, str]:
-        explanation = parameters["explanation"]
+    async def __handle_diff_history(self, parameters: dict[str, Any]) -> str:
         result = await self.__git.show_diff(working_tree=False, full_content=False)
         untracked_files: list[str] = []
         for file in await self.__git.get_untracked_files():
@@ -116,12 +115,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                 continue
             untracked_files.append(f"{file}:\n{content}")
         result += "\nUntracked changes:\n" + "\n".join(untracked_files)
-        return {"diff": result, "explanation": explanation}
+        return result
 
-    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
         query = parameters["query"]
-        explanation = parameters.get("explanation", "")
-        return {
-            "web_search": await self.__web_search.search(query),
-            "explanation": explanation,
-        }
+        return await self.__web_search.search(query)

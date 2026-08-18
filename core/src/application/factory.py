@@ -386,7 +386,11 @@ class ApplicationFactory:
         tool_svc = self._get_tool_service_static()
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(llm_svc, tool_svc, file_utils)
+        template_svc = self._get_template_service(
+            call_dir=file_utils.project_root,
+            llm_service=llm_svc,
+            tool_service=tool_svc,
+        )
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
@@ -398,4 +402,3 @@ class ApplicationFactory:
             template_service=template_svc,
             session_ctx=self.__ctx,
         )
-

@@ -49,6 +49,7 @@ class TerraformApplyHandler:
                         PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.APPLY,
+                    history=ctx.history,
                 )
 
                 validation = await self.__terraform_svc.apply(
@@ -72,4 +73,3 @@ class TerraformApplyHandler:
                 await self.__session_svc.save()
 
         return background_task
-

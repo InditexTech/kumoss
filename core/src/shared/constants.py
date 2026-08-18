@@ -98,7 +98,6 @@ class OperationType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
-    APPLY = "apply"
 
 
 @unique
@@ -192,4 +191,3 @@ class ContentType(Enum):
 
     TEXT = "text/plain"
     JSON = "application/json"
-

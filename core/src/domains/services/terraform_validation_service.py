@@ -112,6 +112,7 @@ class TerraformValidationService:
                 msg=q,
                 prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
                 status=SessionStatus.GENERATING,
+                history=local_history,
             )
 
             task_complete: ToolResultDTO = await self.__llm_svc.generate(
@@ -142,7 +143,7 @@ class TerraformValidationService:
 
             validation = await self.__validator.validate(
                 branch=ctx.branch_name,
-                targets=await self.__target_svc.generate(q, local_history),
+                targets=await self.__target_svc.generate(local_history),
             )
             if validation.terraform_plan:
                 _ = await self.__artifact_svc.store_terraform_plan(
@@ -157,4 +158,3 @@ class TerraformValidationService:
 
         ctx.history.append_turn(first_q, local_history.get_last_turn().assistant)
         return validation
-
