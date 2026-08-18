@@ -43,7 +43,6 @@ class LLMOrchestrationService:
         prompt: PromptTemplateDTO = None,
         history: History | None = None,
         thinking: bool = False,
-        web_search: bool = False,
     ) -> str:
         """
         Generate a plain text response from the LLM without tool execution capabilities.
@@ -60,8 +59,7 @@ class LLMOrchestrationService:
                 multiple interactions. If None, starts with empty history. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation and reasoning process. Defaults to False.
-        :param web_search: (bool, optional): Whether to enable web search capabilities for the LLM,
-                allowing it to fetch real-time information from the web. Defaults to False.
+
 
         :return: str: The generated text response from the LLM.
 
@@ -75,7 +73,6 @@ class LLMOrchestrationService:
             system_prompt=prompt.prompt if prompt else None,
             history=history,
             thinking=thinking,
-            web_search=web_search,
         )
         return response.text
 
@@ -87,7 +84,6 @@ class LLMOrchestrationService:
         sentinel_tool: ToolDefinitionDTO | None = None,
         prompt: PromptTemplateDTO = None,
         history: History = None,
-        web_search: bool = False,
     ) -> ToolResultDTO:
         """
         Generate a response from the LLM with tool execution capabilities.
@@ -110,8 +106,6 @@ class LLMOrchestrationService:
                 multiple interactions. If None, starts with empty history. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation. Defaults to False.
-        :param web_search: (bool, optional): Whether to enable web search capabilities for the LLM,
-                allowing it to fetch real-time information from the web. Defaults to False.
 
         :return: ToolResultDTO: The last toolResultDTO.
 
@@ -147,7 +141,6 @@ class LLMOrchestrationService:
                 tools=tools,
                 system_prompt=prompt.prompt,
                 history=local_history,
-                web_search=web_search,
             )
             if response.metadata.finish_reason not in ["tool_use", "end_turn"]:
                 raise UnhandledInferenceFinishReason(
