@@ -4,8 +4,7 @@
 
 from typing import Any, Callable, override
 
-from src.domains.interfaces import IFileSystem, IGit
-from src.infrastructure.external.gemini_web_search import GeminiWebSearch
+from src.domains.interfaces import IFileSystem, IGit, ILLMProvider
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
@@ -17,12 +16,12 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         self,
         filesystem: IFileSystem,
         git: IGit,
-        web_search: GeminiWebSearch,
+        llm: ILLMProvider,
     ):
         self.__filesystem = filesystem
         self.__git = git
-        self.__web_search = web_search
-        super().__init__()
+        self.__llm = llm
+        super().__init__(llm)
 
     @override
     def _tool_files(self) -> dict[str, ToolContext]:
@@ -45,8 +44,6 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "list_dir": self.__handle_list_dir,
             "bulk_grep_search": self.__handle_grep_search,
             "diff_history": self.__handle_diff_history,
-            # External information
-            "web_search": self.__handle_web_search,
         }
 
     # Tool handlers
@@ -118,10 +115,3 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         result += "\nUntracked changes:\n" + "\n".join(untracked_files)
         return {"diff": result, "explanation": explanation}
 
-    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, str]:
-        query = parameters["query"]
-        explanation = parameters.get("explanation", "")
-        return {
-            "web_search": await self.__web_search.search(query),
-            "explanation": explanation,
-        }
