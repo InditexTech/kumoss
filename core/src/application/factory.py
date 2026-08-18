@@ -54,8 +54,6 @@ from src.shared.config import system_config
 
 @final
 class ApplicationFactory:
-    _router = system_config.llm.create_router()
-
     def __init__(
         self,
         session_ctx: SessionContext,
@@ -90,7 +88,6 @@ class ApplicationFactory:
             model_id=model_id,
             max_tokens=max_tokens,
             temperature=temperature,
-            router=ApplicationFactory._router,
         ).get()
 
     @staticmethod
@@ -417,4 +414,3 @@ class ApplicationFactory:
             template_service=template_svc,
             session_ctx=self.__ctx,
         )
-

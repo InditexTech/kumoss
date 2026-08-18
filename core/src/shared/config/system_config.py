@@ -26,6 +26,7 @@ import yaml
 from pathlib import Path
 from urllib.parse import urlparse
 
+import litellm
 from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -94,12 +95,13 @@ class LlmConfig(BaseModel):
         """Fail-fast on missing env vars referenced via os.environ/ in model_list."""
         missing: list[str] = []
         for entry in self.model_list:
-            model_name = entry.get("model_name", "?")
-            for value in entry.get("litellm_params", {}).values():
-                if isinstance(value, str) and value.startswith("os.environ/"):
-                    env_var = value[len("os.environ/") :]
-                    if not os.environ.get(env_var):
-                        missing.append(f"${env_var} (for {model_name})")
+            if litellm_params := entry.get("litellm_params", {}):
+                model = litellm_params.get("model", "")
+                result = litellm.validate_environment(model=model)
+
+                if missing_keys := result.get("missing_keys"):
+                    missing.extend(missing_keys)
+
         if missing:
             raise ConfigError(
                 "LLM credentials missing from environment: "
@@ -466,4 +468,3 @@ class SystemConfig(BaseModel, frozen=True):
 
 # Module-level singleton used across the application.
 system_config = SystemConfig.load()
-

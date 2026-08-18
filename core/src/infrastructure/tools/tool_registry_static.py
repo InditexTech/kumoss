@@ -313,4 +313,3 @@ class ToolRegistryStatic(IToolRegistry):
         if not response.text:
             return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
         return response.text
-
