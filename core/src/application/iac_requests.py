@@ -34,7 +34,7 @@ class BaseIacRequest(BaseModel):
     session_id: Annotated[
         UUID | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and q.",
             examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
         ),
     ] = None

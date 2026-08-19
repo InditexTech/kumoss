@@ -25,7 +25,7 @@ router = APIRouter(prefix="/repository", tags=["Repository Operations"])
     status_code=204,
     summary="Merge the session's latest pull request into the default branch.",
     description=(
-        "Merges the most recently opened pull request of the sessoin at "
+        "Merges the most recently opened pull request of the session at "
         "the git provider. Returns no content on success."
     ),
     responses=problem_responses(
