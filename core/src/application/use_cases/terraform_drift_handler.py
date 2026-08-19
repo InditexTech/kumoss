@@ -5,7 +5,6 @@
 from collections.abc import Coroutine
 from typing import Callable, Any
 
-from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
@@ -80,7 +79,7 @@ class TerraformDriftHandler:
 
                 targets = []
                 if is_partial:
-                    targets = await self.__target_svc.generate(q, ctx.history)
+                    targets = await self.__target_svc.generate(ctx.history, q)
 
                 async def validation_callback(
                     local_history: History,
@@ -97,18 +96,9 @@ class TerraformDriftHandler:
                     validator=validation_callback,
                 )
 
-                if not validation.validation:
-                    fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=validation.feedback,
-                        history=ctx.history,
-                    )
-                    raise TerraformValidationFailedError(
-                        message=fail_msg,
-                        error_code=500,
-                    )
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
-                    type=ReportType.APPLY,
+                    type=ReportType.DRIFT,
                     content=validation.terraform_plan,
                 )
             finally:

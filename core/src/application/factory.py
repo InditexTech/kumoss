@@ -354,6 +354,7 @@ class ApplicationFactory:
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
         file_utils = self._get_file_utils()
+        artifact_svc = self._get_artifact_storage_service()
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
@@ -362,32 +363,42 @@ class ApplicationFactory:
             file_utils.project_root, llm_svc, tool_svc
         )
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
+        report_svc = self._get_report_service(
+            llm_svc, tool_svc, template_svc, session_svc, artifact_svc
+        )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils, session_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
+            session_service=session_svc,
             template_service=template_svc,
             main_llm_service=llm_svc,
             tool_service=tool_svc,
-            target_service=target_svc,
-            validator_provider=validator_prv,
+            artifact_service=artifact_svc,
         )
         filter_svc = self._get_requests_filter_service(
-            session_svc, llm_svc, tool_svc, template_svc
-        )
-        drift_svc = self._get_drift_service(validation_svc, validator_prv, split_svc)
-        return TerraformDriftHandler(
-            validation_service=validation_svc,
             session_service=session_svc,
+            second_llm_service=llm_svc,
+            tool_service=tool_svc,
+            template_service=template_svc,
+        )
+        drift_svc = self._get_drift_service(
+            validation_service=validation_svc,
+            validator_provider=validator_prv,
+            split_service=split_svc,
+            artifact_service=artifact_svc,
+        )
+        return TerraformDriftHandler(
+            session_ctx=self.__ctx,
+            session_service=session_svc,
+            terraform_service=validator_prv,
+            validation_service=validation_svc,
             template_service=template_svc,
             requests_filter_service=filter_svc,
-            validator_provider=validator_prv,
-            tool_service=tool_svc,
+            report_service=report_svc,
             target_service=target_svc,
-            split_service=split_svc,
             drift_service=drift_svc,
-            session_ctx=self.__ctx,
         )
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:

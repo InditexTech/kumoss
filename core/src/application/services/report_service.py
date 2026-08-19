@@ -65,6 +65,7 @@ class ReportService:
                 PromptsLibrary.REPORT_GENERATOR,
                 report_type=type,
             ),
+            history=ctx.history,
         )
         if not response.success:
             raise ReportGenerationError(f"report '{type}' generation error.", 500)
