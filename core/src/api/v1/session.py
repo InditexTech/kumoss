@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
+from src.api.problems import problem_responses
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
 from src.domains.services.database_service import DatabaseService
 from src.shared.constants import OperationType, SessionStatus
@@ -50,6 +51,7 @@ async def sessions_list(
 @router.get(
     path="/{session_id}",
     summary="Get the full session aggregate.",
+    responses=problem_responses({404: "Unknown session."}),
 )
 async def session_detail(session_id: UUID) -> SessionDetail:
     """The complete read model for the session detail view.

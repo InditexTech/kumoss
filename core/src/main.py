@@ -81,10 +81,47 @@ async def lifespan(app: FastAPI):
     logging.info("Database connection closed")
 
 
+tags_metadata: list[dict[str, str]] = [
+    {
+        "name": "Infrastructure as Code",
+        "description": "Session-creating IaC operations (generate, drift, apply).",
+    },
+    {
+        "name": "Events Subscription",
+        "description": "Server-sent events for session progress.",
+    },
+    {
+        "name": "Repository Operations",
+        "description": "Git repository and pull-request operations.",
+    },
+    {
+        "name": "Authorization",
+        "description": "Authorization decisions for cloud projects.",
+    },
+    {
+        "name": "Session Management",
+        "description": "Session read models (list and detail).",
+    },
+    {
+        "name": "Mapping",
+        "description": "Passthrough to the mapping service.",
+    },
+]
+
 app = FastAPI(
     title="Nebula",
+    summary="Browser-facing orchestration API of the Nebula core engine.",
     description="Generate compliant Infrastructure as Code with a couple of clicks",
     version=os.getenv("APP_VERSION", "0.0.0-dev"),
+    contact={
+        "name": "Nebula maintainers",
+        "url": "https://github.com/InditexTech/nebula",
+    },
+    license_info={
+        "name": "Apache-2.0",
+        "url": "https://github.com/InditexTech/nebula/blob/main/LICENSE",
+    },
+    openapi_tags=tags_metadata,
     swagger_ui_parameters={"syntaxHighlight.theme": "nord"},
     root_path="/api",
     lifespan=lifespan,

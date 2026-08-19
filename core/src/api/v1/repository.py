@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
+from src.api.problems import problem_responses
 from src.application.factory import ApplicationFactory
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext
@@ -20,42 +21,53 @@ router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
 
 @router.patch(
-    path="/merge_pr", summary="Merge the session's PR into the default branch"
+    path="/pr/merge",
+    status_code=204,
+    summary="Merge the session's latest pull request into the default branch.",
+    description=(
+        "Merges the most recently opened pull request of the sessoin at "
+        "the git provider. Returns no content on success."
+    ),
+    responses=problem_responses(
+        {404: "Unknown session, or the session has no pull requests."}
+    ),
 )
 async def complete_pr(
     session_id: Annotated[
-        str,
+        UUID,
         Body(
             description="Session id whose pull request should be merged.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             embed=True,
         ),
     ],
 ) -> JSONResponse:
-    uuid = UUID(session_id)
     try:
-        ctx = await DatabaseService.get_session_context(uuid)
-        pr = (await DatabaseService.get_pull_requests(uuid))[-1]
+        ctx = await DatabaseService.get_session_context(session_id)
+        pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(content="OK", status_code=200)
 
 
-@router.put(path="/pr", summary="Submit the code to create a Pull Request")
+@router.put(
+    path="/pr",
+    status_code=201,
+    summary="Submit the session's branch as a pull request.",
+    description="Creates a pull request from the session's working branch.",
+    responses=problem_responses({404: "Unknown session."}),
+)
 async def create_pr(
     session_id: Annotated[
-        str,
+        UUID,
         Body(
             description="Session id whose branch should be turned into a PR.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
             embed=True,
         ),
     ],
 ) -> PullRequestDTO:
-    uuid = UUID(session_id)
     try:
-        ctx: SessionContext = await DatabaseService.get_session_context(uuid)
+        ctx: SessionContext = await DatabaseService.get_session_context(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     pr_svc = ApplicationFactory(ctx).get_pull_request_service()
@@ -86,6 +98,16 @@ async def create_pr(
 @router.post(
     path="/parse",
     summary="Parse a repository for Terraform root-module directories.",
+    description=(
+        "Clones the repository and returns the Terraform root-module "
+        "directories found, as POSIX paths relative to the repo root."
+    ),
+    responses=problem_responses(
+        {
+            400: "Repository URI was rejected (unreachable or not allowed).",
+            502: "Cloning or scanning the repository failed.",
+        }
+    ),
 )
 async def parse_repository(
     repo_uri: Annotated[

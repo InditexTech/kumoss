@@ -26,15 +26,26 @@ router = APIRouter(
 
 @router.get(
     path="/subscribe/{session_id}",
-    summary="Subscribe to a stream of message events through SSE",
+    summary="Subscribe to a session's progress events over SSE",
+    responses={
+        200: {
+            "description": "Stream of session status events.",
+            "content": {
+                "text/event-stream": {
+                    "schema": {"type": "string"},
+                    "example": (
+                        'data: {"status_msg": "GENERATING",'
+                        ' "detail": {"message": "..."}}\n\n'
+                    ),
+                }
+            },
+        }
+    },
 )
 async def subscribe_events(
     session_id: Annotated[
-        str,
-        Path(
-            description="session id to subscribe to server sent events",
-            pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        ),
+        UUID,
+        Path(description="session id to subscribe to server sent events"),
     ],
 ):
     """Subscribe to a stream of message events through Server-Sent Events (SSE).
@@ -53,18 +64,13 @@ async def subscribe_events(
     - Connection remains open until session completion or failure
     """
 
-    try:
-        sid = UUID(session_id)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid session_id")
-
     async def event_stream():
         i = 0
         yield ": keepalive\n\n"
         for _ in range(system_config.orchestration.max_session_events_iteration):
             i += 1
             try:
-                status: Status = await DatabaseService.get_last_status(sid)
+                status: Status = await DatabaseService.get_last_status(session_id)
             except ExceptionHandler as e:
                 logging.error(e.message)
                 await sleep(4)
@@ -93,7 +99,7 @@ async def subscribe_events(
 
     await sleep(2)
     try:
-        _ = await DatabaseService.get_session_summary(sid)
+        _ = await DatabaseService.get_session_summary(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return StreamingResponse(
