@@ -7,22 +7,27 @@
 from __future__ import annotations
 
 from fastapi import HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 
 from .config import Config
 
 
-def verify_bearer_token(config: Config, authorization: str | None) -> None:
+def verify_bearer_token(
+    config: Config, credentials: HTTPAuthorizationCredentials | None
+) -> None:
+    print(
+        f"verify_bearer_token: config.expected_token={config.expected_token}, credentials={credentials}"
+    )
     if not config.expected_token:
         return
 
-    if not authorization:
+    if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization header.",
         )
 
-    scheme, _, value = authorization.partition(" ")
-    if scheme.lower() != "bearer" or value != config.expected_token:
+    if credentials.credentials != config.expected_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token.",

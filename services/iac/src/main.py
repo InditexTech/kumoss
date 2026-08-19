@@ -22,9 +22,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, Security, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import providers as prov
 from . import state as st
@@ -53,6 +54,7 @@ from .models import (
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 @asynccontextmanager
@@ -105,13 +107,15 @@ async def healthz() -> Health:
     return Health(status="ok")
 
 
-def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
+def _check_submit_preconditions(
+    workspace_path: str, credentials: HTTPAuthorizationCredentials | None
+) -> Path:
     """Submit-time checks: auth, terraform binary, workspace existence.
 
     Everything that fails after these (the terraform command itself)
     surfaces through the job instead.
     """
-    verify_bearer_token(config, authorization)
+    verify_bearer_token(config, credentials)
 
     if not terraform_available(config.terraform_binary):
         raise HTTPException(
@@ -171,9 +175,9 @@ def _submit(
 async def init(
     body: InitRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "init",
         workspace,
@@ -191,9 +195,9 @@ async def init(
 async def validate(
     body: ValidateRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "validate",
         workspace,
@@ -211,9 +215,9 @@ async def validate(
 async def plan(
     body: PlanRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "plan",
         workspace,
@@ -233,9 +237,9 @@ async def plan(
 async def show(
     body: ShowRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "show",
         workspace,
@@ -253,9 +257,9 @@ async def show(
 async def apply(
     body: ApplyRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "apply",
         workspace,
@@ -273,9 +277,9 @@ async def apply(
 async def import_resource(
     body: ImportRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "import",
         workspace,
@@ -295,9 +299,9 @@ async def import_resource(
 async def state_resource_ids(
     body: StateResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "state_resource_ids",
         workspace,
@@ -315,9 +319,9 @@ async def state_resource_ids(
 async def scope_resource_ids(
     body: ScopeResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     return _submit(
         "scope_resource_ids",
         workspace,
@@ -329,9 +333,9 @@ async def scope_resource_ids(
 @app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
 async def get_job(
     job_id: UUID,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> Job:
-    verify_bearer_token(config, authorization)
+    verify_bearer_token(config, credentials)
     record = jobs.get(str(job_id))
     if record is None:
         raise HTTPException(
