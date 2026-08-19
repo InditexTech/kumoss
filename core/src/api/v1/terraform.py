@@ -8,7 +8,6 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from src.api.problems import problem_responses
 from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities.session import SessionContext
@@ -31,12 +30,12 @@ from src.shared.logger import logging
 router = APIRouter(
     prefix="/iac",
     tags=["Infrastructure as Code"],
-    responses=problem_responses(
-        {
-            400: "Repository URI was rejected (unreachable or not allowed).",
-            404: "Iteration call referenced an unknown session.",
-        }
-    ),
+    responses={
+        400: {
+            "description": "Repository URI was rejected (unreachable or not allowed)."
+        },
+        404: {"description": "Iteration call referenced an unknown session."},
+    },
 )
 
 _workspace = WorkspaceService()
@@ -107,7 +106,11 @@ def _make_runner(
     return runner
 
 
-@router.post("/generate", status_code=202, summary="Start an IaC generation session.")
+@router.post(
+    path="/generate",
+    status_code=202,
+    summary="Start an IaC generation session.",
+)
 async def generate_infrastructure(
     background_tasks: BackgroundTasks, request: GenerateRequest
 ) -> dict[str, str]:
@@ -125,7 +128,9 @@ async def generate_infrastructure(
 
 
 @router.post(
-    "/drift", status_code=202, summary="Start a drift detection and remediation session"
+    path="/drift",
+    status_code=202,
+    summary="Start a drift detection and remediation session",
 )
 async def drift_detection_remediation(
     background_tasks: BackgroundTasks, request: DriftRequest
@@ -144,7 +149,7 @@ async def drift_detection_remediation(
 
 
 @router.post(
-    "/apply",
+    path="/apply",
     status_code=202,
     summary="Start an apply session for prepared infrastructure changes.",
 )

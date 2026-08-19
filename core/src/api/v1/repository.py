@@ -8,7 +8,6 @@ from uuid import UUID
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.api.problems import problem_responses
 from src.application.factory import ApplicationFactory
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext
@@ -20,7 +19,7 @@ from src.shared.exceptions import ExceptionHandler
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
 
 
-@router.patch(
+@router.put(
     path="/pr/merge",
     status_code=204,
     summary="Merge the session's latest pull request into the default branch.",
@@ -28,9 +27,9 @@ router = APIRouter(prefix="/repository", tags=["Repository Operations"])
         "Merges the most recently opened pull request of the sessoin at "
         "the git provider. Returns no content on success."
     ),
-    responses=problem_responses(
-        {404: "Unknown session, or the session has no pull requests."}
-    ),
+    responses={
+        404: {"description": "Unknown session, or the session has no pull requests."}
+    },
 )
 async def complete_pr(
     session_id: Annotated[
@@ -40,14 +39,13 @@ async def complete_pr(
             embed=True,
         ),
     ],
-) -> JSONResponse:
+) -> None:
     try:
         ctx = await DatabaseService.get_session_context(session_id)
         pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    return JSONResponse(content="OK", status_code=200)
 
 
 @router.put(
@@ -55,7 +53,7 @@ async def complete_pr(
     status_code=201,
     summary="Submit the session's branch as a pull request.",
     description="Creates a pull request from the session's working branch.",
-    responses=problem_responses({404: "Unknown session."}),
+    responses={404: {"description": "Unknown session."}},
 )
 async def create_pr(
     session_id: Annotated[
@@ -102,12 +100,12 @@ async def create_pr(
         "Clones the repository and returns the Terraform root-module "
         "directories found, as POSIX paths relative to the repo root."
     ),
-    responses=problem_responses(
-        {
-            400: "Repository URI was rejected (unreachable or not allowed).",
-            502: "Cloning or scanning the repository failed.",
-        }
-    ),
+    responses={
+        400: {
+            "description": "Repository URI was rejected (unreachable or not allowed)."
+        },
+        502: {"description": "Cloning or scanning the repository failed."},
+    },
 )
 async def parse_repository(
     repo_uri: Annotated[
