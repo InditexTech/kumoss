@@ -10,6 +10,7 @@ Every request is exactly one of:
 """
 
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -21,19 +22,27 @@ class BaseIacRequest(BaseModel):
         str, Field(description="Caller identity. Required on every call.")
     ]
     q: Annotated[
-        str | None, Field(min_length=1, description="User query for this call.")
-    ] = None
-    session_id: Annotated[
         str | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ] = None
+    session_id: Annotated[
+        UUID | None,
+        Field(
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and q.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
         ),
     ] = None
     repo_uri: Annotated[
         str | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id."
+            description="Repository URI (first call only). Mutually exclusive with session_id.",
+            examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
     scope_id: Annotated[

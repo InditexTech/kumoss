@@ -13,7 +13,7 @@ router = APIRouter(prefix="/authorize", tags=["Authorization"])
 
 
 @router.post(
-    path="/",
+    path="",
     summary="Endpoint to manage if a user has permissions on a given project",
     responses={
         200: {

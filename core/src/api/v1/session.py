@@ -50,6 +50,7 @@ async def sessions_list(
 @router.get(
     path="/{session_id}",
     summary="Get the full session aggregate.",
+    responses={404: {"description": "Unknown session."}},
 )
 async def session_detail(session_id: UUID) -> SessionDetail:
     """The complete read model for the session detail view.
