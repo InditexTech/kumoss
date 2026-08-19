@@ -226,6 +226,19 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     def test_render_report_generator_apply(self):
         self._run_report_generator_test(ReportType.APPLY, branch="apply")
 
+    def test_render_target_generator(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_target_generator()
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("REQUIRED FIRST STEP", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("sole source of truth", prompt)
+        self.assertNotIn("Respect user scoping", prompt)
+        self.assertNotIn("Do not infer changes to unrelated resources", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
