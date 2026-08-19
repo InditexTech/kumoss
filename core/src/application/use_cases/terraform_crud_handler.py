@@ -9,7 +9,10 @@ from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
+from src.domains.dto import TerraformValidationDTO
+from src.domains.entities import History
 from src.domains.entities.session import SessionContext
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
     SessionService,
     TemplateOrchestrationService,
@@ -28,6 +31,7 @@ class TerraformCRUDHandler:
         self,
         session_ctx: SessionContext,
         session_service: SessionService,
+        terraform_service: ITerraform,
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
@@ -35,6 +39,7 @@ class TerraformCRUDHandler:
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
     ):
+        self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
@@ -76,11 +81,21 @@ class TerraformCRUDHandler:
                     history=ctx.history,
                     conventions=conventions,
                 )
+
+                async def validation_callback(
+                    local_history: History,
+                ) -> TerraformValidationDTO:
+                    return await self.__terraform_svc.validate(
+                        branch=ctx.branch_name,
+                        targets=await self.__target_svc.generate(local_history),
+                    )
+
                 if predictive_targets:
                     _ = await self.__drift_svc.detect_and_resolve_drift(
                         targets=predictive_targets,
                         conventions=conventions,
                         max_iterations=2,
+                        validator=validation_callback,
                     )
 
                 validation = await self.__validation_svc.generate_and_validate(
@@ -88,7 +103,9 @@ class TerraformCRUDHandler:
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
+                    validator=validation_callback,
                 )
+
                 if not validation.validation:
                     fail_msg = await self.__report_svc.summarize_problem(
                         feedback=validation.feedback,

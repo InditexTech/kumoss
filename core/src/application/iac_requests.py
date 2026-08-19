@@ -17,10 +17,12 @@ from src.shared.constants import TerraformProvider
 
 
 class BaseIacRequest(BaseModel):
-    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
+    q: Annotated[
+        str | None, Field(min_length=1, description="User query for this call.")
+    ] = None
     session_id: Annotated[
         str | None,
         Field(
@@ -96,4 +98,4 @@ class DriftRequest(BaseIacRequest):
 
 
 class ApplyRequest(BaseIacRequest):
-    terraform_targets: list[str] = Field(default_factory=list)
+    pass

@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Awaitable
+from typing import Callable
+
 from src.domains.dto import TerraformValidationDTO
-from src.domains.entities import SessionContext
+from src.domains.entities import History, SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
@@ -35,6 +38,7 @@ class TerraformDriftService:
         targets: list[str],
         conventions: Conventions,
         max_iterations: int,
+        validator: Callable[[History], Awaitable[TerraformValidationDTO]],
     ) -> TerraformValidationDTO:
         validation = TerraformValidationDTO.empty()
 
@@ -84,6 +88,7 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
+                    validator=validator,
                 )
         if validation.validation:
             logging.warning("Drift pre-check completed, resources are synchronized")

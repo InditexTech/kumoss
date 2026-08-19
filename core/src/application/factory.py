@@ -213,19 +213,15 @@ class ApplicationFactory:
         template_service: TemplateOrchestrationService,
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
-        target_service: TerraformTargetService,
-        validator_provider: ITerraform,
         artifact_service: ArtifactStorageService,
     ) -> TerraformValidationService:
         return TerraformValidationService(
-            validator=validator_provider,
             git=git_utils,
             files=file_utils,
             session_service=session_service,
             template_service=template_service,
             llm_service=main_llm_service,
             tool_orchestration_service=tool_service,
-            target_service=target_service,
             artifact_service=artifact_service,
         )
 
@@ -330,8 +326,6 @@ class ApplicationFactory:
             template_service=template_svc,
             main_llm_service=llm_svc,
             tool_service=tool_svc,
-            target_service=target_svc,
-            validator_provider=validator_prv,
             artifact_service=artifact_svc,
         )
         filter_svc = self._get_requests_filter_service(
@@ -349,6 +343,7 @@ class ApplicationFactory:
         return TerraformCRUDHandler(
             session_ctx=self.__ctx,
             session_service=session_svc,
+            terraform_service=validator_prv,
             validation_service=validation_svc,
             template_service=template_svc,
             requests_filter_service=filter_svc,
@@ -397,8 +392,9 @@ class ApplicationFactory:
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
         file_utils = self._get_file_utils()
+        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         artifact_svc = self._get_artifact_storage_service()
-        tool_svc = self._get_tool_service_static()
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
@@ -406,12 +402,24 @@ class ApplicationFactory:
             llm_service=llm_svc,
             tool_service=tool_svc,
         )
+        target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         terraform_svc = self._get_terraform_provider(file_utils, session_svc)
+        validation_svc = self._get_terraform_validation_service(
+            git_utils=git_utils,
+            file_utils=file_utils,
+            session_service=session_svc,
+            template_service=template_svc,
+            main_llm_service=llm_svc,
+            tool_service=tool_svc,
+            artifact_service=artifact_svc,
+        )
         return TerraformApplyHandler(
             terraform_service=terraform_svc,
+            validation_service=validation_svc,
+            target_service=target_svc,
             session_service=session_svc,
             report_service=report_svc,
             template_service=template_svc,
