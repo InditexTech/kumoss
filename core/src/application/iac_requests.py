@@ -21,16 +21,6 @@ class BaseIacRequest(BaseModel):
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
-    q: Annotated[
-        str | None,
-        Field(
-            min_length=1,
-            description="User query for this call.",
-            examples=[
-                "Create a storage account and store the secrets in the key vault 001"
-            ],
-        ),
-    ] = None
     session_id: Annotated[
         UUID | None,
         Field(
@@ -99,7 +89,16 @@ class BaseIacRequest(BaseModel):
 
 
 class GenerateRequest(BaseIacRequest):
-    pass
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
 
 
 class DriftRequest(BaseIacRequest):
@@ -107,4 +106,13 @@ class DriftRequest(BaseIacRequest):
 
 
 class ApplyRequest(BaseIacRequest):
-    pass
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
