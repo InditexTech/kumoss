@@ -43,17 +43,14 @@ export default function ChatActionBar({
     try {
       const res = await createPullRequest({
         session_id: session.session_id,
-        q: session.firstQuery ?? session.userQueries[0] ?? "",
       });
-      updatePrDetails({ id: res.id });
+      updatePrDetails({ id: res.id, prUrl: res.url });
       openPrView("initial");
     } catch {
       setLoading(false);
     }
   }, [
     session.session_id,
-    session.firstQuery,
-    session.userQueries,
     prCreated,
     loading,
     updatePrDetails,

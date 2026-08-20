@@ -6,7 +6,7 @@ import { useState, useCallback } from "react";
 import Typography from "@mui/material/Typography";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
-import { approvePullRequest } from "@/services/core/iac_code";
+import { mergePullRequest } from "@/services/core/iac_code";
 import { isAllowedUrl } from "@/utils/sanitize";
 import { STRINGS } from "@/constants/strings";
 import type { PrApprovalStep } from "@/types/ui";
@@ -38,17 +38,24 @@ export default function PrApprovalView({
     session.terraform_report?.potential_impact?.banner?.level === "high";
 
   const handleConfirmApply = useCallback(async () => {
-    if (!prDetails.id || approving) return;
+    if (!prDetails.id || !session.session_id || approving) return;
     setApproving(true);
     try {
-      await approvePullRequest({ id: prDetails.id });
+      await mergePullRequest({ session_id: session.session_id });
       onApprove();
     } catch {
       showNotification("failure", "Failed to approve pull request");
       setApproving(false);
       onStepChange("initial");
     }
-  }, [prDetails.id, approving, onApprove, showNotification, onStepChange]);
+  }, [
+    prDetails.id,
+    session.session_id,
+    approving,
+    onApprove,
+    showNotification,
+    onStepChange,
+  ]);
 
   if (session.apply_allowed === false) {
     return (

@@ -3,42 +3,48 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { createWrapper } from "@/test/render";
 import type { SseConnection } from "@/services/core/events";
 import type { TerraformActionParams } from "@/services/workflows/terraform_action";
+import type { SessionOutcome } from "@/services/workflows/session_outcome";
 
 // ─── Mock controls ────────────────────────────────────────────
-const mockRunWorkflow = vi.fn<[TerraformActionParams, AbortSignal], Promise<{ sessionId: string }>>()
-  .mockResolvedValue({ sessionId: "sess-abc" });
+const mockRunWorkflow = vi.fn<
+  (params: TerraformActionParams, signal: AbortSignal) => Promise<{ sessionId: string }>
+>().mockResolvedValue({ sessionId: "sess-abc" });
 
-let mockSseConnection: SseConnection & { close: ReturnType<typeof vi.fn> };
+let mockSseConnection: SseConnection & { close: Mock<() => void> };
 
 function createMockSse(): typeof mockSseConnection {
-  return { onmessage: null, onerror: null, close: vi.fn() };
+  return { onmessage: null, onerror: null, close: vi.fn<() => void>() };
 }
 
-const mockSubscribe = vi.fn(() => {
+const mockSubscribe = vi.fn((_sessionId: string) => {
   mockSseConnection = createMockSse();
   return mockSseConnection;
 });
 
-const mockGetSessionData = vi.fn().mockResolvedValue({
-  id: "sess-abc",
-  response: "resource {} code",
-  main_history: { user: "deploy", assistant: "done" },
-  full_history: [],
-  environment: "dev",
-  cloud: "azure",
-  project: "myproj",
-  validation: true,
-  branch_name: "feat/test",
-  terraform_report: null,
-  apply_allowed: true,
-});
+function makeResultsOutcome(overrides?: Partial<Record<string, unknown>>): SessionOutcome {
+  return {
+    kind: "results",
+    detail: { uuid: "sess-abc", operation: "generate", rounds: [{}] },
+    round: {},
+    report: null,
+    code: "<main.tf>\nresource {}\n</main.tf>",
+    targets: undefined,
+    ...overrides,
+  } as unknown as SessionOutcome;
+}
 
-const mockCheckSessionStatus = vi.fn();
-
+const mockResolveOutcome = vi.fn<(id: string) => Promise<SessionOutcome>>();
+const mockWaitForNewRound = vi.fn<
+  (id: string, baseline: number, signal?: AbortSignal) => Promise<void>
+>().mockResolvedValue(undefined);
+const mockCheckSessionStatus = vi.fn<(id: string) => Promise<{ status: string }>>();
+const mockGetSessionDetail = vi.fn<(id: string) => Promise<{ rounds: unknown[] }>>()
+  .mockResolvedValue({ rounds: [{}] });
 const mockNotifyIfHidden = vi.fn();
 
 vi.mock("@/services/workflows/terraform_action", () => ({
@@ -47,8 +53,16 @@ vi.mock("@/services/workflows/terraform_action", () => ({
 
 vi.mock("@/services/core/events", () => ({
   subscribeToSession: (...args: unknown[]) => mockSubscribe(...(args as [string])),
-  getSessionData: (...args: unknown[]) => mockGetSessionData(...(args as [string])),
   checkSessionStatus: (...args: unknown[]) => mockCheckSessionStatus(...(args as [string])),
+}));
+
+vi.mock("@/services/workflows/session_outcome", () => ({
+  resolveSessionOutcome: (...args: unknown[]) => mockResolveOutcome(...(args as [string])),
+  waitForNewRound: (...args: unknown[]) => mockWaitForNewRound(...(args as [string, number, AbortSignal])),
+}));
+
+vi.mock("@/services/core/sessions", () => ({
+  getSessionDetail: (...args: unknown[]) => mockGetSessionDetail(...(args as [string])),
 }));
 
 vi.mock("@/hooks/useBrowserNotification", () => ({
@@ -73,7 +87,7 @@ function sseEvent(status_msg: string, message = "") {
   return {
     data: JSON.stringify({
       status_msg,
-      detail: { validation_id: null, message },
+      detail: { message },
     }),
   };
 }
@@ -82,19 +96,9 @@ describe("useTerraformActions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc" });
-    mockGetSessionData.mockResolvedValue({
-      id: "sess-abc",
-      response: "code",
-      main_history: { user: "q", assistant: "a" },
-      full_history: [],
-      environment: "dev",
-      cloud: "azure",
-      project: "myproj",
-      validation: true,
-      branch_name: "feat/test",
-      terraform_report: null,
-      apply_allowed: true,
-    });
+    mockResolveOutcome.mockResolvedValue(makeResultsOutcome());
+    mockWaitForNewRound.mockResolvedValue(undefined);
+    mockGetSessionDetail.mockResolvedValue({ rounds: [{}] });
   });
 
   // Need dynamic import because vi.mock hoists above imports
@@ -123,40 +127,173 @@ describe("useTerraformActions", () => {
     expect(result.current.state).toEqual({ status: "streaming", sessionId: "sess-abc" });
     expect(mockRunWorkflow).toHaveBeenCalledWith(defaultParams, expect.any(AbortSignal));
     expect(mockSubscribe).toHaveBeenCalledWith("sess-abc");
+    // First calls subscribe directly: no baseline fetch, no round wait
+    expect(mockGetSessionDetail).not.toHaveBeenCalled();
+    expect(mockWaitForNewRound).not.toHaveBeenCalled();
   });
 
-  it("COMPLETED event transitions to success and calls onCompleted", async () => {
+  it("iteration waits for the new round before subscribing", async () => {
+    mockGetSessionDetail.mockResolvedValue({ rounds: [{}, {}] });
+
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });
-    const onCompleted = vi.fn();
     const { result } = renderHook(() => useTerraformActions(), { wrapper });
 
     await act(async () => {
-      result.current.run(defaultParams, onCompleted);
+      result.current.run({ ...defaultParams, sessionId: "sess-abc" });
+    });
+
+    // Baseline captured from the existing session before the POST
+    expect(mockGetSessionDetail).toHaveBeenCalledWith("sess-abc");
+    expect(mockWaitForNewRound).toHaveBeenCalledWith(
+      "sess-abc",
+      2,
+      expect.any(AbortSignal),
+    );
+    expect(mockSubscribe).toHaveBeenCalledWith("sess-abc");
+    expect(mockWaitForNewRound.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubscribe.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("COMPLETED event resolves the outcome and calls onOutcome", async () => {
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
     });
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
     });
 
-    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
     expect(mockSseConnection.close).toHaveBeenCalled();
 
-    // Wait for getSessionData promise
     await act(async () => {
       await vi.waitFor(() => {
-        expect(mockGetSessionData).toHaveBeenCalledWith("sess-abc");
+        expect(mockResolveOutcome).toHaveBeenCalledWith("sess-abc");
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "results" }),
+        );
       });
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onCompleted).toHaveBeenCalled();
-      });
-    });
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith("Pipeline completed", expect.anything());
   });
 
-  it("FAILED event transitions to error", async () => {
+  it("outcome resolution failure surfaces a failed outcome, never a silent error", async () => {
+    mockResolveOutcome.mockRejectedValue(new Error("fetch failed"));
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "failed",
+            message: "Completed, but results could not be loaded",
+          }),
+        );
+      });
+    });
+
+    expect(result.current.state.status).toBe("error");
+  });
+
+  it("UNCOMPLETED closes the stream client-side and reports a rejected iteration", async () => {
+    // Two rounds: this is an iteration rejection, handed to onOutcome
+    mockResolveOutcome.mockResolvedValue({
+      kind: "rejected",
+      detail: { uuid: "sess-abc", rounds: [{}, {}] },
+      rationale: "Query is off-topic",
+    } as unknown as SessionOutcome);
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
+    });
+
+    // The server never closes a rejected round's stream — the client must
+    expect(mockSseConnection.close).toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "rejected" }),
+        );
+      });
+    });
+
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+  });
+
+  it("UNCOMPLETED on the first round becomes a wizard error, not an outcome", async () => {
+    mockResolveOutcome.mockResolvedValue({
+      kind: "rejected",
+      detail: { uuid: "sess-abc", rounds: [{}] },
+      rationale: "Query is off-topic",
+    } as unknown as SessionOutcome);
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state.status).toBe("error");
+      });
+    });
+
+    expect(result.current.state).toMatchObject({
+      status: "error",
+      message: expect.stringContaining("Query is off-topic"),
+    });
+    expect(onOutcome).not.toHaveBeenCalled();
+  });
+
+  it("high-impact report triggers the browser notification", async () => {
+    mockResolveOutcome.mockResolvedValue(
+      makeResultsOutcome({
+        report: {
+          potential_impact: {
+            banner: { level: "high", title: "Major", description: "Destroys resources" },
+          },
+        },
+      }),
+    );
+
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });
     const { result } = renderHook(() => useTerraformActions(), { wrapper });
@@ -166,11 +303,38 @@ describe("useTerraformActions", () => {
     });
 
     await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+          "High impact changes detected",
+          expect.objectContaining({ body: "Destroys resources" }),
+        );
+      });
+    });
+  });
+
+  it("FAILED event transitions to error and hands a failed outcome over", async () => {
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+
+    await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("FAILED", "Generation failed"));
     });
 
     expect(result.current.state).toEqual({ status: "error", message: "Generation failed" });
     expect(mockSseConnection.close).toHaveBeenCalled();
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "failed", message: "Generation failed" }),
+    );
     expect(mockNotifyIfHidden).toHaveBeenCalledWith("Pipeline failed", expect.objectContaining({ body: "Generation failed" }));
   });
 
@@ -198,16 +362,16 @@ describe("useTerraformActions", () => {
     expect(mockSseConnection.close).toHaveBeenCalled();
   });
 
-  it("SSE error + completed = success recovery", async () => {
+  it("SSE error + completed = success recovery via outcome resolution", async () => {
     mockCheckSessionStatus.mockResolvedValueOnce({ status: "completed" });
 
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });
-    const onCompleted = vi.fn();
+    const onOutcome = vi.fn();
     const { result } = renderHook(() => useTerraformActions(), { wrapper });
 
     await act(async () => {
-      result.current.run(defaultParams, onCompleted);
+      result.current.run(defaultParams, onOutcome);
     });
 
     await act(async () => {
@@ -217,12 +381,9 @@ describe("useTerraformActions", () => {
     await act(async () => {
       await vi.waitFor(() => {
         expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
-      });
-    });
-
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onCompleted).toHaveBeenCalled();
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "results" }),
+        );
       });
     });
 
@@ -230,6 +391,38 @@ describe("useTerraformActions", () => {
       "Pipeline completed",
       expect.objectContaining({ body: "Your infrastructure changes are ready for review." }),
     );
+  });
+
+  it("SSE error + uncompleted = rejected outcome recovery", async () => {
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "uncompleted" });
+    mockResolveOutcome.mockResolvedValue({
+      kind: "rejected",
+      detail: { uuid: "sess-abc", rounds: [{}, {}] },
+      rationale: "Rejected",
+    } as unknown as SessionOutcome);
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "rejected" }),
+        );
+      });
+    });
+
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
   });
 
   it("SSE error + in_progress = reconnect", async () => {
@@ -264,13 +457,22 @@ describe("useTerraformActions", () => {
       secondConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
     });
 
-    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+      });
+    });
     // COMPLETED must close the reconnected connection, not the stale one
     expect(secondConnection.close).toHaveBeenCalled();
   });
 
   it("SSE error + failed = error state with failure notification", async () => {
     mockCheckSessionStatus.mockResolvedValueOnce({ status: "failed" });
+    mockResolveOutcome.mockResolvedValue({
+      kind: "failed",
+      detail: { uuid: "sess-abc", rounds: [{}] },
+      message: "Process failed",
+    } as unknown as SessionOutcome);
 
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });
@@ -361,7 +563,7 @@ describe("useTerraformActions", () => {
       result.current.run(defaultParams);
     });
 
-    // Each event should be processed without errors
+    // Each event should be processed without errors, including APPLY
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("STARTED", "Analyzing..."));
     });
@@ -372,29 +574,14 @@ describe("useTerraformActions", () => {
       mockSseConnection.onmessage?.(sseEvent("VALIDATING", "Running terraform validate..."));
     });
     await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("APPLY", "Applying..."));
+    });
+    await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("REPORT", "Preparing report..."));
     });
 
     // Still streaming (not completed/failed)
     expect(result.current.state.status).toBe("streaming");
-  });
-
-  it("COMPLETED notifies browser", async () => {
-    const useTerraformActions = await importHook();
-    const wrapper = createWrapper({ withAssistantMsg: true });
-    const { result } = renderHook(() => useTerraformActions(), { wrapper });
-
-    await act(async () => {
-      result.current.run(defaultParams);
-    });
-
-    await act(async () => {
-      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
-    });
-
-    expect(mockNotifyIfHidden).toHaveBeenCalledWith("Pipeline completed", expect.objectContaining({
-      body: "Your infrastructure changes are ready for review.",
-    }));
   });
 });
 
@@ -403,6 +590,7 @@ describe("useTerraformActions — inactivity timeout", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc" });
+    mockResolveOutcome.mockResolvedValue(makeResultsOutcome());
   });
 
   afterEach(() => {

@@ -27,6 +27,12 @@ export const STRINGS = {
 
   chat: {
     followUpPlaceholder: "Ask a follow-up question...",
+    followUpDisabledPlaceholder: "This session failed and can't be resumed",
+  },
+
+  planning: {
+    preparingWorkspace: "Preparing your workspace…",
+    resultsLoadError: "Completed, but results could not be loaded",
   },
 
   assistant: {
@@ -132,6 +138,7 @@ export const STRINGS = {
     placeholderCloudScope: "azure-subscription-id, gcp-project-id",
     resolveError: "Could not resolve repository. Please try again.",
     scanError: "Could not scan repository for IaC paths. Please try again.",
+    queryRejected: "Your request couldn't be processed:",
     noIacPaths:
       "No IaC paths found in this repository. Please check the repository and try again.",
   },

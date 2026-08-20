@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TerraformReport } from "./index";
-
 // ─── Shared Types ───────────────────────────────────────────
 
 export const TERRAFORM_PROVIDERS = [
@@ -12,7 +10,6 @@ export const TERRAFORM_PROVIDERS = [
   "aws",
   "oci",
   "kubernetes",
-  "common",
 ] as const;
 export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
 export type HistoryRole = "user" | "assistant" | "validation";
@@ -22,19 +19,18 @@ export interface HistoryEntry {
   content: string;
 }
 
-// TEMPORAL FIX: Raw conversation turn as returned by the backend's
-// History.serialize(). Remove this and normalizeHistory() once the
-// backend returns HistoryEntry[] directly.
+// Raw conversation turn as returned by the backend's History.serialize()
+// (exposed via GET /sessions/{id}?include_history=true).
 export interface RawHistoryTurn {
   user: string;
   assistant: string;
 }
 
-// TEMPORAL FIX: Converts backend {user, assistant} turn pairs into
-// the flat {role, content} HistoryEntry[] the UI consumes. Tolerates
-// entries already in {role, content} form (mock data / future backend).
+// Converts backend {user, assistant} turn pairs into the flat
+// {role, content} HistoryEntry[] the UI consumes. Tolerates entries
+// already in {role, content} form (mock data / future backend).
 export function normalizeHistory(
-  raw: unknown[] | undefined,
+  raw: unknown[] | null | undefined,
 ): HistoryEntry[] {
   if (!raw) return [];
   const result: HistoryEntry[] = [];
@@ -79,50 +75,34 @@ export interface DriftRequest extends BaseIacRequest {
   is_partial?: boolean;
 }
 
-export interface ApplyRequest extends BaseIacRequest {
-  terraform_targets?: string[];
+/** Apply reuses the session's stored plan; it takes no query or targets. */
+export interface ApplyRequest {
+  user_id: string;
+  session_id: string;
 }
 
 export interface IacSessionResponse {
   session_id: string;
 }
 
-// ─── Events / SSE (/api/v1/events/*) ────────────────────────
-
-export interface SessionPayloadResponse {
-  id: string;
-  response: string;
-  main_history: { user: string; assistant: string };
-  full_history: HistoryEntry[];
-  environment: string;
-  cloud: string;
-  project: string;
-  validation: boolean;
-  branch_name: string;
-  terraform_plan: string | null;
-  terraform_targets: string[] | null;
-  terraform_report: TerraformReport | null;
-  pipeline_url: string | null;
-  apply_allowed: boolean;
-}
-
 // ─── Repository / PR (/api/v1/repository/*) ─────────────────
 
 export interface CreatePrRequest {
   session_id: string;
-  q: string;
 }
 
-export interface RepositoryPrStatusResponse {
+export interface MergePrRequest {
+  session_id: string;
+}
+
+/** Response of PUT /repository/pr. */
+export interface PullRequestDTO {
   id: number;
+  url: string;
   status: string;
 }
 
-export interface ApprovePrRequest {
-  id: number;
-}
-
-// ─── Authorization (/api/v1/authorize/) ─────────────────────
+// ─── Authorization (/api/v1/authorize) ──────────────────────
 
 export interface AuthorizeRequest {
   cloud: string;
@@ -146,12 +126,16 @@ export type SessionStatus =
   | "filtering"
   | "generating"
   | "validating"
+  | "apply"
   | "report"
   | "completed"
   | "uncompleted"
   | "failed";
 
-/** Session-level statuses; anything else belongs to a round. */
+/**
+ * Statuses a finished round rests on: `completed` (succeeded), `uncompleted`
+ * (filter-rejected — no `completed` follows) and `failed` (exception).
+ */
 export const TERMINAL_STATUSES: SessionStatus[] = [
   "completed",
   "uncompleted",
@@ -184,6 +168,16 @@ export interface CodeChangeRef extends ArtifactRef {
   file_name: string;
 }
 
+/**
+ * `provider` is the enum token (e.g. "GITHUB"), not the host name.
+ * `number` is the pull request's id at the provider.
+ */
+export interface PullRequestRef {
+  provider: string;
+  url: string;
+  number: number;
+}
+
 /** One generation iteration with its statuses and artifacts. */
 export interface RoundDetail {
   id: number;
@@ -192,6 +186,7 @@ export interface RoundDetail {
   report: ArtifactRef | null;
   plan: TerraformPlanRef | null;
   code_changes: CodeChangeRef[];
+  pull_requests: PullRequestRef[];
   created_at: string;
 }
 
@@ -199,12 +194,6 @@ export interface WorkspaceRef {
   uri: string;
   branch: string;
   root_path: string | null;
-}
-
-/** `provider` is the enum token (e.g. "GITHUB"), not the host name. */
-export interface PullRequestRef {
-  provider: string;
-  url: string;
 }
 
 export interface SessionSummary {
@@ -222,26 +211,44 @@ export interface SessionSummary {
 }
 
 /**
- * Full session aggregate. `statuses` holds session-level entries only;
- * round-level statuses live inside their round. `history` is populated
- * on admin surfaces only and arrives as raw backend turns.
+ * Full session aggregate. `statuses` holds the session's full status
+ * timeline; round-level statuses also live inside their round. Pull
+ * requests live inside their round. `history` is populated only when
+ * requested via `?include_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
   workspace: WorkspaceRef;
   scope_id: string;
-  pull_request: PullRequestRef | null;
   statuses: StatusEntry[];
   rounds: RoundDetail[];
-  history?: unknown[] | null;
+  history?: RawHistoryTurn[] | null;
 }
 
 export type PaginatedSessionSummary = PaginatedResponse<SessionSummary>;
 
-// ─── Users (/api/v1/users/*) ────────────────────────────────
+// ─── Events / SSE (/api/v1/events/subscribe/{id}) ───────────
+// The stream re-emits the session's *last* status every ~5s (duplicates
+// are normal) and closes server-side only after COMPLETED or FAILED.
+// A rejected round rests on UNCOMPLETED forever — the client must treat
+// it as round-terminal and close the stream itself.
 
-export interface UserMeResponse {
-  id: string;
-  email?: string | null;
-  name?: string | null;
-  roles: string[];
+/** SSE carries the UPPERCASE enum NAME; REST uses the lowercase value. */
+export type SseStatus = Uppercase<SessionStatus>;
+
+export interface SessionEventData {
+  status_msg: SseStatus;
+  detail: {
+    message: string;
+  };
 }
+
+// ─── Users (/api/v1/users/*) ────────────────────────────────
+// DISABLED: GET /users/me has no backend route. Kept for when the
+// admin-role enrichment returns server-side.
+
+// export interface UserMeResponse {
+//   id: string;
+//   email?: string | null;
+//   name?: string | null;
+//   roles: string[];
+// }

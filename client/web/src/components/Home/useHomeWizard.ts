@@ -28,7 +28,7 @@ export function useHomeWizard() {
 
   const navigation = useWizardNavigation();
   const mapper = useMapperResolution();
-  const { handleCompleted, handleApplyCompleted } = useWizardTerraform();
+  const { handleOutcome } = useWizardTerraform();
 
   const auth = useInitialInformation();
   const terraform = useTerraformActions();
@@ -42,7 +42,6 @@ export function useHomeWizard() {
 
       navigate("/home/planning");
 
-      const isImport = mode === "import";
       terraform.run(
         {
           repoUri: navigation.data.repositoryUrl,
@@ -53,10 +52,10 @@ export function useHomeWizard() {
           mode,
           iacPath: navigation.data.iacPath,
         },
-        isImport ? handleApplyCompleted : handleCompleted,
+        handleOutcome,
       );
     }
-  }, [auth.state.status, navigation.data, user, mode, terraform, navigate, handleCompleted, handleApplyCompleted]);
+  }, [auth.state.status, navigation.data, user, mode, terraform, navigate, handleOutcome]);
 
   useEffect(() => {
     if (terraform.state.status === "error" && homeView === "planning") {
@@ -168,21 +167,17 @@ export function useHomeWizard() {
 
       navigate("/home/planning");
 
-      const isImport = mode === "import";
       terraform.run(
         {
           sessionId: session.session_id,
-          repoUri: navigation.data.repositoryUrl,
           query,
-          terraformProviders: navigation.data.provider as TerraformProvider,
-          scopeId: navigation.data.cloudScope,
           userId: user?.username ?? "",
           mode,
         },
-        isImport ? handleApplyCompleted : handleCompleted,
+        handleOutcome,
       );
     },
-    [session, updateSession, navigate, terraform, navigation.data, user, mode, handleCompleted, handleApplyCompleted],
+    [session, updateSession, navigate, terraform, user, mode, handleOutcome],
   );
 
   const applyAfterPr = useCallback(() => {
@@ -193,16 +188,13 @@ export function useHomeWizard() {
     terraform.run(
       {
         sessionId: session.session_id,
-        repoUri: navigation.data.repositoryUrl,
-        query: session.firstQuery ?? session.userQueries[0] ?? "",
-        terraformProviders: navigation.data.provider as TerraformProvider,
-        scopeId: navigation.data.cloudScope,
+        query: "",
         userId: user?.username ?? "",
         mode: "import" as const,
       },
-      handleApplyCompleted,
+      handleOutcome,
     );
-  }, [session, navigation.data, user, navigate, terraform, handleApplyCompleted]);
+  }, [session, user, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
     if (mapper.mapperError) {

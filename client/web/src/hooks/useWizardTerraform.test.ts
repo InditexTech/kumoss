@@ -7,9 +7,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SessionProvider, useSession } from "@/contexts/SessionContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import { useWizardTerraform } from "./useWizardTerraform";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
-import type { SessionPayloadResponse } from "@/types/api";
+import type { SessionOutcome } from "@/services/workflows/session_outcome";
+import { makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
 
 vi.mock("@/services/core/sessionsCache", () => ({
   invalidateSessionsCache: vi.fn(),
@@ -19,38 +21,35 @@ function Wrapper({ children }: { children: React.ReactNode }) {
   return React.createElement(
     MemoryRouter,
     { initialEntries: ["/home"] },
-    React.createElement(SessionProvider, null, children),
+    React.createElement(
+      SessionProvider,
+      null,
+      React.createElement(NotificationProvider, null, children),
+    ),
   );
 }
 
-function makePayload(
-  overrides?: Partial<SessionPayloadResponse>,
-): SessionPayloadResponse {
+function makeResultsOutcome(
+  overrides?: Partial<Extract<SessionOutcome, { kind: "results" }>>,
+): SessionOutcome {
+  const detail = makeSessionDetail();
   return {
-    id: "session-123",
-    response: "Generated terraform code here",
-    main_history: { user: "create a vm", assistant: "Here is your VM" },
-    full_history: [{ role: "user", content: "create a vm" }],
-    environment: "dev",
-    cloud: "azure",
-    project: "my-project",
-    validation: true,
-    branch_name: "nebula/session-123",
-    terraform_plan: "plan output",
-    terraform_targets: ["azurerm_resource_group.main"],
-    terraform_report: null,
-    pipeline_url: null,
-    apply_allowed: true,
+    kind: "results",
+    detail,
+    round: detail.rounds[0],
+    report: null,
+    code: "<Terraform_Plan>\nplan output\n</Terraform_Plan>\n<main.tf>\nresource {}\n</main.tf>",
+    targets: ["azurerm_resource_group.main"],
     ...overrides,
   };
 }
 
-describe("useWizardTerraform", () => {
+describe("useWizardTerraform — handleOutcome", () => {
   beforeEach(() => {
     vi.mocked(invalidateSessionsCache).mockClear();
   });
 
-  it("handleCompleted updates code in session", () => {
+  it("results outcome stores code, report fields and rebuilt history", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -59,14 +58,28 @@ describe("useWizardTerraform", () => {
       { wrapper: Wrapper },
     );
 
-    const payload = makePayload({ response: "resource block here" });
+    const outcome = makeResultsOutcome();
 
-    act(() => result.current.terraform.handleCompleted(payload));
+    act(() => result.current.terraform.handleOutcome(outcome));
 
-    expect(result.current.session.session.code).toBe("resource block here");
+    const session = result.current.session.session;
+    expect(session.session_id).toBe("sess-1");
+    expect(session.code).toContain("<main.tf>");
+    expect(session.cloud).toBe("azure");
+    expect(session.branchName).toBe("nebula/sess-1");
+    expect(session.apply_allowed).toBe(true);
+    expect(session.terraform_targets).toEqual(["azurerm_resource_group.main"]);
+    // Rebuilt from {user, assistant} turns, plus the appended summary
+    expect(session.full_history?.[0]).toEqual({
+      role: "user",
+      content: "deploy a VM",
+    });
+    expect(session.full_history?.[session.full_history.length - 1].role).toBe(
+      "assistant",
+    );
   });
 
-  it("handleApplyCompleted sets applyResults in session", () => {
+  it("apply-results outcome sets applyResults from the apply report", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -75,25 +88,34 @@ describe("useWizardTerraform", () => {
       { wrapper: Wrapper },
     );
 
-    const payload = makePayload({
-      id: "apply-session",
-      response: "Apply output",
-      pipeline_url: "https://pipeline.example.com/run/42",
+    const detail = makeSessionDetail({
+      rounds: [
+        makeRound({
+          statuses: [makeStatus("apply"), makeStatus("completed")],
+        }),
+      ],
     });
+    const outcome: SessionOutcome = {
+      kind: "apply-results",
+      detail,
+      round: detail.rounds[0],
+      report: {
+        status: "Success",
+        execution_summary: "Applied successfully",
+      },
+    };
 
-    act(() => result.current.terraform.handleApplyCompleted(payload));
+    act(() => result.current.terraform.handleOutcome(outcome));
 
     const applyResults = result.current.session.session.applyResults;
     expect(applyResults).toBeDefined();
-    expect(applyResults!.sessionId).toBe("apply-session");
-    expect(applyResults!.status).toBe("Unknown");
-    expect(applyResults!.message).toBe("Apply output");
-    expect(applyResults!.resultsUrl).toBe(
-      "https://pipeline.example.com/run/42",
-    );
+    expect(applyResults!.sessionId).toBe("sess-1");
+    expect(applyResults!.status).toBe("Success");
+    expect(applyResults!.message).toBe("Applied successfully");
+    expect(applyResults!.applyReport).toEqual(outcome.report);
   });
 
-  it("handleApplyCompleted uses terraform_report.status when available", () => {
+  it("rejected iteration appends the rationale as an assistant entry and keeps prior results", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -102,47 +124,80 @@ describe("useWizardTerraform", () => {
       { wrapper: Wrapper },
     );
 
-    const payload = makePayload({
-      terraform_report: {
-        status: "Success",
-        summary: {
-          total_resources: 1,
-          created: 1,
-          updated: 0,
-          destroyed: 0,
-          failed: 0,
-        },
-        execution_summary: "Applied successfully",
-        resource_changes: [],
-        recommendations: [],
-      } as never,
+    act(() =>
+      result.current.session.updateSession({
+        session_id: "sess-1",
+        code: "previous code",
+        terraform_report: { status: "ok" },
+      }),
+    );
+
+    const outcome: SessionOutcome = {
+      kind: "rejected",
+      detail: makeSessionDetail({ current_status: "uncompleted" }),
+      rationale: "Query is off-topic",
+    };
+
+    act(() => result.current.terraform.handleOutcome(outcome));
+
+    const session = result.current.session.session;
+    expect(session.code).toBe("previous code");
+    expect(session.terraform_report).toEqual({ status: "ok" });
+    expect(session.full_history?.[session.full_history.length - 1]).toEqual({
+      role: "assistant",
+      content: "Query is off-topic",
     });
-
-    act(() => result.current.terraform.handleApplyCompleted(payload));
-
-    expect(result.current.session.session.applyResults!.status).toBe(
-      "Success",
-    );
   });
 
-  it("handleCompleted invalidates the sessions cache", () => {
+  it("failed outcome marks the session unresumable", () => {
+    const { result } = renderHook(
+      () => ({
+        terraform: useWizardTerraform(),
+        session: useSession(),
+      }),
+      { wrapper: Wrapper },
+    );
+
+    const outcome: SessionOutcome = {
+      kind: "failed",
+      detail: null,
+      message: "Process failed",
+    };
+
+    act(() => result.current.terraform.handleOutcome(outcome));
+
+    expect(result.current.session.session.current_status).toBe("failed");
+  });
+
+  it("keeps live wizard values over derived fallbacks", () => {
+    const { result } = renderHook(
+      () => ({
+        terraform: useWizardTerraform(),
+        session: useSession(),
+      }),
+      { wrapper: Wrapper },
+    );
+
+    act(() =>
+      result.current.session.updateSession({
+        project: "mapper-project",
+        environment: "wizard/path",
+      }),
+    );
+
+    act(() => result.current.terraform.handleOutcome(makeResultsOutcome()));
+
+    expect(result.current.session.session.project).toBe("mapper-project");
+    expect(result.current.session.session.environment).toBe("wizard/path");
+  });
+
+  it("invalidates the sessions cache on every outcome", () => {
     const { result } = renderHook(
       () => ({ terraform: useWizardTerraform() }),
       { wrapper: Wrapper },
     );
 
-    act(() => result.current.terraform.handleCompleted(makePayload()));
-
-    expect(invalidateSessionsCache).toHaveBeenCalledOnce();
-  });
-
-  it("handleApplyCompleted invalidates the sessions cache", () => {
-    const { result } = renderHook(
-      () => ({ terraform: useWizardTerraform() }),
-      { wrapper: Wrapper },
-    );
-
-    act(() => result.current.terraform.handleApplyCompleted(makePayload()));
+    act(() => result.current.terraform.handleOutcome(makeResultsOutcome()));
 
     expect(invalidateSessionsCache).toHaveBeenCalledOnce();
   });

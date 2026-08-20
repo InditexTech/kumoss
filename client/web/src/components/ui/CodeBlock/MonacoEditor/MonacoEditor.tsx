@@ -22,8 +22,8 @@ let monacoConfigured = false;
 
 function ensureMonacoConfigured() {
   if (monacoConfigured) return;
-  self.MonacoEnvironment = {
-    getWorker(_, label) {
+  (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+    getWorker(_: unknown, label: string) {
       if (label === "json") return new jsonWorker();
       return new editorWorker();
     },

@@ -26,12 +26,12 @@ import { MODE } from "@/types/ui";
 // ─── Workflow input / output types ─────────────────────────────
 
 export interface TerraformActionParams {
-  repoUri: string;
   query: string;
-  terraformProviders: TerraformProvider;
-  scopeId: string;
   userId: string;
   mode: Mode;
+  repoUri?: string;
+  terraformProviders?: TerraformProvider;
+  scopeId?: string;
   iacPath?: string;
   sessionId?: string;
 }
@@ -46,6 +46,17 @@ export async function runTerraformActionWorkflow(
   params: TerraformActionParams,
   _signal?: AbortSignal,
 ): Promise<TerraformActionResult> {
+  let response: IacSessionResponse;
+
+  if (params.mode === MODE.IMPORT) {
+    // Apply reuses the session's stored plan; it takes no query or targets.
+    response = await applyInfrastructure({
+      user_id: params.userId,
+      session_id: params.sessionId ?? "",
+    });
+    return { sessionId: response.session_id };
+  }
+
   const baseRequest = params.sessionId
     ? {
         session_id: params.sessionId,
@@ -60,8 +71,6 @@ export async function runTerraformActionWorkflow(
         user_id: params.userId,
         iac_path: params.iacPath ?? null,
       };
-
-  let response: IacSessionResponse;
 
   switch (params.mode) {
     case MODE.GENERATE:
@@ -78,9 +87,6 @@ export async function runTerraformActionWorkflow(
         ...baseRequest,
         is_partial: true,
       });
-      break;
-    case MODE.IMPORT:
-      response = await applyInfrastructure(baseRequest);
       break;
   }
 

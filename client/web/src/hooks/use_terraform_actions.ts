@@ -6,8 +6,8 @@
  * HOOK: useTerraformActions
  *
  * Triggers a mode-based IaC endpoint, subscribes to SSE events,
- * updates pipeline progress via AssistantMsgContext, and drives
- * screen transitions on completion/failure.
+ * updates pipeline progress via AssistantMsgContext, and resolves the
+ * finished round into a SessionOutcome for the completion callback.
  */
 
 import { useReducer, useRef, useCallback, useEffect } from "react";
@@ -17,27 +17,23 @@ import {
 } from "@/services/workflows/terraform_action";
 import {
   subscribeToSession,
-  getSessionData,
   checkSessionStatus,
   type SseConnection,
 } from "@/services/core/events";
+import {
+  resolveSessionOutcome,
+  waitForNewRound,
+  type SessionOutcome,
+} from "@/services/workflows/session_outcome";
+import { getSessionDetail } from "@/services/core/sessions";
 import { useAssistantMsg } from "@/contexts/AssistantMsgContext";
 import { PHASE, EVENT_STATUS } from "@/types/ui";
 import { ApiError } from "@/services/api";
-import type { SessionPayloadResponse } from "@/types/api";
+import type { SessionEventData } from "@/types/api";
 import { useBrowserNotification } from "@/hooks/useBrowserNotification";
+import { STRINGS } from "@/constants/strings";
 
 const SSE_INACTIVITY_TIMEOUT_MS = 90_000;
-
-// ─── SSE event shape ──────────────────────────────────────────
-
-interface SseEventData {
-  status_msg: string;
-  detail: {
-    validation_id: string | null;
-    message: string;
-  };
-}
 
 // ─── State machine ─────────────────────────────────────────────
 
@@ -77,10 +73,12 @@ function mapStatusToPhase(statusMsg: string) {
       return PHASE.INIT;
     case "GENERATING":
     case "VALIDATING":
+    case "APPLY":
       return PHASE.RUNNING;
     case "REPORT":
       return PHASE.REPORT;
     case "COMPLETED":
+    case "UNCOMPLETED":
       return PHASE.COMPLETE;
     default:
       return null;
@@ -131,12 +129,13 @@ export function useTerraformActions() {
   const run = useCallback(
     async (
       params: TerraformActionParams,
-      onCompleted?: (payload: SessionPayloadResponse) => void,
+      onOutcome?: (outcome: SessionOutcome) => void,
     ) => {
       eventSourceRef.current?.close();
       abortRef.current?.abort();
       clearInactivityTimer();
       abortRef.current = new AbortController();
+      const signal = abortRef.current.signal;
 
       dispatch({ type: "START" });
 
@@ -146,13 +145,94 @@ export function useTerraformActions() {
         isApplyMode: params.mode === "import",
       }));
 
+      const settleOutcome = (outcome: SessionOutcome, sessionId: string) => {
+        clearInactivityTimer();
+
+        if (outcome.kind === "failed") {
+          dispatch({ type: "ERROR", message: outcome.message });
+          setAssistantMsgState((prev) => ({
+            ...prev,
+            pipelineStep: PHASE.COMPLETE,
+            sseStatus: EVENT_STATUS.FAILED,
+            msg: outcome.message,
+          }));
+          notifyIfHidden("Pipeline failed", { body: outcome.message });
+          onOutcome?.(outcome);
+          return;
+        }
+
+        if (
+          outcome.kind === "rejected" &&
+          outcome.detail.rounds.length <= 1
+        ) {
+          // First-round rejection: surface the rationale on the wizard
+          // input via the error state, which routes the user back to /home.
+          dispatch({
+            type: "ERROR",
+            message: `${STRINGS.wizard.queryRejected} ${outcome.rationale}`,
+          });
+          setAssistantMsgState((prev) => ({
+            ...prev,
+            pipelineStep: PHASE.COMPLETE,
+          }));
+          notifyIfHidden("Request rejected", { body: outcome.rationale });
+          return;
+        }
+
+        dispatch({ type: "SUCCESS", sessionId });
+        setAssistantMsgState((prev) => ({
+          ...prev,
+          pipelineStep: PHASE.COMPLETE,
+        }));
+
+        if (outcome.kind === "rejected") {
+          notifyIfHidden("Request rejected", { body: outcome.rationale });
+        } else {
+          notifyIfHidden("Pipeline completed", {
+            body: "Your infrastructure changes are ready for review.",
+          });
+          if (
+            outcome.kind === "results" &&
+            outcome.report?.potential_impact?.banner?.level === "high"
+          ) {
+            notifyIfHidden("High impact changes detected", {
+              body:
+                outcome.report.potential_impact.banner.description ||
+                "Review the potential impact before proceeding.",
+              tag: "nebula-high-impact",
+            });
+          }
+        }
+
+        onOutcome?.(outcome);
+      };
+
       try {
-        const { sessionId } = await runTerraformActionWorkflow(
-          params,
-          abortRef.current.signal,
-        );
+        // Iteration/apply calls write no status synchronously — capture how
+        // many rounds exist now so the new one can be told from the old.
+        const baselineRounds = params.sessionId
+          ? (await getSessionDetail(params.sessionId)).rounds.length
+          : 0;
+        if (signal.aborted) return;
+
+        const { sessionId } = await runTerraformActionWorkflow(params, signal);
+        if (signal.aborted) return;
 
         dispatch({ type: "STREAMING", sessionId });
+
+        if (params.sessionId) {
+          // Subscribing right after the 202 would re-receive the previous
+          // round's terminal status (COMPLETED = fake success, UNCOMPLETED =
+          // fake rejection). Wait until the runner writes the new round.
+          setAssistantMsgState((prev) => ({
+            ...prev,
+            pipelineStep: PHASE.INIT,
+            sseStatus: "STARTED",
+            msg: STRINGS.planning.preparingWorkspace,
+          }));
+          await waitForNewRound(sessionId, baselineRounds, signal);
+          if (signal.aborted) return;
+        }
 
         // Bound to a specific connection so reconnects don't act on a stale one
         const createMessageHandler = (es: SseConnection) => (event: {
@@ -160,7 +240,7 @@ export function useTerraformActions() {
         }) => {
           resetInactivityTimer(es);
           try {
-            const data: SseEventData = JSON.parse(event.data);
+            const data: SessionEventData = JSON.parse(event.data);
             const phase = mapStatusToPhase(data.status_msg);
 
             if (phase) {
@@ -172,37 +252,28 @@ export function useTerraformActions() {
               }));
             }
 
-            if (data.status_msg === EVENT_STATUS.COMPLETED) {
+            if (
+              data.status_msg === EVENT_STATUS.COMPLETED ||
+              data.status_msg === EVENT_STATUS.UNCOMPLETED
+            ) {
+              // Round-terminal. The server only closes the stream itself on
+              // COMPLETED/FAILED; a rejected round would be re-emitted for
+              // hours, so the client closes on first receipt either way.
               es.close();
               eventSourceRef.current = null;
               clearInactivityTimer();
-              dispatch({ type: "SUCCESS", sessionId });
-              setAssistantMsgState((prev) => ({
-                ...prev,
-                pipelineStep: PHASE.COMPLETE,
-              }));
-              notifyIfHidden("Pipeline completed", {
-                body: "Your infrastructure changes are ready for review.",
-              });
 
-              getSessionData(sessionId)
-                .then((payload) => {
-                  if (
-                    payload.terraform_report?.potential_impact?.banner
-                      ?.level === "high"
-                  ) {
-                    notifyIfHidden("High impact changes detected", {
-                      body:
-                        payload.terraform_report.potential_impact.banner
-                          .description ||
-                        "Review the potential impact before proceeding.",
-                      tag: "nebula-high-impact",
-                    });
-                  }
-                  onCompleted?.(payload);
-                })
-                .catch((err) =>
-                  console.error("Failed to fetch session data:", err),
+              resolveSessionOutcome(sessionId)
+                .then((outcome) => settleOutcome(outcome, sessionId))
+                .catch(() =>
+                  settleOutcome(
+                    {
+                      kind: "failed",
+                      detail: null,
+                      message: STRINGS.planning.resultsLoadError,
+                    },
+                    sessionId,
+                  ),
                 );
             }
 
@@ -210,17 +281,14 @@ export function useTerraformActions() {
               es.close();
               eventSourceRef.current = null;
               clearInactivityTimer();
-
-              const failMsg = data.detail.message || "Process failed";
-
-              dispatch({ type: "ERROR", message: failMsg });
-              setAssistantMsgState((prev) => ({
-                ...prev,
-                pipelineStep: PHASE.COMPLETE,
-                sseStatus: EVENT_STATUS.FAILED,
-                msg: failMsg,
-              }));
-              notifyIfHidden("Pipeline failed", { body: failMsg });
+              settleOutcome(
+                {
+                  kind: "failed",
+                  detail: null,
+                  message: data.detail.message || "Process failed",
+                },
+                sessionId,
+              );
             }
           } catch (err) {
             console.error("SSE parse error:", err);
@@ -239,34 +307,27 @@ export function useTerraformActions() {
 
           checkSessionStatus(sessionId)
             .then(async (result) => {
-              if (result.status === "completed") {
-                dispatch({ type: "SUCCESS", sessionId });
-                setAssistantMsgState((prev) => ({
-                  ...prev,
-                  pipelineStep: PHASE.COMPLETE,
-                }));
-                notifyIfHidden("Pipeline completed", {
-                  body: "Your infrastructure changes are ready for review.",
-                });
+              if (
+                result.status === "completed" ||
+                result.status === "uncompleted" ||
+                result.status === "failed"
+              ) {
                 try {
-                  const payload = await getSessionData(sessionId);
-                  onCompleted?.(payload);
-                } catch (err) {
-                  console.error("Failed to fetch session data:", err);
+                  const outcome = await resolveSessionOutcome(sessionId);
+                  settleOutcome(outcome, sessionId);
+                } catch {
+                  settleOutcome(
+                    {
+                      kind: "failed",
+                      detail: null,
+                      message:
+                        result.status === "failed"
+                          ? "Process failed"
+                          : STRINGS.planning.resultsLoadError,
+                    },
+                    sessionId,
+                  );
                 }
-                return;
-              }
-
-              if (result.status === "failed") {
-                const failMsg = "Process failed";
-                dispatch({ type: "ERROR", message: failMsg });
-                setAssistantMsgState((prev) => ({
-                  ...prev,
-                  pipelineStep: PHASE.COMPLETE,
-                  sseStatus: EVENT_STATUS.FAILED,
-                  msg: failMsg,
-                }));
-                notifyIfHidden("Pipeline failed", { body: failMsg });
                 return;
               }
 
@@ -305,7 +366,9 @@ export function useTerraformActions() {
         const message =
           err instanceof ApiError
             ? (err.detail ?? err.message)
-            : "An unexpected error occurred";
+            : err instanceof Error && err.message
+              ? err.message
+              : "An unexpected error occurred";
 
         dispatch({ type: "ERROR", message });
       }

@@ -13,10 +13,14 @@ import { useMode } from "@/contexts/ModeContext";
 import {
   listUserSessions,
   getSessionDetail,
-  fetchArtifactContent,
 } from "@/services/core/sessions";
 import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
-import type { TerraformReport } from "@/types";
+import {
+  resolveSessionOutcome,
+  buildSessionPatch,
+  buildApplyResults,
+  buildAssistantMessage,
+} from "@/services/workflows/session_outcome";
 import type {
   OperationType,
   SessionDetail,
@@ -50,7 +54,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "query",
     header: "Query",
-    width: "34%",
+    width: "38%",
     render: (s) => (
       <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
     ),
@@ -60,28 +64,21 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     header: "Project",
     width: "16%",
     className: styles.secondaryCell,
-    render: (s) => extractProjectName(s.repo_uri),
+    render: (s) => extractProjectName(s.workspace_uri),
   },
   {
     key: "type",
     header: "Type",
     width: "8%",
     className: styles.secondaryCell,
-    render: (s) => s.operation_type || "-",
+    render: (s) => s.operation || "-",
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
     className: styles.secondaryCell,
-    render: (s) => s.cloud_provider,
-  },
-  {
-    key: "env",
-    header: "Env",
-    width: "8%",
-    className: styles.secondaryCell,
-    render: (s) => s.environment,
+    render: (s) => s.provider,
   },
   {
     key: "status",
@@ -106,7 +103,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "created",
     header: "Created",
-    width: "12%",
+    width: "14%",
     className: styles.secondaryCell,
     render: (s) => formatDate(s.created_at),
   },
@@ -115,54 +112,44 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
 const adminColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "user",
-    header: "Usuario",
-    width: "13%",
-    render: (s) => s.user_id.split("@")[0],
+    header: "User",
+    width: "12%",
+    render: (s) => (s.username ? s.username.split("@")[0] : "-"),
   },
   {
     key: "query",
     header: "Query",
-    width: "28%",
+    width: "30%",
     render: (s) => (
-      <span title={s.initial_query || ""}>
-        {truncate(s.initial_query)}
-      </span>
+      <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
     ),
   },
   {
     key: "project",
     header: "Project",
-    width: "13%",
+    width: "14%",
     className: styles.secondaryCell,
-    render: (s) =>
-      s.repository_id ? s.repository_id.replace(/_[^_]+$/, "") : "-",
+    render: (s) => extractProjectName(s.workspace_uri),
   },
   {
     key: "type",
     header: "Type",
     width: "8%",
     className: styles.secondaryCell,
-    render: (s) => s.operation_type,
+    render: (s) => s.operation,
   },
   {
     key: "cloud",
     header: "Cloud",
     width: "8%",
     className: styles.secondaryCell,
-    render: (s) => s.cloud_provider,
-  },
-  {
-    key: "env",
-    header: "Env",
-    width: "8%",
-    className: styles.secondaryCell,
-    render: (s) => s.environment,
+    render: (s) => s.provider,
   },
   {
     key: "status",
     header: "Status",
     width: "8%",
-    render: (s) => <StatusBadge variant={s.final_status || s.current_status} />,
+    render: (s) => <StatusBadge variant={s.current_status} />,
   },
   {
     key: "apply",
@@ -170,22 +157,21 @@ const adminColumns: ColumnDef<SessionSummary>[] = [
     width: "5%",
     className: styles.applyCell,
     render: (s) =>
-      s.operation_type === "generate" || s.operation_type === "import" ? (
-        s.apply_allowed ? (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        ) : (
+      s.operation === "generate" || s.operation === "import" ? (
+        s.is_blocked ? (
           <LockOutlinedIcon className={styles.applyIconLocked} />
+        ) : (
+          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
         )
       ) : null,
   },
   {
     key: "created",
     header: "Created",
-    width: "9%",
+    width: "15%",
     className: styles.secondaryCell,
     render: (s) => formatDate(s.created_at),
   },
-  ...baseColumns,
 ];
 
 const filters: FilterConfig[] = [
@@ -255,7 +241,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     let cancelled = false;
     setLoadingDetail(true);
-    getSessionDetail(sessionId)
+    getSessionDetail(sessionId, { includeHistory: true })
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -301,75 +287,43 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     if (!detail) return;
     invalidateSessionsCache();
 
-    const lastRound =
-      detail.rounds.length > 0 ? detail.rounds[detail.rounds.length - 1] : null;
-    const codeChanges = lastRound?.code_changes ?? [];
-
-    const [reportContent, planContent, ...fileContents] = await Promise.all([
-      lastRound?.report
-        ? fetchArtifactContent(lastRound.report.url)
-        : Promise.resolve(null),
-      lastRound?.plan
-        ? fetchArtifactContent(lastRound.plan.url)
-        : Promise.resolve(null),
-      ...codeChanges.map((c) => fetchArtifactContent(c.url)),
-    ]);
-
-    let report: TerraformReport | undefined;
-    if (reportContent) {
-      try {
-        report = JSON.parse(reportContent);
-      } catch {
-        // ignore malformed report
-      }
-    }
-
-    // Rebuild the tagged multi-file blob the Home result view parses.
-    const parts: string[] = [];
-    if (planContent) {
-      parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);
-    }
-    codeChanges.forEach((c, i) => {
-      parts.push(`<${c.file_name}>\n${fileContents[i]}\n</${c.file_name}>`);
-    });
+    // The detail was fetched with history, so the outcome carries the chat.
+    const outcome = await resolveSessionOutcome(detail);
+    if (outcome.kind === "failed") return;
 
     setMode(
       detail.operation === "drift"
         ? "drift"
-        : detail.operation === "import"
+        : outcome.kind === "apply-results"
           ? "import"
           : "generate",
     );
 
-    updateSession({
-      session_id: detail.uuid,
-      cloud: detail.provider,
-      branchName: detail.workspace.branch,
-      repositoryUrl: detail.workspace.uri,
-      firstQuery: detail.first_query ?? undefined,
-      terraform_report: report,
-      terraform_targets: lastRound?.plan?.targets,
-      apply_allowed: !detail.is_blocked,
-    });
+    const patch = buildSessionPatch(outcome);
 
-    if (detail.operation === "import") {
-      updateSession({
-        applyResults: {
-          sessionId: detail.uuid,
-          status: report?.status ?? "Unknown",
-          message: report?.execution_summary ?? "",
-          errorMessage: "",
-          timestamp: new Date().toISOString(),
-          applyReport: report ?? null,
-        },
-      });
+    if (outcome.kind === "apply-results") {
+      updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
       handleCloseOverlay();
       navigate(`/home/apply-results/${detail.uuid}`);
-    } else {
-      updateSession({ code: parts.join("\n") });
-      handleCloseOverlay();
-      navigate(`/home/results/${detail.uuid}`);
+      return;
     }
+
+    if (outcome.kind === "rejected") {
+      updateSession({
+        ...patch,
+        full_history: [
+          ...(patch.full_history ?? []),
+          {
+            role: "assistant" as const,
+            content: buildAssistantMessage(outcome),
+          },
+        ],
+      });
+    } else {
+      updateSession(patch);
+    }
+    handleCloseOverlay();
+    navigate(`/home/results/${detail.uuid}`);
   }
 
   function handleCloseOverlay() {
@@ -410,7 +364,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         ) : detail ? (
           <SessionData
             session={detail}
-            onReload={handleReload}
+            onReload={
+              detail.current_status !== "failed" ? handleReload : undefined
+            }
             conversationHistory={
               isAdminView && detail.history
                 ? normalizeHistory(detail.history)

@@ -403,17 +403,20 @@ export default function SessionData({
                 Repository
                 <OpenInNewIcon className={styles.linkIcon} />
               </a>
-              {session.pull_request && (
+              {(
+                session.rounds[session.rounds.length - 1]?.pull_requests ?? []
+              ).map((pr) => (
                 <a
-                  href={session.pull_request.url}
+                  key={pr.url}
+                  href={pr.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.link}
                 >
-                  Pull Request
+                  Pull Request #{pr.number}
                   <OpenInNewIcon className={styles.linkIcon} />
                 </a>
-              )}
+              ))}
             </div>
           </div>
         </div>

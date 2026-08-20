@@ -11,18 +11,20 @@ import { ModeProvider } from "@/contexts/ModeContext";
 import { useHomeWizard } from "./useHomeWizard";
 
 // ─── Dynamic mock controls ────────────────────────────────────
-const mockAuthState = vi.fn<[], { status: string; message?: string; data?: unknown }>(() => ({ status: "idle" }));
+const mockAuthState = vi.fn<() => { status: string; message?: string; data?: unknown }>(() => ({ status: "idle" }));
 const mockAuthRun = vi.fn();
 const mockAuthReset = vi.fn();
 
-const mockTerraformState = vi.fn<[], { status: string; message?: string }>(() => ({ status: "idle" }));
+const mockTerraformState = vi.fn<() => { status: string; message?: string }>(() => ({ status: "idle" }));
 const mockTerraformRun = vi.fn();
 const mockTerraformReset = vi.fn();
 
-const mockResolveAndScan = vi.fn();
-const mockScanPathsValue = vi.fn<[], string[]>(() => []);
+const mockResolveAndScan = vi.fn<
+  (identifier: string) => Promise<{ repoUrl: string; project: string | null; paths: string[] }>
+>();
+const mockScanPathsValue = vi.fn<() => string[]>(() => []);
 const mockMapperLoadingValue = vi.fn(() => false);
-const mockMapperErrorValue = vi.fn<[], string | null>(() => null);
+const mockMapperErrorValue = vi.fn<() => string | null>(() => null);
 const mockSetMapperError = vi.fn();
 const mockResetMapper = vi.fn();
 
@@ -32,6 +34,13 @@ vi.mock("@/contexts/AuthContext", () => ({
     isAuthenticated: true,
     login: vi.fn(),
     logout: vi.fn(),
+  }),
+}));
+
+const mockHandleOutcome = vi.fn();
+vi.mock("@/hooks/useWizardTerraform", () => ({
+  useWizardTerraform: () => ({
+    handleOutcome: mockHandleOutcome,
   }),
 }));
 

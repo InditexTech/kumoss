@@ -5,28 +5,32 @@
 import { apiFetch } from "@/services/api";
 import type {
   CreatePrRequest,
-  RepositoryPrStatusResponse,
-  ApprovePrRequest,
+  MergePrRequest,
+  PullRequestDTO,
 } from "@/types/api";
 
 const REPO_BASE = "/api/v1/repository";
 
-/** PUT /v1/repository/pr — Create a Pull Request from a session's branch */
+// PR creation runs synchronous LLM work server-side; well above the 60s default.
+const CREATE_PR_TIMEOUT_MS = 300_000;
+
+/** PUT /v1/repository/pr — Create a Pull Request from the session's branch */
 export async function createPullRequest(
   request: CreatePrRequest,
-): Promise<RepositoryPrStatusResponse> {
-  return apiFetch<RepositoryPrStatusResponse>(`${REPO_BASE}/pr`, {
+): Promise<PullRequestDTO> {
+  return apiFetch<PullRequestDTO>(`${REPO_BASE}/pr`, {
     method: "PUT",
     body: JSON.stringify(request),
+    timeout: CREATE_PR_TIMEOUT_MS,
   });
 }
 
-/** PATCH /v1/repository/approve_pr — Merge the PR with ID "id" into the default branch */
-export async function approvePullRequest(
-  request: ApprovePrRequest,
-): Promise<RepositoryPrStatusResponse> {
-  return apiFetch<RepositoryPrStatusResponse>(`${REPO_BASE}/approve_pr`, {
-    method: "PATCH",
+/** PUT /v1/repository/pr/merge — Merge the session's latest PR (204) */
+export async function mergePullRequest(
+  request: MergePrRequest,
+): Promise<void> {
+  return apiFetch<void>(`${REPO_BASE}/pr/merge`, {
+    method: "PUT",
     body: JSON.stringify(request),
   });
 }
