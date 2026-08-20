@@ -168,7 +168,7 @@ async def apply_infrastructure(
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
-        return await handler.handle(request.q, request.terraform_targets)
+        return await handler.handle()
 
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}

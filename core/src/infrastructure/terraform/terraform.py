@@ -196,10 +196,6 @@ class Terraform(ITerraform):
         self,
         targets: list[str],
     ) -> TerraformValidationDTO:
-        _ = await self.__session_svc.update_status(
-            msg="Applying infrastructure changes.",
-            status=SessionStatus.APPLY,
-        )
 
         cfg = system_config.services.iac
         if not cfg.enabled or not cfg.endpoint:

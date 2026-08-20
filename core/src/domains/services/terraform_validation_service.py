@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Awaitable
 from dataclasses import dataclass
+from typing import Callable
 
-from src.domains.entities import SessionContext
+from src.domains.entities import History, SessionContext
 from src.domains.interfaces import IFileSystem
-from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import ArtifactStorageService, SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
-from src.domains.services.terraform_target_service import TerraformTargetService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
@@ -30,24 +30,20 @@ class ValidationState:
 class TerraformValidationService:
     def __init__(
         self,
-        validator: ITerraform,
         git: IGit,
         files: IFileSystem,
         session_service: SessionService,
         template_service: TemplateOrchestrationService,
         llm_service: LLMOrchestrationService,
         tool_orchestration_service: ToolOrchestrationService,
-        target_service: TerraformTargetService,
         artifact_service: ArtifactStorageService,
     ):
-        self.__validator = validator
         self.__git = git
         self.__files = files
         self.__session_svc = session_service
         self.__template_svc = template_service
         self.__llm_svc = llm_service
         self.__tool_orchestration = tool_orchestration_service
-        self.__target_svc = target_service
         self.__artifact_svc = artifact_service
         self.__count: int = 0
 
@@ -89,6 +85,7 @@ class TerraformValidationService:
         ctx: SessionContext,
         conventions: Conventions,
         include_forbidden_actions: bool,
+        validator: Callable[[History], Awaitable[TerraformValidationDTO]],
     ) -> TerraformValidationDTO:
         """
         Execute the terraform generation and validation cycle using tool calls
@@ -141,10 +138,7 @@ class TerraformValidationService:
             await self.__upload_changed_files(ctx)
             await self.__git.commit_and_push(ctx.branch_name)
 
-            validation = await self.__validator.validate(
-                branch=ctx.branch_name,
-                targets=await self.__target_svc.generate(local_history),
-            )
+            validation = await validator(local_history)
             if validation.terraform_plan:
                 _ = await self.__artifact_svc.store_terraform_plan(
                     session_id=ctx.id,

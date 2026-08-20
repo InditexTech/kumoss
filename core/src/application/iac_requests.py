@@ -18,16 +18,6 @@ from src.shared.constants import TerraformProvider
 
 
 class BaseIacRequest(BaseModel):
-    q: Annotated[
-        str,
-        Field(
-            min_length=1,
-            description="User query for this call.",
-            examples=[
-                "Create a storage account and store the secrets in the key vault 001"
-            ],
-        ),
-    ]
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
@@ -99,7 +89,16 @@ class BaseIacRequest(BaseModel):
 
 
 class GenerateRequest(BaseIacRequest):
-    pass
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
 
 
 class DriftRequest(BaseIacRequest):
@@ -107,4 +106,13 @@ class DriftRequest(BaseIacRequest):
 
 
 class ApplyRequest(BaseIacRequest):
-    terraform_targets: list[str] = Field(default_factory=list)
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
