@@ -10,6 +10,8 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
+import { useNotification } from "@/contexts/NotificationContext";
+import { getApiErrorMessage } from "@/services/api";
 import {
   listUserSessions,
   getSessionDetail,
@@ -20,6 +22,7 @@ import {
   buildSessionPatch,
   buildApplyResults,
   buildAssistantMessage,
+  type SessionOutcome,
 } from "@/services/workflows/session_outcome";
 import type {
   OperationType,
@@ -190,6 +193,7 @@ const filters: FilterConfig[] = [
     options: [
       { value: "generating", label: "Generating" },
       { value: "completed", label: "Completed" },
+      { value: "uncompleted", label: "Uncompleted" },
       { value: "failed", label: "Failed" },
     ],
   },
@@ -205,6 +209,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const navigate = useNavigate();
   const { updateSession } = useSession();
   const { setMode } = useMode();
+  const { showNotification } = useNotification();
   const username = user?.username || "";
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
@@ -245,8 +250,14 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
-      .catch(() => {
-        if (!cancelled) setSessionParam(null);
+      .catch((err) => {
+        if (!cancelled) {
+          showNotification(
+            "failure",
+            `Failed to load session detail: ${getApiErrorMessage(err)}`,
+          );
+          setSessionParam(null);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingDetail(false);
@@ -288,8 +299,20 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     invalidateSessionsCache();
 
     // The detail was fetched with history, so the outcome carries the chat.
-    const outcome = await resolveSessionOutcome(detail);
-    if (outcome.kind === "failed") return;
+    let outcome: SessionOutcome;
+    try {
+      outcome = await resolveSessionOutcome(detail);
+    } catch (err) {
+      showNotification(
+        "failure",
+        `Failed to load session results: ${getApiErrorMessage(err)}`,
+      );
+      return;
+    }
+    if (outcome.kind === "failed") {
+      showNotification("failure", outcome.message);
+      return;
+    }
 
     setMode(
       detail.operation === "drift"

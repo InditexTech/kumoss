@@ -18,6 +18,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import type { PaginatedResponse } from "@/types/api";
+import { getApiErrorMessage } from "@/services/api";
+import { useNotification } from "@/contexts/NotificationContext";
 import styles from "./SessionsTable.module.css";
 
 export interface FilterOption {
@@ -88,8 +90,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
     searches: searchesProp,
     searchPlaceholder = "Search...",
     extraToolbarContent,
-    // TODO: revert to 15 — temporarily set to 3 for development/testing
-    pageSize: defaultPageSize = 3,
+    pageSize: defaultPageSize = 15,
   } = props;
 
   const searchFields = useMemo(
@@ -98,6 +99,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
   );
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const { showNotification } = useNotification();
   const [rows, setRows] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -175,14 +177,14 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
       setTotal(data.total);
       setTotalPages(data.total_pages ?? Math.ceil(data.total / pageSize));
     } catch (err) {
-      console.error(
-        "Failed to load data:",
-        err instanceof Error ? err.message : String(err),
+      showNotification(
+        "failure",
+        `Failed to load sessions: ${getApiErrorMessage(err)}`,
       );
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, appliedSearches, filterValues, fetchData, filters, searchFields]);
+  }, [page, pageSize, appliedSearches, filterValues, fetchData, filters, searchFields, showNotification]);
 
   useEffect(() => {
     loadData();

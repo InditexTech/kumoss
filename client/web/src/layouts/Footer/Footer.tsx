@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { Slide, Tooltip } from "@mui/material";
@@ -12,6 +12,7 @@ import styles from "./Footer.module.css";
 
 const Footer = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { session } = useSession();
   const view = useCurrentView();
 
@@ -32,7 +33,10 @@ const Footer = () => {
   if (isTimelineMode) {
     return (
       <div className={styles.timelineContainer}>
-        <UserSessionsHistory pageSize={20} />
+        <UserSessionsHistory
+          pageSize={20}
+          onSelectSession={(s) => navigate(`/user/sessions?session=${s.uuid}`)}
+        />
       </div>
     );
   }

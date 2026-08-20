@@ -15,18 +15,25 @@ export default function useDragScroll<T extends HTMLElement = HTMLElement>() {
     if (!el || e.button !== 0) return;
     const target = e.target as HTMLElement;
     if (target.closest("button, a, [data-no-drag]")) return;
-    el.setPointerCapture(e.pointerId);
     state.current = { dragging: true, startX: e.clientX, scrollLeft: el.scrollLeft, didDrag: false };
-    el.style.cursor = "grabbing";
-    el.style.userSelect = "none";
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const s = state.current;
-    if (!s.dragging) return;
+    const el = ref.current;
+    if (!s.dragging || !el) return;
     const dx = e.clientX - s.startX;
-    if (Math.abs(dx) > DRAG_THRESHOLD) s.didDrag = true;
-    ref.current!.scrollLeft = s.scrollLeft - dx;
+    if (!s.didDrag) {
+      if (Math.abs(dx) <= DRAG_THRESHOLD) return;
+      // Capture only once a real drag starts: capturing on pointerdown
+      // retargets pointerup to the container, so child click handlers
+      // (session cards) would never fire on a plain click.
+      s.didDrag = true;
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = "grabbing";
+      el.style.userSelect = "none";
+    }
+    el.scrollLeft = s.scrollLeft - dx;
   }, []);
 
   const onPointerUp = useCallback(() => {

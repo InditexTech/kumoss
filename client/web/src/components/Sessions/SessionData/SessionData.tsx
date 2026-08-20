@@ -17,7 +17,7 @@ import type {
   SessionDetail,
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
-import { StatusBadge, PageOverlay } from "@/components/ui";
+import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
@@ -199,10 +199,10 @@ export default function SessionData({
           </Typography>
           <Typography
             variant="body1"
-            component="span"
+            component="div"
             className={`${styles.fieldValue} ${styles.failureValue}`}
           >
-            {failureMessage}
+            <MarkdownText content={failureMessage} />
           </Typography>
         </div>
       )}

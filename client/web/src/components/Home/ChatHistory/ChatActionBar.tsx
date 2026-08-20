@@ -5,7 +5,9 @@
 import { useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
+import { useNotification } from "@/contexts/NotificationContext";
 import { createPullRequest } from "@/services/core/iac_code";
+import { getApiErrorMessage } from "@/services/api";
 import { STRINGS } from "@/constants/strings";
 import styles from "./ChatActionBar.module.css";
 
@@ -21,6 +23,7 @@ export default function ChatActionBar({
   isApplyResult,
 }: ChatActionBarProps) {
   const { session, prDetails, updatePrDetails } = useSession();
+  const { showNotification } = useNotification();
   const [, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
 
@@ -46,7 +49,11 @@ export default function ChatActionBar({
       });
       updatePrDetails({ id: res.id, prUrl: res.url });
       openPrView("initial");
-    } catch {
+    } catch (err) {
+      showNotification(
+        "failure",
+        `Failed to create pull request: ${getApiErrorMessage(err)}`,
+      );
       setLoading(false);
     }
   }, [
@@ -55,6 +62,7 @@ export default function ChatActionBar({
     loading,
     updatePrDetails,
     openPrView,
+    showNotification,
   ]);
 
   const handleContinuePr = useCallback(() => {
