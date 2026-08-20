@@ -101,6 +101,7 @@ def _make_runner(
         finally:
             tracer.reset_current_tracer(tracer_token)
             _workspace.cleanup(call_dir)
+            await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
             await _orchestration.release(ctx.id)
 
     return runner

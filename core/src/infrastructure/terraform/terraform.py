@@ -54,11 +54,9 @@ from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.types import UNSET
 from src.domains.dto import TerraformValidationDTO
 from src.domains.interfaces.terraform_interface import ITerraform
-from src.domains.services.session_service import SessionService
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
-from src.shared.constants import SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -73,10 +71,8 @@ class Terraform(ITerraform):
     def __init__(
         self,
         workspace_path: Path,
-        session_service: SessionService,
     ):
         self.__workspace_path = workspace_path
-        self.__session_svc = session_service
 
     @trace_terraform
     @override
@@ -86,11 +82,6 @@ class Terraform(ITerraform):
         targets: list[str],
         get_drift: bool = False,
     ) -> TerraformValidationDTO:
-        _ = await self.__session_svc.update_status(
-            msg="Waiting for infrastructure as code to be validated.",
-            status=SessionStatus.VALIDATING,
-        )
-
         cfg = system_config.services.iac
         if not cfg.enabled or not cfg.endpoint:
             raise ExceptionHandler(

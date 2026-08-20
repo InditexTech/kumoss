@@ -197,13 +197,9 @@ class ApplicationFactory:
 
     def _get_terraform_provider(
         self,
-        file_utils: FileSystemUtils,
-        session_service: SessionService,
+        project_root: Path,
     ) -> ITerraform:
-        return TerraformFactory(
-            session_service=session_service,
-            file_utils=file_utils,
-        ).get()
+        return TerraformFactory(project_root).get()
 
     def _get_terraform_validation_service(
         self,
@@ -318,7 +314,7 @@ class ApplicationFactory:
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
-        validator_prv = self._get_terraform_provider(file_utils, session_svc)
+        validator_prv = self._get_terraform_provider(file_utils.project_root)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -367,7 +363,7 @@ class ApplicationFactory:
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
-        validator_prv = self._get_terraform_provider(file_utils, session_svc)
+        validator_prv = self._get_terraform_provider(file_utils.project_root)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -417,7 +413,7 @@ class ApplicationFactory:
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
-        terraform_svc = self._get_terraform_provider(file_utils, session_svc)
+        terraform_svc = self._get_terraform_provider(file_utils.project_root)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,

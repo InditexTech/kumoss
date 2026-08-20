@@ -31,12 +31,11 @@ class WorkspaceService(IWorkspace):
     def __add_terraform_gitignore(self, path: Path) -> bool:
         utils = FileSystemUtils(path)
         with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
-            if not Path(utils.project_root / ".gitignore").exists():
-                return utils.write_file(
-                    target_file=".gitignore",
-                    content=f.read(),
-                    is_safe=False,
-                )
+            return utils.write_file(
+                target_file=".gitignore",
+                content=f.read(),
+                is_safe=False,
+            )
         return True
 
     @override

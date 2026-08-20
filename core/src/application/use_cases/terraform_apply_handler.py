@@ -47,18 +47,19 @@ class TerraformApplyHandler:
 
         async def background_task():
             try:
-                _ = await self.__session_svc.update_status(
-                    msg="Apply the IaC session changes",
-                    prompt=await self.__template_svc.render(
-                        PromptsLibrary.STATUS_UPDATE
-                    ),
-                    status=SessionStatus.APPLY,
-                    history=ctx.history,
-                )
+                await self.__session_svc.next_round("Terraform apply.")
 
                 async def validation_callback(
                     history: History,
                 ) -> TerraformValidationDTO:
+                    _ = await self.__session_svc.update_status(
+                        msg="Apply the IaC session changes",
+                        prompt=await self.__template_svc.render(
+                            PromptsLibrary.STATUS_UPDATE
+                        ),
+                        status=SessionStatus.APPLY,
+                        history=ctx.history,
+                    )
                     return await self.__terraform_svc.apply(
                         targets=await self.__target_svc.generate(history)
                     )

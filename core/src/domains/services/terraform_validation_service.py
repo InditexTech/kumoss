@@ -138,6 +138,12 @@ class TerraformValidationService:
             await self.__upload_changed_files(ctx)
             await self.__git.commit_and_push(ctx.branch_name)
 
+            _ = await self.__session_svc.update_status(
+                msg="Waiting for infrastructure as code to be validated.",
+                prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
+                status=SessionStatus.VALIDATING,
+                history=local_history,
+            )
             validation = await validator(local_history)
             if validation.terraform_plan:
                 _ = await self.__artifact_svc.store_terraform_plan(
