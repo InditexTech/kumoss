@@ -23,7 +23,7 @@ from src.application.services.session_orchestration_service import (
 )
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import OperationType
+from src.shared.constants import OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -93,6 +93,9 @@ def _make_runner(
             ctx.set_call_dir(call_dir / ctx.iac_path)
             run_handler = await build_handler(ctx)
             await run_handler()
+            last = await DatabaseService.get_last_status(ctx.id)
+            if last.status is not SessionStatus.UNCOMPLETED:
+                await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
@@ -101,7 +104,6 @@ def _make_runner(
         finally:
             tracer.reset_current_tracer(tracer_token)
             _workspace.cleanup(call_dir)
-            await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
             await _orchestration.release(ctx.id)
 
     return runner

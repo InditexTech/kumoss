@@ -58,7 +58,7 @@ class TerraformApplyHandler:
                             PromptsLibrary.STATUS_UPDATE
                         ),
                         status=SessionStatus.APPLY,
-                        history=ctx.history,
+                        history=history,
                     )
                     return await self.__terraform_svc.apply(
                         targets=await self.__target_svc.generate(history)

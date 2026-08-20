@@ -2,12 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Request models for the URI-driven, session-iterating IaC endpoints.
-
-Every request is exactly one of:
-  - first call: {repo_uri, cloud, environment, user_id, q, ...}
-  - iteration:  {session_id, user_id, q, ...}
-"""
+"""Request models for the URI-driven, session-iterating IaC endpoints."""
 
 from typing import Annotated
 from uuid import UUID
