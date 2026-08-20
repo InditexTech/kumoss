@@ -692,8 +692,8 @@ class DatabaseService:
         session runs and the push channel triggers client refetches of this
         exact read model. Finished sessions can never change again
         (``acquire_in_flight`` refuses them), so those are served from a
-        cached copy. The admin variant (``include_history=True``) is always
-        read fresh.
+        cached copy. The history variant (``include_history=True``) is
+        always read fresh.
         """
         if not include_history:
             cached = await redis_client.get_json(_k_detail(session_id))

@@ -368,7 +368,8 @@ class SessionDetail(SessionSummary):
 
     ``statuses`` is the session's full status timeline across all rounds;
     the same entries also appear inside their round. Pull requests live
-    inside their round. ``history`` is populated on admin surfaces only.
+    inside their round. ``history`` is populated only when requested via
+    ``include_history``.
     """
 
     workspace: WorkspaceRef
