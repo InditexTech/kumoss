@@ -17,6 +17,7 @@ import type {
   SessionDetail,
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
+import { STRINGS } from "@/constants/strings";
 import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
@@ -375,7 +376,8 @@ export default function SessionData({
               component="span"
               className={styles.infoLabel}
             >
-              Scope
+              {STRINGS.wizard.scopeByProvider[session.provider]?.label ??
+                "Scope"}
             </Typography>
             <Typography
               variant="subtitle2"

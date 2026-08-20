@@ -11,14 +11,14 @@ React frontend for the Nebula IaC generation platform.
 ## Quick Start
 
 ```bash
-cd clients/web
+cd client/web
 npm install
 npm run dev
 ```
 
-The dev server starts on `http://localhost:5173`. API calls proxy to
-`http://localhost:8000` (start the backend with `docker compose up` from the
-repo root).
+The dev server starts on `http://localhost:5173`. API calls use same-origin
+`/api/v1/...` paths and are not proxied by Vite — to exercise the app against
+the backend, run the Docker stack below and browse `http://localhost`.
 
 ## Docker (full stack)
 
@@ -28,23 +28,35 @@ From the repo root:
 docker compose up --build
 ```
 
-This starts the full stack (API, services, database, Phoenix tracer, nginx
-proxy, and Vite dev server). Browse to `http://localhost`.
+This starts the full stack (core API, microservices, databases, Phoenix
+tracer, and the nginx proxy, which serves a production build of this client).
+Browse to `http://localhost`.
 
-Use `docker compose watch` for hot-reload during development.
+The client is baked into the `nebula-nginx` image as a static build. After
+changing frontend code, rebuild the proxy to see the changes:
+
+```bash
+docker compose build proxy && docker compose up -d proxy
+```
+
+`docker compose watch` hot-reloads the core backend only, not this client.
 
 ## Commands
 
 | Action | Command |
 |--------|---------|
 | Dev server | `npm run dev` |
-| Dev server (mocked API) | `npm run dev:mock` |
 | Lint | `npm run lint` |
 | Tests | `npm run test` |
 | Tests (CI) | `npm run test:ci` |
 | Coverage | `npm run test:coverage` |
 | Production build | `npm run build` |
 | Preview build | `npm run preview` |
+
+> `npm run dev:mock` still exists in `package.json` but is currently a no-op:
+> the MSW browser-worker bootstrap in `src/main.tsx` is commented out and
+> `src/mocks/browser.ts` does not exist. MSW request mocking is active in
+> tests only.
 
 ## Stack
 
