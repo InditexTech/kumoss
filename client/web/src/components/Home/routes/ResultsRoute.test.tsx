@@ -79,6 +79,21 @@ describe("ResultsRoute", () => {
     expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
   });
 
+  it("keeps the split view for a rejected iteration with prior artifacts", () => {
+    renderRoute({
+      current_status: "uncompleted",
+      code: "<main.tf>\nresource {}\n</main.tf>",
+      full_history: [
+        { role: "user", content: "deploy a VM" },
+        { role: "assistant", content: "Query is off-topic" },
+      ],
+    });
+
+    expect(screen.getByText("Query is off-topic")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Report" })).toBeInTheDocument();
+    expect(screen.getByText("View Report")).toBeInTheDocument();
+  });
+
   it("renders the split view when artifacts exist", () => {
     renderRoute({
       code: "<main.tf>\nresource {}\n</main.tf>",

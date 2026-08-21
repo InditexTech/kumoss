@@ -8,6 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
 import {
+  appendAssistantMessage,
   buildApplyResults,
   buildAssistantMessage,
   buildSessionPatch,
@@ -57,10 +58,10 @@ export function useWizardTerraform() {
 
       updateSession({
         ...merged,
-        full_history: [
-          ...(merged.full_history ?? []),
-          { role: "assistant" as const, content: buildAssistantMessage(outcome) },
-        ],
+        full_history: appendAssistantMessage(
+          merged.full_history,
+          buildAssistantMessage(outcome),
+        ),
       });
       navigate(`/home/results/${outcome.detail.uuid}`, { replace: true });
     },

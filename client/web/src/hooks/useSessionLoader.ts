@@ -9,6 +9,7 @@ import {
   buildSessionPatch,
   buildApplyResults,
   buildAssistantMessage,
+  appendAssistantMessage,
 } from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
@@ -54,13 +55,10 @@ export function useSessionLoader(
         } else if (outcome.kind === "rejected") {
           updateSession({
             ...patch,
-            full_history: [
-              ...(patch.full_history ?? []),
-              {
-                role: "assistant" as const,
-                content: buildAssistantMessage(outcome),
-              },
-            ],
+            full_history: appendAssistantMessage(
+              patch.full_history,
+              buildAssistantMessage(outcome),
+            ),
           });
         } else {
           updateSession(patch);

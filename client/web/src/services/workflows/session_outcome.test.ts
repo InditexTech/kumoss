@@ -11,6 +11,7 @@ import {
   buildSessionPatch,
   buildAssistantMessage,
   buildApplyResults,
+  appendAssistantMessage,
   isApplyRound,
   extractProjectName,
   waitForNewRound,
@@ -107,6 +108,76 @@ describe("resolveSessionOutcome", () => {
       kind: "rejected",
       rationale: "Query is off-topic",
     });
+    if (outcome.kind !== "rejected") throw new Error("unreachable");
+    expect(outcome.prior).toBeUndefined();
+  });
+
+  it("hydrates the prior round's artifacts for a rejected iteration", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "uncompleted",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            report: artifactRef(1, "report.json"),
+            code_changes: [
+              { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
+            ],
+          }),
+          makeRound({
+            statuses: [
+              makeStatus("started"),
+              makeStatus("uncompleted", "Query is off-topic"),
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report.json`, () =>
+        HttpResponse.json({ status: "ok" }),
+      ),
+      http.get(`${STORAGE}/main.tf`, () => HttpResponse.text("resource {}")),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind !== "rejected") throw new Error("unreachable");
+    expect(outcome.rationale).toBe("Query is off-topic");
+    expect(outcome.prior?.report).toEqual({ status: "ok" });
+    expect(outcome.prior?.code).toContain("<main.tf>\nresource {}\n</main.tf>");
+  });
+
+  it("degrades a rejected iteration to chat-only when artifacts can't load", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "uncompleted",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            report: artifactRef(1, "report.json"),
+          }),
+          makeRound({
+            statuses: [makeStatus("uncompleted", "Query is off-topic")],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report.json`, () =>
+        new HttpResponse(null, { status: 403 }),
+      ),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome).toMatchObject({
+      kind: "rejected",
+      rationale: "Query is off-topic",
+    });
+    if (outcome.kind !== "rejected") throw new Error("unreachable");
+    expect(outcome.prior).toBeUndefined();
   });
 
   it("maps a failed round to a failed outcome with the status message", async () => {
@@ -254,6 +325,47 @@ describe("buildSessionPatch", () => {
     expect(
       buildSessionPatch({ kind: "failed", detail: null, message: "boom" }),
     ).toEqual({ current_status: "failed" });
+  });
+
+  it("keeps the prior round's artifacts for rejected iterations", () => {
+    const patch = buildSessionPatch({
+      kind: "rejected",
+      detail: makeSessionDetail({ current_status: "uncompleted" }),
+      rationale: "Off-topic",
+      prior: {
+        report: { status: "ok" },
+        code: "<main.tf>\nx\n</main.tf>",
+        targets: ["a.b"],
+      },
+    });
+
+    expect(patch).toMatchObject({
+      current_status: "uncompleted",
+      code: "<main.tf>\nx\n</main.tf>",
+      terraform_targets: ["a.b"],
+      terraform_report: { status: "ok" },
+    });
+  });
+});
+
+describe("appendAssistantMessage", () => {
+  it("appends when the history does not already end with the message", () => {
+    expect(
+      appendAssistantMessage([{ role: "user", content: "q" }], "summary"),
+    ).toEqual([
+      { role: "user", content: "q" },
+      { role: "assistant", content: "summary" },
+    ]);
+  });
+
+  it("does not duplicate a rationale the backend already persisted", () => {
+    const history = [
+      { role: "user" as const, content: "off-topic query" },
+      { role: "assistant" as const, content: "Query is off-topic" },
+    ];
+    expect(appendAssistantMessage(history, "Query is off-topic")).toEqual(
+      history,
+    );
   });
 });
 
