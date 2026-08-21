@@ -57,6 +57,7 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('https://portal.azure.com/#blade/resource')).toBe(true);
     expect(isAllowedUrl('https://console.cloud.google.com/home')).toBe(true);
     expect(isAllowedUrl('https://teams.microsoft.com/channel')).toBe(true);
+    expect(isAllowedUrl('https://github.com/org/repo/pull/5')).toBe(true);
   });
 
   it('accepts subdomains of allowed domains', () => {

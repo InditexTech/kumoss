@@ -69,6 +69,9 @@ export default function ChatHistory({ onIterate, onResetToReport, disabled, isAp
         <input
           ref={inputRef}
           type="text"
+          id="chat-follow-up"
+          name="chat-follow-up"
+          autoComplete="off"
           className={styles.input}
           placeholder={
             iterateDisabled && !disabled

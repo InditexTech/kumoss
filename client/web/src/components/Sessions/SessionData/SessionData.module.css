@@ -124,40 +124,97 @@
   width: 70%;
 }
 
+/* Rows are two-column grids (name | date) so an expanded status
+   message can span the full row width via grid-column. */
 .timelineOpRow {
-  display: table-row;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  border-bottom: 1px solid var(--color-border);
   cursor: default;
 }
 
-.timelineOpRowFirst .timelineOpName,
-.timelineOpRowFirst .timelineOpDate {
-  border-top: 1px solid var(--color-border);
+/* Sub-headers splitting each round into its status rows (pipeline
+   progress) and its artifact rows (openable outputs). */
+.timelineOpGroup {
+  display: block;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.timelineOpGroupLabel {
+  display: inline-block;
+  color: var(--color-content-muted);
+  letter-spacing: 0.08em;
+  padding: 20px 16px 6px 0;
+  white-space: nowrap;
+}
+
+.timelineOpGroup:first-child .timelineOpGroupLabel {
+  padding-top: 0;
 }
 
 .timelineOpRowClickable {
   cursor: pointer;
 }
 
+.timelineOpRowArtifact {
+  background: var(--color-surface-subtle);
+}
+
+.timelineOpRowArtifact .timelineOpName {
+  padding-left: 8px;
+}
+
+.timelineOpRowArtifact .timelineOpDate {
+  padding-right: 8px;
+}
+
 .timelineOpRowClickable:hover {
   background: var(--color-content-hover-bg);
 }
 
+.artifactFileIcon {
+  font-size: 15px !important;
+  color: var(--color-content-secondary);
+  vertical-align: -3px;
+  margin-right: 8px;
+}
+
+/* Expanded status message (chevron toggle on rows that carry one);
+   padded surface box mirroring the artifact rows' treatment. */
+.timelineOpMessage {
+  grid-column: 1 / -1;
+  white-space: normal;
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 19px;
+  color: var(--color-content-muted);
+  background: var(--color-surface-subtle);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  max-width: 62ch;
+}
+
+.timelineOpMessage p {
+  margin: 0 0 4px;
+}
+
+.timelineOpMessage p:last-child {
+  margin-bottom: 0;
+}
+
 .timelineOpName {
-  display: table-cell;
   color: var(--color-content-primary);
   padding: 12px 16px 12px 0;
-  border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
 
 .timelineOpDate {
-  display: table-cell;
   font-size: 13px;
   font-weight: 300;
   line-height: 18px;
   color: var(--color-content-muted);
   padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
   text-align: right;
   white-space: nowrap;
 }
