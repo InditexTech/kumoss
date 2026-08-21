@@ -36,6 +36,16 @@ function Header() {
             onClick={(e) => {
               // SPA navigation: a full reload would replay the greeting
               // splash, which should only show on an actual page refresh.
+              // Preserve default browser behaviors for new-tab/new-window clicks.
+              if (
+                e.button !== 0 ||
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey
+              ) {
+                return;
+              }
               e.preventDefault();
               navigate("/home");
             }}
