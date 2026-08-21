@@ -223,6 +223,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
         {filters.map((f) => (
           <FormControl key={f.key} variant="standard" size="small">
             <Select
+              name={f.key}
               value={filterValues[f.key]}
               onChange={(e: SelectChangeEvent) =>
                 updateParams({ [f.key]: e.target.value, page: "" })
@@ -254,6 +255,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
         <div className={styles.inlinePagination}>
           <FormControl variant="standard" size="small">
             <Select
+              name="page-size"
               value={String(pageSize)}
               onChange={(e: SelectChangeEvent) =>
                 updateParams({ pageSize: e.target.value, page: "" })

@@ -106,6 +106,9 @@ export default function WizardView({
           <input
             ref={inputRef}
             type="text"
+            id="wizard-input"
+            name="wizard-input"
+            autoComplete="off"
             autoFocus
             className={styles.input}
             onKeyDown={handleKeyDown}
