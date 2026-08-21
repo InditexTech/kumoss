@@ -9,9 +9,9 @@ import json
 from typing import Any
 
 import litellm
-from litellm import Router
+from litellm.router import Router
 from litellm.types.utils import ModelResponse, Choices, Message, Usage
-from litellm.exceptions import APIError, RateLimitError
+from openai import OpenAIError
 
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.dto import (
@@ -90,10 +90,8 @@ class LiteLLMAdapter(ILLMProvider):
                         local_history, max_tokens
                     )
                     break
-                except RateLimitError as e:
-                    logging.error(f"LiteLLM aresponses rate limit error: {e.message}")
-                except APIError as e:
-                    logging.error(f"LiteLLM aresponses API error: {e.message}")
+                except OpenAIError as e:
+                    logging.error(f"LiteLLM aresponses rate limit error: {str(e)}")
 
                 logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
                 await asyncio.sleep(30)
@@ -125,10 +123,10 @@ class LiteLLMAdapter(ILLMProvider):
             self._last_invocation_params = kwargs
             try:
                 response = await self.__router.acompletion(**kwargs, drop_params=True)
-            except APIError as e:
-                logging.error(f"LiteLLM API error: {e.message}")
+            except OpenAIError as e:
+                logging.error(f"LiteLLM API error: {str(e)}")
                 raise InferenceCallAPIError(
-                    message=f"Inference call to {self.__model} failed: {e.message}",
+                    message=f"Inference call to {self.__model} failed.",
                     error_code=getattr(e, "status_code", 502),
                 )
 

@@ -85,17 +85,18 @@ async def subscribe_events(
 
             yield f"data: {json.dumps(payload)}\n\n"
 
-            if (
-                status.status == SessionStatus.COMPLETED
-                or status.status == SessionStatus.FAILED
-            ):
+            if status.status == SessionStatus.FAILED:
+                logging.error(
+                    f"SSE max iterations reached, closing stream. session_id={session_id}"
+                )
+                break
+            elif status.status == SessionStatus.COMPLETED:
+                logging.info(
+                    f"session completed, closing stream. session_id={session_id}"
+                )
                 break
 
             await sleep(5)
-
-        logging.error(
-            f"SSE max iterations reached, closing stream. session_id={session_id}"
-        )
 
     await sleep(2)
     try:
