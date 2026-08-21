@@ -210,7 +210,7 @@ export async function resolveSessionOutcome(
     try {
       let prior: RoundArtifacts;
       try {
-        prior = await fetchRoundArtifacts(priorRound);
+        prior = await fetchRoundArtifacts(priorRound, detail.rounds);
       } catch {
         // Same stale-presigned-URL retry as the results path below.
         const fresh = await getSessionDetail(detail.uuid, {
