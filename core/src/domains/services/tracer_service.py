@@ -37,7 +37,7 @@ class TracerService:
 
 def trace_terraform[**P](
     func: Callable[P, Awaitable[TerraformValidationDTO]],
-) -> Callable[P, CoroutineType[Any, Any, TerraformValidationDTO]]:
+) -> Callable[P, Awaitable[TerraformValidationDTO]]:
     """
     Decorator that automatically traces chain function calls with OpenTelemetry spans.
     """

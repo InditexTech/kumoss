@@ -87,7 +87,7 @@ async def subscribe_events(
 
             if status.status == SessionStatus.FAILED:
                 logging.error(
-                    f"SSE max iterations reached, closing stream. session_id={session_id}"
+                    f"SSE session failed, closing stream. session_id={session_id}"
                 )
                 break
             elif status.status == SessionStatus.COMPLETED:
