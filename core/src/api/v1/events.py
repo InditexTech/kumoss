@@ -85,16 +85,15 @@ async def subscribe_events(
 
             yield f"data: {json.dumps(payload)}\n\n"
 
-            if status.status == SessionStatus.FAILED:
-                logging.error(
-                    f"SSE session failed, closing stream. session_id={session_id}"
-                )
-                break
-            elif status.status == SessionStatus.COMPLETED:
+            if (
+                status.status == SessionStatus.FAILED
+                or status.status == SessionStatus.UNCOMPLETED
+                or status.status == SessionStatus.COMPLETED
+            ):
                 logging.info(
-                    f"session completed, closing stream. session_id={session_id}"
+                    f"SSE session {status.status.value}, closing stream. session_id={session_id}"
                 )
-                break
+                return
 
             await sleep(5)
 

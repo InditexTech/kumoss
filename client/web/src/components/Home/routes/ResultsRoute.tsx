@@ -74,6 +74,11 @@ export default function ResultsRoute() {
     }, { replace: true });
   }, [searchParams, setSearchParams, updatePrDetails]);
 
+  // A rejected round produces no artifacts — nothing for the result panel
+  // or the View Report / Create PR actions to show. Render the history
+  // panel chat-only so the user can reply to the rejection rationale.
+  const hasArtifacts = Boolean(session.code || session.terraform_report);
+
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;
 
@@ -92,6 +97,20 @@ export default function ResultsRoute() {
           onBackToReport={handleBackToResult}
           onContactTeam={handleContactTeam}
         />
+      </div>
+    );
+  }
+
+  if (!hasArtifacts) {
+    return (
+      <div className={`${styles.leftSide} ${styles.leftSideChat}`}>
+        <div className={styles.chatFull}>
+          <ChatHistory
+            onIterate={wizard.iterate}
+            onResetToReport={handleResetToReport}
+            hideActions
+          />
+        </div>
       </div>
     );
   }

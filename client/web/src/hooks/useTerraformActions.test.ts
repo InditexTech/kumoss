@@ -236,7 +236,8 @@ describe("useTerraformActions", () => {
       mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
     });
 
-    // The server never closes a rejected round's stream — the client must
+    // The client closes on first terminal receipt rather than waiting for
+    // the server-side close
     expect(mockSseConnection.close).toHaveBeenCalled();
 
     await act(async () => {
@@ -250,7 +251,7 @@ describe("useTerraformActions", () => {
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
   });
 
-  it("UNCOMPLETED on the first round becomes a wizard error, not an outcome", async () => {
+  it("UNCOMPLETED on the first round hands the rejected outcome over too", async () => {
     mockResolveOutcome.mockResolvedValue({
       kind: "rejected",
       detail: { uuid: "sess-abc", rounds: [{}] },
@@ -270,17 +271,23 @@ describe("useTerraformActions", () => {
       mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
     });
 
+    expect(mockSseConnection.close).toHaveBeenCalled();
+
+    // First-round rejections are no longer a wizard error: the outcome
+    // reaches the caller so the user lands on the history panel to reply.
     await act(async () => {
       await vi.waitFor(() => {
-        expect(result.current.state.status).toBe("error");
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "rejected", rationale: "Query is off-topic" }),
+        );
       });
     });
 
-    expect(result.current.state).toMatchObject({
-      status: "error",
-      message: expect.stringContaining("Query is off-topic"),
-    });
-    expect(onOutcome).not.toHaveBeenCalled();
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Request rejected",
+      expect.objectContaining({ body: "Query is off-topic" }),
+    );
   });
 
   it("high-impact report triggers the browser notification", async () => {

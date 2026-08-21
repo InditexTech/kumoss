@@ -57,6 +57,9 @@ export function useWizardTerraform() {
         return;
       }
 
+      // Results and rejected rounds both land on the results route; with no
+      // artifacts in context (e.g. first-round rejection) it renders the
+      // history panel chat-only so the user can reply.
       updateSession({
         ...merged,
         full_history: [

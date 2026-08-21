@@ -149,6 +149,34 @@ describe("useWizardTerraform — handleOutcome", () => {
     });
   });
 
+  it("rejected first round appends the rationale with no artifacts in context", () => {
+    const { result } = renderHook(
+      () => ({
+        terraform: useWizardTerraform(),
+        session: useSession(),
+      }),
+      { wrapper: Wrapper },
+    );
+
+    const outcome: SessionOutcome = {
+      kind: "rejected",
+      detail: makeSessionDetail({ current_status: "uncompleted" }),
+      rationale: "Query is off-topic",
+    };
+
+    act(() => result.current.terraform.handleOutcome(outcome));
+
+    // No code/report → the results route renders the history panel chat-only
+    const session = result.current.session.session;
+    expect(session.session_id).toBe("sess-1");
+    expect(session.code).toBeUndefined();
+    expect(session.terraform_report).toBeUndefined();
+    expect(session.full_history?.[session.full_history.length - 1]).toEqual({
+      role: "assistant",
+      content: "Query is off-topic",
+    });
+  });
+
   it("failed outcome marks the session unresumable", () => {
     const { result } = renderHook(
       () => ({
