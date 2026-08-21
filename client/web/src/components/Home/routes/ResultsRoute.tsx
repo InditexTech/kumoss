@@ -7,7 +7,6 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
 import { AssistantAnimation } from "@/components/ui";
-import { useHomeWizard } from "../useHomeWizard";
 import { useHomeLayoutContext } from "../HomeLayout";
 import ChatHistory from "../ChatHistory/ChatHistory";
 import ResultPanel from "../ResultPanel/ResultPanel";
@@ -28,8 +27,7 @@ function parsePrStep(view: string | null): PrApprovalStep | null {
 export default function ResultsRoute() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { loading, error } = useSessionLoader(sessionId);
-  const wizard = useHomeWizard();
-  const { handleContactTeam } = useHomeLayoutContext();
+  const { wizard, handleContactTeam } = useHomeLayoutContext();
   const { session, updatePrDetails } = useSession();
 
   const [searchParams, setSearchParams] = useSearchParams();

@@ -6,6 +6,7 @@ import { Suspense, useRef, useCallback } from "react";
 import { Outlet, useOutletContext } from "react-router-dom";
 import { SupportButton, ErrorBoundary } from "@/components/ui";
 import { useCurrentView } from "@/hooks/useCurrentView";
+import { useHomeWizard } from "./useHomeWizard";
 import type { HomeView } from "@/types/ui";
 import styles from "./HomeScreen.module.css";
 
@@ -13,10 +14,15 @@ interface HomeLayoutContext {
   view: HomeView | null;
   isSplitView: boolean;
   handleContactTeam: () => void;
+  wizard: ReturnType<typeof useHomeWizard>;
 }
 
 export default function HomeLayout() {
   const view = useCurrentView();
+  // The wizard (and the terraform run + SSE subscription it owns) must live
+  // here, above the route swap: child routes unmount on navigate to
+  // /home/planning, and useTerraformActions aborts everything on unmount.
+  const wizard = useHomeWizard();
   const supportBtnRef = useRef<HTMLDivElement>(null);
 
   const handleContactTeam = useCallback(() => {
@@ -33,7 +39,7 @@ export default function HomeLayout() {
       >
         <Suspense>
           <ErrorBoundary>
-            <Outlet context={{ view, isSplitView, handleContactTeam }} />
+            <Outlet context={{ view, isSplitView, handleContactTeam, wizard }} />
           </ErrorBoundary>
         </Suspense>
         <div ref={supportBtnRef} style={{ display: "none" }}>
