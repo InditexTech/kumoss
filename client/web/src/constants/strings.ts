@@ -166,7 +166,6 @@ export const STRINGS = {
     },
     resolveError: "Could not resolve repository. Please try again.",
     scanError: "Could not scan repository for IaC paths. Please try again.",
-    queryRejected: "Your request couldn't be processed:",
     noIacPaths:
       "No IaC paths found in this repository. Please check the repository and try again.",
   },

@@ -8,6 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
 import {
+  appendAssistantMessage,
   buildApplyResults,
   buildAssistantMessage,
   buildSessionPatch,
@@ -25,8 +26,6 @@ export function useWizardTerraform() {
       const patch = buildSessionPatch(outcome);
 
       if (outcome.kind === "failed") {
-        // The backend refuses to resume failed sessions (a follow-up POST
-        // would 202 and silently never start), so just report and leave.
         updateSession(patch);
         showNotification("failure", outcome.message);
         const sessionId = session.session_id ?? outcome.detail?.uuid;
@@ -59,10 +58,10 @@ export function useWizardTerraform() {
 
       updateSession({
         ...merged,
-        full_history: [
-          ...(merged.full_history ?? []),
-          { role: "assistant" as const, content: buildAssistantMessage(outcome) },
-        ],
+        full_history: appendAssistantMessage(
+          merged.full_history,
+          buildAssistantMessage(outcome),
+        ),
       });
       navigate(`/home/results/${outcome.detail.uuid}`, { replace: true });
     },

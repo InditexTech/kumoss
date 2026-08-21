@@ -418,7 +418,7 @@ class DatabaseService:
         _ = await DatabaseService.__create_status(
             session_id=session_id,
             status=SessionStatus.STARTED,
-            msg=f"Session '{str(session_id)}' started.",
+            msg="Preparing your workspace…",
             round_id=round_id,
         )
 

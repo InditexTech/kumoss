@@ -228,9 +228,9 @@ export type PaginatedSessionSummary = PaginatedResponse<SessionSummary>;
 
 // ─── Events / SSE (/api/v1/events/subscribe/{id}) ───────────
 // The stream re-emits the session's *last* status every ~5s (duplicates
-// are normal) and closes server-side only after COMPLETED or FAILED.
-// A rejected round rests on UNCOMPLETED forever — the client must treat
-// it as round-terminal and close the stream itself.
+// are normal) and closes server-side after COMPLETED, UNCOMPLETED, or
+// FAILED. A rejected round rests on UNCOMPLETED (no COMPLETED follows);
+// the client still closes on first terminal receipt.
 
 /** SSE carries the UPPERCASE enum NAME; REST uses the lowercase value. */
 export type SseStatus = Uppercase<SessionStatus>;

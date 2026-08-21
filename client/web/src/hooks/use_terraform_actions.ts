@@ -161,22 +161,6 @@ export function useTerraformActions() {
           return;
         }
 
-        if (
-          outcome.kind === "rejected" &&
-          outcome.detail.rounds.length <= 1
-        ) {
-          dispatch({
-            type: "ERROR",
-            message: `${STRINGS.wizard.queryRejected} ${outcome.rationale}`,
-          });
-          setAssistantMsgState((prev) => ({
-            ...prev,
-            pipelineStep: PHASE.COMPLETE,
-          }));
-          notifyIfHidden("Request rejected", { body: outcome.rationale });
-          return;
-        }
-
         dispatch({ type: "SUCCESS", sessionId });
         setAssistantMsgState((prev) => ({
           ...prev,
@@ -219,9 +203,6 @@ export function useTerraformActions() {
         dispatch({ type: "STREAMING", sessionId });
 
         if (params.sessionId) {
-          // Subscribing right after the 202 would re-receive the previous
-          // round's terminal status (COMPLETED = fake success, UNCOMPLETED =
-          // fake rejection). Wait until the runner writes the new round.
           setAssistantMsgState((prev) => ({
             ...prev,
             pipelineStep: PHASE.INIT,
@@ -232,64 +213,64 @@ export function useTerraformActions() {
           if (signal.aborted) return;
         }
 
-        const createMessageHandler = (es: SseConnection) => (event: {
-          data: string;
-        }) => {
-          resetInactivityTimer(es);
-          try {
-            const data: SessionEventData = JSON.parse(event.data);
-            const phase = mapStatusToPhase(data.status_msg);
+        const createMessageHandler = (es: SseConnection) => {
+          const finishRound = () => {
+            es.close();
+            eventSourceRef.current = null;
+            clearInactivityTimer();
 
-            if (phase) {
-              setAssistantMsgState((prev) => ({
-                ...prev,
-                pipelineStep: phase,
-                sseStatus: data.status_msg,
-                msg: data.detail.message || prev.msg,
-              }));
-            }
-
-            if (
-              data.status_msg === EVENT_STATUS.COMPLETED ||
-              data.status_msg === EVENT_STATUS.UNCOMPLETED
-            ) {
-              // Round-terminal. The server only closes the stream itself on
-              // COMPLETED/FAILED; a rejected round would be re-emitted for
-              // hours, so the client closes on first receipt either way.
-              es.close();
-              eventSourceRef.current = null;
-              clearInactivityTimer();
-
-              resolveSessionOutcome(sessionId)
-                .then((outcome) => settleOutcome(outcome, sessionId))
-                .catch(() =>
-                  settleOutcome(
-                    {
-                      kind: "failed",
-                      detail: null,
-                      message: STRINGS.planning.resultsLoadError,
-                    },
-                    sessionId,
-                  ),
-                );
-            }
-
-            if (data.status_msg === EVENT_STATUS.FAILED) {
-              es.close();
-              eventSourceRef.current = null;
-              clearInactivityTimer();
-              settleOutcome(
-                {
-                  kind: "failed",
-                  detail: null,
-                  message: data.detail.message || "Process failed",
-                },
-                sessionId,
+            resolveSessionOutcome(sessionId)
+              .then((outcome) => settleOutcome(outcome, sessionId))
+              .catch(() =>
+                settleOutcome(
+                  {
+                    kind: "failed",
+                    detail: null,
+                    message: STRINGS.planning.resultsLoadError,
+                  },
+                  sessionId,
+                ),
               );
+          };
+
+          return (event: { data: string }) => {
+            resetInactivityTimer(es);
+            try {
+              const data: SessionEventData = JSON.parse(event.data);
+              const phase = mapStatusToPhase(data.status_msg);
+
+              if (phase) {
+                setAssistantMsgState((prev) => ({
+                  ...prev,
+                  pipelineStep: phase,
+                  sseStatus: data.status_msg,
+                  msg: data.detail.message || prev.msg,
+                }));
+              }
+
+              if (
+                  data.status_msg === EVENT_STATUS.COMPLETED ||
+                  data.status_msg === EVENT_STATUS.UNCOMPLETED
+              ) {
+                  finishRound();
+              }
+              if (data.status_msg === EVENT_STATUS.FAILED) {
+                es.close();
+                eventSourceRef.current = null;
+                clearInactivityTimer();
+                settleOutcome(
+                  {
+                    kind: "failed",
+                    detail: null,
+                    message: data.detail.message || "Process failed",
+                  },
+                  sessionId,
+                );
+              }
+            } catch (err) {
+              console.error("SSE parse error:", err);
             }
-          } catch (err) {
-            console.error("SSE parse error:", err);
-          }
+          };
         };
 
         const es = subscribeToSession(sessionId);

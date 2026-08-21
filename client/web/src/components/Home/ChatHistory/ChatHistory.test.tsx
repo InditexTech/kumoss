@@ -134,4 +134,24 @@ describe("ChatHistory", () => {
     renderChat();
     expect(screen.getByLabelText("Follow-up question")).toHaveAttribute("maxLength", "500");
   });
+
+  it("hideActions removes the action bar but keeps the input usable", async () => {
+    const user = userEvent.setup();
+    const { props } = renderChat({ hideActions: true }, { current_status: "uncompleted" });
+
+    expect(screen.queryByText("View Report")).not.toBeInTheDocument();
+    expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
+
+    // An uncompleted (rejected) session must still accept a reply
+    const input = screen.getByLabelText("Follow-up question");
+    expect(input).toBeEnabled();
+    await user.type(input, "make it on-topic");
+    await user.keyboard("{Enter}");
+    expect(props.onIterate).toHaveBeenCalledWith("make it on-topic");
+  });
+
+  it("shows the action bar by default", () => {
+    renderChat();
+    expect(screen.getByText("View Report")).toBeInTheDocument();
+  });
 });

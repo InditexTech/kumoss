@@ -16,9 +16,11 @@ interface ChatHistoryProps {
   disabled?: boolean;
   isApplyResult?: boolean;
   isSplitView?: boolean;
+  /** Hide the View Report / Create PR bar (no artifacts to act on). */
+  hideActions?: boolean;
 }
 
-export default function ChatHistory({ onIterate, onResetToReport, disabled, isApplyResult, isSplitView }: ChatHistoryProps) {
+export default function ChatHistory({ onIterate, onResetToReport, disabled, isApplyResult, isSplitView, hideActions }: ChatHistoryProps) {
   const { session } = useSession();
   // The backend refuses to resume failed sessions (the lock is never
   // acquired after the 202), so a follow-up would silently never start.
@@ -59,7 +61,9 @@ export default function ChatHistory({ onIterate, onResetToReport, disabled, isAp
         <div ref={bottomRef} />
       </div>
 
-      <ChatActionBar onResetToReport={onResetToReport} disabled={disabled} isApplyResult={isApplyResult} />
+      {!hideActions && (
+        <ChatActionBar onResetToReport={onResetToReport} disabled={disabled} isApplyResult={isApplyResult} />
+      )}
 
       <div className={styles.inputBar}>
         <input

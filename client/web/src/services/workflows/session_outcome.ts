@@ -17,7 +17,7 @@ import {
   fetchArtifactContent,
 } from "@/services/core/sessions";
 import { normalizeHistory } from "@/types/api";
-import type { CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
+import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
 import type { TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
@@ -38,7 +38,15 @@ export type SessionOutcome =
       round: RoundDetail;
       report: TerraformReport | null;
     }
-  | { kind: "rejected"; detail: SessionDetail; rationale: string }
+  | {
+      kind: "rejected";
+      detail: SessionDetail;
+      rationale: string;
+      /** Artifacts of the most recent round that produced any, when the
+       *  rejection is an iteration on a session with earlier results —
+       *  keeps the split result panel across deep links / refreshes. */
+      prior?: RoundArtifacts;
+    }
   | { kind: "failed"; detail: SessionDetail | null; message: string };
 
 /** Apply rounds are detected by their "apply" status; the session's
@@ -103,7 +111,7 @@ export async function waitForNewRound(
 
 // ─── Outcome resolution ────────────────────────────────────────
 
-interface RoundArtifacts {
+export interface RoundArtifacts {
   report: TerraformReport | null;
   code: string;
   targets: string[] | undefined;
@@ -187,12 +195,37 @@ export async function resolveSessionOutcome(
     };
   }
   if (lastStatus?.status === "uncompleted") {
-    // Rejected rounds produce no artifacts; the rationale is the status message.
-    return {
-      kind: "rejected",
-      detail,
-      rationale: lastStatus.message || "The request was rejected",
-    };
+    // Rejected rounds produce no artifacts; the rationale is the status
+    // message. A rejected iteration must keep showing the previous round's
+    // result, so hydrate the most recent round that produced artifacts —
+    // otherwise deep links / refreshes would lose the split result panel.
+    const rationale = lastStatus.message || "The request was rejected";
+    const priorRound = detail.rounds
+      .slice(0, -1)
+      .reverse()
+      .find((r) => r.report || r.plan || r.code_changes.length > 0);
+    if (!priorRound) {
+      return { kind: "rejected", detail, rationale };
+    }
+    try {
+      let prior: RoundArtifacts;
+      try {
+        prior = await fetchRoundArtifacts(priorRound, detail.rounds);
+      } catch {
+        // Same stale-presigned-URL retry as the results path below.
+        const fresh = await getSessionDetail(detail.uuid, {
+          includeHistory: true,
+        });
+        const freshRound = fresh.rounds.find((r) => r.id === priorRound.id);
+        if (!freshRound) throw new Error("prior round vanished");
+        prior = await fetchRoundArtifacts(freshRound);
+        detail = fresh;
+      }
+      return { kind: "rejected", detail, rationale, prior };
+    } catch {
+      // Artifacts are a nice-to-have here; degrade to the chat-only view.
+      return { kind: "rejected", detail, rationale };
+    }
   }
 
   // Apply outcomes ignore code, so skip the other rounds' file fetches.
@@ -250,9 +283,28 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     patch.code = outcome.code;
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
+  } else if (outcome.kind === "rejected" && outcome.prior) {
+    patch.terraform_report = outcome.prior.report ?? undefined;
+    patch.terraform_targets = outcome.prior.targets;
+    patch.code = outcome.prior.code;
   }
 
   return patch;
+}
+
+/**
+ * Append the round's assistant summary unless the fetched history already
+ * ends with it — the backend persists a rejected round's rationale into the
+ * history itself, so an unconditional append would show it twice.
+ */
+export function appendAssistantMessage(
+  history: HistoryEntry[] | undefined,
+  content: string,
+): HistoryEntry[] {
+  const base = history ?? [];
+  const last = base[base.length - 1];
+  if (last?.role === "assistant" && last.content === content) return base;
+  return [...base, { role: "assistant", content }];
 }
 
 /** The apply-results panel data for an apply round. */

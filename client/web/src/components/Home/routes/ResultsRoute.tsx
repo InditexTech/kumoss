@@ -74,6 +74,8 @@ export default function ResultsRoute() {
     }, { replace: true });
   }, [searchParams, setSearchParams, updatePrDetails]);
 
+  const hasArtifacts = Boolean(session.code || session.terraform_report);
+
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;
 
@@ -92,6 +94,20 @@ export default function ResultsRoute() {
           onBackToReport={handleBackToResult}
           onContactTeam={handleContactTeam}
         />
+      </div>
+    );
+  }
+
+  if (!hasArtifacts) {
+    return (
+      <div className={`${styles.leftSide} ${styles.leftSideChat}`}>
+        <div className={styles.chatFull}>
+          <ChatHistory
+            onIterate={wizard.iterate}
+            onResetToReport={handleResetToReport}
+            hideActions
+          />
+        </div>
       </div>
     );
   }
