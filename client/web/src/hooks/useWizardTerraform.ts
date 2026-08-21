@@ -25,8 +25,6 @@ export function useWizardTerraform() {
       const patch = buildSessionPatch(outcome);
 
       if (outcome.kind === "failed") {
-        // The backend refuses to resume failed sessions (a follow-up POST
-        // would 202 and silently never start), so just report and leave.
         updateSession(patch);
         showNotification("failure", outcome.message);
         const sessionId = session.session_id ?? outcome.detail?.uuid;
@@ -57,9 +55,6 @@ export function useWizardTerraform() {
         return;
       }
 
-      // Results and rejected rounds both land on the results route; with no
-      // artifacts in context (e.g. first-round rejection) it renders the
-      // history panel chat-only so the user can reply.
       updateSession({
         ...merged,
         full_history: [

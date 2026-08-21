@@ -203,9 +203,6 @@ export function useTerraformActions() {
         dispatch({ type: "STREAMING", sessionId });
 
         if (params.sessionId) {
-          // Subscribing right after the 202 would re-receive the previous
-          // round's terminal status (COMPLETED = fake success, UNCOMPLETED =
-          // fake rejection). Wait until the runner writes the new round.
           setAssistantMsgState((prev) => ({
             ...prev,
             pipelineStep: PHASE.INIT,
@@ -217,9 +214,6 @@ export function useTerraformActions() {
         }
 
         const createMessageHandler = (es: SseConnection) => {
-          // Round-terminal: stop streaming (the server closes the stream on
-          // its side too, but closing on first receipt skips the poll loop)
-          // and reconstruct the round's outcome from the session detail.
           const finishRound = () => {
             es.close();
             eventSourceRef.current = null;
@@ -254,17 +248,12 @@ export function useTerraformActions() {
                 }));
               }
 
-              if (data.status_msg === EVENT_STATUS.COMPLETED) {
-                finishRound();
+              if (
+                  data.status_msg === EVENT_STATUS.COMPLETED ||
+                  data.status_msg === EVENT_STATUS.UNCOMPLETED
+              ) {
+                  finishRound();
               }
-
-              if (data.status_msg === EVENT_STATUS.UNCOMPLETED) {
-                // The round was rejected and rests on UNCOMPLETED: no
-                // artifacts exist and no COMPLETED ever follows. The rejected
-                // outcome lands the user on the history panel to reply.
-                finishRound();
-              }
-
               if (data.status_msg === EVENT_STATUS.FAILED) {
                 es.close();
                 eventSourceRef.current = null;

@@ -236,8 +236,6 @@ describe("useTerraformActions", () => {
       mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
     });
 
-    // The client closes on first terminal receipt rather than waiting for
-    // the server-side close
     expect(mockSseConnection.close).toHaveBeenCalled();
 
     await act(async () => {
@@ -273,8 +271,6 @@ describe("useTerraformActions", () => {
 
     expect(mockSseConnection.close).toHaveBeenCalled();
 
-    // First-round rejections are no longer a wizard error: the outcome
-    // reaches the caller so the user lands on the history panel to reply.
     await act(async () => {
       await vi.waitFor(() => {
         expect(onOutcome).toHaveBeenCalledWith(
