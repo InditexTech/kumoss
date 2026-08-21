@@ -76,7 +76,7 @@ from src.shared.constants import (
 #     short.
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
-# status is terminal (COMPLETED / FAILED) it can never change again —
+# status is terminal (FAILED) it can never change again —
 # ``acquire_in_flight`` enforces this — so the full detail aggregate is
 # cached and the last-status key gets a long TTL. The only mutation still
 # possible on a finished session is the admin ``set_lock`` toggle, which
@@ -100,7 +100,7 @@ _TTL_DETAIL = 24 * 60 * 60
 # Session-level end states. Once a session's latest status is terminal it
 # never changes again (enforced by acquire_in_flight), so anything derived
 # from it is safe to cache aggressively.
-_TERMINAL = frozenset({SessionStatus.COMPLETED, SessionStatus.FAILED})
+_TERMINAL = frozenset({SessionStatus.FAILED})
 
 
 def _ttl(base: int) -> int:
@@ -692,8 +692,8 @@ class DatabaseService:
         session runs and the push channel triggers client refetches of this
         exact read model. Finished sessions can never change again
         (``acquire_in_flight`` refuses them), so those are served from a
-        cached copy. The admin variant (``include_history=True``) is always
-        read fresh.
+        cached copy. The history variant (``include_history=True``) is
+        always read fresh.
         """
         if not include_history:
             cached = await redis_client.get_json(_k_detail(session_id))
@@ -823,7 +823,7 @@ class DatabaseService:
         """Compare-and-set the in-flight lock, refusing finished sessions.
 
         One atomic UPDATE is both the CAS (``in_flight`` must be false) and
-        the terminal guard (latest status must not be COMPLETED/FAILED), so
+        the terminal guard (latest status must not be FAILED), so
         two runners can never both win the lock and a finished session can
         never be resumed — which is what makes finished sessions safe to
         cache aggressively.

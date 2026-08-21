@@ -34,7 +34,7 @@ function renderChat(
     ? <SessionInjector patch={sessionPatch}><ChatHistory {...defaultProps} /></SessionInjector>
     : <ChatHistory {...defaultProps} />;
 
-  return { ...renderWithProviders(ui), props: defaultProps };
+  return { ...renderWithProviders(ui, { withNotifications: true }), props: defaultProps };
 }
 
 describe("ChatHistory", () => {

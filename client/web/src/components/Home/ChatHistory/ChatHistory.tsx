@@ -20,6 +20,9 @@ interface ChatHistoryProps {
 
 export default function ChatHistory({ onIterate, onResetToReport, disabled, isApplyResult, isSplitView }: ChatHistoryProps) {
   const { session } = useSession();
+  // The backend refuses to resume failed sessions (the lock is never
+  // acquired after the 202), so a follow-up would silently never start.
+  const iterateDisabled = disabled || session.current_status === "failed";
   const messages = (session.full_history ?? []).filter(e => e.role !== "validation");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,17 +66,21 @@ export default function ChatHistory({ onIterate, onResetToReport, disabled, isAp
           ref={inputRef}
           type="text"
           className={styles.input}
-          placeholder={STRINGS.chat.followUpPlaceholder}
+          placeholder={
+            iterateDisabled && !disabled
+              ? STRINGS.chat.followUpDisabledPlaceholder
+              : STRINGS.chat.followUpPlaceholder
+          }
           onKeyDown={handleKeyDown}
           onChange={(e) => setHasText(e.target.value.trim().length > 0)}
           maxLength={500}
-          disabled={disabled}
+          disabled={iterateDisabled}
           aria-label="Follow-up question"
         />
         <button
           className={styles.sendBtn}
           onClick={handleSubmit}
-          disabled={disabled || !hasText}
+          disabled={iterateDisabled || !hasText}
           aria-label="Send message"
         >
           <ArrowUpwardIcon fontSize="small" />

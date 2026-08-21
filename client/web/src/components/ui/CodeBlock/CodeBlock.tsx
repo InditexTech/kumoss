@@ -35,12 +35,10 @@ const CodeBlock = ({
 }: Props) => {
   const [internalActiveFile, setInternalActiveFile] = useState(activeFile || '');
 
-  // Always call hooks at the top level
   const fileNames = files ? Object.keys(files) : [];
   const hasFiles = files && fileNames.length > 0;
   const hasSingleCode = code && !files;
 
-  // Initialize active file if not provided - always call useEffect
   useEffect(() => {
     if (hasFiles) {
       if (!activeFile && fileNames.length > 0) {

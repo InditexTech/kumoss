@@ -17,7 +17,8 @@ import type {
   SessionDetail,
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
-import { StatusBadge, PageOverlay } from "@/components/ui";
+import { STRINGS } from "@/constants/strings";
+import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
@@ -199,10 +200,10 @@ export default function SessionData({
           </Typography>
           <Typography
             variant="body1"
-            component="span"
+            component="div"
             className={`${styles.fieldValue} ${styles.failureValue}`}
           >
-            {failureMessage}
+            <MarkdownText content={failureMessage} />
           </Typography>
         </div>
       )}
@@ -375,7 +376,8 @@ export default function SessionData({
               component="span"
               className={styles.infoLabel}
             >
-              Scope
+              {STRINGS.wizard.scopeByProvider[session.provider]?.label ??
+                "Scope"}
             </Typography>
             <Typography
               variant="subtitle2"
@@ -403,17 +405,20 @@ export default function SessionData({
                 Repository
                 <OpenInNewIcon className={styles.linkIcon} />
               </a>
-              {session.pull_request && (
+              {(
+                session.rounds[session.rounds.length - 1]?.pull_requests ?? []
+              ).map((pr) => (
                 <a
-                  href={session.pull_request.url}
+                  key={pr.url}
+                  href={pr.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.link}
                 >
-                  Pull Request
+                  Pull Request #{pr.number}
                   <OpenInNewIcon className={styles.linkIcon} />
                 </a>
-              )}
+              ))}
             </div>
           </div>
         </div>

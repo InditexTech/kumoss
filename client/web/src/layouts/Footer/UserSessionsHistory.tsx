@@ -10,6 +10,8 @@ import Fade from "@mui/material/Fade";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotification } from "@/contexts/NotificationContext";
+import { getApiErrorMessage } from "@/services/api";
 import { listUserSessions } from "@/services/core/sessions";
 import { getCachedSessions } from "@/services/core/sessionsCache";
 import useDragScroll from "@/hooks/useDragScroll";
@@ -27,6 +29,7 @@ export default function UserSessionsHistory({
   onSelectSession,
 }: UserSessionsHistoryProps) {
   const { user } = useAuth();
+  const { showNotification } = useNotification();
   const navigate = useNavigate();
   const drag = useDragScroll<HTMLDivElement>();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -54,14 +57,20 @@ export default function UserSessionsHistory({
           setPage(1);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (!cancelled)
+          showNotification(
+            "failure",
+            `Failed to load sessions: ${getApiErrorMessage(err)}`,
+          );
+      })
       .finally(() => {
         if (!cancelled) setLoaded(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [user?.username, pageSize]);
+  }, [user?.username, pageSize, showNotification]);
 
   const loadMore = useCallback(() => {
     if (!user?.username || loadingMore) return;
@@ -73,9 +82,14 @@ export default function UserSessionsHistory({
         setTotal(res.total);
         setPage(nextPage);
       })
-      .catch(() => {})
+      .catch((err) =>
+        showNotification(
+          "failure",
+          `Failed to load more sessions: ${getApiErrorMessage(err)}`,
+        ),
+      )
       .finally(() => setLoadingMore(false));
-  }, [user?.username, page, pageSize, loadingMore]);
+  }, [user?.username, page, pageSize, loadingMore, showNotification]);
 
   const hasMore = total > sessions.length;
 

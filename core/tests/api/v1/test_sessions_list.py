@@ -123,7 +123,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [s["status"] for s in body["statuses"]], ["started", "generating"]
         )
-        # History is an admin-only field; absent on the user surface.
+        # History is opt-in via ?include_history=true; null by default.
         self.assertIsNone(body["history"])
 
         self.assertEqual(len(body["rounds"]), 2)
@@ -150,6 +150,25 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
                 }
             ],
         )
+
+    async def test_detail_include_history(self):
+        ctx = await DatabaseService.get_session_context(self.sid)
+        ctx.history.append_turn("create a resource group", "done: rg-main")
+        await DatabaseService.update_history(ctx)
+
+        resp = await self.client.get(
+            f"/v1/sessions/{self.sid}", params={"include_history": "true"}
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertEqual(
+            resp.json()["history"],
+            [{"user": "create a resource group", "assistant": "done: rg-main"}],
+        )
+
+        # Default stays history-less.
+        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertIsNone(resp.json()["history"])
 
     async def test_detail_unknown_session_is_404(self):
         resp = await self.client.get(f"/v1/sessions/{uuid4()}")

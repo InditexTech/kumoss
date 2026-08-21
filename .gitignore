@@ -89,7 +89,6 @@ typings/
 
 # Frontend test coverage
 coverage/
-mocks/
 
 # IDE
 *workspace

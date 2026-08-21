@@ -5,58 +5,69 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
+import { useNotification } from "@/contexts/NotificationContext";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
-import type { SessionPayloadResponse } from "@/types/api";
+import {
+  buildApplyResults,
+  buildAssistantMessage,
+  buildSessionPatch,
+  type SessionOutcome,
+} from "@/services/workflows/session_outcome";
 
 export function useWizardTerraform() {
-  const { updateSession } = useSession();
+  const { session, updateSession } = useSession();
+  const { showNotification } = useNotification();
   const navigate = useNavigate();
 
-  const syncSession = useCallback(
-    (payload: SessionPayloadResponse) => {
+  const handleOutcome = useCallback(
+    (outcome: SessionOutcome) => {
       invalidateSessionsCache();
+      const patch = buildSessionPatch(outcome);
+
+      if (outcome.kind === "failed") {
+        // The backend refuses to resume failed sessions (a follow-up POST
+        // would 202 and silently never start), so just report and leave.
+        updateSession(patch);
+        showNotification("failure", outcome.message);
+        const sessionId = session.session_id ?? outcome.detail?.uuid;
+        if (sessionId && session.applyResults) {
+          navigate(`/home/apply-results/${sessionId}`, { replace: true });
+        } else if (sessionId && session.code) {
+          navigate(`/home/results/${sessionId}`, { replace: true });
+        } else {
+          navigate("/home", { replace: true });
+        }
+        return;
+      }
+
+      const merged = {
+        ...patch,
+        project: session.project ?? patch.project,
+        environment: session.environment ?? patch.environment,
+      };
+
+      if (outcome.kind === "apply-results") {
+        updateSession({
+          ...merged,
+          applyResults: buildApplyResults(outcome),
+        });
+        navigate(`/home/apply-results/${outcome.detail.uuid}`, {
+          replace: true,
+        });
+        return;
+      }
+
       updateSession({
-        session_id: payload.id,
-        full_history: payload.full_history,
-        terraform_report: payload.terraform_report ?? undefined,
-        branchName: payload.branch_name,
-        terraform_targets: payload.terraform_targets ?? undefined,
-        cloud: payload.cloud,
-        project: payload.project,
-        pipeline_url: payload.pipeline_url ?? undefined,
-        apply_allowed: payload.apply_allowed,
+        ...merged,
+        full_history: [
+          ...(merged.full_history ?? []),
+          { role: "assistant" as const, content: buildAssistantMessage(outcome) },
+        ],
       });
+      navigate(`/home/results/${outcome.detail.uuid}`, { replace: true });
     },
-    [updateSession],
+    [session, updateSession, showNotification, navigate],
   );
 
-  const handleCompleted = useCallback(
-    (payload: SessionPayloadResponse) => {
-      syncSession(payload);
-      updateSession({ code: payload.response });
-      navigate(`/home/results/${payload.id}`, { replace: true });
-    },
-    [syncSession, updateSession, navigate],
-  );
-
-  const handleApplyCompleted = useCallback(
-    (payload: SessionPayloadResponse) => {
-      syncSession(payload);
-      updateSession({
-        applyResults: {
-          sessionId: payload.id,
-          status: payload.terraform_report?.status ?? "Unknown",
-          message: payload.response,
-          errorMessage: "",
-          timestamp: new Date().toISOString(),
-          applyReport: payload.terraform_report,
-          resultsUrl: payload.pipeline_url ?? undefined,
-        },
-      });
-      navigate(`/home/apply-results/${payload.id}`, { replace: true });
-    },
-    [syncSession, updateSession, navigate],
-  );
-
-  return { handleCompleted, handleApplyCompleted } as const;
+  return { handleOutcome } as const;
 }

@@ -24,8 +24,8 @@ export const ShellProvider = ({ children }: { children: React.ReactNode }) => {
   const [isDark, setIsDark] = useState(() => {
     const savedTheme = getLocalItem(STORAGE_KEYS.THEME);
     if (!savedTheme) {
-      setLocalItem(STORAGE_KEYS.THEME, THEME.DARK);
-      return true;
+      setLocalItem(STORAGE_KEYS.THEME, THEME.LIGHT);
+      return false;
     }
     return savedTheme === THEME.DARK;
   });

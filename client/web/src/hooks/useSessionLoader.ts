@@ -4,7 +4,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/contexts/SessionContext";
-import { getSessionData } from "@/services/core/events";
+import {
+  resolveSessionOutcome,
+  buildSessionPatch,
+  buildApplyResults,
+  buildAssistantMessage,
+} from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
   loading: boolean;
@@ -12,6 +17,8 @@ interface SessionLoaderResult {
   ready: boolean;
 }
 
+/** Rebuilds the session context for deep links / refreshes of
+ *  /home/results/{id} and /home/apply-results/{id}. */
 export function useSessionLoader(
   sessionId: string | undefined,
 ): SessionLoaderResult {
@@ -29,22 +36,35 @@ export function useSessionLoader(
     setLoading(true);
     setError(null);
 
-    getSessionData(sessionId)
-      .then((payload) => {
+    resolveSessionOutcome(sessionId)
+      .then((outcome) => {
         if (cancelled) return;
+
+        if (outcome.kind === "failed") {
+          setError(outcome.message);
+          setLoading(false);
+          return;
+        }
+
         fetchedRef.current = sessionId;
-        updateSession({
-          session_id: payload.id,
-          cloud: payload.cloud,
-          project: payload.project,
-          environment: payload.environment,
-          branchName: payload.branch_name,
-          terraform_targets: payload.terraform_targets ?? undefined,
-          terraform_report: payload.terraform_report ?? undefined,
-          full_history: payload.full_history,
-          pipeline_url: payload.pipeline_url ?? undefined,
-          apply_allowed: payload.apply_allowed,
-        });
+        const patch = buildSessionPatch(outcome);
+
+        if (outcome.kind === "apply-results") {
+          updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
+        } else if (outcome.kind === "rejected") {
+          updateSession({
+            ...patch,
+            full_history: [
+              ...(patch.full_history ?? []),
+              {
+                role: "assistant" as const,
+                content: buildAssistantMessage(outcome),
+              },
+            ],
+          });
+        } else {
+          updateSession(patch);
+        }
         setLoading(false);
       })
       .catch((err) => {

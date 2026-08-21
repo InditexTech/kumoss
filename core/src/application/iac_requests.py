@@ -2,12 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Request models for the URI-driven, session-iterating IaC endpoints.
-
-Every request is exactly one of:
-  - first call: {repo_uri, cloud, environment, user_id, q, ...}
-  - iteration:  {session_id, user_id, q, ...}
-"""
+"""Request models for the URI-driven, session-iterating IaC endpoints."""
 
 from typing import Annotated
 from uuid import UUID
@@ -21,6 +16,7 @@ class BaseIacRequest(BaseModel):
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
+
     session_id: Annotated[
         UUID | None,
         Field(
@@ -103,16 +99,15 @@ class GenerateRequest(BaseIacRequest):
 
 class DriftRequest(BaseIacRequest):
     is_partial: bool = False
-
-
-class ApplyRequest(BaseIacRequest):
     q: Annotated[
         str,
         Field(
             min_length=1,
             description="User query for this call.",
-            examples=[
-                "Create a storage account and store the secrets in the key vault 001"
-            ],
+            examples=["Resolve the drift in the storage account staweu1001"],
         ),
     ]
+
+
+class ApplyRequest(BaseIacRequest):
+    pass

@@ -132,8 +132,6 @@ export default function ArtifactContent({
     [setSearchParams],
   );
 
-  // Load content: a code change loads every file of its round so the
-  // viewer can offer file tabs; report/plan load their single artifact.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -169,8 +167,6 @@ export default function ArtifactContent({
     };
   }, [kind, artifact.url, round]);
 
-  // The session's operation drives the report rendering mode; no more
-  // sniffing the report JSON for marker keys.
   useEffect(() => {
     if (kind === "report") {
       setMode(

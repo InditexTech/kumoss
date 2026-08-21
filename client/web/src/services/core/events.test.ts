@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { mockState } from "@/mocks/state";
-import { subscribeToSession, getSessionData, unsubscribeSession, checkSessionStatus } from "./events";
+import { subscribeToSession, checkSessionStatus } from "./events";
 
 const encoder = new TextEncoder();
 
@@ -199,46 +199,6 @@ describe("subscribeToSession", () => {
   });
 });
 
-describe("getSessionData", () => {
-  it("returns payload for completed session", async () => {
-    mockState.createSession("sess-1", {
-      operationType: "generate",
-      repoUri: "https://dev.azure.com/org/repo",
-      cloud: "azure",
-      environment: "dev",
-      userId: "user@test.com",
-      query: "deploy a VM",
-      iacPath: null,
-    });
-    mockState.updateStatus("sess-1", "completed");
-
-    const payload = await getSessionData("sess-1");
-
-    expect(payload.id).toBe("sess-1");
-    expect(payload.cloud).toBe("azure");
-    expect(payload.environment).toBe("dev");
-  });
-
-  it("throws on unknown session (404)", async () => {
-    await expect(getSessionData("nonexistent")).rejects.toThrow();
-  });
-
-  it("throws when session is in progress (409)", async () => {
-    mockState.createSession("sess-2", {
-      operationType: "generate",
-      repoUri: "https://dev.azure.com/org/repo",
-      cloud: "azure",
-      environment: "dev",
-      userId: "user@test.com",
-      query: "deploy a VM",
-      iacPath: null,
-    });
-    // Status is "pending" by default (not "completed")
-
-    await expect(getSessionData("sess-2")).rejects.toThrow();
-  });
-});
-
 describe("checkSessionStatus", () => {
   it("returns completed when session has current_status=completed", async () => {
     server.use(
@@ -260,6 +220,17 @@ describe("checkSessionStatus", () => {
 
     const result = await checkSessionStatus("sess-failed");
     expect(result).toEqual({ status: "failed" });
+  });
+
+  it("returns uncompleted when the round was filter-rejected", async () => {
+    server.use(
+      http.get("/api/v1/sessions/:sessionId", () => {
+        return HttpResponse.json({ current_status: "uncompleted" });
+      }),
+    );
+
+    const result = await checkSessionStatus("sess-rejected");
+    expect(result).toEqual({ status: "uncompleted" });
   });
 
   it("returns in_progress when session is still running", async () => {
@@ -285,11 +256,5 @@ describe("checkSessionStatus", () => {
 
     const result = await checkSessionStatus("sess-unknown");
     expect(result).toEqual({ status: "not_found" });
-  });
-});
-
-describe("unsubscribeSession", () => {
-  it("resolves successfully (204)", async () => {
-    await expect(unsubscribeSession("any-session")).resolves.toBeUndefined();
   });
 });

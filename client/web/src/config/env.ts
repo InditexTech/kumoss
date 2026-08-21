@@ -4,7 +4,7 @@
 
 type EnvKey = keyof ImportMetaEnv;
 
-const runtimeEnv = (window as Record<string, unknown>).__ENV__ as
+const runtimeEnv = (window as unknown as Record<string, unknown>).__ENV__ as
   | Record<string, string>
   | undefined;
 

@@ -2,10 +2,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRef, useEffect, useState } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import * as monaco from "monaco-editor";
-import Editor, { loader } from "@monaco-editor/react";
-import type { OnChange, OnMount, BeforeMount } from "@monaco-editor/react";
+import Editor, { DiffEditor, loader } from "@monaco-editor/react";
+import type {
+  OnChange,
+  OnMount,
+  BeforeMount,
+  DiffOnMount,
+} from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
@@ -13,6 +18,7 @@ import ThumbUpAltOutlined from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlined from "@mui/icons-material/ThumbDownAltOutlined";
 import { useShell } from "@/contexts/ShellContext";
 import { registerHclLanguage } from "@/utils/hclTokenizer";
+import { isGitDiff, parseGitDiff } from "@/utils/diffUtils";
 import { STORAGE_KEYS, THEME } from "@/constants";
 import { getLocalItem } from "@/services";
 import EditorSkeleton from "../EditorSkeleton";
@@ -22,13 +28,21 @@ let monacoConfigured = false;
 
 function ensureMonacoConfigured() {
   if (monacoConfigured) return;
-  self.MonacoEnvironment = {
-    getWorker(_, label) {
+  (self as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+    getWorker(_: unknown, label: string) {
       if (label === "json") return new jsonWorker();
       return new editorWorker();
     },
   };
   loader.config({ monaco });
+  // Monaco cancels in-flight work (e.g. a diff computation) when an
+  // editor is disposed mid-switch; the cancellation surfaces as an
+  // unhandled "Canceled" rejection. Swallow only that one.
+  window.addEventListener("unhandledrejection", (e) => {
+    if ((e.reason as { name?: string } | null)?.name === "Canceled") {
+      e.preventDefault();
+    }
+  });
   monacoConfigured = true;
 }
 
@@ -143,7 +157,7 @@ const MonacoEditor = ({
 
   const [editorTheme, setEditorTheme] = useState(() => {
     const saved = getLocalItem(STORAGE_KEYS.THEME);
-    return saved === THEME.DARK || !saved;
+    return saved === THEME.DARK;
   });
 
   useEffect(() => {
@@ -156,46 +170,73 @@ const MonacoEditor = ({
     defineCustomThemes(monacoInstance);
   };
 
+  const fileNames = files ? Object.keys(files) : [];
+  const showTabs = files && fileNames.length > 1;
+
+  // Updated-file artifacts hold `git diff` output; new files hold raw
+  // content (backend tags them new_file=true/false). Diffs render in the
+  // diff editor; new files render whole-line "added" decorations — a diff
+  // against an empty original would show a spurious deleted-line marker.
+  const activeContent = files && activeFile ? files[activeFile] : undefined;
+  const activeDiff =
+    activeContent !== undefined && isGitDiff(activeContent)
+      ? parseGitDiff(activeContent)
+      : null;
+  const activeIsNewFile = activeContent !== undefined && activeDiff === null;
+  const activeLanguage = getMonacoLanguage(
+    getLanguageFromFileName(activeFile ?? ""),
+  );
+
+  // Whole-line "added" tint for new-file artifacts in files mode: they
+  // have no diff, so the viewer marks the entire file as added instead.
+  const addedDecorations = useRef<editor.IEditorDecorationsCollection | null>(
+    null,
+  );
+  const decorateAsNewFile = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor, isNewFile: boolean) => {
+      addedDecorations.current?.clear();
+      addedDecorations.current = null;
+      const model = editorInstance.getModel();
+      if (!isNewFile || !model) return;
+      addedDecorations.current = editorInstance.createDecorationsCollection([
+        {
+          range: model.getFullModelRange(),
+          options: {
+            isWholeLine: true,
+            className: "newFileLineInsert",
+            linesDecorationsClassName: "newFileLineInsertMargin",
+          },
+        },
+      ]);
+    },
+    [],
+  );
+
+  // Re-apply after the editor swaps models on tab change (the Editor
+  // child's own effects run first, so the new model is already active).
+  useEffect(() => {
+    if (files && editorRef.current) {
+      decorateAsNewFile(editorRef.current, activeIsNewFile);
+    }
+  }, [files, activeFile, activeIsNewFile, decorateAsNewFile]);
+
   const handleEditorDidMount: OnMount = (editorInstance, monaco) => {
     defineCustomThemes(monaco);
     editorRef.current = editorInstance;
     monacoRef.current = monaco;
-
-    if (files && Object.keys(files).length > 0) {
-      Object.entries(files).forEach(([fileName, fileContent]) => {
-        const uri = monaco.Uri.parse(`file:///${fileName}`);
-        const existingModel = monaco.editor.getModel(uri);
-        if (existingModel) existingModel.dispose();
-
-        const model = monaco.editor.createModel(
-          fileContent,
-          getMonacoLanguage(getLanguageFromFileName(fileName)),
-          uri,
-        );
-
-        if (fileName === activeFile) {
-          editorInstance.setModel(model);
-        }
-      });
-    }
-
     registerHclLanguage(monaco);
+    if (files) decorateAsNewFile(editorInstance, activeIsNewFile);
   };
 
-  useEffect(() => {
-    if (monacoRef.current && editorRef.current && files && activeFile) {
-      const uri = monacoRef.current.Uri.parse(`file:///${activeFile}`);
-      const model = monacoRef.current.editor.getModel(uri);
-      if (model) editorRef.current.setModel(model);
-    }
-  }, [activeFile, files]);
+  const handleDiffEditorDidMount: DiffOnMount = (_editorInstance, monaco) => {
+    defineCustomThemes(monaco);
+    monacoRef.current = monaco;
+    registerHclLanguage(monaco);
+  };
 
   const handleTabClick = (fileName: string) => {
     if (onFileChange) onFileChange(fileName);
   };
-
-  const fileNames = files ? Object.keys(files) : [];
-  const showTabs = files && fileNames.length > 1;
 
   const defaultOptions: editor.IStandaloneEditorConstructionOptions = {
     readOnly,
@@ -224,6 +265,15 @@ const MonacoEditor = ({
     ...options,
   };
 
+  // Inline (unified) diff; unchanged regions collapse so the full-context
+  // diffs the backend produces read like plain `git diff` output.
+  const diffOptions: editor.IDiffEditorConstructionOptions = {
+    ...defaultOptions,
+    renderSideBySide: false,
+    hideUnchangedRegions: { enabled: true },
+    renderOverviewRuler: false,
+  };
+
   const monacoTheme = editorTheme ? "nebula-dark" : "nebula-light";
 
   const containerStyle = { height };
@@ -248,15 +298,38 @@ const MonacoEditor = ({
       )}
       <div className={styles.editorWrapper} style={editorWrapperStyle}>
         {files ? (
-          <Editor
-            loading={<EditorSkeleton height={height} />}
-            height={height}
-            theme={monacoTheme}
-            beforeMount={handleBeforeMount}
-            onMount={handleEditorDidMount}
-            onChange={onChange}
-            options={defaultOptions}
-          />
+          activeDiff ? (
+            <DiffEditor
+              loading={<EditorSkeleton height={height} />}
+              height={height}
+              language={activeLanguage}
+              original={activeDiff.original}
+              modified={activeDiff.modified}
+              originalModelPath={`diff-original:///${activeFile ?? "file"}`}
+              modifiedModelPath={`diff-modified:///${activeFile ?? "file"}`}
+              // Keep models across unmounts: the library disposes them
+              // before resetting the widget, which throws mid-teardown.
+              keepCurrentOriginalModel
+              keepCurrentModifiedModel
+              theme={monacoTheme}
+              beforeMount={handleBeforeMount}
+              onMount={handleDiffEditorDidMount}
+              options={diffOptions}
+            />
+          ) : (
+            <Editor
+              loading={<EditorSkeleton height={height} />}
+              height={height}
+              path={activeFile ?? undefined}
+              language={activeLanguage}
+              value={activeContent ?? ""}
+              theme={monacoTheme}
+              beforeMount={handleBeforeMount}
+              onMount={handleEditorDidMount}
+              onChange={onChange}
+              options={defaultOptions}
+            />
+          )
         ) : (
           <Editor
             loading={<EditorSkeleton height={height} />}

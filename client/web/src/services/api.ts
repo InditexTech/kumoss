@@ -32,9 +32,56 @@ export class ApiTimeoutError extends ApiError {
 function extractDetail(body: unknown): string | undefined {
   if (body && typeof body === "object" && "detail" in body) {
     const detail = (body as { detail: unknown }).detail;
-    if (typeof detail === "string") return detail;
+    if (typeof detail === "string") return humanizeDetail(detail);
   }
   return undefined;
+}
+
+/**
+ * The backend relays upstream failures (e.g. GitHub's
+ * `{"message": "Validation Failed", "errors": [...]}`) as a JSON-encoded
+ * string inside `detail`. Unwrap it into a readable sentence; anything
+ * that isn't such a payload passes through untouched.
+ */
+function humanizeDetail(detail: string): string {
+  const trimmed = detail.trim();
+  if (!trimmed.startsWith("{")) return detail;
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object") return detail;
+    const { message, errors } = parsed as {
+      message?: unknown;
+      errors?: unknown;
+    };
+    const parts: string[] = [];
+    if (typeof message === "string" && message) parts.push(message);
+    if (Array.isArray(errors)) {
+      for (const err of errors) {
+        if (err && typeof err === "object") {
+          const msg = (err as { message?: unknown }).message;
+          if (typeof msg === "string" && msg) parts.push(msg);
+        } else if (typeof err === "string" && err) {
+          parts.push(err);
+        }
+      }
+    }
+    if (parts.length === 0) return detail;
+    return parts.length > 1
+      ? `${parts[0]}: ${parts.slice(1).join("; ")}`
+      : parts[0];
+  } catch {
+    return detail;
+  }
+}
+
+/** Best human-readable message for an error thrown by `apiFetch`. */
+export function getApiErrorMessage(
+  err: unknown,
+  fallback = "An unexpected error occurred",
+): string {
+  if (err instanceof ApiError) return err.detail ?? err.message;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
 
 export async function apiFetch<T = unknown>(

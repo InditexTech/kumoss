@@ -14,17 +14,21 @@ const GENERATE_PERCENTAGES: Record<string, number> = {
   FILTERING: 0,
   GENERATING: 33,
   VALIDATING: 66,
+  APPLY: 80,
   REPORT: 100,
   COMPLETED: 100,
+  UNCOMPLETED: 100,
 };
 
 const APPLY_PERCENTAGES: Record<string, number> = {
   STARTED: 0,
   FILTERING: 0,
-  GENERATING: 50,
+  GENERATING: 25,
   VALIDATING: 50,
+  APPLY: 75,
   REPORT: 100,
   COMPLETED: 100,
+  UNCOMPLETED: 100,
 };
 
 export default function PercentageBarProgress() {

@@ -67,6 +67,19 @@
   width: 100%;
 }
 
+/* Whole-line "added" decorations for new-file artifacts (no diff exists,
+   the whole file is an addition). Monaco injects the class names raw,
+   hence :global. Colors mirror the diff editor's inserted-line tint. */
+.container :global(.newFileLineInsert) {
+  background: light-dark(rgba(155, 185, 85, 0.3), rgba(155, 185, 85, 0.25));
+}
+
+.container :global(.newFileLineInsertMargin)::after {
+  content: "+";
+  color: light-dark(#374e06, #81b88b);
+  font-weight: 600;
+}
+
 .actionBar {
   display: flex;
   align-items: center;

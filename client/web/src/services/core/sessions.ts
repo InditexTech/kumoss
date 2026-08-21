@@ -35,11 +35,20 @@ export async function listUserSessions(
   return apiFetch<PaginatedSessionSummary>(`${BASE}?${query.toString()}`);
 }
 
-/** GET /api/v1/sessions/{sessionId} — Full session aggregate (facts, timeline, rounds) */
+/**
+ * GET /api/v1/sessions/{sessionId} — Full session aggregate (facts,
+ * timeline, rounds). `includeHistory` also populates `history` with the
+ * raw conversation turns; it always reads fresh (bypasses the
+ * finished-session cache), so leave it off in polling loops.
+ */
 export async function getSessionDetail(
   sessionId: string,
+  opts?: { includeHistory?: boolean },
 ): Promise<SessionDetail> {
-  return apiFetch<SessionDetail>(`${BASE}/${encodeURIComponent(sessionId)}`);
+  const suffix = opts?.includeHistory ? "?include_history=true" : "";
+  return apiFetch<SessionDetail>(
+    `${BASE}/${encodeURIComponent(sessionId)}${suffix}`,
+  );
 }
 
 /** Whether applying is currently allowed for a session (inverse of is_blocked). */
