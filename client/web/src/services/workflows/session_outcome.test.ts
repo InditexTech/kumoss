@@ -68,6 +68,47 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
   });
 
+  it("merges code changes across rounds, with later rounds winning", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        rounds: [
+          makeRound({
+            number: 1,
+            code_changes: [
+              { ...artifactRef(3, "storage.tf"), file_name: "storage.tf" },
+              { ...artifactRef(4, "outputs-r1.tf"), file_name: "outputs.tf" },
+            ],
+          }),
+          makeRound({
+            number: 2,
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plan: { ...artifactRef(5, "plan.txt"), targets: [] },
+            code_changes: [
+              { ...artifactRef(6, "outputs-r2.tf"), file_name: "outputs.tf" },
+              { ...artifactRef(7, "vault.tf"), file_name: "vault.tf" },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/plan.txt`, () => HttpResponse.text("plan output")),
+      http.get(`${STORAGE}/storage.tf`, () => HttpResponse.text("storage v1")),
+      http.get(`${STORAGE}/outputs-r1.tf`, () => HttpResponse.text("outputs v1")),
+      http.get(`${STORAGE}/outputs-r2.tf`, () => HttpResponse.text("outputs v2")),
+      http.get(`${STORAGE}/vault.tf`, () => HttpResponse.text("vault v1")),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("<storage.tf>\nstorage v1\n</storage.tf>");
+    expect(outcome.code).toContain("<vault.tf>\nvault v1\n</vault.tf>");
+    expect(outcome.code).toContain("<outputs.tf>\noutputs v2\n</outputs.tf>");
+    expect(outcome.code).not.toContain("outputs v1");
+  });
+
   it("requests the conversation history when given a session id", async () => {
     let sawIncludeHistory = false;
     mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));

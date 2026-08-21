@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -10,6 +10,9 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import ReplayIcon from "@mui/icons-material/Replay";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import type {
   ArtifactRef,
   HistoryEntry,
@@ -18,6 +21,7 @@ import type {
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
+import { providerLabel } from "@/constants/providers";
 import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
@@ -92,6 +96,21 @@ export default function SessionData({
 }: SessionDataProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const artifactParam = searchParams.get("artifact");
+  const [expandedStatuses, setExpandedStatuses] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const toggleStatus = useCallback((key: string) => {
+    setExpandedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }, []);
 
   const selected: SelectedArtifact | null = useMemo(() => {
     if (!artifactParam) return null;
@@ -174,7 +193,7 @@ export default function SessionData({
           component="span"
           className={styles.fieldValue}
         >
-          {session.provider}
+          {providerLabel(session.provider)}
         </Typography>
       </div>
       <div className={styles.fieldRow}>
@@ -269,28 +288,85 @@ export default function SessionData({
                         {artifacts.length !== 1 ? "S" : ""}
                       </Typography>
                       <div className={styles.timelineOps}>
-                        {round.statuses.map((st, i) => (
-                          <div
-                            key={`st-${i}`}
-                            className={`${styles.timelineOpRow}${i === 0 ? ` ${styles.timelineOpRowFirst}` : ""}`}
-                            title={st.message || undefined}
-                          >
+                        {round.statuses.length > 0 && (
+                          <div className={styles.timelineOpGroup}>
                             <Typography
-                              variant="subtitle2"
+                              variant="overline"
                               component="span"
-                              className={styles.timelineOpName}
+                              className={styles.timelineOpGroupLabel}
                             >
-                              {capitalize(st.status)}
+                              Statuses
                             </Typography>
-                            <span className={styles.timelineOpDate}>
-                              {formatOpDate(st.created_at)}
-                            </span>
                           </div>
-                        ))}
+                        )}
+                        {round.statuses.map((st, i) => {
+                          const statusKey = `${round.id}:${i}`;
+                          const expandable = !!st.message;
+                          const expanded = expandedStatuses.has(statusKey);
+                          return (
+                            <div
+                              key={`st-${i}`}
+                              className={`${styles.timelineOpRow}${expandable ? ` ${styles.timelineOpRowClickable}` : ""}`}
+                              onClick={
+                                expandable
+                                  ? () => toggleStatus(statusKey)
+                                  : undefined
+                              }
+                              role={expandable ? "button" : undefined}
+                              tabIndex={expandable ? 0 : undefined}
+                              onKeyDown={
+                                expandable
+                                  ? (e) => {
+                                      if (e.key === "Enter")
+                                        toggleStatus(statusKey);
+                                    }
+                                  : undefined
+                              }
+                              aria-expanded={expandable ? expanded : undefined}
+                            >
+                              <Typography
+                                variant="subtitle2"
+                                component="div"
+                                className={styles.timelineOpName}
+                              >
+                                {capitalize(st.status)}
+                              </Typography>
+                              <span className={styles.timelineOpDate}>
+                                {formatOpDate(st.created_at)}
+                                {expandable &&
+                                  (expanded ? (
+                                    <ExpandLessIcon
+                                      className={styles.artifactIcon}
+                                    />
+                                  ) : (
+                                    <ExpandMoreIcon
+                                      className={styles.artifactIcon}
+                                    />
+                                  ))}
+                              </span>
+                              {expanded && st.message && (
+                                <div className={styles.timelineOpMessage}>
+                                  <MarkdownText content={st.message} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {artifacts.length > 0 && (
+                          <div className={styles.timelineOpGroup}>
+                            <Typography
+                              variant="overline"
+                              component="span"
+                              className={styles.timelineOpGroupLabel}
+                            >
+                              Artifacts
+                            </Typography>
+                          </div>
+                        )}
                         {artifacts.map(({ kind, artifact }) => (
                           <div
                             key={`${kind}:${artifact.id}`}
-                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable}`}
+                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
                             onClick={() => setArtifactParam({ kind, artifact })}
                             role="button"
                             tabIndex={0}
@@ -304,6 +380,9 @@ export default function SessionData({
                               component="span"
                               className={styles.timelineOpName}
                             >
+                              <InsertDriveFileOutlinedIcon
+                                className={styles.artifactFileIcon}
+                              />
                               {artifactLabel(kind, artifact)}
                             </Typography>
                             <span className={styles.timelineOpDate}>

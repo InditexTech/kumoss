@@ -19,8 +19,18 @@ import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import type { PaginatedResponse } from "@/types/api";
 import { getApiErrorMessage } from "@/services/api";
+import { getLocalItem, setLocalItem } from "@/services";
+import { STORAGE_KEYS } from "@/constants";
 import { useNotification } from "@/contexts/NotificationContext";
 import styles from "./SessionsTable.module.css";
+
+const PAGE_SIZE_OPTIONS = [10, 15, 25, 50];
+
+/** Last page size the user picked, if it's still a valid option. */
+function readStoredPageSize(): number {
+  const stored = Number(getLocalItem(STORAGE_KEYS.SESSIONS_PAGE_SIZE));
+  return PAGE_SIZE_OPTIONS.includes(stored) ? stored : 0;
+}
 
 export interface FilterOption {
   value: string;
@@ -106,7 +116,10 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
   const [loading, setLoading] = useState(true);
 
   const page = Number(searchParams.get("page")) || 1;
-  const pageSize = Number(searchParams.get("pageSize")) || defaultPageSize;
+  const pageSize =
+    Number(searchParams.get("pageSize")) ||
+    readStoredPageSize() ||
+    defaultPageSize;
 
   const searchFingerprint = searchFields
     .map((sf) => searchParams.get(sf.key) || "")
@@ -223,6 +236,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
         {filters.map((f) => (
           <FormControl key={f.key} variant="standard" size="small">
             <Select
+              name={f.key}
               value={filterValues[f.key]}
               onChange={(e: SelectChangeEvent) =>
                 updateParams({ [f.key]: e.target.value, page: "" })
@@ -254,14 +268,16 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
         <div className={styles.inlinePagination}>
           <FormControl variant="standard" size="small">
             <Select
+              name="page-size"
               value={String(pageSize)}
-              onChange={(e: SelectChangeEvent) =>
-                updateParams({ pageSize: e.target.value, page: "" })
-              }
+              onChange={(e: SelectChangeEvent) => {
+                setLocalItem(STORAGE_KEYS.SESSIONS_PAGE_SIZE, e.target.value);
+                updateParams({ pageSize: e.target.value, page: "" });
+              }}
               disableUnderline
               sx={{ fontSize: 14, fontWeight: 300 }}
             >
-              {[10, 15, 25, 50].map((n) => (
+              {PAGE_SIZE_OPTIONS.map((n) => (
                 <MenuItem key={n} value={String(n)}>
                   {n}
                 </MenuItem>
