@@ -298,7 +298,6 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     if (!detail) return;
     invalidateSessionsCache();
 
-    // The detail was fetched with history, so the outcome carries the chat.
     let outcome: SessionOutcome;
     try {
       outcome = await resolveSessionOutcome(detail);

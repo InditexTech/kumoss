@@ -130,7 +130,6 @@ async function fetchRoundArtifacts(
     }
   }
 
-  // Rebuild the tagged multi-file blob the Home result view parses.
   const parts: string[] = [];
   if (planContent) {
     parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);

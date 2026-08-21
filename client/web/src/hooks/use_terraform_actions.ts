@@ -165,8 +165,6 @@ export function useTerraformActions() {
           outcome.kind === "rejected" &&
           outcome.detail.rounds.length <= 1
         ) {
-          // First-round rejection: surface the rationale on the wizard
-          // input via the error state, which routes the user back to /home.
           dispatch({
             type: "ERROR",
             message: `${STRINGS.wizard.queryRejected} ${outcome.rationale}`,
@@ -234,7 +232,6 @@ export function useTerraformActions() {
           if (signal.aborted) return;
         }
 
-        // Bound to a specific connection so reconnects don't act on a stale one
         const createMessageHandler = (es: SseConnection) => (event: {
           data: string;
         }) => {

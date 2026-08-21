@@ -19,8 +19,6 @@ export function useWizardTerraform() {
   const { showNotification } = useNotification();
   const navigate = useNavigate();
 
-  // Runs after the planning route may have unmounted — only touch context
-  // setters and navigate here.
   const handleOutcome = useCallback(
     (outcome: SessionOutcome) => {
       invalidateSessionsCache();
@@ -42,8 +40,6 @@ export function useWizardTerraform() {
         return;
       }
 
-      // Keep live wizard values (mapper project, chosen iac_path) over the
-      // fallbacks derived from the session detail.
       const merged = {
         ...patch,
         project: session.project ?? patch.project,
@@ -61,10 +57,6 @@ export function useWizardTerraform() {
         return;
       }
 
-      // "results", or a rejected iteration (a rejected first round never
-      // reaches this callback — the run hook surfaces it on the wizard).
-      // Previous results stay intact for rejections: the patch carries no
-      // code/report for them.
       updateSession({
         ...merged,
         full_history: [

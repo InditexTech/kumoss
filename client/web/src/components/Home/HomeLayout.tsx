@@ -19,9 +19,6 @@ interface HomeLayoutContext {
 
 export default function HomeLayout() {
   const view = useCurrentView();
-  // The wizard (and the terraform run + SSE subscription it owns) must live
-  // here, above the route swap: child routes unmount on navigate to
-  // /home/planning, and useTerraformActions aborts everything on unmount.
   const wizard = useHomeWizard();
   const supportBtnRef = useRef<HTMLDivElement>(null);
 
