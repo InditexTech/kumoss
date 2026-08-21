@@ -18,6 +18,7 @@ const ALLOWED_DOMAINS: string[] = [
   'portal.azure.com',
   'console.cloud.google.com',
   'teams.microsoft.com',
+  'github.com',
 ];
 
 export function containsHtml(text: string): boolean {

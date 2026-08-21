@@ -129,17 +129,55 @@
   cursor: default;
 }
 
-.timelineOpRowFirst .timelineOpName,
-.timelineOpRowFirst .timelineOpDate {
-  border-top: 1px solid var(--color-border);
+/* Sub-headers splitting each round into its status rows (pipeline
+   progress) and its artifact rows (openable outputs). */
+.timelineOpGroup {
+  display: table-row;
+}
+
+.timelineOpGroupLabel {
+  display: table-cell;
+  color: var(--color-content-muted);
+  letter-spacing: 0.08em;
+  padding: 20px 16px 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.timelineOpGroupFill {
+  display: table-cell;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.timelineOpGroup:first-child .timelineOpGroupLabel {
+  padding-top: 0;
 }
 
 .timelineOpRowClickable {
   cursor: pointer;
 }
 
+.timelineOpRowArtifact {
+  background: var(--color-surface-subtle);
+}
+
+.timelineOpRowArtifact .timelineOpName {
+  padding-left: 8px;
+}
+
+.timelineOpRowArtifact .timelineOpDate {
+  padding-right: 8px;
+}
+
 .timelineOpRowClickable:hover {
   background: var(--color-content-hover-bg);
+}
+
+.artifactFileIcon {
+  font-size: 15px !important;
+  color: var(--color-content-secondary);
+  vertical-align: -3px;
+  margin-right: 8px;
 }
 
 .timelineOpName {

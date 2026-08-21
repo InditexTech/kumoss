@@ -31,7 +31,15 @@ function Header() {
     <>
       <header className={styles.header}>
         <div className={styles.logo}>
-          <a href="/">
+          <a
+            href="/home"
+            onClick={(e) => {
+              // SPA navigation: a full reload would replay the greeting
+              // splash, which should only show on an actual page refresh.
+              e.preventDefault();
+              navigate("/home");
+            }}
+          >
             <span>NEBULA</span>
             <span>.AI</span>
           </a>

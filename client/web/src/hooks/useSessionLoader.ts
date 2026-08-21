@@ -22,7 +22,7 @@ interface SessionLoaderResult {
 export function useSessionLoader(
   sessionId: string | undefined,
 ): SessionLoaderResult {
-  const { session, updateSession } = useSession();
+  const { session, updateSession, updatePrDetails } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef<string | null>(null);
@@ -64,6 +64,13 @@ export function useSessionLoader(
           });
         } else {
           updateSession(patch);
+          // PR state is in-memory only; rebuild it from the round so a
+          // refresh keeps the View PR / Continue with PR affordances.
+          const lastRound =
+            outcome.detail.rounds[outcome.detail.rounds.length - 1];
+          const pr =
+            lastRound?.pull_requests[lastRound.pull_requests.length - 1];
+          if (pr) updatePrDetails({ id: pr.number, prUrl: pr.url });
         }
         setLoading(false);
       })
@@ -78,7 +85,7 @@ export function useSessionLoader(
     return () => {
       cancelled = true;
     };
-  }, [sessionId, alreadyLoaded, updateSession]);
+  }, [sessionId, alreadyLoaded, updateSession, updatePrDetails]);
 
   return {
     loading,

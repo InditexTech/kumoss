@@ -7,6 +7,7 @@ import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
 import type { useHomeWizard } from "./useHomeWizard";
 import { STRINGS } from "@/constants/strings";
+import { providerLabel } from "@/constants/providers";
 import { TERRAFORM_PROVIDERS } from "@/types/api";
 import styles from "./HomeScreen.module.css";
 
@@ -156,7 +157,7 @@ export default function WizardView({
                 onClick={() => handleProvider(provider)}
                 role="option"
               >
-                {provider}
+                {providerLabel(provider)}
               </Typography>
             ))}
           </ul>

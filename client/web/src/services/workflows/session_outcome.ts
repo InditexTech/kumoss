@@ -17,7 +17,7 @@ import {
   fetchArtifactContent,
 } from "@/services/core/sessions";
 import { normalizeHistory } from "@/types/api";
-import type { RoundDetail, SessionDetail } from "@/types/api";
+import type { CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
 import type { TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
@@ -109,10 +109,27 @@ interface RoundArtifacts {
   targets: string[] | undefined;
 }
 
+/**
+ * Latest version of every code-change artifact across the given rounds.
+ * A round only carries the files it touched, so the session's full file
+ * set must be merged across rounds; a file regenerated in a later round
+ * replaces its earlier version (first-seen order is kept).
+ */
+function collectCodeChanges(rounds: RoundDetail[]): CodeChangeRef[] {
+  const byName = new Map<string, CodeChangeRef>();
+  for (const round of rounds) {
+    for (const change of round.code_changes) {
+      byName.set(change.file_name, change);
+    }
+  }
+  return [...byName.values()];
+}
+
 async function fetchRoundArtifacts(
   round: RoundDetail,
+  rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
-  const codeChanges = round.code_changes;
+  const codeChanges = collectCodeChanges(rounds);
   const [reportContent, planContent, ...fileContents] = await Promise.all([
     round.report
       ? fetchArtifactContent(round.report.url)
@@ -178,15 +195,19 @@ export async function resolveSessionOutcome(
     };
   }
 
+  // Apply outcomes ignore code, so skip the other rounds' file fetches.
+  const codeRounds = (d: SessionDetail, r: RoundDetail) =>
+    isApplyRound(r) ? [r] : d.rounds;
+
   let artifacts: RoundArtifacts;
   try {
-    artifacts = await fetchRoundArtifacts(round);
+    artifacts = await fetchRoundArtifacts(round, codeRounds(detail, round));
   } catch {
     detail = await getSessionDetail(detail.uuid, { includeHistory: true });
     round =
       detail.rounds.find((r) => r.id === round.id) ??
       detail.rounds[detail.rounds.length - 1];
-    artifacts = await fetchRoundArtifacts(round);
+    artifacts = await fetchRoundArtifacts(round, codeRounds(detail, round));
   }
 
   if (isApplyRound(round)) {

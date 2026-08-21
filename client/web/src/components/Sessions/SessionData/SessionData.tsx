@@ -10,6 +10,7 @@ import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import ReplayIcon from "@mui/icons-material/Replay";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
 import type {
   ArtifactRef,
   HistoryEntry,
@@ -18,6 +19,7 @@ import type {
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
+import { providerLabel } from "@/constants/providers";
 import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
@@ -174,7 +176,7 @@ export default function SessionData({
           component="span"
           className={styles.fieldValue}
         >
-          {session.provider}
+          {providerLabel(session.provider)}
         </Typography>
       </div>
       <div className={styles.fieldRow}>
@@ -269,10 +271,22 @@ export default function SessionData({
                         {artifacts.length !== 1 ? "S" : ""}
                       </Typography>
                       <div className={styles.timelineOps}>
+                        {round.statuses.length > 0 && (
+                          <div className={styles.timelineOpGroup}>
+                            <Typography
+                              variant="overline"
+                              component="span"
+                              className={styles.timelineOpGroupLabel}
+                            >
+                              Statuses
+                            </Typography>
+                            <span className={styles.timelineOpGroupFill} />
+                          </div>
+                        )}
                         {round.statuses.map((st, i) => (
                           <div
                             key={`st-${i}`}
-                            className={`${styles.timelineOpRow}${i === 0 ? ` ${styles.timelineOpRowFirst}` : ""}`}
+                            className={styles.timelineOpRow}
                             title={st.message || undefined}
                           >
                             <Typography
@@ -287,10 +301,22 @@ export default function SessionData({
                             </span>
                           </div>
                         ))}
+                        {artifacts.length > 0 && (
+                          <div className={styles.timelineOpGroup}>
+                            <Typography
+                              variant="overline"
+                              component="span"
+                              className={styles.timelineOpGroupLabel}
+                            >
+                              Artifacts
+                            </Typography>
+                            <span className={styles.timelineOpGroupFill} />
+                          </div>
+                        )}
                         {artifacts.map(({ kind, artifact }) => (
                           <div
                             key={`${kind}:${artifact.id}`}
-                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable}`}
+                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
                             onClick={() => setArtifactParam({ kind, artifact })}
                             role="button"
                             tabIndex={0}
@@ -304,6 +330,9 @@ export default function SessionData({
                               component="span"
                               className={styles.timelineOpName}
                             >
+                              <InsertDriveFileOutlinedIcon
+                                className={styles.artifactFileIcon}
+                              />
                               {artifactLabel(kind, artifact)}
                             </Typography>
                             <span className={styles.timelineOpDate}>

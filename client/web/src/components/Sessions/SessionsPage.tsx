@@ -31,6 +31,7 @@ import type {
   SessionSummary,
 } from "@/types/api";
 import { normalizeHistory } from "@/types/api";
+import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
   SideSheet,
@@ -57,7 +58,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "query",
     header: "Query",
-    width: "38%",
+    width: "34%",
     render: (s) => (
       <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
     ),
@@ -79,9 +80,9 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "cloud",
     header: "Cloud",
-    width: "8%",
+    width: "12%",
     className: styles.secondaryCell,
-    render: (s) => s.provider,
+    render: (s) => providerLabel(s.provider),
   },
   {
     key: "status",
@@ -122,7 +123,7 @@ const adminColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "query",
     header: "Query",
-    width: "30%",
+    width: "26%",
     render: (s) => (
       <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
     ),
@@ -144,9 +145,9 @@ const adminColumns: ColumnDef<SessionSummary>[] = [
   {
     key: "cloud",
     header: "Cloud",
-    width: "8%",
+    width: "12%",
     className: styles.secondaryCell,
-    render: (s) => s.provider,
+    render: (s) => providerLabel(s.provider),
   },
   {
     key: "status",

@@ -70,6 +70,18 @@ function defineCustomThemes(monacoInstance: typeof monaco): void {
       "editor.background": "#00000000",
       "editorLineNumber.foreground": "#ffffff40",
       "editorLineNumber.activeForeground": "#ffffff80",
+      // vs-dark's olive/maroon diff tints turn muddy over the app's
+      // deep-blue dark background; use brighter green/red instead. Char
+      // boxes are disabled: the backend emits full-context diffs where
+      // most tokens differ, so per-token boxes read as a solid wall.
+      "diffEditor.insertedLineBackground": "#3fb95026",
+      "diffEditor.removedLineBackground": "#f8514926",
+      "diffEditor.insertedTextBackground": "#00000000",
+      "diffEditor.removedTextBackground": "#00000000",
+      "diffEditorGutter.insertedLineBackground": "#3fb95038",
+      "diffEditorGutter.removedLineBackground": "#f8514938",
+      "diffEditor.diagonalFill": "#ffffff14",
+      "diffEditor.unchangedRegionBackground": "#ffffff0d",
     },
   });
 
