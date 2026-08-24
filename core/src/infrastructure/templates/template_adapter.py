@@ -30,7 +30,7 @@ class TemplateAdapter(ITemplate):
     @override
     async def render_target_generator(
         self,
-        mode: TargetGenerationMode,
+        mode: TargetGenerationMode = TargetGenerationMode.SESSION,
         resources: list[str] | None = None,
     ) -> str:
         t = self._get_template(self._core + "target_generator.jinja")
