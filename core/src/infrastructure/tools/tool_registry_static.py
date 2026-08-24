@@ -211,7 +211,7 @@ class ToolRegistryStatic(IToolRegistry):
         explanation = parameters.get("explanation", "")
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
-                message=f"Target generation inference hasn't returned the expected structure. got={targets}",
+                message=f"Drift target generation inference hasn't returned the expected structure. got={targets}",
                 error_code=500,
             )
         return {
