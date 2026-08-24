@@ -110,7 +110,7 @@ class DriftRequest(BaseIacRequest):
 
     @model_validator(mode="after")
     def _partial_requires_query(self):
-        if self.is_partial and not self.q:
+        if self.is_partial and any([not self.q, self.q.strip() == ""]):
             raise ValueError("Partial drift detection requires a non-empty `q`.")
         return self
 
