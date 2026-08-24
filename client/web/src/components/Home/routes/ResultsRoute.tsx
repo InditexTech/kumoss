@@ -101,7 +101,7 @@ export default function ResultsRoute() {
   if (!hasArtifacts) {
     return (
       <div className={`${styles.leftSide} ${styles.leftSideChat}`}>
-        <div className={styles.chatFull}>
+        <div className={`${styles.chatFull} ${styles.chatCentered}`}>
           <ChatHistory
             onIterate={wizard.iterate}
             onResetToReport={handleResetToReport}

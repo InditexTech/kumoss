@@ -7,6 +7,8 @@ import inspect
 from pathlib import Path
 from typing import Any, Callable, override
 
+from pydantic import ValidationError
+
 from src.domains.interfaces import ILLMProvider, IToolRegistry
 from src.domains.dto import (
     TerraformDriftReport,
@@ -91,6 +93,8 @@ class ToolRegistryStatic(IToolRegistry):
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
             "generate_drift_targets": self.__handle_drift_target_generator,
+            # External information
+            "web_search": self.__handle_web_search,
         }
 
     @override
@@ -217,17 +221,23 @@ class ToolRegistryStatic(IToolRegistry):
 
     def __handle_report_plan_generator(
         self, parameters: dict[str, Any]
-    ) -> TerraformPlanReport:
+    ) -> TerraformPlanReport | str:
         summary = parameters["summary"]
         changes = parameters["detailed_changes"]
         impact = parameters["potential_impact"]
         costs = parameters["estimated_costs"]
-        return TerraformPlanReport(
-            summary=summary,
-            detailed_changes=changes,
-            potential_impact=impact,
-            estimated_costs=costs,
-        )
+        try:
+            return TerraformPlanReport(
+                summary=summary,
+                detailed_changes=changes,
+                potential_impact=impact,
+                estimated_costs=costs,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_report_drift_generator(
         self, parameters: dict[str, Any]
@@ -235,11 +245,17 @@ class ToolRegistryStatic(IToolRegistry):
         summary = parameters["summary"]
         status = parameters["status"]
         resources = parameters["remediated_resources"]
-        return TerraformDriftReport(
-            summary=summary,
-            status=status,
-            remediated_resources=resources,
-        )
+        try:
+            return TerraformDriftReport(
+                summary=summary,
+                status=status,
+                remediated_resources=resources,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_report_apply_generator(
         self, parameters: dict[str, Any]
@@ -249,13 +265,19 @@ class ToolRegistryStatic(IToolRegistry):
         execution_summary = parameters["execution_summary"]
         resource_changes = parameters["resource_changes"]
         recommendations = parameters["recommendations"]
-        return TerraformApplyReport(
-            summary=summary,
-            status=status,
-            execution_summary=execution_summary,
-            resource_changes=resource_changes,
-            recommendations=recommendations,
-        )
+        try:
+            return TerraformApplyReport(
+                summary=summary,
+                status=status,
+                execution_summary=execution_summary,
+                resource_changes=resource_changes,
+                recommendations=recommendations,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_requests_filter(
         self, parameters: dict[str, Any]

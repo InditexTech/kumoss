@@ -218,7 +218,7 @@ export async function resolveSessionOutcome(
         });
         const freshRound = fresh.rounds.find((r) => r.id === priorRound.id);
         if (!freshRound) throw new Error("prior round vanished");
-        prior = await fetchRoundArtifacts(freshRound);
+        prior = await fetchRoundArtifacts(freshRound, fresh.rounds);
         detail = fresh;
       }
       return { kind: "rejected", detail, rationale, prior };

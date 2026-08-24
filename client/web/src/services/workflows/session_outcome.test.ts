@@ -221,6 +221,48 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.prior).toBeUndefined();
   });
 
+  it("retries with a fresh detail to hydrate a rejected iteration's prior round", async () => {
+    let reportCalls = 0;
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "uncompleted",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            report: artifactRef(1, "report.json"),
+            code_changes: [
+              { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
+            ],
+          }),
+          makeRound({
+            statuses: [makeStatus("uncompleted", "Query is off-topic")],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report.json`, () => {
+        reportCalls++;
+        if (reportCalls === 1) {
+          return new HttpResponse(null, { status: 403 });
+        }
+        return HttpResponse.json({ status: "ok" });
+      }),
+      http.get(`${STORAGE}/main.tf`, () => HttpResponse.text("resource {}")),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    // The stale first fetch (403) must fall through to the fresh-detail
+    // retry, which needs the refetched round set to merge code changes —
+    // otherwise it throws and the prior round degrades to chat-only.
+    expect(reportCalls).toBe(2);
+    expect(outcome.kind).toBe("rejected");
+    if (outcome.kind !== "rejected") throw new Error("unreachable");
+    expect(outcome.prior?.report).toEqual({ status: "ok" });
+    expect(outcome.prior?.code).toContain("<main.tf>\nresource {}\n</main.tf>");
+  });
+
   it("maps a failed round to a failed outcome with the status message", async () => {
     mockState.addSession(
       makeSessionDetail({
