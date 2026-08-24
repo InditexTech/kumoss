@@ -72,6 +72,18 @@
   margin: 0;
 }
 
+/* ─── Report cards ─── */
+
+/* Adjacent cards share a single rule: drop the second card's top
+   border and the gap between them, so no empty band appears. */
+.reportCard + .reportCard > :first-child {
+  border-top: none;
+}
+
+.reportCard:has(+ .reportCard) > :first-child {
+  margin-bottom: 0;
+}
+
 /* ─── Plan / Code Views ─── */
 
 .planView,

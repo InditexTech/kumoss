@@ -144,6 +144,14 @@ body {
   }
 }
 
+/* 1080p-class screens (browser viewport ≲ 1080px tall): pull the
+   assistant block up so the wizard input clears the sessions row. */
+@media screen and (max-height: 1080px) {
+  :root {
+    --assistant-top-offset: 8rem;
+  }
+}
+
 .appContainer {
   margin: 0 20px;
 }

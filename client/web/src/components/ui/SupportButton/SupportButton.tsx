@@ -4,7 +4,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ButtonBase } from "@mui/material";
+import { ButtonBase, Tooltip } from "@mui/material";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -143,38 +143,50 @@ function SupportButton({
 
   if (variant === "icon") {
     return (
-      <ButtonBase
-        onClick={handleSupportRequest}
-        disabled={isLoading}
-        className={styles.iconVariant}
-        aria-label="Send Teams notification"
+      <Tooltip
         title={
           isLoading
             ? STRINGS.support.creatingNotification
             : STRINGS.support.tooltip
         }
+        arrow
       >
-        <ChatBubbleOutlineIcon className={styles.iconVariantIcon} />
-      </ButtonBase>
+        <span style={{ display: "inline-flex" }}>
+          <ButtonBase
+            onClick={handleSupportRequest}
+            disabled={isLoading}
+            className={styles.iconVariant}
+            aria-label="Send Teams notification"
+          >
+            <ChatBubbleOutlineIcon className={styles.iconVariantIcon} />
+          </ButtonBase>
+        </span>
+      </Tooltip>
     );
   }
 
   return (
     <div className={styles.supportContainer}>
-      <button
-        className={styles.supportButton}
-        onClick={handleSupportRequest}
-        disabled={isLoading}
+      <Tooltip
         title={
           isLoading
             ? STRINGS.support.creatingNotification
             : STRINGS.support.tooltip
         }
+        arrow
       >
-        <span className={styles.text}>
-          {isLoading ? STRINGS.support.creatingButton : buttonText}
+        <span style={{ display: "inline-flex" }}>
+          <button
+            className={styles.supportButton}
+            onClick={handleSupportRequest}
+            disabled={isLoading}
+          >
+            <span className={styles.text}>
+              {isLoading ? STRINGS.support.creatingButton : buttonText}
+            </span>
+          </button>
         </span>
-      </button>
+      </Tooltip>
     </div>
   );
 }

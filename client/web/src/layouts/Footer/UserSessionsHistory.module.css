@@ -90,3 +90,16 @@
   }
 
 }
+
+/* Compact the sessions row on 1080p-class screens so it doesn't
+   cover the wizard input above it. */
+@media screen and (max-height: 1080px) {
+  .header {
+    margin-bottom: 12px;
+  }
+
+  .emptyCard {
+    height: 160px;
+    padding: 16px;
+  }
+}

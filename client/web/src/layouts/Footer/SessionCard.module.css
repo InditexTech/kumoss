@@ -81,3 +81,12 @@
     padding: 16px;
   }
 }
+
+/* Shorter cards on 1080p-class screens so the sessions row leaves
+   room for the wizard input above it. */
+@media screen and (max-height: 1080px) {
+  .card {
+    height: 160px;
+    padding: 16px;
+  }
+}
