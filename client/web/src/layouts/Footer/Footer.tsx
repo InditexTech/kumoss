@@ -76,22 +76,22 @@ const Footer = () => {
           <div className={styles.containerUnit}>
             <Typography variant="h3">Project</Typography>
             <span>/</span>
-            <Typography
-              variant="h3"
-              className={styles.mainMsg}
-              title={session.project}
-            >
-              {extractProjectName(session.project)}
-            </Typography>
+            <Tooltip title={session.project} arrow>
+              <Typography variant="h3" className={styles.mainMsg}>
+                {extractProjectName(session.project)}
+              </Typography>
+            </Tooltip>
           </div>
         )}
         {session.environment && (
           <div className={styles.containerUnitSmall}>
             <Typography variant="h3">Path</Typography>
             <span>/</span>
-            <Typography variant="h3" className={styles.mainMsg}>
-              {session.environment}
-            </Typography>
+            <Tooltip title={session.environment} arrow>
+              <Typography variant="h3" className={styles.mainMsg}>
+                {session.environment}
+              </Typography>
+            </Tooltip>
           </div>
         )}
       </div>
