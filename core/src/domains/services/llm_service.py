@@ -164,7 +164,6 @@ class LLMOrchestrationService:
             PromptsLibrary.TARGET_GENERATOR.name,
             PromptsLibrary.TASK_SPLITTER.name,
             PromptsLibrary.REPORT_GENERATOR.name,
-            PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR.name,
         ]:
             return self.__main_llm
         return self.__small_llm

@@ -54,7 +54,6 @@ class PromptsLibrary(Enum):
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
     TARGET_GENERATOR = "target_generator"
-    PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
     SUPERVISOR = "supervisor"
     PR_GENERATOR = "pr_generator"

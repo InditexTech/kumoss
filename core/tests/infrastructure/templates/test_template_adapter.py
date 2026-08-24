@@ -9,7 +9,12 @@ from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
-from src.shared.constants import OperationType, ReportType, TerraformProvider
+from src.shared.constants import (
+    OperationType,
+    ReportType,
+    TargetGenerationMode,
+    TerraformProvider,
+)
 
 
 PROVIDER_TEST_CASES = {
@@ -226,18 +231,58 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     def test_render_report_generator_apply(self):
         self._run_report_generator_test(ReportType.APPLY, branch="apply")
 
-    def test_render_target_generator(self):
+    async def test_render_target_generator_session(self):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
-        prompt = adapter.render_target_generator()
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.SESSION
+        )
 
         self.assertIsInstance(prompt, str)
         self.assertIn("REQUIRED FIRST STEP", prompt)
         self.assertIn("diff_history", prompt)
         self.assertIn("sole source of truth", prompt)
-        self.assertNotIn("Respect user scoping", prompt)
-        self.assertNotIn("Do not infer changes to unrelated resources", prompt)
+        self.assertNotIn("Impact Analysis", prompt)
+        self.assertNotIn("Drift Remediation", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_target_generator_predictive(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_predictive_guidelines"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.PREDICTIVE,
+            resources=["storage_account", "key_vault"],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("Impact Analysis", prompt)
+        self.assertIn("storage_account", prompt)
+        self.assertIn("key_vault", prompt)
+        self.assertIn("mocked_predictive_guidelines", prompt)
+        self.assertIn("/test/project", prompt)
+        self.assertNotIn("Drift Remediation", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_drift_guidelines"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.DRIFT_REMEDIATION,
+            resources=["storage_account"],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("Drift Remediation", prompt)
+        self.assertIn("generate_drift_targets", prompt)
+        self.assertIn("storage_account", prompt)
+        self.assertIn("mocked_drift_guidelines", prompt)
+        self.assertIn("/test/project", prompt)
+        self.assertNotIn("Impact Analysis", prompt)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,12 @@ from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
-from src.shared.constants import OperationType, ReportType, TerraformProvider
+from src.shared.constants import (
+    OperationType,
+    ReportType,
+    TargetGenerationMode,
+    TerraformProvider,
+)
 
 
 @final
@@ -23,9 +28,31 @@ class TemplateAdapter(ITemplate):
         self._cwd = cwd
 
     @override
-    def render_target_generator(self) -> str:
+    async def render_target_generator(
+        self,
+        mode: TargetGenerationMode,
+        resources: list[str] | None = None,
+    ) -> str:
         t = self._get_template(self._core + "target_generator.jinja")
-        return t.render()
+        context: dict = {"TARGET_GENERATION_MODE": mode.value}
+        if mode in (
+            TargetGenerationMode.PREDICTIVE,
+            TargetGenerationMode.DRIFT_REMEDIATION,
+        ):
+            guidelines = await remote_fetcher.fetch(
+                prompt_name="predictive_targets",
+                scope="general",
+                type="guidelines",
+                tag=system_config.environment,
+            )
+            context.update(
+                {
+                    "RELEVANT_TEMPLATES": resources or [],
+                    "PREDICTIVE_TARGETS_GUIDELINES": guidelines,
+                    "CWD": self._cwd,
+                }
+            )
+        return t.render(**context)
 
     @override
     def render_report_generator(self, report_type: ReportType) -> str:
@@ -88,24 +115,6 @@ class TemplateAdapter(ITemplate):
         )
         base_template = self._get_template(self._core + "iac_generator.jinja")
         return base_template.render(**context)
-
-    @override
-    async def render_predictive_target_calculator(
-        self,
-        resources: list[str],
-    ) -> str:
-        guidelines = await remote_fetcher.fetch(
-            prompt_name="predictive_targets",
-            scope="general",
-            type="guidelines",
-            tag=system_config.environment,
-        )
-        t = self._get_template(self._core + "predictive_target_calculator.jinja")
-        return t.render(
-            RELEVANT_TEMPLATES=resources,
-            PREDICTIVE_TARGETS_GUIDELINES=guidelines,
-            CWD=self._cwd,
-        )
 
     @override
     async def render_prompt_compositor(

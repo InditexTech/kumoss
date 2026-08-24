@@ -32,7 +32,10 @@ class TerraformTargetService:
             sentinel_tool=self.__tool_svc.get_sentinel_tool(
                 ToolContext.TARGET_GENERATOR
             ),
-            prompt=await self.__template_svc.render(PromptsLibrary.TARGET_GENERATOR),
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.TARGET_GENERATOR,
+                mode=TargetGenerationMode.SESSION,
+            ),
             history=history,
         )
         return response.result["targets"]
@@ -57,7 +60,8 @@ class TerraformTargetService:
                 ToolContext.TARGET_GENERATOR
             ),
             prompt=await self.__template_svc.render(
-                prompt=PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR,
+                prompt=PromptsLibrary.TARGET_GENERATOR,
+                mode=TargetGenerationMode.PREDICTIVE,
                 resources=conventions.templates,
             ),
             history=history,

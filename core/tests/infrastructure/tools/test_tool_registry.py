@@ -72,6 +72,39 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools[0].name, "generate_pull_request")
         self.assertEqual(set(tools[0].parameters["required"]), {"title", "description"})
 
+    async def test_drift_target_generator_tool_context(self):
+        tools = self.main_service.get_available_tools(
+            ToolContext.DRIFT_TARGET_GENERATOR
+        )
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(tools[0].name, "generate_drift_targets")
+        self.assertIn("targets", tools[0].parameters["properties"])
+        self.assertEqual(set(tools[0].parameters["required"]), {"targets"})
+
+    async def test_handle_drift_target_generator(self):
+        test_input = {
+            "targets": ["module.keyvault_001", "azurerm_storage_account.sta_001"],
+            "explanation": "Drifted resources identified",
+        }
+        output = self.main_service._ToolRegistryStatic__handle_drift_target_generator(
+            test_input
+        )
+        self.assertEqual(output["targets"], test_input["targets"])
+        self.assertEqual(output["explanation"], test_input["explanation"])
+
+    async def test_handle_drift_target_generator_invalid_params(self):
+        with self.assertRaises(ToolInferenceParamsError):
+            self.main_service._ToolRegistryStatic__handle_drift_target_generator(
+                {"targets": "not_a_list"}
+            )
+
+    async def test_handle_drift_target_generator_empty_targets(self):
+        output = self.main_service._ToolRegistryStatic__handle_drift_target_generator(
+            {"targets": []}
+        )
+        self.assertEqual(output["targets"], [])
+        self.assertEqual(output["explanation"], "")
+
 
 if __name__ == "__main__":
     unittest.main()
