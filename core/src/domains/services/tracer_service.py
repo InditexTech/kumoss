@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
-from typing import Any
+from types import CoroutineType
+from typing import Any, Concatenate, Protocol
 from functools import wraps
-from collections.abc import Coroutine
-from typing import Callable
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar, Token
 
 from opentelemetry.trace import Status, StatusCode
 
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import LLMResponseDTO, TerraformValidationDTO
 from src.domains.interfaces.tracer_interface import ITracer
 
 _tracer_context: ContextVar[ITracer] = ContextVar("tracer")
@@ -35,18 +35,18 @@ class TracerService:
         _tracer_context.reset(token)
 
 
-def trace_terraform(
-    func: Callable[[Any], Any],
-) -> Callable[[Any], Any]:
+def trace_terraform[**P](
+    func: Callable[P, Awaitable[TerraformValidationDTO]],
+) -> Callable[P, Awaitable[TerraformValidationDTO]]:
     """
     Decorator that automatically traces chain function calls with OpenTelemetry spans.
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs) -> TerraformValidationDTO:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> TerraformValidationDTO:
         tracer = TracerService.get_current_tracer()
         start = time.time()
-        output: TerraformValidationDTO = await func(*args, **kwargs)
+        output = await func(*args, **kwargs)
         span = tracer.trace_terraform(
             output, start_time=int(start * 1_000_000_000), **kwargs
         )
@@ -58,13 +58,15 @@ def trace_terraform(
     return wrapper
 
 
-def trace_chain(func: Callable) -> Callable:
+def trace_chain[**P, R](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, CoroutineType[Any, Any, R]]:
     """
     Decorator that automatically traces chain function calls with OpenTelemetry spans.
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs) -> Coroutine:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         tracer = TracerService.get_current_tracer()
         span = tracer.trace_chain(**kwargs)
         output = await func(*args, **kwargs)
@@ -77,7 +79,20 @@ def trace_chain(func: Callable) -> Callable:
     return wrapper
 
 
-def trace_llm(func: Callable) -> Callable:
+class _TracedLLMProvider(Protocol):
+    """State @trace_llm requires on the instance whose method it decorates."""
+
+    _last_invocation_params: dict[str, Any] | None
+
+    @property
+    def model(self) -> str: ...
+
+
+def trace_llm[**P](
+    func: Callable[Concatenate[_TracedLLMProvider, P], Awaitable[LLMResponseDTO]],
+) -> Callable[
+    Concatenate[_TracedLLMProvider, P], CoroutineType[Any, Any, LLMResponseDTO]
+]:
     """
     Decorator that automatically traces LLM function calls with comprehensive telemetry data.
     Reads invocation parameters from self._last_invocation_params, set by the
@@ -86,16 +101,16 @@ def trace_llm(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs) -> Coroutine:
-        self_instance = args[0]
-
+    async def wrapper(
+        self_instance: _TracedLLMProvider, /, *args: P.args, **kwargs: P.kwargs
+    ) -> LLMResponseDTO:
         start = time.time()
-        output = await func(*args, **kwargs)
+        output = await func(self_instance, *args, **kwargs)
 
         span = TracerService.get_current_tracer().trace_llm(
             start_time=int(start * 1_000_000_000),  # epoch in ns
             model=self_instance.model,
-            invocation_params=self_instance._last_invocation_params,
+            invocation_params=self_instance._last_invocation_params,  # pyright: ignore[reportPrivateUsage]
             response=output,
             **kwargs,
         )
@@ -107,13 +122,15 @@ def trace_llm(func: Callable) -> Callable:
     return wrapper
 
 
-def trace_tool(func: Callable) -> Callable:
+def trace_tool[**P, R](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, CoroutineType[Any, Any, R]]:
     """
     Decorator that automatically traces tool function calls with OpenTelemetry spans.
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs) -> Coroutine:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         start = time.time()
         output = await func(*args, **kwargs)
         span = TracerService.get_current_tracer().trace_tool(

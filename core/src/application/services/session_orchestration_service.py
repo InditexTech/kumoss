@@ -5,7 +5,7 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from src.application.iac_requests import BaseIacRequest
+from src.application.iac_requests import BaseIacRequest, DriftRequest, GenerateRequest
 from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.shared.constants import OperationType
@@ -30,7 +30,7 @@ class SessionOrchestrationService:
         return await self._load(request)
 
     async def _create(
-        self, request: BaseIacRequest, operation: OperationType
+        self, request: GenerateRequest | DriftRequest, operation: OperationType
     ) -> SessionContext:
         sid = uuid4()
         _ = await DatabaseService.create_session(

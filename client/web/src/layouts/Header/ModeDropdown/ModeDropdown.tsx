@@ -81,6 +81,7 @@ export default function ModeDropdown({ disabled = false }: { disabled?: boolean 
 
   return (
     <Select
+      name="mode"
       value={mode}
       onChange={handleChange}
       disabled={disabled}

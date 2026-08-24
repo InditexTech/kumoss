@@ -6,6 +6,7 @@ export { AssistantAnimation } from "./AssistantAnimation/AssistantAnimation";
 export { BackgroundAnimation } from "./BackgroundAnimation/BackgroundAnimation";
 export { default as CodeBlock } from "./CodeBlock/CodeBlock";
 export { default as ErrorBoundary } from "./ErrorBoundary/ErrorBoundary";
+export { default as MarkdownText } from "./MarkdownText/MarkdownText";
 export { default as Modal } from "./Modal/Modal";
 export { default as NotificationStack } from "./Notification/NotificationStack";
 export { default as PageOverlay } from "./PageOverlay/PageOverlay";

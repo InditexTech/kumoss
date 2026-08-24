@@ -52,7 +52,13 @@ async def sessions_list(
     summary="Get the full session aggregate.",
     responses={404: {"description": "Unknown session."}},
 )
-async def session_detail(session_id: UUID) -> SessionDetail:
+async def session_detail(
+    session_id: UUID,
+    include_history: Annotated[
+        bool,
+        Query(description="Include the session's serialized conversation history."),
+    ] = False,
+) -> SessionDetail:
     """The complete read model for the session detail view.
 
     Returns the session facts (workspace, provider, first query), the
@@ -60,10 +66,17 @@ async def session_detail(session_id: UUID) -> SessionDetail:
     containing its statuses, pull requests, and artifacts (report, plan,
     code changes) with client-fetchable URLs.
 
+    Pass ``include_history=true`` to also populate ``history`` with the
+    session's conversation turns (``[{"user": ..., "assistant": ...}]``);
+    this variant always reads fresh from the database, so keep status
+    polls on the default.
+
     Clients subscribed to the push channel should refetch this endpoint
     whenever a `session.updated` nudge arrives for this session id.
     """
     try:
-        return await DatabaseService.get_session_detail(session_id)
+        return await DatabaseService.get_session_detail(
+            session_id, include_history=include_history
+        )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

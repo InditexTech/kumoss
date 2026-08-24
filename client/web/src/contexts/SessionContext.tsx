@@ -38,14 +38,12 @@ const initialSession: Session = {
   terraform_report: undefined,
   userQueries: [],
   full_history: undefined,
-  pipeline_url: undefined,
   apply_allowed: undefined,
+  current_status: undefined,
 };
 
 const initialPrDetails: PrDetails = {
   prUrl: undefined,
-  pipelineUrl: undefined,
-  applyUrl: undefined,
   id: undefined,
 };
 

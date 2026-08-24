@@ -7,9 +7,6 @@ from collections.abc import Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
-# Module-level executor used by execute_pool. Lives next to its only
-# consumer rather than in shared/config — it's a runtime object, not
-# deployment-tunable configuration.
 _pool_executor = ThreadPoolExecutor(max_workers=20)
 
 

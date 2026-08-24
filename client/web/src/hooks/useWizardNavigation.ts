@@ -42,12 +42,14 @@ export function useWizardNavigation() {
         case "provider":
           return STRINGS.wizard.promptProvider;
         case "cloud_scope":
-          return STRINGS.wizard.promptCloudScope;
+          return data.provider
+            ? STRINGS.wizard.scopeByProvider[data.provider].prompt
+            : STRINGS.wizard.promptCloudScope;
         default:
           return "";
       }
     },
-    [step, data.cloudScope],
+    [step, data.cloudScope, data.provider],
   );
 
   const placeholder = useCallback((): string => {
@@ -61,11 +63,13 @@ export function useWizardNavigation() {
       case "provider":
         return "";
       case "cloud_scope":
-        return STRINGS.wizard.placeholderCloudScope;
+        return data.provider
+          ? STRINGS.wizard.scopeByProvider[data.provider].placeholder
+          : STRINGS.wizard.placeholderCloudScope;
       default:
         return "";
     }
-  }, [step]);
+  }, [step, data.provider]);
 
   const resetNavigation = useCallback(() => {
     setStep("query");

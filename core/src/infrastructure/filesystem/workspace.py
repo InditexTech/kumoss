@@ -30,14 +30,14 @@ class WorkspaceService(IWorkspace):
 
     def __add_terraform_gitignore(self, path: Path) -> bool:
         utils = FileSystemUtils(path)
+        if Path(utils.project_root / ".gitignore").exists():
+            return True
         with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
-            if not Path(utils.project_root / ".gitignore").exists():
-                return utils.write_file(
-                    target_file=".gitignore",
-                    content=f.read(),
-                    is_safe=False,
-                )
-        return True
+            return utils.write_file(
+                target_file=".gitignore",
+                content=f.read(),
+                is_safe=False,
+            )
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:

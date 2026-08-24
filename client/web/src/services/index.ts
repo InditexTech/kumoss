@@ -10,15 +10,11 @@ export {
   applyInfrastructure,
 } from "./core/iac_actions";
 
-export {
-  subscribeToSession,
-  getSessionData,
-  unsubscribeSession,
-} from "./core/events";
+export { subscribeToSession, checkSessionStatus } from "./core/events";
 
 export {
   createPullRequest,
-  approvePullRequest,
+  mergePullRequest,
   parseRepository,
 } from "./core/iac_code";
 

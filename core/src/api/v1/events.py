@@ -56,12 +56,13 @@ async def subscribe_events(
 
     Behavior:
     - Polls the session message queue every 5 seconds
-    - Automatically terminates when session reaches COMPLETED or FAILED status
+    - Automatically terminates when session reaches a terminal status:
+      COMPLETED, UNCOMPLETED (rejected round) or FAILED
     - Closes stream when max iterations reached (session is preserved)
     - Messages are sanitized by removing double quotes to prevent JSON parsing issues
 
     Note:
-    - Connection remains open until session completion or failure
+    - Connection remains open until the session completes, is rejected or fails
     """
 
     async def event_stream():
@@ -85,17 +86,21 @@ async def subscribe_events(
 
             yield f"data: {json.dumps(payload)}\n\n"
 
-            if (
-                status.status == SessionStatus.COMPLETED
-                or status.status == SessionStatus.FAILED
+            if status.status == SessionStatus.FAILED:
+                logging.error(
+                    f"SSE session failed, closing stream. session_id={session_id}"
+                )
+                return
+            if status.status in (
+                SessionStatus.COMPLETED,
+                SessionStatus.UNCOMPLETED,
             ):
-                break
+                logging.info(
+                    f"SSE session {status.status.value}, closing stream. session_id={session_id}"
+                )
+                return
 
             await sleep(5)
-
-        logging.error(
-            f"SSE max iterations reached, closing stream. session_id={session_id}"
-        )
 
     await sleep(2)
     try:

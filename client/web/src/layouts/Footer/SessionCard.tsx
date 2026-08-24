@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import type { SessionSummary } from "@/types/api";
 import styles from "./SessionCard.module.css";
@@ -25,8 +24,6 @@ function extractProjectName(repoUri: string): string {
 }
 
 export default function SessionCard({ session, onClick }: SessionCardProps) {
-  const navigate = useNavigate();
-
   return (
     <div className={styles.card} onClick={() => onClick?.(session)}>
       <div className={styles.cardHeader}>
@@ -37,15 +34,6 @@ export default function SessionCard({ session, onClick }: SessionCardProps) {
         >
           {formatDate(session.created_at)}
         </Typography>
-        <button
-          className={styles.menuButton}
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/user/sessions?session=${session.uuid}`);
-          }}
-        >
-          &middot;&middot;&middot;
-        </button>
       </div>
       <div className={styles.cardContent}>
         {session.first_query && (

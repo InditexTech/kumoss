@@ -27,6 +27,12 @@ export const STRINGS = {
 
   chat: {
     followUpPlaceholder: "Ask a follow-up question...",
+    followUpDisabledPlaceholder: "This session failed and can't be resumed",
+  },
+
+  planning: {
+    preparingWorkspace: "Preparing your workspace…",
+    resultsLoadError: "Completed, but results could not be loaded",
   },
 
   assistant: {
@@ -130,6 +136,34 @@ export const STRINGS = {
     placeholderQuery: "Type your request...",
     placeholderRepository: "https://dev.azure.com/org/project/_git/repo",
     placeholderCloudScope: "azure-subscription-id, gcp-project-id",
+    // scope_id in each provider's own jargon; keys mirror TERRAFORM_PROVIDERS
+    scopeByProvider: {
+      azure: {
+        label: "Subscription ID",
+        prompt: "What is the Azure subscription ID?",
+        placeholder: "azure-subscription-id",
+      },
+      gcp: {
+        label: "Project ID",
+        prompt: "What is the GCP project ID?",
+        placeholder: "my-gcp-project-id",
+      },
+      aws: {
+        label: "Account ID",
+        prompt: "What is the AWS account ID?",
+        placeholder: "123456789012",
+      },
+      oci: {
+        label: "Compartment ID",
+        prompt: "What is the OCI compartment name?",
+        placeholder: "my-compartment",
+      },
+      kubernetes: {
+        label: "Namespace",
+        prompt: "Which Kubernetes namespace?",
+        placeholder: "my-namespace",
+      },
+    },
     resolveError: "Could not resolve repository. Please try again.",
     scanError: "Could not scan repository for IaC paths. Please try again.",
     noIacPaths:

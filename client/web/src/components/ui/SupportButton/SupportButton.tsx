@@ -104,14 +104,6 @@ function SupportButton({
         payload.pull_request_link = prDetails.prUrl;
       }
 
-      if (prDetails.pipelineUrl) {
-        payload.terraform_plan_link = prDetails.pipelineUrl;
-      }
-
-      if (prDetails.applyUrl) {
-        payload.terraform_apply_link = prDetails.applyUrl;
-      }
-
       showNotification("success", STRINGS.support.groupCreated);
     } catch (error) {
       console.error("Error sending Teams support request:", error);
