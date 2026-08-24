@@ -49,6 +49,7 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            "drift_target_generator.json": ToolContext.DRIFT_TARGET_GENERATOR,
             # External information
             "web_search": self.__handle_web_search,
         }
@@ -89,6 +90,7 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
+            "generate_drift_targets": self.__handle_drift_target_generator,
         }
 
     @override
@@ -184,6 +186,21 @@ class ToolRegistryStatic(IToolRegistry):
         return True
 
     def __handle_target_generator(
+        self, parameters: dict[str, Any]
+    ) -> dict[str, list[str] | str]:
+        targets = parameters["targets"]
+        explanation = parameters.get("explanation", "")
+        if not isinstance(targets, list):
+            raise ToolInferenceParamsError(
+                message=f"Target generation inference hasn't returned the expected structure. got={targets}",
+                error_code=500,
+            )
+        return {
+            "targets": targets,
+            "explanation": explanation,
+        }
+
+    def __handle_drift_target_generator(
         self, parameters: dict[str, Any]
     ) -> dict[str, list[str] | str]:
         targets = parameters["targets"]

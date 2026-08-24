@@ -77,6 +77,7 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+    DRIFT_TARGET_GENERATOR = "drift_target_generator"
 
 
 @unique
@@ -120,3 +121,12 @@ class ContentType(Enum):
 
     TEXT = "text/plain"
     JSON = "application/json"
+
+
+@unique
+class TargetGenerationMode(Enum):
+    """Selects the behavior branch of the target_generator template"""
+
+    SESSION = "session"
+    PREDICTIVE = "predictive"
+    DRIFT_REMEDIATION = "drift_remediation"

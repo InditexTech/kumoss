@@ -79,7 +79,9 @@ class TerraformDriftHandler:
 
                 targets = []
                 if is_partial:
-                    targets = await self.__target_svc.generate(ctx.history, q)
+                    targets = await self.__target_svc.generate_drift(
+                        query=q, history=ctx.history, conventions=conventions
+                    )
 
                 async def validation_callback(
                     local_history: History,
