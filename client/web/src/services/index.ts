@@ -10,27 +10,21 @@ export {
   applyInfrastructure,
 } from "./core/iac_actions";
 
-export {
-  subscribeToSession,
-  getSessionData,
-  unsubscribeSession,
-} from "./core/events";
+export { subscribeToSession, checkSessionStatus } from "./core/events";
 
 export {
   createPullRequest,
-  approvePullRequest,
+  mergePullRequest,
   parseRepository,
 } from "./core/iac_code";
 
 export { authorizeUser } from "./core/authorization";
 
 export {
-  listSessions,
+  listUserSessions,
   getSessionDetail,
-  toggleApplyAllowed,
-} from "./core/admin";
-
-export { listUserSessions, checkApplyAllowed } from "./core/sessions";
+  checkApplyAllowed,
+} from "./core/sessions";
 
 export { resolveProject } from "./mapper/mapper";
 

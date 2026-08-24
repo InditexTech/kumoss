@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AssistantAnimation } from "@/components/ui";
-import { useHomeWizard } from "../useHomeWizard";
+import { useHomeLayoutContext } from "../HomeLayout";
 import WizardView from "../WizardView";
 import styles from "../HomeScreen.module.css";
 
 export default function WizardRoute() {
-  const wizard = useHomeWizard();
+  const { wizard } = useHomeLayoutContext();
 
   const animationType =
     wizard.isLoading && wizard.step === "repository_url"

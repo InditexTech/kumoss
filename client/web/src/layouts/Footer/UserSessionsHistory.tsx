@@ -10,16 +10,18 @@ import Fade from "@mui/material/Fade";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotification } from "@/contexts/NotificationContext";
+import { getApiErrorMessage } from "@/services/api";
 import { listUserSessions } from "@/services/core/sessions";
 import { getCachedSessions } from "@/services/core/sessionsCache";
 import useDragScroll from "@/hooks/useDragScroll";
-import type { UserSessionInfo } from "@/types/api";
+import type { SessionSummary } from "@/types/api";
 import SessionCard from "./SessionCard";
 import styles from "./UserSessionsHistory.module.css";
 
 interface UserSessionsHistoryProps {
   pageSize?: number;
-  onSelectSession?: (session: UserSessionInfo) => void;
+  onSelectSession?: (session: SessionSummary) => void;
 }
 
 export default function UserSessionsHistory({
@@ -27,9 +29,10 @@ export default function UserSessionsHistory({
   onSelectSession,
 }: UserSessionsHistoryProps) {
   const { user } = useAuth();
+  const { showNotification } = useNotification();
   const navigate = useNavigate();
   const drag = useDragScroll<HTMLDivElement>();
-  const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loaded, setLoaded] = useState(false);
@@ -54,14 +57,20 @@ export default function UserSessionsHistory({
           setPage(1);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (!cancelled)
+          showNotification(
+            "failure",
+            `Failed to load sessions: ${getApiErrorMessage(err)}`,
+          );
+      })
       .finally(() => {
         if (!cancelled) setLoaded(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [user?.username, pageSize]);
+  }, [user?.username, pageSize, showNotification]);
 
   const loadMore = useCallback(() => {
     if (!user?.username || loadingMore) return;
@@ -73,9 +82,14 @@ export default function UserSessionsHistory({
         setTotal(res.total);
         setPage(nextPage);
       })
-      .catch(() => {})
+      .catch((err) =>
+        showNotification(
+          "failure",
+          `Failed to load more sessions: ${getApiErrorMessage(err)}`,
+        ),
+      )
       .finally(() => setLoadingMore(false));
-  }, [user?.username, page, pageSize, loadingMore]);
+  }, [user?.username, page, pageSize, loadingMore, showNotification]);
 
   const hasMore = total > sessions.length;
 
@@ -127,7 +141,7 @@ export default function UserSessionsHistory({
           ) : (
             sessions.map((s) => (
               <SessionCard
-                key={s.session_id}
+                key={s.uuid}
                 session={s}
                 onClick={onSelectSession}
               />

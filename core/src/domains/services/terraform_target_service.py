@@ -7,7 +7,7 @@ from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import ToolDefinitionDTO, ToolResultDTO
-from src.shared.config import system_config
+from src.domains.value_objects import Conventions
 from src.shared.constants import ToolContext, PromptsLibrary
 
 
@@ -22,17 +22,12 @@ class TerraformTargetService:
         self.__llm_svc = llm_service
         self.__template_svc = template_service
 
-    def __tool_contexts(self, contexts: list[ToolContext]) -> list[ToolContext]:
-        if system_config.compliance.enabled:
-            contexts.append(ToolContext.INLINE_COMPLIANCE)
-        return contexts
-
-    async def generate(self, query: str, history: History) -> list[str]:
+    async def generate(self, history: History, query: str = None) -> list[str]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=self.__tool_contexts([ToolContext.WORKSPACE_INSPECTION])
+            contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
-            query=query,
+            query=query or "Generate the relevant Terraform targets.",
             tools=tools_definition,
             sentinel_tool=self.__tool_svc.get_sentinel_tool(
                 ToolContext.TARGET_GENERATOR
@@ -43,15 +38,17 @@ class TerraformTargetService:
         return response.result["targets"]
 
     async def generate_predictive(
-        self, query: str, history: History, include_forbidden_actions: bool = False
+        self,
+        query: str,
+        history: History,
+        conventions: Conventions,
     ) -> list[str]:
-        templates, abbreviations = await self.__template_svc.compose_template(
-            query=query,
-            history=history,
-        )
 
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=self.__tool_contexts([ToolContext.WORKSPACE_INSPECTION, ToolContext.EXTERNAL_INFORMATION])
+            contexts=[
+                ToolContext.WORKSPACE_INSPECTION,
+                ToolContext.EXTERNAL_INFORMATION,
+            ]
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=query,
@@ -61,9 +58,7 @@ class TerraformTargetService:
             ),
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR,
-                resources=templates,
-                abbreviations=abbreviations,
-                include_forbidden_actions=include_forbidden_actions,
+                resources=conventions.templates,
             ),
             history=history,
         )

@@ -5,7 +5,6 @@
 from opentelemetry.sdk.trace import TracerProvider, SpanLimits
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace.export import (
-    SimpleSpanProcessor,
     BatchSpanProcessor,
     ConsoleSpanExporter,
 )
@@ -14,8 +13,39 @@ from openinference.semconv.resource import ResourceAttributes
 from opentelemetry.trace import Tracer
 
 from src.shared.config import system_config
-from src.shared.constants import TracerProject
+from src.shared.constants import OperationType, TracerProject
 from src.shared.logger import logging
+
+
+def _route_tracer_project(operation: OperationType) -> TracerProject:
+    match operation:
+        case OperationType.GENERATE:
+            match system_config.environment:
+                case "production":
+                    return TracerProject.PRO_TERRAFORM_DAY2
+                case "development":
+                    return TracerProject.DEV_TERRAFORM_DAY2
+                case "staging":
+                    return TracerProject.PRE_TERRAFORM_DAY2
+        case OperationType.DRIFT:
+            match system_config.environment:
+                case "production":
+                    return TracerProject.PRO_TERRAFORM_DRIFT
+                case "development":
+                    return TracerProject.DEV_TERRAFORM_DRIFT
+                case "staging":
+                    return TracerProject.PRE_TERRAFORM_DRIFT
+        case OperationType.IMPORT:
+            match system_config.environment:
+                case "production":
+                    return TracerProject.PRO_TERRAFORM_IMPORT
+                case "development":
+                    return TracerProject.DEV_TERRAFORM_IMPORT
+                case "staging":
+                    return TracerProject.PRE_TERRAFORM_IMPORT
+    raise ValueError(
+        f"Unsupported tracer routing: operation={operation.value!r}, environment={system_config.environment!r}"
+    )
 
 
 class ProvidersInitializer:
@@ -44,7 +74,7 @@ class ProvidersInitializer:
                     BatchSpanProcessor(ConsoleSpanExporter())
                 )
             tracer_provider.add_span_processor(
-                SimpleSpanProcessor(
+                BatchSpanProcessor(
                     span_exporter=OTLPSpanExporter(
                         endpoint=f"{system_config.telemetry.collector_url}v1/traces",
                     )
@@ -56,10 +86,16 @@ class ProvidersInitializer:
 _PROVIDERS: dict[TracerProject, TracerProvider] = ProvidersInitializer().providers
 
 
-def get_tracer() -> Tracer:
-    provider = TracerProject.PRO_TERRAFORM_DAY2
-    if system_config.environment == "development":
-        provider = TracerProject.DEV_TERRAFORM_DAY2
-    elif system_config.environment == "staging":
-        provider = TracerProject.PRE_TERRAFORM_DAY2
-    return _PROVIDERS[provider].get_tracer(provider.value)
+def get_tracer(operation: OperationType) -> Tracer:
+    project: TracerProject = _route_tracer_project(operation)
+    return _PROVIDERS[project].get_tracer(project.value)
+
+
+def shutdown_tracer_providers() -> None:
+    """
+    Flushes pending spans and shuts down every tracer provider. Must be called
+    on application shutdown: BatchSpanProcessor exports asynchronously and
+    unflushed spans would be lost.
+    """
+    for provider in _PROVIDERS.values():
+        provider.shutdown()

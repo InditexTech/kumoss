@@ -2,13 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import (
-    ComplianceCheckReport,
-    ComplianceContextDTO,
-    ToolDefinitionDTO,
-    ToolResultDTO,
-)
-from src.domains.entities.history import History
+from typing import Any
+
+from src.domains.dto import ComplianceContextDTO, ToolDefinitionDTO, ToolResultDTO
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -28,24 +24,26 @@ class ComplianceCheckService:
 
     async def check(
         self,
-        context: ComplianceContextDTO,
-    ) -> ComplianceCheckReport:
+        output_under_check: str | None = None,
+        context: ComplianceContextDTO | None = None,
+    ) -> Any:
         tools: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
         sentinel = self.__tool_svc.get_sentinel_tool(ToolContext.COMPLIANCE_CHECK)
-        render_kwargs = {}
-        if context.rules:
-            render_kwargs["rules"] = context.rules
-        prompt = await self.__template_svc.render(
-            PromptsLibrary.COMPLIANCE_CHECKER, **render_kwargs
-        )
-        history = History(context.history) if context.history else None
 
-        if context.output_under_check:
+        rules = context.rules if context else None
+        prompt = await self.__template_svc.render(
+            PromptsLibrary.COMPLIANCE_CHECKER, **({"rules": rules} if rules else {})
+        )
+
+        check_target = output_under_check or (
+            context.output_under_check if context else None
+        )
+        if check_target:
             query = (
                 "Run a compliance check on the following Terraform plan:\n\n"
-                + context.output_under_check
+                + check_target
             )
         else:
             query = "Run a compliance check on the workspace files."
@@ -55,7 +53,6 @@ class ComplianceCheckService:
             tools=tools,
             sentinel_tool=sentinel,
             prompt=prompt,
-            history=history,
         )
 
         return result.result

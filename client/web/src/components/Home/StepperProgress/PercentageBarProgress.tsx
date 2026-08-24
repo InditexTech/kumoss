@@ -11,20 +11,24 @@ import styles from "./PercentageBarProgress.module.css";
 
 const GENERATE_PERCENTAGES: Record<string, number> = {
   STARTED: 0,
-  FILTERING: 0,
-  GENERATING: 33,
-  VALIDATING: 66,
+  FILTERING: 30,
+  GENERATING: 60,
+  VALIDATING: 80,
+  APPLY: 90,
   REPORT: 100,
   COMPLETED: 100,
+  UNCOMPLETED: 100,
 };
 
 const APPLY_PERCENTAGES: Record<string, number> = {
   STARTED: 0,
-  FILTERING: 0,
-  GENERATING: 50,
-  VALIDATING: 50,
+  FILTERING: 30,
+  GENERATING: 60,
+  VALIDATING: 80,
+  APPLY: 90,
   REPORT: 100,
   COMPLETED: 100,
+  UNCOMPLETED: 100,
 };
 
 export default function PercentageBarProgress() {

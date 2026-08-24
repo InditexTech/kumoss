@@ -43,7 +43,7 @@ suite — see that directory's README for how to run it.
 
 ## What this does NOT check
 
-- That `terraform plan` actually produces accurate output for your
-  modules.
+- That the terraform commands the jobs run actually produce accurate
+  output for your modules.
 - Cloud-provider authentication semantics.
 - Performance or concurrent-request behavior.

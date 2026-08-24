@@ -42,6 +42,7 @@ terraform.rc
 
 # tf plan output artifact
 plan*.txt
+*.plan
 
 # Ignore the gitignore
 .gitignore

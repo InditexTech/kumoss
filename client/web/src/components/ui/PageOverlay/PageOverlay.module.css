@@ -10,6 +10,9 @@
   z-index: var(--z-raised);
   background: var(--color-surface);
   overflow-y: auto;
+  /* keep wheel/touch scrolling from chaining into the panel behind,
+     which would drag the overlay out of view */
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   animation: slideIn 0.25s ease-out;
 }

@@ -66,7 +66,3 @@ class IToolRegistry(ABC):
             True if parameters are valid, False otherwise
         """
         pass
-
-    def set_chain_history(self, history: Any) -> None:
-        """Set the current chain conversation history, no-op by default."""
-        pass

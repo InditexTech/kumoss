@@ -26,16 +26,13 @@ class Config:
       invoke. Lookup falls back to PATH so distros with ``terraform`` on
       PATH need no override. Asserted to be resolvable at startup so a
       misconfigured image fails fast instead of on the first request.
-    - ``allow_plan_without_creds``: when false (default), `terraform plan`
-      is skipped if no cloud-credential env vars are present and the
-      service returns success after `validate`. When true, `plan` is
-      always attempted (may fail for credential reasons, surfaced in
-      `feedback`).
+    - ``job_ttl``: seconds a terminal job record stays pollable at
+      `GET /v1/jobs/{job_id}` before it is swept (then 404).
     """
 
     expected_token: str
     terraform_binary: str
-    allow_plan_without_creds: bool
+    job_ttl: int = 3600
 
     def __post_init__(self) -> None:
         if not terraform_available(self.terraform_binary):
@@ -49,33 +46,8 @@ class Config:
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
             terraform_binary=os.environ.get("TERRAFORM_BINARY", "terraform"),
-            allow_plan_without_creds=os.environ.get(
-                "NEBULA_IAC_ALLOW_PLAN_WITHOUT_CREDS", "false"
-            ).lower()
-            == "true",
+            job_ttl=int(os.environ.get("NEBULA_IAC_JOB_TTL") or "3600"),
         )
-
-
-def have_cloud_credentials() -> bool:
-    """Return True if any of the standard Terraform provider auth env vars are set.
-
-    Conservative: any non-empty match is enough. Refine in your enterprise
-    impl if you need stricter checks (e.g., assert tenant ID format).
-    """
-    candidates = (
-        # Azure (azurerm provider)
-        "ARM_CLIENT_ID",
-        "ARM_CLIENT_SECRET",
-        "ARM_TENANT_ID",
-        "ARM_SUBSCRIPTION_ID",
-        # GCP (google provider)
-        "GOOGLE_APPLICATION_CREDENTIALS",
-        "GOOGLE_CREDENTIALS",
-        # AWS
-        "AWS_ACCESS_KEY_ID",
-        "AWS_PROFILE",
-    )
-    return any(os.environ.get(name) for name in candidates)
 
 
 def terraform_available(binary: str) -> bool:

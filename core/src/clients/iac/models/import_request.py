@@ -1,0 +1,93 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, Self, TypeVar, cast
+
+from attrs import define as _attrs_define
+
+from ..types import UNSET, Unset
+
+T = TypeVar("T", bound="ImportRequest")
+
+
+@_attrs_define
+class ImportRequest:
+    """
+    Attributes:
+        workspace_path (str): Absolute filesystem path to the Terraform workspace as visible
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service.
+        address (str): Terraform resource address to import into, e.g.
+            `azurerm_resource_group.main`.
+        resource_id (str): Provider-specific identifier of the existing cloud resource,
+            e.g. an Azure resource ID or an AWS ARN.
+        scope_id (None | str | Unset): Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id. Used as a
+            fallback when the credentials resolved for the workspace do
+            not already carry a scope. Implementations MAY ignore it when
+            the resolved credentials are fully specified.
+    """
+
+    workspace_path: str
+    address: str
+    resource_id: str
+    scope_id: None | str | Unset = UNSET
+
+    def to_dict(self) -> dict[str, Any]:
+        workspace_path = self.workspace_path
+
+        address = self.address
+
+        resource_id = self.resource_id
+
+        scope_id: None | str | Unset
+        if isinstance(self.scope_id, Unset):
+            scope_id = UNSET
+        else:
+            scope_id = self.scope_id
+
+        field_dict: dict[str, Any] = {}
+
+        field_dict.update(
+            {
+                "workspace_path": workspace_path,
+                "address": address,
+                "resource_id": resource_id,
+            }
+        )
+        if scope_id is not UNSET:
+            field_dict["scope_id"] = scope_id
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
+        d = dict(src_dict)
+        workspace_path = d.pop("workspace_path")
+
+        address = d.pop("address")
+
+        resource_id = d.pop("resource_id")
+
+        def _parse_scope_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        scope_id = _parse_scope_id(d.pop("scope_id", UNSET))
+
+        import_request = cls(
+            workspace_path=workspace_path,
+            address=address,
+            resource_id=resource_id,
+            scope_id=scope_id,
+        )
+
+        return import_request

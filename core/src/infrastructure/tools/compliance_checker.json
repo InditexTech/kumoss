@@ -1,7 +1,7 @@
 [
   {
     "name": "report_compliance_findings",
-    "description": "CRITICAL: Call this tool ONLY when you have finished evaluating ALL compliance rules against the workspace code. Report every violation found. If no violations were found, report passed=true with an empty violations list. This tool ends the compliance check.",
+    "description": "Call this tool just before calling `task_complete` or any other sentinel tool. Report every compliance violation found. If no violations were found, report passed=true with an empty violations list.",
     "parameters": {
       "type": "object",
       "properties": {

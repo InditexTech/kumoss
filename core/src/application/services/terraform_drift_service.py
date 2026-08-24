@@ -2,34 +2,43 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from collections.abc import Awaitable
+from typing import Callable
+
 from src.domains.dto import TerraformValidationDTO
-from src.domains.entities.history import History
-from src.domains.interfaces import ITerraformValidator
+from src.domains.entities import History, SessionContext
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
+    ArtifactStorageService,
     TerraformValidationService,
     TaskSplitService,
 )
-from src.domains.services.database_service import DatabaseService
+from src.domains.value_objects import Conventions
+from src.shared.constants import ContentType
 from src.shared.logger import logging
 
 
 class TerraformDriftService:
     def __init__(
         self,
+        session_context: SessionContext,
         validation_service: TerraformValidationService,
-        validator_provider: ITerraformValidator,
+        validator_provider: ITerraform,
         split_service: TaskSplitService,
+        artifact_service: ArtifactStorageService,
     ):
+        self.__ctx = session_context
         self.__validation_svc = validation_service
         self.__validator_prv = validator_provider
         self.__split_svc = split_service
+        self.__artifact_svc = artifact_service
 
     async def detect_and_resolve_drift(
         self,
-        branch: str,
         targets: list[str],
-        history: History,
+        conventions: Conventions,
         max_iterations: int,
+        validator: Callable[[History], Awaitable[TerraformValidationDTO]],
     ) -> TerraformValidationDTO:
         validation = TerraformValidationDTO.empty()
 
@@ -38,18 +47,29 @@ class TerraformDriftService:
 
             # Generate drift JSON report
             validation = await self.__validator_prv.validate(
-                branch=branch,
+                branch=self.__ctx.branch_name,
                 targets=targets,
                 get_drift=True,
             )
 
-            # Guardamos el terraform plan del drift
             if validation.terraform_plan:
-                await DatabaseService.upload_artifact(
+                _ = await self.__artifact_svc.store_terraform_plan(
+                    session_id=self.__ctx.id,
+                    round_id=self.__ctx.round_id,
+                    targets=targets,
                     content=validation.terraform_plan,
-                    artifact_type="terraform_plan",
-                    phase="drift",
-                    terraform_targets=validation.terraform_targets,
+                    content_type=ContentType.TEXT,
+                    is_drift=False,
+                )
+
+            if validation.feedback:
+                _ = await self.__artifact_svc.store_terraform_plan(
+                    session_id=self.__ctx.id,
+                    round_id=self.__ctx.round_id,
+                    targets=targets,
+                    content=validation.feedback,
+                    content_type=ContentType.TEXT,
+                    is_drift=True,
                 )
 
             # break if drift validation is successful
@@ -64,9 +84,17 @@ class TerraformDriftService:
             for idx, group_ops in enumerate(operations):
                 logging.debug(f"Operation {idx + 1}/{len(operations)}: {group_ops}")
                 _ = await self.__validation_svc.generate_and_validate(
-                    query=str(group_ops),
-                    ctx=history,
+                    q=str(group_ops),
+                    ctx=self.__ctx,
+                    conventions=conventions,
                     include_forbidden_actions=False,
+                    validator=validator,
                 )
+        if validation.validation:
+            logging.warning("Drift pre-check completed, resources are synchronized")
+        else:
+            logging.warning(
+                f"Drift resolution completed but issues remain: {validation.feedback}"
+            )
 
         return validation

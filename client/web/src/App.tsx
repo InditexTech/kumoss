@@ -85,9 +85,9 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty(
       "color-scheme",
-      getLocalItem(STORAGE_KEYS.THEME) === THEME.LIGHT
-        ? THEME.LIGHT
-        : THEME.DARK,
+      getLocalItem(STORAGE_KEYS.THEME) === THEME.DARK
+        ? THEME.DARK
+        : THEME.LIGHT,
     );
   }, []);
 

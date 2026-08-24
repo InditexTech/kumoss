@@ -31,22 +31,6 @@
   color: var(--color-text-muted);
 }
 
-.menuButton {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 18px;
-  letter-spacing: 0.15em;
-  cursor: pointer;
-  padding: 4px 6px;
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-.menuButton:hover {
-  color: light-dark(var(--text-color-light), var(--text-color-dark));
-}
-
 .cardContent {
   flex: 1;
   display: flex;

@@ -2,54 +2,49 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Callable, Any
 from collections.abc import Coroutine
+from typing import Callable, Any
 
-from src.domains.entities import SessionContext
-from src.domains.interfaces import ITerraformValidator
+from src.application.services.requests_filter_service import RequestsFilterService
+from src.application.services.report_service import ReportService
+from src.application.services.terraform_drift_service import TerraformDriftService
+from src.domains.dto import TerraformValidationDTO
+from src.domains.entities import History
+from src.domains.entities.session import SessionContext
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
-    ToolOrchestrationService,
     SessionService,
-    TracerService,
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
 )
-from src.application.services import (
-    GeneratePayloadService,
-    FilterRequestService,
-    TerraformDriftService,
-)
-from src.domains.services.task_split_service import TaskSplitService
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.config import system_config
 from src.shared.constants import (
-    SessionStatus,
     PromptsLibrary,
+    ReportType,
+    SessionStatus,
 )
-from src.shared.exceptions import ExceptionHandler
 
 
 class TerraformDriftHandler:
     def __init__(
         self,
+        session_ctx: SessionContext,
         session_service: SessionService,
+        terraform_service: ITerraform,
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
-        filter_request_service: FilterRequestService,
-        payload_svc: GeneratePayloadService,
-        validator_provider: ITerraformValidator,
-        tool_service: ToolOrchestrationService,
+        requests_filter_service: RequestsFilterService,
+        report_service: ReportService,
         target_service: TerraformTargetService,
-        split_service: TaskSplitService,
         drift_service: TerraformDriftService,
-        session_ctx: SessionContext,
     ):
+        self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
-        self.__payload_svc = payload_svc
-        self.__filter_request_svc = filter_request_service
+        self.__report_svc = report_service
+        self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
         self.__ctx = session_ctx
@@ -58,59 +53,55 @@ class TerraformDriftHandler:
         self, q: str, is_partial: bool
     ) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
-        hist = ctx.history.deepcopy()
 
         async def background_task():
-
-            tracer_token = TracerService.set_current_tracer(
-                tracer=PhoenixTracer(
-                    session_id=ctx.id,
-                    user_id=ctx.user_id,
-                    branch_name=ctx.branch_name,
-                    cloud=ctx.terraform_prv,
-                    iac_path=ctx.iac_path,
-                )
-            )
             try:
-                await self.__session_svc.update_status(
+                await self.__session_svc.next_round(q)
+                _ = await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
+                        PromptsLibrary.STATUS_UPDATE
                     ),
                     status=SessionStatus.FILTERING,
+                    history=ctx.history,
                 )
-                status, explanation = await self.__filter_request_svc.filter(q, hist)
-                if not status:
-                    await self.__payload_svc.generate(
-                        response=explanation,
-                        command="TODO",
-                        history=hist,
-                        branch=ctx.branch_name,
+                conventions = await self.__template_svc.compose_template(q, ctx.history)
+                ok, rationale = await self.__requests_filter_svc.filter(
+                    q, ctx.history, conventions
+                )
+                if not ok:
+                    ctx.history.append_turn(q, rationale)
+                    _ = await self.__session_svc.update_status(
+                        msg=rationale,
+                        status=SessionStatus.UNCOMPLETED,
                     )
                     return
 
                 targets = []
                 if is_partial:
-                    targets = await self.__target_svc.generate(q, hist)
+                    targets = await self.__target_svc.generate(ctx.history, q)
+
+                async def validation_callback(
+                    local_history: History,
+                ) -> TerraformValidationDTO:
+                    return await self.__terraform_svc.validate(
+                        branch=ctx.branch_name,
+                        targets=await self.__target_svc.generate(local_history),
+                    )
 
                 validation = await self.__drift_svc.detect_and_resolve_drift(
-                    branch=ctx.branch_name,
                     targets=targets,
-                    history=hist,
+                    conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
+                    validator=validation_callback,
                 )
 
-                await self.__payload_svc.generate_drift(
-                    command="TODO",
-                    validation=validation,
-                    branch=ctx.branch_name,
+                _ = await self.__report_svc.generate_report(
+                    ctx=ctx,
+                    type=ReportType.DRIFT,
+                    content=validation.terraform_plan,
                 )
-            except ExceptionHandler as e:
-                await self.__session_svc.update_status(
-                    msg=e.message, status=SessionStatus.FAILED
-                )
-                raise
             finally:
-                TracerService.reset_current_tracer(tracer_token)
+                await self.__session_svc.save()
 
         return background_task

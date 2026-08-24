@@ -4,8 +4,8 @@
 
 """Thin async wrapper around the terraform CLI.
 
-Just enough to drive `init`, `validate`, `plan`, and to read back the
-plan JSON for drift detection. Implementations that need more (state
+Just enough to drive `init`, `validate`, `plan`, `show`, `apply`, and
+`import`, one command per call. Implementations that need more (state
 locking, custom backends, policy as code) should extend this or
 substitute their own.
 """
@@ -13,8 +13,6 @@ substitute their own.
 from __future__ import annotations
 
 import asyncio
-import json
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +22,7 @@ class CommandResult:
     ok: bool
     stdout: str
     stderr: str
+    exit_code: int = 0
 
 
 async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
@@ -39,6 +38,7 @@ async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
         ok=proc.returncode == 0,
         stdout=stdout_bytes.decode("utf-8", errors="replace"),
         stderr=stderr_bytes.decode("utf-8", errors="replace"),
+        exit_code=proc.returncode if proc.returncode is not None else -1,
     )
 
 
@@ -63,29 +63,19 @@ async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResul
     return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd)
 
 
-def parse_drift(plan_json_text: str) -> list[dict]:
-    """Return resource_changes entries that aren't no-ops.
-
-    Equivalent to the existing core's TerraformUtils.plan_to_drift; kept
-    minimal here so the service has no shared dependencies.
-    """
-    try:
-        plan = json.loads(plan_json_text)
-    except json.JSONDecodeError:
-        return []
-    changes = plan.get("resource_changes") or []
-    drift: list[dict] = []
-    for entry in changes:
-        actions = (entry.get("change") or {}).get("actions") or []
-        if actions and actions != ["no-op"]:
-            drift.append(
-                {
-                    "address": entry.get("address"),
-                    "actions": actions,
-                }
-            )
-    return drift
+async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+    return await _run(
+        binary,
+        ["apply", "-no-color", "-input=false", "-auto-approve", plan_file],
+        cwd,
+    )
 
 
-def random_plan_filename() -> str:
-    return f"{uuid.uuid4().hex}.plan"
+async def import_resource(
+    binary: str, cwd: Path, address: str, resource_id: str
+) -> CommandResult:
+    return await _run(
+        binary,
+        ["import", "-no-color", "-input=false", address, resource_id],
+        cwd,
+    )

@@ -9,9 +9,9 @@ import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
+from ...models.job_accepted import JobAccepted
 from ...models.problem import Problem
 from ...models.validate_request import ValidateRequest
-from ...models.validate_response import ValidateResponse
 from ...models.validate_response_400 import ValidateResponse400
 from ...types import Response
 
@@ -37,11 +37,11 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Problem | ValidateResponse | ValidateResponse400 | None:
-    if response.status_code == 200:
-        response_200 = ValidateResponse.from_dict(response.json())
+) -> JobAccepted | Problem | ValidateResponse400 | None:
+    if response.status_code == 202:
+        response_202 = JobAccepted.from_dict(response.json())
 
-        return response_200
+        return response_202
 
     if response.status_code == 400:
         response_400 = ValidateResponse400.from_dict(response.json())
@@ -81,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Problem | ValidateResponse | ValidateResponse400]:
+) -> Response[JobAccepted | Problem | ValidateResponse400]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -94,20 +94,15 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
     body: ValidateRequest,
-) -> Response[Problem | ValidateResponse | ValidateResponse400]:
-    """Validate the Terraform configuration in a workspace.
+) -> Response[JobAccepted | Problem | ValidateResponse400]:
+    """Enqueue a `terraform validate` job for a workspace.
 
-     Runs `terraform init`, `terraform validate`, and (if the workspace
-    validates) `terraform plan` against the workspace at
-    `workspace_path`. Returns the raw plan output and a boolean
-    success flag. When `get_drift` is true and the plan succeeds, the
-    plan JSON is parsed and any drift is summarised in the `feedback`
-    field.
-
-    Implementations that require cloud credentials (the reference
-    impl uses the standard Terraform provider env vars: ARM_*,
-    GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
-    than producing a misleading `validation: false`.
+     Enqueues a job that runs `terraform validate` against the
+    workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The workspace must already be initialised (submit an
+    `init` job first).
 
     Args:
         body (ValidateRequest):
@@ -117,7 +112,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Problem | ValidateResponse | ValidateResponse400]
+        Response[JobAccepted | Problem | ValidateResponse400]
     """
 
     kwargs = _get_kwargs(
@@ -135,20 +130,15 @@ def sync(
     *,
     client: AuthenticatedClient,
     body: ValidateRequest,
-) -> Problem | ValidateResponse | ValidateResponse400 | None:
-    """Validate the Terraform configuration in a workspace.
+) -> JobAccepted | Problem | ValidateResponse400 | None:
+    """Enqueue a `terraform validate` job for a workspace.
 
-     Runs `terraform init`, `terraform validate`, and (if the workspace
-    validates) `terraform plan` against the workspace at
-    `workspace_path`. Returns the raw plan output and a boolean
-    success flag. When `get_drift` is true and the plan succeeds, the
-    plan JSON is parsed and any drift is summarised in the `feedback`
-    field.
-
-    Implementations that require cloud credentials (the reference
-    impl uses the standard Terraform provider env vars: ARM_*,
-    GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
-    than producing a misleading `validation: false`.
+     Enqueues a job that runs `terraform validate` against the
+    workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The workspace must already be initialised (submit an
+    `init` job first).
 
     Args:
         body (ValidateRequest):
@@ -158,7 +148,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Problem | ValidateResponse | ValidateResponse400
+        JobAccepted | Problem | ValidateResponse400
     """
 
     return sync_detailed(
@@ -171,20 +161,15 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
     body: ValidateRequest,
-) -> Response[Problem | ValidateResponse | ValidateResponse400]:
-    """Validate the Terraform configuration in a workspace.
+) -> Response[JobAccepted | Problem | ValidateResponse400]:
+    """Enqueue a `terraform validate` job for a workspace.
 
-     Runs `terraform init`, `terraform validate`, and (if the workspace
-    validates) `terraform plan` against the workspace at
-    `workspace_path`. Returns the raw plan output and a boolean
-    success flag. When `get_drift` is true and the plan succeeds, the
-    plan JSON is parsed and any drift is summarised in the `feedback`
-    field.
-
-    Implementations that require cloud credentials (the reference
-    impl uses the standard Terraform provider env vars: ARM_*,
-    GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
-    than producing a misleading `validation: false`.
+     Enqueues a job that runs `terraform validate` against the
+    workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The workspace must already be initialised (submit an
+    `init` job first).
 
     Args:
         body (ValidateRequest):
@@ -194,7 +179,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Problem | ValidateResponse | ValidateResponse400]
+        Response[JobAccepted | Problem | ValidateResponse400]
     """
 
     kwargs = _get_kwargs(
@@ -210,20 +195,15 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
     body: ValidateRequest,
-) -> Problem | ValidateResponse | ValidateResponse400 | None:
-    """Validate the Terraform configuration in a workspace.
+) -> JobAccepted | Problem | ValidateResponse400 | None:
+    """Enqueue a `terraform validate` job for a workspace.
 
-     Runs `terraform init`, `terraform validate`, and (if the workspace
-    validates) `terraform plan` against the workspace at
-    `workspace_path`. Returns the raw plan output and a boolean
-    success flag. When `get_drift` is true and the plan succeeds, the
-    plan JSON is parsed and any drift is summarised in the `feedback`
-    field.
-
-    Implementations that require cloud credentials (the reference
-    impl uses the standard Terraform provider env vars: ARM_*,
-    GOOGLE_*, AWS_*) MAY return 503 when those are missing rather
-    than producing a misleading `validation: false`.
+     Enqueues a job that runs `terraform validate` against the
+    workspace at `workspace_path`, then returns `202 Accepted`
+    immediately. Poll `GET /v1/jobs/{job_id}` for the
+    OperationResult carrying the command's exit code and raw
+    output. The workspace must already be initialised (submit an
+    `init` job first).
 
     Args:
         body (ValidateRequest):
@@ -233,7 +213,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Problem | ValidateResponse | ValidateResponse400
+        JobAccepted | Problem | ValidateResponse400
     """
 
     return (

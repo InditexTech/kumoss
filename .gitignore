@@ -32,6 +32,7 @@ var/
 .installed.cfg
 *.egg
 Pipfile.lock
+.schemathesis
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -88,8 +89,9 @@ typings/
 
 # Frontend test coverage
 coverage/
-mocks/
 
 # IDE
 *workspace
 
+# Local Tests
+local_test/

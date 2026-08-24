@@ -9,7 +9,7 @@ from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
-from src.shared.constants import TerraformProvider
+from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 
 PROVIDER_TEST_CASES = {
@@ -77,7 +77,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_compute_instance_content"],
     },
-    TerraformProvider.KUBERNETES: {
+    TerraformProvider.K8S: {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -131,7 +131,113 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         await self._run_prompt_compositor_test(TerraformProvider.OCI)
 
     async def test_render_prompt_compositor_kubernetes(self):
-        await self._run_prompt_compositor_test(TerraformProvider.KUBERNETES)
+        await self._run_prompt_compositor_test(TerraformProvider.K8S)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_requests_filter(self, mock_fetch: AsyncMock):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_requests_filter(
+            resources=["storage_account"],
+            abbreviations=["sta-"],
+            include_forbidden_actions=True,
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("mocked_requests_response", prompt)
+        self.assertIn("mocked_storage_account_response", prompt)
+        self.assertIn("Missing parameters NEVER block a creation request", prompt)
+        self.assertIn("When in doubt about parameters, accept", prompt)
+        self.assertNotIn("lacks information required to act", prompt)
+
+    PR_GENERATOR_MARKERS = {
+        OperationType.GENERATE: "introduces new or modified Terraform infrastructure",
+        OperationType.DRIFT: "remediates configuration drift",
+        OperationType.IMPORT: "under Terraform management",
+    }
+
+    def _run_pr_generator_test(self, operation_type: OperationType):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_pr_generator(operation_type=operation_type)
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("<operation_type>", prompt)
+        self.assertIn(operation_type.value, prompt)
+        self.assertIn("generate_pull_request", prompt)
+        self.assertIn("## Summary", prompt)
+        for op, marker in self.PR_GENERATOR_MARKERS.items():
+            if op is operation_type:
+                self.assertIn(marker, prompt)
+            else:
+                self.assertNotIn(marker, prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("OperationType", prompt)
+
+    def test_render_pr_generator_generate(self):
+        self._run_pr_generator_test(OperationType.GENERATE)
+
+    def test_render_pr_generator_drift(self):
+        self._run_pr_generator_test(OperationType.DRIFT)
+
+    def test_render_pr_generator_import(self):
+        self._run_pr_generator_test(OperationType.IMPORT)
+
+    REPORT_GENERATOR_MARKERS = {
+        "plan": ("FOR PLAN ANALYSIS REPORTS", "generate_terraform_plan_report"),
+        "drift": ("FOR DRIFT REMEDIATION REPORTS", "generate_terraform_drift_report"),
+        "apply": ("FOR APPLY REPORTS", "generate_terraform_apply_report"),
+    }
+
+    def _run_report_generator_test(self, report_type: ReportType, branch: str | None):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_report_generator(report_type=report_type)
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("<report_type>", prompt)
+        self.assertIn(report_type.value, prompt)
+        for key, markers in self.REPORT_GENERATOR_MARKERS.items():
+            for marker in markers:
+                if key == branch:
+                    self.assertIn(marker, prompt)
+                else:
+                    self.assertNotIn(marker, prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("ReportType", prompt)
+
+    def test_render_report_generator_generate(self):
+        self._run_report_generator_test(ReportType.GENERATE, branch="plan")
+
+    def test_render_report_generator_import(self):
+        # IMPORT has no dedicated report workflow: no branch is rendered
+        self._run_report_generator_test(ReportType.IMPORT, branch=None)
+
+    def test_render_report_generator_drift(self):
+        self._run_report_generator_test(ReportType.DRIFT, branch="drift")
+
+    def test_render_report_generator_apply(self):
+        self._run_report_generator_test(ReportType.APPLY, branch="apply")
+
+    def test_render_target_generator(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_target_generator()
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("REQUIRED FIRST STEP", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("sole source of truth", prompt)
+        self.assertNotIn("Respect user scoping", prompt)
+        self.assertNotIn("Do not infer changes to unrelated resources", prompt)
 
 
 if __name__ == "__main__":

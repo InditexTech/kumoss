@@ -75,8 +75,8 @@ class DatabaseClient:
 
     async def get_by(self, model: type[T], **filters: Any) -> T | None:
         """Get a single record by filters."""
-        result, count = await self.__query(model=model, filters=filters)
-        if count != 1:
+        result, _ = await self.query(model, **filters)
+        if len(result) != 1:
             return None
         return result[0]
 
@@ -90,24 +90,24 @@ class DatabaseClient:
         **filters: Any,
     ) -> list[T]:
         """Get all records matching filters."""
-        result, _ = await self.__query(
-            model=model,
-            order_by=order_by,
-            order_desc=order_desc,
-            offset=offset,
-            limit=limit,
-            filters=filters,
+        result, _ = await self.query(
+            model,
+            order_by,
+            order_desc,
+            offset,
+            limit,
+            **filters,
         )
         return result
 
-    async def __query(
+    async def query(
         self,
         model: type[T],
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int | None = None,
         limit: int | None = None,
-        filters: dict[str, Any] | None = None,
+        **filters: dict[str, Any] | None,
     ) -> tuple[list[T], int]:
         """Query records with filtering, ordering, and pagination.
         Returns (items, total_count).
@@ -132,8 +132,11 @@ class DatabaseClient:
                 stmt = stmt.limit(limit)
 
             result = await session.execute(stmt)
-            count_result = await session.execute(count_stmt)
-            return list(result.scalars().all()), count_result.scalar_one()
+            # `offset` may legitimately be 0 (first page), so check for None.
+            if offset is not None and limit is not None:
+                count_result = await session.execute(count_stmt)
+                return list(result.scalars().all()), count_result.scalar_one()
+            return list(result.scalars().all()), -1
 
 
 db = DatabaseClient()

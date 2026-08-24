@@ -12,6 +12,17 @@
   padding: 0 48px;
   width: 100%;
   box-sizing: border-box;
+
+  /* Ink system — dark values are tuned for the blue brand backdrop */
+  --tbl-ink: light-dark(#000000, rgba(255, 255, 255, 0.92));
+  --tbl-ink-soft: light-dark(rgba(0, 0, 0, 0.55), rgba(255, 255, 255, 0.62));
+  --tbl-ink-faint: light-dark(rgba(0, 0, 0, 0.26), rgba(255, 255, 255, 0.3));
+  --tbl-head-ink: light-dark(#000000, rgba(255, 255, 255, 0.78));
+  --tbl-head-bg: light-dark(#ffffff, rgba(2, 2, 94, 0.5));
+  --tbl-head-rule: light-dark(#000000, rgba(255, 255, 255, 0.5));
+  --tbl-row-rule: light-dark(#c9c9c9, rgba(255, 255, 255, 0.16));
+  --tbl-hover: light-dark(rgba(0, 0, 0, 0.02), rgba(255, 255, 255, 0.05));
+  --tbl-control-rule: light-dark(rgba(0, 0, 0, 0.42), rgba(255, 255, 255, 0.4));
 }
 
 /* ─── Filters ──────────────────────────────── */
@@ -21,7 +32,40 @@
   align-items: center;
   gap: 12px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--tbl-row-rule);
+}
+
+/* Toolbar controls (MUI) — keep the chrome monochrome in both themes */
+.filters :global(.MuiInputBase-root) {
+  color: var(--tbl-ink);
+}
+
+.filters :global(.MuiInput-underline)::before {
+  border-bottom-color: var(--tbl-control-rule);
+}
+
+.filters :global(.MuiInput-underline:hover:not(.Mui-disabled))::before {
+  border-bottom-color: var(--tbl-ink);
+}
+
+.filters :global(.MuiInput-underline)::after {
+  border-bottom-color: var(--tbl-ink);
+}
+
+.filters :global(.MuiInputBase-input)::placeholder {
+  color: var(--tbl-ink-soft);
+}
+
+.filters :global(.MuiSelect-icon) {
+  color: var(--tbl-ink-soft);
+}
+
+.filters :global(.MuiIconButton-root) {
+  color: var(--tbl-ink-soft);
+}
+
+.filters :global(.MuiIconButton-root.Mui-disabled) {
+  color: var(--tbl-ink-faint);
 }
 
 .extraContent {
@@ -68,12 +112,14 @@
   padding: 8px 12px;
   height: 42px;
   box-sizing: border-box;
-  border-bottom: 0.5px solid #000000;
-  color: #000000;
+  border-bottom: 0.5px solid var(--tbl-head-rule);
+  color: var(--tbl-head-ink);
   position: sticky;
   top: 0;
   z-index: var(--z-base);
-  background: #ffffff;
+  background: var(--tbl-head-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .table td {
@@ -85,13 +131,13 @@
   padding: 24px 12px;
   height: 76px;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--tbl-row-rule);
   vertical-align: middle;
-  color: #000000;
+  color: var(--cell-ink, var(--tbl-ink));
 }
 
 .table tbody tr:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--tbl-hover);
 }
 
 /* ─── Cell Variants ────────────────────────── */
@@ -119,7 +165,7 @@
 .emptyRow {
   text-align: center;
   padding: 40px 14px !important;
-  color: var(--color-text-muted);
+  color: var(--tbl-ink-soft);
   font-style: italic;
 }
 

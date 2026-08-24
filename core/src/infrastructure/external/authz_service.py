@@ -6,7 +6,7 @@
 
 Wraps the generated `src.clients.authz` HTTP client behind a small,
 async-friendly facade. Mirrors the pattern used by
-`TerraformServiceValidator`: read endpoint+token from system_config,
+`Terraform`: read endpoint+token from system_config,
 construct a fresh `AuthenticatedClient` per call, degrade gracefully
 when the service is disabled or unconfigured.
 

@@ -8,18 +8,21 @@ from abc import ABC, abstractmethod
 from opentelemetry.trace import Span
 
 from src.domains.dto import LLMResponseDTO, TerraformValidationDTO
-from src.shared.constants import LLMProvider
 
 
 class ITracer(ABC):
     @abstractmethod
     def trace_terraform(
-        self, terraformDTO: TerraformValidationDTO, **kwargs: Any
+        self,
+        terraformDTO: TerraformValidationDTO,
+        start_time: int | None = None,
+        **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
         :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
 
@@ -46,7 +49,7 @@ class ITracer(ABC):
     def trace_llm(
         self,
         start_time: int,
-        provider: LLMProvider,
+        model: str,
         invocation_params: Any,
         response: LLMResponseDTO,
         **kwargs,
@@ -55,7 +58,7 @@ class ITracer(ABC):
         Creates and configures a span for tracing LLM inference calls.
 
         :param start_time: Start time of the LLM call in nanoseconds since epoch
-        :param provider: The LLM provider being used (e.g., Anthropic, Google)
+        :param model: The LLM model being used with the prefix of the provider (e.g., vertex_ai/claude-sonnet-4-6)
         :param invocation_params: Parameters passed to the LLM API call
         :param response: The LLM response containing text, tool calls, and metadata
         :param kwargs: Additional keyword arguments including messages, tools, and history

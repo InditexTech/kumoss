@@ -7,7 +7,6 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
 import { AssistantAnimation } from "@/components/ui";
-import { useHomeWizard } from "../useHomeWizard";
 import { useHomeLayoutContext } from "../HomeLayout";
 import ChatHistory from "../ChatHistory/ChatHistory";
 import ResultPanel from "../ResultPanel/ResultPanel";
@@ -28,8 +27,7 @@ function parsePrStep(view: string | null): PrApprovalStep | null {
 export default function ResultsRoute() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { loading, error } = useSessionLoader(sessionId);
-  const wizard = useHomeWizard();
-  const { handleContactTeam } = useHomeLayoutContext();
+  const { wizard, handleContactTeam } = useHomeLayoutContext();
   const { session, updatePrDetails } = useSession();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -76,6 +74,8 @@ export default function ResultsRoute() {
     }, { replace: true });
   }, [searchParams, setSearchParams, updatePrDetails]);
 
+  const hasArtifacts = Boolean(session.code || session.terraform_report);
+
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;
 
@@ -94,6 +94,20 @@ export default function ResultsRoute() {
           onBackToReport={handleBackToResult}
           onContactTeam={handleContactTeam}
         />
+      </div>
+    );
+  }
+
+  if (!hasArtifacts) {
+    return (
+      <div className={`${styles.leftSide} ${styles.leftSideChat}`}>
+        <div className={styles.chatFull}>
+          <ChatHistory
+            onIterate={wizard.iterate}
+            onResetToReport={handleResetToReport}
+            hideActions
+          />
+        </div>
       </div>
     );
   }

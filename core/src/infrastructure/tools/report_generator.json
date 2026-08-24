@@ -107,7 +107,7 @@
                 "description"
               ]
             },
-            "summary_paragraph": {
+            "summary": {
               "type": "string",
               "description": "A prose summary of the overall changes, e.g., 'This plan will reconfigure networking for a critical application. It is important to understand the implications of this action.'."
             },
@@ -135,7 +135,7 @@
           },
           "required": [
             "banner",
-            "summary_paragraph",
+            "summary",
             "bullet_points"
           ]
         },
@@ -216,7 +216,7 @@
     "parameters": {
       "type": "object",
       "properties": {
-        "remediation_summary": {
+        "summary": {
           "type": "string",
           "description": "A high-level summary of the entire remediation action and possible exceptions whitelist resources present in the terrafrom plan."
         },
@@ -286,7 +286,7 @@
         }
       },
       "required": [
-        "remediation_summary",
+        "summary",
         "status",
         "remediated_resources"
       ]
@@ -298,7 +298,7 @@
     "parameters": {
       "type": "object",
       "properties": {
-        "apply_summary": {
+        "summary": {
           "type": "object",
           "description": "High-level statistics summarizing the apply operation results.",
           "properties": {
@@ -403,7 +403,7 @@
         }
       },
       "required": [
-        "apply_summary",
+        "summary",
         "status",
         "execution_summary",
         "resource_changes",

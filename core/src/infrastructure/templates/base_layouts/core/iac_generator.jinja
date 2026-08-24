@@ -48,7 +48,7 @@ You have tools at your disposal to solve the USER's request. Follow these rules 
 1. ALWAYS follow the tool call schema exactly as specified and make sure to provide all necessary parameters.
 2. The use of tools is MANDATORY. You will use the tools at your disposal to reach the goal and nothing else.
 3. CRITICAL: Once you have gather sufficient information to understand the task (typically after reading or fetching 3-5 relevant files), you MUST stop using information-gathering tools and proceed to generate the required code using `write_to_file` or `replace_in_file`.
-4. You may execute a maximum of 50 tool calls. Optimize every call to ensure the task is completed before reaching this limit.
+4. You may execute a maximum of 40 tool calls. Optimize every call to ensure the task is completed before reaching this limit.
 </tool_calling>
 
 <editing_files>
@@ -128,11 +128,3 @@ If you've performed an edit that may partially satiate the USER's query, but you
 
 You should give your best effort to complete the task with the given tools.
 </search_and_reading>
-
-<completion_workflow>
-Follow this exact order when finishing a task:
-1. Generate ALL required Terraform files first (using write_to_file / replace_in_file).
-2. ONLY AFTER all files are written, call `check_compliance` to verify them against organizational rules. Do NOT call check_compliance before writing files — it has nothing to inspect until files exist.
-3. If check_compliance returns passed=false, fix the violations and call check_compliance again.
-4. Once check_compliance returns passed=true, call task_complete.
-</completion_workflow>

@@ -2,14 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Request models for the URI-driven, session-iterating IaC endpoints.
+"""Request models for the URI-driven, session-iterating IaC endpoints."""
 
-Every request is exactly one of:
-  - first call: {repo_uri, cloud, environment, user_id, q, ...}
-  - iteration:  {session_id, user_id, q, ...}
-"""
-
-from typing import Annotated
+from typing import Annotated, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -17,21 +13,22 @@ from src.shared.constants import TerraformProvider
 
 
 class BaseIacRequest(BaseModel):
-    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
+
     session_id: Annotated[
-        str | None,
+        UUID | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and q.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
         ),
     ] = None
     repo_uri: Annotated[
         str | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id."
+            description="Repository URI (first call only). Mutually exclusive with session_id.",
+            examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
     scope_id: Annotated[
@@ -88,42 +85,50 @@ class BaseIacRequest(BaseModel):
 
 
 class GenerateRequest(BaseIacRequest):
-    pass
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
 
 
 class DriftRequest(BaseIacRequest):
     is_partial: bool = False
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=["Resolve the drift in the storage account staweu1001"],
+        ),
+    ]
 
 
 class ApplyRequest(BaseIacRequest):
-    terraform_targets: list[str] = Field(default_factory=list)
+    pass
 
 
 class ComplianceCheckRequest(BaseModel):
-    repo_uri: None = None
     session_id: Annotated[
-        str,
-        Field(
-            description="Existing session id.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-        ),
+        UUID,
+        Field(description="Session whose generated plan will be checked."),
     ]
     mode: Annotated[
         Literal["plan_vs_core", "plan_vs_custom"],
-        Field(description="Compliance check mode."),
+        Field(description="Type 2: check against core seed templates. Type 3: check against a custom Phoenix prompt."),
     ]
     phoenix_prompt_name: Annotated[
         str | None,
-        Field(description="Phoenix prompt name (required for plan_vs_custom)."),
+        Field(description="Phoenix prompt name for plan_vs_custom mode (e.g. 'pci_dss_v4')."),
     ] = None
-    user_id: Annotated[
-        str, Field(description="Caller identity.")
-    ]
 
     @model_validator(mode="after")
-    def _validate_mode(self):
+    def _validate_custom_mode(self):
         if self.mode == "plan_vs_custom" and not self.phoenix_prompt_name:
-            raise ValueError(
-                "phoenix_prompt_name is required when mode is 'plan_vs_custom'."
-            )
+            raise ValueError("phoenix_prompt_name is required when mode is 'plan_vs_custom'.")
         return self

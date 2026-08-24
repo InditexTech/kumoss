@@ -11,6 +11,7 @@ from src.domains.exceptions import TemplateRendererNotFound, TemplateRendererArg
 from src.domains.interfaces.template_interface import ITemplate
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
+from src.domains.value_objects import Conventions
 from src.shared.constants import PromptsLibrary, ToolContext
 from src.shared.logger import logging
 
@@ -31,7 +32,7 @@ class TemplateOrchestrationService:
     def __register_renderers(self):
         self.__template_renderers = {
             # core
-            "domain_filter": self.__templates.render_domain_filter,
+            "requests_filter": self.__templates.render_requests_filter,
             "task_splitter": self.__templates.render_task_splitter,
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
@@ -40,11 +41,11 @@ class TemplateOrchestrationService:
             "target_generator": self.__templates.render_target_generator,
             "report_generator": self.__templates.render_report_generator,
             "supervisor": self.__templates.render_supervisor,
+            "pr_generator": self.__templates.render_pr_generator,
             "compliance_checker": self.__templates.render_compliance_checker,
             # messages
             "joker": self.__templates.render_joker,
             "status_update": self.__templates.render_status_update,
-            "task_acknowledge": self.__templates.render_task_acknowledge,
         }
 
     async def render(self, prompt: PromptsLibrary, **kwargs: Any) -> PromptTemplateDTO:
@@ -79,7 +80,7 @@ class TemplateOrchestrationService:
         self,
         query: str,
         history: History,
-    ) -> tuple[list[str], list[str]]:
+    ) -> Conventions:
         """
         Runs a two-pass prompt compositor chain and returns a tuple with a list of
         related_templates, and a list of related abbreviatnios based on the user query
@@ -131,4 +132,4 @@ class TemplateOrchestrationService:
             f"Prompt compositor merged abbreviations: {merged_abbreviations} "
         )
 
-        return (merged_templates, merged_abbreviations)
+        return Conventions(merged_templates, merged_abbreviations)

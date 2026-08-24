@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import override
+
 from src.domains.dto import ToolResultDTO, ToolCallDTO
 
 
@@ -23,5 +25,6 @@ class Turn:
         self.assistant: str | list[ToolCallDTO] = assistant
         self.turn_id: str = turn_id
 
+    @override
     def __str__(self) -> str:
         return f"user: {self.user}\nassistant: {self.assistant}\nid: {self.turn_id}"

@@ -5,103 +5,92 @@
 from collections.abc import Coroutine
 from typing import Callable, Any
 
-from src.domains.entities import SessionContext
+from src.application.exceptions import TerraformValidationFailedError
+from src.application.services import ReportService
+from src.domains.dto import TerraformValidationDTO
+from src.domains.entities import History, SessionContext
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
     TemplateOrchestrationService,
-    TracerService,
     SessionService,
+    TerraformTargetService,
+    TerraformValidationService,
 )
-from src.application.services.generate_payload_service import GeneratePayloadService
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import SessionStatus, TracerProject, PromptsLibrary
-from src.shared.config import system_config
-from src.shared.exceptions import ExceptionHandler
-from src.shared.utils.repo_uri import derive_project_name
+from src.shared.constants import (
+    ReportType,
+    SessionStatus,
+    PromptsLibrary,
+)
 
 
 class TerraformApplyHandler:
     def __init__(
         self,
-        apply_service,
+        terraform_service: ITerraform,
         session_service: SessionService,
+        report_service: ReportService,
         template_service: TemplateOrchestrationService,
-        payload_svc: GeneratePayloadService,
+        validation_service: TerraformValidationService,
+        target_service: TerraformTargetService,
         session_ctx: SessionContext,
     ):
-        self.__apply_svc = apply_service
+        self.__validation_svc = validation_service
+        self.__terraform_svc = terraform_service
         self.__session_svc = session_service
+        self.__report_svc = report_service
         self.__template_svc = template_service
-        self.__payload_svc = payload_svc
+        self.__target_svc = target_service
         self.__ctx = session_ctx
 
-    async def handle(
-        self, q: str, terraform_targets: list[str]
-    ) -> Callable[[], Coroutine[Any, Any, None]]:
+    async def handle(self) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
 
-        async def task_background():
-            provider = TracerProject.PRO_TERRAFORM_DAY2
-            if system_config.environment == "development":
-                provider = TracerProject.DEV_TERRAFORM_DAY2
-            elif system_config.environment == "staging":
-                provider = TracerProject.PRE_TERRAFORM_DAY2
-
-            project = derive_project_name(ctx.repo_uri)
-
-            tracer_token = TracerService.set_current_tracer(
-                tracer=PhoenixTracer(
-                    provider_name=provider,
-                    session_id=ctx.session_id,
-                    user_id=ctx.user_id,
-                    project=project,
-                    environment=ctx.environment,
-                    branch_name=ctx.branch_name,
-                )
-            )
+        async def background_task():
             try:
-                await self.__session_svc.update_status(
-                    msg="The code has been generated and now Terraform Apply is "
-                    + "running in the background.",
-                    prompt=await self.__template_svc.render(
-                        PromptsLibrary.TASK_ACKNOWLEDGE
-                    ),
-                    status=SessionStatus.STARTED,
-                )
-                apply_results = await self.__apply_svc.apply(terraform_targets)
-                if not apply_results:
-                    raise ExceptionHandler(
-                        message="I couldn't apply the infrastructure. Please, contact with the Data DevOps team",
+                await self.__session_svc.next_round("Terraform apply.")
+
+                async def validation_callback(
+                    history: History,
+                ) -> TerraformValidationDTO:
+                    _ = await self.__session_svc.update_status(
+                        msg="Apply the IaC session changes",
+                        prompt=await self.__template_svc.render(
+                            PromptsLibrary.STATUS_UPDATE
+                        ),
+                        status=SessionStatus.APPLY,
+                        history=history,
+                    )
+                    return await self.__terraform_svc.apply(
+                        targets=await self.__target_svc.generate(history)
+                    )
+
+                validation = await validation_callback(ctx.history)
+                if not validation.validation:
+                    validation = await self.__validation_svc.generate_and_validate(
+                        q=validation.feedback,
+                        ctx=ctx,
+                        conventions=await self.__template_svc.compose_template(
+                            query=validation.feedback,
+                            history=ctx.history,
+                        ),
+                        include_forbidden_actions=True,
+                        validator=validation_callback,
+                    )
+                if not validation.validation:
+                    fail_msg = await self.__report_svc.summarize_problem(
+                        feedback=validation.feedback,
+                        history=ctx.history,
+                    )
+                    raise TerraformValidationFailedError(
+                        message=fail_msg,
                         error_code=500,
                     )
-                await self.__payload_svc.generate_apply(
-                    response=apply_results.portal_url,
-                    command=_LegacyCommandShim(ctx, q),
-                    validation=True if apply_results.portal_url else False,
-                    run_id=apply_results.run_id,
-                    apply_output=apply_results.apply_output,
+                _ = await self.__report_svc.generate_report(
+                    ctx=ctx,
+                    type=ReportType.APPLY,
+                    content=validation.terraform_plan,
                 )
-            except ExceptionHandler as e:
-                await self.__session_svc.update_status(
-                    msg=e.message, status=SessionStatus.FAILED
-                )
-                raise
             finally:
-                TracerService.reset_current_tracer(tracer_token)
+                await self.__session_svc.save()
 
-        return task_background
-
-
-class _LegacyCommandShim:
-    """Adapter so GeneratePayloadService keeps its old `command.*` access pattern.
-
-    GeneratePayloadService reads command.cloud, command.environment, command.q,
-    command.user_id during payload assembly. We pass it a tiny shim instead of
-    threading every field through a new signature.
-    """
-
-    def __init__(self, ctx, q: str):
-        self.cloud = ctx.cloud
-        self.environment = ctx.environment
-        self.user_id = ctx.user_id
-        self.q = q
-        self.repository_id = ctx.repo_uri  # for any leftover access
+        return background_task

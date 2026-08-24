@@ -37,13 +37,6 @@ export interface CostBreakdownItem {
   };
 }
 
-export interface ImportSummary {
-  total_untracked_resources?: number;
-  successfully_imported_count?: number;
-  not_imported_count?: number;
-  resource_group_name?: string;
-}
-
 export interface ImportResourceDetail {
   category: string;
   resource_identifier: string;
@@ -79,12 +72,20 @@ export interface PlanSummary {
   recreate: number;
 }
 
+export interface ApplySummary {
+  total_resources?: number;
+  created?: number;
+  updated?: number;
+  destroyed?: number;
+  failed?: number;
+}
+
 export interface TerraformReport {
   status?: string;
-  summary?: PlanSummary;
+  summary?: PlanSummary | ApplySummary | string;
   potential_impact?: {
     banner?: { level: string; title: string; description: string };
-    summary_paragraph?: string;
+    summary?: string;
     bullet_points?: BulletPoint[];
   };
   estimated_costs?: {
@@ -93,19 +94,10 @@ export interface TerraformReport {
     breakdown?: CostBreakdownItem[];
   };
   detailed_changes?: TerraformChange[];
-  remediation_summary?: string;
   remediated_resources?: DriftResource[];
-  import_summary?: ImportSummary;
   execution_summary?: string;
   resource_details?: ImportResourceDetail[];
   recommendations?: string[];
-  apply_summary?: {
-    total_resources?: number;
-    created?: number;
-    updated?: number;
-    destroyed?: number;
-    failed?: number;
-  };
   resource_changes?: ApplyResourceChange[];
   [key: string]: unknown;
 }

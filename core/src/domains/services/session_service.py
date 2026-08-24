@@ -8,12 +8,7 @@ from typing import cast
 from src.domains.entities import SessionContext, History
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
-from src.domains.dto import (
-    ComplianceCheckReport,
-    PromptTemplateDTO,
-    TerraformDriftReport,
-    TerraformPlanReport,
-)
+from src.domains.dto import PromptTemplateDTO
 from src.shared.constants import SessionStatus
 from src.shared.logger import logging
 
@@ -27,17 +22,13 @@ class SessionService:
         self.__llm_service = llm_service
         self.__ctx: SessionContext = session_context
 
-    @property
-    def session(self) -> SessionContext:
-        return self.__ctx
-
     async def update_status(
         self,
         msg: str,
         status: SessionStatus,
         prompt: PromptTemplateDTO | None = None,
         history: History | None = None,
-    ) -> None:
+    ) -> str:
         """Update the session with a new status and a message.
         Optionally, use an LLM to generate the msg.
 
@@ -56,18 +47,17 @@ class SessionService:
                 prompt=prompt,
                 history=history,
             )
-        await DatabaseService.mark_session_status(self.__ctx.id, status, cast(str, msg))
+        await DatabaseService.mark_session_status(
+            session_id=self.__ctx.id,
+            status=status,
+            msg=cast(str, msg),
+            round_id=self.__ctx.round_id,
+        )
+        return msg
+
+    async def next_round(self, q: str) -> None:
+        rid = await DatabaseService.create_round(self.__ctx.id, q)
+        self.__ctx.set_round(rid)
 
     async def save(self) -> None:
-        await DatabaseService.update_session(self.__ctx)
-
-    # FIXME: stale
-    async def set_payload(
-        self,
-        files: str,
-        history: History,
-        terraform_report: TerraformPlanReport | TerraformDriftReport | None = None,
-        compliance_report: ComplianceCheckReport | None = None,
-        apply_allowed: bool = True,
-    ):
-        return
+        await DatabaseService.update_history(self.__ctx)
