@@ -5,7 +5,7 @@
 from collections.abc import Coroutine
 from typing import Callable, Any
 
-from src.application.exceptions import TerraformValidationFailedError
+from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
@@ -127,12 +127,17 @@ class TerraformCRUDHandler:
                     content=validation.terraform_plan,
                 )
                 check = await self.__compliance_svc.check(
-                    ctx.history, conventions, report
+                    history=ctx.history,
+                    conventions=conventions,
+                    checked_agent=PromptsLibrary.REPORT_GENERATOR,
+                    report=report,
                 )
                 if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):
-                        # raise SetLockError()
-                        raise RuntimeError()
+                        raise SetLockError(
+                            message="Error updating DB session lock.",
+                            error_code=500,
+                        )
                     await NotificationServiceClient().notify_compliance_failure(
                         session_id=ctx.id,
                         summary=check.summary,

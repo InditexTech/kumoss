@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.shared.constants import OperationType, ReportType
+from src.shared.constants import OperationType, PromptsLibrary, ReportType
 
 
 class ITemplate(ABC):
@@ -74,5 +74,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    async def render_compliance_checker(self, rules: str | None = None) -> str:
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+        checked_agent: PromptsLibrary,
+    ) -> str:
         pass

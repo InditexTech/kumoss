@@ -6,9 +6,6 @@
 from pathlib import Path
 from typing import final
 
-from src.application.use_cases.terraform_compliance_check_handler import (
-    TerraformComplianceCheckHandler,
-)
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ILLMProvider, ITerraform
 from src.domains.interfaces.filesystem_interface import IFileSystem
@@ -47,7 +44,6 @@ from src.application.services import (
     ReportService,
 )
 from src.application.use_cases import (
-    ComplianceCheckHandler,
     TerraformCRUDHandler,
     TerraformDriftHandler,
     TerraformApplyHandler,
@@ -220,7 +216,7 @@ class ApplicationFactory:
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
-        compliance_service: ComplianceCheckService | None = None,
+        compliance_service: ComplianceCheckService,
     ) -> TerraformValidationService:
         return TerraformValidationService(
             git=git_utils,
@@ -316,7 +312,7 @@ class ApplicationFactory:
         tool_svc: ToolOrchestrationService,
         llm_svc: LLMOrchestrationService,
         template_svc: TemplateOrchestrationService,
-    ) -> ComplianceCheckService | None:
+    ) -> ComplianceCheckService:
         return ComplianceCheckService(
             tool_service=tool_svc,
             llm_service=llm_svc,
@@ -372,6 +368,7 @@ class ApplicationFactory:
             report_service=report_svc,
             target_service=target_svc,
             drift_service=drift_svc,
+            compliance_service=compliance_svc,
         )
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
@@ -390,6 +387,7 @@ class ApplicationFactory:
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils.project_root)
+        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -398,6 +396,7 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
+            compliance_service=compliance_svc,
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
@@ -421,6 +420,7 @@ class ApplicationFactory:
             report_service=report_svc,
             target_service=target_svc,
             drift_service=drift_svc,
+            compliance_service=compliance_svc,
         )
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:
@@ -440,6 +440,7 @@ class ApplicationFactory:
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         terraform_svc = self._get_terraform_provider(file_utils.project_root)
+        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -448,6 +449,7 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
+            compliance_service=compliance_svc,
         )
         return TerraformApplyHandler(
             terraform_service=terraform_svc,
@@ -457,31 +459,5 @@ class ApplicationFactory:
             report_service=report_svc,
             template_service=template_svc,
             session_ctx=self.__ctx,
-        )
-
-    def get_compliance_check_handler(
-        self,
-        mode: str = "plan_vs_core",
-        phoenix_prompt_name: str | None = None,
-    ) -> TerraformComplianceCheckHandler:
-        file_utils = self._get_file_utils()
-        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
-        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
-        llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
-        template_svc = self._get_template_service(
-            file_utils.project_root, llm_svc, tool_svc
-        )
-        compliance_svc = ComplianceCheckService(
-            tool_service=tool_svc,
-            llm_service=llm_svc,
-            template_service=template_svc,
-        )
-        return ComplianceCheckHandler(
             compliance_service=compliance_svc,
-            session_service=session_svc,
-            template_service=template_svc,
-            session_ctx=self.__ctx,
-            mode=mode,
-            phoenix_prompt_name=phoenix_prompt_name,
         )

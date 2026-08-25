@@ -138,10 +138,14 @@ class TerraformValidationService:
 
             local_history.append_turn(q, task_complete.result.get("summary"))
 
-            compliance_report = await self.__run_compliance(ctx)
-            if compliance_report and not compliance_report.passed:
+            check = await self.__compliance_svc.check(
+                history=local_history,
+                conventions=conventions,
+                checked_agent=PromptsLibrary.IAC_GENERATOR,
+            )
+            if not check.passed:
                 q = (
-                    f"The compliance check failed:\n{compliance_report.summary}\n\n"
+                    f"The compliance check failed:\n{check.model_dump()}\n\n"
                     "Fix the violations in the generated Terraform files."
                 )
                 continue
