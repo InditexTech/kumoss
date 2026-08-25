@@ -267,17 +267,20 @@ class ComplianceViolation(BaseModel):
     suggested_fix: str | None = None
 
 
-class ComplianceContextDTO(BaseModel):
-    output_under_check: str | None = None
-    rules: str | None = None
-    history: list[dict[str, str]] | None = None
-
-
 class ComplianceCheckReport(BaseModel):
     passed: bool
     violations: list[ComplianceViolation]
     summary: str
     checked_rules: list[str]
+
+    @classmethod
+    def empty(cls):
+        return cls(
+            passed=True,
+            violations=[],
+            summary="",
+            checked_rules=[],
+        )
 
 
 @dataclass

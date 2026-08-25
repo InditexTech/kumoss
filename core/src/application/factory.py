@@ -6,6 +6,9 @@
 from pathlib import Path
 from typing import final
 
+from src.application.use_cases.terraform_compliance_check_handler import (
+    TerraformComplianceCheckHandler,
+)
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ILLMProvider, ITerraform
 from src.domains.interfaces.filesystem_interface import IFileSystem
@@ -314,8 +317,6 @@ class ApplicationFactory:
         llm_svc: LLMOrchestrationService,
         template_svc: TemplateOrchestrationService,
     ) -> ComplianceCheckService | None:
-        if not system_config.compliance.enabled:
-            return None
         return ComplianceCheckService(
             tool_service=tool_svc,
             llm_service=llm_svc,
@@ -462,7 +463,7 @@ class ApplicationFactory:
         self,
         mode: str = "plan_vs_core",
         phoenix_prompt_name: str | None = None,
-    ) -> ComplianceCheckHandler:
+    ) -> TerraformComplianceCheckHandler:
         file_utils = self._get_file_utils()
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)

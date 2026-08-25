@@ -17,7 +17,6 @@ from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
-    ComplianceCheckRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
@@ -163,39 +162,10 @@ async def apply_infrastructure(
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    if request.session_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Missing session ID",
-        )
     ctx = await _resolve_or_raise(request)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
-        return await handler.handle()
-
-    background_tasks.add_task(_make_runner(ctx, build))
-    return {"session_id": str(ctx.id)}
-
-
-@router.post("/compliance-check", status_code=202)
-async def compliance_check(
-    background_tasks: BackgroundTasks, request: ComplianceCheckRequest
-) -> dict[str, str]:
-    """Runs a compliance check against a session's generated plan.
-    Returns 202 + session_id; results arrive via the existing session
-    event channel.
-    """
-    try:
-        ctx = await DatabaseService.get_session_context(request.session_id)
-    except ExceptionHandler as e:
-        raise HTTPException(status_code=e.error_code, detail=e.message)
-
-    async def build(context: SessionContext):
-        handler = ApplicationFactory(session_ctx=context).get_compliance_check_handler(
-            mode=request.mode,
-            phoenix_prompt_name=request.phoenix_prompt_name,
-        )
         return await handler.handle()
 
     background_tasks.add_task(_make_runner(ctx, build))

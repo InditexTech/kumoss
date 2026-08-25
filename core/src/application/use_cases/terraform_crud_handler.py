@@ -9,16 +9,18 @@ from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import ComplianceCheckReport, TerraformValidationDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
+    ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
 )
+from src.domains.services.database_service import DatabaseService
 from src.shared.constants import (
     PromptsLibrary,
     ReportType,
@@ -38,6 +40,7 @@ class TerraformCRUDHandler:
         report_service: ReportService,
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
+        compliance_service: ComplianceCheckService,
     ):
         self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
@@ -47,6 +50,7 @@ class TerraformCRUDHandler:
         self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
+        self.__compliance_svc = compliance_service
         self.__ctx = session_ctx
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
@@ -121,6 +125,11 @@ class TerraformCRUDHandler:
                     type=ReportType.GENERATE,
                     content=validation.terraform_plan,
                 )
+                compliance: ComplianceCheckReport = await self.__compliance_svc.check()
+                if not compliance.passed:
+                    if not await DatabaseService.set_lock(ctx.id, True):
+                        # raise SetLockError()
+                        raise RuntimeError()
             finally:
                 await self.__session_svc.save()
 

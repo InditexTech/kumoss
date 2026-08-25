@@ -4,7 +4,7 @@
 
 """Request models for the URI-driven, session-iterating IaC endpoints."""
 
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -12,11 +12,25 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from src.shared.constants import TerraformProvider
 
 
-class BaseIacRequest(BaseModel):
+class UserRequest(BaseModel):
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
 
+
+class SessionRequest(UserRequest):
+    """Base for operations that require an existing session."""
+
+    session_id: Annotated[
+        UUID,
+        Field(
+            description="Existing session id. Required for this operation.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
+        ),
+    ]
+
+
+class BaseIacRequest(UserRequest):
     session_id: Annotated[
         UUID | None,
         Field(
@@ -109,26 +123,5 @@ class DriftRequest(BaseIacRequest):
     ]
 
 
-class ApplyRequest(BaseIacRequest):
+class ApplyRequest(SessionRequest):
     pass
-
-
-class ComplianceCheckRequest(BaseModel):
-    session_id: Annotated[
-        UUID,
-        Field(description="Session whose generated plan will be checked."),
-    ]
-    mode: Annotated[
-        Literal["plan_vs_core", "plan_vs_custom"],
-        Field(description="Type 2: check against core seed templates. Type 3: check against a custom Phoenix prompt."),
-    ]
-    phoenix_prompt_name: Annotated[
-        str | None,
-        Field(description="Phoenix prompt name for plan_vs_custom mode (e.g. 'pci_dss_v4')."),
-    ] = None
-
-    @model_validator(mode="after")
-    def _validate_custom_mode(self):
-        if self.mode == "plan_vs_custom" and not self.phoenix_prompt_name:
-            raise ValueError("phoenix_prompt_name is required when mode is 'plan_vs_custom'.")
-        return self

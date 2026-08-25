@@ -143,7 +143,14 @@ services:
 
 # Iteration limits and batch sizes for the core's orchestration loops.
 # Raise carefully — these bound runaway-loop costs.
+#
+# enable_compliance_checker: When enabled, critical agent chains
+# include a check_compliance tool that validates output
+# against curated rules before allowing completion.
+#
+# max_drift_reports: TODO
 orchestration:
+  enable_compliance_checker: false  
   max_drift_reports: 3
   max_validation_iteration: 5
   max_tool_chain_executions: 70
@@ -239,11 +246,3 @@ git:
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
 
-# Compliance-checker sub-agent. When enabled, IaC generator and target
-# generator chains include a check_compliance tool that validates output
-# against curated rules before allowing completion. max_retries bounds
-# how many times the in-chain compliance check can be invoked per chain.
-compliance:
-  enabled: true
-  max_retries: 3
-  auto_pass_on_max_retries: true

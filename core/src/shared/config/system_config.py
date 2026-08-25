@@ -184,6 +184,7 @@ class OrchestrationConfig(BaseModel):
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
+    enable_compliance_checker: bool = False
 
 
 class PathsConfig(BaseModel):
@@ -212,14 +213,6 @@ class HttpConfig(BaseModel):
     # you run the Vite dev server (npm run dev) outside docker and point it
     # at the API container.
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost"])
-
-
-class ComplianceConfig(BaseModel):
-    """Toggle and limits for the compliance-checker sub-agent."""
-
-    enabled: bool = True
-    max_retries: int = 3
-    auto_pass_on_max_retries: bool = True
 
 
 class GitConfig(BaseModel):
@@ -434,7 +427,6 @@ class SystemConfig(BaseModel, frozen=True):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
-    compliance: ComplianceConfig = Field(default_factory=ComplianceConfig)
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":

@@ -38,7 +38,7 @@ class TerraformValidationService:
         llm_service: LLMOrchestrationService,
         tool_orchestration_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
-        compliance_service: ComplianceCheckService | None = None,
+        compliance_service: ComplianceCheckService,
     ):
         self.__git = git
         self.__files = files
@@ -81,17 +81,6 @@ class TerraformValidationService:
                 logging.warning(f"Error reading file '{name}': {e.message}")
                 continue
             await __upload(name, content, new_file="true")
-
-    async def __run_compliance(self, ctx: SessionContext):
-        if not self.__compliance_svc or not system_config.compliance.enabled:
-            return None
-        logging.info(f"Running compliance check (session {ctx.id})")
-        report = await self.__compliance_svc.check()
-        if report.passed:
-            logging.info(f"Compliance passed (session {ctx.id})")
-        else:
-            logging.warning(f"Compliance failed (session {ctx.id}): {report.summary}")
-        return report
 
     async def generate_and_validate(
         self,
