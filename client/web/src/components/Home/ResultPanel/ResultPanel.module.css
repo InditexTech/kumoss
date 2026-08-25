@@ -108,4 +108,13 @@
     padding: 24px 0;
   }
 
+  /* In stacked mode the panel is auto-height, so the editors'
+     height: 100% has nothing to resolve against — give the views a
+     definite height or Monaco collapses to 0. */
+  .planView,
+  .codeView {
+    flex: none;
+    height: 60dvh;
+    min-height: 320px;
+  }
 }

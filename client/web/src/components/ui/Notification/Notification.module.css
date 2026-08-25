@@ -16,13 +16,26 @@
 }
 
 .notification {
-  width: 400px;
+  width: min(400px, calc(100vw - 48px));
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 18px;
   font-size: 16px;
   pointer-events: auto;
+}
+
+@media screen and (max-width: 768px) {
+  .stack {
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .notification {
+    width: min(400px, calc(100vw - 32px));
+    font-size: 16px;
+    padding: 14px;
+  }
 }
 
 .success {

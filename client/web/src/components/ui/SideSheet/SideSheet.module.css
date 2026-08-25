@@ -63,3 +63,25 @@
 .close:hover {
   color: light-dark(rgba(0, 0, 0, 0.9), rgba(255, 255, 255, 1)) !important;
 }
+
+@media screen and (max-width: 1200px) {
+  .overlay {
+    width: 70%;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .overlay {
+    width: 100%;
+    border-left: none;
+  }
+
+  .content {
+    padding: 24px 16px;
+  }
+
+  .title {
+    font-size: 32px;
+    line-height: 36px;
+  }
+}

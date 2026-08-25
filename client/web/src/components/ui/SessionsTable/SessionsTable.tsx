@@ -229,7 +229,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
                 ),
               },
             }}
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: { xs: 140, sm: 200 } }}
           />
         ))}
 

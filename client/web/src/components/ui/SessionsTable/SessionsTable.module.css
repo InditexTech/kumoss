@@ -30,6 +30,7 @@
 .filters {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 16px 0;
   border-bottom: 1px solid var(--tbl-row-rule);
@@ -89,7 +90,7 @@
 .tableWrapper {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   scrollbar-width: thin;
 }
 
@@ -171,4 +172,18 @@
 
 .clickableRow {
   cursor: pointer;
+}
+
+/* ─── Responsive ───────────────────────────── */
+
+@media screen and (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+
+  /* Crushing %-width columns below ~720px makes cells unreadable —
+     keep the table at a readable width and scroll horizontally. */
+  .table {
+    min-width: 720px;
+  }
 }

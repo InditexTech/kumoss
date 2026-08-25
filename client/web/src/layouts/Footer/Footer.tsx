@@ -7,6 +7,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { Slide, Tooltip } from "@mui/material";
 import Typography from "@mui/material/Typography";
+import { ProviderIcon } from "@/components/ui";
 import UserSessionsHistory from "./UserSessionsHistory";
 import styles from "./Footer.module.css";
 
@@ -26,7 +27,7 @@ const Footer = () => {
 
   const hasContent =
     !!session.firstQuery ||
-    //!!session.cloud ||
+    !!session.cloud ||
     !!session.project ||
     !!session.environment;
 
@@ -61,17 +62,6 @@ const Footer = () => {
             </Tooltip>
           </div>
         )}
-        {/* {session.cloud && (
-          <div className={styles.containerUnit}>
-            <Typography variant="h3">Scope</Typography>
-            <span>/</span>
-            <Tooltip title={session.cloud} arrow>
-              <Typography variant="h3" className={styles.mainMsg}>
-                {session.cloud}
-              </Typography>
-            </Tooltip>
-          </div>
-        )} */}
         {session.project && (
           <div className={styles.containerUnit}>
             <Typography variant="h3">Project</Typography>
@@ -91,6 +81,17 @@ const Footer = () => {
               <Typography variant="h3" className={styles.mainMsg}>
                 {session.environment}
               </Typography>
+            </Tooltip>
+          </div>
+        )}
+        {session.cloud && (
+          <div className={styles.containerUnitIcon}>
+            <Tooltip title={session.cloud} arrow>
+              <ProviderIcon
+                provider={session.cloud}
+                className={styles.providerBadge}
+                aria-label={session.cloud}
+              />
             </Tooltip>
           </div>
         )}
