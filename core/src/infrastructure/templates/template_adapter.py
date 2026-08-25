@@ -53,7 +53,7 @@ class TemplateAdapter(ITemplate):
         )
         t = self._get_template(self._core + "requests_filter.jinja")
 
-        if operation_type.value == OperationType.GENERATE.value:
+        if operation_type == OperationType.GENERATE:
             context = await self._compose_conventions_context(
                 resources, abbreviations, include_forbidden_actions
             )
@@ -63,8 +63,7 @@ class TemplateAdapter(ITemplate):
                 OPERATION_TYPE=operation_type.value,
             )
 
-        elif operation_type.value == OperationType.DRIFT.value:
-            forbidden_actions = (
+        elif operation_type == OperationType.DRIFT:
                 await self._fetch_guidelines("forbidden_actions")
                 if include_forbidden_actions
                 else None
