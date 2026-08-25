@@ -25,4 +25,4 @@ COPY src ./src
 
 EXPOSE 8082
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8082"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8082", "--timeout-keep-alive", "75"]
