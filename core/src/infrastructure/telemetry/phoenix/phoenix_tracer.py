@@ -5,7 +5,7 @@
 import dataclasses
 import json
 from collections.abc import Iterator
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 from uuid import UUID
 
 from opentelemetry import trace
@@ -262,17 +262,17 @@ def _output_attributes(
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if (
-        filter_md
-        and isinstance(payload, ToolResultDTO)
-        and isinstance(payload.result, dict)
-    ):
-        payload = (
-            cast(str, payload.result.get("summary"))
-            or cast(str, payload.result.get("explanation"))
-            or cast(str, payload.result.get("description"))
-            or payload
-        )
+    if filter_md and isinstance(payload, ToolResultDTO):
+        payload = payload.result
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump()
+        if isinstance(payload, dict):
+            payload = (
+                payload.get("summary")
+                or payload.get("explanation")
+                or payload.get("description")
+                or payload
+            )
     value, mime_type = _serialize(payload)
     yield SpanAttributes.OUTPUT_VALUE, value
     yield SpanAttributes.OUTPUT_MIME_TYPE, mime_type

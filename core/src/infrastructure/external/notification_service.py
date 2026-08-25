@@ -44,10 +44,10 @@ from src.shared.logger import logging
 
 
 class NotificationServiceClient:
-    """Call the notifications microservice via the generated HTTP client."""
+    """Stateless static client for the notifications microservice."""
 
+    @staticmethod
     async def notify(
-        self,
         *,
         kind: str,
         severity: NotificationRequestSeverity,
@@ -87,8 +87,9 @@ class NotificationServiceClient:
         except Exception as e:
             logging.warning(f"Failed to send '{kind}' notification ({subject}): {e}")
 
-    async def notify_compliance_failure(self, session_id: UUID, summary: str) -> None:
-        await self.notify(
+    @staticmethod
+    async def notify_compliance_failure(session_id: UUID, summary: str) -> None:
+        await NotificationServiceClient.notify(
             kind="iac.compliance.check_failed",
             severity=NotificationRequestSeverity.ERROR,
             subject=f"Compliance check failed – session {session_id}",

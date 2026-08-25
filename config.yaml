@@ -31,6 +31,55 @@ oidc:
 admin:
   default_root_email: ""
 
+# Microservice wiring. `endpoint` is the base URL the core calls.
+# `token_env` is the name of the env var that holds the bearer token
+# the core sends on every request. `timeout` is the per-request HTTP
+# budget in seconds — every call returns promptly (long work runs as
+# asynchronous jobs the core polls), so it only needs to cover one
+# request/response round trip. Any enabled service whose token_env
+# resolves to an empty value will refuse the core's boot — flip
+# `enabled: false` to skip a service entirely.
+services:
+  notifications:
+    enabled: true
+    endpoint: "http://notifications:8080"
+    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
+    timeout: 30.0
+  mapping:
+    enabled: true
+    endpoint: "http://mapping:8081"
+    token_env: "NEBULA_MAPPING_TOKEN"
+    timeout: 30.0
+  authz:
+    enabled: false
+    endpoint: "http://authz:8083"
+    token_env: "NEBULA_AUTHZ_TOKEN"
+    timeout: 30.0
+  iac:
+    enabled: true
+    endpoint: "http://iac:8082"
+    token_env: "NEBULA_IAC_TOKEN"
+    timeout: 30.0
+    job_poll_interval: 5.0
+    job_timeout: 3600.0
+
+# Iteration limits and batch sizes for the core's orchestration loops.
+# Raise carefully — these bound runaway-loop costs.
+#
+# enable_compliance_checker: When enabled, critical agent chains
+# include a check_compliance tool that validates output
+# against curated rules before allowing completion.
+#
+# max_drift_reports: TODO
+orchestration:
+  enable_compliance_checker: true
+  max_drift_reports: 3
+  max_validation_iteration: 5
+  max_tool_chain_executions: 70
+  max_session_events_iteration: 2160
+  drift_group_operations: 8
+  pull_request_readiness_seconds: 10
+
 # LLM model selection — powered by LiteLLM Router.
 #
 # `model` and `small_model` pick which model_list entry is used for each
@@ -109,54 +158,6 @@ llm:
     #     model: "ollama/llama3.2"
     #     api_base: "os.environ/OLLAMA_API_BASE"
 
-# Microservice wiring. `endpoint` is the base URL the core calls.
-# `token_env` is the name of the env var that holds the bearer token
-# the core sends on every request. `timeout` is the per-request HTTP
-# budget in seconds — every call returns promptly (long work runs as
-# asynchronous jobs the core polls), so it only needs to cover one
-# request/response round trip. Any enabled service whose token_env
-# resolves to an empty value will refuse the core's boot — flip
-# `enabled: false` to skip a service entirely.
-services:
-  notifications:
-    enabled: true
-    endpoint: "http://notifications:8080"
-    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
-    timeout: 30.0
-  mapping:
-    enabled: true
-    endpoint: "http://mapping:8081"
-    token_env: "NEBULA_MAPPING_TOKEN"
-    timeout: 30.0
-  authz:
-    enabled: false
-    endpoint: "http://authz:8083"
-    token_env: "NEBULA_AUTHZ_TOKEN"
-    timeout: 30.0
-  iac:
-    enabled: true
-    endpoint: "http://iac:8082"
-    token_env: "NEBULA_IAC_TOKEN"
-    timeout: 30.0
-    job_poll_interval: 5.0
-    job_timeout: 3600.0
-
-# Iteration limits and batch sizes for the core's orchestration loops.
-# Raise carefully — these bound runaway-loop costs.
-#
-# enable_compliance_checker: When enabled, critical agent chains
-# include a check_compliance tool that validates output
-# against curated rules before allowing completion.
-#
-# max_drift_reports: TODO
-orchestration:
-  enable_compliance_checker: false  
-  max_drift_reports: 3
-  max_validation_iteration: 5
-  max_tool_chain_executions: 70
-  max_session_events_iteration: 2160
-  drift_group_operations: 8
-  pull_request_readiness_seconds: 10
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the

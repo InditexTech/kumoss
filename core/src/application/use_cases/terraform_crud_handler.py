@@ -138,7 +138,7 @@ class TerraformCRUDHandler:
                             message="Error updating DB session lock.",
                             error_code=500,
                         )
-                    await NotificationServiceClient().notify_compliance_failure(
+                    await NotificationServiceClient.notify_compliance_failure(
                         session_id=ctx.id,
                         summary=check.summary,
                     )

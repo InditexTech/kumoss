@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from typing import Callable
 
 from src.domains.entities import History, SessionContext
+from src.domains.exceptions import ValidationLoopExceededError
 from src.domains.interfaces import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import ArtifactStorageService, SessionService
-from src.domains.services.compliance_check_service import ComplianceCheckService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -38,7 +38,6 @@ class TerraformValidationService:
         llm_service: LLMOrchestrationService,
         tool_orchestration_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
-        compliance_service: ComplianceCheckService,
     ):
         self.__git = git
         self.__files = files
@@ -47,8 +46,6 @@ class TerraformValidationService:
         self.__llm_svc = llm_service
         self.__tool_orchestration = tool_orchestration_service
         self.__artifact_svc = artifact_service
-        self.__compliance_svc = compliance_service
-        self.__count: int = 0
 
     async def __upload_changed_files(self, ctx: SessionContext) -> None:
         async def __upload(name: str, content: str, **metadata: str) -> None:
@@ -100,13 +97,9 @@ class TerraformValidationService:
         first_q = q
         validation = TerraformValidationDTO.empty()
         local_history = ctx.history.deepcopy()
-        while (
-            not validation.validation
-            and self.__count < system_config.orchestration.max_validation_iteration
-        ):
-            self.__count += 1
+        for i in range(system_config.orchestration.max_validation_iteration):
             logging.debug(
-                f"Validation service {self.__count}/{system_config.orchestration.max_validation_iteration}"
+                f"Validation service {i}/{system_config.orchestration.max_validation_iteration}"
             )
             _ = await self.__session_svc.update_status(
                 msg=q,
@@ -138,18 +131,6 @@ class TerraformValidationService:
 
             local_history.append_turn(q, task_complete.result.get("summary"))
 
-            check = await self.__compliance_svc.check(
-                history=local_history,
-                conventions=conventions,
-                checked_agent=PromptsLibrary.IAC_GENERATOR,
-            )
-            if not check.passed:
-                q = (
-                    f"The compliance check failed:\n{check.model_dump()}\n\n"
-                    "Fix the violations in the generated Terraform files."
-                )
-                continue
-
             await self.__upload_changed_files(ctx)
             await self.__git.commit_and_push(ctx.branch_name)
 
@@ -169,7 +150,14 @@ class TerraformValidationService:
                     content_type=ContentType.TEXT,
                 )
 
+            if validation.validation:
+                ctx.history.append_turn(
+                    first_q, local_history.get_last_turn().assistant
+                )
+                return validation
             q = validation.feedback
 
-        ctx.history.append_turn(first_q, local_history.get_last_turn().assistant)
-        return validation
+        raise ValidationLoopExceededError(
+            message="Validation loop exceeded.",
+            error_code=422,
+        )
