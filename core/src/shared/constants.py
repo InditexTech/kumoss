@@ -64,7 +64,6 @@ class PromptsLibrary(Enum):
     STATUS_UPDATE = "status_update"
 
 
-
 @unique
 class ToolContext(Enum):
     """Defines different contexts where tools can be used"""
@@ -101,6 +100,14 @@ class ObjectStorageProvider(Enum):
 
 
 @unique
+class ContentType(Enum):
+    """Defines all possible content types for artifact upload"""
+
+    TEXT = "text/plain"
+    JSON = "application/json"
+
+
+@unique
 class TracerProject(Enum):
     """Defines all possible tracer projects.
     Note: a project in Phoenix is defined as a group of traces
@@ -115,11 +122,3 @@ class TracerProject(Enum):
     PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
     PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
     PRO_TERRAFORM_IMPORT = "pro-terraform-import"
-
-
-@unique
-class ContentType(Enum):
-    """Defines all possible content types for artifact upload"""
-
-    TEXT = "text/plain"
-    JSON = "application/json"

@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import ToolDefinitionDTO, ToolResultDTO, ComplianceCheckReport
+from src.domains.dto import ToolResultDTO, ComplianceCheckReport
+from src.domains.entities import History
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -23,25 +24,21 @@ class ComplianceCheckService:
 
     async def check(
         self,
-        rules: str,
+        history: History,
     ) -> ComplianceCheckReport:
         if not system_config.orchestration.enable_compliance_checker:
             return ComplianceCheckReport.empty()
 
-        tools: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=[ToolContext.WORKSPACE_INSPECTION]
-        )
-        sentinel = self.__tool_svc.get_sentinel_tool(ToolContext.COMPLIANCE_CHECK)
-
-        prompt = await self.__template_svc.render(
-            PromptsLibrary.COMPLIANCE_CHECKER, **({"rules": rules} if rules else {})
-        )
-
         result: ToolResultDTO = await self.__llm_svc.generate(
             query="TODO",
-            tools=tools,
-            sentinel_tool=sentinel,
-            prompt=prompt,
+            tools=self.__tool_svc.get_available_tools(
+                contexts=[ToolContext.WORKSPACE_INSPECTION]
+            ),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                ToolContext.COMPLIANCE_CHECK
+            ),
+            prompt=await self.__template_svc.render(PromptsLibrary.COMPLIANCE_CHECKER),
+            history=history,
         )
 
         return result.result

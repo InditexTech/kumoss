@@ -340,9 +340,15 @@ class ToolRegistryStatic(IToolRegistry):
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]
     ) -> ComplianceCheckReport:
-        return ComplianceCheckReport(
-            passed=parameters["passed"],
-            violations=parameters["violations"],
-            summary=parameters["summary"],
-            checked_rules=parameters["checked_rules"],
-        )
+        try:
+            return ComplianceCheckReport(
+                passed=parameters["passed"],
+                violations=parameters["violations"],
+                summary=parameters["summary"],
+                checked_rules=parameters["checked_rules"],
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )

@@ -9,7 +9,7 @@ from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import ComplianceCheckReport, TerraformValidationDTO
+from src.domains.dto import TerraformValidationDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
@@ -21,6 +21,7 @@ from src.domains.services import (
     TerraformTargetService,
 )
 from src.domains.services.database_service import DatabaseService
+from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.constants import (
     PromptsLibrary,
     ReportType,
@@ -120,16 +121,22 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
-                _ = await self.__report_svc.generate_report(
+                report = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.GENERATE,
                     content=validation.terraform_plan,
                 )
-                compliance: ComplianceCheckReport = await self.__compliance_svc.check()
-                if not compliance.passed:
+                check = await self.__compliance_svc.check(
+                    ctx.history, conventions, report
+                )
+                if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):
                         # raise SetLockError()
                         raise RuntimeError()
+                    await NotificationServiceClient().notify_compliance_failure(
+                        session_id=ctx.id,
+                        summary=check.summary,
+                    )
             finally:
                 await self.__session_svc.save()
 

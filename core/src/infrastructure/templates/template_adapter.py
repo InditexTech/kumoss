@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, final, override
+from typing import final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
@@ -143,12 +143,28 @@ class TemplateAdapter(ITemplate):
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 
+    @override
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+        rules: str,
+    ) -> str:
+        conventions = await self._compose_conventions_context(
+            resources, abbreviations, True
+        )
+        t = self._get_template(self._core + "compliance_checker.jinja")
+        return t.render(
+            GENERAL_RULES=conventions,
+            PROVIDER_RULES=rules,
+        )
+
     async def _compose_conventions_context(
         self,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | None]:
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
             if abbreviations
@@ -178,20 +194,6 @@ class TemplateAdapter(ITemplate):
             "CONCRETE_IMPLEMENTATION": "\n".join(concrete_implementations),
             "CWD": self._cwd,
         }
-
-    @override
-    async def render_compliance_checker(self, rules: str | None = None) -> str:
-        general_rules = await remote_fetcher.fetch(
-            prompt_name="terraform", scope="general",
-            type="guidelines", tag=system_config.environment,
-        )
-        if rules is None:
-            resource_creation = await self._fetch_guidelines("resource_creation")
-            networking = await self._fetch_guidelines("networking")
-            permissions = await self._fetch_guidelines("permissions")
-            rules = "\n\n".join([resource_creation, networking, permissions])
-        t = self._get_template(self._core + "compliance_checker.jinja")
-        return t.render(GENERAL_RULES=general_rules, RULES=rules)
 
     async def _fetch_guidelines(self, name: str) -> str:
         return await remote_fetcher.fetch(
