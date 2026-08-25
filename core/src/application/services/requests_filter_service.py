@@ -6,6 +6,7 @@ from typing import cast
 
 from src.domains.dto import ToolResultDTO
 from src.domains.entities.history import History
+from src.domains.entities.session import SessionContext
 from src.domains.services import SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
@@ -21,15 +22,18 @@ class RequestsFilterService:
         tool_service: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
         session_service: SessionService,
+        session_ctx: SessionContext,
     ):
         self.__llm_svc = second_llm_service
         self.__tool_svc = tool_service
         self.__template_svc = template_service
         self.__session_svc = session_service
+        self.__ctx = session_ctx
 
     async def filter(
         self, q: str, history: History, conventions: Conventions
     ) -> tuple[bool, str]:
+        assert self.__ctx is not None
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
             tools=self.__tool_svc.get_available_tools(
@@ -43,6 +47,7 @@ class RequestsFilterService:
                 resources=conventions.templates,
                 abbreviations=conventions.abbreviations,
                 include_forbidden_actions=True,
+                operation_type=self.__ctx.operation,
             ),
             history=history,
         )

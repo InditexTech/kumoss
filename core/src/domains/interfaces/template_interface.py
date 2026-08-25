@@ -50,6 +50,7 @@ class ITemplate(ABC):
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
+        operation_type: OperationType,
     ) -> str:
         pass
 

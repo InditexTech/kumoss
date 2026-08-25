@@ -241,12 +241,14 @@ class ApplicationFactory:
     def _get_requests_filter_service(
         self,
         session_service: SessionService,
+        session_ctx: SessionContext,
         second_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         template_service: TemplateOrchestrationService,
     ):
         return RequestsFilterService(
             session_service=session_service,
+            session_ctx=session_ctx,
             second_llm_service=second_llm_service,
             tool_service=tool_service,
             template_service=template_service,
@@ -326,6 +328,7 @@ class ApplicationFactory:
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
+            session_ctx=self.__ctx,
             second_llm_service=llm_svc,
             tool_service=tool_svc,
             template_service=template_svc,
@@ -375,6 +378,7 @@ class ApplicationFactory:
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
+            session_ctx=self.__ctx,
             second_llm_service=llm_svc,
             tool_service=tool_svc,
             template_service=template_svc,
