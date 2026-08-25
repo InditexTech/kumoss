@@ -10,6 +10,7 @@ from src.domains.entities import History, SessionContext
 from src.domains.interfaces import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import ArtifactStorageService, SessionService
+from src.domains.services.compliance_check_service import ComplianceCheckService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -37,6 +38,7 @@ class TerraformValidationService:
         llm_service: LLMOrchestrationService,
         tool_orchestration_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
+        compliance_service: ComplianceCheckService | None = None,
     ):
         self.__git = git
         self.__files = files
@@ -45,6 +47,7 @@ class TerraformValidationService:
         self.__llm_svc = llm_service
         self.__tool_orchestration = tool_orchestration_service
         self.__artifact_svc = artifact_service
+        self.__compliance_svc = compliance_service
         self.__count: int = 0
 
     async def __upload_changed_files(self, ctx: SessionContext) -> None:
@@ -79,10 +82,16 @@ class TerraformValidationService:
                 continue
             await __upload(name, content, new_file="true")
 
-    def __tool_contexts(self, contexts: list[ToolContext]) -> list[ToolContext]:
-        if system_config.compliance.enabled:
-            contexts.append(ToolContext.INLINE_COMPLIANCE)
-        return contexts
+    async def __run_compliance(self, ctx: SessionContext):
+        if not self.__compliance_svc or not system_config.compliance.enabled:
+            return None
+        logging.info(f"Running compliance check (session {ctx.id})")
+        report = await self.__compliance_svc.check()
+        if report.passed:
+            logging.info(f"Compliance passed (session {ctx.id})")
+        else:
+            logging.warning(f"Compliance failed (session {ctx.id}): {report.summary}")
+        return report
 
     async def generate_and_validate(
         self,
@@ -120,11 +129,11 @@ class TerraformValidationService:
             task_complete: ToolResultDTO = await self.__llm_svc.generate(
                 query=q,
                 tools=self.__tool_orchestration.get_available_tools(
-                    contexts=self.__tool_contexts([
+                    contexts=[
                         ToolContext.EXTERNAL_INFORMATION,
                         ToolContext.FILE_OPERATIONS,
                         ToolContext.WORKSPACE_INSPECTION,
-                    ])
+                    ]
                 ),
                 sentinel_tool=self.__tool_orchestration.get_sentinel_tool(
                     context=ToolContext.GENERAL_TASK_COMPLETION,
@@ -139,6 +148,14 @@ class TerraformValidationService:
             )
 
             local_history.append_turn(q, task_complete.result.get("summary"))
+
+            compliance_report = await self.__run_compliance(ctx)
+            if compliance_report and not compliance_report.passed:
+                q = (
+                    f"The compliance check failed:\n{compliance_report.summary}\n\n"
+                    "Fix the violations in the generated Terraform files."
+                )
+                continue
 
             await self.__upload_changed_files(ctx)
             await self.__git.commit_and_push(ctx.branch_name)

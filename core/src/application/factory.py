@@ -217,6 +217,7 @@ class ApplicationFactory:
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
+        compliance_service: ComplianceCheckService | None = None,
     ) -> TerraformValidationService:
         return TerraformValidationService(
             git=git_utils,
@@ -226,6 +227,7 @@ class ApplicationFactory:
             llm_service=main_llm_service,
             tool_orchestration_service=tool_service,
             artifact_service=artifact_service,
+            compliance_service=compliance_service,
         )
 
     # --- Providers for Application Building Blocks ---
@@ -306,40 +308,37 @@ class ApplicationFactory:
             tool_service=tool_svc,
         )
 
-    def _wire_compliance(
+    def _get_compliance_service(
         self,
-        tool_registry: ToolRegistryWorkspace,
         tool_svc: ToolOrchestrationService,
         llm_svc: LLMOrchestrationService,
         template_svc: TemplateOrchestrationService,
-    ) -> None:
+    ) -> ComplianceCheckService | None:
         if not system_config.compliance.enabled:
-            return
-        compliance_svc = ComplianceCheckService(
+            return None
+        return ComplianceCheckService(
             tool_service=tool_svc,
             llm_service=llm_svc,
             template_service=template_svc,
         )
-        tool_registry.set_compliance_checker(compliance_svc)
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
         file_utils = self._get_file_utils()
         artifact_svc = self._get_artifact_storage_service()
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
-        tool_registry = self._get_tool_registry_workspace(file_utils, git_utils)
-        tool_svc = ToolOrchestrationService(tool_registry=tool_registry)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
-        self._wire_compliance(tool_registry, tool_svc, llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils.project_root)
+        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -348,6 +347,7 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
+            compliance_service=compliance_svc,
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
@@ -377,14 +377,12 @@ class ApplicationFactory:
         file_utils = self._get_file_utils()
         artifact_svc = self._get_artifact_storage_service()
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
-        tool_registry = self._get_tool_registry_workspace(file_utils, git_utils)
-        tool_svc = ToolOrchestrationService(tool_registry=tool_registry)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
         session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
-        self._wire_compliance(tool_registry, tool_svc, llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc

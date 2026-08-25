@@ -115,6 +115,7 @@ class TerraformCRUDHandler:
                         message=fail_msg,
                         error_code=500,
                     )
+
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.GENERATE,

@@ -4,11 +4,8 @@
 
 from typing import Any, Callable, override
 
-from src.domains.dto import ComplianceCheckReport, ComplianceContextDTO
 from src.domains.interfaces import IFileSystem, IGit, ILLMProvider
-from src.infrastructure.exceptions import ToolInferenceParamsError
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
-from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -24,33 +21,20 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         self.__filesystem = filesystem
         self.__git = git
         self.__llm = llm
-        self.__compliance_checker = None
-        self.__compliance_passed = False
-        self.__compliance_check_count = 0
-        self.__chain_history = None
         super().__init__(llm)
-
-    def set_compliance_checker(self, checker) -> None:
-        self.__compliance_checker = checker
-
-    def set_chain_history(self, history) -> None:
-        self.__chain_history = history
 
     @override
     def _tool_files(self) -> dict[str, ToolContext]:
         return {
             "file_manipulation.json": ToolContext.FILE_OPERATIONS,
             "workspace_inspection.json": ToolContext.WORKSPACE_INSPECTION,
-            "inline_compliance.json": ToolContext.INLINE_COMPLIANCE,
             **super()._tool_files(),
         }
 
     @override
     def _handlers(self) -> dict[str, Callable[[dict[str, Any]], Any]]:
-        base = super()._handlers()
-        base["task_complete"] = self.__handle_task_completion_gated
         return {
-            **base,
+            **super()._handlers(),
             # File operations
             "write_to_file": self.__handle_write_file,
             "replace_in_file": self.__handle_replace_file,
@@ -60,8 +44,6 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "list_dir": self.__handle_list_dir,
             "bulk_grep_search": self.__handle_grep_search,
             "diff_history": self.__handle_diff_history,
-            # Compliance
-            "check_compliance": self.__handle_check_compliance,
         }
 
     # Tool handlers
@@ -132,55 +114,3 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         result += "\nUntracked changes:\n" + "\n".join(untracked_files)
         return result
 
-    def __handle_task_completion_gated(
-        self, parameters: dict[str, Any]
-    ) -> dict[str, str]:
-        if (
-            self.__compliance_checker is not None
-            and system_config.compliance.enabled
-            and not self.__compliance_passed
-        ):
-            raise ToolInferenceParamsError(
-                message="Cannot complete: compliance check has not passed. "
-                "Call check_compliance first and resolve all violations.",
-                error_code=400,
-            )
-        status = parameters["status"]
-        summary = parameters["summary"]
-        return {"status": status, "summary": summary}
-
-    async def __handle_check_compliance(
-        self, parameters: dict[str, Any]
-    ) -> dict[str, Any]:
-        if self.__compliance_checker is None:
-            return ComplianceCheckReport(
-                passed=True,
-                violations=[],
-                summary="Compliance checker not configured",
-                checked_rules=[],
-            ).model_dump()
-
-        self.__compliance_check_count += 1
-        if self.__compliance_check_count > system_config.compliance.max_retries:
-            if system_config.compliance.auto_pass_on_max_retries:
-                logging.warning("Compliance check max retries exceeded, auto-passing")
-                self.__compliance_passed = True
-                return ComplianceCheckReport(
-                    passed=True,
-                    violations=[],
-                    summary="Max compliance retries exceeded, auto-passed.",
-                    checked_rules=[],
-                ).model_dump()
-            logging.warning("Compliance check max retries exceeded, blocking")
-            return ComplianceCheckReport(
-                passed=False,
-                violations=[],
-                summary="Max compliance retries exceeded.",
-                checked_rules=[],
-            ).model_dump()
-
-        history = self.__chain_history.serialize() if self.__chain_history else None
-        context = ComplianceContextDTO(history=history) if history else None
-        report = await self.__compliance_checker.check(context=context)
-        self.__compliance_passed = report.passed
-        return report.model_dump()

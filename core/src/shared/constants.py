@@ -80,7 +80,6 @@ class ToolContext(Enum):
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
     COMPLIANCE_CHECK = "compliance_check"
-    INLINE_COMPLIANCE = "inline_compliance"
 
 
 @unique
