@@ -17,6 +17,7 @@ from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
+    SessionRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
@@ -43,11 +44,15 @@ _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest, operation: OperationType = None
+    request: BaseIacRequest | SessionRequest, operation: OperationType = None
 ) -> SessionContext:
-    """Validate URI (first call) and resolve to a SessionContext entity."""
+    """Validate URI (first call) and resolve to a SessionContext entity.
+
+    Session-only requests (e.g. apply) carry no ``repo_uri``: URI
+    validation applies only to request models that define the field.
+    """
     try:
-        if request.repo_uri is not None:
+        if isinstance(request, BaseIacRequest) and request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
         return await _orchestration.resolve(request, operation)
     except ExceptionHandler as e:
@@ -155,6 +160,9 @@ async def drift_detection_remediation(
     path="/apply",
     status_code=202,
     summary="Start an apply session for prepared infrastructure changes.",
+    responses={
+        409: {"description": "Session is blocked by a failed compliance check."},
+    },
 )
 async def apply_infrastructure(
     background_tasks: BackgroundTasks, request: ApplyRequest
@@ -163,6 +171,11 @@ async def apply_infrastructure(
     Returns a session ID for tracking the background process.
     """
     ctx = await _resolve_or_raise(request)
+    if await DatabaseService.is_session_blocked(ctx.id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Session {ctx.id} is blocked by a failed compliance check; apply is not allowed.",
+        )
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()

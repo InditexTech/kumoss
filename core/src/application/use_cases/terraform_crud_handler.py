@@ -141,6 +141,11 @@ class TerraformCRUDHandler:
                         session_id=ctx.id,
                         summary=check.summary,
                     )
+                elif not await DatabaseService.set_lock(ctx.id, False):
+                    raise SetLockError(
+                        message="Error updating DB session lock.",
+                        error_code=500,
+                    )
             finally:
                 await self.__session_svc.save()
 
