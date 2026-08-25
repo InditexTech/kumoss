@@ -8,12 +8,7 @@ from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
-from src.shared.constants import (
-    OperationType,
-    PromptsLibrary,
-    ReportType,
-    TerraformProvider,
-)
+from src.shared.constants import OperationType, ReportType, TerraformProvider
 
 
 @final
@@ -153,19 +148,16 @@ class TemplateAdapter(ITemplate):
         self,
         resources: list[str],
         abbreviations: list[str],
-        checked_agent: PromptsLibrary,
     ) -> str:
         context = await self._compose_conventions_context(
             resources, abbreviations, True
         )
-        context["CHECKED_AGENT"] = checked_agent.value
-        if checked_agent is PromptsLibrary.REPORT_GENERATOR:
-            context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
-                prompt_name="report",
-                scope="general",
-                type="compliance",
-                tag=system_config.environment,
-            )
+        context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
+            prompt_name="report",
+            scope="general",
+            type="compliance",
+            tag=system_config.environment,
+        )
         t = self._get_template(self._core + "compliance_checker.jinja")
         return t.render(**context)
 

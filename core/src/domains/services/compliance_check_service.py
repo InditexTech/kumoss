@@ -27,18 +27,16 @@ class ComplianceCheckService:
         self,
         history: History,
         conventions: Conventions,
-        checked_agent: PromptsLibrary,
-        report: Reports | None = None,
+        report: Reports,
     ) -> ComplianceCheckReport:
         if not system_config.orchestration.enable_compliance_checker:
             return ComplianceCheckReport.empty()
 
         query = (
-            f"Audit the work of the `{checked_agent.value}` agent in this "
-            "conversation and report your findings via `report_compliance_findings`."
+            "Audit the generated report below and report your findings via "
+            "`report_compliance_findings`.\n\n"
+            f"The generated report to audit:\n{report.model_dump_json()}"
         )
-        if report is not None:
-            query += f"\n\nThe generated report to audit:\n{report.model_dump_json()}"
 
         result: ToolResultDTO = await self.__llm_svc.generate(
             query=query,
@@ -52,7 +50,6 @@ class ComplianceCheckService:
                 PromptsLibrary.COMPLIANCE_CHECKER,
                 resources=conventions.templates,
                 abbreviations=conventions.abbreviations,
-                checked_agent=checked_agent,
             ),
             history=history,
         )

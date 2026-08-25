@@ -216,7 +216,6 @@ class ApplicationFactory:
         main_llm_service: LLMOrchestrationService,
         tool_service: ToolOrchestrationService,
         artifact_service: ArtifactStorageService,
-        compliance_service: ComplianceCheckService,
     ) -> TerraformValidationService:
         return TerraformValidationService(
             git=git_utils,
@@ -226,7 +225,6 @@ class ApplicationFactory:
             llm_service=main_llm_service,
             tool_orchestration_service=tool_service,
             artifact_service=artifact_service,
-            compliance_service=compliance_service,
         )
 
     # --- Providers for Application Building Blocks ---
@@ -344,7 +342,6 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
-            compliance_service=compliance_svc,
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
@@ -396,7 +393,6 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
-            compliance_service=compliance_svc,
         )
         filter_svc = self._get_requests_filter_service(
             session_service=session_svc,
@@ -449,7 +445,6 @@ class ApplicationFactory:
             main_llm_service=llm_svc,
             tool_service=tool_svc,
             artifact_service=artifact_svc,
-            compliance_service=compliance_svc,
         )
         return TerraformApplyHandler(
             terraform_service=terraform_svc,

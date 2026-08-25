@@ -129,7 +129,6 @@ class TerraformCRUDHandler:
                 check = await self.__compliance_svc.check(
                     history=ctx.history,
                     conventions=conventions,
-                    checked_agent=PromptsLibrary.REPORT_GENERATOR,
                     report=report,
                 )
                 if not check.passed:

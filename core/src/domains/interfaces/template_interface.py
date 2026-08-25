@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.shared.constants import OperationType, PromptsLibrary, ReportType
+from src.shared.constants import OperationType, ReportType
 
 
 class ITemplate(ABC):
@@ -78,6 +78,5 @@ class ITemplate(ABC):
         self,
         resources: list[str],
         abbreviations: list[str],
-        checked_agent: PromptsLibrary,
     ) -> str:
         pass
