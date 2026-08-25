@@ -7,11 +7,11 @@
       "properties": {
         "passed": {
           "type": "boolean",
-          "description": "true if all compliance rules are satisfied, false if any violation was found."
+          "description": "true if no error or critical violations were found; false otherwise."
         },
         "violations": {
           "type": "array",
-          "description": "List of compliance violations found. Empty array if passed is true.",
+          "description": "List of compliance violations found. May contain info or warning findings when passed is true.",
           "items": {
             "type": "object",
             "properties": {

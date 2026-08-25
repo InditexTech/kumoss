@@ -341,9 +341,13 @@ class ToolRegistryStatic(IToolRegistry):
         self, parameters: dict[str, Any]
     ) -> ComplianceCheckReport:
         try:
+            violations = parameters["violations"]
             return ComplianceCheckReport(
-                passed=parameters["passed"],
-                violations=parameters["violations"],
+                passed=not any(
+                    violation["severity"] in {"error", "critical"}
+                    for violation in violations
+                ),
+                violations=violations,
                 summary=parameters["summary"],
                 checked_rules=parameters["checked_rules"],
             )
