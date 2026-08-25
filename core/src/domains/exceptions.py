@@ -135,3 +135,9 @@ class ObjectStorageUnavailable(ExceptionHandler):
     """Object store unreachable or timing out (HTTP 503)."""
 
     pass
+
+
+class ValidationLoopExceededError(ExceptionHandler):
+    """Raised when the validation loop has exceeded the retries"""
+
+    pass

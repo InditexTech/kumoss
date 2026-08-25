@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, final, override
+from typing import final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
@@ -143,12 +143,30 @@ class TemplateAdapter(ITemplate):
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 
+    @override
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        context = await self._compose_conventions_context(
+            resources, abbreviations, True
+        )
+        context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
+            prompt_name="report",
+            scope="general",
+            type="compliance",
+            tag=system_config.environment,
+        )
+        t = self._get_template(self._core + "compliance_checker.jinja")
+        return t.render(**context)
+
     async def _compose_conventions_context(
         self,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | None]:
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
             if abbreviations

@@ -116,18 +116,19 @@ class LLMOrchestrationService:
         """
         assert self.__tool_svc is not None
         assert len(tools) >= 1
-        if len(tools) == 1:
-            sentinel_tool = tools[0]
-        elif len(tools) > 1:
+        local_tools = tools.copy()
+        if len(local_tools) == 1:
+            sentinel_tool = local_tools[0]
+        elif len(local_tools) > 1:
             assert isinstance(sentinel_tool, ToolDefinitionDTO)
             assert sentinel_tool is not None
-            tools.append(sentinel_tool)
+            local_tools.append(sentinel_tool)
 
         local_history = history.deepcopy() if history else History()
 
         tools_result: str | list[ToolResultDTO] = query
         total_executions = 0
-        while not self.__sentinel_executed(sentinel_tool, tools_result, tools):
+        while not self.__sentinel_executed(sentinel_tool, tools_result, local_tools):
             if (
                 total_executions
                 == system_config.orchestration.max_tool_chain_executions
@@ -139,7 +140,7 @@ class LLMOrchestrationService:
                 )
             response: LLMResponseDTO = await self.__select_model(prompt).inference(
                 msg=tools_result,
-                tools=tools,
+                tools=local_tools,
                 system_prompt=prompt.prompt,
                 history=local_history,
             )

@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Business rules a generated report must satisfy; violations block the operation.
+body: |
+  # Report Compliance Rules
+
+  Business rules the reported operation must satisfy. Each rule declares the
+  `rule_id` to use when reporting a violation and the severity it carries.
+
+  ## scope_exceeded (severity: error)
+  Every operation in the report must be traceable to the user's request,
+  either directly asked for or a necessary auxiliary change. Any operation
+  that is not is a violation.
+
+  ## scope_incomplete (severity: error)
+  Every part of the user's request must be addressed by the report. Each
+  unaddressed part is a violation.
+
+  ## critical_deletion (severity: critical)
+  A resource may only be destroyed as part of a recreate — the same resource
+  address destroyed and created again ("+/-" in Terraform). A standalone
+  delete — a resource destroyed without being recreated — is always a
+  violation, even when the user explicitly requested the deletion; user
+  intent does NOT authorize deletions.
+

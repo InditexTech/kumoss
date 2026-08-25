@@ -259,6 +259,30 @@ class TerraformApplyReport(BaseModel):
 Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
 
 
+class ComplianceViolation(BaseModel):
+    rule_id: str
+    severity: Literal["info", "warning", "error", "critical"]
+    resource: str | None = None
+    message: str
+    suggested_fix: str | None = None
+
+
+class ComplianceCheckReport(BaseModel):
+    passed: bool
+    violations: list[ComplianceViolation]
+    summary: str
+    checked_rules: list[str]
+
+    @classmethod
+    def empty(cls):
+        return cls(
+            passed=True,
+            violations=[],
+            summary="",
+            checked_rules=[],
+        )
+
+
 @dataclass
 class TerraformPlanResource:
     type: str  # tf resource type

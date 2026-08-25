@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from src.domains.interfaces import ILLMProvider, IToolRegistry
 from src.domains.dto import (
+    ComplianceCheckReport,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -51,6 +52,7 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
 
     def __load_tools(self):
@@ -89,6 +91,7 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
+            "report_compliance_findings": self._handle_compliance_findings,
             # External information
             "web_search": self.__handle_web_search,
         }
@@ -333,3 +336,23 @@ class ToolRegistryStatic(IToolRegistry):
         if not response.text:
             return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
         return response.text
+
+    def _handle_compliance_findings(
+        self, parameters: dict[str, Any]
+    ) -> ComplianceCheckReport:
+        try:
+            violations = parameters["violations"]
+            return ComplianceCheckReport(
+                passed=not any(
+                    violation["severity"] in {"error", "critical"}
+                    for violation in violations
+                ),
+                violations=violations,
+                summary=parameters["summary"],
+                checked_rules=parameters["checked_rules"],
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
