@@ -76,12 +76,12 @@ class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
 
     async def test_apply_runs_after_status_update(self):
         order: list[str] = []
-        self.session_svc.update_status.side_effect = (
-            lambda **kwargs: order.append("status") or MagicMock()
+        self.session_svc.update_status.side_effect = lambda **kwargs: (
+            order.append("status") or MagicMock()
         )
-        self.terraform_svc.apply.side_effect = lambda **kwargs: order.append(
-            "apply"
-        ) or _dto(True)
+        self.terraform_svc.apply.side_effect = lambda **kwargs: (
+            order.append("apply") or _dto(True)
+        )
 
         task = await self.handler.handle("apply it", [])
         await task()

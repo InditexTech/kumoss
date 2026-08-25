@@ -2,40 +2,35 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.infrastructure.llm._google_gemini import GoogleGemini
-from src.infrastructure.llm._anthropic_vertex import AnthropicVertex
+from functools import cache
+
+from litellm.router import Router
+
+from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.shared.config import system_config
-from src.shared.constants import LLMProvider
+
+
+# Lazily initialized singleton.
+@cache
+def _default_router() -> Router:
+    return system_config.llm.create_router()
 
 
 class LLMFactory:
     def __init__(
         self,
-        provider: LLMProvider,
+        model_id: str,
         temperature: float,
+        max_tokens: int,
     ):
-        self.__provider = provider
+        self.__model_id = model_id
         self.__temperature = temperature
-        if provider.value["provider"] in ["google", "anthropicVertex"]:
-            creds_path = system_config.llm.google_application_credentials
-            sa_secret = system_config.llm.google_sa_secret
-            if creds_path and sa_secret:
-                with open(creds_path, "w") as f:
-                    _ = f.write(sa_secret)
+        self.__max_tokens = max_tokens
 
-    def get(self):
-        match self.__provider.value["provider"]:
-            case "anthropicVertex":
-                return AnthropicVertex(
-                    model=self.__provider,
-                    api_id=system_config.llm.google_vertex_project,
-                    temperature=self.__temperature,
-                )
-            case "google":
-                return GoogleGemini(
-                    model=self.__provider,
-                    api_id=system_config.llm.google_vertex_project,
-                    temperature=self.__temperature,
-                )
-            case _:
-                raise ValueError(f"Unsupported LLM {self.__provider.value['provider']}")
+    def get(self) -> LiteLLMAdapter:
+        return LiteLLMAdapter(
+            model=self.__model_id,
+            temperature=self.__temperature,
+            max_tokens=self.__max_tokens,
+            router=_default_router(),
+        )

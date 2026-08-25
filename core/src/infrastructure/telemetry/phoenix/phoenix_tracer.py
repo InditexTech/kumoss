@@ -5,7 +5,7 @@
 import dataclasses
 import json
 from collections.abc import Iterator
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 from uuid import UUID
 
 from opentelemetry import trace
@@ -16,8 +16,6 @@ from openinference.semconv.trace import (
     MessageAttributes,
     OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
-    OpenInferenceLLMProviderValues,
-    OpenInferenceLLMSystemValues,
     SpanAttributes,
     ToolAttributes,
     ToolCallAttributes,
@@ -35,15 +33,8 @@ from src.domains.dto import (
 from src.domains.entities.history import History
 from src.domains.interfaces.tracer_interface import ITracer
 from src.infrastructure.telemetry._initializer import get_tracer
-from src.infrastructure.exceptions import (
-    TracerRootContextError,
-    ProviderOpenInferenceNotFound,
-)
-from src.shared.constants import (
-    LLMProvider,
-    OperationType,
-    TerraformProvider,
-)
+from src.infrastructure.exceptions import TracerRootContextError
+from src.shared.constants import OperationType, TerraformProvider
 
 
 class PhoenixTracer(ITracer):
@@ -162,7 +153,7 @@ class PhoenixTracer(ITracer):
     def trace_llm(
         self,
         start_time: int,
-        provider: LLMProvider,
+        model: str,
         invocation_params: Any,
         response: LLMResponseDTO,
         **kwargs: Any,
@@ -171,7 +162,7 @@ class PhoenixTracer(ITracer):
         Creates and configures a span for tracing LLM inference calls.
 
         :param start_time: Start time of the LLM call in nanoseconds since epoch
-        :param provider: The LLM provider being used (e.g., Anthropic, Google)
+        :param model: The LLM model being used (e.g., vertex_ai/claude-sonnet-4-6)
         :param invocation_params: Parameters passed to the LLM API call
         :param response: The LLM response containing text, tool calls, and metadata
         :param kwargs: Additional keyword arguments including messages, tools, and history
@@ -191,7 +182,7 @@ class PhoenixTracer(ITracer):
             *self.__metadata_attributes(),
             *_input_attributes(kwargs["msg"]),
             *_span_kind_attributes(OpenInferenceSpanKindValues.LLM),
-            *_llm_model_name_attributes(provider),
+            *_llm_model_name_attributes(model),
             *_llm_invocation_parameters_attributes(invocation_params),
             *_llm_input_messages_attributes(
                 kwargs["msg"], kwargs.get("history"), kwargs.get("system_prompt")
@@ -271,17 +262,17 @@ def _output_attributes(
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if (
-        filter_md
-        and isinstance(payload, ToolResultDTO)
-        and isinstance(payload.result, dict)
-    ):
-        payload = (
-            cast(str, payload.result.get("summary"))
-            or cast(str, payload.result.get("explanation"))
-            or cast(str, payload.result.get("description"))
-            or payload
-        )
+    if filter_md and isinstance(payload, ToolResultDTO):
+        payload = payload.result
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump()
+        if isinstance(payload, dict):
+            payload = (
+                payload.get("summary")
+                or payload.get("explanation")
+                or payload.get("description")
+                or payload
+            )
     value, mime_type = _serialize(payload)
     yield SpanAttributes.OUTPUT_VALUE, value
     yield SpanAttributes.OUTPUT_MIME_TYPE, mime_type
@@ -314,24 +305,46 @@ def _span_kind_attributes(
     yield SpanAttributes.OPENINFERENCE_SPAN_KIND, kind.value
 
 
-def _llm_model_name_attributes(provider_name: LLMProvider) -> Iterator[tuple[str, str]]:
+_LITELLM_TO_OI_PROVIDER: dict[str, str] = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "cohere": "cohere",
+    "mistral": "mistralai",
+    "vertex_ai": "google",
+    "vertex_ai_beta": "google",
+    "gemini": "google",
+    "azure": "azure",
+    "azure_ai": "azure",
+    "bedrock": "aws",
+    "sagemaker": "aws",
+    "xai": "xai",
+    "deepseek": "deepseek",
+    "groq": "groq",
+    "fireworks_ai": "fireworks",
+    "moonshot": "moonshot",
+    "cerebras": "cerebras",
+    "perplexity": "perplexity",
+    "together_ai": "together",
+}
+
+
+def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
     """
-    Maps provider name to OpenInference value and yields the OpenInference model name attribute.
+    Resolves provider from a litellm model string using litellm.get_llm_provider(),
+    mirroring the approach of openinference-instrumentation-litellm.
     """
-    if any(key in provider_name.name.lower() for key in ["opus", "sonnet", "haiku"]):
-        provider = OpenInferenceLLMProviderValues.ANTHROPIC.value
-        system = OpenInferenceLLMSystemValues.ANTHROPIC.value
-    elif "gemini" in provider_name.name.lower():
-        provider = OpenInferenceLLMProviderValues.GOOGLE.value
-        system = OpenInferenceLLMSystemValues.VERTEXAI.value
-    else:
-        raise ProviderOpenInferenceNotFound(
-            message=f"Provider {provider_name.name} couldn't be mapped to OpenInference",
-            error_code=404,
-        )
-    yield SpanAttributes.LLM_MODEL_NAME, cast(str, provider_name.value["phoenix_id"])
-    yield SpanAttributes.LLM_PROVIDER, provider
-    yield SpanAttributes.LLM_SYSTEM, system
+    import litellm
+
+    try:
+        model_name, llm_provider, *_ = litellm.get_llm_provider(model)
+    except Exception:
+        yield SpanAttributes.LLM_MODEL_NAME, model
+        return
+
+    yield SpanAttributes.LLM_MODEL_NAME, model_name
+    oi_provider = _LITELLM_TO_OI_PROVIDER.get(llm_provider)
+    if oi_provider:
+        yield SpanAttributes.LLM_PROVIDER, oi_provider
 
 
 _BULKY_INVOCATION_KEYS = {

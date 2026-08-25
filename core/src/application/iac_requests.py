@@ -2,36 +2,47 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Request models for the URI-driven, session-iterating IaC endpoints.
-
-Every request is exactly one of:
-  - first call: {repo_uri, cloud, environment, user_id, q, ...}
-  - iteration:  {session_id, user_id, q, ...}
-"""
+"""Request models for the URI-driven, session-iterating IaC endpoints."""
 
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import TerraformProvider
 
 
-class BaseIacRequest(BaseModel):
-    q: Annotated[str, Field(min_length=1, description="User query for this call.")]
+class UserRequest(BaseModel):
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
+
+
+class SessionRequest(UserRequest):
+    """Base for operations that require an existing session."""
+
     session_id: Annotated[
-        str | None,
+        UUID,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and query.",
-            pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            description="Existing session id. Required for this operation.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
+        ),
+    ]
+
+
+class BaseIacRequest(UserRequest):
+    session_id: Annotated[
+        UUID | None,
+        Field(
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and q.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
         ),
     ] = None
     repo_uri: Annotated[
         str | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id."
+            description="Repository URI (first call only). Mutually exclusive with session_id.",
+            examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
     scope_id: Annotated[
@@ -88,12 +99,29 @@ class BaseIacRequest(BaseModel):
 
 
 class GenerateRequest(BaseIacRequest):
-    pass
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Create a storage account and store the secrets in the key vault 001"
+            ],
+        ),
+    ]
 
 
 class DriftRequest(BaseIacRequest):
     is_partial: bool = False
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=["Resolve the drift in the storage account staweu1001"],
+        ),
+    ]
 
 
-class ApplyRequest(BaseIacRequest):
-    terraform_targets: list[str] = Field(default_factory=list)
+class ApplyRequest(SessionRequest):
+    pass

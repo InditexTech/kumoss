@@ -9,7 +9,6 @@ from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.services.tracer_service import trace_chain
 from src.domains.dto import (
-    ToolCallDTO,
     ToolResultDTO,
     PromptTemplateDTO,
     ToolDefinitionDTO,
@@ -42,7 +41,6 @@ class LLMOrchestrationService:
         query: str,
         prompt: PromptTemplateDTO = None,
         history: History | None = None,
-        prefill: str | None = None,
         thinking: bool = False,
     ) -> str:
         """
@@ -58,10 +56,9 @@ class LLMOrchestrationService:
                 for the LLM behavior. If None, no system prompt is used. Defaults to None.
         :param history: (History, optional): Conversation history to maintain context across
                 multiple interactions. If None, starts with empty history. Defaults to None.
-        :param prefill: (str, optional): Text to prefill the LLM's response, guiding the
-                beginning of the output. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation and reasoning process. Defaults to False.
+
 
         :return: str: The generated text response from the LLM.
 
@@ -74,7 +71,6 @@ class LLMOrchestrationService:
             msg=query,
             system_prompt=prompt.prompt if prompt else None,
             history=history,
-            prefill=prefill,
             thinking=thinking,
         )
         return response.text
@@ -107,8 +103,6 @@ class LLMOrchestrationService:
                 for the LLM behavior. If None, no system prompt is used. Defaults to None.
         :param history: (History, optional): (read only) Conversation history to maintain context across
                 multiple interactions. If None, starts with empty history. Defaults to None.
-        :param prefill: (str, optional): Text to prefill the LLM's response, guiding the
-                beginning of the output. Defaults to None.
         :param thinking: (bool, optional): Whether to enable thinking mode for the LLM,
                 which may affect response generation. Defaults to False.
 
@@ -121,17 +115,20 @@ class LLMOrchestrationService:
             - All tool executions and responses are automatically added to the conversation history
         """
         assert self.__tool_svc is not None
-        if len(tools) > 1:
+        assert len(tools) >= 1
+        local_tools = tools.copy()
+        if len(local_tools) == 1:
+            sentinel_tool = local_tools[0]
+        elif len(local_tools) > 1:
             assert isinstance(sentinel_tool, ToolDefinitionDTO)
             assert sentinel_tool is not None
-            tools.append(sentinel_tool)
+            local_tools.append(sentinel_tool)
 
         local_history = history.deepcopy() if history else History()
 
-        response = LLMResponseDTO.empty()
         tools_result: str | list[ToolResultDTO] = query
         total_executions = 0
-        while not self.__sentinel_executed(sentinel_tool, response.tool_calls, tools):
+        while not self.__sentinel_executed(sentinel_tool, tools_result, local_tools):
             if (
                 total_executions
                 == system_config.orchestration.max_tool_chain_executions
@@ -141,9 +138,9 @@ class LLMOrchestrationService:
                     + f"{system_config.orchestration.max_tool_chain_executions}",
                     error_code=500,
                 )
-            response = await self.__select_model(prompt).inference(
+            response: LLMResponseDTO = await self.__select_model(prompt).inference(
                 msg=tools_result,
-                tools=tools,
+                tools=local_tools,
                 system_prompt=prompt.prompt,
                 history=local_history,
             )
@@ -154,8 +151,6 @@ class LLMOrchestrationService:
                 )
             local_history.append_turn(tools_result, response.tool_calls)
             tools_result = await self.__tool_svc.execute_tool_calls(response.tool_calls)
-            if len(tools) == 1:  # check for single tool execution (no sentinel tool)
-                return tools_result[-1]
             if not tools_result:
                 logging.warning(f"Error inference - no tool response: {response}")
                 tools_result = "you MUST use a tool"
@@ -176,18 +171,18 @@ class LLMOrchestrationService:
 
     def __sentinel_executed(
         self,
-        sentinel_tool: ToolDefinitionDTO | None,
-        tool_calls: list[ToolCallDTO],
+        sentinel_tool: ToolDefinitionDTO,
+        tool_results: list[ToolResultDTO] | str,
         tools: list[ToolDefinitionDTO],
     ) -> bool:
-        if not sentinel_tool:
+        if isinstance(tool_results, str):
             return False
         if sentinel_tool.name not in [tool.name for tool in tools]:
             raise SentinelToolError(
                 message=f"Sentinel tool '{sentinel_tool.name}' is not included in the list of tools definitions",
                 error_code=404,
             )
-        for tool in tool_calls:
-            if tool.name == sentinel_tool.name:
+        for tool in tool_results:
+            if tool.name == sentinel_tool.name and tool.result:
                 return True
         return False

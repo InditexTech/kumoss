@@ -99,6 +99,29 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Thin, neutral-grey scrollbars everywhere. `scrollbar-color` inherits,
+   `scrollbar-width` does not — hence the universal selector. The
+   ::-webkit-* rules are a fallback for engines without the standard
+   properties (they're ignored where scrollbar-width/color apply). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.4)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.4));
+  border-radius: 3px;
+}
+
 ::selection {
   color: light-dark(var(--background-color-light), var(--background-color-dark));;
   background: light-dark(var(--text-color-light), var(--text-color-dark));;

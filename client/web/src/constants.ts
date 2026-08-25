@@ -6,6 +6,7 @@ export const NOTIFICATION_TIMEOUT_MS = 5000;
 
 export const STORAGE_KEYS = {
   THEME: "theme",
+  SESSIONS_PAGE_SIZE: "sessionsPageSize",
 } as const;
 
 export const THEME = {

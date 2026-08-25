@@ -5,7 +5,12 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from src.application.iac_requests import BaseIacRequest
+from src.application.iac_requests import (
+    BaseIacRequest,
+    DriftRequest,
+    GenerateRequest,
+    SessionRequest,
+)
 from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.shared.constants import OperationType
@@ -23,14 +28,16 @@ class SessionOrchestrationService:
         return f"Nebula/{ts}"
 
     async def resolve(
-        self, request: BaseIacRequest, operation: OperationType | None = None
+        self,
+        request: BaseIacRequest | SessionRequest,
+        operation: OperationType | None = None,
     ) -> SessionContext:
         if request.session_id is None and operation is not None:
             return await self._create(request, operation)
         return await self._load(request)
 
     async def _create(
-        self, request: BaseIacRequest, operation: OperationType
+        self, request: GenerateRequest | DriftRequest, operation: OperationType
     ) -> SessionContext:
         sid = uuid4()
         _ = await DatabaseService.create_session(
@@ -46,7 +53,7 @@ class SessionOrchestrationService:
         )
         return await DatabaseService.get_session_context(sid)
 
-    async def _load(self, request: BaseIacRequest) -> SessionContext:
+    async def _load(self, request: BaseIacRequest | SessionRequest) -> SessionContext:
         return await DatabaseService.get_session_context(request.session_id)
 
     async def acquire(self, session_id: UUID) -> None:

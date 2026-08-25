@@ -96,6 +96,7 @@ export default function ConfigurationModal({ onClose }: ConfigurationModalProps)
           <span className={styles.settingDescription}>Switch between light and dark mode</span>
         </div>
         <Select
+          name="theme"
           value={isDark ? "dark" : "light"}
           onChange={(e: SelectChangeEvent) => setIsDark(e.target.value === "dark")}
           sx={selectSx}
@@ -120,6 +121,7 @@ export default function ConfigurationModal({ onClose }: ConfigurationModalProps)
         >
           <span>
             <Select
+              name="notifications"
               value={permission === "granted" ? "enabled" : "disabled"}
               disabled={permission === "granted"}
               onChange={async (e: SelectChangeEvent) => {

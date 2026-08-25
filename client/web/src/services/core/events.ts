@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { apiFetch, ApiError } from "@/services/api";
-import { SessionPayloadResponse, normalizeHistory } from "@/types/api";
 
 const BASE = "/api/v1/events";
 const SSE_MAX_RETRIES = 3;
@@ -112,34 +111,18 @@ export function subscribeToSession(
   return connection;
 }
 
-/** GET /v1/events/get/{session_id} — Get the corresponding session related data once the session has finished */
-export async function getSessionData(
-  sessionId: string,
-): Promise<SessionPayloadResponse> {
-  const raw = await apiFetch<SessionPayloadResponse>(
-    `${BASE}/get/${encodeURIComponent(sessionId)}`,
-  );
-  // TEMPORAL FIX: normalize {user, assistant} turn pairs from backend into {role, content} entries
-  raw.full_history = normalizeHistory(raw.full_history);
-
-  // // TODO: remove — workaround for backend not including `response` in full_history
-  // if (raw.response) {
-  //   const lastEntry = raw.full_history[raw.full_history.length - 1];
-  //   if (!lastEntry || lastEntry.content !== raw.response) {
-  //     raw.full_history.push({ role: "assistant", content: raw.response });
-  //   }
-  // }
-
-  return raw;
-}
-
 export type SessionCheckResult =
   | { status: "completed" }
+  | { status: "uncompleted" }
   | { status: "failed" }
   | { status: "in_progress" }
   | { status: "not_found" };
 
-/** Check whether a session has finished without subscribing to SSE. */
+/**
+ * Check whether a session's last round has finished without subscribing
+ * to SSE. `uncompleted` is a resting terminal state (round rejected by
+ * the filter — no `completed` ever follows it).
+ */
 export async function checkSessionStatus(
   sessionId: string,
 ): Promise<SessionCheckResult> {
@@ -148,6 +131,8 @@ export async function checkSessionStatus(
       `/api/v1/sessions/${encodeURIComponent(sessionId)}`,
     );
     if (data.current_status === "completed") return { status: "completed" };
+    if (data.current_status === "uncompleted")
+      return { status: "uncompleted" };
     if (data.current_status === "failed") return { status: "failed" };
     return { status: "in_progress" };
   } catch (err) {
@@ -155,12 +140,4 @@ export async function checkSessionStatus(
       return { status: "not_found" };
     throw err;
   }
-}
-
-/** DELETE /v1/events/unsubscribe/{session_id} — Delete session data */
-export async function unsubscribeSession(sessionId: string): Promise<void> {
-  return apiFetch<void>(
-    `${BASE}/unsubscribe/${encodeURIComponent(sessionId)}`,
-    { method: "DELETE" },
-  );
 }

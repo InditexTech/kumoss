@@ -18,23 +18,30 @@
   margin-bottom: 25px;
 }
 
+/* Units size to their content (shrinkable, ellipsized) so the group as a
+   whole sits visually centered instead of spreading into uneven slices. */
 .containerUnit {
   display: flex;
   align-items: center;
   padding: 0 15px;
   justify-content: center;
-  flex: 2;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 30%;
 }
 
 .containerUnitLarge {
   composes: containerUnit;
-  flex: 4;
+  max-width: 45%;
 }
 
 .containerUnitSmall {
   composes: containerUnit;
-  flex: 1;
+  max-width: 20%;
+}
+
+.footerContainer h3 {
+  font-size: 15px;
 }
 
 .containerUnit > span {

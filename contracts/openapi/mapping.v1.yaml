@@ -29,7 +29,7 @@ info:
     `POST /v1/mapping/resolve`.
   contact:
     name: Nebula maintainers
-    url: https://github.com/inditex/app-nebulaapp
+    url: https://github.com/InditexTech/nebula
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0

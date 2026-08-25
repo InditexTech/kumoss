@@ -17,28 +17,42 @@ from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
+    SessionRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import OperationType
+from src.shared.constants import OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
-router = APIRouter(prefix="/iac", tags=["Infrastructure as Code"])
+router = APIRouter(
+    prefix="/iac",
+    tags=["Infrastructure as Code"],
+    responses={
+        400: {
+            "description": "Repository URI was rejected (unreachable or not allowed)."
+        },
+        404: {"description": "Iteration call referenced an unknown session."},
+    },
+)
 
 _workspace = WorkspaceService()
 _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest, operation: OperationType = None
+    request: BaseIacRequest | SessionRequest, operation: OperationType = None
 ) -> SessionContext:
-    """Validate URI (first call) and resolve to a SessionContext entity."""
+    """Validate URI (first call) and resolve to a SessionContext entity.
+
+    Session-only requests (e.g. apply) carry no ``repo_uri``: URI
+    validation applies only to request models that define the field.
+    """
     try:
-        if request.repo_uri is not None:
+        if isinstance(request, BaseIacRequest) and request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
         return await _orchestration.resolve(request, operation)
     except ExceptionHandler as e:
@@ -84,6 +98,9 @@ def _make_runner(
             ctx.set_call_dir(call_dir / ctx.iac_path)
             run_handler = await build_handler(ctx)
             await run_handler()
+            last = await DatabaseService.get_last_status(ctx.id)
+            if last.status is not SessionStatus.UNCOMPLETED:
+                await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
@@ -97,7 +114,11 @@ def _make_runner(
     return runner
 
 
-@router.post("/generate", status_code=202)
+@router.post(
+    path="/generate",
+    status_code=202,
+    summary="Start an IaC generation session.",
+)
 async def generate_infrastructure(
     background_tasks: BackgroundTasks, request: GenerateRequest
 ) -> dict[str, str]:
@@ -114,7 +135,11 @@ async def generate_infrastructure(
     return {"session_id": str(ctx.id)}
 
 
-@router.post("/drift", status_code=202)
+@router.post(
+    path="/drift",
+    status_code=202,
+    summary="Start a drift detection and remediation session",
+)
 async def drift_detection_remediation(
     background_tasks: BackgroundTasks, request: DriftRequest
 ) -> dict[str, str]:
@@ -131,23 +156,30 @@ async def drift_detection_remediation(
     return {"session_id": str(ctx.id)}
 
 
-@router.post("/apply", status_code=202)
+@router.post(
+    path="/apply",
+    status_code=202,
+    summary="Start an apply session for prepared infrastructure changes.",
+    responses={
+        409: {"description": "Session is blocked by a failed compliance check."},
+    },
+)
 async def apply_infrastructure(
     background_tasks: BackgroundTasks, request: ApplyRequest
 ) -> dict[str, str]:
     """Applies the infrastructure changes for a given project and environment.
     Returns a session ID for tracking the background process.
     """
-    if request.session_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Missing session ID",
-        )
     ctx = await _resolve_or_raise(request)
+    if await DatabaseService.is_session_blocked(ctx.id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Session {ctx.id} is blocked by a failed compliance check; apply is not allowed.",
+        )
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
-        return await handler.handle(request.q, request.terraform_targets)
+        return await handler.handle()
 
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}

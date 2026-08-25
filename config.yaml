@@ -31,22 +31,6 @@ oidc:
 admin:
   default_root_email: ""
 
-# LLM provider selection.
-#
-# `model` and `small_model` are LLMProvider enum names (see
-# core/src/shared/constants.py::LLMProvider). Examples: SONNET_VERTEX,
-# HAIKU_VERTEX, GEMINI_FLASH, SONNET_BEDROCK. The factory resolves
-# the name to the full provider/model/region tuple at startup.
-#
-# The core fails fast at boot if the selected providers' credentials
-# (looked up from env vars) are missing.
-llm:
-  model: "SONNET_VERTEX"
-  small_model: "HAIKU_VERTEX"
-  temperature: 0.1
-  small_model_temperature: 0.1
-  aws_region: "us-west-2"
-
 # Microservice wiring. `endpoint` is the base URL the core calls.
 # `token_env` is the name of the env var that holds the bearer token
 # the core sends on every request. `timeout` is the per-request HTTP
@@ -81,13 +65,99 @@ services:
 
 # Iteration limits and batch sizes for the core's orchestration loops.
 # Raise carefully — these bound runaway-loop costs.
+#
+# enable_compliance_checker: When enabled, critical agent chains
+# include a check_compliance tool that validates output
+# against curated rules before allowing completion.
+#
+# max_drift_reports: TODO
 orchestration:
+  enable_compliance_checker: true
   max_drift_reports: 3
   max_validation_iteration: 5
   max_tool_chain_executions: 70
   max_session_events_iteration: 2160
   drift_group_operations: 8
   pull_request_readiness_seconds: 10
+
+# LLM model selection — powered by LiteLLM Router.
+#
+# `model` and `small_model` pick which model_list entry is used for each
+# role.  `model_list` follows the LiteLLM Router format; credential
+# values use the `os.environ/VAR_NAME` syntax so secrets stay in env
+# vars — the core validates every such reference at boot.
+#
+# Refer to:
+#   - Readme # LiteLLM models and params reference
+#   or
+#   - https://models.litellm.ai/              — model IDs
+#   - https://docs.litellm.ai/docs/providers  — provider credential keys
+
+llm:
+  # Complex tasks model
+  model: "vertex_ai/claude-sonnet-4-6"
+  temperature: 0.1
+  max_output_tokens: 32000
+  # Simple tasks model
+  small_model: "vertex_ai/gemini-3.7-flash"
+  small_model_temperature: 0.1
+  small_model_max_output_tokens: 32000
+
+  model_list:
+    # Google Vertex AI
+    - model_name: "vertex_ai/claude-sonnet-4-6"
+      litellm_params:
+        model: "vertex_ai/claude-sonnet-4-6"
+        vertex_project: "os.environ/VERTEXAI_PROJECT"
+        vertex_location: "os.environ/VERTEXAI_LOCATION"
+        vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
+    - model_name: "vertex_ai/gemini-3.7-flash"
+      litellm_params:
+        model: "vertex_ai/gemini-3.7-flash"
+        vertex_project: "os.environ/VERTEXAI_PROJECT"
+        vertex_location: "os.environ/VERTEXAI_LOCATION"
+        vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
+
+    # Azure AI Foundry
+    # - model_name: "azure_ai/claude-sonnet-5"
+    #   litellm_params:
+    #     model: "azure_ai/claude-sonnet-5"
+    #     api_key: "os.environ/AZURE_AI_API_KEY"
+    #     api_base: "os.environ/AZURE_AI_API_BASE"
+    # - model_name: "azure_ai/claude-haiku-4-5"
+    #   litellm_params:
+    #     model: "azure_ai/claude-haiku-4-5"
+    #     api_key: "os.environ/AZURE_AI_API_KEY"
+    #     api_base: "os.environ/AZURE_AI_API_BASE"
+
+    # # AWS Bedrock
+    # - model_name: "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
+    #   litellm_params:
+    #     model: "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
+    #     aws_access_key_id: "os.environ/AWS_ACCESS_KEY_ID"
+    #     aws_secret_access_key: "os.environ/AWS_SECRET_ACCESS_KEY"
+    #     aws_region_name: "os.environ/AWS_REGION_NAME"
+
+    # # Google Vertex AI
+    # - model_name: "vertex_ai/claude-haiku-4-5@20251001"
+    #   litellm_params:
+    #     model: "vertex_ai/claude-haiku-4-5@20251001"
+    #     vertex_project: "os.environ/VERTEXAI_PROJECT"
+    #     vertex_location: "os.environ/VERTEXAI_LOCATION"
+    #     vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
+
+    # # OpenAI Direct
+    # - model_name: "openai/gpt-4o"
+    #   litellm_params:
+    #     model: "openai/gpt-4o"
+    #     api_key: "os.environ/OPENAI_API_KEY"
+
+    # # Local Ollama
+    # - model_name: "ollama/llama3.2"
+    #   litellm_params:
+    #     model: "ollama/llama3.2"
+    #     api_base: "os.environ/OLLAMA_API_BASE"
+
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -176,3 +246,4 @@ git:
   provider: "GITHUB"
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
+

@@ -73,6 +73,13 @@
   align-content: flex-end;
 }
 
+/* Uncompleted/rejected sessions render a chat-only history with no result
+   panel beside it. Keep it to a readable half-width column (centered by the
+   parent's align-items) instead of letting it span the full screen. */
+.chatCentered {
+  max-width: 50%;
+}
+
 /* ─── Wizard sub-view ─── */
 
 .center {
@@ -93,7 +100,7 @@
 
 .input {
   width: 100%;
-  max-width: 720px;
+  max-width: 960px;
   text-align: center;
   font-size: 29px;
   font-weight: 300;
@@ -268,6 +275,10 @@
   .leftSideChat {
     width: 100%;
     min-height: 300px;
+  }
+
+  .chatCentered {
+    max-width: 100%;
   }
 
   .resultSlider {

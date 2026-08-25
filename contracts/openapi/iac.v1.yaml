@@ -61,7 +61,7 @@ info:
     object storage, a content-addressable cache, or an upload endpoint.
   contact:
     name: Nebula maintainers
-    url: https://github.com/inditex/app-nebulaapp
+    url: https://github.com/InditexTech/nebula
   license:
     name: Apache-2.0
 

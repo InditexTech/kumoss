@@ -17,8 +17,6 @@ import {
   clearUser,
   createUserInfo,
 } from "@/services/auth";
-import { apiFetch } from "@/services/api";
-import type { UserMeResponse } from "@/types/api";
 
 interface AuthContextValue {
   user: UserInfo | null;
@@ -36,19 +34,22 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const isAuthenticated = user !== null;
   const isAdmin = user?.roles?.includes("admin") ?? false;
 
+  // Local-only login: there is no /users/me endpoint anymore, so roles
+  // stay whatever createUserInfo derives — admin UI self-gates on them.
+  // Re-enable the commented enrichment below if the endpoint returns.
   const login = useCallback(async (_email: string, _password: string) => {
     const newUser = createUserInfo(_email);
     storeUser(newUser);
     setUser(newUser);
 
-    try {
-      const me = await apiFetch<UserMeResponse>("/api/v1/users/me");
-      const enriched = createUserInfo(_email, newUser.name, me.roles);
-      storeUser(enriched);
-      setUser(enriched);
-    } catch {
-      // roles unavailable — keep user with empty roles
-    }
+    // try {
+    //   const me = await apiFetch<UserMeResponse>("/api/v1/users/me");
+    //   const enriched = createUserInfo(_email, newUser.name, me.roles);
+    //   storeUser(enriched);
+    //   setUser(enriched);
+    // } catch {
+    //   // roles unavailable — keep user with empty roles
+    // }
   }, []);
 
   const logout = useCallback(() => {

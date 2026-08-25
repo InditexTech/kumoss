@@ -1,0 +1,106 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.markdown {
+  word-break: break-word;
+  min-width: 0;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown pre,
+.markdown blockquote,
+.markdown table {
+  margin: 0 0 0.6em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown li + li {
+  margin-top: 0.2em;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-weight: 500;
+  font-size: 1.05em;
+  line-height: inherit;
+  margin: 0.9em 0 0.4em;
+}
+
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.markdown pre {
+  background: light-dark(rgba(0, 0, 0, 0.04), rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+.markdown pre code {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: 0.85em;
+}
+
+.markdown blockquote {
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: 12px;
+  color: var(--color-text-muted);
+}
+
+.markdown a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--color-border);
+  padding: 4px 10px;
+  text-align: left;
+}
+
+.markdown th {
+  font-weight: 500;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 0.8em 0;
+}

@@ -2,9 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+
+from pathlib import Path
+
 from src.domains.interfaces.terraform_interface import ITerraform
-from src.domains.services.session_service import SessionService
-from src.infrastructure.filesystem import FileSystemUtils
 from src.infrastructure.terraform import Terraform
 
 
@@ -21,14 +22,11 @@ class TerraformFactory:
 
     def __init__(
         self,
-        session_service: SessionService,
-        file_utils: FileSystemUtils,
+        project_root: Path,
     ):
-        self.__session_svc = session_service
-        self.__file_utils = file_utils
+        self.__project_root = project_root
 
     def get(self) -> ITerraform:
         return Terraform(
-            workspace_path=self.__file_utils.project_root,
-            session_service=self.__session_svc,
+            workspace_path=self.__project_root,
         )

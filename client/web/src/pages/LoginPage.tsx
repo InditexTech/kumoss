@@ -52,6 +52,8 @@ function LoginPage() {
               className={styles.field}
               label={STRINGS.login.emailLabel}
               type="email"
+              name="email"
+              autoComplete="email"
               variant="standard"
               required
               autoFocus
@@ -62,6 +64,8 @@ function LoginPage() {
               className={styles.field}
               label={STRINGS.login.passwordLabel}
               type="password"
+              name="password"
+              autoComplete="current-password"
               variant="standard"
               required
               value={password}

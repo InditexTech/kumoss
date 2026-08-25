@@ -4,7 +4,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { TerraformReport } from "./index";
-import type { HistoryEntry } from "./api";
+import type { HistoryEntry, SessionStatus } from "./api";
 
 export type StateSetter<T> = Dispatch<SetStateAction<T>>;
 
@@ -47,9 +47,11 @@ export type PipelinePhase = (typeof PHASE)[keyof typeof PHASE];
 
 export const EVENT_STATUS = {
   COMPLETED: "COMPLETED",
+  UNCOMPLETED: "UNCOMPLETED",
   FAILED: "FAILED",
   REPORT: "REPORT",
   VALIDATING: "VALIDATING",
+  APPLY: "APPLY",
 } as const;
 
 export type EventStatus = (typeof EVENT_STATUS)[keyof typeof EVENT_STATUS];
@@ -91,16 +93,15 @@ export interface Session {
   terraform_targets?: string[];
   terraform_report?: TerraformReport;
   full_history?: HistoryEntry[];
-  pipeline_url?: string;
   apply_allowed?: boolean;
+  /** Failed sessions can't be resumed server-side; gates the follow-up input. */
+  current_status?: SessionStatus;
   code?: string;
   applyResults?: ApplyResultsData;
 }
 
 export interface PrDetails {
   prUrl?: string;
-  pipelineUrl?: string;
-  applyUrl?: string;
   id?: number;
   lastPrStep?: PrApprovalStep;
 }
