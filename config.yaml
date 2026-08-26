@@ -77,7 +77,7 @@ orchestration:
   max_validation_iteration: 5
   max_tool_chain_executions: 70
   max_session_events_iteration: 2160
-  drift_group_operations: 8
+  drift_group_operations: 2
   pull_request_readiness_seconds: 10
 
 # LLM model selection — powered by LiteLLM Router.
