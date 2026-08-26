@@ -134,7 +134,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         await self._run_prompt_compositor_test(TerraformProvider.K8S)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def test_render_requests_filter(self, mock_fetch: AsyncMock):
+    async def test_render_requests_filter_generate(self, mock_fetch: AsyncMock):
         mock_fetch.side_effect = lambda prompt_name, **_: (
             f"mocked_{prompt_name}_response"
         )
@@ -143,6 +143,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
         prompt = await adapter.render_requests_filter(
+            operation_type=OperationType.GENERATE,
             resources=["storage_account"],
             abbreviations=["sta-"],
             include_forbidden_actions=True,
@@ -151,9 +152,81 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(prompt, str)
         self.assertIn("mocked_requests_response", prompt)
         self.assertIn("mocked_storage_account_response", prompt)
+        self.assertIn("mocked_terraform_response", prompt)
+        self.assertIn("mocked_forbidden_actions_response", prompt)
         self.assertIn("Missing parameters NEVER block a creation request", prompt)
         self.assertIn("When in doubt about parameters, accept", prompt)
+        self.assertIn(
+            "drift detection and remediation are available through the drift operation",
+            prompt,
+        )
+        self.assertNotIn("DRIFT REQUEST", prompt)
+        self.assertNotIn("full-workspace drift run", prompt)
+        self.assertIn("requests_filter", prompt)
         self.assertNotIn("lacks information required to act", prompt)
+        self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_requests_filter_drift(self, mock_fetch: AsyncMock):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_requests_filter(
+            operation_type=OperationType.DRIFT,
+            resources=["storage_account"],
+            abbreviations=["sta-"],
+            include_forbidden_actions=True,
+        )
+
+        self.assertIsInstance(prompt, str)
+        # Phoenix guidelines and sentinel mandate present
+        self.assertIn("mocked_requests_response", prompt)
+        self.assertIn("requests_filter", prompt)
+        # Forbidden actions, naming conventions and template names present
+        self.assertIn("mocked_forbidden_actions_response", prompt)
+        self.assertIn("sta-", prompt)
+        self.assertIn("storage_account", prompt)
+        # No generation rulebook fetches rendered
+        self.assertNotIn("mocked_terraform_response", prompt)
+        self.assertNotIn("mocked_resource_creation_response", prompt)
+        self.assertNotIn("mocked_networking_response", prompt)
+        self.assertNotIn("mocked_permissions_response", prompt)
+        # No resource template bodies (name-only)
+        self.assertNotIn("mocked_storage_account_response", prompt)
+        # Drift category A present, generate category A absent
+        self.assertIn("DRIFT REQUEST", prompt)
+        self.assertIn("resolve the drift", prompt)
+        self.assertIn(
+            "infrastructure changes are available through the generation operation",
+            prompt,
+        )
+        self.assertNotIn("Missing parameters NEVER block a creation request", prompt)
+        self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_requests_filter_drift_no_generation_fetches(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        await adapter.render_requests_filter(
+            operation_type=OperationType.DRIFT,
+            resources=["storage_account"],
+            abbreviations=["sta-"],
+            include_forbidden_actions=True,
+        )
+
+        fetched = {call.kwargs["prompt_name"] for call in mock_fetch.call_args_list}
+        self.assertEqual(fetched, {"requests", "forbidden_actions"})
 
     PR_GENERATOR_MARKERS = {
         OperationType.GENERATE: "introduces new or modified Terraform infrastructure",

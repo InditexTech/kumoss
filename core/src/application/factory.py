@@ -250,6 +250,7 @@ class ApplicationFactory:
             second_llm_service=second_llm_service,
             tool_service=tool_service,
             template_service=template_service,
+            session_ctx=self.__ctx,
         )
 
     def _get_report_service(

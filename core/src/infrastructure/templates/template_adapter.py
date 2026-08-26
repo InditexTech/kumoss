@@ -40,13 +40,11 @@ class TemplateAdapter(ITemplate):
     @override
     async def render_requests_filter(
         self,
+        operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions
-        )
         requests_guidelines: str = await remote_fetcher.fetch(
             prompt_name="requests",
             scope="general",
@@ -54,7 +52,43 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
         t = self._get_template(self._core + "requests_filter.jinja")
-        return t.render(**context, REQUESTS_GUIDELINES=requests_guidelines)
+
+        if operation_type == OperationType.GENERATE:
+            context = await self._compose_conventions_context(
+                resources, abbreviations, include_forbidden_actions
+            )
+            return t.render(
+                **context,
+                REQUESTS_GUIDELINES=requests_guidelines,
+                OPERATION_TYPE=operation_type.value,
+            )
+
+        if operation_type == OperationType.DRIFT:
+            forbidden_actions = (
+                await self._fetch_guidelines("forbidden_actions")
+                if include_forbidden_actions
+                else None
+            )
+            concrete_implementations: list[str] = (
+                [f"This is the convention for resource naming: {abbreviations}"]
+                if abbreviations
+                else []
+            )
+            if resources:
+                concrete_implementations.append(
+                    f"These are the resource template names relevant to this session: {resources}"
+                )
+            return t.render(
+                FORBIDDEN_ACTIONS=forbidden_actions,
+                CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations),
+                CWD=self._cwd,
+                REQUESTS_GUIDELINES=requests_guidelines,
+                OPERATION_TYPE=operation_type.value,
+            )
+
+        raise ValueError(
+            f"Unsupported operation type for requests filter: {operation_type.value}"
+        )
 
     @override
     def render_task_splitter(self) -> str:
