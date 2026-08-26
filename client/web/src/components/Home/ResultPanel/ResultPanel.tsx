@@ -202,6 +202,7 @@ export default function ResultPanel({
               )}
               {report.potential_impact && (
                 <div
+                  className={styles.reportCard}
                   onClick={() => setActiveDetail("impact")}
                   role="button"
                   tabIndex={0}
@@ -214,6 +215,7 @@ export default function ResultPanel({
               )}
               {report.estimated_costs && (
                 <div
+                  className={styles.reportCard}
                   onClick={() => setActiveDetail("costs")}
                   role="button"
                   tabIndex={0}

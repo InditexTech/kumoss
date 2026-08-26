@@ -8,6 +8,12 @@
   min-width: 220px;
 }
 
+@media screen and (max-width: 768px) {
+  .dropdown {
+    min-width: 0;
+  }
+}
+
 .menuItem {
   display: flex !important;
   align-items: center !important;

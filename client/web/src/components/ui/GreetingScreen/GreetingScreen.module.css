@@ -27,7 +27,7 @@
 
 .greetingTitle {
   margin: 100px 10px 10px;
-  font-size: 128px;
+  font-size: clamp(56px, 18vw, 128px);
 }
 
 .greetingTitle > span:first-child {

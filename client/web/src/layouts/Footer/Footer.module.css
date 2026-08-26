@@ -44,6 +44,16 @@
   font-size: 15px;
 }
 
+.containerUnitIcon {
+  composes: containerUnit;
+  flex: 0 0 auto;
+}
+
+.providerBadge {
+  font-size: 20px;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
 .containerUnit > span {
   margin: 0 10px;
 }
@@ -88,5 +98,25 @@
 @media screen and (max-width: 768px) {
   .timelineContainer {
     max-height: 280px;
+  }
+
+  /* Stack the session details; side by side they crush each other
+     into ellipsis slivers on phone widths. */
+  .footerContainer {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding: 0 12px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+  }
+
+  .containerUnit {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    padding: 0;
+  }
+
+  .containerUnitIcon {
+    flex: 0 0 auto;
   }
 }
