@@ -10,6 +10,7 @@ export { default as MarkdownText } from "./MarkdownText/MarkdownText";
 export { default as Modal } from "./Modal/Modal";
 export { default as NotificationStack } from "./Notification/NotificationStack";
 export { default as PageOverlay } from "./PageOverlay/PageOverlay";
+export { default as ProviderIcon } from "./ProviderIcon/ProviderIcon";
 export { default as SideSheet } from "./SideSheet/SideSheet";
 export { default as StatusBadge } from "./StatusBadge/StatusBadge";
 export { default as SupportButton } from "./SupportButton/SupportButton";

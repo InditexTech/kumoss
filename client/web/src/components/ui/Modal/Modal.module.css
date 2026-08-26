@@ -19,11 +19,19 @@
   width: 90vw;
   max-width: 816px;
   max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
   scrollbar-width: thin;
   padding: 32px 40px;
   box-sizing: border-box;
   animation: slideIn 0.25s ease-out;
+}
+
+@media screen and (max-width: 768px) {
+  .card {
+    width: 94vw;
+    padding: 24px 16px;
+  }
 }
 
 
