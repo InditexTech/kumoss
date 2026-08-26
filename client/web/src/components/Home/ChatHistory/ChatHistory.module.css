@@ -62,7 +62,7 @@
 }
 
 .input::placeholder {
-  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark));
   opacity: 0.5;
 }
 

@@ -30,7 +30,7 @@
 }
 
 .tab {
-  color: light-dark(#9ca3af, #6b7280);
+  color: #9ca3af;
   background: none;
   border: none;
   border-bottom: 1px solid transparent;
