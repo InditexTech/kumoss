@@ -160,7 +160,7 @@ export default function WizardView({
                 className={styles.providerOption}
               >
                 <ProviderIcon provider={provider} className={styles.providerIcon} />
-                {provider}
+                {providerLabel(provider)}
               </Typography>
             ))}
           </ul>
