@@ -96,10 +96,18 @@ def extract_managed_resource_ids(state_json: str) -> list[str]:
     if not isinstance(state, dict):
         return []
     ids: list[str] = []
-    for resource in state.get("resources") or []:
-        if resource.get("mode") != "managed":
+    resources = state.get("resources") or []
+    if not isinstance(resources, list):
+        return []
+    for resource in resources:
+        if not isinstance(resource, dict) or resource.get("mode") != "managed":
             continue
-        for instance in resource.get("instances") or []:
+        instances = resource.get("instances") or []
+        if not isinstance(instances, list):
+            continue
+        for instance in instances:
+            if not isinstance(instance, dict):
+                continue
             rid = (instance.get("attributes") or {}).get("id")
             if rid:
                 ids.append(rid)

@@ -60,7 +60,9 @@ async def list_resource_ids(provider: str, scope_id: str) -> CommandResult:
         return await _list_azure(scope_id)
     if provider == "gcp":
         return await _list_gcp(scope_id)
-    return await _list_aws(scope_id)
+    if provider == "aws":
+        return await _list_aws(scope_id)
+    return _failure(f"Unsupported terraform_provider: {provider!r}", exit_code=2)
 
 
 async def _list_azure(scope_id: str) -> CommandResult:
@@ -100,6 +102,12 @@ async def _list_azure(scope_id: str) -> CommandResult:
         skip_token = payload.get("skip_token")
         if not skip_token:
             break
+
+    if skip_token:
+        return _failure(
+            f"az graph query exceeded max pages ({_GRAPH_MAX_PAGES}); refusing to truncate results"
+        )
+
     return _ids_result([row["id"] for row in rows if "id" in row])
 
 
