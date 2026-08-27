@@ -16,6 +16,7 @@ import {
   getSessionDetail,
   fetchArtifactContent,
 } from "@/services/core/sessions";
+import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
 import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
 import type { TerraformReport, PlanSummary } from "@/types";
@@ -118,19 +119,28 @@ export interface RoundArtifacts {
 }
 
 /**
- * Latest version of every code-change artifact across the given rounds.
- * A round only carries the files it touched, so the session's full file
- * set must be merged across rounds; a file regenerated in a later round
- * replaces its earlier version (first-seen order is kept).
+ * Every code-change artifact across the given rounds, grouped per file
+ * in emission order. A round only carries the files it touched, so the
+ * session's full file set must be merged across rounds. All artifacts of
+ * a file are kept: a session can touch the same file several times and
+ * updated-file artifacts are sequential diffs, so the whole group is
+ * needed to reconstruct the cumulative change (see composeFileArtifacts).
  */
-function collectCodeChanges(rounds: RoundDetail[]): CodeChangeRef[] {
-  const byName = new Map<string, CodeChangeRef>();
+function collectCodeChanges(
+  rounds: RoundDetail[],
+): [string, CodeChangeRef[]][] {
+  const byName = new Map<string, CodeChangeRef[]>();
   for (const round of rounds) {
     for (const change of round.code_changes) {
-      byName.set(change.file_name, change);
+      const group = byName.get(change.file_name);
+      if (group) {
+        group.push(change);
+      } else {
+        byName.set(change.file_name, [change]);
+      }
     }
   }
-  return [...byName.values()];
+  return [...byName.entries()];
 }
 
 async function fetchRoundArtifacts(
@@ -143,7 +153,12 @@ async function fetchRoundArtifacts(
       ? fetchArtifactContent(round.report.url)
       : Promise.resolve(null),
     round.plan ? fetchArtifactContent(round.plan.url) : Promise.resolve(null),
-    ...codeChanges.map((c) => fetchArtifactContent(c.url)),
+    ...codeChanges.map(async ([fileName, changes]) => {
+      const contents = await Promise.all(
+        changes.map((c) => fetchArtifactContent(c.url)),
+      );
+      return composeFileArtifacts(fileName, contents);
+    }),
   ]);
 
   let report: TerraformReport | null = null;
@@ -159,8 +174,8 @@ async function fetchRoundArtifacts(
   if (planContent) {
     parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);
   }
-  codeChanges.forEach((c, i) => {
-    parts.push(`<${c.file_name}>\n${fileContents[i]}\n</${c.file_name}>`);
+  codeChanges.forEach(([fileName], i) => {
+    parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
   });
 
   return { report, code: parts.join("\n"), targets: round.plan?.targets };

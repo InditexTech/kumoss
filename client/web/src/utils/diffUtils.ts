@@ -56,3 +56,56 @@ export function parseGitDiff(content: string): ParsedGitDiff {
 
   return { original: original.join("\n"), modified: modified.join("\n") };
 }
+
+/**
+ * Wrap full before/after texts as a single-hunk unified diff. Only ever
+ * read back through isGitDiff/parseGitDiff (which rebuild the two sides
+ * for Monaco to re-diff), so hunk granularity doesn't matter.
+ */
+export function buildUnifiedDiff(
+  fileName: string,
+  original: string,
+  modified: string,
+): string {
+  const originalLines = original.split("\n");
+  const modifiedLines = modified.split("\n");
+  return [
+    `diff --git ${fileName} ${fileName}`,
+    `--- ${fileName}`,
+    `+++ ${fileName}`,
+    `@@ -1,${originalLines.length} +1,${modifiedLines.length} @@`,
+    ...originalLines.map((line) => `-${line}`),
+    ...modifiedLines.map((line) => `+${line}`),
+  ].join("\n");
+}
+
+/**
+ * Collapse the artifacts uploaded for one file (oldest first) into a
+ * single displayable artifact. A session can touch the same file several
+ * times; each updated-file artifact diffs against the PREVIOUS artifact's
+ * result, so keeping only the newest would show just the last incremental
+ * step. The cumulative change is first-original → last-modified. A raw
+ * artifact is a full snapshot of a file created in-session: it supersedes
+ * anything before it, and diffs chained onto it stay "new file" (raw), as
+ * the whole result is an addition relative to the session base.
+ */
+export function composeFileArtifacts(
+  fileName: string,
+  contents: string[],
+): string {
+  const last = contents[contents.length - 1];
+  if (contents.length <= 1) return last ?? "";
+  if (!isGitDiff(last)) return last;
+
+  // First artifact of the unbroken diff chain that ends at `last`.
+  let start = contents.length - 1;
+  while (start > 0 && isGitDiff(contents[start - 1])) start--;
+
+  const { modified } = parseGitDiff(last);
+  if (start > 0) return modified; // chain grows out of a raw snapshot
+  return buildUnifiedDiff(
+    fileName,
+    parseGitDiff(contents[start]).original,
+    modified,
+  );
+}

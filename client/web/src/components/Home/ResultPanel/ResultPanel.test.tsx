@@ -135,4 +135,63 @@ describe("ResultPanel", () => {
     expect(screen.getByText("azurerm_resource_group.main")).toBeInTheDocument();
     expect(screen.getByText("azurerm_vm.web")).toBeInTheDocument();
   });
+
+  describe("drift reports", () => {
+    const driftReport: TerraformReport = {
+      status: "Succeeded",
+      summary: "All drift remediated: 2 resources deleted.",
+      remediated_resources: [
+        {
+          resource_address: "azurerm_key_vault.app",
+          file_path: "key_vault_app.tf",
+          changes: [
+            {
+              attribute_modified: "resource",
+              change_description: "Deleted the Key Vault resource.",
+              reason: "Marked for deletion during drift remediation.",
+              details: ["Removed: azurerm_key_vault.app"],
+            },
+          ],
+        },
+        {
+          resource_address: "azurerm_redis_cache.main",
+          file_path: "redis_cache.tf",
+          changes: [
+            {
+              attribute_modified: "resource",
+              change_description: "Deleted the Redis Cache resource.",
+              reason: "Drifted resource.",
+            },
+          ],
+        },
+      ],
+    };
+
+    it("renders the drift summary and remediated resources", () => {
+      renderResultPanel(undefined, { terraform_report: driftReport });
+
+      expect(screen.getByText("Drift Summary")).toBeInTheDocument();
+      expect(
+        screen.getByText("All drift remediated: 2 resources deleted."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Remediated Resources")).toBeInTheDocument();
+      expect(screen.getByText("azurerm_key_vault.app")).toBeInTheDocument();
+      expect(screen.getByText("azurerm_redis_cache.main")).toBeInTheDocument();
+      // The plan report's action filters make no sense for drift.
+      expect(screen.queryByText("Recreated")).not.toBeInTheDocument();
+    });
+
+    it("opens the resource detail when a row is clicked", async () => {
+      const user = userEvent.setup();
+      renderResultPanel(undefined, { terraform_report: driftReport });
+
+      await user.click(screen.getByText("azurerm_key_vault.app"));
+      expect(
+        screen.getByText("Marked for deletion during drift remediation."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Removed: azurerm_key_vault.app"),
+      ).toBeInTheDocument();
+    });
+  });
 });
