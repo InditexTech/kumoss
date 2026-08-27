@@ -29,7 +29,7 @@ class ToolOrchestrationService:
         return tool_list[0]
 
     def get_available_tools(
-        self, contexts: list[ToolContext]
+        self, contexts: list[ToolContext] | ToolContext
     ) -> list[ToolDefinitionDTO]:
         """
         Get available tools for a list of contexts
@@ -40,6 +40,8 @@ class ToolOrchestrationService:
         Returns:
             Aggregate list of tool definitions in LLM-compatible format
         """
+        if isinstance(contexts, ToolContext):
+            contexts = [contexts]
         tools_context: list[ToolDefinitionDTO] = []
         for ctx in contexts:
             tools_context.extend(self.__tool_registry.get_available_tools(ctx))
