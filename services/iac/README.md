@@ -30,6 +30,16 @@ time in submission (FIFO) order.
 - `POST /v1/apply` — enqueues `terraform apply <plan_file>`.
 - `POST /v1/import` — enqueues `terraform import <address>
   <resource_id>`.
+- `POST /v1/import/state-resource-ids` — enqueues `terraform state
+  pull`; on exit code 0 the result's `stdout` is a JSON array of the
+  provider ids of every managed resource instance in the state.
+- `POST /v1/import/scope-resource-ids` — enqueues a cloud scope query
+  via the CLI matching `terraform_provider` (`az` Resource Graph /
+  `gcloud` Cloud Asset Inventory / `aws` Resource Groups Tagging
+  API); on exit code 0 the result's `stdout` is a JSON array of the
+  resource IDs that exist in `scope_id`. Cloud query failures end the
+  job `succeeded` with a non-zero `exit_code`, like terraform-level
+  failures.
 - `GET /v1/jobs/{job_id}` — job status (`queued` / `running` /
   `succeeded` / `failed`) plus `result` (succeeded) or `error`
   (failed). Terraform-level failures end the job `succeeded` with a
@@ -48,7 +58,7 @@ time in submission (FIFO) order.
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `TERRAFORM_BINARY`                            | no       | Override the terraform binary path. Default: `terraform`. |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | Terraform reads these directly. Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with terraform's own auth errors in the result's `stderr`. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | Terraform reads these directly. Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with terraform's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
 
 ## Workspace assumption
 

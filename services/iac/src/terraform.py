@@ -4,15 +4,16 @@
 
 """Thin async wrapper around the terraform CLI.
 
-Just enough to drive `init`, `validate`, `plan`, `show`, `apply`, and
-`import`, one command per call. Implementations that need more (state
-locking, custom backends, policy as code) should extend this or
-substitute their own.
+Just enough to drive `init`, `validate`, `plan`, `show`, `apply`,
+`import`, and `state pull`, one command per call. Implementations that
+need more (state locking, custom backends, policy as code) should
+extend this or substitute their own.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,3 +80,27 @@ async def import_resource(
         ["import", "-no-color", "-input=false", address, resource_id],
         cwd,
     )
+
+
+async def state_pull(binary: str, cwd: Path) -> CommandResult:
+    return await _run(binary, ["state", "pull"], cwd)
+
+
+def extract_managed_resource_ids(state_json: str) -> list[str]:
+    """Provider-assigned ids of every managed resource instance in a
+    pulled state document; [] when the state is empty or unparsable."""
+    try:
+        state = json.loads(state_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(state, dict):
+        return []
+    ids: list[str] = []
+    for resource in state.get("resources") or []:
+        if resource.get("mode") != "managed":
+            continue
+        for instance in resource.get("instances") or []:
+            rid = (instance.get("attributes") or {}).get("id")
+            if rid:
+                ids.append(rid)
+    return ids

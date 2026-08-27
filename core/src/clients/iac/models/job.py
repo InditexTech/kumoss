@@ -30,9 +30,10 @@ class Job:
 
         Attributes:
             job_id (UUID):
-            kind (JobKind): Which terraform command the job runs.
+            kind (JobKind): Which operation the job runs: one of the six terraform
+                commands, or one of the two import-discovery queries.
             status (JobStatus): `queued`: accepted, waiting for its workspace's FIFO queue.
-                `running`: terraform command executing.
+                `running`: the job's command or query is executing.
                 `succeeded`: command ran to completion — inspect `result` for
                 the terraform-level outcome (`exit_code` may be non-zero).
                 `failed`: service-level fault — inspect `error`.
@@ -41,7 +42,7 @@ class Job:
                 still `queued`.
             finished_at (datetime.datetime | None): When the job reached a terminal state, or null.
             result (None | OperationResult): Non-null iff `status` is `succeeded`: the raw outcome of
-                the terraform command, regardless of `kind`.
+                the job's command or query, regardless of `kind`.
             error (None | Problem): Non-null iff `status` is `failed`. The embedded `status`
                 member is the HTTP status code an equivalent synchronous
 
