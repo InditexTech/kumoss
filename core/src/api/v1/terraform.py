@@ -85,6 +85,7 @@ def _make_runner(
                 user_id=ctx.user_id,
                 branch_name=ctx.branch_name,
                 cloud=ctx.terraform_prv,
+                repo_uri=ctx.repo_uri,
                 iac_path=ctx.iac_path,
                 operation=ctx.operation,
             )

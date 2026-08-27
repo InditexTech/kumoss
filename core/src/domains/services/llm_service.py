@@ -116,12 +116,14 @@ class LLMOrchestrationService:
         """
         assert self.__tool_svc is not None
         assert len(tools) >= 1
+        if len(tools) > 1 and sentinel_tool is None:
+            raise RuntimeError()
+
         local_tools = tools.copy()
-        if len(local_tools) == 1:
+        if sentinel_tool is None:
             sentinel_tool = local_tools[0]
-        elif len(local_tools) > 1:
+        else:
             assert isinstance(sentinel_tool, ToolDefinitionDTO)
-            assert sentinel_tool is not None
             local_tools.append(sentinel_tool)
 
         local_history = history.deepcopy() if history else History()

@@ -72,19 +72,19 @@ class TerraformDriftHandler:
                     history=ctx.history,
                 )
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
-                ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, conventions
-                )
-                if not ok:
-                    ctx.history.append_turn(q, rationale)
-                    _ = await self.__session_svc.update_status(
-                        msg=rationale,
-                        status=SessionStatus.UNCOMPLETED,
-                    )
-                    return
 
                 targets = []
                 if is_partial:
+                    ok, rationale = await self.__requests_filter_svc.filter(
+                        q, ctx.history, conventions
+                    )
+                    if not ok:
+                        ctx.history.append_turn(q, rationale)
+                        _ = await self.__session_svc.update_status(
+                            msg=rationale,
+                            status=SessionStatus.UNCOMPLETED,
+                        )
+                        return
                     targets = await self.__target_svc.generate(ctx.history, q)
 
                 async def validation_callback(

@@ -41,7 +41,7 @@ class ToolOrchestrationService:
             Aggregate list of tool definitions in LLM-compatible format
         """
         if isinstance(contexts, ToolContext):
-            contexts = list(contexts)
+            contexts = [contexts]
         tools_context: list[ToolDefinitionDTO] = []
         for ctx in contexts:
             tools_context.extend(self.__tool_registry.get_available_tools(ctx))
