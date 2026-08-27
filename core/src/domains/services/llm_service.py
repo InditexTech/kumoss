@@ -117,7 +117,9 @@ class LLMOrchestrationService:
         assert self.__tool_svc is not None
         assert len(tools) >= 1
         if len(tools) > 1 and sentinel_tool is None:
-            raise RuntimeError()
+            raise ValueError(
+                "sentinel_tool is required when multiple tools are provided"
+            )
 
         local_tools = tools.copy()
         if sentinel_tool is None:
