@@ -64,6 +64,9 @@
 }
 
 .executionSummaryLabel {
+  /* Custom Typography variants render as inline spans — force the
+     label onto its own line so the bottom margin applies. */
+  display: block;
   margin: 0 0 8px;
 }
 

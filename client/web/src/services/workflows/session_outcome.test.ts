@@ -110,6 +110,57 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).not.toContain("outputs v1");
   });
 
+  it("chains a drift round's sequential diffs of one file into a cumulative diff", async () => {
+    // Drift remediation edits the same file several times; each artifact
+    // diffs against the previous one, so only chaining them shows the
+    // round's full change (not just the last incremental step).
+    const diff1 = [
+      "diff --git outputs.tf outputs.tf",
+      "--- outputs.tf",
+      "+++ outputs.tf",
+      "@@ -1,3 +1,2 @@",
+      ' output "a" {}',
+      '-output "b" {}',
+      ' output "c" {}',
+    ].join("\n");
+    const diff2 = [
+      "diff --git outputs.tf outputs.tf",
+      "--- outputs.tf",
+      "+++ outputs.tf",
+      "@@ -1,2 +1,1 @@",
+      ' output "a" {}',
+      '-output "c" {}',
+    ].join("\n");
+    mockState.addSession(
+      makeSessionDetail({
+        operation: "drift",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            code_changes: [
+              { ...artifactRef(3, "diff1"), file_name: "outputs.tf" },
+              { ...artifactRef(4, "diff2"), file_name: "outputs.tf" },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/diff1`, () => HttpResponse.text(diff1)),
+      http.get(`${STORAGE}/diff2`, () => HttpResponse.text(diff2)),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    // One file entry whose diff spans first-original → last-modified.
+    expect(outcome.code.match(/<outputs\.tf>/g)).toHaveLength(1);
+    expect(outcome.code).toContain('-output "b" {}');
+    expect(outcome.code).toContain('-output "c" {}');
+    expect(outcome.code).toContain('+output "a" {}');
+  });
+
   it("requests the conversation history when given a session id", async () => {
     let sawIncludeHistory = false;
     mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));
