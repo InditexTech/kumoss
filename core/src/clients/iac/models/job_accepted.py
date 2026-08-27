@@ -22,7 +22,7 @@ class JobAccepted:
     Attributes:
         job_id (UUID): Identifier to poll at `GET /v1/jobs/{job_id}`.
         status (JobStatus): `queued`: accepted, waiting for its workspace's FIFO queue.
-            `running`: terraform command executing.
+            `running`: the job's command or query is executing.
             `succeeded`: command ran to completion — inspect `result` for
             the terraform-level outcome (`exit_code` may be non-zero).
             `failed`: service-level fault — inspect `error`.

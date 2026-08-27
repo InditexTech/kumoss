@@ -10,7 +10,9 @@ class JobKind(str, Enum):
     IMPORT = "import"
     INIT = "init"
     PLAN = "plan"
+    SCOPE_RESOURCE_IDS = "scope_resource_ids"
     SHOW = "show"
+    STATE_RESOURCE_IDS = "state_resource_ids"
     VALIDATE = "validate"
 
     def __str__(self) -> str:
