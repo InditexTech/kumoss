@@ -56,11 +56,9 @@ class PromptsLibrary(Enum):
     TARGET_GENERATOR = "target_generator"
     PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
-    SUPERVISOR = "supervisor"
     PR_GENERATOR = "pr_generator"
     COMPLIANCE_CHECKER = "compliance_checker"
     # messages
-    JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
 
 

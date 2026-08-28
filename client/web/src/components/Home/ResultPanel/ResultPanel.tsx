@@ -10,7 +10,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { CodeBlock } from "@/components/ui";
 import { processTerraformPlan } from "@/utils/terraformUtils";
-import { extractCodeFiles } from "./resultPanelUtils";
+import { extractCodeFiles, hasStructuredCosts } from "./resultPanelUtils";
 import type { DetailView, FilterId } from "./resultPanelUtils";
 import {
   PotentialImpactCard,
@@ -228,7 +228,7 @@ export default function ResultPanel({
                   <PotentialImpactCard impact={report.potential_impact} />
                 </div>
               )}
-              {report.estimated_costs && (
+              {hasStructuredCosts(report.estimated_costs) && (
                 <div
                   className={styles.reportCard}
                   onClick={() => setActiveDetail("costs")}
@@ -265,7 +265,7 @@ export default function ResultPanel({
                   onClose={() => setActiveDetail(null)}
                 />
               )}
-              {activeDetail === "costs" && report.estimated_costs && (
+              {activeDetail === "costs" && hasStructuredCosts(report.estimated_costs) && (
                 <CostsDetail
                   costs={report.estimated_costs}
                   onClose={() => setActiveDetail(null)}

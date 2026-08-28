@@ -23,6 +23,7 @@ import {
   CostsDetail,
   DriftChangesList,
   DriftResourceDetail,
+  hasStructuredCosts,
 } from "@/components/Home";
 import type { FilterId, DetailView } from "@/components/Home";
 import { CodeBlock } from "@/components/ui";
@@ -276,7 +277,7 @@ export default function ArtifactContent({
             <PotentialImpactCard impact={reportData.potential_impact} />
           </div>
         )}
-        {reportData.estimated_costs && (
+        {hasStructuredCosts(reportData.estimated_costs) && (
           <div
             className={styles.reportCard}
             onClick={() => setActiveDetail("costs")}
@@ -313,7 +314,7 @@ export default function ArtifactContent({
             onClose={() => setActiveDetail(null)}
           />
         )}
-        {activeDetail === "costs" && reportData.estimated_costs && (
+        {activeDetail === "costs" && hasStructuredCosts(reportData.estimated_costs) && (
           <CostsDetail
             costs={reportData.estimated_costs}
             onClose={() => setActiveDetail(null)}

@@ -4,35 +4,35 @@
 
 import Typography from "@mui/material/Typography";
 import { PageOverlay } from "@/components/ui";
-import { parseCostValue, parseSummaryCosts } from "../resultPanelUtils";
+import {
+  formatMonthlyCost,
+  summaryCosts,
+  PRICING_MODEL_LABELS,
+} from "../resultPanelUtils";
 import type { TerraformReport, CostBreakdownItem } from "@/types";
 import styles from "./EstimatedCosts.module.css";
 
 type CostsData = NonNullable<TerraformReport["estimated_costs"]>;
 
 export function EstimatedCostsCard({ costs }: { costs: CostsData }) {
-  const { banner, introduction_paragraph } = costs;
-  if (!banner) return null;
+  const { total_fixed_monthly_cost, currency, introduction_paragraph } = costs;
+  if (typeof total_fixed_monthly_cost !== "number") return null;
 
-  const parsed = parseSummaryCosts(banner.summary);
+  const parsed = summaryCosts(total_fixed_monthly_cost, currency);
 
   return (
     <div className={styles.costsCard}>
       <Typography variant="h4" className={styles.costsLabel}>Estimated Cost</Typography>
-      {parsed ? (
-        <div className={styles.costsInline}>
-          {parsed.map(({ amount, period }) => (
-            <span key={period} className={styles.costInlineGroup}>
-              <Typography variant="headline" component="span" className={styles.costInlineAmount}>{amount}</Typography>
-              <Typography variant="subtitle2" component="span" className={styles.costInlinePeriod}>
-                /{period.toLowerCase()}
-              </Typography>
-            </span>
-          ))}
-        </div>
-      ) : (
-        <h3 className={styles.costsSummary}>{banner.summary}</h3>
-      )}
+      <div className={styles.costsInline}>
+        {parsed.map(({ amount, period }) => (
+          <span key={period} className={styles.costInlineGroup}>
+            <Typography variant="headline" component="span" className={styles.costInlineAmount}>{amount}</Typography>
+            <Typography variant="subtitle2" component="span" className={styles.costInlinePeriod}>
+              /{period.toLowerCase()}
+            </Typography>
+          </span>
+        ))}
+      </div>
       {introduction_paragraph && (
         <Typography variant="subtitle2" className={styles.costsDescription}>{introduction_paragraph}</Typography>
       )}
@@ -47,35 +47,29 @@ export function CostsDetail({
   costs: CostsData;
   onClose: () => void;
 }) {
-  const { banner, introduction_paragraph, breakdown } = costs;
-  const summaryCosts = banner ? parseSummaryCosts(banner.summary) : null;
+  const { total_fixed_monthly_cost, currency, introduction_paragraph, breakdown } = costs;
+  const totals =
+    typeof total_fixed_monthly_cost === "number"
+      ? summaryCosts(total_fixed_monthly_cost, currency)
+      : null;
+  const items = (breakdown ?? []).filter(
+    (item) => typeof item.fixed_monthly_cost === "number",
+  );
 
   return (
     <PageOverlay title="Estimated Cost" onClose={onClose}>
       <div className={styles.costSummaryTable}>
-        {summaryCosts ? (
+        {totals && (
           <div className={styles.costSummaryRow}>
             <Typography variant="label" component="span" className={styles.costSummaryLabel}>Total</Typography>
             <div className={styles.costTotalValues}>
-              {summaryCosts.map(({ amount, period }) => (
+              {totals.map(({ amount, period }) => (
                 <div key={period} className={styles.costTotalGroup}>
                   <span className={styles.costTotalAmount}>{amount}</span>
                   <span className={styles.costTotalPeriod}>{period}</span>
                 </div>
               ))}
             </div>
-          </div>
-        ) : banner ? (
-          <div className={styles.costSummaryRow}>
-            <Typography variant="label" component="span" className={styles.costSummaryLabel}>Total</Typography>
-            <Typography variant="body2" component="span" className={styles.costSummaryValue}>{banner.summary}</Typography>
-          </div>
-        ) : null}
-
-        {banner && (
-          <div className={styles.costSummaryRow}>
-            <Typography variant="label" component="span" className={styles.costSummaryLabel}>Description</Typography>
-            <Typography variant="body2" component="span" className={styles.costSummaryValue}>{banner.summary}</Typography>
           </div>
         )}
 
@@ -89,30 +83,39 @@ export function CostsDetail({
         )}
       </div>
 
-      {breakdown && breakdown.length > 0 && (
+      {items.length > 0 && (
         <div className={styles.breakdownSection}>
           <Typography variant="h5" component="h3" className={styles.breakdownTitle}>Cost Breakdown</Typography>
           <div className={styles.breakdownGrid}>
-            {breakdown.map((item: CostBreakdownItem, i: number) => {
-              const parsed = parseCostValue(item.details.estimated_cost);
-              const isNegative = parsed.value.includes("-");
+            {items.map((item: CostBreakdownItem, i: number) => {
+              const modelLabel = PRICING_MODEL_LABELS[item.pricing_model];
+              const isNegative = item.fixed_monthly_cost < 0;
               return (
                 <div key={i} className={styles.breakdownItem}>
                   <Typography variant="label" component="h4" className={styles.breakdownResourceType}>
                     {item.resource_type}
                   </Typography>
                   <p className={styles.breakdownCostLabel}>Estimated Cost</p>
-                  <Typography
-                    variant="h2"
-                    className={`${styles.breakdownValue} ${isNegative ? styles.breakdownValueNegative : ""}`}
-                  >
-                    {parsed.value}
-                  </Typography>
-                  {parsed.unit && (
-                    <Typography variant="label" className={styles.breakdownUnit}>{parsed.unit}</Typography>
+                  {modelLabel ? (
+                    <Typography
+                      variant="h2"
+                      className={`${styles.breakdownValue} ${styles.breakdownValueMuted}`}
+                    >
+                      {modelLabel}
+                    </Typography>
+                  ) : (
+                    <>
+                      <Typography
+                        variant="h2"
+                        className={`${styles.breakdownValue} ${isNegative ? styles.breakdownValueNegative : ""}`}
+                      >
+                        {formatMonthlyCost(item.fixed_monthly_cost, currency)}
+                      </Typography>
+                      <Typography variant="label" className={styles.breakdownUnit}>PER MONTH</Typography>
+                    </>
                   )}
                   <Typography variant="body2" className={styles.breakdownAdditionalText}>
-                    {item.details.additional_details}
+                    {item.notes}
                   </Typography>
                 </div>
               );

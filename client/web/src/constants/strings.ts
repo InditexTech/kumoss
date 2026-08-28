@@ -46,7 +46,7 @@ export const STRINGS = {
     deletionDetectedMessage:
       "The plan includes resources that will be deleted. The support team has been notified for review.",
     blockedApplyMessage:
-      "The execution of your plan has been blocked. The proposed changes include the deletion of critical resources that could compromise service stability. For security reasons, the planning has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
+      "The execution of your plan has been blocked. The proposed changes include one or more changes that could compromise service stability. For security reasons, the deployment has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
     contactTeam: "Contact Team",
   },
 
