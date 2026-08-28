@@ -123,5 +123,24 @@ class DriftRequest(BaseIacRequest):
         return self
 
 
+class ImportRequest(BaseIacRequest):
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=["Import the storage account staweu1001"],
+        ),
+    ]
+
+    @model_validator(mode="after")
+    def _scope_id_exist_if_repo_uri(self):
+        if self.repo_uri is not None and (
+            self.scope_id is None or self.scope_id.strip() == ""
+        ):
+            raise ValueError("The `scope_id` must be provided when `repo_uri` is set.")
+        return self
+
+
 class ApplyRequest(SessionRequest):
     pass

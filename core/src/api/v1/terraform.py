@@ -19,6 +19,7 @@ from src.application.iac_requests import (
     DriftRequest,
     ApplyRequest,
     SessionRequest,
+    ImportRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
@@ -198,6 +199,27 @@ async def apply_infrastructure(
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
         return await handler.handle()
+
+    background_tasks.add_task(_make_runner(ctx, build))
+    return {"session_id": str(ctx.id)}
+
+
+@router.post(
+    path="/import",
+    status_code=202,
+    summary="Start an IaC import session.",
+)
+async def import_infrastructure(
+    background_tasks: BackgroundTasks, request: ImportRequest
+) -> dict[str, str]:
+    """Imports, validates, and prepares IaC based on a user query.
+    Returns a session ID for tracking the background process.
+    """
+    ctx = await _resolve_or_raise(request, OperationType.IMPORT)
+
+    async def build(context: SessionContext):
+        handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()
+        return await handler.handle(request.q)
 
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}

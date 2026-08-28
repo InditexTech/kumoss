@@ -94,3 +94,99 @@ class ITerraform(ABC):
                              times out, or reports a service-level job failure
         """
         pass
+
+    @abstractmethod
+    async def state_resource_ids(
+        self,
+    ) -> list[str]:
+        """
+        Retrieves the provider-assigned IDs of every managed resource
+        instance currently tracked in the Terraform state.
+
+        Submits a ``state pull`` job via ``POST /v1/import/state-resource-ids``
+        and parses the result. On exit code 0, ``stdout`` is a JSON array of
+        resource ID strings extracted from the state's managed resource
+        instances (the ``attributes.id`` of each instance). An empty state
+        returns ``[]``. The workspace must already be initialised.
+
+        Returns:
+            list[str]: Provider-assigned resource IDs of all managed
+                resources in the state (e.g. Azure resource IDs, AWS ARNs,
+                GCP self-links). Empty when the state tracks nothing.
+
+        Raises:
+            ExceptionHandler: When the IaC service is disabled, unreachable,
+                             times out, reports a service-level job failure,
+                             or ``state pull`` exits non-zero.
+        """
+        pass
+
+    @abstractmethod
+    async def scope_resource_ids(
+        self,
+    ) -> list[str]:
+        """
+        Lists the resource IDs that exist in a cloud provider scope.
+
+        Submits a cloud-provider query via ``POST /v1/import/scope-resource-ids``
+        using the ``scope_id`` and ``terraform_provider`` held by the adapter
+        (injected at construction time from the session context).
+        This does **not** read Terraform state — it queries the cloud control
+        plane directly using the provider's native listing API:
+
+        - ``azure``: Azure Resource Graph — resource and resource-container
+          IDs whose id contains ``scope_id``.
+        - ``gcp``: Cloud Asset Inventory — asset names of the project's
+          resources plus the IAM role names bound in the project.
+        - ``aws``: Resource Groups Tagging API — resource ARNs across the
+          account's enabled regions.
+
+        On exit code 0, ``stdout`` is a JSON array of provider-native resource
+        ID strings. Non-zero ``exit_code`` with diagnostics in ``stderr`` is a
+        normal outcome (e.g. scope not found, credentials issue) — the job
+        still ends as ``succeeded``.
+
+        Returns:
+            list[str]: Provider-native resource IDs present in the scope.
+
+        Raises:
+            ExceptionHandler: When the IaC service is disabled, unreachable,
+                             times out, or reports a service-level job failure.
+        """
+        pass
+
+    @abstractmethod
+    async def import_resource(
+        self,
+        address: str,
+        resource_id: str,
+    ) -> TerraformValidationDTO:
+        """
+        Imports an existing cloud resource into the Terraform state.
+
+        Runs ``terraform import <address> <resource_id>`` via
+        ``POST /v1/import`` against the workspace. The target resource
+        block (``address``) must already exist in the ``.tf`` configuration
+        files, and the workspace must already be initialised (submit an
+        ``init`` job first).
+
+        Args:
+            address (str): The Terraform resource address to import into,
+                e.g. ``azurerm_storage_account.main``.
+            resource_id (str): The provider-specific identifier of the
+                existing cloud resource, e.g. an Azure resource ID or an
+                AWS ARN.
+
+        Returns:
+            TerraformValidationDTO: A data transfer object containing:
+                - validation (bool): True if the import succeeded (exit
+                  code 0), False otherwise.
+                - feedback (str): stderr of the import command when
+                  unsuccessful; empty on success.
+                - terraform_plan (str): stdout of the import command.
+
+        Raises:
+            ExceptionHandler: When the IaC service is disabled, unreachable,
+                             times out, or reports a service-level job failure.
+        """
+        pass
