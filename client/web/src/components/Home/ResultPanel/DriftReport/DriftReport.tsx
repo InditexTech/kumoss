@@ -32,6 +32,7 @@ export function DriftChangesList({
       <div className={styles.list}>
         {resources.map((resource) => (
           <div key={resource.resource_address} className={styles.entry}>
+            <div
               className={styles.row}
               onClick={() => onSelect(resource)}
               role="button"

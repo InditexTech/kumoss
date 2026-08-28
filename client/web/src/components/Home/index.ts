@@ -16,4 +16,5 @@ export {
   DriftChangesList,
   DriftResourceDetail,
 } from "./ResultPanel/DriftReport/DriftReport";
+export { hasStructuredCosts } from "./ResultPanel/resultPanelUtils";
 export type { FilterId, DetailView } from "./ResultPanel/resultPanelUtils";

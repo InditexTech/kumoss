@@ -31,9 +31,10 @@ const mockReport: TerraformReport = {
     bullet_points: [{ title: "DB changes", description: "Database will be modified" }],
   },
   estimated_costs: {
-    banner: { summary: "$12.50/mo increase" },
+    currency: "USD",
+    total_fixed_monthly_cost: 12.5,
     introduction_paragraph: "Cost impact",
-    breakdown: [{ resource_type: "azurerm_vm", details: { estimated_cost: "$10.00", additional_details: "Standard B2s" } }],
+    breakdown: [{ resource_type: "azurerm_vm", pricing_model: "fixed", fixed_monthly_cost: 10, notes: "Standard B2s" }],
   },
   detailed_changes: [
     { name: "azurerm_resource_group.main", action: "create", notes: "New RG", summary: "Create RG", details: "resource group main" },
@@ -75,7 +76,8 @@ describe("ResultPanel", () => {
 
   it("shows estimated costs card", () => {
     renderResultPanel(undefined, { terraform_report: mockReport });
-    expect(screen.getByText("$12.50/mo increase")).toBeInTheDocument();
+    expect(screen.getByText("$12.50")).toBeInTheDocument();
+    expect(screen.getByText("/month")).toBeInTheDocument();
   });
 
   it("switches to plan tab", async () => {
