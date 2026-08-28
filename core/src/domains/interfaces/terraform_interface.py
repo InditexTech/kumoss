@@ -126,13 +126,13 @@ class ITerraform(ABC):
     @abstractmethod
     async def scope_resource_ids(
         self,
+        scope_id: str,
+        terraform_provider: str,
     ) -> list[str]:
         """
         Lists the resource IDs that exist in a cloud provider scope.
 
-        Submits a cloud-provider query via ``POST /v1/import/scope-resource-ids``
-        using the ``scope_id`` and ``terraform_provider`` held by the adapter
-        (injected at construction time from the session context).
+        Submits a cloud-provider query via ``POST /v1/import/scope-resource-ids``.
         This does **not** read Terraform state — it queries the cloud control
         plane directly using the provider's native listing API:
 
@@ -147,6 +147,12 @@ class ITerraform(ABC):
         ID strings. Non-zero ``exit_code`` with diagnostics in ``stderr`` is a
         normal outcome (e.g. scope not found, credentials issue) — the job
         still ends as ``succeeded``.
+
+        Args:
+            scope_id (str): Cloud provider scope to list — Azure: subscription
+                id, GCP: project id, AWS: account id.
+            terraform_provider (str): Cloud provider to query. One of
+                ``azure``, ``gcp``, ``aws``.
 
         Returns:
             list[str]: Provider-native resource IDs present in the scope.
