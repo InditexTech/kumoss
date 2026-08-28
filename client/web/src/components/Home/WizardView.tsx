@@ -9,6 +9,7 @@ import type { useHomeWizard } from "./useHomeWizard";
 import { STRINGS } from "@/constants/strings";
 import { providerLabel } from "@/constants/providers";
 import { TERRAFORM_PROVIDERS } from "@/types/api";
+import { ProviderIcon } from "@/components/ui";
 import styles from "./HomeScreen.module.css";
 
 const HINTS = STRINGS.wizard.hints;
@@ -156,7 +157,9 @@ export default function WizardView({
                 key={provider}
                 onClick={() => handleProvider(provider)}
                 role="option"
+                className={styles.providerOption}
               >
+                <ProviderIcon provider={provider} className={styles.providerIcon} />
                 {providerLabel(provider)}
               </Typography>
             ))}

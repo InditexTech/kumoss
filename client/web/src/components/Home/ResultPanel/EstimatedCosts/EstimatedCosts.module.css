@@ -25,8 +25,8 @@
 
 .costsSummary {
   font-weight: 300;
-  font-size: 48px;
-  line-height: 56px;
+  font-size: clamp(32px, 10vw, 48px);
+  line-height: 1.17;
   letter-spacing: -0.05em;
   color: var(--color-create);
   margin: 0;

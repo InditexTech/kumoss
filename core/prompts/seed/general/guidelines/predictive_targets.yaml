@@ -22,13 +22,3 @@ body: |
   - No team-specific or environment-specific exceptions configured.
   - Example: "The platform team's shared networking resources must not be
     targeted by application workload sessions."
-
-  ---
-
-  This prompt is reserved for **business-related** targeting rules only.
-  Do NOT add rules about target string formats, data-source handling,
-  module-vs-resource logic, or diff-history exclusion here — those are
-  core model behavior and are managed in the system template.
-
-  Replace this body with your organization's authoritative targeting
-  policies. These defaults are deliberately generic.

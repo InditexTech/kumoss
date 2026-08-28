@@ -1,0 +1,56 @@
+[
+  {
+    "name": "report_compliance_findings",
+    "description": "Call this tool just before calling `task_complete` or any other sentinel tool. Report every compliance violation found. If no violations were found, report passed=true with an empty violations list.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "true if no error or critical violations were found; false otherwise."
+        },
+        "violations": {
+          "type": "array",
+          "description": "List of compliance violations found. May contain info or warning findings when passed is true.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "description": "Stable identifier of the rule that was broken."
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["info", "warning", "error", "critical"],
+                "description": "Severity level of the violation."
+              },
+              "resource": {
+                "type": ["string", "null"],
+                "description": "Terraform resource address that violates the rule (e.g. azurerm_storage_account.main), or null for global findings."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of what is wrong and why it violates the rule."
+              },
+              "suggested_fix": {
+                "type": ["string", "null"],
+                "description": "How to fix the violation, or null if no specific fix is suggested."
+              }
+            },
+            "required": ["rule_id", "severity", "message"]
+          }
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable summary of the compliance check results."
+        },
+        "checked_rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of rule_ids that were evaluated during the check."
+        }
+      },
+      "required": ["passed", "violations", "summary", "checked_rules"]
+    }
+  }
+]

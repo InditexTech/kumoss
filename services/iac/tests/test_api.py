@@ -16,6 +16,7 @@ credentials.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from contextlib import contextmanager
@@ -385,3 +386,153 @@ def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -
             },
         )
     assert response.status_code == 404
+
+
+_STATE_DOC = {
+    "version": 4,
+    "resources": [
+        {
+            "mode": "managed",
+            "type": "azurerm_resource_group",
+            "instances": [
+                {"attributes": {"id": "/subscriptions/s/resourceGroups/rg1"}},
+                {"attributes": {"id": "/subscriptions/s/resourceGroups/rg2"}},
+            ],
+        },
+        {
+            "mode": "data",
+            "type": "azurerm_client_config",
+            "instances": [{"attributes": {"id": "data-id-ignored"}}],
+        },
+        {
+            "mode": "managed",
+            "type": "azurerm_storage_account",
+            "instances": [{"attributes": {}}],
+        },
+    ],
+}
+
+
+def test_state_resource_ids_returns_managed_ids(tmp_path: Path) -> None:
+    """stdout is a JSON array of the managed instances' provider ids;
+    data resources and id-less instances are skipped."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    pulled = CommandResult(
+        ok=True, stdout=json.dumps(_STATE_DOC), stderr="", exit_code=0
+    )
+    with _client_with() as client:
+        with patch(
+            "src.terraform.state_pull", new_callable=AsyncMock, return_value=pulled
+        ):
+            response = client.post(
+                "/v1/import/state-resource-ids",
+                json={"workspace_path": str(workspace)},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "state_resource_ids"
+    assert body["result"]["exit_code"] == 0
+    assert json.loads(body["result"]["stdout"]) == [
+        "/subscriptions/s/resourceGroups/rg1",
+        "/subscriptions/s/resourceGroups/rg2",
+    ]
+
+
+def test_state_resource_ids_passes_pull_failure_through(tmp_path: Path) -> None:
+    """A failed `state pull` is a succeeded job carrying the command's
+    exit code and stderr; stdout is empty rather than partial state."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    pulled = CommandResult(
+        ok=False, stdout="partial", stderr="Error: no state", exit_code=1
+    )
+    with _client_with() as client:
+        with patch(
+            "src.terraform.state_pull", new_callable=AsyncMock, return_value=pulled
+        ):
+            response = client.post(
+                "/v1/import/state-resource-ids",
+                json={"workspace_path": str(workspace)},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "succeeded"
+    assert body["result"] == {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "Error: no state",
+    }
+
+
+def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    listed = CommandResult(ok=True, stdout='["id-1", "id-2"]', stderr="", exit_code=0)
+    with _client_with() as client:
+        with (
+            patch("src.cloud_cli.cli_available", return_value=True),
+            patch(
+                "src.cloud_cli.list_resource_ids",
+                new_callable=AsyncMock,
+                return_value=listed,
+            ) as list_mock,
+        ):
+            response = client.post(
+                "/v1/import/scope-resource-ids",
+                json={
+                    "workspace_path": str(workspace),
+                    "scope_id": "sub-1",
+                    "terraform_provider": "azure",
+                },
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "scope_resource_ids"
+    assert body["result"] == {
+        "exit_code": 0,
+        "stdout": '["id-1", "id-2"]',
+        "stderr": "",
+    }
+    list_mock.assert_awaited_once_with("azure", "sub-1")
+
+
+def test_scope_resource_ids_validation() -> None:
+    """scope_id and terraform_provider are required, and the provider
+    must be one of azure/gcp/aws."""
+    payloads = [
+        {"workspace_path": "/tmp"},
+        {"workspace_path": "/tmp", "scope_id": "sub-1"},
+        {"workspace_path": "/tmp", "terraform_provider": "azure"},
+        {"workspace_path": "/tmp", "scope_id": "sub-1", "terraform_provider": "oci"},
+        {"workspace_path": "/tmp", "scope_id": "", "terraform_provider": "azure"},
+    ]
+    with _client_with() as client:
+        for payload in payloads:
+            response = client.post("/v1/import/scope-resource-ids", json=payload)
+            assert response.status_code == 422, payload
+
+
+def test_scope_resource_ids_503_when_cli_missing(tmp_path: Path) -> None:
+    """Like the terraform binary, a missing cloud CLI is a submit-time
+    503, not a job-level failure."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    with _client_with() as client:
+        with patch("src.cloud_cli.cli_available", return_value=False):
+            response = client.post(
+                "/v1/import/scope-resource-ids",
+                json={
+                    "workspace_path": str(workspace),
+                    "scope_id": "sub-1",
+                    "terraform_provider": "gcp",
+                },
+            )
+    assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/problem+json")

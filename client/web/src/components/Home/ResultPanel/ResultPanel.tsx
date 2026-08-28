@@ -22,6 +22,10 @@ import {
 } from "./EstimatedCosts/EstimatedCosts";
 import ChangesTable from "./ChangesTable/ChangesTable";
 import ChangeDetail from "./ChangeDetail/ChangeDetail";
+import {
+  DriftChangesList,
+  DriftResourceDetail,
+} from "./DriftReport/DriftReport";
 import styles from "./ResultPanel.module.css";
 
 const TAB_FADE_MS = 300;
@@ -102,11 +106,22 @@ export default function ResultPanel({
   }, [activeDetail, setActiveDetail]);
 
   const report = session.terraform_report ?? null;
+  // Drift reports carry `remediated_resources` and a prose `summary`
+  // instead of the plan report's `detailed_changes`.
+  const driftResources = report?.remediated_resources;
+  const summaryText =
+    report?.execution_summary ??
+    (typeof report?.summary === "string" ? report.summary : undefined);
 
   const selectedChange = useMemo(() => {
     if (activeDetail !== "change" || !resourceParam || !report?.detailed_changes) return null;
     return report.detailed_changes.find((c) => c.name === resourceParam) ?? null;
   }, [activeDetail, resourceParam, report?.detailed_changes]);
+
+  const selectedDriftResource = useMemo(() => {
+    if (activeDetail !== "change" || !resourceParam || !driftResources) return null;
+    return driftResources.find((r) => r.resource_address === resourceParam) ?? null;
+  }, [activeDetail, resourceParam, driftResources]);
   const code = session.code ?? "";
   const planCode = useMemo(
     () => processTerraformPlan(code)["Terraform_Plan"] ?? "",
@@ -190,18 +205,19 @@ export default function ResultPanel({
 
           {effectiveTab === "report" && report && (
             <>
-              {report.execution_summary && (
+              {summaryText && (
                 <div className={styles.executionSummary}>
                   <Typography variant="label" className={styles.executionSummaryLabel}>
-                    Execution Summary
+                    {driftResources ? "Drift Summary" : "Execution Summary"}
                   </Typography>
                   <Typography variant="bodyText" className={styles.executionSummaryText}>
-                    {report.execution_summary}
+                    {summaryText}
                   </Typography>
                 </div>
               )}
               {report.potential_impact && (
                 <div
+                  className={styles.reportCard}
                   onClick={() => setActiveDetail("impact")}
                   role="button"
                   tabIndex={0}
@@ -214,6 +230,7 @@ export default function ResultPanel({
               )}
               {report.estimated_costs && (
                 <div
+                  className={styles.reportCard}
                   onClick={() => setActiveDetail("costs")}
                   role="button"
                   tabIndex={0}
@@ -224,14 +241,23 @@ export default function ResultPanel({
                   <EstimatedCostsCard costs={report.estimated_costs} />
                 </div>
               )}
-              <ChangesTable
-                changes={report.detailed_changes ?? []}
-                activeFilter={activeFilter}
-                setActiveFilter={setActiveFilter}
-                onSelectChange={(change) => {
-                  setActiveDetail("change", change.name);
-                }}
-              />
+              {driftResources ? (
+                <DriftChangesList
+                  resources={driftResources}
+                  onSelect={(resource) => {
+                    setActiveDetail("change", resource.resource_address);
+                  }}
+                />
+              ) : (
+                <ChangesTable
+                  changes={report.detailed_changes ?? []}
+                  activeFilter={activeFilter}
+                  setActiveFilter={setActiveFilter}
+                  onSelectChange={(change) => {
+                    setActiveDetail("change", change.name);
+                  }}
+                />
+              )}
 
               {activeDetail === "impact" && report.potential_impact && (
                 <ImpactDetail
@@ -248,6 +274,12 @@ export default function ResultPanel({
               {activeDetail === "change" && selectedChange && (
                 <ChangeDetail
                   change={selectedChange}
+                  onClose={() => setActiveDetail(null)}
+                />
+              )}
+              {activeDetail === "change" && selectedDriftResource && (
+                <DriftResourceDetail
+                  resource={selectedDriftResource}
                   onClose={() => setActiveDetail(null)}
                 />
               )}

@@ -950,6 +950,16 @@ class DatabaseService:
         )
 
     @staticmethod
+    async def is_session_blocked(session_id: UUID) -> bool:
+        session = await DatabaseService.__load_session(session_id)
+        if session is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        return session.is_blocked
+
+    @staticmethod
     async def set_lock(session_id: UUID, lock: bool) -> bool:
         async with db.transaction() as sess:
             stmt = (

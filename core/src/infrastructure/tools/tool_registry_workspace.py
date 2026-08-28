@@ -113,3 +113,4 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             untracked_files.append(f"{file}:\n{content}")
         result += "\nUntracked changes:\n" + "\n".join(untracked_files)
         return result
+

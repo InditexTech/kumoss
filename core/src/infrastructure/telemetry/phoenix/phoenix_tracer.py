@@ -5,7 +5,7 @@
 import dataclasses
 import json
 from collections.abc import Iterator
-from typing import Any, Literal, cast, override
+from typing import Any, Literal, override
 from uuid import UUID
 
 from opentelemetry import trace
@@ -43,6 +43,7 @@ class PhoenixTracer(ITracer):
         session_id: UUID,
         user_id: str,
         cloud: TerraformProvider,
+        repo_uri: str,
         iac_path: str,
         operation: OperationType,
         branch_name: str,
@@ -60,6 +61,7 @@ class PhoenixTracer(ITracer):
         self.__session_id: str = str(session_id)
         self.__user_id: str = user_id
         self.__terraform_prv: TerraformProvider = cloud
+        self.__repo_uri: str = repo_uri
         self.__iac_path: str = iac_path
         self.__branch_name: str = branch_name
         self.__root_context: Context | None = None
@@ -81,6 +83,7 @@ class PhoenixTracer(ITracer):
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
                     "cloud": self.__terraform_prv.name,
+                    "repo_uri": self.__repo_uri,
                     "iac_path": self.__iac_path,
                     "branch_name": self.__branch_name,
                     **kwargs,
@@ -262,17 +265,17 @@ def _output_attributes(
     Yields the OpenInference output value attribute as a JSON string if the
     payload can be serialized as JSON, otherwise as a string.
     """
-    if (
-        filter_md
-        and isinstance(payload, ToolResultDTO)
-        and isinstance(payload.result, dict)
-    ):
-        payload = (
-            cast(str, payload.result.get("summary"))
-            or cast(str, payload.result.get("explanation"))
-            or cast(str, payload.result.get("description"))
-            or payload
-        )
+    if filter_md and isinstance(payload, ToolResultDTO):
+        payload = payload.result
+        if isinstance(payload, BaseModel):
+            payload = payload.model_dump()
+        if isinstance(payload, dict):
+            payload = (
+                payload.get("summary")
+                or payload.get("explanation")
+                or payload.get("description")
+                or payload
+            )
     value, mime_type = _serialize(payload)
     yield SpanAttributes.OUTPUT_VALUE, value
     yield SpanAttributes.OUTPUT_MIME_TYPE, mime_type

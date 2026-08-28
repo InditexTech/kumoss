@@ -12,11 +12,25 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from src.shared.constants import TerraformProvider
 
 
-class BaseIacRequest(BaseModel):
+class UserRequest(BaseModel):
     user_id: Annotated[
         str, Field(description="Caller identity. Required on every call.")
     ]
 
+
+class SessionRequest(UserRequest):
+    """Base for operations that require an existing session."""
+
+    session_id: Annotated[
+        UUID,
+        Field(
+            description="Existing session id. Required for this operation.",
+            examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
+        ),
+    ]
+
+
+class BaseIacRequest(UserRequest):
     session_id: Annotated[
         UUID | None,
         Field(
@@ -115,5 +129,5 @@ class DriftRequest(BaseIacRequest):
         return self
 
 
-class ApplyRequest(BaseIacRequest):
+class ApplyRequest(SessionRequest):
     pass

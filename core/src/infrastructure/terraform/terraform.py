@@ -311,7 +311,10 @@ class Terraform(ITerraform):
         """
         deadline = time.monotonic() + cfg.job_timeout
         while True:
-            job = await get_job_op.asyncio(job_id=job_id, client=client)
+            try:
+                job = await get_job_op.asyncio(job_id=job_id, client=client)
+            except httpx.RemoteProtocolError:
+                job = await get_job_op.asyncio(job_id=job_id, client=client)
             if not isinstance(job, Job):
                 raise ExceptionHandler(
                     f"IaC service lost or rejected job {job_id}: {job!r}",

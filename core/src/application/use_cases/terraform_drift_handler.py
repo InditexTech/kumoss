@@ -5,6 +5,7 @@
 from collections.abc import Coroutine
 from typing import Callable, Any
 
+from src.application.exceptions import SetLockError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
@@ -13,11 +14,14 @@ from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
+    ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
     TerraformValidationService,
     TerraformTargetService,
 )
+from src.domains.services.database_service import DatabaseService
+from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
     PromptsLibrary,
@@ -38,6 +42,7 @@ class TerraformDriftHandler:
         report_service: ReportService,
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
+        compliance_service: ComplianceCheckService,
     ):
         self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
@@ -47,6 +52,7 @@ class TerraformDriftHandler:
         self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
+        self.__compliance_svc = compliance_service
         self.__ctx = session_ctx
 
     async def handle(
@@ -66,19 +72,19 @@ class TerraformDriftHandler:
                     history=ctx.history,
                 )
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
-                ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, conventions
-                )
-                if not ok:
-                    ctx.history.append_turn(q, rationale)
-                    _ = await self.__session_svc.update_status(
-                        msg=rationale,
-                        status=SessionStatus.UNCOMPLETED,
-                    )
-                    return
 
                 targets = []
                 if is_partial:
+                    ok, rationale = await self.__requests_filter_svc.filter(
+                        q, ctx.history, conventions
+                    )
+                    if not ok:
+                        ctx.history.append_turn(q, rationale)
+                        _ = await self.__session_svc.update_status(
+                            msg=rationale,
+                            status=SessionStatus.UNCOMPLETED,
+                        )
+                        return
                     targets = await self.__target_svc.generate_drift(
                         query=q, history=ctx.history, conventions=conventions
                     )
@@ -98,11 +104,31 @@ class TerraformDriftHandler:
                     validator=validation_callback,
                 )
 
-                _ = await self.__report_svc.generate_report(
+                report = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.DRIFT,
                     content=validation.terraform_plan,
                 )
+                check = await self.__compliance_svc.check(
+                    history=ctx.history,
+                    conventions=conventions,
+                    report=report,
+                )
+                if not check.passed:
+                    if not await DatabaseService.set_lock(ctx.id, True):
+                        raise SetLockError(
+                            message="Error updating DB session lock.",
+                            error_code=500,
+                        )
+                    await NotificationServiceClient.notify_compliance_failure(
+                        session_id=ctx.id,
+                        summary=check.summary,
+                    )
+                elif not await DatabaseService.set_lock(ctx.id, False):
+                    raise SetLockError(
+                        message="Error updating DB session lock.",
+                        error_code=500,
+                    )
             finally:
                 await self.__session_svc.save()
 

@@ -17,6 +17,7 @@ submission surfaces through the job.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,6 +27,7 @@ from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from . import cloud_cli
 from . import terraform as tf
 from .auth import verify_bearer_token
 from .config import Config, terraform_available
@@ -41,7 +43,9 @@ from .models import (
     OperationResult,
     PlanRequest,
     Problem,
+    ScopeResourceIdsRequest,
     ShowRequest,
+    StateResourceIdsRequest,
     ValidateRequest,
 )
 
@@ -279,6 +283,66 @@ async def import_resource(
         lambda: tf.import_resource(
             config.terraform_binary, workspace, body.address, body.resource_id
         ),
+    )
+
+
+@app.post(
+    "/v1/import/state-resource-ids",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["import"],
+)
+async def state_resource_ids(
+    body: StateResourceIdsRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> JobAccepted:
+    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    record = jobs.submit(
+        kind="state_resource_ids",
+        workspace=workspace,
+        pipeline=lambda: _state_resource_ids_op(workspace),
+    )
+    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
+    return JobAccepted(job_id=record.job_id)
+
+
+async def _state_resource_ids_op(workspace: Path) -> OperationResult:
+    result = await tf.state_pull(config.terraform_binary, workspace)
+    if not result.ok:
+        return OperationResult(
+            exit_code=result.exit_code, stdout="", stderr=result.stderr
+        )
+    ids = tf.extract_managed_resource_ids(result.stdout)
+    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+
+
+@app.post(
+    "/v1/import/scope-resource-ids",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["import"],
+)
+async def scope_resource_ids(
+    body: ScopeResourceIdsRequest,
+    response: Response,
+    authorization: str | None = Header(default=None),
+) -> JobAccepted:
+    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    if not cloud_cli.cli_available(body.terraform_provider):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Cloud CLI '{cloud_cli.CLI_BINARIES[body.terraform_provider]}' "
+                f"for provider '{body.terraform_provider}' not found in PATH "
+                "on the IaC service."
+            ),
+        )
+    return _submit(
+        "scope_resource_ids",
+        workspace,
+        response,
+        lambda: cloud_cli.list_resource_ids(body.terraform_provider, body.scope_id),
     )
 
 

@@ -69,3 +69,11 @@ class ITemplate(ABC):
     @abstractmethod
     def render_iac_import(self) -> str:
         pass
+
+    @abstractmethod
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        pass

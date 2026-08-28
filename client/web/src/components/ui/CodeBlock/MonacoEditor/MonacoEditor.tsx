@@ -24,6 +24,12 @@ import { getLocalItem } from "@/services";
 import EditorSkeleton from "../EditorSkeleton";
 import styles from "./MonacoEditor.module.css";
 
+// jsdom (tests) has no matchMedia, hence the function check.
+const narrowViewport =
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(max-width: 768px)").matches;
+
 let monacoConfigured = false;
 
 function ensureMonacoConfigured() {
@@ -260,7 +266,8 @@ const MonacoEditor = ({
     lineHeight: 21,
     lineNumbers: showLineNumbers ? ("on" as const) : ("off" as const),
     folding: true,
-    wordWrap: "off" as const,
+    // Phones: unwrapped code means constant horizontal panning.
+    wordWrap: narrowViewport ? ("on" as const) : ("off" as const),
     automaticLayout: true,
     contextmenu: false,
     selectOnLineNumbers: true,

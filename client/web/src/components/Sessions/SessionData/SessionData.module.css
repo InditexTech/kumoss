@@ -413,3 +413,18 @@
   overflow-y: auto;
   padding: 8px 0;
 }
+
+/* ─── Responsive ─────────────────────── */
+
+@media screen and (max-width: 768px) {
+  .timelineOps {
+    margin-left: 0;
+    width: 100%;
+    padding-left: 16px;
+  }
+
+  .timelineOpName,
+  .timelineOpDate {
+    white-space: normal;
+  }
+}

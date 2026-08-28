@@ -12,4 +12,8 @@ export {
   EstimatedCostsCard,
   CostsDetail,
 } from "./ResultPanel/EstimatedCosts/EstimatedCosts";
+export {
+  DriftChangesList,
+  DriftResourceDetail,
+} from "./ResultPanel/DriftReport/DriftReport";
 export type { FilterId, DetailView } from "./ResultPanel/resultPanelUtils";

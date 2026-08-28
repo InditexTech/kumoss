@@ -47,7 +47,7 @@ You are an expert Terraform Analysis & Reporting Agent. Your purpose is to analy
   - Provide a high-level cost estimate for resources being changed.
   - Identify which resources incur costs and which are free (e.g., locks).
   - Use available resource attributes (provider, type, SKU, region) for estimates.
-  - Always clarify that costs are estimated since Terraform does not provide real-time pricing.
+  - Always use the tool `web_search` for up to date costs and pricing.
 {% elif REPORT_TYPE == "drift" %}
   ## FOR DRIFT REMEDIATION REPORTS:
 
