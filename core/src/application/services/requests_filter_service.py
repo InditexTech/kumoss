@@ -34,7 +34,6 @@ class RequestsFilterService:
         conventions: Conventions,
         operation_type: OperationType,
     ) -> tuple[bool, str]:
-        assert self.__ctx is not None
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
             tools=self.__tool_svc.get_available_tools(
