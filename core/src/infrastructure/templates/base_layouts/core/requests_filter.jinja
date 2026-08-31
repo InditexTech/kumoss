@@ -104,8 +104,6 @@ All file paths are relative to this directory.
 {% if OPERATION_TYPE == "generate" %}
   - "create a new storage account" -> status=true. In scope; name, resource group, region, tier, and replication come from conventions, the workspace, and the module template. Explanation lists those assumptions.
   - "add a blob container to the storage account" (workspace contains exactly one storage account) -> status=true. The target is unambiguous. Explanation names the storage account being modified.
-  - "resolve the drift" -> status=false. Operation mismatch: this is a generation session; drift detection and remediation are available through the drift operation.
-  - "is my infrastructure drifted?" -> status=false. Operation mismatch: drift checks are available through the drift operation.
 {% elif OPERATION_TYPE == "drift" %}
   - "resolve the drift" -> status=true. Full-workspace drift run; no parameters needed. Explanation states a full-workspace drift detection and remediation will start.
   - "check drift on kvt_001" (module.keyvault_001 exists in the workspace) -> status=true. Scoped drift run on module.keyvault_001.
