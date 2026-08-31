@@ -203,21 +203,6 @@ class ToolRegistryStatic(IToolRegistry):
             "explanation": explanation,
         }
 
-    def __handle_drift_target_generator(
-        self, parameters: dict[str, Any]
-    ) -> dict[str, list[str] | str]:
-        targets = parameters["targets"]
-        explanation = parameters.get("explanation", "")
-        if not isinstance(targets, list):
-            raise ToolInferenceParamsError(
-                message=f"Drift target generation inference hasn't returned the expected structure. got={targets}",
-                error_code=500,
-            )
-        return {
-            "targets": targets,
-            "explanation": explanation,
-        }
-
     def __handle_report_plan_generator(
         self, parameters: dict[str, Any]
     ) -> TerraformPlanReport | str:
