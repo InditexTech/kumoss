@@ -76,7 +76,7 @@ class TerraformDriftHandler:
                 targets = []
                 if is_partial:
                     ok, rationale = await self.__requests_filter_svc.filter(
-                        q, ctx.history, conventions
+                        q, ctx.history, conventions, ctx.operation
                     )
                     if not ok:
                         ctx.history.append_turn(q, rationale)

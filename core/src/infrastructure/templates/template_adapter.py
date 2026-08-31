@@ -43,6 +43,7 @@ class TemplateAdapter(ITemplate):
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
+        operation_type: OperationType,
     ) -> str:
         context = await self._compose_conventions_context(
             resources, abbreviations, include_forbidden_actions
@@ -54,7 +55,11 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
         t = self._get_template(self._core + "requests_filter.jinja")
-        return t.render(**context, REQUESTS_GUIDELINES=requests_guidelines)
+        return t.render(
+            **context,
+            REQUESTS_GUIDELINES=requests_guidelines,
+            OPERATION_TYPE=operation_type.value,
+        )
 
     @override
     def render_task_splitter(self) -> str:
