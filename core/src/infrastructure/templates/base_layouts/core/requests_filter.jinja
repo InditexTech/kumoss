@@ -72,7 +72,6 @@ All file paths are relative to this directory.
 
 {% if OPERATION_TYPE == "generate" %}
   A. CHANGE REQUEST — the user wants to create, modify, or delete cloud infrastructure with Terraform. Set `status` to `true` and it will be handed to the downstream generator. Missing parameters NEVER block a creation request: names come from the naming conventions, settings come from the resource module templates, and placement (resource group, region, environment) comes from the existing workspace. The downstream generator fills in every blank. When in doubt about parameters, accept.
-     Drift-only requests — such as "resolve the drift", "run a drift check", "is my infrastructure drifted?", "sync my infrastructure with the code" — are NOT change requests. Reject them as an operation mismatch: set `status` to `false` and explain that drift detection and remediation are available through the drift operation.
 
 {% elif OPERATION_TYPE == "drift" %}
   A. DRIFT REQUEST — the user asks to detect and/or remediate configuration drift, either workspace-wide or scoped to named resources.
