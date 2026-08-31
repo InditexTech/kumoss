@@ -94,7 +94,7 @@ class TerraformDriftHandler:
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
                         branch=ctx.branch_name,
-                        targets=await self.__target_svc.generate(local_history),
+                        targets=await self.__target_svc.generate_session(local_history),
                     )
 
                 validation = await self.__drift_svc.detect_and_resolve_drift(

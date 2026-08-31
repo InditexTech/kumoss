@@ -22,7 +22,7 @@ class TerraformTargetService:
         self.__llm_svc = llm_service
         self.__template_svc = template_service
 
-    async def generate(self, history: History, query: str = None) -> list[str]:
+    async def generate_session(self, history: History, query: str = None) -> list[str]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
@@ -88,7 +88,7 @@ class TerraformTargetService:
             ),
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.TARGET_GENERATOR,
-                mode=TargetGenerationMode.DRIFT_REMEDIATION,
+                mode=TargetGenerationMode.DRIFT,
                 resources=conventions.templates,
             ),
             history=history,

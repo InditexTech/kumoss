@@ -125,8 +125,8 @@ class TracerProject(Enum):
 
 @unique
 class TargetGenerationMode(Enum):
-    """Selects the behavior branch of the target_generator template"""
+    """Selects the target generator template file: target_{value}_generator.jinja"""
 
     SESSION = "session"
     PREDICTIVE = "predictive"
-    DRIFT_REMEDIATION = "drift_remediation"
+    DRIFT = "drift"

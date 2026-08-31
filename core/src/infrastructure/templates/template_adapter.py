@@ -30,14 +30,14 @@ class TemplateAdapter(ITemplate):
     @override
     async def render_target_generator(
         self,
-        mode: TargetGenerationMode = TargetGenerationMode.SESSION,
+        mode: TargetGenerationMode,
         resources: list[str] | None = None,
     ) -> str:
-        t = self._get_template(self._core + "target_generator.jinja")
-        context: dict = {"TARGET_GENERATION_MODE": mode.value}
+        t = self._get_template(self._core + f"target_{mode.value}_generator.jinja")
+        context: dict = {}
         if mode in (
             TargetGenerationMode.PREDICTIVE,
-            TargetGenerationMode.DRIFT_REMEDIATION,
+            TargetGenerationMode.DRIFT,
         ):
             guidelines = await remote_fetcher.fetch(
                 prompt_name="predictive_targets",
