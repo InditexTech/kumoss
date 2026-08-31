@@ -1,0 +1,31 @@
+services/iac/Dockerfile
+  s_9f1869c5b45a2e::t_c1a3e6110eaf29 5-10,15-22
+services/iac/src/config.py
+  s_9f1869c5b45a2e::t_ecee7cf4e36fe6 9,26-32,44-45,50-57,60
+services/iac/tests/conftest.py
+  s_9f1869c5b45a2e::t_08d265e7e01ea4 8-13,18
+services/iac/src/main.py
+  s_9f1869c5b45a2e::t_e09baa6a576e04 7-9,13,20,22-24,62-90,93,143,145,154,189
+services/iac/tests/fixtures/tofu_smoke/main.tf
+  s_9f1869c5b45a2e::t_9fffd0cb7575c8 1-12
+services/iac/tests/test_config.py
+  s_9f1869c5b45a2e::t_da5df147eaa44c 1-47
+services/iac/tests/test_integration_tofu.py
+  s_9f1869c5b45a2e::t_4e379cca56ade4 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "a23be8fe3e00dfbcc32de873ec8ad84878a71db8",
+  "prompts": {},
+  "sessions": {
+    "s_9f1869c5b45a2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9509c43-f48f-43f3-a98a-b50a254e87c0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
