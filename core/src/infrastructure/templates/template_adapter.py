@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, final, override
+from typing import final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
@@ -45,6 +45,9 @@ class TemplateAdapter(ITemplate):
         include_forbidden_actions: bool,
         operation_type: OperationType,
     ) -> str:
+        context = await self._compose_conventions_context(
+            resources, abbreviations, include_forbidden_actions
+        )
         requests_guidelines: str = await remote_fetcher.fetch(
             prompt_name="requests",
             scope="general",
@@ -52,44 +55,11 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
         t = self._get_template(self._core + "requests_filter.jinja")
-
-        if operation_type == OperationType.GENERATE:
-            context = await self._compose_conventions_context(
-                resources, abbreviations, include_forbidden_actions
-            )
-            return t.render(
-                **context,
-                REQUESTS_GUIDELINES=requests_guidelines,
-                OPERATION_TYPE=operation_type.value,
-            )
-
-        elif operation_type == OperationType.DRIFT:
-                await self._fetch_guidelines("forbidden_actions")
-                if include_forbidden_actions
-                else None
-            )
-
-            concrete_implementations: list[str] = (
-                [f"This is the convention for resource naming: {abbreviations}"]
-                if abbreviations
-                else []
-            )
-            if resources:
-                concrete_implementations.append(
-                    f"Available resource templates: {resources}"
-                )
-
-            return t.render(
-                FORBIDDEN_ACTIONS=forbidden_actions,
-                CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations),
-                CWD=self._cwd,
-                REQUESTS_GUIDELINES=requests_guidelines,
-                OPERATION_TYPE=operation_type.value,
-            )
-        else:
-            raise ValueError(
-                f"Unsupported operation type for requests filter: {operation_type.value}"
-            )
+        return t.render(
+            **context,
+            REQUESTS_GUIDELINES=requests_guidelines,
+            OPERATION_TYPE=operation_type.value,
+        )
 
     @override
     def render_task_splitter(self) -> str:
@@ -178,12 +148,30 @@ class TemplateAdapter(ITemplate):
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 
+    @override
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        context = await self._compose_conventions_context(
+            resources, abbreviations, True
+        )
+        context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
+            prompt_name="report",
+            scope="general",
+            type="compliance",
+            tag=system_config.environment,
+        )
+        t = self._get_template(self._core + "compliance_checker.jinja")
+        return t.render(**context)
+
     async def _compose_conventions_context(
         self,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | None]:
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
             if abbreviations
