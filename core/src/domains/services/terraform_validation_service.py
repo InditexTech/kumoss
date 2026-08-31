@@ -60,7 +60,7 @@ class TerraformValidationService:
 
         tracked_file_names: list[str] = await self.__git.get_changed_files(
             working_tree=True,
-            diff_filter="AM",
+            diff_filter="AMD",
         )
         for name in tracked_file_names:
             content = await self.__git.show_diff(

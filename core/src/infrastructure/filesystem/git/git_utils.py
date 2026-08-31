@@ -234,7 +234,7 @@ class GitUtils(IGit):
     async def get_changed_files(
         self,
         working_tree: bool,
-        diff_filter: Literal["A", "M", "AM"],
+        diff_filter: Literal["A", "M", "D", "AMD"],
     ) -> list[str]:
         cmd = [
             "git",
