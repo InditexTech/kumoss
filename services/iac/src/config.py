@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 from dataclasses import dataclass
@@ -22,10 +23,13 @@ class Config:
     - ``expected_token``: bearer token clients must present. If unset,
       the service accepts any (or no) token (intended for local
       development).
-    - ``terraform_binary``: name or absolute path of the terraform CLI to
-      invoke. Lookup falls back to PATH so distros with ``terraform`` on
-      PATH need no override. Asserted to be resolvable at startup so a
-      misconfigured image fails fast instead of on the first request.
+    - ``terraform_binary``: name or absolute path of the IaC engine CLI
+      to invoke (OpenTofu by default; any Terraform-compatible engine
+      works). Resolved from ``IAC_BINARY``, falling back to the
+      deprecated ``TERRAFORM_BINARY``, then to ``tofu``. Lookup falls
+      back to PATH so the bundled image needs no override. Asserted to
+      be resolvable at startup so a misconfigured image fails fast
+      instead of on the first request.
     - ``job_ttl``: seconds a terminal job record stays pollable at
       `GET /v1/jobs/{job_id}` before it is swept (then 404).
     """
@@ -37,15 +41,23 @@ class Config:
     def __post_init__(self) -> None:
         if not terraform_available(self.terraform_binary):
             raise ConfigError(
-                f"terraform binary {self.terraform_binary!r} not found on PATH. "
-                f"Install terraform or set TERRAFORM_BINARY to an absolute path."
+                f"IaC engine binary {self.terraform_binary!r} not found on PATH. "
+                f"Install OpenTofu or set IAC_BINARY to an absolute path."
             )
 
     @classmethod
     def from_env(cls) -> "Config":
+        binary = os.environ.get("IAC_BINARY")
+        if not binary:
+            legacy = os.environ.get("TERRAFORM_BINARY")
+            if legacy:
+                logging.getLogger("iac.config").warning(
+                    "TERRAFORM_BINARY is deprecated; set IAC_BINARY instead."
+                )
+            binary = legacy or "tofu"
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
-            terraform_binary=os.environ.get("TERRAFORM_BINARY", "terraform"),
+            terraform_binary=binary,
             job_ttl=int(os.environ.get("NEBULA_IAC_JOB_TTL") or "3600"),
         )
 

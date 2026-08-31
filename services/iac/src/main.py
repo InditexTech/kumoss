@@ -4,20 +4,24 @@
 
 """FastAPI application for the IaC reference implementation.
 
-A raw terraform executor: every POST enqueues a job that runs exactly
-one terraform command and returns ``202 Accepted`` immediately;
-clients poll ``GET /v1/jobs/{job_id}`` for the raw
+A raw IaC-engine executor (OpenTofu by default): every POST enqueues a
+job that runs exactly one engine command and returns ``202 Accepted``
+immediately; clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing terraform
+errors (auth, malformed body, missing workspace, missing engine
 binary) are still reported synchronously on the POST; everything after
 submission surfaces through the job.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import shutil
+import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -55,8 +59,38 @@ workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 
 
+async def _log_engine_version() -> None:
+    """Report which IaC engine this service runs (path + version).
+
+    Diagnostics only: the binary's resolvability is already asserted by
+    Config at import time, so a probe failure is logged, never fatal.
+    The banner is printed straight to stderr (like uvicorn's own
+    startup banner) so it reaches the console regardless of the
+    server's logging configuration.
+    """
+    resolved = shutil.which(config.terraform_binary)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            config.terraform_binary,
+            "version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, _ = await proc.communicate()
+        version = (
+            stdout_bytes.decode("utf-8", errors="replace").splitlines() or ["unknown"]
+        )[0]
+    except OSError as exc:
+        logging.getLogger("iac.engine").warning(
+            "IaC engine %s: version probe failed: %s", resolved, exc
+        )
+        return
+    print(f"IaC engine: {resolved} — {version}", file=sys.stderr, flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await _log_engine_version()
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see
@@ -106,9 +140,9 @@ async def healthz() -> Health:
 
 
 def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
-    """Submit-time checks: auth, terraform binary, workspace existence.
+    """Submit-time checks: auth, engine binary, workspace existence.
 
-    Everything that fails after these (the terraform command itself)
+    Everything that fails after these (the engine command itself)
     surfaces through the job instead.
     """
     verify_bearer_token(config, authorization)
@@ -117,7 +151,7 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Terraform binary '{config.terraform_binary}' not found "
+                f"IaC engine binary '{config.terraform_binary}' not found "
                 "in PATH on the IaC service."
             ),
         )
@@ -152,7 +186,7 @@ def _submit(
     response: Response,
     command: Callable[[], Awaitable[tf.CommandResult]],
 ) -> JobAccepted:
-    """Enqueue one terraform command as a job and point at its resource."""
+    """Enqueue one engine command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,

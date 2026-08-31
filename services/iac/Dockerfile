@@ -2,20 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# IaC engine: OpenTofu, taken from the official minimal image (the
+# install method the OpenTofu project documents for custom images).
+# Digest-pinned so the build is reproducible and integrity-checked;
+# bump tag + digest together when upgrading.
+FROM ghcr.io/opentofu/opentofu:1.12.6-minimal@sha256:2fedbb3e956b083582543dabb76eba17e9f961dfd055311ea054a6191cfae9dd AS tofu
+
 FROM python:3.13-slim AS base
 
 WORKDIR /app
 
-# terraform binary; pinned in the env so OSS users can override.
-ARG TERRAFORM_VERSION=1.11.1
+# OpenTofu binary, plus a `terraform` symlink so deployments that still
+# set TERRAFORM_BINARY=terraform (deprecated; see env.sample) keep
+# working against the bundled engine. To run genuine HashiCorp
+# Terraform instead, build a custom image that installs it and set
+# IAC_BINARY (see README.md "Choosing the IaC engine").
+COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
+RUN ln -s /usr/local/bin/tofu /usr/local/bin/terraform
+
 # Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
 ARG AWSCLI_VERSION=2.28.0
 ARG GCLOUD_VERSION=540.0.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl unzip ca-certificates \
-    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip \
-    && unzip /tmp/terraform.zip -d /usr/local/bin \
-    && rm /tmp/terraform.zip \
     && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install \
