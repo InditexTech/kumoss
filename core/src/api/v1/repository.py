@@ -76,6 +76,7 @@ async def create_pr(
             user_id=ctx.user_id,
             branch_name=ctx.branch_name,
             cloud=ctx.terraform_prv,
+            repo_uri=ctx.repo_uri,
             iac_path=ctx.iac_path,
             operation=ctx.operation,
         )
@@ -86,9 +87,6 @@ async def create_pr(
         raise HTTPException(status_code=e.error_code, detail=e.message)
     finally:
         tracer.reset_current_tracer(tracer_token)
-
-    # TODO: define when a session is completed
-    # await DatabaseService.mark_completed(session_id)
 
     return pr_details
 

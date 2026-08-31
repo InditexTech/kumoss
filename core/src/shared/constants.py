@@ -56,10 +56,9 @@ class PromptsLibrary(Enum):
     TARGET_GENERATOR = "target_generator"
     PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
-    SUPERVISOR = "supervisor"
     PR_GENERATOR = "pr_generator"
+    COMPLIANCE_CHECKER = "compliance_checker"
     # messages
-    JOKER = "joker"  # deprecated
     STATUS_UPDATE = "status_update"
 
 
@@ -77,6 +76,7 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+    COMPLIANCE_CHECK = "compliance_check"
 
 
 @unique
@@ -98,6 +98,14 @@ class ObjectStorageProvider(Enum):
 
 
 @unique
+class ContentType(Enum):
+    """Defines all possible content types for artifact upload"""
+
+    TEXT = "text/plain"
+    JSON = "application/json"
+
+
+@unique
 class TracerProject(Enum):
     """Defines all possible tracer projects.
     Note: a project in Phoenix is defined as a group of traces
@@ -112,11 +120,3 @@ class TracerProject(Enum):
     PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
     PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
     PRO_TERRAFORM_IMPORT = "pro-terraform-import"
-
-
-@unique
-class ContentType(Enum):
-    """Defines all possible content types for artifact upload"""
-
-    TEXT = "text/plain"
-    JSON = "application/json"

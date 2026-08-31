@@ -184,6 +184,7 @@ class OrchestrationConfig(BaseModel):
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
+    enable_compliance_checker: bool = False
 
 
 class PathsConfig(BaseModel):

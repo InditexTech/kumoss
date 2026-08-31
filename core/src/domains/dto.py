@@ -151,30 +151,20 @@ class DetailedChange(BaseModel):
     details: str
 
 
-class CostBanner(BaseModel):
-    """Banner providing a quick summary of estimated costs"""
-
-    summary: str
-
-
-class CostBreakdownDetails(BaseModel):
-    """Structured details for every resource cost breakdown"""
-
-    estimated_cost: str
-    additional_details: str
-
-
 class CostBreakdown(BaseModel):
-    """Detailed breakdown of costs by resource type"""
+    """Fixed monthly cost breakdown for a resource type"""
 
     resource_type: str
-    details: CostBreakdownDetails
+    pricing_model: Literal["fixed", "usage_based", "free"]
+    fixed_monthly_cost: float
+    notes: str
 
 
 class EstimatedCosts(BaseModel):
-    """Estimation of monthly and hourly costs for new or updated resources"""
+    """Estimation of the total fixed monthly cost introduced by the plan"""
 
-    banner: CostBanner
+    currency: str
+    total_fixed_monthly_cost: float
     introduction_paragraph: str
     breakdown: list[CostBreakdown]
 
@@ -257,6 +247,30 @@ class TerraformApplyReport(BaseModel):
 
 
 Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
+
+
+class ComplianceViolation(BaseModel):
+    rule_id: str
+    severity: Literal["info", "warning", "error", "critical"]
+    resource: str | None = None
+    message: str
+    suggested_fix: str | None = None
+
+
+class ComplianceCheckReport(BaseModel):
+    passed: bool
+    violations: list[ComplianceViolation]
+    summary: str
+    checked_rules: list[str]
+
+    @classmethod
+    def empty(cls):
+        return cls(
+            passed=True,
+            violations=[],
+            summary="",
+            checked_rules=[],
+        )
 
 
 @dataclass

@@ -31,10 +31,9 @@ export interface BulletPoint {
 
 export interface CostBreakdownItem {
   resource_type: string;
-  details: {
-    estimated_cost: string;
-    additional_details: string;
-  };
+  pricing_model: "fixed" | "usage_based" | "free";
+  fixed_monthly_cost: number;
+  notes: string;
 }
 
 export interface ImportResourceDetail {
@@ -89,7 +88,8 @@ export interface TerraformReport {
     bullet_points?: BulletPoint[];
   };
   estimated_costs?: {
-    banner?: { summary: string };
+    currency?: string;
+    total_fixed_monthly_cost?: number;
     introduction_paragraph?: string;
     breakdown?: CostBreakdownItem[];
   };

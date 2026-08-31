@@ -23,15 +23,6 @@
   margin: 0;
 }
 
-.costsSummary {
-  font-weight: 300;
-  font-size: 48px;
-  line-height: 56px;
-  letter-spacing: -0.05em;
-  color: var(--color-create);
-  margin: 0;
-}
-
 .costsDescription {
   color: light-dark(#000000, #ffffff);
   margin: 0;
@@ -148,6 +139,10 @@
 
 .breakdownValueNegative {
   color: light-dark(#dc2626, #ef4444);
+}
+
+.breakdownValueMuted {
+  color: var(--color-text-muted);
 }
 
 .breakdownUnit {

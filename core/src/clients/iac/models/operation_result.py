@@ -14,10 +14,13 @@ T = TypeVar("T", bound="OperationResult")
 
 @_attrs_define
 class OperationResult:
-    """Raw outcome of the single terraform command a job ran. The
+    """Raw outcome of the single command a job ran. The
     service does not interpret it: `exit_code` is the process's
     exit status (non-zero means the command failed), and `stdout` /
-    `stderr` are passed through verbatim.
+    `stderr` are passed through verbatim. Discovery jobs
+    (`state_resource_ids`, `scope_resource_ids`) synthesize the
+    same shape: exit code 0 with a JSON array of ID strings in
+    `stdout`, or a non-zero exit code with diagnostics in `stderr`.
 
         Attributes:
             exit_code (int): Exit status of the terraform process. 0 means the command

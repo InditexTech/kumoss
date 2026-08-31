@@ -53,6 +53,13 @@
   column-gap: 32px;
 }
 
+@media screen and (max-width: 768px) {
+  .impactGrid {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+}
+
 .impactSectionLabel {
   margin: 0;
   align-self: first baseline;

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { TerraformChange } from "@/types";
+import type { TerraformChange, TerraformReport } from "@/types";
 
 export type FilterId = "all" | "create" | "update" | "delete" | "recreate";
 export type DetailView = "impact" | "costs" | "change" | null;
@@ -28,60 +28,47 @@ export function formatResourceName(change: TerraformChange): string {
   return change.user_friendly_header || change.name || "Unknown Resource";
 }
 
-export function parseCostValue(cost: string): {
-  value: string;
-  unit: string | null;
-} {
-  const match = cost.match(/^(.+?)\s+per\s+(.+)$/i);
-  if (match)
-    return {
-      value: match[1].trim(),
-      unit: `PER ${match[2].trim().toUpperCase()}`,
-    };
-  return { value: cost, unit: null };
+export function hasStructuredCosts(
+  costs: TerraformReport["estimated_costs"],
+): costs is NonNullable<TerraformReport["estimated_costs"]> {
+  return typeof costs?.total_fixed_monthly_cost === "number";
 }
 
-export function parseSummaryCosts(
-  summary: string,
-): Array<{ amount: string; period: string }> | null {
-  const results: Array<{ amount: string; period: string }> = [];
+const HOURS_PER_MONTH = 730;
 
-  const re =
-    /([~≈]?-?\$[\d,.]+|[~≈]?-?[\d,.]+\s?[€£¥])\s*(?:per\s+|\/)(month|hour|year|day|week)/gi;
-  let m;
-  while ((m = re.exec(summary)) !== null) {
-    results.push({ amount: m[1].trim(), period: m[2].toUpperCase() });
-  }
+export const PRICING_MODEL_LABELS: Record<string, string> = {
+  usage_based: "Usage-based",
+  free: "Free",
+};
 
-  if (results.length === 0) {
-    const periodWord = summary.match(
-      /\b(month(?:ly)?|hour(?:ly)?|year(?:ly)?)\b/i,
-    );
-    const value = summary.match(/([~≈]?-?\$[\d,.]+|[~≈]?-?[\d,.]+\s?[€£¥])/);
-    if (periodWord && value) {
-      const period = periodWord[1].replace(/ly$/i, "").toUpperCase();
-      results.push({ amount: value[1].trim(), period });
-    }
-  }
+export function formatMonthlyCost(
+  amount: number,
+  currency: string = "USD",
+): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
-  if (results.length === 0) return null;
-
-  if (
-    results.some((r) => r.period === "MONTH") &&
-    !results.some((r) => r.period === "HOUR")
-  ) {
-    const monthly = results.find((r) => r.period === "MONTH")!;
-    const num = monthly.amount.match(/-?[\d,.]+/);
-    if (num) {
-      const hourly = parseFloat(num[0].replace(",", ".")) / 730;
-      const fmt = hourly < 0.01 ? hourly.toFixed(4) : hourly.toFixed(3);
-      const pre = monthly.amount.includes("$") ? "$" : "";
-      const suf = monthly.amount.includes("€") ? "€" : "";
-      results.push({ amount: `${pre}${fmt}${suf}`, period: "HOUR" });
-    }
-  }
-
-  return results;
+export function summaryCosts(
+  monthly: number,
+  currency: string = "USD",
+): Array<{ amount: string; period: string }> {
+  const hourly = monthly / HOURS_PER_MONTH;
+  const digits = Math.abs(hourly) < 0.01 ? 4 : 3;
+  const hourlyFmt = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(hourly);
+  return [
+    { amount: formatMonthlyCost(monthly, currency), period: "MONTH" },
+    { amount: hourlyFmt, period: "HOUR" },
+  ];
 }
 
 export function extractCodeFiles(input: string): Record<string, string> {
