@@ -21,9 +21,13 @@ import {
   ImpactDetail,
   EstimatedCostsCard,
   CostsDetail,
+  DriftChangesList,
+  DriftResourceDetail,
+  hasStructuredCosts,
 } from "@/components/Home";
 import type { FilterId, DetailView } from "@/components/Home";
 import { CodeBlock } from "@/components/ui";
+import { composeFileArtifacts } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
 export type ArtifactKind = "report" | "plan" | "change";
@@ -145,10 +149,22 @@ export default function ArtifactContent({
             round.code_changes.map((c) => fetchArtifactContent(c.url)),
           );
           if (cancelled) return;
-          const record: Record<string, string> = {};
+          // A round can carry several sequential-diff artifacts for the
+          // same file — collapse each file's group into one cumulative
+          // artifact instead of letting the last overwrite the rest.
+          const grouped = new Map<string, string[]>();
           round.code_changes.forEach((c, i) => {
-            record[c.file_name] = contents[i];
+            const group = grouped.get(c.file_name);
+            if (group) {
+              group.push(contents[i]);
+            } else {
+              grouped.set(c.file_name, [contents[i]]);
+            }
           });
+          const record: Record<string, string> = {};
+          for (const [fileName, group] of grouped) {
+            record[fileName] = composeFileArtifacts(fileName, group);
+          }
           setFiles(record);
         } else {
           const text = await fetchArtifactContent(artifact.url);
@@ -194,6 +210,14 @@ export default function ArtifactContent({
     return reportData.detailed_changes.find((c) => c.name === resourceParam) ?? null;
   }, [activeDetail, resourceParam, reportData?.detailed_changes]);
 
+  // Drift reports carry `remediated_resources` and a prose `summary`
+  // instead of the plan report's `detailed_changes`.
+  const driftResources = reportData?.remediated_resources;
+  const selectedDriftResource = useMemo(() => {
+    if (activeDetail !== "change" || !resourceParam || !driftResources) return null;
+    return driftResources.find((r) => r.resource_address === resourceParam) ?? null;
+  }, [activeDetail, resourceParam, driftResources]);
+
   const fileNames = files ? Object.keys(files) : [];
   const clickedFileName =
     kind === "change" ? (artifact as CodeChangeRef).file_name : "";
@@ -223,14 +247,20 @@ export default function ArtifactContent({
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
   }
 
+  const summaryText =
+    reportData?.execution_summary ??
+    (typeof reportData?.summary === "string" ? reportData.summary : undefined);
+
   if (kind === "report" && reportData) {
     return (
       <div className={styles.reportContainer}>
-        {reportData.execution_summary && (
+        {summaryText && (
           <div className={styles.executionSummary}>
-            <Typography variant="label" className={styles.executionSummaryLabel}>Execution Summary</Typography>
+            <Typography variant="label" className={styles.executionSummaryLabel}>
+              {driftResources ? "Drift Summary" : "Execution Summary"}
+            </Typography>
             <Typography variant="bodyText" className={styles.executionSummaryText}>
-              {reportData.execution_summary}
+              {summaryText}
             </Typography>
           </div>
         )}
@@ -247,7 +277,7 @@ export default function ArtifactContent({
             <PotentialImpactCard impact={reportData.potential_impact} />
           </div>
         )}
-        {reportData.estimated_costs && (
+        {hasStructuredCosts(reportData.estimated_costs) && (
           <div
             className={styles.reportCard}
             onClick={() => setActiveDetail("costs")}
@@ -260,14 +290,23 @@ export default function ArtifactContent({
             <EstimatedCostsCard costs={reportData.estimated_costs} />
           </div>
         )}
-        <ChangesTable
-          changes={reportData.detailed_changes ?? []}
-          activeFilter={activeFilter}
-          setActiveFilter={setActiveFilter}
-          onSelectChange={(change) => {
-            setActiveDetail("change", change.name);
-          }}
-        />
+        {driftResources ? (
+          <DriftChangesList
+            resources={driftResources}
+            onSelect={(resource) => {
+              setActiveDetail("change", resource.resource_address);
+            }}
+          />
+        ) : (
+          <ChangesTable
+            changes={reportData.detailed_changes ?? []}
+            activeFilter={activeFilter}
+            setActiveFilter={setActiveFilter}
+            onSelectChange={(change) => {
+              setActiveDetail("change", change.name);
+            }}
+          />
+        )}
 
         {activeDetail === "impact" && reportData.potential_impact && (
           <ImpactDetail
@@ -275,7 +314,7 @@ export default function ArtifactContent({
             onClose={() => setActiveDetail(null)}
           />
         )}
-        {activeDetail === "costs" && reportData.estimated_costs && (
+        {activeDetail === "costs" && hasStructuredCosts(reportData.estimated_costs) && (
           <CostsDetail
             costs={reportData.estimated_costs}
             onClose={() => setActiveDetail(null)}
@@ -284,6 +323,12 @@ export default function ArtifactContent({
         {activeDetail === "change" && selectedChange && (
           <ChangeDetail
             change={selectedChange}
+            onClose={() => setActiveDetail(null)}
+          />
+        )}
+        {activeDetail === "change" && selectedDriftResource && (
+          <DriftResourceDetail
+            resource={selectedDriftResource}
             onClose={() => setActiveDetail(null)}
           />
         )}

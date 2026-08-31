@@ -141,28 +141,26 @@
         },
         "estimated_costs": {
           "type": "object",
-          "description": "An estimation of the monthly and hourly costs associated with the new or updated resources.",
+          "description": "Estimation of the total FIXED monthly cost introduced by the plan. Fixed cost is the baseline recurring charge a resource incurs just by existing (SKU/tier base price). NEVER include usage-based operational charges (per-operation, per-GB, per-request) in any numeric field.",
           "properties": {
-            "banner": {
-              "type": "object",
-              "description": "A banner providing a quick summary of the estimated costs.",
-              "properties": {
-                "summary": {
-                  "type": "string",
-                  "description": "A high-level cost summary sentence, e.g., 'The new resources are estimated to cost approximately $0.05 per hour and $36.50 per month.'."
-                }
-              },
-              "required": [
-                "summary"
+            "currency": {
+              "type": "string",
+              "description": "ISO 4217 currency code applying to all numeric cost values.",
+              "enum": [
+                "USD"
               ]
+            },
+            "total_fixed_monthly_cost": {
+              "type": "number",
+              "description": "Total fixed monthly cost as a plain decimal number, e.g., 36.5. MUST equal the sum of all breakdown[].fixed_monthly_cost values. Use 0 when the plan introduces no fixed-cost resources."
             },
             "introduction_paragraph": {
               "type": "string",
-              "description": "A prose paragraph explaining the basis of the estimation, e.g., 'Terraform plans don't include a direct cost estimation, but here is a breakdown based on public pricing for the `westeurope` region.'."
+              "description": "1-3 sentences with the mandatory disclaimer that the estimate is approximate and based on public pricing for the region, noting that usage-based operational costs are excluded from the numbers."
             },
             "breakdown": {
               "type": "array",
-              "description": "A detailed breakdown of costs by resource type.",
+              "description": "Per-resource-type breakdown of fixed monthly costs.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -170,33 +168,36 @@
                     "type": "string",
                     "description": "Name of the resource type, e.g., 'NAT Gateway'."
                   },
-                  "details": {
-                    "type": "object",
-                    "properties": {
-                      "estimated_cost": {
-                        "type": "string",
-                        "description": "An estimated cost range in dollars for this resource type. I.e. '~$0.0208 per GB per month for hot tier'"
-                      },
-                      "additional_details": {
-                        "type": "string",
-                        "description": "Further details or clarifications if any."
-                      }
-                    },
-                    "required": [
-                      "estimated_cost",
-                      "additional_details"
+                  "pricing_model": {
+                    "type": "string",
+                    "description": "'fixed' = recurring base price; 'usage_based' = billed only per consumption (fixed_monthly_cost MUST be 0); 'free' = no cost at all (fixed_monthly_cost MUST be 0).",
+                    "enum": [
+                      "fixed",
+                      "usage_based",
+                      "free"
                     ]
+                  },
+                  "fixed_monthly_cost": {
+                    "type": "number",
+                    "description": "Fixed monthly cost for this resource type as a plain decimal number, e.g., 3.65. MUST be 0 for 'usage_based' and 'free' pricing models."
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "One short sentence of clarification, e.g., 'Billed per 10k operations; no fixed monthly fee.'."
                   }
                 },
                 "required": [
                   "resource_type",
-                  "details"
+                  "pricing_model",
+                  "fixed_monthly_cost",
+                  "notes"
                 ]
               }
             }
           },
           "required": [
-            "banner",
+            "currency",
+            "total_fixed_monthly_cost",
             "introduction_paragraph",
             "breakdown"
           ]
