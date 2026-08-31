@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Thin async wrapper around the terraform CLI.
+"""Thin async wrapper around the IaC engine CLI (OpenTofu or Terraform).
 
 Just enough to drive `init`, `validate`, `plan`, `show`, `apply`,
-`import`, and `state pull`, one command per call. Implementations that
-need more (state locking, custom backends, policy as code) should
-extend this or substitute their own.
+`import`, and `state pull`, one command per call — the flag surface is
+identical across both engines. Implementations that need more (state
+locking, custom backends, policy as code) should extend this or
+substitute their own.
 """
 
 from __future__ import annotations

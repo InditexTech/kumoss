@@ -88,7 +88,7 @@ class ScopeResourceIdsRequest(BaseModel):
 
 
 class OperationResult(BaseModel):
-    """Raw outcome of the single terraform command a job ran."""
+    """Raw outcome of the single engine command a job ran."""
 
     model_config = ConfigDict(extra="forbid")
 
