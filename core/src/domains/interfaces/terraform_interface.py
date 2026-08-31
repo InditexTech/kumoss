@@ -11,20 +11,17 @@ class ITerraform(ABC):
     @abstractmethod
     async def validate(
         self,
-        branch: str,
         targets: list[str],
-        get_drift: bool = False,
+        get_drift: bool,
     ) -> TerraformValidationDTO:
         """
-        Validates Terraform infrastructure changes against a specific branch and targets.
+        Validates Terraform infrastructure changes against specific targets.
 
         This method performs comprehensive validation of Terraform changes, including:
         - Terraform plan execution
         - Optional infrastructure drift detection
 
         Args:
-            branch (str): The git branch name to validate against. This branch should
-                         contain the Terraform configuration to be validated.
             targets (list[str]): List of specific Terraform resource targets to validate.
                                  If empty, validates all resources in the configuration.
                                  Each target should be in the format 'module.name.resource_type.resource_name'
@@ -41,7 +38,7 @@ class ITerraform(ABC):
         Raises:
             ExceptionHandler: When terraform plan format is incompatible or validation fails
                              due to infrastructure issues
-            ValidationError: When the provided branch or targets are invalid
+            ValidationError: When the provided targets are invalid
             InfrastructureError: When there are issues connecting to cloud provider APIs
                                 or downloading terraform artifacts
 
@@ -49,7 +46,6 @@ class ITerraform(ABC):
             ```python
             validator = TerraformDrift(...)
             result = await validator.validate(
-                branch="feature/new-infrastructure",
                 targets=["azurerm_storage_account.main", "azurerm_resource_group.rg"]
             )
 

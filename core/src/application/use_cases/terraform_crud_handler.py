@@ -91,8 +91,8 @@ class TerraformCRUDHandler:
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        branch=ctx.branch_name,
                         targets=await self.__target_svc.generate(local_history),
+                        get_drift=False,
                     )
 
                 if predictive_targets:

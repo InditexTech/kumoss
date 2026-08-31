@@ -47,7 +47,6 @@ class TerraformDriftService:
 
             # Generate drift JSON report
             validation = await self.__validator_prv.validate(
-                branch=self.__ctx.branch_name,
                 targets=targets,
                 get_drift=True,
             )

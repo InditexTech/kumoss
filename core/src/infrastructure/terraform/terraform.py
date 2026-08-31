@@ -16,9 +16,8 @@ operation is submitted with the generated client and polled at
 ``GET /v1/jobs/{job_id}`` until terminal; a non-zero ``exit_code`` is
 a terraform-level failure reported through the returned DTO, while a
 ``failed`` job is a service-level fault raised as an ExceptionHandler
-error. The ``branch`` argument is kept for interface compatibility but
-is not sent to the service — every operation runs on whatever is on
-disk at the workspace path, which must be visible to the service.
+error. Every operation runs on whatever is on disk at the workspace path,
+which must be visible to the service.
 """
 
 from __future__ import annotations
@@ -78,9 +77,8 @@ class Terraform(ITerraform):
     @override
     async def validate(
         self,
-        branch: str,
         targets: list[str],
-        get_drift: bool = False,
+        get_drift: bool,
     ) -> TerraformValidationDTO:
         cfg = system_config.services.iac
         if not cfg.enabled or not cfg.endpoint:
