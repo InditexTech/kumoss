@@ -1,0 +1,27 @@
+services/iac/README.md
+  s_9f1869c5b45a2e::t_16b9bbbe4a97d1 11-16,25-27,29,31-32,34,42,46,60-61,63-97,121
+services/iac/env.sample
+  s_9f1869c5b45a2e::t_97094a875b7dcc 13-29,36-40
+services/iac/pyproject.toml
+  s_9f1869c5b45a2e::t_75cf225d5c7b27 8
+services/iac/src/models.py
+  s_9f1869c5b45a2e::t_17a77ee3d7ac96 91
+services/iac/src/terraform.py
+  s_9f1869c5b45a2e::t_513d307774ee3e 5,8-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4e1165626472e84fa7fbdf9a33fd9ca492b292e1",
+  "prompts": {},
+  "sessions": {
+    "s_9f1869c5b45a2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9509c43-f48f-43f3-a98a-b50a254e87c0",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
