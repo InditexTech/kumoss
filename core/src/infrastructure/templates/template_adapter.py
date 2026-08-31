@@ -126,20 +126,15 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
 
-        templates_content: list[str] = await self._get_resources_templates(
-            already_selected_templates or []
-        )
-        templates_and_content: dict[str, str] = (
-            dict(zip(already_selected_templates, templates_content))
-            if already_selected_templates and templates_content
-            else dict.fromkeys(already_selected_templates or [], "")
+        templates: dict[str, str] | None = await self._get_resources_templates(
+            already_selected_templates
         )
 
         t = self._get_template(self._core + "prompt_compositor.jinja")
         return t.render(
             AVAILABLE_TEMPLATES_LIST=resources,
             AVAILABLE_ABBREVIATIONS_LIST=abbr,
-            ALREADY_SELECTED_TEMPLATES=templates_and_content,
+            ALREADY_SELECTED_TEMPLATES=templates,
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
 
@@ -170,7 +165,7 @@ class TemplateAdapter(ITemplate):
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
             if abbreviations
-            else []
+            else [""]
         )
         terraform_guidelines: str = await remote_fetcher.fetch(
             prompt_name="terraform",
@@ -186,7 +181,13 @@ class TemplateAdapter(ITemplate):
         )
         networking = await self._fetch_guidelines("networking")
         permissions = await self._fetch_guidelines("permissions")
-        concrete_implementations.extend(await self._get_resources_templates(resources))
+        resources_content: dict[str, str] | None = await self._get_resources_templates(
+            resources
+        )
+        if resources_content:
+            for r, c in resources_content.items():
+                concrete_implementations.append(f"{r}:\n{c}")
+
         return {
             "GENERAL_TERRAFORM_GUIDELINES": terraform_guidelines,
             "FORBIDDEN_ACTIONS": forbidden_actions,
@@ -205,17 +206,20 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
 
-    async def _get_resources_templates(self, resources: list[str]) -> list[str]:
-        rendered_resources: list[str] = []
+    async def _get_resources_templates(
+        self, resources: list[str]
+    ) -> dict[str, str] | None:
+        if not resources:
+            return None
+        rendered_resources: dict[str, str] = {}
         for r in resources:
-            rendered_resources.append(
-                await remote_fetcher.fetch(
-                    prompt_name=r,
-                    scope=self._scope,
-                    type="resources",
-                    tag=system_config.environment,
-                )
+            rendered_resources[r] = await remote_fetcher.fetch(
+                prompt_name=r,
+                scope=self._scope,
+                type="resources",
+                tag=system_config.environment,
             )
+
         return rendered_resources
 
     @override
