@@ -272,7 +272,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
         prompt = await adapter.render_target_generator(
-            mode=TargetGenerationMode.DRIFT_REMEDIATION,
+            mode=TargetGenerationMode.DRIFT,
             resources=["storage_account"],
         )
 
