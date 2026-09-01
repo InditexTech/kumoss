@@ -1,0 +1,175 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── Filter Tabs ─── */
+
+.filterBar {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 0;
+}
+
+.filterTab {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 8px 0 10px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
+  white-space: nowrap;
+}
+
+.filterTab:hover {
+  color: var(--color-text-secondary);
+}
+
+.filterTabActive {
+  color: var(--color-heading);
+  border-bottom-color: var(--color-heading);
+}
+
+.filterCount {
+  font-size: 11px;
+  vertical-align: super;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+/* ─── Resource Changes Table ─── */
+
+.changesTable {
+  width: 100%;
+}
+
+.changeEntry {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.changeRow {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  min-height: 48px;
+}
+
+.changeRowClickable {
+  cursor: pointer;
+}
+
+.changeRowClickable:hover {
+  background: var(--color-surface-subtle);
+}
+
+.changeName {
+  font-size: 14px;
+  font-weight: 500;
+  color: light-dark(#111827, #f9fafb);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeNotes {
+  font-size: 14px;
+  color: var(--color-text-body);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Resource Detail (PageOverlay rows) ─── */
+
+.detailRow {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.detailLabel {
+  flex-shrink: 0;
+  width: 120px;
+  padding-top: 2px;
+}
+
+.detailValue {
+  flex: 1;
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.detailError {
+  flex: 1;
+  color: var(--color-danger);
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--color-danger);
+  background: light-dark(rgba(239, 68, 68, 0.05), rgba(239, 68, 68, 0.1));
+}
+
+.detailCode {
+  flex: 1;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-body);
+  background: light-dark(#f8f9fa, rgba(0, 0, 0, 0.3));
+  border: 1px solid var(--color-border);
+  padding: 16px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ─── Recommendations (pinned to bottom in flex parents) ─── */
+
+.recommendationsSection {
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.subsectionTitle {
+  color: light-dark(#111827, #f9fafb);
+  margin: 0 0 16px;
+}
+
+.recommendationsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recommendationItem {
+  color: var(--color-text-body);
+  padding: 16px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+/* ─── Responsive ─── */
+
+@media screen and (max-width: 1200px) {
+  .changeRow {
+    grid-template-columns: 90px 1fr;
+    gap: 8px;
+  }
+
+  .changeNotes {
+    grid-column: 1 / -1;
+  }
+}

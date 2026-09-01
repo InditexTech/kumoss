@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import type { ReportRef } from "@/types/api";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
@@ -29,6 +30,10 @@ function artifactRef(id: number, path: string) {
   };
 }
 
+function reportRef(id: number, path: string): ReportRef {
+  return { ...artifactRef(id, path), type: "generate" };
+}
+
 beforeEach(() => {
   mockState.clear();
 });
@@ -41,7 +46,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: artifactRef(1, "report.json"),
+            report: reportRef(1, "report.json"),
             plan: { ...artifactRef(2, "plan.txt"), targets: ["a.b"] },
             code_changes: [
               { ...artifactRef(3, "main.tf"), file_name: "main.tf" },
@@ -211,7 +216,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: artifactRef(1, "report.json"),
+            report: reportRef(1, "report.json"),
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -248,7 +253,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: artifactRef(1, "report.json"),
+            report: reportRef(1, "report.json"),
           }),
           makeRound({
             statuses: [makeStatus("uncompleted", "Query is off-topic")],
@@ -280,7 +285,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: artifactRef(1, "report.json"),
+            report: reportRef(1, "report.json"),
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -348,7 +353,7 @@ describe("resolveSessionOutcome", () => {
               makeStatus("apply"),
               makeStatus("completed"),
             ],
-            report: artifactRef(9, "apply-report.json"),
+            report: reportRef(9, "apply-report.json"),
           }),
         ],
       }),
@@ -373,7 +378,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("completed")],
-            report: artifactRef(1, "report.json"),
+            report: reportRef(1, "report.json"),
           }),
         ],
       }),

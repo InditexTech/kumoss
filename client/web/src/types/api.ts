@@ -160,6 +160,13 @@ export interface ArtifactRef {
   created_at: string;
 }
 
+/** The stored report flavour; same value as the artifact's filename prefix. */
+export type ReportType = "generate" | "drift" | "import" | "apply";
+
+export interface ReportRef extends ArtifactRef {
+  type: ReportType;
+}
+
 export interface TerraformPlanRef extends ArtifactRef {
   targets: string[];
 }
@@ -182,8 +189,9 @@ export interface PullRequestRef {
 export interface RoundDetail {
   id: number;
   number: number;
+  query: string;
   statuses: StatusEntry[];
-  report: ArtifactRef | null;
+  report: ReportRef | null;
   plan: TerraformPlanRef | null;
   code_changes: CodeChangeRef[];
   pull_requests: PullRequestRef[];

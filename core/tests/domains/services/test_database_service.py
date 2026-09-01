@@ -24,6 +24,7 @@ from src.infrastructure.redis import redis_client
 from src.shared.constants import (
     GitProviderName,
     OperationType,
+    ReportType,
     SessionStatus,
     TerraformProvider,
 )
@@ -281,6 +282,29 @@ class TestFinishedSessionDetailCache(_SessionBase):
         # Second read is served from the cache and must round-trip exactly.
         second = await DatabaseService.get_session_detail(self.sid)
         self.assertEqual(first, second)
+
+    async def test_report_type_and_query_survive_the_cache(self):
+        # DB is wiped per test, so the only round is the one create_session
+        # opened; add_report is DB-only and presigning is local, so no
+        # object-storage round-trip is involved.
+        [rnd] = await db.list_by(Round)
+        _ = await DatabaseService.add_report(
+            round_id=rnd.id,
+            report_type=ReportType.APPLY,
+            uri=f"sessions/{self.sid}/rounds/{rnd.id}/reports/apply-t.json",
+            content_type="application/json",
+            file_size_bytes=2,
+        )
+        await DatabaseService.mark_completed(self.sid, "done")
+
+        first = await DatabaseService.get_session_detail(self.sid)  # writes cache
+        second = await DatabaseService.get_session_detail(self.sid)  # cached copy
+        for detail in (first, second):
+            report = detail.rounds[0].report
+            self.assertIsNotNone(report)
+            assert report is not None
+            self.assertIs(report.type, ReportType.APPLY)
+            self.assertEqual(detail.rounds[0].query, "create a resource group")
 
     async def test_admin_variant_is_not_served_from_cache(self):
         await DatabaseService.mark_completed(self.sid, "done")

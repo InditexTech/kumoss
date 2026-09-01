@@ -101,6 +101,19 @@
   color: var(--color-content-muted);
 }
 
+.timelineQuery {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 18px;
+  color: var(--color-content-muted);
+  overflow-wrap: anywhere;
+  /* Long prompts: clamp to three lines. */
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
 .timelineContentWithOps {
   display: grid;
   grid-template-columns: auto 1fr;
