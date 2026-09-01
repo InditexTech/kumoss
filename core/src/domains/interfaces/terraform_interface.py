@@ -46,7 +46,8 @@ class ITerraform(ABC):
             ```python
             validator = TerraformDrift(...)
             result = await validator.validate(
-                targets=["azurerm_storage_account.main", "azurerm_resource_group.rg"]
+                targets=["azurerm_storage_account.main", "azurerm_resource_group.rg"],
+                get_drift=False,
             )
 
             if result.validation:

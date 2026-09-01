@@ -28,9 +28,7 @@ class TerraformApplyHandler:
 
     The plan was validated and reviewed by the generate/drift round that
     pinned its workspace; this handler executes exactly that artifact.
-    There is no re-plan, no target regeneration and no retry loop: a
-    failed apply fails the session, and only a new generate/drift round
-    can produce the next appliable plan.
+    Only a new generate/drift round can produce the next appliable plan.
     """
 
     def __init__(
@@ -83,9 +81,13 @@ class TerraformApplyHandler:
                 )
                 ctx.history.append_turn(q, report.execution_summary)
                 if not validation.validation:
-                    await NotificationServiceClient.notify_compliance_failure(
+                    await NotificationServiceClient.notify_apply_failure(
                         session_id=ctx.id,
                         summary=report.execution_summary,
+                    )
+                    raise TerraformValidationFailedError(
+                        message=report.execution_summary,
+                        error_code=500,
                     )
             finally:
                 self.__workspace_svc.discard_pinned(ctx.id)
