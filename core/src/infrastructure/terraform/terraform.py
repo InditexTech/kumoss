@@ -63,6 +63,7 @@ from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -320,7 +321,7 @@ class Terraform(ITerraform):
     async def scope_resource_ids(
         self,
         scope_id: str,
-        terraform_provider: str,
+        terraform_provider: TerraformProvider,
     ) -> list[str]:
         cfg = system_config.services.iac
         if not cfg.enabled or not cfg.endpoint:
