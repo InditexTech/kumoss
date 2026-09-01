@@ -274,7 +274,6 @@ class Terraform(ITerraform):
             terraform_targets=targets,
         )
 
-    @trace_terraform
     @override
     async def state_resource_ids(self) -> list[str]:
         cfg = system_config.services.iac
@@ -316,7 +315,6 @@ class Terraform(ITerraform):
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
-    @trace_terraform
     @override
     async def scope_resource_ids(
         self,
