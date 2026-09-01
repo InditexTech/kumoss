@@ -1,0 +1,25 @@
+services/iac/README.md
+  s_9f1869c5b45a2e::t_85fce6c3c092e2 60,77-79,82-100
+services/iac/env.sample
+  s_9f1869c5b45a2e::t_a6240f44114b06 15-17,19-26,31
+services/iac/src/config.py
+  s_9f1869c5b45a2e::t_7c9587add7c957 19-26,37-42,67-68
+services/iac/tests/test_config.py
+  s_9f1869c5b45a2e::t_08633ca4efe89c 8-10,37,42-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d3bf8fbc6db55a7d9471bd26609a82e29dd9c855",
+  "prompts": {},
+  "sessions": {
+    "s_9f1869c5b45a2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9509c43-f48f-43f3-a98a-b50a254e87c0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
