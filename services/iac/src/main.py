@@ -54,6 +54,19 @@ from .models import (
 )
 
 
+# Console logging for the service's own loggers ("iac.*": engine
+# operations, config warnings). uvicorn only configures its own
+# loggers, so without this handler the operation logs would be
+# invisible at the default log level.
+_iac_logger = logging.getLogger("iac")
+if not _iac_logger.handlers:
+    _handler = logging.StreamHandler(sys.stderr)
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    _iac_logger.addHandler(_handler)
+    _iac_logger.setLevel(logging.INFO)
+
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
@@ -64,10 +77,10 @@ async def _log_engine_version() -> None:
 
     Diagnostics only: the binary's resolvability is already asserted by
     Config at import time, so a probe failure is logged, never fatal.
-    The banner is printed straight to stderr (like uvicorn's own
-    startup banner) so it reaches the console regardless of the
-    server's logging configuration.
+    Goes through the "iac" logger, whose stderr handler is configured
+    above independently of uvicorn's logging setup.
     """
+    logger = logging.getLogger("iac.engine")
     resolved = shutil.which(config.terraform_binary)
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -81,11 +94,9 @@ async def _log_engine_version() -> None:
             stdout_bytes.decode("utf-8", errors="replace").splitlines() or ["unknown"]
         )[0]
     except OSError as exc:
-        logging.getLogger("iac.engine").warning(
-            "IaC engine %s: version probe failed: %s", resolved, exc
-        )
+        logger.warning("IaC engine %s: version probe failed: %s", resolved, exc)
         return
-    print(f"IaC engine: {resolved} — {version}", file=sys.stderr, flush=True)
+    logger.info("IaC engine: %s — %s", resolved, version)
 
 
 @asynccontextmanager

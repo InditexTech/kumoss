@@ -15,8 +15,17 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
+
+
+logger = logging.getLogger("iac.engine")
+
+# Failure diagnostics are passed through verbatim in the job result;
+# the console log only carries a tail, to stay readable.
+_STDERR_LOG_LIMIT = 500
 
 
 @dataclass
@@ -28,6 +37,8 @@ class CommandResult:
 
 
 async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
+    logger.info("run: %s %s (cwd=%s)", binary, " ".join(args), cwd)
+    started = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         binary,
         *args,
@@ -36,12 +47,25 @@ async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
         stderr=asyncio.subprocess.PIPE,
     )
     stdout_bytes, stderr_bytes = await proc.communicate()
-    return CommandResult(
+    duration = time.monotonic() - started
+    result = CommandResult(
         ok=proc.returncode == 0,
         stdout=stdout_bytes.decode("utf-8", errors="replace"),
         stderr=stderr_bytes.decode("utf-8", errors="replace"),
         exit_code=proc.returncode if proc.returncode is not None else -1,
     )
+    if result.ok:
+        logger.info("done: %s %s — exit 0 in %.1fs", binary, args[0], duration)
+    else:
+        logger.warning(
+            "failed: %s %s — exit %d in %.1fs; stderr tail: %s",
+            binary,
+            args[0],
+            result.exit_code,
+            duration,
+            result.stderr[-_STDERR_LOG_LIMIT:].strip() or "(empty)",
+        )
+    return result
 
 
 async def init(binary: str, cwd: Path) -> CommandResult:
