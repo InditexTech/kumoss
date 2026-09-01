@@ -95,7 +95,7 @@ orchestration:
 
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5@20250929"
+  model: "vertex_ai/claude-sonnet-5"
   temperature: 0.1
   max_output_tokens: 32000
   # Simple tasks model
@@ -105,9 +105,9 @@ llm:
 
   model_list:
     # Google Vertex AI
-    - model_name: "vertex_ai/claude-sonnet-4-5@20250929"
+    - model_name: "vertex_ai/claude-sonnet-5"
       litellm_params:
-        model: "vertex_ai/claude-sonnet-4-5@20250929"
+        model: "vertex_ai/claude-sonnet-5"
         vertex_project: "os.environ/VERTEXAI_PROJECT"
         vertex_location: "os.environ/VERTEXAI_LOCATION"
         vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
