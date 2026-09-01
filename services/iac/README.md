@@ -22,6 +22,10 @@ time in submission (FIFO) order.
 
 ## What it does
 
+The commands below are shown for the default engine (`tofu`); when the
+service is configured with `IAC_BINARY=terraform` it runs the same
+subcommands against that binary instead (e.g. `terraform init`).
+
 - `POST /v1/init` — enqueues `tofu init`.
 - `POST /v1/validate` — enqueues `tofu validate`.
 - `POST /v1/plan` — enqueues `tofu plan -out <plan_file>` with
@@ -81,7 +85,7 @@ version.
   against the bundled engine.
 - **HashiCorp Terraform:** build the image with
   `--build-arg INSTALL_TERRAFORM=1` (and optionally
-  `--build-arg TERRAFORM_VERSION=<version>`, default `1.11.1`). This
+  `--build-arg TERRAFORM_VERSION=<version>`, default `1.16.0`). This
   installs a real `terraform` binary alongside `tofu` and drops the
   symlink; then set `IAC_BINARY=terraform`. Terraform is **not**
   distributed in the default image — enabling this build arg pulls it

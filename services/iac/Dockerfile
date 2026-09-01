@@ -26,11 +26,14 @@ ARG INSTALL_TERRAFORM=0
 ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 RUN if [ "$INSTALL_TERRAFORM" = "1" ]; then \
+        tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"; \
         apt-get update \
         && apt-get install -y --no-install-recommends curl unzip ca-certificates \
-        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip \
-        && unzip -q /tmp/terraform.zip -d /usr/local/bin \
-        && rm /tmp/terraform.zip \
+        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \
+        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" -o /tmp/terraform_SHA256SUMS \
+        && (cd /tmp && grep " ${tf_zip}\$" terraform_SHA256SUMS | sha256sum -c -) \
+        && unzip -q "/tmp/${tf_zip}" -d /usr/local/bin \
+        && rm "/tmp/${tf_zip}" /tmp/terraform_SHA256SUMS \
         && apt-get purge -y unzip \
         && rm -rf /var/lib/apt/lists/*; \
     else \
