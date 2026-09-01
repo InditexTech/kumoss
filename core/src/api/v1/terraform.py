@@ -164,10 +164,7 @@ async def drift_detection_remediation(
     status_code=202,
     summary="Start an apply session for prepared infrastructure changes.",
     responses={
-        409: {
-            "description": "Session is blocked by a failed compliance check, "
-            + "or no reviewed plan is pinned for it."
-        },
+        409: {"description": "Session is blocked by a failed compliance check."},
     },
 )
 async def apply_infrastructure(
