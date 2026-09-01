@@ -1,0 +1,38 @@
+[
+  {
+    "name": "iac_import",
+    "description": "CRITICAL: Call this tool to signal the final completion of the import config-generation task. Reports the status, a summary of actions taken, and the mapping of Terraform resource addresses to cloud resource IDs for the import execution step.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "boolean",
+          "description": "The final status of the config generation. `true` if HCL resource blocks were successfully created for the selected resources, `false` if the operation failed."
+        },
+        "summary": {
+          "type": "string",
+          "description": "A detailed, human-readable narrative of the operation: which files were created or modified, which resource blocks were added, the naming and placement rationale, and any issues encountered."
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string",
+                "description": "The Terraform resource address for the generated block (e.g. 'azurerm_storage_account.example', 'module.keyvault.azurerm_key_vault.main')."
+              },
+              "resource_id": {
+                "type": "string",
+                "description": "The cloud provider's native resource ID to import (e.g. an Azure resource ID, AWS ARN, or GCP asset name)."
+              }
+            },
+            "required": ["address", "resource_id"]
+          },
+          "description": "The mapping of each generated resource block to the cloud resource it represents. Each entry feeds directly into `terraform import <address> <resource_id>`."
+        }
+      },
+      "required": ["status", "summary", "imports"]
+    }
+  }
+]

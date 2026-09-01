@@ -77,9 +77,48 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    def render_iac_import(self) -> str:
+    async def render_iac_filter(
+        self,
+        unmanaged_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        concrete_implementations: list[str] = (
+            [f"This is the convention for resource naming: {abbreviations}"]
+            if abbreviations
+            else []
+        )
+        concrete_implementations.extend(await self._get_resources_templates(resources))
+        import_exceptions: str = await remote_fetcher.fetch(
+            prompt_name="import_exceptions",
+            scope=self._scope,
+            type="guidelines",
+            tag=system_config.environment,
+        )
+        t = self._get_template(self._core + "iac_filter.jinja")
+        return t.render(
+            UNMANAGED_IDS=unmanaged_ids,
+            IMPORT_EXCEPTIONS=import_exceptions,
+            CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations)
+            if concrete_implementations
+            else None,
+        )
+
+    @override
+    async def render_iac_import(
+        self,
+        selected_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        context = await self._compose_conventions_context(
+            resources, abbreviations, include_forbidden_actions=False
+        )
         t = self._get_template(self._core + "iac_import.jinja")
-        return t.render()
+        return t.render(
+            **context,
+            SELECTED_IDS=selected_ids,
+        )
 
     @override
     async def render_iac_generator(

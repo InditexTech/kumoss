@@ -36,6 +36,7 @@ class TemplateOrchestrationService:
             "task_splitter": self.__templates.render_task_splitter,
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
+            "iac_filter": self.__templates.render_iac_filter,
             "iac_import": self.__templates.render_iac_import,
             "predictive_target_calculator": self.__templates.render_predictive_target_calculator,
             "target_generator": self.__templates.render_target_generator,

@@ -18,6 +18,15 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    async def render_iac_filter(
+        self,
+        unmanaged_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        pass
+
+    @abstractmethod
     async def render_predictive_target_calculator(
         self,
         resources: list[str],
@@ -71,7 +80,12 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_iac_import(self) -> str:
+    async def render_iac_import(
+        self,
+        selected_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
         pass
 
     @abstractmethod

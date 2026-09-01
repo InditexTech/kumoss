@@ -53,6 +53,8 @@ class PromptsLibrary(Enum):
     TASK_SPLITTER = "task_splitter"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
+    IAC_FILTER = "iac_filter"
+    IAC_IMPORT = "iac_import"
     TARGET_GENERATOR = "target_generator"
     PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
@@ -76,6 +78,8 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+    IAC_FILTER = "iac_filter"
+    IAC_IMPORT = "iac_import"
     COMPLIANCE_CHECK = "compliance_check"
 
 
