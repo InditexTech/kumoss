@@ -1,0 +1,21 @@
+services/iac/Dockerfile
+  s_9f1869c5b45a2e::t_9b5941f3508d36 29,32-36
+services/iac/README.md
+  s_9f1869c5b45a2e::t_aa8da97e8c0875 25-28,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "dfab726dd41f0bfebdcf3611828ed5aa80d6cad5",
+  "prompts": {},
+  "sessions": {
+    "s_9f1869c5b45a2e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9509c43-f48f-43f3-a98a-b50a254e87c0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
