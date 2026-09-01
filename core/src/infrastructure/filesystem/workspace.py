@@ -92,3 +92,25 @@ class WorkspaceService(IWorkspace):
     @override
     def cleanup(self, call_dir: Path) -> None:
         shutil.rmtree(call_dir, ignore_errors=True)
+
+    @override
+    def pinned_dir(self, session_id: UUID) -> Path:
+        return self._base / str(session_id) / "pinned"
+
+    @override
+    def pin_workspace(self, session_id: UUID, call_dir: Path) -> None:
+        pinned = self.pinned_dir(session_id)
+        shutil.rmtree(pinned, ignore_errors=True)
+        _ = call_dir.rename(pinned)
+
+    @override
+    def discard_pinned(self, session_id: UUID) -> None:
+        shutil.rmtree(self.pinned_dir(session_id), ignore_errors=True)
+
+    @override
+    def pinned_plan_path(self, session_id: UUID) -> Path | None:
+        pinned = self.pinned_dir(session_id)
+        plan = pinned / system_config.paths.session_plan_filename
+        if not pinned.is_dir() or not plan.is_file():
+            return None
+        return plan

@@ -203,6 +203,9 @@ class TestStoreArtifacts(_RoundBase):
         # Signed by the config-selected singleton: assert shape, not host.
         self.assertIn("X-Amz-Signature=", report_ref.url)
         self.assertIn(f"/rounds/{self.round_id}/reports/generate-", report_ref.url)
+        # The read model surfaces the stored report type and round query.
+        self.assertEqual(report_ref.type, ReportType.GENERATE)
+        self.assertEqual(detail.rounds[1].query, "add a vnet")
 
 
 class TestStoreFailureModes(_RoundBase):

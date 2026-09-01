@@ -279,6 +279,9 @@ export default function SessionData({
                       <span className={styles.timelinePhase}>
                         Round {round.number}
                       </span>
+                      <span className={styles.timelineQuery}>
+                        {round.query}
+                      </span>
                       <Typography
                         variant="overline"
                         component="span"

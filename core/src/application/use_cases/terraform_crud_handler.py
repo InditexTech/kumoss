@@ -12,7 +12,7 @@ from src.application.services.terraform_drift_service import TerraformDriftServi
 from src.domains.dto import TerraformValidationDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
-from src.domains.interfaces import ITerraform
+from src.domains.interfaces import ITerraform, IWorkspace
 from src.domains.services import (
     ComplianceCheckService,
     SessionService,
@@ -42,6 +42,7 @@ class TerraformCRUDHandler:
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
         compliance_service: ComplianceCheckService,
+        workspace_service: IWorkspace,
     ):
         self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
@@ -52,6 +53,7 @@ class TerraformCRUDHandler:
         self.__target_svc = target_service
         self.__drift_svc = drift_service
         self.__compliance_svc = compliance_service
+        self.__workspace_svc = workspace_service
         self.__ctx = session_ctx
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
@@ -91,8 +93,8 @@ class TerraformCRUDHandler:
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        branch=ctx.branch_name,
                         targets=await self.__target_svc.generate_session(local_history),
+                        get_drift=False,
                     )
 
                 if predictive_targets:
@@ -146,6 +148,7 @@ class TerraformCRUDHandler:
                         message="Error updating DB session lock.",
                         error_code=500,
                     )
+                self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:
                 await self.__session_svc.save()
 

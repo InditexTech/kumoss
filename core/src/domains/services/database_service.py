@@ -15,10 +15,10 @@ from sqlalchemy.orm import selectinload
 
 
 from src.domains.dto import (
-    ArtifactRef,
     CodeChangeRef,
     PaginatedSessionSummary,
     PullRequestRef,
+    ReportRef,
     RoundDetail,
     SessionDetail,
     SessionSummary,
@@ -414,7 +414,7 @@ class DatabaseService:
             session_id=session.id,
             first_query=query,
         )
-        round_id = await DatabaseService.create_round(session_id, "undefined")
+        round_id = await DatabaseService.create_round(session_id, query)
         _ = await DatabaseService.__create_status(
             session_id=session_id,
             status=SessionStatus.STARTED,
@@ -657,11 +657,14 @@ class DatabaseService:
         return RoundDetail(
             id=r.id,
             number=r.number,
+            query=r.query,
             statuses=[
                 DatabaseService.__status_entry(st)
                 for st in sorted(r.statuses, key=lambda st: (st.created_at, st.id))
             ],
-            report=ArtifactRef(**DatabaseService.__artifact_fields(report))
+            report=ReportRef(
+                **DatabaseService.__artifact_fields(report), type=report.type
+            )
             if report
             else None,
             plan=TerraformPlanRef(

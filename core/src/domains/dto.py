@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
+    ReportType,
     SessionStatus,
     TerraformProvider,
     ToolContext,
@@ -316,6 +317,12 @@ class ArtifactRef(BaseModel):
     created_at: datetime
 
 
+class ReportRef(ArtifactRef):
+    """Read model: a report artifact plus its stored report type."""
+
+    type: ReportType
+
+
 class TerraformPlanRef(ArtifactRef):
     """Read model: a terraform plan artifact plus its resource targets."""
 
@@ -345,8 +352,9 @@ class RoundDetail(BaseModel):
 
     id: int
     number: int
+    query: str
     statuses: list[StatusEntry]
-    report: ArtifactRef | None
+    report: ReportRef | None
     plan: TerraformPlanRef | None
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]

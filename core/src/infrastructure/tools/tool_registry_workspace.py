@@ -46,7 +46,6 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "diff_history": self.__handle_diff_history,
         }
 
-    # Tool handlers
     def __handle_write_file(self, parameters: dict[str, Any]) -> str:
         target_file = parameters["target_file"]
         content = parameters["content"]
@@ -111,6 +110,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                 logging.warning(f"Error reading file: {e.message}")
                 continue
             untracked_files.append(f"{file}:\n{content}")
-        result += "\nUntracked changes:\n" + "\n".join(untracked_files)
+        if untracked_files:
+            result += "\n".join(untracked_files)
+        if not result:
+            return "None"
         return result
-

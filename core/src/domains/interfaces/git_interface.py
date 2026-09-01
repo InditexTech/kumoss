@@ -98,14 +98,14 @@ class IGit(ABC):
     async def get_changed_files(
         self,
         working_tree: bool,
-        diff_filter: Literal["A", "M", "AM"],
+        diff_filter: Literal["A", "M", "D", "AMD"],
     ) -> list[str]:
         """This function return a list of files that has been modified or created
         based on the given filter.
 
         Args:
             working_tree: Whether the output only includes unstaged changes in the working tree.
-            diff_filter: A - added | M - modified
+            diff_filter: A - added | M - modified | D - deleted
         """
         pass
 

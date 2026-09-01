@@ -42,6 +42,11 @@ async def complete_pr(
 ) -> None:
     try:
         ctx = await DatabaseService.get_session_context(session_id)
+        if await DatabaseService.is_session_blocked(ctx.id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Session {ctx.id} is blocked by a failed compliance check; PR merge is not allowed.",
+            )
         pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
@@ -68,8 +73,8 @@ async def create_pr(
         ctx: SessionContext = await DatabaseService.get_session_context(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
-    pr_svc = ApplicationFactory(ctx).get_pull_request_service()
 
+    pr_svc = ApplicationFactory(ctx).get_pull_request_service()
     tracer_token = tracer.set_current_tracer(
         tracer=PhoenixTracer(
             session_id=ctx.id,

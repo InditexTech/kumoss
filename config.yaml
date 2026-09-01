@@ -162,8 +162,13 @@ llm:
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
 # `workspaces` volume so both see the same cloned-repo paths.
+# `session_plan_filename` names the plan artifact inside a session
+# workspace (written by plan, carried by the pinned workspace, executed
+# by apply); it must be a bare filename (single path segment) and should
+# keep the `.plan` suffix so the injected terraform gitignore covers it.
 paths:
   upload_folder: "/workspaces"
+  session_plan_filename: "session.plan"
 
 # Databases (Nebula postgres + Phoenix collector). Connection URLs embed
 # credentials, so they are referenced indirectly: these keys name the
