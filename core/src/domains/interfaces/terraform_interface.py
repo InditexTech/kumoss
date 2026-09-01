@@ -5,6 +5,7 @@
 from abc import ABC, abstractmethod
 
 from src.domains.dto import TerraformValidationDTO
+from src.shared.constants import TerraformProvider
 
 
 class ITerraform(ABC):
@@ -125,7 +126,7 @@ class ITerraform(ABC):
     async def scope_resource_ids(
         self,
         scope_id: str,
-        terraform_provider: str,
+        terraform_provider: TerraformProvider,
     ) -> list[str]:
         """
         Lists the resource IDs that exist in a cloud provider scope.
@@ -149,8 +150,8 @@ class ITerraform(ABC):
         Args:
             scope_id (str): Cloud provider scope to list — Azure: subscription
                 id, GCP: project id, AWS: account id.
-            terraform_provider (str): Cloud provider to query. One of
-                ``azure``, ``gcp``, ``aws``.
+            terraform_provider (TerraformProvider): Cloud provider to query. One of
+                ``TerraformProvider.AZURE``, ``TerraformProvider.GCP``, ``TerraformProvider.AWS``.
 
         Returns:
             list[str]: Provider-native resource IDs present in the scope.
