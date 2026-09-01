@@ -91,7 +91,7 @@ class LiteLLMAdapter(ILLMProvider):
                     )
                     break
                 except OpenAIError as e:
-                    logging.error(f"LiteLLM aresponses provider error: {str(e)}")
+                    logging.error(f"LiteLLM aresponses provider error: {str(e)}")
 
                 logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
                 await asyncio.sleep(30)

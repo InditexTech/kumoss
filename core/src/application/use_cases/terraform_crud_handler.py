@@ -93,7 +93,7 @@ class TerraformCRUDHandler:
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        targets=await self.__target_svc.generate(local_history),
+                        targets=await self.__target_svc.generate_session(local_history),
                         get_drift=False,
                     )
 
