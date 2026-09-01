@@ -5,8 +5,9 @@
 """Unit tests for IaC engine binary resolution in ``Config.from_env``.
 
 Precedence: ``IAC_BINARY`` > ``TERRAFORM_BINARY`` (deprecated, warns) >
-``tofu``. Resolvable-on-PATH is asserted at construction time, so the
-tests use ``sh`` (always present) as a stand-in binary.
+``opentofu`` (the default, aliased to the real ``tofu`` executable).
+Resolvable-on-PATH is asserted at construction time, so the tests use
+``sh`` (always present) as a stand-in binary.
 """
 
 from __future__ import annotations
@@ -33,10 +34,17 @@ def test_legacy_terraform_binary_fallback_warns(
     assert any("TERRAFORM_BINARY is deprecated" in r.message for r in caplog.records)
 
 
-def test_default_engine_is_tofu(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_default_engine_is_opentofu(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("IAC_BINARY", raising=False)
     monkeypatch.delenv("TERRAFORM_BINARY", raising=False)
     # The default must resolve even on hosts without OpenTofu installed.
+    monkeypatch.setattr("src.config.terraform_available", lambda binary: True)
+    # Default is ``opentofu``, aliased to the real ``tofu`` executable.
+    assert Config.from_env().terraform_binary == "tofu"
+
+
+def test_opentofu_alias_resolves_to_tofu(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IAC_BINARY", "opentofu")
     monkeypatch.setattr("src.config.terraform_available", lambda binary: True)
     assert Config.from_env().terraform_binary == "tofu"
 

@@ -16,6 +16,14 @@ class ConfigError(ValueError):
     """Raised when the resolved service configuration is unusable."""
 
 
+# Friendly engine names → the actual CLI binary. OpenTofu's executable
+# is literally ``tofu`` (that is the name every installer and the
+# bundled image use), so accept the more recognizable ``opentofu`` as
+# an alias for it. Values not listed here (``terraform``, an absolute
+# path, a custom engine name) pass through unchanged.
+_ENGINE_ALIASES = {"opentofu": "tofu"}
+
+
 @dataclass(frozen=True)
 class Config:
     """Resolved from environment at startup.
@@ -26,10 +34,12 @@ class Config:
     - ``terraform_binary``: name or absolute path of the IaC engine CLI
       to invoke (OpenTofu by default; any Terraform-compatible engine
       works). Resolved from ``IAC_BINARY``, falling back to the
-      deprecated ``TERRAFORM_BINARY``, then to ``tofu``. Lookup falls
-      back to PATH so the bundled image needs no override. Asserted to
-      be resolvable at startup so a misconfigured image fails fast
-      instead of on the first request.
+      deprecated ``TERRAFORM_BINARY``, then to ``opentofu`` (the
+      default). The friendly name ``opentofu`` is mapped to the actual
+      ``tofu`` executable via ``_ENGINE_ALIASES``. Lookup falls back to
+      PATH so the bundled image needs no override. Asserted to be
+      resolvable at startup so a misconfigured image fails fast instead
+      of on the first request.
     - ``job_ttl``: seconds a terminal job record stays pollable at
       `GET /v1/jobs/{job_id}` before it is swept (then 404).
     """
@@ -54,7 +64,8 @@ class Config:
                 logging.getLogger("iac.config").warning(
                     "TERRAFORM_BINARY is deprecated; set IAC_BINARY instead."
                 )
-            binary = legacy or "tofu"
+            binary = legacy or "opentofu"
+        binary = _ENGINE_ALIASES.get(binary, binary)
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
             terraform_binary=binary,

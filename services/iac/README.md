@@ -57,7 +57,7 @@ time in submission (FIFO) order.
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
-| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (the bundled OpenTofu). See "Choosing the IaC engine". |
+| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `opentofu` (a friendly alias for the bundled OpenTofu's real `tofu` binary). See "Choosing the IaC engine". |
 | `TERRAFORM_BINARY`                            | no       | **Deprecated** fallback for `IAC_BINARY`, honored (with a warning) only when `IAC_BINARY` is unset. Will be removed in a future release. |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
@@ -74,14 +74,30 @@ On startup the service logs the resolved engine path and its reported
 version.
 
 - **OpenTofu (default):** nothing to configure. `IAC_BINARY` defaults
-  to `tofu`. The image also symlinks `terraform` → `tofu`, so legacy
+  to `opentofu`, a friendly alias resolved to OpenTofu's real `tofu`
+  executable (setting `IAC_BINARY=tofu` works too). When Terraform is
+  not installed the image symlinks `terraform` → `tofu`, so legacy
   `.env` files that still set `TERRAFORM_BINARY=terraform` keep working
   against the bundled engine.
-- **HashiCorp Terraform:** build a custom image that installs the
-  `terraform` binary (its BUSL-1.1 license terms are your
-  responsibility — it is not distributed with Nebula), remove or
-  override the bundled symlink, and set `IAC_BINARY` to the binary's
-  name or absolute path.
+- **HashiCorp Terraform:** build the image with
+  `--build-arg INSTALL_TERRAFORM=1` (and optionally
+  `--build-arg TERRAFORM_VERSION=<version>`, default `1.11.1`). This
+  installs a real `terraform` binary alongside `tofu` and drops the
+  symlink; then set `IAC_BINARY=terraform`. Terraform is **not**
+  distributed in the default image — enabling this build arg pulls it
+  from `releases.hashicorp.com` and its BUSL-1.1 license terms are your
+  responsibility. Both engines are present in such an image, so
+  `IAC_BINARY` switches between them at runtime with no rebuild.
+
+  With the compose stack, pass the build arg under the `iac` service:
+
+  ```yaml
+  iac:
+    build:
+      context: ./services/iac
+      args:
+        INSTALL_TERRAFORM: 1
+  ```
 
 Notes when moving existing projects from Terraform to OpenTofu:
 

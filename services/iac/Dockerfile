@@ -12,13 +12,30 @@ FROM python:3.13-slim AS base
 
 WORKDIR /app
 
-# OpenTofu binary, plus a `terraform` symlink so deployments that still
-# set TERRAFORM_BINARY=terraform (deprecated; see env.sample) keep
-# working against the bundled engine. To run genuine HashiCorp
-# Terraform instead, build a custom image that installs it and set
-# IAC_BINARY (see README.md "Choosing the IaC engine").
+# IaC engines. OpenTofu (MPL-2.0) is always installed and is the
+# default (IAC_BINARY=opentofu). Genuine HashiCorp Terraform (BUSL-1.1) is
+# opt-in: build with --build-arg INSTALL_TERRAFORM=1 to install a real
+# `terraform` binary alongside `tofu`, then select it at runtime with
+# IAC_BINARY=terraform. The default image ships OpenTofu only, so no
+# BUSL-licensed binary is distributed unless you ask for it.
+#
+# When Terraform is NOT installed, a `terraform` -> `tofu` symlink keeps
+# deployments that still set TERRAFORM_BINARY=terraform (deprecated; see
+# env.sample) working against the bundled OpenTofu engine.
+ARG INSTALL_TERRAFORM=0
+ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
-RUN ln -s /usr/local/bin/tofu /usr/local/bin/terraform
+RUN if [ "$INSTALL_TERRAFORM" = "1" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends curl unzip ca-certificates \
+        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip \
+        && unzip -q /tmp/terraform.zip -d /usr/local/bin \
+        && rm /tmp/terraform.zip \
+        && apt-get purge -y unzip \
+        && rm -rf /var/lib/apt/lists/*; \
+    else \
+        ln -s /usr/local/bin/tofu /usr/local/bin/terraform; \
+    fi
 
 # Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
 ARG AWSCLI_VERSION=2.28.0
