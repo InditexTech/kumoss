@@ -37,6 +37,7 @@ class TemplateOrchestrationService:
             "filter_reconciliation": self.__templates.render_filter_reconciliation,
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
+            "iac_filter": self.__templates.render_iac_filter,
             "iac_import": self.__templates.render_iac_import,
             "target_generator": self.__templates.render_target_generator,
             "report_generator": self.__templates.render_report_generator,
