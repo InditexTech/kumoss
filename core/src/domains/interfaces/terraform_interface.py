@@ -60,32 +60,33 @@ class ITerraform(ABC):
             - Validation can includes drift detection by comparing current state with planned changes
             - The method may download and analyze terraform plan artifacts from remote storage
             - Resource changes (drift option) are filtered to exclude known exceptions and benign modifications
+            - A successful plan is written to the configured session plan
+              filename (``paths.session_plan_filename``) inside the workspace;
+              pinning that workspace at round end is what makes the plan
+              appliable later
         """
         pass
 
     @abstractmethod
-    async def apply(
-        self,
-        targets: list[str],
-    ) -> TerraformValidationDTO:
+    async def apply(self) -> TerraformValidationDTO:
         """
-        Applies Terraform infrastructure changes for the given targets.
+        Applies the plan artifact saved in this instance's workspace.
 
-        Runs ``init`` -> ``plan`` (scoped to ``targets``) -> ``apply`` against
-        the session's workspace. The applied plan is computed at apply time in
-        the session's fresh workspace clone — it is not a pinned plan artifact
-        from a previous review.
-
-        Args:
-            targets (list[str]): List of specific Terraform resource targets to apply.
-                                 If empty, applies all resources in the configuration.
+        The workspace is the session's pinned slot: the already-initialized
+        workspace promoted at the end of the last successful generate/drift
+        round, still holding the plan it produced. A single ``apply`` job
+        executes that plan — no init and no plan run at apply time, so the
+        applied changes cannot diverge from the reviewed ones. The plan's
+        own target scope is inherited (terraform forbids ``-target`` with a
+        saved plan).
 
         Returns:
             TerraformValidationDTO: A data transfer object containing:
-                - validation (bool): True if the apply succeeded, False if any
-                                     step exited non-zero
-                - feedback (str): stderr of the failing step when unsuccessful
+                - validation (bool): True if the apply succeeded
+                - feedback (str): stderr of the apply when unsuccessful
                 - terraform_plan (str): stdout of the apply command
+                - terraform_targets (list[str]): always empty; the targets
+                  are recorded inside the saved plan
 
         Raises:
             ExceptionHandler: When the IaC service is disabled, unreachable,

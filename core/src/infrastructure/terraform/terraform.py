@@ -9,15 +9,19 @@ This is the OSS-default terraform service. The IaC microservice
 enqueues a job running exactly one terraform command and the job's
 result is the command's raw ``{exit_code, stdout, stderr}``. All
 orchestration lives here: this class sequences ``init`` → ``validate``
-→ ``plan`` (→ ``show`` under ``get_drift``) for validation and
-``init`` → ``plan`` → ``apply`` for applies, decides the validation
-boolean, and parses the plan JSON into the drift summary. Each
-operation is submitted with the generated client and polled at
-``GET /v1/jobs/{job_id}`` until terminal; a non-zero ``exit_code`` is
-a terraform-level failure reported through the returned DTO, while a
-``failed`` job is a service-level fault raised as an ExceptionHandler
-error. Every operation runs on whatever is on disk at the workspace path,
-which must be visible to the service.
+→ ``plan`` (→ ``show`` under ``get_drift``) for validation — with
+``init`` cached per instance, so the retry loops that call ``validate``
+repeatedly on the same workspace initialize it only once — decides the
+validation boolean, and parses the plan JSON into the drift summary.
+An apply is a single ``apply`` job executing the plan artifact already
+present in the workspace (the session's pinned workspace, promoted at
+the end of the round that produced the plan); no init or plan runs at
+apply time. Each operation is submitted with the generated client and
+polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
+``exit_code`` is a terraform-level failure reported through the
+returned DTO, while a ``failed`` job is a service-level fault raised as
+an ExceptionHandler error. Every operation runs on whatever is on disk
+at the workspace path, which must be visible to the service.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ import time
 from pathlib import Path
 from types import ModuleType
 from typing import override
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import httpx
 
@@ -72,6 +76,7 @@ class Terraform(ITerraform):
         workspace_path: Path,
     ):
         self.__workspace_path = workspace_path
+        self.__initialized = False
 
     @trace_terraform
     @override
@@ -93,13 +98,10 @@ class Terraform(ITerraform):
             token=cfg.token,
             timeout=httpx.Timeout(cfg.timeout),
         )
-        workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                init_res = await self.__run_op(
-                    c, init_op, InitRequest(workspace_path=workspace), cfg
-                )
-                if init_res.exit_code != 0:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
                     return TerraformValidationDTO(
                         validation=False,
                         feedback=init_res.stderr or "terraform init failed",
@@ -107,8 +109,11 @@ class Terraform(ITerraform):
                         terraform_targets=targets,
                     )
 
-                validate_res = await self.__run_op(
-                    c, validate_op, ValidateRequest(workspace_path=workspace), cfg
+                validate_res = await self.__run_initialized_op(
+                    c,
+                    validate_op,
+                    ValidateRequest(workspace_path=self.__workspace_path.as_posix()),
+                    cfg,
                 )
                 if validate_res.exit_code != 0:
                     return TerraformValidationDTO(
@@ -118,13 +123,12 @@ class Terraform(ITerraform):
                         terraform_targets=targets,
                     )
 
-                plan_file = f"{uuid4().hex}.plan"
-                plan_res = await self.__run_op(
+                plan_res = await self.__run_initialized_op(
                     c,
                     plan_op,
                     PlanRequest(
-                        workspace_path=workspace,
-                        plan_file=plan_file,
+                        workspace_path=self.__workspace_path.as_posix(),
+                        plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
                     cfg,
@@ -145,10 +149,13 @@ class Terraform(ITerraform):
                         terraform_targets=targets,
                     )
 
-                show_res = await self.__run_op(
+                show_res = await self.__run_initialized_op(
                     c,
                     show_op,
-                    ShowRequest(workspace_path=workspace, plan_file=plan_file),
+                    ShowRequest(
+                        workspace_path=self.__workspace_path.as_posix(),
+                        plan_file=system_config.paths.session_plan_filename,
+                    ),
                     cfg,
                 )
         except httpx.TimeoutException as e:
@@ -181,11 +188,7 @@ class Terraform(ITerraform):
 
     @trace_terraform
     @override
-    async def apply(
-        self,
-        targets: list[str],
-    ) -> TerraformValidationDTO:
-
+    async def apply(self) -> TerraformValidationDTO:
         cfg = system_config.services.iac
         if not cfg.enabled or not cfg.endpoint:
             raise ExceptionHandler(
@@ -199,46 +202,15 @@ class Terraform(ITerraform):
             token=cfg.token,
             timeout=httpx.Timeout(cfg.timeout),
         )
-        workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                init_res = await self.__run_op(
-                    c, init_op, InitRequest(workspace_path=workspace), cfg
-                )
-                if init_res.exit_code != 0:
-                    return TerraformValidationDTO(
-                        validation=False,
-                        feedback=init_res.stderr or "terraform init failed",
-                        terraform_plan="",
-                        terraform_targets=targets,
-                    )
-
-                # The service applies a saved plan file, which must come from
-                # a plan job on this same (fresh) workspace clone — the plan
-                # is computed at apply time, not pinned from a prior review.
-                plan_file = f"{uuid4().hex}.plan"
-                plan_res = await self.__run_op(
-                    c,
-                    plan_op,
-                    PlanRequest(
-                        workspace_path=workspace,
-                        plan_file=plan_file,
-                        targets=targets,
-                    ),
-                    cfg,
-                )
-                if plan_res.exit_code != 0:
-                    return TerraformValidationDTO(
-                        validation=False,
-                        feedback=plan_res.stderr or "terraform plan failed",
-                        terraform_plan=plan_res.stdout,
-                        terraform_targets=targets,
-                    )
-
                 apply_res = await self.__run_op(
                     c,
                     apply_op,
-                    ApplyRequest(workspace_path=workspace, plan_file=plan_file),
+                    ApplyRequest(
+                        workspace_path=str(self.__workspace_path),
+                        plan_file=system_config.paths.session_plan_filename,
+                    ),
                     cfg,
                 )
         except httpx.TimeoutException as e:
@@ -251,14 +223,67 @@ class Terraform(ITerraform):
                 validation=False,
                 feedback=apply_res.stderr or "terraform apply failed",
                 terraform_plan=apply_res.stdout,
-                terraform_targets=targets,
+                terraform_targets=[],
             )
         return TerraformValidationDTO(
             validation=True,
             feedback="",
             terraform_plan=apply_res.stdout,
-            terraform_targets=targets,
+            terraform_targets=[],
         )
+
+    async def __ensure_init(
+        self,
+        client: AuthenticatedClient,
+        cfg: IacServiceConfig,
+    ) -> OperationResult | None:
+        """Initialize the workspace unless this instance already did.
+
+        Returns None once the workspace is initialized, or the failing
+        OperationResult (the flag stays unset, so the next call tries
+        again).
+        """
+        if self.__initialized:
+            return None
+        init_res = await self.__run_op(
+            client,
+            init_op,
+            InitRequest(workspace_path=str(self.__workspace_path)),
+            cfg,
+        )
+        if init_res.exit_code != 0:
+            return init_res
+        self.__initialized = True
+        return None
+
+    async def __run_initialized_op(
+        self,
+        client: AuthenticatedClient,
+        submit_module: ModuleType,
+        body: OperationRequest,
+        cfg: IacServiceConfig,
+    ) -> OperationResult:
+        """Run an op that needs an initialized workspace, re-initializing once.
+
+        The cached init can go stale mid-request: the generation loop
+        may add a provider or module block between iterations, after
+        which terraform fails asking to run ``terraform init``. That
+        failure clears the cache, re-runs init, and retries the op
+        exactly once; any further failure is returned to the caller as
+        a normal terraform failure.
+        """
+        res = await self.__run_op(client, submit_module, body, cfg)
+        if res.exit_code == 0 or not self.__needs_init(res):
+            return res
+        self.__initialized = False
+        init_res = await self.__ensure_init(client, cfg)
+        if init_res is not None:
+            return init_res
+        return await self.__run_op(client, submit_module, body, cfg)
+
+    @staticmethod
+    def __needs_init(res: OperationResult) -> bool:
+        return "terraform init" in f"{res.stderr}\n{res.stdout}".lower()
 
     async def __run_op(
         self,

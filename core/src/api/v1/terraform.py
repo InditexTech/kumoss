@@ -162,13 +162,17 @@ async def drift_detection_remediation(
     status_code=202,
     summary="Start an apply session for prepared infrastructure changes.",
     responses={
-        409: {"description": "Session is blocked by a failed compliance check."},
+        409: {
+            "description": "Session is blocked by a failed compliance check, "
+            + "or no reviewed plan is pinned for it."
+        },
     },
 )
 async def apply_infrastructure(
     background_tasks: BackgroundTasks, request: ApplyRequest
 ) -> dict[str, str]:
-    """Applies the infrastructure changes for a given project and environment.
+    """Applies the plan pinned by the session's last successful generate or
+    drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
     ctx = await _resolve_or_raise(request)

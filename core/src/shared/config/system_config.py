@@ -191,6 +191,9 @@ class PathsConfig(BaseModel):
     """Filesystem paths used by the core."""
 
     upload_folder: Path = Path("/workspaces")
+    session_plan_filename: str = Field(
+        default="session.plan", pattern=r"^[A-Za-z0-9._-]{1,128}$"
+    )
 
 
 class TelemetryConfig(BaseModel):

@@ -6,11 +6,13 @@
 
 The generated client op modules are mocked, so no IaC service is
 needed: these cover the init → validate → plan (→ show) validation
-sequencing and the init → plan → apply sequencing, the validation
-boolean and drift parsing now owned by the core, and the mapping of
-the two failure planes — a succeeded job with a non-zero exit_code
-maps to a DTO with validation=False, while failed/lost/rejected jobs
-raise ExceptionHandler with the equivalent HTTP code.
+sequencing with the per-instance init cache (skip after first success,
+re-init and retry once on an init-shaped failure), the single-job apply
+of the session plan artifact, the validation boolean and drift parsing
+owned by the core, and the mapping of the two failure planes — a
+succeeded job with a non-zero exit_code maps to a DTO with
+validation=False, while failed/lost/rejected jobs raise
+ExceptionHandler with the equivalent HTTP code.
 """
 
 import json
@@ -33,6 +35,10 @@ from src.shared.config.system_config import IacServiceConfig
 from src.shared.exceptions import ExceptionHandler
 
 
+# Mirrors paths.session_plan_filename in the patched system_config below.
+SESSION_PLAN_FILENAME = "session.plan"
+
+
 NO_CHANGES_PLAN_JSON = json.dumps({"format_version": "1.2", "resource_changes": []})
 
 DRIFTED_PLAN_JSON = json.dumps(
@@ -49,6 +55,10 @@ DRIFTED_PLAN_JSON = json.dumps(
             }
         ],
     }
+)
+
+INIT_REQUIRED_STDERR = (
+    'Error: Missing required provider\n\nPlease run "terraform init".'
 )
 
 
@@ -75,7 +85,7 @@ def _job(status: JobStatus, kind: JobKind, result=None, error=None) -> Job:
 
 
 class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
-    """Shared fixtures: tracer/session mocks, config patch, op patching."""
+    """Shared fixtures: tracer mock, config patch, op patching."""
 
     def setUp(self):
         tracer_patcher = patch.object(
@@ -84,11 +94,7 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         tracer_patcher.start()
         self.addCleanup(tracer_patcher.stop)
 
-        self.session_svc = AsyncMock()
-        self.terraform = tv.Terraform(
-            workspace_path=Path("/workspaces/demo"),
-            session_service=self.session_svc,
-        )
+        self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
 
     def _use_config(self, **overrides) -> IacServiceConfig:
         cfg = IacServiceConfig(
@@ -102,7 +108,10 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         patcher = patch.object(
             tv,
             "system_config",
-            SimpleNamespace(services=SimpleNamespace(iac=cfg)),
+            SimpleNamespace(
+                services=SimpleNamespace(iac=cfg),
+                paths=SimpleNamespace(session_plan_filename=SESSION_PLAN_FILENAME),
+            ),
         )
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -111,11 +120,12 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
     def _patch_ops(self, **outcomes) -> tuple[dict[str, AsyncMock], AsyncMock]:
         """Patch the five op modules and the job poll.
 
-        ``outcomes`` maps op name (init/validate/plan/show/apply) to
-        either an OperationResult (the op's job succeeds with it), a
-        Job (the poll returns it verbatim), or a non-JobAccepted submit
-        response (Problem / None). Ops without an outcome fail the test
-        if submitted.
+        ``outcomes`` maps op name (init/validate/plan/show/apply) to one
+        outcome or a list of per-submission outcomes, each being either
+        an OperationResult (the op's job succeeds with it), a Job (the
+        poll returns it verbatim), or a non-JobAccepted submit response
+        (Problem / None). Ops without an outcome — or submitted more
+        times than they have outcomes — fail the test.
         """
         jobs_by_id: dict[uuid.UUID, Job] = {}
         submit_mocks: dict[str, AsyncMock] = {}
@@ -131,19 +141,27 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
                     side_effect=AssertionError(f"{name} op should not be submitted")
                 )
             else:
-                outcome = outcomes[name]
-                if isinstance(outcome, OperationResult):
-                    outcome = _job(
-                        JobStatus.SUCCEEDED, kind=JobKind(name), result=outcome
-                    )
-                if isinstance(outcome, Job):
-                    job_id = uuid.uuid4()
-                    jobs_by_id[job_id] = outcome
-                    accepted = JobAccepted(job_id=job_id, status=JobStatus.QUEUED)
-                    mock = AsyncMock(return_value=accepted)
-                else:
+                queue = outcomes[name]
+                pending = list(queue) if isinstance(queue, (list, tuple)) else [queue]
+
+                def submit(*, client, body, _name=name, _pending=pending):
+                    if not _pending:
+                        raise AssertionError(
+                            f"{_name} op submitted more times than expected"
+                        )
+                    outcome = _pending.pop(0)
+                    if isinstance(outcome, OperationResult):
+                        outcome = _job(
+                            JobStatus.SUCCEEDED, kind=JobKind(_name), result=outcome
+                        )
+                    if isinstance(outcome, Job):
+                        job_id = uuid.uuid4()
+                        jobs_by_id[job_id] = outcome
+                        return JobAccepted(job_id=job_id, status=JobStatus.QUEUED)
                     # Rejected submission: Problem / None straight back.
-                    mock = AsyncMock(return_value=outcome)
+                    return outcome
+
+                mock = AsyncMock(side_effect=submit)
             submit_mocks[name] = mock
             patcher = patch.object(module, "asyncio", mock)
             patcher.start()
@@ -169,15 +187,12 @@ class TestTerraformValidate(_TerraformTestCase):
             show=_ok(stdout=NO_CHANGES_PLAN_JSON),
         )
 
-        dto = await self.terraform.validate(
-            branch="main", targets=["module.db"], get_drift=True
-        )
+        dto = await self.terraform.validate(targets=["module.db"], get_drift=True)
 
         self.assertTrue(dto.validation)
         self.assertEqual(dto.feedback, "")
         self.assertEqual(dto.terraform_plan, "plan output")
         self.assertEqual(dto.terraform_targets, ["module.db"])
-        self.session_svc.update_status.assert_awaited_once()
 
         init_body = submit_mocks["init"].await_args.kwargs["body"]
         self.assertEqual(init_body.workspace_path, "/workspaces/demo")
@@ -193,7 +208,7 @@ class TestTerraformValidate(_TerraformTestCase):
             show=_ok(stdout=DRIFTED_PLAN_JSON),
         )
 
-        dto = await self.terraform.validate(branch="main", targets=[], get_drift=True)
+        dto = await self.terraform.validate(targets=[], get_drift=True)
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.terraform_plan, "plan output")
@@ -216,7 +231,7 @@ class TestTerraformValidate(_TerraformTestCase):
             plan=_ok(stdout="plan output"),
         )
 
-        dto = await self.terraform.validate(branch="main", targets=[], get_drift=False)
+        dto = await self.terraform.validate(targets=[], get_drift=False)
 
         self.assertTrue(dto.validation)
         self.assertEqual(dto.feedback, "")
@@ -227,7 +242,7 @@ class TestTerraformValidate(_TerraformTestCase):
         self._use_config()
         self._patch_ops(init=_failed_cmd("Error: backend init failed"))
 
-        dto = await self.terraform.validate(branch="main", targets=["module.db"])
+        dto = await self.terraform.validate(targets=["module.db"], get_drift=False)
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.feedback, "Error: backend init failed")
@@ -236,19 +251,22 @@ class TestTerraformValidate(_TerraformTestCase):
 
     async def test_plan_failure_returns_stdout_as_plan(self):
         self._use_config()
-        self._patch_ops(
+        submit_mocks, _ = self._patch_ops(
             init=_ok(),
             validate=_ok(),
             plan=_failed_cmd("Error: auth", stdout="partial plan"),
         )
 
-        dto = await self.terraform.validate(branch="main", targets=[], get_drift=True)
+        dto = await self.terraform.validate(targets=[], get_drift=True)
 
         self.assertFalse(dto.validation)
         self.assertEqual(dto.feedback, "Error: auth")
         self.assertEqual(dto.terraform_plan, "partial plan")
+        # A non-init failure must not trigger the re-init retry.
+        self.assertEqual(submit_mocks["init"].await_count, 1)
+        self.assertEqual(submit_mocks["plan"].await_count, 1)
 
-    async def test_plan_and_show_receive_same_plan_file(self):
+    async def test_plan_and_show_use_the_session_plan_file(self):
         self._use_config()
         submit_mocks, _ = self._patch_ops(
             init=_ok(),
@@ -257,11 +275,13 @@ class TestTerraformValidate(_TerraformTestCase):
             show=_ok(stdout=NO_CHANGES_PLAN_JSON),
         )
 
-        _ = await self.terraform.validate(branch="main", targets=[], get_drift=True)
+        _ = await self.terraform.validate(targets=[], get_drift=True)
 
         plan_file = submit_mocks["plan"].await_args.kwargs["body"].plan_file
         show_file = submit_mocks["show"].await_args.kwargs["body"].plan_file
-        self.assertEqual(plan_file, show_file)
+        self.assertEqual(plan_file, SESSION_PLAN_FILENAME)
+        self.assertEqual(show_file, SESSION_PLAN_FILENAME)
+        # The IaC contract restricts plan_file to a single path segment.
         self.assertRegex(plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 
     async def test_failed_job_raises_502_with_problem_detail(self):
@@ -274,7 +294,7 @@ class TestTerraformValidate(_TerraformTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.validate(branch="main", targets=[])
+            await self.terraform.validate(targets=[], get_drift=False)
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("Key Vault unreachable", ctx.exception.message)
 
@@ -283,7 +303,7 @@ class TestTerraformValidate(_TerraformTestCase):
         self._patch_ops(init=_job(JobStatus.RUNNING, kind=JobKind.INIT))
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.validate(branch="main", targets=[])
+            await self.terraform.validate(targets=[], get_drift=False)
         self.assertEqual(ctx.exception.error_code, 504)
 
     async def test_submit_rejection_raises_502(self):
@@ -294,9 +314,10 @@ class TestTerraformValidate(_TerraformTestCase):
             with self.subTest(rejected=rejected):
                 self._use_config()
                 self._patch_ops(init=rejected)
+                self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
 
                 with self.assertRaises(ExceptionHandler) as ctx:
-                    await self.terraform.validate(branch="main", targets=[])
+                    await self.terraform.validate(targets=[], get_drift=False)
                 self.assertEqual(ctx.exception.error_code, 502)
 
     async def test_poll_problem_raises_502(self):
@@ -310,7 +331,7 @@ class TestTerraformValidate(_TerraformTestCase):
         self.addCleanup(patcher.stop)
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.validate(branch="main", targets=[])
+            await self.terraform.validate(targets=[], get_drift=False)
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("lost or rejected", ctx.exception.message)
 
@@ -321,7 +342,7 @@ class TestTerraformValidate(_TerraformTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.validate(branch="main", targets=[])
+            await self.terraform.validate(targets=[], get_drift=False)
         self.assertEqual(ctx.exception.error_code, 502)
 
     async def test_unparseable_show_json_raises_502(self):
@@ -334,71 +355,122 @@ class TestTerraformValidate(_TerraformTestCase):
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.validate(branch="main", targets=[], get_drift=True)
+            await self.terraform.validate(targets=[], get_drift=True)
         self.assertEqual(ctx.exception.error_code, 502)
 
 
-class TestTerraformApply(_TerraformTestCase):
-    async def test_apply_success(self):
+class TestTerraformInitCache(_TerraformTestCase):
+    async def test_init_runs_once_across_two_validates(self):
         self._use_config()
         submit_mocks, _ = self._patch_ops(
             init=_ok(),
-            plan=_ok(stdout="plan output"),
-            apply=_ok(stdout="apply output"),
+            validate=[_ok(), _ok()],
+            plan=[_ok(stdout="first"), _ok(stdout="second")],
         )
 
-        dto = await self.terraform.apply(targets=["module.foo"])
+        first = await self.terraform.validate(targets=[], get_drift=False)
+        second = await self.terraform.validate(targets=[], get_drift=False)
+
+        self.assertTrue(first.validation)
+        self.assertTrue(second.validation)
+        self.assertEqual(submit_mocks["init"].await_count, 1)
+        self.assertEqual(submit_mocks["validate"].await_count, 2)
+
+    async def test_failed_init_is_retried_on_the_next_validate(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=[_failed_cmd("Error: backend init failed"), _ok()],
+            validate=_ok(),
+            plan=_ok(stdout="plan output"),
+        )
+
+        first = await self.terraform.validate(targets=[], get_drift=False)
+        second = await self.terraform.validate(targets=[], get_drift=False)
+
+        self.assertFalse(first.validation)
+        self.assertTrue(second.validation)
+        self.assertEqual(submit_mocks["init"].await_count, 2)
+
+    async def test_init_shaped_failure_reinits_and_retries_once(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=[_ok(), _ok()],
+            validate=_ok(),
+            plan=[_failed_cmd(INIT_REQUIRED_STDERR), _ok(stdout="plan output")],
+        )
+
+        dto = await self.terraform.validate(targets=[], get_drift=False)
+
+        self.assertTrue(dto.validation)
+        self.assertEqual(dto.terraform_plan, "plan output")
+        self.assertEqual(submit_mocks["init"].await_count, 2)
+        self.assertEqual(submit_mocks["plan"].await_count, 2)
+
+    async def test_second_init_shaped_failure_is_returned(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=[_ok(), _ok()],
+            validate=_ok(),
+            plan=[
+                _failed_cmd(INIT_REQUIRED_STDERR),
+                _failed_cmd(INIT_REQUIRED_STDERR),
+            ],
+        )
+
+        dto = await self.terraform.validate(targets=[], get_drift=False)
+
+        self.assertFalse(dto.validation)
+        self.assertEqual(dto.feedback, INIT_REQUIRED_STDERR)
+        self.assertEqual(submit_mocks["init"].await_count, 2)
+        self.assertEqual(submit_mocks["plan"].await_count, 2)
+
+    async def test_failed_reinit_is_returned_as_init_failure(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=[_ok(), _failed_cmd("Error: backend init failed")],
+            validate=_ok(),
+            plan=_failed_cmd(INIT_REQUIRED_STDERR),
+        )
+
+        dto = await self.terraform.validate(targets=[], get_drift=False)
+
+        self.assertFalse(dto.validation)
+        self.assertEqual(dto.feedback, "Error: backend init failed")
+        self.assertEqual(submit_mocks["init"].await_count, 2)
+        self.assertEqual(submit_mocks["plan"].await_count, 1)
+
+
+class TestTerraformApply(_TerraformTestCase):
+    async def test_apply_is_a_single_job_on_the_session_plan(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(apply=_ok(stdout="apply output"))
+
+        dto = await self.terraform.apply()
 
         self.assertTrue(dto.validation)
         self.assertEqual(dto.feedback, "")
         self.assertEqual(dto.terraform_plan, "apply output")
-        self.assertEqual(dto.terraform_targets, ["module.foo"])
-        self.session_svc.update_status.assert_awaited_once()
+        self.assertEqual(dto.terraform_targets, [])
+        submit_mocks["init"].assert_not_awaited()
         submit_mocks["validate"].assert_not_awaited()
+        submit_mocks["plan"].assert_not_awaited()
         submit_mocks["show"].assert_not_awaited()
 
-        plan_body = submit_mocks["plan"].await_args.kwargs["body"]
-        self.assertEqual(plan_body.targets, ["module.foo"])
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
-        self.assertEqual(apply_body.plan_file, plan_body.plan_file)
-
-    async def test_apply_init_failure_returns_dto_with_stderr(self):
-        self._use_config()
-        self._patch_ops(init=_failed_cmd("Error: backend init failed"))
-
-        dto = await self.terraform.apply(targets=["module.foo"])
-
-        self.assertFalse(dto.validation)
-        self.assertEqual(dto.feedback, "Error: backend init failed")
-        self.assertEqual(dto.terraform_plan, "")
-        self.assertEqual(dto.terraform_targets, ["module.foo"])
-
-    async def test_apply_plan_failure_returns_stdout_as_plan(self):
-        self._use_config()
-        self._patch_ops(
-            init=_ok(),
-            plan=_failed_cmd("Error: auth", stdout="partial plan"),
-        )
-
-        dto = await self.terraform.apply(targets=[])
-
-        self.assertFalse(dto.validation)
-        self.assertEqual(dto.feedback, "Error: auth")
-        self.assertEqual(dto.terraform_plan, "partial plan")
+        self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
+        self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 
     async def test_apply_command_failure_maps_to_validation_false(self):
         self._use_config()
         self._patch_ops(
-            init=_ok(),
-            plan=_ok(stdout="plan output"),
-            apply=_failed_cmd("Error: apply", stdout="partial apply"),
+            apply=_failed_cmd("Error: stale plan", stdout="partial apply"),
         )
 
-        dto = await self.terraform.apply(targets=[])
+        dto = await self.terraform.apply()
 
         self.assertFalse(dto.validation)
-        self.assertEqual(dto.feedback, "Error: apply")
+        self.assertEqual(dto.feedback, "Error: stale plan")
         self.assertEqual(dto.terraform_plan, "partial apply")
 
     async def test_apply_failed_job_raises_502_with_problem_detail(self):
@@ -407,13 +479,11 @@ class TestTerraformApply(_TerraformTestCase):
             title="Internal Server Error", status=500, detail="state lock held"
         )
         self._patch_ops(
-            init=_ok(),
-            plan=_ok(),
             apply=_job(JobStatus.FAILED, kind=JobKind.APPLY, error=error),
         )
 
         with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.apply(targets=[])
+            await self.terraform.apply()
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("state lock held", ctx.exception.message)
 
