@@ -67,7 +67,7 @@ class TerraformApplyHandler:
                         history=history,
                     )
                     return await self.__terraform_svc.apply(
-                        targets=await self.__target_svc.generate(history)
+                        targets=await self.__target_svc.generate_session(history)
                     )
 
                 conventions = Conventions(templates=[], abbreviations=[])

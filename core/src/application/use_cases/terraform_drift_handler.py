@@ -85,14 +85,16 @@ class TerraformDriftHandler:
                             status=SessionStatus.UNCOMPLETED,
                         )
                         return
-                    targets = await self.__target_svc.generate(ctx.history, q)
+                    targets = await self.__target_svc.generate_drift(
+                        query=q, history=ctx.history, conventions=conventions
+                    )
 
                 async def validation_callback(
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
                         branch=ctx.branch_name,
-                        targets=await self.__target_svc.generate(local_history),
+                        targets=await self.__target_svc.generate_session(local_history),
                     )
 
                 validation = await self.__drift_svc.detect_and_resolve_drift(

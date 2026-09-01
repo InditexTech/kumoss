@@ -167,7 +167,6 @@ class LLMOrchestrationService:
             PromptsLibrary.IAC_GENERATOR.name,
             PromptsLibrary.TARGET_GENERATOR.name,
             PromptsLibrary.REPORT_GENERATOR.name,
-            PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR.name,
         ]:
             return self.__main_llm
         return self.__small_llm

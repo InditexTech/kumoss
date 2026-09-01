@@ -92,7 +92,7 @@ class TerraformCRUDHandler:
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
                         branch=ctx.branch_name,
-                        targets=await self.__target_svc.generate(local_history),
+                        targets=await self.__target_svc.generate_session(local_history),
                     )
 
                 if predictive_targets:

@@ -8,7 +8,7 @@ from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import ToolDefinitionDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
-from src.shared.constants import ToolContext, PromptsLibrary
+from src.shared.constants import TargetGenerationMode, ToolContext, PromptsLibrary
 
 
 class TerraformTargetService:
@@ -22,7 +22,7 @@ class TerraformTargetService:
         self.__llm_svc = llm_service
         self.__template_svc = template_service
 
-    async def generate(self, history: History, query: str = None) -> list[str]:
+    async def generate_session(self, history: History, query: str = None) -> list[str]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
@@ -32,7 +32,10 @@ class TerraformTargetService:
             sentinel_tool=self.__tool_svc.get_sentinel_tool(
                 ToolContext.TARGET_GENERATOR
             ),
-            prompt=await self.__template_svc.render(PromptsLibrary.TARGET_GENERATOR),
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.TARGET_GENERATOR,
+                mode=TargetGenerationMode.SESSION,
+            ),
             history=history,
         )
         return response.result["targets"]
@@ -57,7 +60,35 @@ class TerraformTargetService:
                 ToolContext.TARGET_GENERATOR
             ),
             prompt=await self.__template_svc.render(
-                prompt=PromptsLibrary.PREDICTIVE_TARGET_CALCULATOR,
+                prompt=PromptsLibrary.TARGET_GENERATOR,
+                mode=TargetGenerationMode.PREDICTIVE,
+                resources=conventions.templates,
+            ),
+            history=history,
+        )
+        return response.result["targets"]
+
+    async def generate_drift(
+        self,
+        query: str,
+        history: History,
+        conventions: Conventions,
+    ) -> list[str]:
+
+        tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
+            contexts=[
+                ToolContext.WORKSPACE_INSPECTION,
+            ]
+        )
+        response: ToolResultDTO = await self.__llm_svc.generate(
+            query=query,
+            tools=tools_definition,
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                ToolContext.DRIFT_TARGET_GENERATOR
+            ),
+            prompt=await self.__template_svc.render(
+                prompt=PromptsLibrary.TARGET_GENERATOR,
+                mode=TargetGenerationMode.DRIFT,
                 resources=conventions.templates,
             ),
             history=history,
