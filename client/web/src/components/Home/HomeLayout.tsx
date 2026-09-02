@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { Suspense, useRef, useCallback } from "react";
-import { Outlet, useOutletContext } from "react-router-dom";
+import { Suspense, useRef, useCallback, useEffect } from "react";
+import { Outlet, useLocation, useOutletContext } from "react-router-dom";
 import { SupportButton, ErrorBoundary } from "@/components/ui";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { useHomeWizard } from "./useHomeWizard";
@@ -20,7 +20,15 @@ interface HomeLayoutContext {
 export default function HomeLayout() {
   const view = useCurrentView();
   const wizard = useHomeWizard();
+  const resetWizard = wizard.reset;
+  const location = useLocation();
   const supportBtnRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (location.state?.resetWizard) {
+      resetWizard();
+    }
+  }, [location.state?.resetWizard, resetWizard]);
 
   const handleContactTeam = useCallback(() => {
     const btn = supportBtnRef.current?.querySelector("button");

@@ -47,7 +47,7 @@ function Header() {
                 return;
               }
               e.preventDefault();
-              navigate("/home");
+              navigate("/home", { state: { resetWizard: true } });
             }}
           >
             <span>NEBULA</span>
