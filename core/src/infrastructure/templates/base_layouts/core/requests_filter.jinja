@@ -23,40 +23,6 @@ All file paths are relative to this directory.
 </prohibited_actions_and_files>
 {% endif %}
 
-{% if OPERATION_TYPE == "generate" %}
-<code_structure_guidelines>
-{{ GENERAL_TERRAFORM_GUIDELINES }}
-</code_structure_guidelines>
-
-<resource_creation_rules>
-{{ RESOURCE_CREATION }}
-</resource_creation_rules>
-
-{% if NETWORKING %}
-<networking_restrictions>
-{{ NETWORKING }}
-</networking_restrictions>
-{% endif %}
-
-<permissions_guidelines>
-{{ PERMISSIONS }}
-</permissions_guidelines>
-
-{% if CONCRETE_IMPLEMENTATION %}
-<concrete_implementation_rules>
-{{ CONCRETE_IMPLEMENTATION }}
-</concrete_implementation_rules>
-{% endif %}
-
-{% elif OPERATION_TYPE == "drift" %}
-{% if CONCRETE_IMPLEMENTATION %}
-<drift_context>
-{{ CONCRETE_IMPLEMENTATION }}
-</drift_context>
-{% endif %}
-
-{% endif %}
-
 <request_assessment_guidelines>
 {{ REQUESTS_GUIDELINES }}
 </request_assessment_guidelines>

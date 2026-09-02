@@ -73,7 +73,7 @@ class TerraformCRUDHandler:
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
                 ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, conventions, ctx.operation
+                    q, ctx.history, ctx.operation
                 )
                 if not ok:
                     ctx.history.append_turn(q, rationale)
