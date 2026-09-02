@@ -30,6 +30,7 @@ class Config:
     google_application_credentials: str = ""
     google_credentials: str = ""
     aws_terraform_role_name: str = ""
+    subprocess_timeout: int = 2700
     log_level: str = "INFO"
     cloud_login_refresh_min: int = 45
 
@@ -47,6 +48,9 @@ class Config:
             ),
             google_credentials=os.environ.get("GOOGLE_CREDENTIALS", ""),
             aws_terraform_role_name=os.environ.get("AWS_TERRAFORM_ROLE_NAME", ""),
+            subprocess_timeout=int(
+                os.environ.get("NEBULA_SUBPROCESS_TIMEOUT") or "2700"
+            ),
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
             cloud_login_refresh_min=int(
                 os.environ.get("CLOUD_LOGIN_REFRESH_MIN") or "45"

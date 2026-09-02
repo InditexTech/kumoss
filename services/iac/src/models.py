@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Single path segment only: `plan_file` is passed to `-out`, `show`,
 # and `apply`, so it must not be able to escape the workspace.
-PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
+PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$")]
 
 
 class InitRequest(BaseModel):

@@ -30,6 +30,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, Security, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import cloud_cli
 from . import terraform as tf
@@ -66,6 +67,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def lifespan(app: FastAPI):
     configure_logging(config.log_level)
 
+    tf.set_timeout(config.subprocess_timeout)
     tf_ok = terraform_available(config.terraform_binary)
     logger.info(
         "iac service starting terraform_available=%s binary=%s auth_enabled=%s",
@@ -140,6 +142,13 @@ def _http_reason(code: int) -> str:
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    return _problem(exc.status_code, _http_reason(exc.status_code), exc.detail)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
     return _problem(exc.status_code, _http_reason(exc.status_code), exc.detail)
 
 
