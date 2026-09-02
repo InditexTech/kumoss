@@ -36,17 +36,22 @@ export default function PrApprovalView({
   const confirming = step === "confirming";
   const highImpactWarning = step === "high_impact_warning";
   const isDriftOperation = session.operation === "drift";
+  const prBelongsToSession =
+    !prDetails.sessionId || prDetails.sessionId === session.session_id;
+  const prId = prBelongsToSession ? prDetails.id : undefined;
+  const prUrl = prBelongsToSession ? prDetails.prUrl : undefined;
+  const prMerged = prBelongsToSession && prDetails.merged;
 
   const isHighImpact =
     session.terraform_report?.potential_impact?.banner?.level === "high";
 
   const handleConfirmApply = useCallback(async () => {
-    if (!prDetails.id || !session.session_id || approving) return;
+    if (!prId || !session.session_id || approving) return;
     setApproving(true);
     try {
       await mergePullRequest({ session_id: session.session_id });
       if (isDriftOperation) {
-        markPullRequestMerged(session.session_id, prDetails.id);
+        markPullRequestMerged(session.session_id, prId);
         updatePrDetails({ merged: true });
         onBackToReport();
       } else {
@@ -61,7 +66,7 @@ export default function PrApprovalView({
       onStepChange("initial");
     }
   }, [
-    prDetails.id,
+    prId,
     session.session_id,
     isDriftOperation,
     approving,
@@ -102,9 +107,9 @@ export default function PrApprovalView({
     );
   }
 
-  const showViewPr = prDetails.prUrl && isAllowedUrl(prDetails.prUrl);
+  const showViewPr = prUrl && isAllowedUrl(prUrl);
 
-  if (isDriftOperation && prDetails.merged) {
+  if (isDriftOperation && prMerged) {
     return (
       <div className={styles.container}>
         <Typography variant="h1" className={styles.heading}>{STRINGS.pr.merged}</Typography>
@@ -129,7 +134,7 @@ export default function PrApprovalView({
           {showViewPr && (
             <a
               className={styles.noAnchor}
-              href={prDetails.prUrl}
+              href={prUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -142,7 +147,7 @@ export default function PrApprovalView({
             className={styles.filledBtn}
             type="button"
             onClick={handleConfirmApply}
-            disabled={approving || !prDetails.id}
+            disabled={approving || !prId}
           >
             {approving ? "Merging…" : STRINGS.pr.merge}
           </button>
@@ -186,7 +191,7 @@ export default function PrApprovalView({
             className={styles.dangerBtn}
             type="button"
             onClick={handleConfirmApply}
-            disabled={approving || !prDetails.id}
+            disabled={approving || !prId}
           >
             {approving ? "Applying…" : STRINGS.pr.highImpactConfirm}
           </button>
@@ -226,7 +231,7 @@ export default function PrApprovalView({
                 ? () => onStepChange("high_impact_warning")
                 : handleConfirmApply
             }
-            disabled={approving || !prDetails.id}
+            disabled={approving || !prId}
           >
             {approving ? "Applying…" : STRINGS.pr.confirmApply}
           </button>
@@ -252,7 +257,7 @@ export default function PrApprovalView({
         {showViewPr && (
           <a
             className={styles.noAnchor}
-            href={prDetails.prUrl}
+            href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -265,7 +270,7 @@ export default function PrApprovalView({
           className={styles.filledBtn}
           type="button"
           onClick={() => onStepChange("confirming")}
-          disabled={approving || !prDetails.id}
+          disabled={approving || !prId}
         >
           {STRINGS.assistant.approvePrAndApply}
         </button>

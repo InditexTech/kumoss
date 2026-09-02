@@ -71,6 +71,7 @@ export function useSessionLoader(
             lastRound?.pull_requests[lastRound.pull_requests.length - 1];
           if (pr) {
             updatePrDetails({
+              sessionId,
               id: pr.number,
               prUrl: pr.url,
               merged: isPullRequestMerged(sessionId, pr.number),

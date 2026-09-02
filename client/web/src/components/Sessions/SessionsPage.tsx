@@ -24,6 +24,7 @@ import {
   buildAssistantMessage,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
+import { isPullRequestMerged } from "@/services/pullRequestState";
 import type {
   OperationType,
   SessionDetail,
@@ -208,7 +209,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { updateSession } = useSession();
+  const { updateSession, updatePrDetails } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
   const username = user?.username || "";
@@ -323,6 +324,17 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     );
 
     const patch = buildSessionPatch(outcome);
+    const lastRound = outcome.detail.rounds[outcome.detail.rounds.length - 1];
+    const pr = lastRound?.pull_requests[lastRound.pull_requests.length - 1];
+    updatePrDetails({
+      sessionId: detail.uuid,
+      id: pr?.number,
+      prUrl: pr?.url,
+      lastPrStep: undefined,
+      merged: pr
+        ? isPullRequestMerged(detail.uuid, pr.number)
+        : false,
+    });
 
     if (outcome.kind === "apply-results") {
       updateSession({ ...patch, applyResults: buildApplyResults(outcome) });

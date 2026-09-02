@@ -102,6 +102,7 @@ export interface Session {
 }
 
 export interface PrDetails {
+  sessionId?: string;
   prUrl?: string;
   id?: number;
   lastPrStep?: PrApprovalStep;

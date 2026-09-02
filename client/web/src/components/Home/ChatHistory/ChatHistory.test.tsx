@@ -162,10 +162,21 @@ describe("ChatHistory", () => {
     renderChat(
       undefined,
       { session_id: "sess-1" },
-      { id: 42, merged: true },
+      { sessionId: "sess-1", id: 42, merged: true },
     );
 
     expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
+    expect(screen.queryByText("Continue with Pull Request")).not.toBeInTheDocument();
+  });
+
+  it("does not reuse pull request state from another session", () => {
+    renderChat(
+      undefined,
+      { session_id: "sess-2" },
+      { sessionId: "sess-1", id: 42, merged: true },
+    );
+
+    expect(screen.getByText("Create PR")).toBeInTheDocument();
     expect(screen.queryByText("Continue with Pull Request")).not.toBeInTheDocument();
   });
 

@@ -27,7 +27,9 @@ export default function ChatActionBar({
   const [, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
 
-  const prCreated = !!prDetails.id;
+  const prBelongsToSession =
+    !prDetails.sessionId || prDetails.sessionId === session.session_id;
+  const prCreated = prBelongsToSession && !!prDetails.id;
 
   const openPrView = useCallback(
     (step: string) => {
@@ -47,7 +49,12 @@ export default function ChatActionBar({
       const res = await createPullRequest({
         session_id: session.session_id,
       });
-      updatePrDetails({ id: res.id, prUrl: res.url, merged: false });
+      updatePrDetails({
+        sessionId: session.session_id,
+        id: res.id,
+        prUrl: res.url,
+        merged: false,
+      });
       openPrView("initial");
     } catch (err) {
       showNotification(
