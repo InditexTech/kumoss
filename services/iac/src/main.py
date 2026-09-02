@@ -17,10 +17,8 @@ submission surfaces through the job.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import shutil
 import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -72,36 +70,8 @@ workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 
 
-async def _log_engine_version() -> None:
-    """Report which IaC engine this service runs (path + version).
-
-    Diagnostics only: the binary's resolvability is already asserted by
-    Config at import time, so a probe failure is logged, never fatal.
-    Goes through the "iac" logger, whose stderr handler is configured
-    above independently of uvicorn's logging setup.
-    """
-    logger = logging.getLogger("iac.engine")
-    resolved = shutil.which(config.iac_binary)
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            config.iac_binary,
-            "version",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout_bytes, _ = await proc.communicate()
-        version = (
-            stdout_bytes.decode("utf-8", errors="replace").splitlines() or ["unknown"]
-        )[0]
-    except OSError as exc:
-        logger.warning("IaC engine %s: version probe failed: %s", resolved, exc)
-        return
-    logger.info("IaC engine: %s — %s", resolved, version)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await _log_engine_version()
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see

@@ -82,8 +82,6 @@ The service itself is engine-agnostic: it only shells out to
 `init` / `validate` / `plan` / `show` / `apply` / `import` /
 `state pull`, whose flags are identical across both engines, so any
 Terraform-compatible engine on PATH (or at an absolute path) works.
-On startup the service logs the resolved engine path and its reported
-version.
 
 Notes when pointing a workspace previously managed by Terraform at the
 default OpenTofu engine:
