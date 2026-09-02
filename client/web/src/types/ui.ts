@@ -105,6 +105,7 @@ export interface PrDetails {
   prUrl?: string;
   id?: number;
   lastPrStep?: PrApprovalStep;
+  merged?: boolean;
 }
 
 // ─── Mode ───────────────────────────────────────────────────

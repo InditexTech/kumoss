@@ -32,6 +32,11 @@ function SessionInjector({ session, pr, children }: {
   return <>{children}</>;
 }
 
+function PrStateProbe() {
+  const { prDetails } = useSession();
+  return <output data-testid="pr-merged">{String(prDetails.merged)}</output>;
+}
+
 function renderPr(
   step: PrApprovalStep = "initial",
   overrides?: {
@@ -50,7 +55,12 @@ function renderPr(
   };
 
   const needsInjection = overrides?.sessionPatch || overrides?.prPatch;
-  const component = <PrApprovalView {...defaultProps} />;
+  const component = (
+    <>
+      <PrApprovalView {...defaultProps} />
+      <PrStateProbe />
+    </>
+  );
   const ui = needsInjection
     ? <SessionInjector session={overrides?.sessionPatch} pr={overrides?.prPatch}>{component}</SessionInjector>
     : component;
@@ -122,6 +132,7 @@ describe("PrApprovalView", () => {
     expect(props.onBackToReport).toHaveBeenCalled();
     expect(props.onApprove).not.toHaveBeenCalled();
     expect(props.onStepChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("pr-merged")).toHaveTextContent("true");
   });
 
   it("renders confirming step with confirm and request review buttons", () => {

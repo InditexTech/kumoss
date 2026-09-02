@@ -68,7 +68,9 @@ export function useSessionLoader(
             outcome.detail.rounds[outcome.detail.rounds.length - 1];
           const pr =
             lastRound?.pull_requests[lastRound.pull_requests.length - 1];
-          if (pr) updatePrDetails({ id: pr.number, prUrl: pr.url });
+          if (pr) {
+            updatePrDetails({ id: pr.number, prUrl: pr.url, merged: false });
+          }
         }
         setLoading(false);
       })

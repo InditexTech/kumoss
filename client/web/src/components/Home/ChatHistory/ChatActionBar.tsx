@@ -47,7 +47,7 @@ export default function ChatActionBar({
       const res = await createPullRequest({
         session_id: session.session_id,
       });
-      updatePrDetails({ id: res.id, prUrl: res.url });
+      updatePrDetails({ id: res.id, prUrl: res.url, merged: false });
       openPrView("initial");
     } catch (err) {
       showNotification(
@@ -95,7 +95,7 @@ export default function ChatActionBar({
           {loading ? "Creating..." : "Create PR"}
         </button>
       )}
-      {prCreated && (
+      {prCreated && !prDetails.merged && (
         <button
           className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
           onClick={handleContinuePr}

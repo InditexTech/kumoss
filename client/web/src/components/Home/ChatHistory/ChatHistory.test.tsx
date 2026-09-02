@@ -14,15 +14,23 @@ vi.mock("@/services/core/iac_code", () => ({
   createPullRequest: vi.fn(),
 }));
 
-function SessionInjector({ patch, children }: { patch: Record<string, unknown>; children: React.ReactNode }) {
-  const { updateSession } = useSession();
-  useEffect(() => { updateSession(patch); }, []);
+function SessionInjector({ patch, prPatch, children }: {
+  patch?: Record<string, unknown>;
+  prPatch?: Record<string, unknown>;
+  children: React.ReactNode;
+}) {
+  const { updateSession, updatePrDetails } = useSession();
+  useEffect(() => {
+    if (patch) updateSession(patch);
+    if (prPatch) updatePrDetails(prPatch);
+  }, []);
   return <>{children}</>;
 }
 
 function renderChat(
   props?: Partial<React.ComponentProps<typeof ChatHistory>>,
   sessionPatch?: Record<string, unknown>,
+  prPatch?: Record<string, unknown>,
 ) {
   const defaultProps = {
     onIterate: vi.fn(),
@@ -30,8 +38,8 @@ function renderChat(
     ...props,
   };
 
-  const ui = sessionPatch
-    ? <SessionInjector patch={sessionPatch}><ChatHistory {...defaultProps} /></SessionInjector>
+  const ui = sessionPatch || prPatch
+    ? <SessionInjector patch={sessionPatch} prPatch={prPatch}><ChatHistory {...defaultProps} /></SessionInjector>
     : <ChatHistory {...defaultProps} />;
 
   return { ...renderWithProviders(ui, { withNotifications: true }), props: defaultProps };
@@ -148,6 +156,17 @@ describe("ChatHistory", () => {
     await user.type(input, "make it on-topic");
     await user.keyboard("{Enter}");
     expect(props.onIterate).toHaveBeenCalledWith("make it on-topic");
+  });
+
+  it("does not offer another PR action after a drift pull request is merged", () => {
+    renderChat(
+      undefined,
+      { session_id: "sess-1" },
+      { id: 42, merged: true },
+    );
+
+    expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
+    expect(screen.queryByText("Continue with Pull Request")).not.toBeInTheDocument();
   });
 
   it("shows the action bar by default", () => {
