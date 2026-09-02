@@ -117,12 +117,8 @@ def _k_sid(session_id: UUID) -> str:
     return f"{_CACHE_NS}:map:sid:{session_id}"
 
 
-def _k_user_id(username: str) -> str:
-    return f"{_CACHE_NS}:map:user-id:{username}"
-
-
-def _k_user_name(pk: int) -> str:
-    return f"{_CACHE_NS}:map:user-name:{pk}"
+def _k_owner(session_id: UUID) -> str:
+    return f"{_CACHE_NS}:session:{session_id}:owner"
 
 
 def _k_workspace(session_id: UUID) -> str:
@@ -215,26 +211,36 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def __map_user_id(username: str) -> int | None:
-        """username -> user pk. Write-once."""
+    async def __map_user_email(pk: int) -> str:
+        """user pk -> display email for read models and tracing.
 
-        async def _load() -> int | None:
-            user: User | None = await db.get_by(User, username=username)
-            return user.id if user is not None else None
-
-        return await redis_client.get_or_set(
-            _k_user_id(username), _ttl(_TTL_FACTS), _load
-        )
+        Deliberately not Redis-cached: the email is mutable (re-login can
+        change it) and user pks reshuffle whenever the DB is recreated,
+        which would leave pk-keyed cache entries pointing at the wrong
+        user. A primary-key lookup is cheap enough to read fresh.
+        """
+        user: User | None = await db.get_by(User, id=pk)
+        if user is not None and user.email:
+            return user.email
+        return f"user-{pk}"
 
     @staticmethod
-    async def __map_user_name(pk: int) -> str | None:
-        """user pk -> username. Write-once."""
+    async def get_session_owner(session_id: UUID) -> int:
+        """Owning user pk for a session. Write-once."""
 
-        async def _load() -> str | None:
-            user: User | None = await db.get_by(User, id=pk)
-            return user.username if user is not None else None
+        async def _load() -> int | None:
+            session: Session | None = await db.get_by(Session, uuid=session_id)
+            return session.user_id if session is not None else None
 
-        return await redis_client.get_or_set(_k_user_name(pk), _ttl(_TTL_FACTS), _load)
+        owner = await redis_client.get_or_set(
+            _k_owner(session_id), _ttl(_TTL_FACTS), _load
+        )
+        if owner is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        return owner
 
     @staticmethod
     async def __workspace_facts(session_id: UUID) -> WorkspaceFacts | None:
@@ -369,7 +375,7 @@ class DatabaseService:
     @staticmethod
     async def create_session(
         session_id: UUID,
-        user_id: str,
+        user_pk: int,
         operation: OperationType,
         repo_uri: str,
         terraform_prv: TerraformProvider,
@@ -378,18 +384,6 @@ class DatabaseService:
         query: str,
         iac_path: str | None = None,
     ) -> Session:
-        user_pk: int | None = await DatabaseService.__map_user_id(user_id)
-        if user_pk is None:
-            user: User = await db.create(User, username=user_id)
-            user_pk = user.id
-            # Write-through the new user mappings (immutable once created).
-            await redis_client.set_json_many(
-                [
-                    (_k_user_id(user_id), user_pk, _ttl(_TTL_FACTS)),
-                    (_k_user_name(user_pk), user_id, _ttl(_TTL_FACTS)),
-                ]
-            )
-
         session: Session = await db.create(
             Session,
             user_id=user_pk,
@@ -425,6 +419,7 @@ class DatabaseService:
         await redis_client.set_json_many(
             [
                 (_k_sid(session_id), session.id, _ttl(_TTL_FACTS)),
+                (_k_owner(session_id), user_pk, _ttl(_TTL_FACTS)),
                 (
                     _k_workspace(session_id),
                     {"uri": repo_uri, "branch": branch_name, "root_path": iac_path},
@@ -450,17 +445,12 @@ class DatabaseService:
                     error_code=404,
                 )
             username, workspace, provider, payload, round_id = await asyncio.gather(
-                DatabaseService.__map_user_name(session.user_id),
+                DatabaseService.__map_user_email(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
                 DatabaseService.__history_payload(session_id),
                 DatabaseService.__latest_round_id(session.id),
             )
-            if username is None:
-                raise SessionTerminal(
-                    message=f"Session {session_id} has no owning user",
-                    error_code=500,
-                )
             if workspace is None:
                 raise SessionTerminal(
                     message=f"Session {session_id} does not have a workspace",
@@ -515,7 +505,7 @@ class DatabaseService:
         ) = await asyncio.gather(
             DatabaseService.__workspace_facts(s.uuid),
             DatabaseService.__provider_facts(s.uuid),
-            DatabaseService.__map_user_name(s.user_id),
+            DatabaseService.__map_user_email(s.user_id),
             DatabaseService.__first_query(s.uuid),
             DatabaseService.__current_status(s.uuid),
         )
@@ -550,24 +540,27 @@ class DatabaseService:
 
     @staticmethod
     async def list_sessions(
-        user_id: str,
+        user_pk: int | None,
         operation: OperationType | None = None,
         status: SessionStatus | None = None,
         search: str | None = None,
+        user_email: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
     ) -> PaginatedSessionSummary:
-        user_pk: int | None = await DatabaseService.__map_user_id(user_id)
-        if user_pk is None:
-            raise SessionTerminal(
-                message=f"User {user_id} not found",
-                error_code=404,
-            )
-
+        """Paginated summaries. ``user_pk`` None lists across all users
+        (admin path); ``user_email`` optionally filters that cross-user
+        listing by owner email."""
         async with db.session() as sess:
-            stmt = select(Session).where(Session.user_id == user_pk)
+            stmt = select(Session)
+            if user_pk is not None:
+                stmt = stmt.where(Session.user_id == user_pk)
+            if user_email:
+                stmt = stmt.join(User, User.id == Session.user_id).where(
+                    User.email.ilike(f"%{user_email}%")
+                )
             if operation is not None:
                 stmt = stmt.where(Session.operation == operation)
             if search:
@@ -754,7 +747,7 @@ class DatabaseService:
 
         detail = SessionDetail(
             uuid=s.uuid,
-            username=await DatabaseService.__map_user_name(s.user_id),
+            username=await DatabaseService.__map_user_email(s.user_id),
             operation=s.operation,
             provider=provider.provider,
             first_query=history.first_query if history else None,

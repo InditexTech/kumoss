@@ -26,6 +26,7 @@ from src.infrastructure.database.models import (
     CodeChange,
     Report,
     TerraformPlan,
+    User as DbUser,
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage._s3 import S3ObjectStorage
@@ -83,12 +84,18 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        # Unique username per run so stale Redis mappings never leak in.
+        # Unique email per run so stale Redis mappings never leak in.
         self.username = f"user-{uuid4().hex[:8]}@example.com"
+        user = await db.create(
+            DbUser,
+            issuer="urn:test",
+            subject=f"sub-{uuid4().hex[:8]}",
+            email=self.username,
+        )
         self.sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=self.sid,
-            user_id=self.username,
+            user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,

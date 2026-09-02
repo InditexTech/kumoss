@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 from src.domains.services.database_service import DatabaseService
+from src.domains.services.user_service import DEV_CLAIMS, UserService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.infrastructure.redis import redis_client
@@ -29,13 +30,14 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        # Unique username per run so stale Redis mappings never leak in.
-        # Usernames are full emails, matching what the client sends.
-        self.username = f"user-{uuid4().hex[:8]}@example.com"
+        # Auth is disabled in the test config, so every request acts as
+        # the dev identity; the listed sessions must belong to it.
+        self.user = await UserService.resolve(DEV_CLAIMS)
+        self.username = self.user.email
         self.sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=self.sid,
-            user_id=self.username,
+            user_pk=self.user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
@@ -54,7 +56,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await db.close()
 
     async def test_list_matches_contract(self):
-        resp = await self.client.get("/v1/sessions", params={"username": self.username})
+        resp = await self.client.get("/v1/sessions")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 1)
@@ -180,9 +182,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async def fetch(**params: str) -> int:
-            resp = await self.client.get(
-                "/v1/sessions", params={"username": self.username, **params}
-            )
+            resp = await self.client.get("/v1/sessions", params=params)
             self.assertEqual(resp.status_code, 200, resp.text)
             return resp.json()["total"]
 

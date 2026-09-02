@@ -4,10 +4,15 @@
 
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
+from src.api.deps import (
+    CurrentUser,
+    assert_session_access,
+    require_operation_role,
+)
 from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities.session import SessionContext
@@ -25,7 +30,7 @@ from src.application.services.session_orchestration_service import (
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import OperationType, SessionStatus
+from src.shared.constants import OperationRole, OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -45,17 +50,22 @@ _orchestration = SessionOrchestrationService()
 
 
 async def _resolve_or_raise(
-    request: BaseIacRequest | SessionRequest, operation: OperationType = None
+    request: BaseIacRequest | SessionRequest,
+    user: CurrentUser,
+    operation: OperationType | None = None,
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity.
 
     Session-only requests (e.g. apply) carry no ``repo_uri``: URI
     validation applies only to request models that define the field.
+    Calls referencing an existing session are owner-only.
     """
+    if request.session_id is not None:
+        await assert_session_access(user, request.session_id, write=True)
     try:
         if isinstance(request, BaseIacRequest) and request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
-        return await _orchestration.resolve(request, operation)
+        return await _orchestration.resolve(request, operation, user.id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
@@ -123,12 +133,16 @@ def _make_runner(
     summary="Start an IaC generation session.",
 )
 async def generate_infrastructure(
-    background_tasks: BackgroundTasks, request: GenerateRequest
+    background_tasks: BackgroundTasks,
+    request: GenerateRequest,
+    user: Annotated[
+        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
+    ],
 ) -> dict[str, str]:
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, OperationType.GENERATE)
+    ctx = await _resolve_or_raise(request, user, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -144,12 +158,14 @@ async def generate_infrastructure(
     summary="Start a drift detection and remediation session",
 )
 async def drift_detection_remediation(
-    background_tasks: BackgroundTasks, request: DriftRequest
+    background_tasks: BackgroundTasks,
+    request: DriftRequest,
+    user: Annotated[CurrentUser, Depends(require_operation_role(OperationRole.DEVOPS))],
 ) -> dict[str, str]:
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, OperationType.DRIFT)
+    ctx = await _resolve_or_raise(request, user, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -168,13 +184,17 @@ async def drift_detection_remediation(
     },
 )
 async def apply_infrastructure(
-    background_tasks: BackgroundTasks, request: ApplyRequest
+    background_tasks: BackgroundTasks,
+    request: ApplyRequest,
+    user: Annotated[
+        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
+    ],
 ) -> dict[str, str]:
     """Applies the plan pinned by the session's last successful generate or
     drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request)
+    ctx = await _resolve_or_raise(request, user)
     if await DatabaseService.is_session_blocked(ctx.id):
         raise HTTPException(
             status_code=409,

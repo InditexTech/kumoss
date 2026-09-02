@@ -107,6 +107,12 @@ class SessionForbidden(ExceptionHandler):
     pass
 
 
+class UserNotFound(ExceptionHandler):
+    """Raised when a user with a given ID does not exist (HTTP 404)."""
+
+    pass
+
+
 class SessionTerminal(ExceptionHandler):
     """Session is completed or abandoned (HTTP 409 with current status)."""
 

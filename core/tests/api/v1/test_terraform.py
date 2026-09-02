@@ -72,9 +72,8 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
             "/v1/iac/generate",
             json={
                 "repo_uri": uri,
-                "cloud": "azure",
-                "environment": "dev",
-                "user_id": "u@e.com",
+                "terraform_providers": "azure",
+                "scope_id": "dev",
                 "q": "hello",
             },
         )
@@ -87,16 +86,15 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
             "/v1/iac/generate",
             json={
                 "repo_uri": "file:///does/not/exist.git",
-                "cloud": "azure",
-                "environment": "dev",
-                "user_id": "u@e.com",
+                "terraform_providers": "azure",
+                "scope_id": "dev",
                 "q": "hello",
             },
         )
         self.assertEqual(resp.status_code, 400, resp.text)
 
     def test_request_with_neither_uri_nor_session_id_returns_422(self):
-        resp = self.client.post("/v1/iac/generate", json={"user_id": "u", "q": "x"})
+        resp = self.client.post("/v1/iac/generate", json={"q": "x"})
         self.assertEqual(resp.status_code, 422, resp.text)
 
 
@@ -128,9 +126,8 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
             "/v1/iac/drift",
             json={
                 "repo_uri": uri,
-                "cloud": "azure",
-                "environment": "dev",
-                "user_id": "u@e.com",
+                "terraform_providers": "azure",
+                "scope_id": "dev",
                 "q": "check drift",
                 "is_partial": True,
             },
@@ -166,21 +163,22 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from uuid import uuid4
         from src.domains.services.database_service import DatabaseService
+        from src.domains.services.user_service import DEV_CLAIMS, UserService
         from src.infrastructure.redis import redis_client
         from src.shared.constants import OperationType, TerraformProvider
 
         sid = uuid4()
-        # Unique per run: the user->pk mapping is cached in redis with a
-        # TTL that outlives the table drop/create in asyncSetUp.
-        uid = f"u-{sid.hex[:8]}"
 
         async def seed():
             await db.initialize()
             await redis_client.initialize()
             try:
+                # The request runs as the dev identity (auth disabled in
+                # test config), so the session must belong to it.
+                user = await UserService.resolve(DEV_CLAIMS)
                 await DatabaseService.create_session(
                     session_id=sid,
-                    user_id=uid,
+                    user_pk=user.id,
                     operation=OperationType.GENERATE,
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
@@ -200,12 +198,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         with TestClient(app) as client:
             resp = client.post(
                 "/v1/iac/apply",
-                json={
-                    "session_id": str(sid),
-                    "user_id": uid,
-                    "q": "apply",
-                    "terraform_targets": ["module.foo"],
-                },
+                json={"session_id": str(sid)},
             )
         self.assertEqual(resp.status_code, 202, resp.text)
 
@@ -237,22 +230,21 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
     def test_second_call_on_active_session_returns_409(self):
         from uuid import uuid4
         from src.domains.services.database_service import DatabaseService
+        from src.domains.services.user_service import DEV_CLAIMS, UserService
         from src.infrastructure.redis import redis_client
         from src.shared.constants import OperationType, TerraformProvider
         import asyncio
 
         sid = uuid4()
-        # Unique per run: the user->pk mapping is cached in redis with a
-        # TTL that outlives the table drop/create in asyncSetUp.
-        uid = f"u-{sid.hex[:8]}"
 
         async def seed():
             await db.initialize()
             await redis_client.initialize()
             try:
+                user = await UserService.resolve(DEV_CLAIMS)
                 await DatabaseService.create_session(
                     session_id=sid,
-                    user_id=uid,
+                    user_pk=user.id,
                     operation=OperationType.GENERATE,
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
@@ -271,7 +263,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
         with TestClient(app) as client:
             resp = client.post(
                 "/v1/iac/generate",
-                json={"session_id": str(sid), "user_id": uid, "q": "iter"},
+                json={"session_id": str(sid), "q": "iter"},
             )
         self.assertEqual(resp.status_code, 409, resp.text)
 

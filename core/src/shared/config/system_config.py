@@ -48,15 +48,36 @@ def _env(name: str, default: str = "") -> str:
 
 
 class OidcConfig(BaseModel):
-    """OIDC issuer settings for the React frontend logging in to the core."""
+    """OIDC issuer settings for authenticating requests to the core.
+
+    Blank ``issuer_url`` disables authentication entirely (dev default):
+    every request acts as a local developer identity holding the top role
+    of both groups. When ``audience`` is blank, ``client_id`` is accepted
+    as the expected token audience.
+    """
 
     issuer_url: str = ""
     client_id: str = ""
     audience: str = ""
+    clock_skew_seconds: int = 60
+
+    @model_validator(mode="after")
+    def _assert_client_id(self) -> "OidcConfig":
+        if self.issuer_url and not self.client_id:
+            raise ConfigError(
+                "oidc.issuer_url is set but oidc.client_id is empty; "
+                "set oidc.client_id (and optionally oidc.audience) in config.yaml."
+            )
+        return self
 
 
 class AdminConfig(BaseModel):
-    """Bootstrap administrator. Granted root-admin role on first run if set."""
+    """Bootstrap administrator.
+
+    The user whose token email matches ``default_root_email`` is elevated
+    to the top role of both groups at login time. Elevation is one-way:
+    clearing this field later never demotes anyone.
+    """
 
     default_root_email: str = ""
 

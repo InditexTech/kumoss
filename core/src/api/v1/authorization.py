@@ -4,9 +4,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
+from src.api.deps import CurrentUser, get_current_user
 from src.infrastructure.external.authz_service import AuthzServiceClient
 
 router = APIRouter(prefix="/authorize", tags=["Authorization"])
@@ -38,15 +39,13 @@ async def authorize(
         str, Body(description="name of the project that we are checking")
     ],
     environment: Annotated[str, Body(description="environment that we are checking")],
-    user_email: Annotated[
-        str, Body(description="user email that is requesting access")
-    ],
+    user: Annotated[CurrentUser, Depends(get_current_user)],
 ):
     result = await AuthzServiceClient().check(
         cloud=cloud,
         project=project_name,
         environment=environment,
-        user_id=user_email,
+        user_id=user.email or user.subject,
     )
 
     if result.authorized:

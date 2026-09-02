@@ -19,15 +19,28 @@
 # tagging; no behavior gates are keyed on it today.
 environment: "development"
 
-# OIDC issuer settings used by the React frontend when it logs in to the
-# core. Leave blank to disable OIDC auth (dev default).
+# OIDC issuer settings. The core validates bearer tokens against this
+# issuer (signature via JWKS discovery, iss, aud, exp) and the React
+# frontend uses the same issuer/client_id for its auth-code + PKCE login.
+# Leave issuer_url blank to disable auth entirely (dev default): every
+# request then acts as a local developer identity holding the top role of
+# both role groups. When audience is blank, client_id is accepted as the
+# expected token audience. IdP notes: Entra ID needs the SPA to request a
+# custom API scope (api://<client-id>/...) so the access token carries
+# your audience; Keycloak needs an audience mapper; Auth0 needs the
+# audience passed on the authorize request (the frontend sends it when
+# configured). clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
   client_id: ""
   audience: ""
+  clock_skew_seconds: 60
 
-# Bootstrap administrator. The address listed here is granted the
-# root-admin role on first run. Leave blank to skip the bootstrap.
+# Bootstrap administrator. The user whose OIDC token email matches this
+# address is elevated to the top role of both role groups (operation
+# devops + panel admin) when they log in — on first login for new users,
+# on the next login for existing ones. Elevation is one-way: clearing
+# this field later never demotes anyone. Leave blank to skip.
 admin:
   default_root_email: ""
 
