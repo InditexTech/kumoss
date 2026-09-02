@@ -294,7 +294,9 @@ def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> No
             body = _poll_until_terminal(client, response.json()["job_id"])
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
-    plan_mock.assert_awaited_once_with("sh", workspace, ["module.db"], "abc123.plan")
+    plan_mock.assert_awaited_once_with(
+        "sh", workspace, ["module.db"], "abc123.plan", env=None
+    )
 
 
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:

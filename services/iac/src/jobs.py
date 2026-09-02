@@ -40,6 +40,7 @@ from .models import (
     OperationResult,
     Problem,
 )
+from .models import CredentialError
 from .terraform import TerraformTimeoutError
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,8 @@ class JobRegistry:
         except asyncio.CancelledError:
             self._fail(record, 503, "Service shut down before the job finished.")
             raise
+        except CredentialError as exc:
+            self._fail(record, 422, str(exc))
         except TerraformTimeoutError as exc:
             self._fail(record, 504, str(exc))
         except Exception as exc:

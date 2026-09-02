@@ -61,6 +61,7 @@ async def _run(
     cwd: Path,
     *,
     stream_stdout: bool = True,
+    env: dict[str, str] | None = None,
 ) -> CommandResult:
     label = args[0] if args else binary
     t0 = time.monotonic()
@@ -72,6 +73,7 @@ async def _run(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         limit=_BUFFER_LIMIT,
+        env=env,
     )
 
     stdout_chunks: list[str] = []
@@ -148,56 +150,83 @@ def _plan_file_arg(plan_file: str) -> str:
     return f"./{plan_file}"
 
 
-async def init(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["init", "-no-color", "-input=false"], cwd)
+async def init(
+    binary: str, cwd: Path, *, env: dict[str, str] | None = None
+) -> CommandResult:
+    return await _run(binary, ["init", "-no-color", "-input=false"], cwd, env=env)
 
 
-async def validate(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["validate", "-no-color"], cwd)
+async def validate(
+    binary: str, cwd: Path, *, env: dict[str, str] | None = None
+) -> CommandResult:
+    return await _run(binary, ["validate", "-no-color"], cwd, env=env)
 
 
 async def plan(
-    binary: str, cwd: Path, targets: list[str], plan_file: str
+    binary: str,
+    cwd: Path,
+    targets: list[str],
+    plan_file: str,
+    *,
+    env: dict[str, str] | None = None,
 ) -> CommandResult:
     args = ["plan", "-no-color", "-input=false", "-out", _plan_file_arg(plan_file)]
     for t in targets:
         args.extend(["-target", t])
-    return await _run(binary, args, cwd)
+    return await _run(binary, args, cwd, env=env)
 
 
-async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+async def show_plan_json(
+    binary: str, cwd: Path, plan_file: str, *, env: dict[str, str] | None = None
+) -> CommandResult:
     return await _run(
         binary,
         ["show", "-json", "-no-color", _plan_file_arg(plan_file)],
         cwd,
         stream_stdout=False,
+        env=env,
     )
 
 
-async def show_state_json(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["show", "-json", "-no-color"], cwd, stream_stdout=False)
+async def show_state_json(
+    binary: str, cwd: Path, *, env: dict[str, str] | None = None
+) -> CommandResult:
+    return await _run(
+        binary, ["show", "-json", "-no-color"], cwd, stream_stdout=False, env=env
+    )
 
 
-async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+async def apply(
+    binary: str, cwd: Path, plan_file: str, *, env: dict[str, str] | None = None
+) -> CommandResult:
     return await _run(
         binary,
         ["apply", "-no-color", "-input=false", "-auto-approve", _plan_file_arg(plan_file)],
         cwd,
+        env=env,
     )
 
 
 async def import_resource(
-    binary: str, cwd: Path, address: str, resource_id: str
+    binary: str,
+    cwd: Path,
+    address: str,
+    resource_id: str,
+    *,
+    env: dict[str, str] | None = None,
 ) -> CommandResult:
     return await _run(
         binary,
         ["import", "-no-color", "-input=false", address, resource_id],
         cwd,
+        env=env,
     )
 
 
-async def state_pull(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["state", "pull"], cwd, stream_stdout=False)
+async def state_pull(
+    binary: str, cwd: Path, *, env: dict[str, str] | None = None
+) -> CommandResult:
+    return await _run(binary, ["state", "pull"], cwd, stream_stdout=False, env=env)
 
 
 def extract_managed_resource_ids(state_json: str) -> list[str]:

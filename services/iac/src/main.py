@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -40,6 +41,7 @@ from .jobs import JobRegistry, WorkspaceQueue
 from .log_context import configure_logging, set_request_id
 from .models import (
     ApplyRequest,
+    CredentialError,
     Health,
     ImportRequest,
     InitRequest,
@@ -214,30 +216,72 @@ def _check_submit_preconditions(
     return workspace
 
 
-async def _run_op(
-    command: Awaitable[tf.CommandResult], *, cloud_login: bool = False
-) -> OperationResult:
-    if cloud_login:
-        await cloud_cli.ensure_cloud_login(config)
-    result = await command
-    return OperationResult(
-        exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
+async def _scope_env(
+    scope_id: str | None, *, aws_terraform_role_name: str = ""
+) -> dict[str, str] | None:
+    if not scope_id:
+        return None
+
+    azure_ready = bool(
+        config.azure_client_id
+        and config.azure_client_secret
+        and config.azure_tenant_id
     )
+    gcp_ready = bool(
+        config.google_application_credentials or config.google_credentials
+    )
+    aws_ready = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
+
+    if not (azure_ready or gcp_ready or aws_ready):
+        missing: dict[str, list[str]] = {}
+        if config.azure_client_id or config.azure_client_secret or config.azure_tenant_id:
+            fields = []
+            if not config.azure_client_id:
+                fields.append("ARM_CLIENT_ID")
+            if not config.azure_client_secret:
+                fields.append("ARM_CLIENT_SECRET")
+            if not config.azure_tenant_id:
+                fields.append("ARM_TENANT_ID")
+            missing["azure"] = fields
+        if not gcp_ready:
+            missing["gcp"] = ["GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CREDENTIALS"]
+        if not aws_ready:
+            missing["aws"] = ["AWS_ACCESS_KEY_ID"]
+        raise CredentialError(missing)
+
+    env = {
+        **os.environ,
+        "ARM_SUBSCRIPTION_ID": scope_id,
+        "GOOGLE_PROJECT": scope_id,
+    }
+    if aws_terraform_role_name and aws_ready:
+        try:
+            assumed = await cloud_cli.aws_assume_role(scope_id, aws_terraform_role_name)
+            env.update(assumed)
+        except RuntimeError:
+            logger.debug(
+                "AWS AssumeRole skipped for scope_id=%s (not an AWS account or "
+                "role not assumable)",
+                scope_id,
+            )
+    return env
+
+
+def _result(r: tf.CommandResult) -> OperationResult:
+    return OperationResult(exit_code=r.exit_code, stdout=r.stdout, stderr=r.stderr)
 
 
 def _submit(
     kind: JobKind,
     workspace: Path,
     response: Response,
-    command: Callable[[], Awaitable[tf.CommandResult]],
-    *,
-    cloud_login: bool = False,
+    pipeline: Callable[[], Awaitable[OperationResult]],
 ) -> JobAccepted:
     """Enqueue one terraform command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,
-        pipeline=lambda: _run_op(command(), cloud_login=cloud_login),
+        pipeline=pipeline,
     )
     response.headers["Location"] = f"/v1/jobs/{record.job_id}"
     return JobAccepted(job_id=record.job_id)
@@ -255,13 +299,15 @@ async def init(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "init",
-        workspace,
-        response,
-        lambda: tf.init(config.terraform_binary, workspace),
-        cloud_login=True,
-    )
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(await tf.init(config.terraform_binary, workspace, env=env))
+
+    return _submit("init", workspace, response, _pipeline)
 
 
 @app.post(
@@ -276,12 +322,14 @@ async def validate(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "validate",
-        workspace,
-        response,
-        lambda: tf.validate(config.terraform_binary, workspace),
-    )
+
+    async def _pipeline() -> OperationResult:
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(await tf.validate(config.terraform_binary, workspace, env=env))
+
+    return _submit("validate", workspace, response, _pipeline)
 
 
 @app.post(
@@ -296,15 +344,19 @@ async def plan(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "plan",
-        workspace,
-        response,
-        lambda: tf.plan(
-            config.terraform_binary, workspace, body.targets, body.plan_file
-        ),
-        cloud_login=True,
-    )
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.plan(
+                config.terraform_binary, workspace, body.targets, body.plan_file, env=env
+            )
+        )
+
+    return _submit("plan", workspace, response, _pipeline)
 
 
 @app.post(
@@ -319,12 +371,18 @@ async def show(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "show",
-        workspace,
-        response,
-        lambda: tf.show_plan_json(config.terraform_binary, workspace, body.plan_file),
-    )
+
+    async def _pipeline() -> OperationResult:
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.show_plan_json(
+                config.terraform_binary, workspace, body.plan_file, env=env
+            )
+        )
+
+    return _submit("show", workspace, response, _pipeline)
 
 
 @app.post(
@@ -339,13 +397,17 @@ async def apply(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "apply",
-        workspace,
-        response,
-        lambda: tf.apply(config.terraform_binary, workspace, body.plan_file),
-        cloud_login=True,
-    )
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.apply(config.terraform_binary, workspace, body.plan_file, env=env)
+        )
+
+    return _submit("apply", workspace, response, _pipeline)
 
 
 @app.post(
@@ -360,15 +422,19 @@ async def import_resource(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    return _submit(
-        "import",
-        workspace,
-        response,
-        lambda: tf.import_resource(
-            config.terraform_binary, workspace, body.address, body.resource_id
-        ),
-        cloud_login=True,
-    )
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.import_resource(
+                config.terraform_binary, workspace, body.address, body.resource_id, env=env
+            )
+        )
+
+    return _submit("import", workspace, response, _pipeline)
 
 
 @app.post(
@@ -383,24 +449,21 @@ async def state_resource_ids(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    record = jobs.submit(
-        kind="state_resource_ids",
-        workspace=workspace,
-        pipeline=lambda: _state_resource_ids_op(workspace),
-    )
-    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
-    return JobAccepted(job_id=record.job_id)
 
-
-async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    await cloud_cli.ensure_cloud_login(config)
-    result = await tf.state_pull(config.terraform_binary, workspace)
-    if not result.ok:
-        return OperationResult(
-            exit_code=result.exit_code, stdout="", stderr=result.stderr
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
-    ids = tf.extract_managed_resource_ids(result.stdout)
-    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+        result = await tf.state_pull(config.terraform_binary, workspace, env=env)
+        if not result.ok:
+            return OperationResult(
+                exit_code=result.exit_code, stdout="", stderr=result.stderr
+            )
+        ids = tf.extract_managed_resource_ids(result.stdout)
+        return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+
+    return _submit("state_resource_ids", workspace, response, _pipeline)
 
 
 @app.post(
@@ -424,20 +487,16 @@ async def scope_resource_ids(
                 "on the IaC service."
             ),
         )
-    async def _scope_op() -> tf.CommandResult:
+    async def _pipeline() -> OperationResult:
         await cloud_cli.ensure_cloud_login(config)
-        return await cloud_cli.list_resource_ids(
+        result = await cloud_cli.list_resource_ids(
             body.terraform_provider,
             body.scope_id,
             aws_terraform_role_name=config.aws_terraform_role_name,
         )
+        return _result(result)
 
-    return _submit(
-        "scope_resource_ids",
-        workspace,
-        response,
-        _scope_op,
-    )
+    return _submit("scope_resource_ids", workspace, response, _pipeline)
 
 
 @app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
