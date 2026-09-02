@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -146,6 +146,28 @@ describe("PrApprovalView", () => {
 
     expect(screen.getByText("Pull Request Merged")).toBeInTheDocument();
     expect(screen.queryByText("Merge Pull Request")).not.toBeInTheDocument();
+  });
+
+  it("blocks back navigation and ignores stale callbacks while merging", async () => {
+    const user = userEvent.setup();
+    let resolveMerge: () => void;
+    mockMergePr.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveMerge = resolve;
+      }),
+    );
+    const { props, unmount } = renderPr("initial", {
+      sessionPatch: { session_id: "sess-1", operation: "drift" },
+      prPatch: { sessionId: "sess-1", id: 42 },
+    });
+
+    await user.click(screen.getByText("Merge Pull Request"));
+    expect(screen.getByText("Back to Report")).toBeDisabled();
+
+    unmount();
+    await act(async () => resolveMerge!());
+
+    expect(props.onBackToReport).not.toHaveBeenCalled();
   });
 
   it("renders confirming step with confirm and request review buttons", () => {

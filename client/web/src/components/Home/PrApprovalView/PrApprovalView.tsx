@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Typography from "@mui/material/Typography";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -32,6 +32,14 @@ export default function PrApprovalView({
   const { session, prDetails, markPrMerged } = useSession();
   const { showNotification } = useNotification();
   const [approving, setApproving] = useState(false);
+  const mountedRef = useRef(true);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const confirming = step === "confirming";
   const highImpactWarning = step === "high_impact_warning";
@@ -53,11 +61,12 @@ export default function PrApprovalView({
       if (isDriftOperation) {
         markPullRequestMerged(session.session_id, prId);
         markPrMerged(session.session_id, prId);
-        onBackToReport();
-      } else {
+        if (mountedRef.current) onBackToReport();
+      } else if (mountedRef.current) {
         onApprove();
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       showNotification(
         "failure",
         `Failed to approve pull request: ${getApiErrorMessage(err)}`,
@@ -157,6 +166,7 @@ export default function PrApprovalView({
           className={styles.backLink}
           type="button"
           onClick={onBackToReport}
+          disabled={approving}
         >
           {STRINGS.assistant.backToReport}
         </button>
