@@ -5,11 +5,12 @@
 """Real-engine integration test for the IaC service.
 
 Unlike the unit suite (which patches every subprocess call), this test
-drives the HTTP API end to end against an actual OpenTofu binary:
+drives the HTTP API end to end against a real engine binary:
 init → validate → plan → show -json → apply → state pull, using the
 hermetic ``terraform_data`` fixture (no provider downloads, no network,
-no cloud credentials). It is the proof that the service really runs the
-bundled engine; it skips itself when ``tofu`` is not on PATH.
+no cloud credentials). It runs once per engine the image bundles —
+OpenTofu (``tofu``) and Terraform — proving both work behind the same
+service; each engine skips itself when its binary is not on PATH.
 """
 
 from __future__ import annotations
@@ -22,21 +23,27 @@ import pytest
 
 from .test_api import _client_with, _poll_until_terminal
 
-_FIXTURE = Path(__file__).parent / "fixtures" / "tofu_smoke" / "main.tf"
+_FIXTURE = Path(__file__).parent / "fixtures" / "engine_smoke" / "main.tf"
 _DEADLINE = 120.0  # real engine commands, generous but bounded
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("tofu") is None,
-    reason="OpenTofu (`tofu`) not on PATH; real-engine integration test skipped",
-)
+
+def _engine(binary: str) -> object:
+    return pytest.param(
+        binary,
+        marks=pytest.mark.skipif(
+            shutil.which(binary) is None,
+            reason=f"`{binary}` not on PATH; real-engine integration test skipped",
+        ),
+    )
 
 
-def test_full_pipeline_with_real_engine(tmp_path: Path) -> None:
+@pytest.mark.parametrize("binary", [_engine("tofu"), _engine("terraform")])
+def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
     shutil.copy(_FIXTURE, workspace / "main.tf")
 
-    with _client_with(terraform_binary="tofu") as client:
+    with _client_with(iac_binary=binary) as client:
 
         def run(endpoint: str, extra: dict | None = None) -> dict:
             response = client.post(

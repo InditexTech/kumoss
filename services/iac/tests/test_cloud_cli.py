@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src import cloud_cli
-from src.terraform import CommandResult
+from src.engine import CommandResult
 
 
 def _ok(stdout: str) -> CommandResult:

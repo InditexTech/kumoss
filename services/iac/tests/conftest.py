@@ -9,7 +9,7 @@
 be resolved. Point it at ``sh`` (always present) so the suite collects
 in engine-less environments (e.g. the CI/test container); unit tests
 never invoke the real binary — every subprocess call is patched. The
-real-engine checks live in ``test_integration_tofu.py`` and skip
+real-engine checks live in ``test_integration_engine.py`` and skip
 themselves when no engine is installed.
 """
 

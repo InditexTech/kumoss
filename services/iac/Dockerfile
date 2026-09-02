@@ -12,33 +12,23 @@ FROM python:3.13-slim AS base
 
 WORKDIR /app
 
-# IaC engines. OpenTofu (MPL-2.0) is always installed and is the
-# default (IAC_BINARY=opentofu). Genuine HashiCorp Terraform (BUSL-1.1) is
-# opt-in: build with --build-arg INSTALL_TERRAFORM=1 to install a real
-# `terraform` binary alongside `tofu`, then select it at runtime with
-# IAC_BINARY=terraform. The default image ships OpenTofu only, so no
-# BUSL-licensed binary is distributed unless you ask for it.
-#
-# When Terraform is NOT installed, a `terraform` -> `tofu` symlink keeps
-# deployments that still set TERRAFORM_BINARY=terraform (deprecated; see
-# env.sample) working against the bundled OpenTofu engine.
-ARG INSTALL_TERRAFORM=0
+# IaC engines: the image ships both OpenTofu (MPL-2.0, copied from the
+# stage above) and HashiCorp Terraform (BUSL-1.1, fetched from
+# HashiCorp's release server and checksum-verified; your use of it is
+# subject to its license terms). Select at runtime with IAC_BINARY —
+# `tofu` (the default) or `terraform` — no rebuild needed to switch.
 ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
-RUN if [ "$INSTALL_TERRAFORM" = "1" ]; then \
-        tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"; \
-        apt-get update \
-        && apt-get install -y --no-install-recommends curl unzip ca-certificates \
-        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \
-        && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" -o /tmp/terraform_SHA256SUMS \
-        && (cd /tmp && grep " ${tf_zip}\$" terraform_SHA256SUMS | sha256sum -c -) \
-        && unzip -q "/tmp/${tf_zip}" -d /usr/local/bin \
-        && rm "/tmp/${tf_zip}" /tmp/terraform_SHA256SUMS \
-        && apt-get purge -y unzip \
-        && rm -rf /var/lib/apt/lists/*; \
-    else \
-        ln -s /usr/local/bin/tofu /usr/local/bin/terraform; \
-    fi
+RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends curl unzip ca-certificates \
+    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \
+    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" -o /tmp/terraform_SHA256SUMS \
+    && (cd /tmp && grep " ${tf_zip}\$" terraform_SHA256SUMS | sha256sum -c -) \
+    && unzip -q "/tmp/${tf_zip}" -d /usr/local/bin \
+    && rm "/tmp/${tf_zip}" /tmp/terraform_SHA256SUMS \
+    && apt-get purge -y unzip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
 ARG AWSCLI_VERSION=2.28.0

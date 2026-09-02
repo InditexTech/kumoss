@@ -9,9 +9,9 @@ SPDX-License-Identifier: Apache-2.0
 Reference implementation of [`contracts/openapi/iac.v1.yaml`](../../contracts/openapi/iac.v1.yaml).
 
 The OSS default for the Nebula IaC contract: a raw IaC-engine executor
-that runs individual engine CLI commands (**OpenTofu** by default;
-Terraform-compatible) against a workspace path on a docker-compose
-shared volume, as **asynchronous jobs**. Every POST enqueues exactly
+that runs individual engine CLI commands (**OpenTofu** by default,
+**Terraform** as the bundled alternative) against a workspace path on a
+docker-compose shared volume, as **asynchronous jobs**. Every POST enqueues exactly
 one command and returns `202 Accepted` with a `job_id` immediately;
 clients poll `GET /v1/jobs/{job_id}` for the raw
 `{exit_code, stdout, stderr}` result. Sequencing commands and
@@ -61,49 +61,32 @@ subcommands against that binary instead (e.g. `terraform init`).
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
-| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `opentofu` (a friendly alias for the bundled OpenTofu's real `tofu` binary). See "Choosing the IaC engine". |
-| `TERRAFORM_BINARY`                            | no       | **Deprecated** fallback for `IAC_BINARY`, honored (with a warning) only when `IAC_BINARY` is unset. Will be removed in a future release. |
+| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
 
 ## Choosing the IaC engine
 
-The bundled image ships **OpenTofu 1.12.6** (MPL-2.0), installed from
-the official `ghcr.io/opentofu/opentofu:<version>-minimal` image and
-pinned by digest in the [Dockerfile](Dockerfile). The service itself is
-engine-agnostic: it only shells out to
+The bundled image ships both engines; `IAC_BINARY` selects one at
+runtime, with no rebuild needed to switch:
+
+- **OpenTofu 1.12.6** (MPL-2.0) — the default (`IAC_BINARY=tofu`).
+  Installed from the official
+  `ghcr.io/opentofu/opentofu:<version>-minimal` image, pinned by digest
+  in the [Dockerfile](Dockerfile).
+- **HashiCorp Terraform 1.16.0** (BUSL-1.1) — `IAC_BINARY=terraform`.
+  Fetched from `releases.hashicorp.com` at build time and
+  checksum-verified; your use of it is subject to its license terms.
+
+The service itself is engine-agnostic: it only shells out to
 `init` / `validate` / `plan` / `show` / `apply` / `import` /
-`state pull`, whose flags are identical across OpenTofu and Terraform.
+`state pull`, whose flags are identical across both engines, so any
+Terraform-compatible engine on PATH (or at an absolute path) works.
 On startup the service logs the resolved engine path and its reported
 version.
 
-- **OpenTofu (default):** nothing to configure. `IAC_BINARY` defaults
-  to `opentofu`, a friendly alias resolved to OpenTofu's real `tofu`
-  executable (setting `IAC_BINARY=tofu` works too). When Terraform is
-  not installed the image symlinks `terraform` → `tofu`, so legacy
-  `.env` files that still set `TERRAFORM_BINARY=terraform` keep working
-  against the bundled engine.
-- **HashiCorp Terraform:** build the image with
-  `--build-arg INSTALL_TERRAFORM=1` (and optionally
-  `--build-arg TERRAFORM_VERSION=<version>`, default `1.16.0`). This
-  installs a real `terraform` binary alongside `tofu` and drops the
-  symlink; then set `IAC_BINARY=terraform`. Terraform is **not**
-  distributed in the default image — enabling this build arg pulls it
-  from `releases.hashicorp.com` and its BUSL-1.1 license terms are your
-  responsibility. Both engines are present in such an image, so
-  `IAC_BINARY` switches between them at runtime with no rebuild.
-
-  With the compose stack, pass the build arg under the `iac` service:
-
-  ```yaml
-  iac:
-    build:
-      context: ./services/iac
-      args:
-        INSTALL_TERRAFORM: 1
-  ```
-
-Notes when moving existing projects from Terraform to OpenTofu:
+Notes when pointing a workspace previously managed by Terraform at the
+default OpenTofu engine:
 
 - Providers resolve from `registry.opentofu.org` (hostless sources like
   `hashicorp/azurerm` work unchanged); allow that egress alongside or

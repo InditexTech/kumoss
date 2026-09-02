@@ -32,9 +32,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from . import cloud_cli
-from . import terraform as tf
+from . import engine
 from .auth import verify_bearer_token
-from .config import Config, terraform_available
+from .config import Config, engine_available
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -55,9 +55,9 @@ from .models import (
 
 
 # Console logging for the service's own loggers ("iac.*": engine
-# operations, config warnings). uvicorn only configures its own
-# loggers, so without this handler the operation logs would be
-# invisible at the default log level.
+# operations). uvicorn only configures its own loggers, so without
+# this handler the operation logs would be invisible at the default
+# log level.
 _iac_logger = logging.getLogger("iac")
 if not _iac_logger.handlers:
     _handler = logging.StreamHandler(sys.stderr)
@@ -81,10 +81,10 @@ async def _log_engine_version() -> None:
     above independently of uvicorn's logging setup.
     """
     logger = logging.getLogger("iac.engine")
-    resolved = shutil.which(config.terraform_binary)
+    resolved = shutil.which(config.iac_binary)
     try:
         proc = await asyncio.create_subprocess_exec(
-            config.terraform_binary,
+            config.iac_binary,
             "version",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -158,11 +158,11 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
     """
     verify_bearer_token(config, authorization)
 
-    if not terraform_available(config.terraform_binary):
+    if not engine_available(config.iac_binary):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"IaC engine binary '{config.terraform_binary}' not found "
+                f"IaC engine binary '{config.iac_binary}' not found "
                 "in PATH on the IaC service."
             ),
         )
@@ -184,7 +184,7 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
     return workspace
 
 
-async def _run_op(command: Awaitable[tf.CommandResult]) -> OperationResult:
+async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
     result = await command
     return OperationResult(
         exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
@@ -195,7 +195,7 @@ def _submit(
     kind: JobKind,
     workspace: Path,
     response: Response,
-    command: Callable[[], Awaitable[tf.CommandResult]],
+    command: Callable[[], Awaitable[engine.CommandResult]],
 ) -> JobAccepted:
     """Enqueue one engine command as a job and point at its resource."""
     record = jobs.submit(
@@ -223,7 +223,7 @@ async def init(
         "init",
         workspace,
         response,
-        lambda: tf.init(config.terraform_binary, workspace),
+        lambda: engine.init(config.iac_binary, workspace),
     )
 
 
@@ -243,7 +243,7 @@ async def validate(
         "validate",
         workspace,
         response,
-        lambda: tf.validate(config.terraform_binary, workspace),
+        lambda: engine.validate(config.iac_binary, workspace),
     )
 
 
@@ -263,9 +263,7 @@ async def plan(
         "plan",
         workspace,
         response,
-        lambda: tf.plan(
-            config.terraform_binary, workspace, body.targets, body.plan_file
-        ),
+        lambda: engine.plan(config.iac_binary, workspace, body.targets, body.plan_file),
     )
 
 
@@ -285,7 +283,7 @@ async def show(
         "show",
         workspace,
         response,
-        lambda: tf.show_plan_json(config.terraform_binary, workspace, body.plan_file),
+        lambda: engine.show_plan_json(config.iac_binary, workspace, body.plan_file),
     )
 
 
@@ -305,7 +303,7 @@ async def apply(
         "apply",
         workspace,
         response,
-        lambda: tf.apply(config.terraform_binary, workspace, body.plan_file),
+        lambda: engine.apply(config.iac_binary, workspace, body.plan_file),
     )
 
 
@@ -325,8 +323,8 @@ async def import_resource(
         "import",
         workspace,
         response,
-        lambda: tf.import_resource(
-            config.terraform_binary, workspace, body.address, body.resource_id
+        lambda: engine.import_resource(
+            config.iac_binary, workspace, body.address, body.resource_id
         ),
     )
 
@@ -353,12 +351,12 @@ async def state_resource_ids(
 
 
 async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    result = await tf.state_pull(config.terraform_binary, workspace)
+    result = await engine.state_pull(config.iac_binary, workspace)
     if not result.ok:
         return OperationResult(
             exit_code=result.exit_code, stdout="", stderr=result.stderr
         )
-    ids = tf.extract_managed_resource_ids(result.stdout)
+    ids = engine.extract_managed_resource_ids(result.stdout)
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
 
 
