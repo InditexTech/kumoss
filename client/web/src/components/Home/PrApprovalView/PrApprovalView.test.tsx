@@ -105,6 +105,25 @@ describe("PrApprovalView", () => {
     expect(props.onStepChange).toHaveBeenCalledWith("confirming");
   });
 
+  it("merges drift pull requests directly without starting the apply flow", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
+    const { props } = renderPr("confirming", {
+      sessionPatch: { session_id: "sess-1", operation: "drift" },
+      prPatch: { id: 42 },
+    });
+
+    expect(screen.getByText("Merge Pull Request")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Merge Pull Request"));
+
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
+    expect(props.onBackToReport).toHaveBeenCalled();
+    expect(props.onApprove).not.toHaveBeenCalled();
+    expect(props.onStepChange).not.toHaveBeenCalled();
+  });
+
   it("renders confirming step with confirm and request review buttons", () => {
     renderPr("confirming", { prPatch: { id: 42 } });
 

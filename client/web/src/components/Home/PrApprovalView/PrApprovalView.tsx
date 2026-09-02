@@ -34,6 +34,7 @@ export default function PrApprovalView({
 
   const confirming = step === "confirming";
   const highImpactWarning = step === "high_impact_warning";
+  const isDriftOperation = session.operation === "drift";
 
   const isHighImpact =
     session.terraform_report?.potential_impact?.banner?.level === "high";
@@ -43,7 +44,11 @@ export default function PrApprovalView({
     setApproving(true);
     try {
       await mergePullRequest({ session_id: session.session_id });
-      onApprove();
+      if (isDriftOperation) {
+        onBackToReport();
+      } else {
+        onApprove();
+      }
     } catch (err) {
       showNotification(
         "failure",
@@ -55,8 +60,10 @@ export default function PrApprovalView({
   }, [
     prDetails.id,
     session.session_id,
+    isDriftOperation,
     approving,
     onApprove,
+    onBackToReport,
     showNotification,
     onStepChange,
   ]);
@@ -92,6 +99,46 @@ export default function PrApprovalView({
   }
 
   const showViewPr = prDetails.prUrl && isAllowedUrl(prDetails.prUrl);
+
+  if (isDriftOperation) {
+    return (
+      <div className={styles.container}>
+        <Typography variant="h1" className={styles.heading}>{STRINGS.pr.ready}</Typography>
+        <Typography variant="h4" className={styles.subtitle}>{STRINGS.pr.mergePrompt}</Typography>
+
+        <div className={styles.buttonRow}>
+          {showViewPr && (
+            <a
+              className={styles.noAnchor}
+              href={prDetails.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <button className={styles.outlineBtn} type="button">
+                {STRINGS.assistant.viewPr}
+              </button>
+            </a>
+          )}
+          <button
+            className={styles.filledBtn}
+            type="button"
+            onClick={handleConfirmApply}
+            disabled={approving || !prDetails.id}
+          >
+            {approving ? "Merging…" : STRINGS.pr.merge}
+          </button>
+        </div>
+
+        <button
+          className={styles.backLink}
+          type="button"
+          onClick={onBackToReport}
+        >
+          {STRINGS.assistant.backToReport}
+        </button>
+      </div>
+    );
+  }
 
   if (highImpactWarning) {
     return (

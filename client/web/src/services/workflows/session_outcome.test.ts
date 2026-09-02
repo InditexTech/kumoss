@@ -432,7 +432,7 @@ describe("isApplyRound / extractProjectName", () => {
 
 describe("buildSessionPatch", () => {
   it("maps a results outcome onto the UI session shape", () => {
-    const detail = makeSessionDetail({ is_blocked: true });
+    const detail = makeSessionDetail({ is_blocked: true, operation: "drift" });
     const patch = buildSessionPatch({
       kind: "results",
       detail,
@@ -450,6 +450,7 @@ describe("buildSessionPatch", () => {
       branchName: "nebula/sess-1",
       firstQuery: "deploy a VM",
       apply_allowed: false,
+      operation: "drift",
       current_status: "completed",
       code: "<main.tf>\nx\n</main.tf>",
       terraform_targets: ["a.b"],

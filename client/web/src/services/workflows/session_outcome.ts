@@ -289,6 +289,7 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     firstQuery: detail.first_query ?? undefined,
     full_history: normalizeHistory(detail.history),
     apply_allowed: !detail.is_blocked,
+    operation: detail.operation,
     current_status: detail.current_status,
   };
 

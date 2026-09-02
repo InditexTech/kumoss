@@ -4,7 +4,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { TerraformReport } from "./index";
-import type { HistoryEntry, SessionStatus } from "./api";
+import type { HistoryEntry, OperationType, SessionStatus } from "./api";
 
 export type StateSetter<T> = Dispatch<SetStateAction<T>>;
 
@@ -94,6 +94,7 @@ export interface Session {
   terraform_report?: TerraformReport;
   full_history?: HistoryEntry[];
   apply_allowed?: boolean;
+  operation?: OperationType;
   /** Failed sessions can't be resumed server-side; gates the follow-up input. */
   current_status?: SessionStatus;
   code?: string;
