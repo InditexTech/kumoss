@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { resolveProject } from "@/services/mapper/mapper";
 import { parseRepository } from "@/services/core/iac_code";
 
@@ -16,14 +16,18 @@ export function useMapperResolution() {
   const [scanPaths, setScanPaths] = useState<string[]>([]);
   const [mapperLoading, setMapperLoading] = useState(false);
   const [mapperError, setMapperError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const resolveAndScan = useCallback(
-    async (identifier: string): Promise<ResolveResult> => {
+    async (identifier: string): Promise<ResolveResult | null> => {
+      const requestId = ++requestIdRef.current;
       setMapperLoading(true);
       setMapperError(null);
       try {
         const resolved = await resolveProject({ identifier });
+        if (requestId !== requestIdRef.current) return null;
         const parsed = await parseRepository(resolved.repo_url);
+        if (requestId !== requestIdRef.current) return null;
         setScanPaths(parsed.roots);
         return {
           repoUrl: resolved.repo_url,
@@ -31,13 +35,16 @@ export function useMapperResolution() {
           paths: parsed.roots,
         };
       } finally {
-        setMapperLoading(false);
+        if (requestId === requestIdRef.current) {
+          setMapperLoading(false);
+        }
       }
     },
     [],
   );
 
   const resetMapper = useCallback(() => {
+    requestIdRef.current += 1;
     setScanPaths([]);
     setMapperLoading(false);
     setMapperError(null);

@@ -362,6 +362,8 @@ export function useTerraformActions() {
   const reset = useCallback(() => {
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
     clearInactivityTimer();
     dispatch({ type: "RESET" });
   }, [clearInactivityTimer]);

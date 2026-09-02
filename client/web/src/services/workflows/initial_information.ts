@@ -60,16 +60,19 @@ export type InitialInfoResult =
 
 export async function runInitialInfoWorkflow(
   params: InitialInfoParams,
-  _signal?: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<InitialInfoResult> {
   // Authorize: check if the user has permission on this
   // project/environment/cloud combination.
-  const authResponse = await authorizeUser({
-    cloud: params.cloud ?? "",
-    project_name: params.repositoryUrl,
-    environment: params.environment ?? "",
-    user_email: params.userEmail,
-  });
+  const authResponse = await authorizeUser(
+    {
+      cloud: params.cloud ?? "",
+      project_name: params.repositoryUrl,
+      environment: params.environment ?? "",
+      user_email: params.userEmail,
+    },
+    signal,
+  );
 
   if (!authResponse.result) {
     return {

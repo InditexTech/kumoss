@@ -187,28 +187,34 @@ describe("useHomeWizard orchestrator", () => {
   });
 
   it("reset restores wizard state to initial", async () => {
-    const { result } = renderHook(() => useHomeWizard(), {
-      wrapper: Wrapper,
-    });
+    const { result } = renderHook(
+      () => ({
+        wizard: useHomeWizard(),
+        session: useSession(),
+      }),
+      { wrapper: Wrapper },
+    );
 
     await act(async () => {
-      await result.current.handleInput("create something");
+      await result.current.wizard.handleInput("create something");
     });
-    expect(result.current.step).toBe("repository_url");
+    expect(result.current.wizard.step).toBe("repository_url");
+    expect(result.current.session.session.firstQuery).toBe("create something");
 
-    act(() => result.current.reset());
+    act(() => result.current.wizard.reset());
 
-    expect(result.current.step).toBe("query");
-    expect(result.current.data).toEqual({
+    expect(result.current.wizard.step).toBe("query");
+    expect(result.current.wizard.data).toEqual({
       query: "",
       repositoryUrl: "",
       provider: "",
       cloudScope: "",
       iacPath: "",
     });
-    expect(result.current.scanPaths).toEqual([]);
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(result.current.wizard.scanPaths).toEqual([]);
+    expect(result.current.wizard.isLoading).toBe(false);
+    expect(result.current.wizard.error).toBeNull();
+    expect(result.current.session.session.firstQuery).toBeUndefined();
   });
 
   it("promptMessage and placeholder return correct values per step", async () => {

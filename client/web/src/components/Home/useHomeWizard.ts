@@ -20,7 +20,7 @@ const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 export function useHomeWizard() {
   const { user } = useAuth();
-  const { session, updateSession } = useSession();
+  const { session, updateSession, resetSession } = useSession();
   const { mode } = useMode();
   const navigate = useNavigate();
 
@@ -81,6 +81,7 @@ export function useHomeWizard() {
           if (!value.trim()) return;
           try {
             const result = await mapper.resolveAndScan(value.trim());
+            if (!result) return;
             navigation.setData((prev) => ({
               ...prev,
               repositoryUrl: result.repoUrl,
@@ -224,8 +225,9 @@ export function useHomeWizard() {
     hasTriggeredTerraform.current = false;
     auth.reset();
     terraform.reset();
+    resetSession();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, auth, terraform, navigate]);
+  }, [navigation, mapper, auth, terraform, resetSession, navigate]);
 
   const promptMessage = (): string =>
     navigation.promptMessage(auth.state.status);

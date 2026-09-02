@@ -550,11 +550,13 @@ describe("useTerraformActions", () => {
       result.current.run(defaultParams);
     });
     expect(result.current.state.status).toBe("streaming");
+    const signal = mockRunWorkflow.mock.calls[0][1];
 
     act(() => { result.current.reset(); });
 
     expect(result.current.state).toEqual({ status: "idle" });
     expect(mockSseConnection.close).toHaveBeenCalled();
+    expect(signal.aborted).toBe(true);
   });
 
   it("SSE events update phases correctly", async () => {

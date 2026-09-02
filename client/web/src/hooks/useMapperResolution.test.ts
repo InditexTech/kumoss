@@ -159,4 +159,36 @@ describe("useMapperResolution", () => {
     expect(result.current.mapperLoading).toBe(false);
     expect(result.current.mapperError).toBeNull();
   });
+
+  it("resetMapper ignores a pending resolution", async () => {
+    let resolveRequest: () => void = () => {};
+    const pendingRequest = new Promise<void>((resolve) => {
+      resolveRequest = resolve;
+    });
+    server.use(
+      http.post("/api/v1/mapping/resolve", async () => {
+        await pendingRequest;
+        return HttpResponse.json({ repo_url: "url", project: "p" });
+      }),
+    );
+
+    const { result } = renderHook(() => useMapperResolution());
+    let resolution: ReturnType<typeof result.current.resolveAndScan>;
+
+    act(() => {
+      resolution = result.current.resolveAndScan("repo");
+    });
+    expect(result.current.mapperLoading).toBe(true);
+
+    act(() => result.current.resetMapper());
+    expect(result.current.mapperLoading).toBe(false);
+
+    await act(async () => {
+      resolveRequest();
+      expect(await resolution).toBeNull();
+    });
+
+    expect(result.current.scanPaths).toEqual([]);
+    expect(result.current.mapperLoading).toBe(false);
+  });
 });

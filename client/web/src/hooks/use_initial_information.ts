@@ -81,15 +81,17 @@ export function useInitialInformation() {
   // ── The action your component calls ──────────────────────────
   const run = useCallback(async (params: InitialInfoParams) => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     dispatch({ type: "START" });
 
     try {
       const result = await runInitialInfoWorkflow(
         params,
-        abortRef.current.signal,
+        controller.signal,
       );
+      if (controller.signal.aborted) return;
 
       if (result.ok) {
         dispatch({ type: "SUCCESS", data: result });
@@ -102,7 +104,12 @@ export function useInitialInformation() {
         });
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (
+        controller.signal.aborted ||
+        (err instanceof DOMException && err.name === "AbortError")
+      ) {
+        return;
+      }
 
       const message =
         err instanceof ApiError
@@ -113,7 +120,11 @@ export function useInitialInformation() {
     }
   }, []);
 
-  const reset = useCallback(() => dispatch({ type: "RESET" }), []);
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    dispatch({ type: "RESET" });
+  }, []);
 
   return { state, run, reset } as const;
 }
