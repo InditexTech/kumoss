@@ -2,22 +2,36 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Async wrappers around the az / gcloud / aws CLIs for scope listing.
+"""Async wrappers around the az / gcloud / aws CLIs.
 
-Only what `POST /v1/import/scope-resource-ids` needs: list the resource
-IDs that exist in one cloud scope. Authentication is ambient — the CLIs
-use whatever credentials the service process already has (env vars,
-mounted config, instance metadata); their own auth errors pass through
-in `stderr` like any other command failure.
+Handles startup cloud authentication and scope-level resource listing
+for ``POST /v1/import/scope-resource-ids``.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 import shutil
+import tempfile
+import time
+from pathlib import Path
 
+from .config import Config
 from .terraform import CommandResult
+
+logger = logging.getLogger(__name__)
+
+_last_login: float = 0.0
+_login_lock = asyncio.Lock()
+
+
+def needs_relogin(refresh_minutes: int) -> bool:
+    if _last_login == 0.0:
+        return True
+    return (time.monotonic() - _last_login) > refresh_minutes * 60
 
 
 # Provider value (contract vocabulary) → CLI binary it shells out to.
@@ -25,17 +39,20 @@ CLI_BINARIES = {"azure": "az", "gcp": "gcloud", "aws": "aws"}
 
 _GRAPH_PAGE_SIZE = 1000
 _GRAPH_MAX_PAGES = 100
+_AWS_TAG_MAX_PAGES = 100
 
 
 def cli_available(provider: str) -> bool:
-    return shutil.which(CLI_BINARIES[provider]) is not None
+    binary = CLI_BINARIES.get(provider)
+    return binary is not None and shutil.which(binary) is not None
 
 
-async def _run(args: list[str]) -> CommandResult:
+async def _run(args: list[str], *, env: dict[str, str] | None = None) -> CommandResult:
     proc = await asyncio.create_subprocess_exec(
         *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=env,
     )
     stdout_bytes, stderr_bytes = await proc.communicate()
     return CommandResult(
@@ -46,6 +63,168 @@ async def _run(args: list[str]) -> CommandResult:
     )
 
 
+# ---------------------------------------------------------------------------
+# Startup cloud authentication
+# ---------------------------------------------------------------------------
+
+
+async def cloud_login(config: Config) -> None:
+    """Authenticate against cloud providers.
+
+    Uses double-check locking: the first caller to find the token
+    expired acquires the lock and re-authenticates; concurrent callers
+    re-check inside the lock and skip if another task already refreshed.
+
+    Each provider is guarded by its required env vars — missing vars
+    skip that provider with an info log.
+    """
+    global _last_login
+    async with _login_lock:
+        if not needs_relogin(config.cloud_login_refresh_min):
+            logger.debug("cloud tokens still valid, skipping re-login")
+            return
+
+        if (
+            config.azure_client_id
+            and config.azure_client_secret
+            and config.azure_tenant_id
+        ):
+            await _az_login_sp(config)
+        else:
+            logger.info(
+                "Azure login skipped: ARM_CLIENT_ID, ARM_CLIENT_SECRET, "
+                "and ARM_TENANT_ID not all set"
+            )
+
+        if config.google_application_credentials or config.google_credentials:
+            await _gcloud_auth(config)
+        else:
+            logger.info(
+                "GCP auth skipped: GOOGLE_APPLICATION_CREDENTIALS "
+                "and GOOGLE_CREDENTIALS not set"
+            )
+
+        if os.environ.get("AWS_ACCESS_KEY_ID"):
+            logger.info("AWS ambient credentials detected")
+        else:
+            logger.info("AWS auth skipped: no ambient credentials detected")
+
+        _last_login = time.monotonic()
+        logger.info("cloud login completed")
+
+
+async def ensure_cloud_login(config: Config) -> None:
+    """Re-login if cloud tokens have expired.
+
+    Intended for per-request lazy checks inside background jobs.
+    No-op when tokens are still fresh.
+    """
+    if needs_relogin(config.cloud_login_refresh_min):
+        await cloud_login(config)
+
+
+async def _az_login_sp(config: Config) -> None:
+    result = await _run(
+        [
+            "az",
+            "login",
+            "--service-principal",
+            "-u",
+            config.azure_client_id,
+            "-p",
+            config.azure_client_secret,
+            "--tenant",
+            config.azure_tenant_id,
+            "--allow-no-subscriptions",
+        ],
+        env={**os.environ},
+    )
+    if not result.ok:
+        raise RuntimeError(f"Azure login failed: {result.stderr}")
+    logger.info("Azure CLI login successful")
+
+
+async def _gcloud_auth(config: Config) -> None:
+    key_file = config.google_application_credentials
+    key_json = config.google_credentials
+
+    tmp_key_path: Path | None = None
+    try:
+        if not key_file and key_json:
+            tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w")
+            tmp.write(key_json)
+            tmp.close()
+            tmp_key_path = Path(tmp.name)
+            key_file = str(tmp_key_path)
+
+        result = await _run(
+            [
+                "gcloud",
+                "auth",
+                "activate-service-account",
+                f"--key-file={key_file}",
+            ]
+        )
+        if not result.ok:
+            raise RuntimeError(f"GCP auth failed: {result.stderr}")
+        logger.info("GCP auth successful")
+    finally:
+        if tmp_key_path is not None:
+            tmp_key_path.unlink(missing_ok=True)
+
+
+async def aws_assume_role(scope_id: str, role_name: str) -> dict[str, str]:
+    """Construct a role ARN from *scope_id* and *role_name*, then assume it.
+
+    Returns a dict with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
+    AWS_SESSION_TOKEN from the assumed role.
+    """
+    role_arn = f"arn:aws:iam::{scope_id}:role/{role_name}"
+    result = await _run(
+        [
+            "aws",
+            "sts",
+            "assume-role",
+            "--role-arn",
+            role_arn,
+            "--role-session-name",
+            "nebula-iac",
+            "--output",
+            "json",
+        ]
+    )
+    if not result.ok:
+        raise RuntimeError(f"AWS AssumeRole failed for {role_arn}: {result.stderr}")
+
+    data = json.loads(result.stdout)
+    try:
+        credentials = data["Credentials"]
+        env = {
+            "AWS_ACCESS_KEY_ID": credentials["AccessKeyId"],
+            "AWS_SECRET_ACCESS_KEY": credentials["SecretAccessKey"],
+            "AWS_SESSION_TOKEN": credentials["SessionToken"],
+        }
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Malformed STS AssumeRole response for {role_arn}: missing {exc}"
+        ) from exc
+    logger.info("AWS AssumeRole successful for %s", role_arn)
+    return env
+
+
+# ---------------------------------------------------------------------------
+# Scope resource listing
+# ---------------------------------------------------------------------------
+
+
+class _AwsRegionError(Exception):
+    """Raised inside ``_get_resources`` to propagate per-region failures."""
+
+    def __init__(self, region: str | None, result: CommandResult) -> None:
+        self.region = region
+        self.result = result
+
+
 def _failure(stderr: str, exit_code: int = 1) -> CommandResult:
     return CommandResult(ok=False, stdout="", stderr=stderr, exit_code=exit_code)
 
@@ -54,14 +233,16 @@ def _ids_result(ids: list[str]) -> CommandResult:
     return CommandResult(ok=True, stdout=json.dumps(ids), stderr="", exit_code=0)
 
 
-async def list_resource_ids(provider: str, scope_id: str) -> CommandResult:
+async def list_resource_ids(
+    provider: str, scope_id: str, *, aws_terraform_role_name: str = ""
+) -> CommandResult:
     """List the resource IDs in one cloud scope as a JSON array on stdout."""
     if provider == "azure":
         return await _list_azure(scope_id)
     if provider == "gcp":
         return await _list_gcp(scope_id)
     if provider == "aws":
-        return await _list_aws(scope_id)
+        return await _list_aws(scope_id, aws_terraform_role_name)
     return _failure(f"Unsupported terraform_provider: {provider!r}", exit_code=2)
 
 
@@ -112,6 +293,7 @@ async def _list_azure(scope_id: str) -> CommandResult:
 
 
 async def _list_gcp(scope_id: str) -> CommandResult:
+    """List GCP resources and IAM roles; returned IDs mix both types."""
     resources_result, iam_result = await asyncio.gather(
         _run(
             [
@@ -168,22 +350,37 @@ async def _list_gcp(scope_id: str) -> CommandResult:
     return _ids_result(ids)
 
 
-async def _list_aws(scope_id: str) -> CommandResult:
-    # The Tagging API answers for the account the ambient credentials
-    # belong to; verify it matches the requested scope rather than
-    # silently listing a different account.
-    identity_result = await _run(
-        ["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"]
-    )
-    if not identity_result.ok:
-        return _failure(identity_result.stderr, identity_result.exit_code)
-    account = identity_result.stdout.strip()
-    if account != scope_id:
-        return _failure(
-            f"scope_id '{scope_id}' does not match the account of the service's "
-            f"AWS credentials ('{account}'); cross-account listing is not "
-            "supported by the reference implementation."
+async def _list_aws(scope_id: str, role_name: str = "") -> CommandResult:
+    env: dict[str, str] | None = None
+
+    if role_name:
+        try:
+            assumed_creds = await aws_assume_role(scope_id, role_name)
+        except RuntimeError as exc:
+            return _failure(str(exc))
+        env = {**os.environ, **assumed_creds}
+    else:
+        # No role configured: verify scope_id matches the ambient account.
+        identity_result = await _run(
+            [
+                "aws",
+                "sts",
+                "get-caller-identity",
+                "--query",
+                "Account",
+                "--output",
+                "text",
+            ]
         )
+        if not identity_result.ok:
+            return _failure(identity_result.stderr, identity_result.exit_code)
+        account = identity_result.stdout.strip()
+        if account != scope_id:
+            return _failure(
+                f"scope_id '{scope_id}' does not match the account of the service's "
+                f"AWS credentials ('{account}'); configure AWS_TERRAFORM_ROLE_NAME "
+                "for cross-account access or provide a matching scope_id."
+            )
 
     # The Tagging API is regional: enumerate the account's enabled
     # regions and aggregate. Global resources (IAM, Route53, ...) are
@@ -197,7 +394,8 @@ async def _list_aws(scope_id: str) -> CommandResult:
             "Regions[].RegionName",
             "--output",
             "json",
-        ]
+        ],
+        env=env,
     )
     regions: list[str | None]
     try:
@@ -207,28 +405,42 @@ async def _list_aws(scope_id: str) -> CommandResult:
     except json.JSONDecodeError:
         regions = [None]  # fall back to the default region only
 
-    async def _get_resources(region: str | None) -> CommandResult:
-        command = ["aws", "resourcegroupstaggingapi", "get-resources"]
-        if region:
-            command.extend(["--region", region])
-        command.extend(["--output", "json"])
-        return await _run(command)
-
-    results = await asyncio.gather(*(_get_resources(r) for r in regions))
-
-    arns: list[str] = []
-    try:
-        for region, result in zip(regions, results):
+    async def _get_resources(region: str | None) -> list[str]:
+        """Paginate ``get-resources`` in a single region."""
+        arns: list[str] = []
+        pagination_token: str | None = None
+        for _ in range(_AWS_TAG_MAX_PAGES):
+            command = ["aws", "resourcegroupstaggingapi", "get-resources"]
+            if region:
+                command.extend(["--region", region])
+            if pagination_token:
+                command.extend(["--starting-token", pagination_token])
+            command.extend(["--output", "json"])
+            result = await _run(command, env=env)
             if not result.ok:
-                return _failure(
-                    f"get-resources failed in region '{region}': {result.stderr}",
-                    result.exit_code,
-                )
+                raise _AwsRegionError(region, result)
             data = json.loads(result.stdout)
             arns.extend(
-                r["ResourceARN"] for r in data.get("ResourceTagMappingList", [])
+                r["ResourceARN"]
+                for r in data.get("ResourceTagMappingList", [])
+                if "ResourceARN" in r
             )
+            pagination_token = data.get("PaginationToken") or None
+            if not pagination_token:
+                break
+        return arns
+
+    try:
+        region_results = await asyncio.gather(*(_get_resources(r) for r in regions))
+    except _AwsRegionError as exc:
+        return _failure(
+            f"get-resources failed in region '{exc.region}': {exc.result.stderr}",
+            exc.result.exit_code,
+        )
     except (json.JSONDecodeError, KeyError) as exc:
         return _failure(f"Failed to parse AWS response: {exc}")
 
+    arns: list[str] = []
+    for region_arns in region_results:
+        arns.extend(region_arns)
     return _ids_result(arns)

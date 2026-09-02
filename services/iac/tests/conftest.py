@@ -4,11 +4,10 @@
 
 """Test environment setup.
 
-``src.main`` resolves ``Config.from_env()`` at import time, and
-``Config.__post_init__`` fails fast when the terraform binary cannot be
-resolved. Point it at ``sh`` (always present) so the suite collects in
-terraform-less environments (e.g. the CI/test container); tests never
-invoke the real binary — every subprocess call is patched.
+``src.main`` resolves ``Config.from_env()`` at import time. Point
+``TERRAFORM_BINARY`` at ``sh`` (always present) so the default config
+works in terraform-less environments (e.g. the CI/test container);
+tests never invoke the real binary — every subprocess call is patched.
 """
 
 import os

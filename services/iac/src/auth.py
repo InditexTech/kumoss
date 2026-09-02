@@ -6,18 +6,19 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from .config import Config
 
+logger = logging.getLogger(__name__)
+
 
 def verify_bearer_token(
     config: Config, credentials: HTTPAuthorizationCredentials | None
 ) -> None:
-    print(
-        f"verify_bearer_token: config.expected_token={config.expected_token}, credentials={credentials}"
-    )
     if not config.expected_token:
         return
 
@@ -28,6 +29,7 @@ def verify_bearer_token(
         )
 
     if credentials.credentials != config.expected_token:
+        logger.warning("invalid bearer token presented")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token.",

@@ -18,8 +18,11 @@ submission surfaces through the job.
 from __future__ import annotations
 
 import json
+import logging
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 from pathlib import Path
 from uuid import UUID
 
@@ -33,6 +36,7 @@ from . import terraform as tf
 from .auth import verify_bearer_token
 from .config import Config, terraform_available
 from .jobs import JobRegistry, WorkspaceQueue
+from .log_context import configure_logging, set_request_id
 from .models import (
     ApplyRequest,
     Health,
@@ -50,6 +54,7 @@ from .models import (
     ValidateRequest,
 )
 
+logger = logging.getLogger(__name__)
 
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
@@ -59,11 +64,29 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(config.log_level)
+
+    tf_ok = terraform_available(config.terraform_binary)
+    logger.info(
+        "iac service starting terraform_available=%s binary=%s auth_enabled=%s",
+        tf_ok,
+        config.terraform_binary,
+        bool(config.expected_token),
+    )
+
+    try:
+        await cloud_cli.cloud_login(config)
+        logger.info("iac service startup complete")
+    except Exception:
+        logger.exception("iac service startup failed")
+        raise
+
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see
     # 404 and must resubmit).
     await jobs.shutdown()
+    logger.info("iac service shutting down")
 
 
 app = FastAPI(
@@ -72,6 +95,29 @@ app = FastAPI(
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def correlation_middleware(request: Request, call_next):
+    rid = set_request_id(request.headers.get("x-request-id"))
+    t0 = time.monotonic()
+    logger.info("%s %s started", request.method, request.url.path)
+    response = await call_next(request)
+    elapsed = time.monotonic() - t0
+    logger.info(
+        "%s %s completed status=%d elapsed=%.2fs",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed,
+    )
+    response.headers["x-request-id"] = rid
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
 
 
 def _problem(status_code: int, title: str, detail: str | None = None) -> JSONResponse:
@@ -85,21 +131,37 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
     )
 
 
+def _http_reason(code: int) -> str:
+    try:
+        return HTTPStatus(code).phrase
+    except ValueError:
+        return "HTTP error"
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return _problem(exc.status_code, exc.detail or "HTTP error")
+    return _problem(exc.status_code, _http_reason(exc.status_code), exc.detail)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    return _problem(422, "Request validation failed", str(exc))
+    logger.warning(
+        "request validation error path=%s detail=%s", request.url.path, str(exc)[:300]
+    )
+    return _problem(422, "Unprocessable Content", str(exc))
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("unhandled exception %s %s", request.method, request.url.path)
     return _problem(500, "Internal server error", str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @app.get("/healthz", response_model=Health, tags=["ops"])
@@ -143,7 +205,11 @@ def _check_submit_preconditions(
     return workspace
 
 
-async def _run_op(command: Awaitable[tf.CommandResult]) -> OperationResult:
+async def _run_op(
+    command: Awaitable[tf.CommandResult], *, cloud_login: bool = False
+) -> OperationResult:
+    if cloud_login:
+        await cloud_cli.ensure_cloud_login(config)
     result = await command
     return OperationResult(
         exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
@@ -155,12 +221,14 @@ def _submit(
     workspace: Path,
     response: Response,
     command: Callable[[], Awaitable[tf.CommandResult]],
+    *,
+    cloud_login: bool = False,
 ) -> JobAccepted:
     """Enqueue one terraform command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,
-        pipeline=lambda: _run_op(command()),
+        pipeline=lambda: _run_op(command(), cloud_login=cloud_login),
     )
     response.headers["Location"] = f"/v1/jobs/{record.job_id}"
     return JobAccepted(job_id=record.job_id)
@@ -183,6 +251,7 @@ async def init(
         workspace,
         response,
         lambda: tf.init(config.terraform_binary, workspace),
+        cloud_login=True,
     )
 
 
@@ -225,6 +294,7 @@ async def plan(
         lambda: tf.plan(
             config.terraform_binary, workspace, body.targets, body.plan_file
         ),
+        cloud_login=True,
     )
 
 
@@ -265,6 +335,7 @@ async def apply(
         workspace,
         response,
         lambda: tf.apply(config.terraform_binary, workspace, body.plan_file),
+        cloud_login=True,
     )
 
 
@@ -287,6 +358,7 @@ async def import_resource(
         lambda: tf.import_resource(
             config.terraform_binary, workspace, body.address, body.resource_id
         ),
+        cloud_login=True,
     )
 
 
@@ -299,9 +371,9 @@ async def import_resource(
 async def state_resource_ids(
     body: StateResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     record = jobs.submit(
         kind="state_resource_ids",
         workspace=workspace,
@@ -312,6 +384,7 @@ async def state_resource_ids(
 
 
 async def _state_resource_ids_op(workspace: Path) -> OperationResult:
+    await cloud_cli.ensure_cloud_login(config)
     result = await tf.state_pull(config.terraform_binary, workspace)
     if not result.ok:
         return OperationResult(
@@ -330,23 +403,31 @@ async def _state_resource_ids_op(workspace: Path) -> OperationResult:
 async def scope_resource_ids(
     body: ScopeResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     if not cloud_cli.cli_available(body.terraform_provider):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Cloud CLI '{cloud_cli.CLI_BINARIES[body.terraform_provider]}' "
+                f"Cloud CLI '{cloud_cli.CLI_BINARIES.get(body.terraform_provider, body.terraform_provider)}' "
                 f"for provider '{body.terraform_provider}' not found in PATH "
                 "on the IaC service."
             ),
         )
+    async def _scope_op() -> tf.CommandResult:
+        await cloud_cli.ensure_cloud_login(config)
+        return await cloud_cli.list_resource_ids(
+            body.terraform_provider,
+            body.scope_id,
+            aws_terraform_role_name=config.aws_terraform_role_name,
+        )
+
     return _submit(
         "scope_resource_ids",
         workspace,
         response,
-        lambda: cloud_cli.list_resource_ids(body.terraform_provider, body.scope_id),
+        _scope_op,
     )
 
 

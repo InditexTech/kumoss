@@ -499,7 +499,9 @@ def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:
         "stdout": '["id-1", "id-2"]',
         "stderr": "",
     }
-    list_mock.assert_awaited_once_with("azure", "sub-1")
+    list_mock.assert_awaited_once_with(
+        "azure", "sub-1", aws_terraform_role_name=""
+    )
 
 
 def test_scope_resource_ids_validation() -> None:
