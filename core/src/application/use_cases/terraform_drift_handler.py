@@ -71,12 +71,10 @@ class TerraformDriftHandler:
                     status=SessionStatus.FILTERING,
                     history=ctx.history,
                 )
-                conventions = await self.__template_svc.compose_template(q, ctx.history)
-
                 targets = []
                 if is_partial:
                     ok, rationale = await self.__requests_filter_svc.filter(
-                        q, ctx.history, conventions, ctx.operation
+                        q, ctx.history, ctx.operation
                     )
                     if not ok:
                         ctx.history.append_turn(q, rationale)
@@ -85,6 +83,10 @@ class TerraformDriftHandler:
                             status=SessionStatus.UNCOMPLETED,
                         )
                         return
+
+                conventions = await self.__template_svc.compose_template(q, ctx.history)
+
+                if is_partial:
                     targets = await self.__target_svc.generate_drift(
                         query=q, history=ctx.history, conventions=conventions
                     )

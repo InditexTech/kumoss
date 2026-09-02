@@ -67,23 +67,19 @@ class TemplateAdapter(ITemplate):
     @override
     async def render_requests_filter(
         self,
-        resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
         operation_type: OperationType,
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions
-        )
         requests_guidelines: str = await remote_fetcher.fetch(
             prompt_name="requests",
             scope="general",
             type="guidelines",
             tag=system_config.environment,
         )
+        forbidden_actions = await self._fetch_guidelines("forbidden_actions")
         t = self._get_template(self._core + "requests_filter.jinja")
         return t.render(
-            **context,
+            CWD=self._cwd,
+            FORBIDDEN_ACTIONS=forbidden_actions,
             REQUESTS_GUIDELINES=requests_guidelines,
             OPERATION_TYPE=operation_type.value,
         )
