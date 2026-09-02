@@ -588,6 +588,32 @@ describe("useTerraformActions", () => {
     expect(onOutcome).not.toHaveBeenCalled();
   });
 
+  it("reset ignores an error from a pending workflow", async () => {
+    let rejectWorkflow: (error: Error) => void = () => {};
+    mockRunWorkflow.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectWorkflow = reject;
+        }),
+    );
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+    let request: ReturnType<typeof result.current.run>;
+
+    act(() => {
+      request = result.current.run(defaultParams);
+    });
+    act(() => result.current.reset());
+
+    await act(async () => {
+      rejectWorkflow(new Error("Late failure"));
+      await request;
+    });
+
+    expect(result.current.state).toEqual({ status: "idle" });
+  });
+
   it("SSE events update phases correctly", async () => {
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });

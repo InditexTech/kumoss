@@ -44,16 +44,19 @@ export interface TerraformActionResult {
 
 export async function runTerraformActionWorkflow(
   params: TerraformActionParams,
-  _signal?: AbortSignal,
+  signal?: AbortSignal,
 ): Promise<TerraformActionResult> {
   let response: IacSessionResponse;
 
   if (params.mode === MODE.IMPORT) {
     // Apply reuses the session's stored plan; it takes no query or targets.
-    response = await applyInfrastructure({
-      user_id: params.userId,
-      session_id: params.sessionId ?? "",
-    });
+    response = await applyInfrastructure(
+      {
+        user_id: params.userId,
+        session_id: params.sessionId ?? "",
+      },
+      signal,
+    );
     return { sessionId: response.session_id };
   }
 
@@ -74,19 +77,25 @@ export async function runTerraformActionWorkflow(
 
   switch (params.mode) {
     case MODE.GENERATE:
-      response = await generateInfrastructure(baseRequest);
+      response = await generateInfrastructure(baseRequest, signal);
       break;
     case MODE.DRIFT:
-      response = await driftDetectionRemediation({
-        ...baseRequest,
-        is_partial: false,
-      });
+      response = await driftDetectionRemediation(
+        {
+          ...baseRequest,
+          is_partial: false,
+        },
+        signal,
+      );
       break;
     case MODE.PARTIAL_DRIFT:
-      response = await driftDetectionRemediation({
-        ...baseRequest,
-        is_partial: true,
-      });
+      response = await driftDetectionRemediation(
+        {
+          ...baseRequest,
+          is_partial: true,
+        },
+        signal,
+      );
       break;
   }
 

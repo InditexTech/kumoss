@@ -345,7 +345,12 @@ export function useTerraformActions() {
             });
         };
       } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (
+          signal.aborted ||
+          (err instanceof DOMException && err.name === "AbortError")
+        ) {
+          return;
+        }
 
         const message =
           err instanceof ApiError
