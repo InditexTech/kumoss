@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
+    ReportType,
     SessionStatus,
     TerraformProvider,
     ToolContext,
@@ -151,30 +152,20 @@ class DetailedChange(BaseModel):
     details: str
 
 
-class CostBanner(BaseModel):
-    """Banner providing a quick summary of estimated costs"""
-
-    summary: str
-
-
-class CostBreakdownDetails(BaseModel):
-    """Structured details for every resource cost breakdown"""
-
-    estimated_cost: str
-    additional_details: str
-
-
 class CostBreakdown(BaseModel):
-    """Detailed breakdown of costs by resource type"""
+    """Fixed monthly cost breakdown for a resource type"""
 
     resource_type: str
-    details: CostBreakdownDetails
+    pricing_model: Literal["fixed", "usage_based", "free"]
+    fixed_monthly_cost: float
+    notes: str
 
 
 class EstimatedCosts(BaseModel):
-    """Estimation of monthly and hourly costs for new or updated resources"""
+    """Estimation of the total fixed monthly cost introduced by the plan"""
 
-    banner: CostBanner
+    currency: str
+    total_fixed_monthly_cost: float
     introduction_paragraph: str
     breakdown: list[CostBreakdown]
 
@@ -259,6 +250,30 @@ class TerraformApplyReport(BaseModel):
 Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
 
 
+class ComplianceViolation(BaseModel):
+    rule_id: str
+    severity: Literal["info", "warning", "error", "critical"]
+    resource: str | None = None
+    message: str
+    suggested_fix: str | None = None
+
+
+class ComplianceCheckReport(BaseModel):
+    passed: bool
+    violations: list[ComplianceViolation]
+    summary: str
+    checked_rules: list[str]
+
+    @classmethod
+    def empty(cls):
+        return cls(
+            passed=True,
+            violations=[],
+            summary="",
+            checked_rules=[],
+        )
+
+
 @dataclass
 class TerraformPlanResource:
     type: str  # tf resource type
@@ -302,6 +317,12 @@ class ArtifactRef(BaseModel):
     created_at: datetime
 
 
+class ReportRef(ArtifactRef):
+    """Read model: a report artifact plus its stored report type."""
+
+    type: ReportType
+
+
 class TerraformPlanRef(ArtifactRef):
     """Read model: a terraform plan artifact plus its resource targets."""
 
@@ -331,8 +352,9 @@ class RoundDetail(BaseModel):
 
     id: int
     number: int
+    query: str
     statuses: list[StatusEntry]
-    report: ArtifactRef | None
+    report: ReportRef | None
     plan: TerraformPlanRef | None
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]
@@ -368,7 +390,8 @@ class SessionDetail(SessionSummary):
 
     ``statuses`` is the session's full status timeline across all rounds;
     the same entries also appear inside their round. Pull requests live
-    inside their round. ``history`` is populated on admin surfaces only.
+    inside their round. ``history`` is populated only when requested via
+    ``include_history``.
     """
 
     workspace: WorkspaceRef

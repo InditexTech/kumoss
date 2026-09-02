@@ -9,7 +9,12 @@ from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
-from src.shared.constants import OperationType, ReportType, TerraformProvider
+from src.shared.constants import (
+    OperationType,
+    ReportType,
+    TargetGenerationMode,
+    TerraformProvider,
+)
 
 
 PROVIDER_TEST_CASES = {
@@ -134,7 +139,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         await self._run_prompt_compositor_test(TerraformProvider.K8S)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def test_render_requests_filter(self, mock_fetch: AsyncMock):
+    async def test_render_requests_filter_generate(self, mock_fetch: AsyncMock):
         mock_fetch.side_effect = lambda prompt_name, **_: (
             f"mocked_{prompt_name}_response"
         )
@@ -146,14 +151,65 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             resources=["storage_account"],
             abbreviations=["sta-"],
             include_forbidden_actions=True,
+            operation_type=OperationType.GENERATE,
         )
 
         self.assertIsInstance(prompt, str)
         self.assertIn("mocked_requests_response", prompt)
         self.assertIn("mocked_storage_account_response", prompt)
+        self.assertIn("mocked_terraform_response", prompt)
+        self.assertIn("mocked_forbidden_actions_response", prompt)
         self.assertIn("Missing parameters NEVER block a creation request", prompt)
         self.assertIn("When in doubt about parameters, accept", prompt)
-        self.assertNotIn("lacks information required to act", prompt)
+        self.assertIn(
+            "drift detection and remediation are available through the drift operation",
+            prompt,
+        )
+        self.assertNotIn("DRIFT REQUEST", prompt)
+        self.assertIn("requests_filter", prompt)
+        self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_requests_filter_drift(self, mock_fetch: AsyncMock):
+        mock_fetch.side_effect = lambda prompt_name, **_: (
+            f"mocked_{prompt_name}_response"
+        )
+
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_requests_filter(
+            resources=["storage_account"],
+            abbreviations=["sta-"],
+            include_forbidden_actions=True,
+            operation_type=OperationType.DRIFT,
+        )
+
+        self.assertIsInstance(prompt, str)
+        # Phoenix guidelines and sentinel present
+        self.assertIn("mocked_requests_response", prompt)
+        self.assertIn("requests_filter", prompt)
+        # Forbidden actions present
+        self.assertIn("mocked_forbidden_actions_response", prompt)
+        # Naming conventions and template names present (name-only, no bodies)
+        self.assertIn("sta-", prompt)
+        self.assertIn("storage_account", prompt)
+        # No generation guideline fetches — their mocked bodies must be absent
+        self.assertNotIn("mocked_terraform_response", prompt)
+        self.assertNotIn("mocked_resource_creation_response", prompt)
+        self.assertNotIn("mocked_networking_response", prompt)
+        self.assertNotIn("mocked_permissions_response", prompt)
+        # No resource template body fetches
+        self.assertNotIn("mocked_storage_account_response", prompt)
+        # Drift category A present, generate category A absent
+        self.assertIn("DRIFT REQUEST", prompt)
+        self.assertIn("resolve the drift", prompt)
+        self.assertIn(
+            "infrastructure creation is available through the generation operation",
+            prompt,
+        )
+        self.assertNotIn("Missing parameters NEVER block a creation request", prompt)
+        self.assertNotIn("{{", prompt)
 
     PR_GENERATOR_MARKERS = {
         OperationType.GENERATE: "introduces new or modified Terraform infrastructure",
@@ -225,6 +281,59 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
     def test_render_report_generator_apply(self):
         self._run_report_generator_test(ReportType.APPLY, branch="apply")
+
+    async def test_render_target_generator_session(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.SESSION
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("REQUIRED FIRST STEP", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("sole source of truth", prompt)
+        self.assertNotIn("Impact Analysis", prompt)
+        self.assertNotIn("Drift Remediation", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_target_generator_predictive(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_predictive_guidelines"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.PREDICTIVE,
+            resources=["storage_account", "key_vault"],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("Impact Analysis", prompt)
+        self.assertIn("storage_account", prompt)
+        self.assertIn("key_vault", prompt)
+        self.assertIn("mocked_predictive_guidelines", prompt)
+        self.assertIn("/test/project", prompt)
+        self.assertNotIn("Drift Remediation", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_drift_guidelines"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = await adapter.render_target_generator(
+            mode=TargetGenerationMode.DRIFT,
+            resources=["storage_account"],
+        )
+
+        self.assertIsInstance(prompt, str)
+        self.assertIn("Drift Remediation", prompt)
+        self.assertIn("generate_drift_targets", prompt)
+        self.assertIn("storage_account", prompt)
+        self.assertIn("mocked_drift_guidelines", prompt)
+        self.assertIn("/test/project", prompt)
+        self.assertNotIn("Impact Analysis", prompt)
 
 
 if __name__ == "__main__":

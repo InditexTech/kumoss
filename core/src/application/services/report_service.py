@@ -42,29 +42,31 @@ class ReportService:
         type: ReportType,
         content: str,
     ) -> Reports:
-        tool_index = {
+        tool_index: int = {
             ReportType.GENERATE: 0,
             ReportType.DRIFT: 1,
             ReportType.APPLY: 2,
         }.get(type, 0)
 
         _ = await self.__session_svc.update_status(
-            msg="Infrastructure successfully validated. Generating report",
+            msg="Terraform apply finished. Generating report"
+            if type is ReportType.APPLY
+            else "Infrastructure successfully validated. Generating report",
             prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             status=SessionStatus.REPORT,
             history=ctx.history,
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=content,
-            tools=[
-                self.__tool_svc.get_available_tools([ToolContext.REPORT_GENERATOR])[
-                    tool_index
-                ]
-            ],
+            tools=self.__tool_svc.get_available_tools(ToolContext.EXTERNAL_INFORMATION),
+            sentinel_tool=self.__tool_svc.get_available_tools(
+                ToolContext.REPORT_GENERATOR
+            )[tool_index],
             prompt=await self.__template_svc.render(
                 PromptsLibrary.REPORT_GENERATOR,
                 report_type=type,
             ),
+            history=ctx.history,
         )
         if not response.success:
             raise ReportGenerationError(f"report '{type}' generation error.", 500)

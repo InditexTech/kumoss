@@ -69,6 +69,46 @@ describe("apiFetch", () => {
     });
   });
 
+  it("unwraps a JSON-encoded upstream error relayed inside detail", async () => {
+    // Shape the backend produces when relaying a GitHub 422.
+    const githubError = JSON.stringify({
+      message: "Validation Failed",
+      errors: [
+        {
+          resource: "PullRequest",
+          code: "custom",
+          message: "No commits between main and Nebula/2026-08-20_114938",
+        },
+      ],
+      documentation_url:
+        "https://docs.github.com/rest/pulls/pulls#create-a-pull-request",
+      status: "422",
+    });
+    server.use(
+      http.get(TEST_PATH, () =>
+        HttpResponse.json({ detail: githubError }, { status: 422 }),
+      ),
+    );
+
+    await expect(apiFetch(TEST_PATH)).rejects.toMatchObject({
+      status: 422,
+      detail:
+        "Validation Failed: No commits between main and Nebula/2026-08-20_114938",
+    });
+  });
+
+  it("passes plain string details through untouched", async () => {
+    server.use(
+      http.get(TEST_PATH, () =>
+        HttpResponse.json({ detail: "{not json at all" }, { status: 400 }),
+      ),
+    );
+
+    await expect(apiFetch(TEST_PATH)).rejects.toMatchObject({
+      detail: "{not json at all",
+    });
+  });
+
   it("throws ApiError with text body on non-OK non-JSON response", async () => {
     server.use(
       http.get(TEST_PATH, () =>

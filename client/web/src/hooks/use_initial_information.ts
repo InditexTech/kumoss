@@ -72,21 +72,14 @@ function reducer(_state: State, action: Action): State {
 export function useInitialInformation() {
   const [state, dispatch] = useReducer(reducer, { status: "idle" });
 
-  // AbortController lets us cancel the workflow if the component
-  // unmounts mid-request (prevents "setState on unmounted component").
   const abortRef = useRef<AbortController | null>(null);
 
-  // Cleanup on unmount.
   useEffect(() => {
     return () => abortRef.current?.abort();
   }, []);
 
   // ── The action your component calls ──────────────────────────
-  //
-  // `useCallback` with an empty deps array is stable across renders,
-  // so passing `run` as a prop won't cause unnecessary child re-renders.
   const run = useCallback(async (params: InitialInfoParams) => {
-    // Cancel any in-flight request before starting a new one.
     abortRef.current?.abort();
     abortRef.current = new AbortController();
 
@@ -109,7 +102,6 @@ export function useInitialInformation() {
         });
       }
     } catch (err) {
-      // Ignore abort errors — the component is unmounting.
       if (err instanceof DOMException && err.name === "AbortError") return;
 
       const message =

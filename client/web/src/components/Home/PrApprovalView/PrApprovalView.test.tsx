@@ -8,16 +8,16 @@ import userEvent from "@testing-library/user-event";
 import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { renderWithProviders } from "@/test/render";
-import { approvePullRequest } from "@/services/core/iac_code";
+import { mergePullRequest } from "@/services/core/iac_code";
 import type { PrApprovalStep } from "@/types/ui";
 import PrApprovalView from "./PrApprovalView";
 
 vi.mock("@/services/core/iac_code", () => ({
-  approvePullRequest: vi.fn(),
+  mergePullRequest: vi.fn(),
   createPullRequest: vi.fn(),
 }));
 
-const mockApprovePr = vi.mocked(approvePullRequest);
+const mockMergePr = vi.mocked(mergePullRequest);
 
 function SessionInjector({ session, pr, children }: {
   session?: Record<string, unknown>;
@@ -128,13 +128,16 @@ describe("PrApprovalView", () => {
     expect(props.onStepChange).toHaveBeenCalledWith("high_impact_warning");
   });
 
-  it("confirm in confirming step without high impact calls approvePullRequest", async () => {
+  it("confirm in confirming step without high impact calls mergePullRequest", async () => {
     const user = userEvent.setup();
-    mockApprovePr.mockResolvedValue({ id: 42, status: "ok" });
-    const { props } = renderPr("confirming", { prPatch: { id: 42 } });
+    mockMergePr.mockResolvedValue(undefined);
+    const { props } = renderPr("confirming", {
+      sessionPatch: { session_id: "sess-1" },
+      prPatch: { id: 42 },
+    });
 
     await user.click(screen.getByText("Confirm and Apply"));
-    expect(mockApprovePr).toHaveBeenCalledWith({ id: 42 });
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
     expect(props.onApprove).toHaveBeenCalled();
   });
 
@@ -155,11 +158,14 @@ describe("PrApprovalView", () => {
 
   it("API error shows notification and resets to initial", async () => {
     const user = userEvent.setup();
-    mockApprovePr.mockRejectedValue(new Error("Server error"));
-    const { props } = renderPr("confirming", { prPatch: { id: 42 } });
+    mockMergePr.mockRejectedValue(new Error("Server error"));
+    const { props } = renderPr("confirming", {
+      sessionPatch: { session_id: "sess-1" },
+      prPatch: { id: 42 },
+    });
 
     await user.click(screen.getByText("Confirm and Apply"));
-    expect(mockApprovePr).toHaveBeenCalled();
+    expect(mockMergePr).toHaveBeenCalled();
     expect(props.onStepChange).toHaveBeenCalledWith("initial");
   });
 

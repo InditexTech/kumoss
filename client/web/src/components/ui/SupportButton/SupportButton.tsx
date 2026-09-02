@@ -4,7 +4,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ButtonBase } from "@mui/material";
+import { ButtonBase, Tooltip } from "@mui/material";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
@@ -104,14 +104,6 @@ function SupportButton({
         payload.pull_request_link = prDetails.prUrl;
       }
 
-      if (prDetails.pipelineUrl) {
-        payload.terraform_plan_link = prDetails.pipelineUrl;
-      }
-
-      if (prDetails.applyUrl) {
-        payload.terraform_apply_link = prDetails.applyUrl;
-      }
-
       showNotification("success", STRINGS.support.groupCreated);
     } catch (error) {
       console.error("Error sending Teams support request:", error);
@@ -143,38 +135,50 @@ function SupportButton({
 
   if (variant === "icon") {
     return (
-      <ButtonBase
-        onClick={handleSupportRequest}
-        disabled={isLoading}
-        className={styles.iconVariant}
-        aria-label="Send Teams notification"
+      <Tooltip
         title={
           isLoading
             ? STRINGS.support.creatingNotification
             : STRINGS.support.tooltip
         }
+        arrow
       >
-        <ChatBubbleOutlineIcon className={styles.iconVariantIcon} />
-      </ButtonBase>
+        <span style={{ display: "inline-flex" }}>
+          <ButtonBase
+            onClick={handleSupportRequest}
+            disabled={isLoading}
+            className={styles.iconVariant}
+            aria-label="Send Teams notification"
+          >
+            <ChatBubbleOutlineIcon className={styles.iconVariantIcon} />
+          </ButtonBase>
+        </span>
+      </Tooltip>
     );
   }
 
   return (
     <div className={styles.supportContainer}>
-      <button
-        className={styles.supportButton}
-        onClick={handleSupportRequest}
-        disabled={isLoading}
+      <Tooltip
         title={
           isLoading
             ? STRINGS.support.creatingNotification
             : STRINGS.support.tooltip
         }
+        arrow
       >
-        <span className={styles.text}>
-          {isLoading ? STRINGS.support.creatingButton : buttonText}
+        <span style={{ display: "inline-flex" }}>
+          <button
+            className={styles.supportButton}
+            onClick={handleSupportRequest}
+            disabled={isLoading}
+          >
+            <span className={styles.text}>
+              {isLoading ? STRINGS.support.creatingButton : buttonText}
+            </span>
+          </button>
         </span>
-      </button>
+      </Tooltip>
     </div>
   );
 }

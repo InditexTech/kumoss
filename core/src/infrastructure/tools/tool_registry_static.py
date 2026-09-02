@@ -7,8 +7,11 @@ import inspect
 from pathlib import Path
 from typing import Any, Callable, override
 
-from src.domains.interfaces import IToolRegistry
+from pydantic import ValidationError
+
+from src.domains.interfaces import ILLMProvider, IToolRegistry
 from src.domains.dto import (
+    ComplianceCheckReport,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -17,6 +20,8 @@ from src.domains.dto import (
     TerraformApplyReport,
 )
 from src.infrastructure.exceptions import (
+    InferenceCallAPIError,
+    InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
@@ -27,7 +32,8 @@ from src.shared.logger import logging
 
 
 class ToolRegistryStatic(IToolRegistry):
-    def __init__(self):
+    def __init__(self, llm: ILLMProvider):
+        self.__llm = llm
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -46,6 +52,7 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
 
     def __load_tools(self):
@@ -84,6 +91,9 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
+            "report_compliance_findings": self._handle_compliance_findings,
+            # External information
+            "web_search": self.__handle_web_search,
         }
 
     @override
@@ -195,17 +205,23 @@ class ToolRegistryStatic(IToolRegistry):
 
     def __handle_report_plan_generator(
         self, parameters: dict[str, Any]
-    ) -> TerraformPlanReport:
+    ) -> TerraformPlanReport | str:
         summary = parameters["summary"]
         changes = parameters["detailed_changes"]
         impact = parameters["potential_impact"]
         costs = parameters["estimated_costs"]
-        return TerraformPlanReport(
-            summary=summary,
-            detailed_changes=changes,
-            potential_impact=impact,
-            estimated_costs=costs,
-        )
+        try:
+            return TerraformPlanReport(
+                summary=summary,
+                detailed_changes=changes,
+                potential_impact=impact,
+                estimated_costs=costs,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_report_drift_generator(
         self, parameters: dict[str, Any]
@@ -213,11 +229,17 @@ class ToolRegistryStatic(IToolRegistry):
         summary = parameters["summary"]
         status = parameters["status"]
         resources = parameters["remediated_resources"]
-        return TerraformDriftReport(
-            summary=summary,
-            status=status,
-            remediated_resources=resources,
-        )
+        try:
+            return TerraformDriftReport(
+                summary=summary,
+                status=status,
+                remediated_resources=resources,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_report_apply_generator(
         self, parameters: dict[str, Any]
@@ -227,13 +249,19 @@ class ToolRegistryStatic(IToolRegistry):
         execution_summary = parameters["execution_summary"]
         resource_changes = parameters["resource_changes"]
         recommendations = parameters["recommendations"]
-        return TerraformApplyReport(
-            summary=summary,
-            status=status,
-            execution_summary=execution_summary,
-            resource_changes=resource_changes,
-            recommendations=recommendations,
-        )
+        try:
+            return TerraformApplyReport(
+                summary=summary,
+                status=status,
+                execution_summary=execution_summary,
+                resource_changes=resource_changes,
+                recommendations=recommendations,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
 
     def __handle_requests_filter(
         self, parameters: dict[str, Any]
@@ -294,3 +322,37 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
+
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
+        query = parameters["query"]
+        try:
+            response = await self.__llm.inference(msg=query, web_search=True)
+        except (
+            InferenceCallWebSearchNotSupported,
+            InferenceCallAPIError,
+        ) as e:
+            return f"Web search is unavailable: {e.message}. Do NOT retry web_search."
+
+        if not response.text:
+            return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
+        return response.text
+
+    def _handle_compliance_findings(
+        self, parameters: dict[str, Any]
+    ) -> ComplianceCheckReport:
+        try:
+            violations = parameters["violations"]
+            return ComplianceCheckReport(
+                passed=not any(
+                    violation["severity"] in {"error", "critical"}
+                    for violation in violations
+                ),
+                violations=violations,
+                summary=parameters["summary"],
+                checked_rules=parameters["checked_rules"],
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )

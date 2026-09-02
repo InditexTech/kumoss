@@ -20,22 +20,8 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 24px 0;
-  scrollbar-width: thin;
-  scrollbar-color: light-dark(#c0c0c0, #555) transparent;
-}
-
-.messageList::-webkit-scrollbar {
-  width: 6px;
-}
-
-.messageList::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messageList::-webkit-scrollbar-thumb {
-  background: light-dark(#c0c0c0, #555);
-  border-radius: var(--radius-sm);
+  /* Right inset keeps right-aligned user messages off the scrollbar. */
+  padding: 24px 12px 24px 0;
 }
 
 .spacer {
@@ -76,7 +62,7 @@
 }
 
 .input::placeholder {
-  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark-darker));
+  color: light-dark(var(--text-color-light-lighter), var(--text-color-dark));
   opacity: 0.5;
 }
 

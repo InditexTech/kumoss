@@ -3,102 +3,94 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-from typing import Callable, Any
+from typing import Callable, Any, cast
 
+from src.application.exceptions import TerraformValidationFailedError
+from src.application.services import ReportService
+from src.domains.dto import TerraformApplyReport
 from src.domains.entities import SessionContext
+from src.domains.interfaces import ITerraform, IWorkspace
 from src.domains.services import (
+    ComplianceCheckService,
     TemplateOrchestrationService,
-    TracerService,
     SessionService,
 )
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import SessionStatus, TracerProject, PromptsLibrary
-from src.shared.config import system_config
-from src.shared.exceptions import ExceptionHandler
-from src.shared.utils.repo_uri import derive_project_name
+from src.infrastructure.external.notification_service import NotificationServiceClient
+from src.shared.constants import (
+    ReportType,
+    SessionStatus,
+    PromptsLibrary,
+)
 
 
 class TerraformApplyHandler:
+    """Apply the session's pinned plan — nothing more.
+
+    The plan was validated and reviewed by the generate/drift round that
+    pinned its workspace; this handler executes exactly that artifact.
+    Only a new generate/drift round can produce the next appliable plan.
+    """
+
     def __init__(
         self,
-        apply_service,
+        terraform_service: ITerraform,
         session_service: SessionService,
+        report_service: ReportService,
         template_service: TemplateOrchestrationService,
         session_ctx: SessionContext,
+        compliance_service: ComplianceCheckService,
+        workspace_service: IWorkspace,
     ):
-        self.__apply_svc = apply_service
+        self.__terraform_svc = terraform_service
         self.__session_svc = session_service
+        self.__report_svc = report_service
         self.__template_svc = template_service
+        self.__compliance_svc = compliance_service
+        self.__workspace_svc = workspace_service
         self.__ctx = session_ctx
 
-    async def handle(
-        self, q: str, terraform_targets: list[str]
-    ) -> Callable[[], Coroutine[Any, Any, None]]:
+    async def handle(self) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
 
-        async def task_background():
-            provider = TracerProject.PRO_TERRAFORM_DAY2
-            if system_config.environment == "development":
-                provider = TracerProject.DEV_TERRAFORM_DAY2
-            elif system_config.environment == "staging":
-                provider = TracerProject.PRE_TERRAFORM_DAY2
-
-            project = derive_project_name(ctx.repo_uri)
-
-            tracer_token = TracerService.set_current_tracer(
-                tracer=PhoenixTracer(
-                    provider_name=provider,
-                    session_id=ctx.session_id,
-                    user_id=ctx.user_id,
-                    project=project,
-                    environment=ctx.environment,
-                    branch_name=ctx.branch_name,
-                )
-            )
+        async def background_task():
             try:
-                await self.__session_svc.update_status(
-                    msg="The code has been generated and now Terraform Apply is "
-                    + "running in the background.",
+                q = "Apply the IaC session changes"
+                await self.__session_svc.next_round("Terraform apply.")
+                _ = await self.__session_svc.update_status(
+                    msg=q,
                     prompt=await self.__template_svc.render(
                         PromptsLibrary.STATUS_UPDATE
                     ),
-                    status=SessionStatus.STARTED,
+                    status=SessionStatus.APPLY,
+                    history=ctx.history,
                 )
-                apply_results = await self.__apply_svc.apply(terraform_targets)
-                if not apply_results:
-                    raise ExceptionHandler(
-                        message="I couldn't apply the infrastructure. Please, contact with the Data DevOps team",
+                if self.__workspace_svc.pinned_plan_path(ctx.id) is None:
+                    raise TerraformValidationFailedError(
+                        message="No reviewed plan is pinned for this session; "
+                        + "run a generate or drift round before applying.",
+                        error_code=409,
+                    )
+                validation = await self.__terraform_svc.apply()
+                report: TerraformApplyReport = cast(
+                    TerraformApplyReport,
+                    await self.__report_svc.generate_report(
+                        ctx=ctx,
+                        type=ReportType.APPLY,
+                        content=validation.terraform_plan + validation.feedback,
+                    ),
+                )
+                ctx.history.append_turn(q, report.execution_summary)
+                if not validation.validation:
+                    await NotificationServiceClient.notify_apply_failure(
+                        session_id=ctx.id,
+                        summary=report.execution_summary,
+                    )
+                    raise TerraformValidationFailedError(
+                        message=report.execution_summary,
                         error_code=500,
                     )
-                await self.__payload_svc.generate_apply(
-                    response=apply_results.portal_url,
-                    command=_LegacyCommandShim(ctx, q),
-                    validation=True if apply_results.portal_url else False,
-                    run_id=apply_results.run_id,
-                    apply_output=apply_results.apply_output,
-                )
-            except ExceptionHandler as e:
-                await self.__session_svc.update_status(
-                    msg=e.message, status=SessionStatus.FAILED
-                )
-                raise
             finally:
-                TracerService.reset_current_tracer(tracer_token)
+                self.__workspace_svc.discard_pinned(ctx.id)
+                await self.__session_svc.save()
 
-        return task_background
-
-
-class _LegacyCommandShim:
-    """Adapter so GeneratePayloadService keeps its old `command.*` access pattern.
-
-    GeneratePayloadService reads command.cloud, command.environment, command.q,
-    command.user_id during payload assembly. We pass it a tiny shim instead of
-    threading every field through a new signature.
-    """
-
-    def __init__(self, ctx, q: str):
-        self.cloud = ctx.cloud
-        self.environment = ctx.environment
-        self.user_id = ctx.user_id
-        self.q = q
-        self.repository_id = ctx.repo_uri  # for any leftover access
+        return background_task

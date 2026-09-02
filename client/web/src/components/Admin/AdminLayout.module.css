@@ -28,3 +28,9 @@
   display: flex;
   flex-direction: column;
 }
+
+@media screen and (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+}

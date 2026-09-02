@@ -2,16 +2,18 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { Slide, Tooltip } from "@mui/material";
 import Typography from "@mui/material/Typography";
+import { ProviderIcon } from "@/components/ui";
 import UserSessionsHistory from "./UserSessionsHistory";
 import styles from "./Footer.module.css";
 
 const Footer = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { session } = useSession();
   const view = useCurrentView();
 
@@ -25,14 +27,17 @@ const Footer = () => {
 
   const hasContent =
     !!session.firstQuery ||
-    //!!session.cloud ||
+    !!session.cloud ||
     !!session.project ||
     !!session.environment;
 
   if (isTimelineMode) {
     return (
       <div className={styles.timelineContainer}>
-        <UserSessionsHistory pageSize={20} />
+        <UserSessionsHistory
+          pageSize={20}
+          onSelectSession={(s) => navigate(`/user/sessions?session=${s.uuid}`)}
+        />
       </div>
     );
   }
@@ -57,37 +62,37 @@ const Footer = () => {
             </Tooltip>
           </div>
         )}
-        {/* {session.cloud && (
-          <div className={styles.containerUnit}>
-            <Typography variant="h3">Scope</Typography>
-            <span>/</span>
-            <Tooltip title={session.cloud} arrow>
-              <Typography variant="h3" className={styles.mainMsg}>
-                {session.cloud}
-              </Typography>
-            </Tooltip>
-          </div>
-        )} */}
         {session.project && (
           <div className={styles.containerUnit}>
             <Typography variant="h3">Project</Typography>
             <span>/</span>
-            <Typography
-              variant="h3"
-              className={styles.mainMsg}
-              title={session.project}
-            >
-              {extractProjectName(session.project)}
-            </Typography>
+            <Tooltip title={session.project} arrow>
+              <Typography variant="h3" className={styles.mainMsg}>
+                {extractProjectName(session.project)}
+              </Typography>
+            </Tooltip>
           </div>
         )}
         {session.environment && (
           <div className={styles.containerUnitSmall}>
             <Typography variant="h3">Path</Typography>
             <span>/</span>
-            <Typography variant="h3" className={styles.mainMsg}>
-              {session.environment}
-            </Typography>
+            <Tooltip title={session.environment} arrow>
+              <Typography variant="h3" className={styles.mainMsg}>
+                {session.environment}
+              </Typography>
+            </Tooltip>
+          </div>
+        )}
+        {session.cloud && (
+          <div className={styles.containerUnitIcon}>
+            <Tooltip title={session.cloud} arrow>
+              <ProviderIcon
+                provider={session.cloud}
+                className={styles.providerBadge}
+                aria-label={session.cloud}
+              />
+            </Tooltip>
           </div>
         )}
       </div>

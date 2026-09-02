@@ -23,12 +23,12 @@ from src.infrastructure.exceptions import PromptSeedLoadError
 
 
 Scope = Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"]
-PromptType = Literal["guidelines", "resources"]
+PromptType = Literal["guidelines", "resources", "compliance"]
 
 _VALID_SCOPES: frozenset[str] = frozenset(
     {"general", "azure", "gcp", "aws", "oci", "kubernetes"}
 )
-_VALID_TYPES: frozenset[str] = frozenset({"guidelines", "resources"})
+_VALID_TYPES: frozenset[str] = frozenset({"guidelines", "resources", "compliance"})
 # Match the constraints the existing fetcher passes to Phoenix.
 _NAME_RE: re.Pattern[str] = re.compile(r"^[a-z0-9_]+$")
 

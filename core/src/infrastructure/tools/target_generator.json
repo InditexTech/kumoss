@@ -1,13 +1,13 @@
 [
   {
     "name": "generate_terraform_targets",
-    "description": "Generates a list of Terraform target strings for resources and modules based on the analysis context. This tool identifies relevant resources that have been created, updated, removed, or will be modified according to the user's request. The specific use case (existing changes vs. predicted changes) is determined by the instructions in the prompt. If no relevant resources are identified, respond with an empty array.",
+    "description": "Generates a list of Terraform target strings for resources and modules based on the analysis context.",
     "parameters": {
       "type": "object",
       "properties": {
         "targets": {
           "type": "array",
-          "description": "A list of Terraform target strings for all relevant resources and modules. Each string must be in the format `resource_type.resource_name` or `module.module_name`. The scope (existing changes, predicted modifications, etc.) is defined by the prompt instructions.",
+          "description": "A list of Terraform target strings. Each string must be in the format `resource_type.resource_name` or `module.module_name`. The scope is defined by the prompt instructions.",
           "items": {
             "type": "string"
           }

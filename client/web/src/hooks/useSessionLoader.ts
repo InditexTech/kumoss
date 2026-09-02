@@ -4,7 +4,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/contexts/SessionContext";
-import { getSessionData } from "@/services/core/events";
+import {
+  resolveSessionOutcome,
+  buildSessionPatch,
+  buildApplyResults,
+  buildAssistantMessage,
+  appendAssistantMessage,
+} from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
   loading: boolean;
@@ -12,10 +18,12 @@ interface SessionLoaderResult {
   ready: boolean;
 }
 
+/** Rebuilds the session context for deep links / refreshes of
+ *  /home/results/{id} and /home/apply-results/{id}. */
 export function useSessionLoader(
   sessionId: string | undefined,
 ): SessionLoaderResult {
-  const { session, updateSession } = useSession();
+  const { session, updateSession, updatePrDetails } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef<string | null>(null);
@@ -29,22 +37,39 @@ export function useSessionLoader(
     setLoading(true);
     setError(null);
 
-    getSessionData(sessionId)
-      .then((payload) => {
+    resolveSessionOutcome(sessionId)
+      .then((outcome) => {
         if (cancelled) return;
+
+        if (outcome.kind === "failed") {
+          setError(outcome.message);
+          setLoading(false);
+          return;
+        }
+
         fetchedRef.current = sessionId;
-        updateSession({
-          session_id: payload.id,
-          cloud: payload.cloud,
-          project: payload.project,
-          environment: payload.environment,
-          branchName: payload.branch_name,
-          terraform_targets: payload.terraform_targets ?? undefined,
-          terraform_report: payload.terraform_report ?? undefined,
-          full_history: payload.full_history,
-          pipeline_url: payload.pipeline_url ?? undefined,
-          apply_allowed: payload.apply_allowed,
-        });
+        const patch = buildSessionPatch(outcome);
+
+        if (outcome.kind === "apply-results") {
+          updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
+        } else if (outcome.kind === "rejected") {
+          updateSession({
+            ...patch,
+            full_history: appendAssistantMessage(
+              patch.full_history,
+              buildAssistantMessage(outcome),
+            ),
+          });
+        } else {
+          updateSession(patch);
+          // PR state is in-memory only; rebuild it from the round so a
+          // refresh keeps the View PR / Continue with PR affordances.
+          const lastRound =
+            outcome.detail.rounds[outcome.detail.rounds.length - 1];
+          const pr =
+            lastRound?.pull_requests[lastRound.pull_requests.length - 1];
+          if (pr) updatePrDetails({ id: pr.number, prUrl: pr.url });
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -58,7 +83,7 @@ export function useSessionLoader(
     return () => {
       cancelled = true;
     };
-  }, [sessionId, alreadyLoaded, updateSession]);
+  }, [sessionId, alreadyLoaded, updateSession, updatePrDetails]);
 
   return {
     loading,

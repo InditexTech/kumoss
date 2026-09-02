@@ -13,6 +13,9 @@ from src.infrastructure.filesystem import (
     WorkspaceService,
     InvalidRepoURI,
 )
+from src.shared.config import system_config
+
+SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
 
 
 def _init_bare_remote(tmp: Path) -> str:
@@ -193,3 +196,66 @@ class TestPushAndCleanup(unittest.IsolatedAsyncioTestCase):
 
     async def test_cleanup_idempotent_on_missing_dir(self):
         self.svc.cleanup(self.workspaces / "no-such-dir")  # no exception
+
+
+class TestPinnedWorkspace(unittest.TestCase):
+    """Pin lifecycle: promote a call dir into {base}/{sid}/pinned/."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.svc = WorkspaceService(base_path=self.tmp)
+        self.sid = uuid4()
+
+    def _make_clone(self, marker: str = "plan-bytes") -> Path:
+        """Fake call dir with an iac subdir holding the plan artifact."""
+        clone = self.tmp / str(self.sid) / str(uuid4())
+        (clone / "iac").mkdir(parents=True)
+        (clone / "iac" / SESSION_PLAN_FILENAME).write_text(marker)
+        return clone
+
+    def test_pin_renames_clone_into_pinned_slot(self):
+        clone = self._make_clone()
+
+        self.svc.pin_workspace(self.sid, clone)
+
+        self.assertFalse(clone.exists())
+        pinned = self.svc.pinned_dir(self.sid)
+        self.assertEqual(pinned, self.tmp / str(self.sid) / "pinned")
+        self.assertTrue((pinned / "iac" / SESSION_PLAN_FILENAME).is_file())
+
+    def test_pin_replaces_previous_slot(self):
+        self.svc.pin_workspace(self.sid, self._make_clone(marker="old"))
+        self.svc.pin_workspace(self.sid, self._make_clone(marker="new"))
+
+        plan = self.svc.pinned_plan_path(self.sid)
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.read_text(), "new")
+
+    def test_pinned_plan_path_none_without_pin(self):
+        self.assertIsNone(self.svc.pinned_plan_path(self.sid))
+
+    def test_pinned_plan_path_none_when_plan_file_missing(self):
+        clone = self._make_clone()
+        (clone / "iac" / SESSION_PLAN_FILENAME).unlink()
+        self.svc.pin_workspace(self.sid, clone)
+
+        self.assertIsNone(self.svc.pinned_plan_path(self.sid))
+
+    def test_pin_survives_call_dir_cleanup(self):
+        clone = self._make_clone()
+        self.svc.pin_workspace(self.sid, clone)
+
+        # The runner's finally always runs cleanup on the (now renamed)
+        # call dir: it must be a harmless no-op for the pinned slot.
+        self.svc.cleanup(clone)
+
+        self.assertIsNotNone(self.svc.pinned_plan_path(self.sid))
+
+    def test_discard_pinned_is_idempotent(self):
+        self.svc.pin_workspace(self.sid, self._make_clone())
+
+        self.svc.discard_pinned(self.sid)
+        self.svc.discard_pinned(self.sid)  # no exception
+
+        self.assertIsNone(self.svc.pinned_plan_path(self.sid))

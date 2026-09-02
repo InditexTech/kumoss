@@ -20,10 +20,28 @@
 
 .executionSummaryLabel {
   color: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.5));
+  /* Custom Typography variants render as inline spans — force the
+     label onto its own line so the bottom margin applies. */
+  display: block;
   margin: 0 0 8px;
 }
 
 .executionSummaryText {
   color: #000000;
   margin: 0;
+}
+
+.summaryStatusBadge {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Adjacent report cards share a single rule: drop the second card's
+   top border and the gap between them, so no empty band appears. */
+.reportCard + .reportCard > :first-child {
+  border-top: none;
+}
+
+.reportCard:has(+ .reportCard) > :first-child {
+  margin-bottom: 0;
 }

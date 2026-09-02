@@ -22,6 +22,15 @@ info:
     then `plan` (and `show` if it needs the plan JSON) as separate
     jobs, deciding after each one whether to continue.
 
+    Two discovery endpoints support import workflows without running a
+    state-mutating command: `POST /v1/import/state-resource-ids` lists
+    the provider IDs already tracked in the workspace's Terraform
+    state, and `POST /v1/import/scope-resource-ids` lists the resource
+    IDs that exist in a cloud scope. Both follow the same job model;
+    on success their `stdout` is a JSON array of ID strings. Callers
+    typically diff the two to decide which existing resources still
+    need an `import` job.
+
     Jobs targeting the same `workspace_path` execute one at a time in
     submission (FIFO) order; jobs for different workspaces may run
     concurrently. A submission is never rejected because the
@@ -33,7 +42,9 @@ info:
       `succeeded` and its `OperationResult` carries the command's
       `exit_code` (non-zero on failure) plus the raw `stdout` and
       `stderr`. The service passes terraform's output through
-      verbatim — including provider authentication errors.
+      verbatim — including provider authentication errors. Failures
+      of the underlying cloud query in a discovery job ride this same
+      plane.
     * **Service-level faults** (subprocess timeout, unexpected errors,
       shutdown) end the job as `failed` with a `Problem` document in
       `error`; the embedded `status` is the HTTP status code an
@@ -61,7 +72,7 @@ info:
     object storage, a content-addressable cache, or an upload endpoint.
   contact:
     name: Nebula maintainers
-    url: https://github.com/inditex/app-nebulaapp
+    url: https://github.com/InditexTech/nebula
   license:
     name: Apache-2.0
 
@@ -84,7 +95,10 @@ tags:
   - name: apply
     description: Apply a previously written plan file.
   - name: import
-    description: Import existing cloud resources into Terraform state.
+    description: |
+      Import existing cloud resources into Terraform state, and
+      discover importable resource IDs (from the state or from a cloud
+      scope).
   - name: jobs
     description: Poll asynchronous job status and results.
   - name: ops
@@ -619,20 +633,18 @@ paths:
     post:
       operationId: state_resource_ids
       tags: [import]
-      summary: Enqueue a job that lists resource IDs currently tracked in the Terraform state.
+      summary: Enqueue a job listing the resource IDs tracked in Terraform state.
       description: |
-        Enqueues a job that inspects the Terraform state in the
-        workspace at `workspace_path` and returns the cloud-provider
-        resource IDs of every resource instance currently tracked,
-        then returns `202 Accepted` immediately. Poll
-        `GET /v1/jobs/{job_id}` for the OperationResult: on exit
-        code 0, `stdout` is a JSON array of ID strings (provider-
-        specific identifiers, e.g. Azure resource IDs or AWS ARNs).
-
-        Callers in the import workflow use this to discover which
-        resources are already under Terraform management and skip
-        them when importing. The workspace must already be
-        initialised (submit an `init` job first).
+        Enqueues a job that runs `terraform state pull` against the
+        workspace at `workspace_path` and extracts the
+        provider-assigned `id` of every managed resource instance in
+        the state, then returns `202 Accepted` immediately. Poll
+        `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
+        0, `stdout` is a JSON array of resource ID strings (empty when
+        the state tracks nothing). If `state pull` fails, its exit
+        code and `stderr` are passed through verbatim and `stdout` is
+        empty. The workspace must already be initialised (submit an
+        `init` job first).
       security:
         - bearerAuth: []
       requestBody:
@@ -711,24 +723,33 @@ paths:
     post:
       operationId: scope_resource_ids
       tags: [import]
-      summary: Enqueue a job that lists resource IDs present within a cloud provider scope.
+      summary: Enqueue a job listing the resource IDs present in a cloud scope.
       description: |
-        Enqueues a job that queries the cloud provider for all
-        resource IDs that exist within the given `scope_id` (Azure
-        subscription, GCP project, AWS account, etc.), then returns
-        `202 Accepted` immediately. Poll `GET /v1/jobs/{job_id}` for
-        the OperationResult: on exit code 0, `stdout` is a JSON
-        array of ID strings (provider-specific identifiers).
+        Enqueues a job that queries the cloud provider named in
+        `terraform_provider` for the resources that exist in the scope
+        `scope_id`, then returns `202 Accepted` immediately. Poll
+        `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
+        0, `stdout` is a JSON array of provider-native resource ID
+        strings —
 
-        The `workspace_path` is used for provider context and
-        credential resolution — the implementation determines the
-        target cloud from the workspace's Terraform configuration.
-        The workspace must already be initialised (submit an `init`
-        job first).
+        * `azure`: resource and resource-container IDs whose id
+          contains `scope_id` (Azure Resource Graph);
+        * `gcp`: asset names of the project's resources plus the IAM
+          role names bound in the project (Cloud Asset Inventory);
+        * `aws`: resource ARNs across the account's enabled regions
+          (Resource Groups Tagging API).
 
-        Callers in the import workflow use this to discover which
-        cloud resources exist and could be imported into Terraform
-        state.
+        Failures of the underlying cloud query are normal outcomes:
+        the job ends `succeeded` with a non-zero `exit_code` and
+        diagnostics in `stderr`.
+
+        Unlike the other endpoints, `scope_id` is required here — it
+        names the scope being listed rather than acting as a
+        credential fallback — and `terraform_provider` selects which
+        provider is queried. The workspace is used to resolve provider
+        credentials; the OSS reference impl shells out to the
+        corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
+        service's ambient credentials.
       security:
         - bearerAuth: []
       requestBody:
@@ -795,9 +816,9 @@ paths:
         "503":
           description: |
             Implementation is running but missing prerequisites needed
-            to accept jobs (terraform binary, configured state backend,
-            etc.). Faults that only surface while the job runs end the
-            job as `failed` instead.
+            to accept jobs (terraform binary, the cloud CLI for the
+            requested provider, etc.). Faults that only surface while
+            the job runs end the job as `failed` instead.
           content:
             application/problem+json:
               schema:
@@ -1107,35 +1128,52 @@ components:
 
     ScopeResourceIdsRequest:
       type: object
-      required: [workspace_path, scope_id]
+      required: [workspace_path, scope_id, terraform_provider]
       additionalProperties: false
       properties:
         workspace_path:
           type: string
           description: |
             Absolute filesystem path to the Terraform workspace as visible
-            to the implementation. Needed for provider context and
-            credential resolution — the implementation determines the
-            target cloud from the workspace's Terraform configuration.
+            to the implementation. For the OSS docker-compose deployment,
+            this is a path on the shared volume mounted into both the
+            core and the IaC service. Used to resolve the provider
+            credentials the scope query runs with.
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
           type: string
           description: |
-            Cloud provider scope to query — Azure: subscription id, GCP:
-            project id, AWS: account id. The implementation enumerates all
-            resource IDs within this scope.
+            Cloud provider scope to list — Azure: subscription id (or
+            any value matched as a substring of resource IDs), GCP:
+            project id, AWS: account id. Required here, unlike on the
+            other endpoints: it names the scope being listed rather
+            than acting as a credential fallback.
           minLength: 1
           maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: Which cloud provider the scope query targets.
+
+    TerraformProvider:
+      type: string
+      enum: [azure, gcp, aws]
+      description: |
+        Cloud provider a scope query targets. Values follow the core's
+        provider vocabulary (`azure`, `gcp`, `aws`), not Terraform
+        registry provider names (`azurerm`, `google`).
 
     OperationResult:
       type: object
       description: |
-        Raw outcome of the single terraform command a job ran. The
+        Raw outcome of the single command a job ran. The
         service does not interpret it: `exit_code` is the process's
         exit status (non-zero means the command failed), and `stdout` /
-        `stderr` are passed through verbatim.
+        `stderr` are passed through verbatim. Discovery jobs
+        (`state_resource_ids`, `scope_resource_ids`) synthesize the
+        same shape: exit code 0 with a JSON array of ID strings in
+        `stdout`, or a non-zero exit code with diagnostics in `stderr`.
       required: [exit_code, stdout, stderr]
       additionalProperties: false
       properties:
@@ -1160,15 +1198,27 @@ components:
       enum: [queued, running, succeeded, failed]
       description: |
         `queued`: accepted, waiting for its workspace's FIFO queue.
-        `running`: terraform command executing.
+        `running`: the job's command or query is executing.
         `succeeded`: command ran to completion — inspect `result` for
         the terraform-level outcome (`exit_code` may be non-zero).
         `failed`: service-level fault — inspect `error`.
 
     JobKind:
       type: string
-      enum: [init, validate, plan, show, apply, import, state_resource_ids, scope_resource_ids]
-      description: Which terraform command the job runs.
+      enum:
+        [
+          init,
+          validate,
+          plan,
+          show,
+          apply,
+          import,
+          state_resource_ids,
+          scope_resource_ids,
+        ]
+      description: |
+        Which operation the job runs: one of the six terraform
+        commands, or one of the two import-discovery queries.
 
     JobAccepted:
       type: object
@@ -1218,7 +1268,7 @@ components:
         result:
           description: |
             Non-null iff `status` is `succeeded`: the raw outcome of
-            the terraform command, regardless of `kind`.
+            the job's command or query, regardless of `kind`.
           oneOf:
             - $ref: "#/components/schemas/OperationResult"
             - type: "null"

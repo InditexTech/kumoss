@@ -37,11 +37,11 @@ class TemplateOrchestrationService:
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
             "iac_import": self.__templates.render_iac_import,
-            "predictive_target_calculator": self.__templates.render_predictive_target_calculator,
             "target_generator": self.__templates.render_target_generator,
             "report_generator": self.__templates.render_report_generator,
             "supervisor": self.__templates.render_supervisor,
             "pr_generator": self.__templates.render_pr_generator,
+            "compliance_checker": self.__templates.render_compliance_checker,
             # messages
             "joker": self.__templates.render_joker,
             "status_update": self.__templates.render_status_update,

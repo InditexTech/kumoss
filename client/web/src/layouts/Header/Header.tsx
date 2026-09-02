@@ -9,45 +9,47 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PersonIcon from "@mui/icons-material/Person";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { Authenticated } from "@/contexts/AuthContext";
-import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { SupportButton } from "@/components/ui";
 import ConfigurationModal from "@/components/ConfigurationModal/ConfigurationModal";
-import SupportModal from "@/components/SupportModal/SupportModal";
+// DISABLED: SupportModal posts to /api/v1/notifications, which has no
+// backend route. Re-enable the commented blocks below when it returns.
+// import SupportModal from "@/components/SupportModal/SupportModal";
 import ModeDropdown from "./ModeDropdown/ModeDropdown";
 import styles from "./Header.module.css";
 
 function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session } = useSession();
   const view = useCurrentView();
   const [configOpen, setConfigOpen] = useState(false);
-  const [supportOpen, setSupportOpen] = useState(false);
+  // const [supportOpen, setSupportOpen] = useState(false);
   const modeDisabled = view !== null && view !== "wizard";
-
-  const hasWizardData = !!(
-    session.firstQuery || session.userQueries.length > 0
-  );
-
-  const openConfig = () => {
-    setConfigOpen(true);
-    setSupportOpen(false);
-  };
-
-  const openSupport = () => {
-    setConfigOpen(false);
-    setSupportOpen(true);
-  };
 
   return (
     <>
       <header className={styles.header}>
         <div className={styles.logo}>
-          <a href="/">
+          <a
+            href="/home"
+            onClick={(e) => {
+              // SPA navigation: a full reload would replay the greeting
+              // splash, which should only show on an actual page refresh.
+              // Preserve default browser behaviors for new-tab/new-window clicks.
+              if (
+                e.button !== 0 ||
+                e.metaKey ||
+                e.ctrlKey ||
+                e.shiftKey ||
+                e.altKey
+              ) {
+                return;
+              }
+              e.preventDefault();
+              navigate("/home");
+            }}
+          >
             <span>NEBULA</span>
             <span>.AI</span>
           </a>
@@ -58,7 +60,7 @@ function Header() {
             <ModeDropdown disabled={modeDisabled} />
             <div className={styles.separator} />
             <ButtonBase
-              onClick={openConfig}
+              onClick={() => setConfigOpen(true)}
               className={styles.iconButton}
               aria-label="Configuration"
             >
@@ -79,11 +81,12 @@ function Header() {
                 <PersonOutlineIcon className={styles.headerIcon} />
               )}
             </ButtonBase>
-            {hasWizardData ? (
+            <SupportButton variant="icon" />
+            {/* {hasWizardData ? (
               <SupportButton variant="icon" />
             ) : (
               <ButtonBase
-                onClick={openSupport}
+                onClick={() => setSupportOpen(true)}
                 className={styles.iconButton}
                 aria-label="Support"
               >
@@ -93,16 +96,16 @@ function Header() {
                   <ChatBubbleOutlineIcon className={styles.headerIcon} />
                 )}
               </ButtonBase>
-            )}
+            )} */}
           </Authenticated>
         </div>
       </header>
       {configOpen && (
         <ConfigurationModal onClose={() => setConfigOpen(false)} />
       )}
-      {supportOpen && (
+      {/* {supportOpen && (
         <SupportModal onClose={() => setSupportOpen(false)} />
-      )}
+      )} */}
     </>
   );
 }

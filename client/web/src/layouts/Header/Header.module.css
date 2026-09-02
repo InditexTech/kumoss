@@ -71,3 +71,21 @@
   height: 22px !important;
   color: light-dark(var(--text-color-light), var(--text-color-dark)) !important;
 }
+
+@media screen and (max-width: 768px) {
+  .header {
+    padding: 1rem;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .rightSection {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .logo > a > span:first-child,
+  .logo > a > span:last-child {
+    font-size: 24px;
+  }
+}

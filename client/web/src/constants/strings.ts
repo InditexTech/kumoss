@@ -27,6 +27,12 @@ export const STRINGS = {
 
   chat: {
     followUpPlaceholder: "Ask a follow-up question...",
+    followUpDisabledPlaceholder: "This session failed and can't be resumed",
+  },
+
+  planning: {
+    preparingWorkspace: "Preparing your workspace…",
+    resultsLoadError: "Completed, but results could not be loaded",
   },
 
   assistant: {
@@ -40,7 +46,7 @@ export const STRINGS = {
     deletionDetectedMessage:
       "The plan includes resources that will be deleted. The support team has been notified for review.",
     blockedApplyMessage:
-      "The execution of your plan has been blocked. The proposed changes include the deletion of critical resources that could compromise service stability. For security reasons, the planning has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
+      "The execution of your plan has been blocked. The proposed changes include one or more changes that could compromise service stability. For security reasons, the deployment has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
     contactTeam: "Contact Team",
   },
 
@@ -130,6 +136,34 @@ export const STRINGS = {
     placeholderQuery: "Type your request...",
     placeholderRepository: "https://dev.azure.com/org/project/_git/repo",
     placeholderCloudScope: "azure-subscription-id, gcp-project-id",
+    // scope_id in each provider's own jargon; keys mirror TERRAFORM_PROVIDERS
+    scopeByProvider: {
+      azure: {
+        label: "Subscription ID",
+        prompt: "What is the Azure subscription ID?",
+        placeholder: "azure-subscription-id",
+      },
+      gcp: {
+        label: "Project ID",
+        prompt: "What is the GCP project ID?",
+        placeholder: "my-gcp-project-id",
+      },
+      aws: {
+        label: "Account ID",
+        prompt: "What is the AWS account ID?",
+        placeholder: "123456789012",
+      },
+      oci: {
+        label: "Compartment ID",
+        prompt: "What is the OCI compartment name?",
+        placeholder: "my-compartment",
+      },
+      kubernetes: {
+        label: "Namespace",
+        prompt: "Which Kubernetes namespace?",
+        placeholder: "my-namespace",
+      },
+    },
     resolveError: "Could not resolve repository. Please try again.",
     scanError: "Could not scan repository for IaC paths. Please try again.",
     noIacPaths:

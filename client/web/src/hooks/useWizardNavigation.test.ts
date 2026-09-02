@@ -84,11 +84,22 @@ describe("useWizardNavigation", () => {
       );
     });
 
-    it("returns cloud scope prompt for cloud_scope step", () => {
+    it("returns generic cloud scope prompt when no provider is set", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("cloud_scope"));
       expect(result.current.promptMessage("idle")).toBe(
         STRINGS.wizard.promptCloudScope,
+      );
+    });
+
+    it("returns the provider's scope jargon for cloud_scope step", () => {
+      const { result } = renderHook(() => useWizardNavigation());
+      act(() => {
+        result.current.setStep("cloud_scope");
+        result.current.setData((prev) => ({ ...prev, provider: "azure" }));
+      });
+      expect(result.current.promptMessage("idle")).toBe(
+        STRINGS.wizard.scopeByProvider.azure.prompt,
       );
     });
 
@@ -134,11 +145,22 @@ describe("useWizardNavigation", () => {
       expect(result.current.placeholder()).toBe("");
     });
 
-    it("returns cloud scope placeholder for cloud_scope step", () => {
+    it("returns generic cloud scope placeholder when no provider is set", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("cloud_scope"));
       expect(result.current.placeholder()).toBe(
         STRINGS.wizard.placeholderCloudScope,
+      );
+    });
+
+    it("returns the provider's scope placeholder for cloud_scope step", () => {
+      const { result } = renderHook(() => useWizardNavigation());
+      act(() => {
+        result.current.setStep("cloud_scope");
+        result.current.setData((prev) => ({ ...prev, provider: "gcp" }));
+      });
+      expect(result.current.placeholder()).toBe(
+        STRINGS.wizard.scopeByProvider.gcp.placeholder,
       );
     });
   });

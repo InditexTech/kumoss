@@ -26,15 +26,26 @@ router = APIRouter(
 
 @router.get(
     path="/subscribe/{session_id}",
-    summary="Subscribe to a stream of message events through SSE",
+    summary="Subscribe to a session's progress events over SSE",
+    responses={
+        200: {
+            "description": "Stream of session status events.",
+            "content": {
+                "text/event-stream": {
+                    "schema": {"type": "string"},
+                    "example": (
+                        'data: {"status_msg": "GENERATING",'
+                        ' "detail": {"message": "..."}}\n\n'
+                    ),
+                }
+            },
+        }
+    },
 )
 async def subscribe_events(
     session_id: Annotated[
-        str,
-        Path(
-            description="session id to subscribe to server sent events",
-            pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
-        ),
+        UUID,
+        Path(description="session id to subscribe to server sent events"),
     ],
 ):
     """Subscribe to a stream of message events through Server-Sent Events (SSE).
@@ -45,18 +56,14 @@ async def subscribe_events(
 
     Behavior:
     - Polls the session message queue every 5 seconds
-    - Automatically terminates when session reaches COMPLETED or FAILED status
+    - Automatically terminates when session reaches a terminal status:
+      COMPLETED, UNCOMPLETED (rejected round) or FAILED
     - Closes stream when max iterations reached (session is preserved)
     - Messages are sanitized by removing double quotes to prevent JSON parsing issues
 
     Note:
-    - Connection remains open until session completion or failure
+    - Connection remains open until the session completes, is rejected or fails
     """
-
-    try:
-        sid = UUID(session_id)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid session_id")
 
     async def event_stream():
         i = 0
@@ -64,7 +71,7 @@ async def subscribe_events(
         for _ in range(system_config.orchestration.max_session_events_iteration):
             i += 1
             try:
-                status: Status = await DatabaseService.get_last_status(sid)
+                status: Status = await DatabaseService.get_last_status(session_id)
             except ExceptionHandler as e:
                 logging.error(e.message)
                 await sleep(4)
@@ -79,21 +86,25 @@ async def subscribe_events(
 
             yield f"data: {json.dumps(payload)}\n\n"
 
-            if (
-                status.status == SessionStatus.COMPLETED
-                or status.status == SessionStatus.FAILED
+            if status.status == SessionStatus.FAILED:
+                logging.error(
+                    f"SSE session failed, closing stream. session_id={session_id}"
+                )
+                return
+            if status.status in (
+                SessionStatus.COMPLETED,
+                SessionStatus.UNCOMPLETED,
             ):
-                break
+                logging.info(
+                    f"SSE session {status.status.value}, closing stream. session_id={session_id}"
+                )
+                return
 
             await sleep(5)
 
-        logging.error(
-            f"SSE max iterations reached, closing stream. session_id={session_id}"
-        )
-
     await sleep(2)
     try:
-        _ = await DatabaseService.get_session_summary(sid)
+        _ = await DatabaseService.get_session_summary(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return StreamingResponse(

@@ -35,7 +35,7 @@ class SessionContext:
         self.__iac_path = iac_path
         self.__operation = operation_type
         self.__history: History = History(history)
-        self.__call_dir: Path = None
+        self.__call_dir: Path | None = None
 
     @property
     def id(self) -> UUID:

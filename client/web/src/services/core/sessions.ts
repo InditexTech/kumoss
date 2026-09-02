@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { apiFetch } from "@/services/api";
+import { ApiError, apiFetch } from "@/services/api";
 import type {
   OperationType,
   PaginatedSessionSummary,
@@ -32,14 +32,42 @@ export async function listUserSessions(
       query.set(key, String(value));
     }
   }
-  return apiFetch<PaginatedSessionSummary>(`${BASE}?${query.toString()}`);
+  try {
+    return await apiFetch<PaginatedSessionSummary>(
+      `${BASE}?${query.toString()}`,
+    );
+  } catch (err) {
+    // A brand-new user has no User row server-side yet, so the list
+    // endpoint answers 404 ("User not found"). For a collection, that
+    // means "no sessions" — resolve with an empty page so callers render
+    // their empty state instead of a failure toast.
+    if (err instanceof ApiError && err.status === 404) {
+      return {
+        items: [],
+        total: 0,
+        page: params.page ?? 1,
+        page_size: params.page_size ?? 0,
+        total_pages: 0,
+      };
+    }
+    throw err;
+  }
 }
 
-/** GET /api/v1/sessions/{sessionId} — Full session aggregate (facts, timeline, rounds) */
+/**
+ * GET /api/v1/sessions/{sessionId} — Full session aggregate (facts,
+ * timeline, rounds). `includeHistory` also populates `history` with the
+ * raw conversation turns; it always reads fresh (bypasses the
+ * finished-session cache), so leave it off in polling loops.
+ */
 export async function getSessionDetail(
   sessionId: string,
+  opts?: { includeHistory?: boolean },
 ): Promise<SessionDetail> {
-  return apiFetch<SessionDetail>(`${BASE}/${encodeURIComponent(sessionId)}`);
+  const suffix = opts?.includeHistory ? "?include_history=true" : "";
+  return apiFetch<SessionDetail>(
+    `${BASE}/${encodeURIComponent(sessionId)}${suffix}`,
+  );
 }
 
 /** Whether applying is currently allowed for a session (inverse of is_blocked). */

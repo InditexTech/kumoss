@@ -1,0 +1,119 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── List (mirrors ChangesTable's filter bar + rows) ─── */
+
+.listHeader {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.listTitle {
+  padding: 8px 0 10px;
+  color: var(--color-heading);
+  white-space: nowrap;
+}
+
+.listCount {
+  vertical-align: super;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.list {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.entry {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 200px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 0;
+  min-height: 48px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--color-surface-subtle);
+}
+
+.resourceAddress,
+.filePath,
+.description {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filePath {
+  color: var(--color-text-muted);
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 12px;
+}
+
+.description {
+  color: var(--color-text-body);
+}
+
+/* ─── Detail overlay ─── */
+
+.changeSection {
+  border-top: 1px solid var(--color-border);
+  padding-top: 24px;
+}
+
+.detailRow {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.detailLabel {
+  flex-shrink: 0;
+  width: 120px;
+  padding-top: 2px;
+}
+
+.detailValue {
+  flex: 1;
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.detailText {
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.detailBullets {
+  flex: 1;
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── Responsive ─── */
+
+@media screen and (max-width: 1200px) {
+  .row {
+    grid-template-columns: 1fr 200px;
+    gap: 8px;
+  }
+
+  .description {
+    grid-column: 1 / -1;
+  }
+}

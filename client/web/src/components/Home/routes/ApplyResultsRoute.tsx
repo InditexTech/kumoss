@@ -4,7 +4,7 @@
 
 import { useParams } from "react-router-dom";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
-import { useHomeWizard } from "../useHomeWizard";
+import { useHomeLayoutContext } from "../HomeLayout";
 import ChatHistory from "../ChatHistory/ChatHistory";
 import ApplyResultView from "../ApplyResultView/ApplyResultView";
 import styles from "../HomeScreen.module.css";
@@ -12,7 +12,7 @@ import styles from "../HomeScreen.module.css";
 export default function ApplyResultsRoute() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { loading, error } = useSessionLoader(sessionId);
-  const wizard = useHomeWizard();
+  const { wizard } = useHomeLayoutContext();
 
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;

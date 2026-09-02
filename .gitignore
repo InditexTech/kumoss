@@ -89,8 +89,9 @@ typings/
 
 # Frontend test coverage
 coverage/
-mocks/
 
 # IDE
 *workspace
 
+# Local Tests
+local_test/

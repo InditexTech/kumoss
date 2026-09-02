@@ -14,7 +14,7 @@ const selectSx = {
   fontWeight: 300,
   fontFeatureSettings: "'tnum' on, 'lnum' on",
   borderRadius: 0,
-  minWidth: 220,
+  minWidth: { xs: 0, sm: 220 },
   "& .MuiOutlinedInput-notchedOutline": {
     border: "none",
   },
@@ -81,6 +81,7 @@ export default function ModeDropdown({ disabled = false }: { disabled?: boolean 
 
   return (
     <Select
+      name="mode"
       value={mode}
       onChange={handleChange}
       disabled={disabled}

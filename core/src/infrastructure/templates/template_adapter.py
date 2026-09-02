@@ -2,13 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, final, override
+from typing import final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
-from src.shared.constants import OperationType, ReportType, TerraformProvider
+from src.shared.constants import (
+    OperationType,
+    ReportType,
+    TargetGenerationMode,
+    TerraformProvider,
+)
 
 
 @final
@@ -23,9 +28,31 @@ class TemplateAdapter(ITemplate):
         self._cwd = cwd
 
     @override
-    def render_target_generator(self) -> str:
-        t = self._get_template(self._core + "target_generator.jinja")
-        return t.render()
+    async def render_target_generator(
+        self,
+        mode: TargetGenerationMode,
+        resources: list[str] | None = None,
+    ) -> str:
+        t = self._get_template(self._core + f"target_{mode.value}_generator.jinja")
+        context: dict = {}
+        if mode in (
+            TargetGenerationMode.PREDICTIVE,
+            TargetGenerationMode.DRIFT,
+        ):
+            guidelines = await remote_fetcher.fetch(
+                prompt_name="predictive_targets",
+                scope="general",
+                type="guidelines",
+                tag=system_config.environment,
+            )
+            context.update(
+                {
+                    "RELEVANT_TEMPLATES": resources or [],
+                    "PREDICTIVE_TARGETS_GUIDELINES": guidelines,
+                    "CWD": self._cwd,
+                }
+            )
+        return t.render(**context)
 
     @override
     def render_report_generator(self, report_type: ReportType) -> str:
@@ -43,6 +70,7 @@ class TemplateAdapter(ITemplate):
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
+        operation_type: OperationType,
     ) -> str:
         context = await self._compose_conventions_context(
             resources, abbreviations, include_forbidden_actions
@@ -54,7 +82,11 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
         t = self._get_template(self._core + "requests_filter.jinja")
-        return t.render(**context, REQUESTS_GUIDELINES=requests_guidelines)
+        return t.render(
+            **context,
+            REQUESTS_GUIDELINES=requests_guidelines,
+            OPERATION_TYPE=operation_type.value,
+        )
 
     @override
     def render_task_splitter(self) -> str:
@@ -90,24 +122,6 @@ class TemplateAdapter(ITemplate):
         return base_template.render(**context)
 
     @override
-    async def render_predictive_target_calculator(
-        self,
-        resources: list[str],
-    ) -> str:
-        guidelines = await remote_fetcher.fetch(
-            prompt_name="predictive_targets",
-            scope="general",
-            type="guidelines",
-            tag=system_config.environment,
-        )
-        t = self._get_template(self._core + "predictive_target_calculator.jinja")
-        return t.render(
-            RELEVANT_TEMPLATES=resources,
-            PREDICTIVE_TARGETS_GUIDELINES=guidelines,
-            CWD=self._cwd,
-        )
-
-    @override
     async def render_prompt_compositor(
         self,
         already_selected_templates: list[str] | None = None,
@@ -126,33 +140,46 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
 
-        templates_content: list[str] = await self._get_resources_templates(
-            already_selected_templates or []
-        )
-        templates_and_content: dict[str, str] = (
-            dict(zip(already_selected_templates, templates_content))
-            if already_selected_templates and templates_content
-            else dict.fromkeys(already_selected_templates or [], "")
+        templates: dict[str, str] | None = await self._get_resources_templates(
+            already_selected_templates
         )
 
         t = self._get_template(self._core + "prompt_compositor.jinja")
         return t.render(
             AVAILABLE_TEMPLATES_LIST=resources,
             AVAILABLE_ABBREVIATIONS_LIST=abbr,
-            ALREADY_SELECTED_TEMPLATES=templates_and_content,
+            ALREADY_SELECTED_TEMPLATES=templates,
             ALREADY_SELECTED_ABBREVIATIONS=already_selected_abbreviations,
         )
+
+    @override
+    async def render_compliance_checker(
+        self,
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        context = await self._compose_conventions_context(
+            resources, abbreviations, True
+        )
+        context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
+            prompt_name="report",
+            scope="general",
+            type="compliance",
+            tag=system_config.environment,
+        )
+        t = self._get_template(self._core + "compliance_checker.jinja")
+        return t.render(**context)
 
     async def _compose_conventions_context(
         self,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, str | None]:
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
             if abbreviations
-            else []
+            else [""]
         )
         terraform_guidelines: str = await remote_fetcher.fetch(
             prompt_name="terraform",
@@ -168,7 +195,13 @@ class TemplateAdapter(ITemplate):
         )
         networking = await self._fetch_guidelines("networking")
         permissions = await self._fetch_guidelines("permissions")
-        concrete_implementations.extend(await self._get_resources_templates(resources))
+        resources_content: dict[str, str] | None = await self._get_resources_templates(
+            resources
+        )
+        if resources_content:
+            for r, c in resources_content.items():
+                concrete_implementations.append(f"{r}:\n{c}")
+
         return {
             "GENERAL_TERRAFORM_GUIDELINES": terraform_guidelines,
             "FORBIDDEN_ACTIONS": forbidden_actions,
@@ -187,17 +220,20 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
 
-    async def _get_resources_templates(self, resources: list[str]) -> list[str]:
-        rendered_resources: list[str] = []
+    async def _get_resources_templates(
+        self, resources: list[str]
+    ) -> dict[str, str] | None:
+        if not resources:
+            return None
+        rendered_resources: dict[str, str] = {}
         for r in resources:
-            rendered_resources.append(
-                await remote_fetcher.fetch(
-                    prompt_name=r,
-                    scope=self._scope,
-                    type="resources",
-                    tag=system_config.environment,
-                )
+            rendered_resources[r] = await remote_fetcher.fetch(
+                prompt_name=r,
+                scope=self._scope,
+                type="resources",
+                tag=system_config.environment,
             )
+
         return rendered_resources
 
     @override

@@ -31,9 +31,10 @@ const mockReport: TerraformReport = {
     bullet_points: [{ title: "DB changes", description: "Database will be modified" }],
   },
   estimated_costs: {
-    banner: { summary: "$12.50/mo increase" },
+    currency: "USD",
+    total_fixed_monthly_cost: 12.5,
     introduction_paragraph: "Cost impact",
-    breakdown: [{ resource_type: "azurerm_vm", details: { estimated_cost: "$10.00", additional_details: "Standard B2s" } }],
+    breakdown: [{ resource_type: "azurerm_vm", pricing_model: "fixed", fixed_monthly_cost: 10, notes: "Standard B2s" }],
   },
   detailed_changes: [
     { name: "azurerm_resource_group.main", action: "create", notes: "New RG", summary: "Create RG", details: "resource group main" },
@@ -75,7 +76,8 @@ describe("ResultPanel", () => {
 
   it("shows estimated costs card", () => {
     renderResultPanel(undefined, { terraform_report: mockReport });
-    expect(screen.getByText("$12.50/mo increase")).toBeInTheDocument();
+    expect(screen.getByText("$12.50")).toBeInTheDocument();
+    expect(screen.getByText("/month")).toBeInTheDocument();
   });
 
   it("switches to plan tab", async () => {
@@ -134,5 +136,64 @@ describe("ResultPanel", () => {
     renderResultPanel(undefined, { terraform_report: mockReport });
     expect(screen.getByText("azurerm_resource_group.main")).toBeInTheDocument();
     expect(screen.getByText("azurerm_vm.web")).toBeInTheDocument();
+  });
+
+  describe("drift reports", () => {
+    const driftReport: TerraformReport = {
+      status: "Succeeded",
+      summary: "All drift remediated: 2 resources deleted.",
+      remediated_resources: [
+        {
+          resource_address: "azurerm_key_vault.app",
+          file_path: "key_vault_app.tf",
+          changes: [
+            {
+              attribute_modified: "resource",
+              change_description: "Deleted the Key Vault resource.",
+              reason: "Marked for deletion during drift remediation.",
+              details: ["Removed: azurerm_key_vault.app"],
+            },
+          ],
+        },
+        {
+          resource_address: "azurerm_redis_cache.main",
+          file_path: "redis_cache.tf",
+          changes: [
+            {
+              attribute_modified: "resource",
+              change_description: "Deleted the Redis Cache resource.",
+              reason: "Drifted resource.",
+            },
+          ],
+        },
+      ],
+    };
+
+    it("renders the drift summary and remediated resources", () => {
+      renderResultPanel(undefined, { terraform_report: driftReport });
+
+      expect(screen.getByText("Drift Summary")).toBeInTheDocument();
+      expect(
+        screen.getByText("All drift remediated: 2 resources deleted."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Remediated Resources")).toBeInTheDocument();
+      expect(screen.getByText("azurerm_key_vault.app")).toBeInTheDocument();
+      expect(screen.getByText("azurerm_redis_cache.main")).toBeInTheDocument();
+      // The plan report's action filters make no sense for drift.
+      expect(screen.queryByText("Recreated")).not.toBeInTheDocument();
+    });
+
+    it("opens the resource detail when a row is clicked", async () => {
+      const user = userEvent.setup();
+      renderResultPanel(undefined, { terraform_report: driftReport });
+
+      await user.click(screen.getByText("azurerm_key_vault.app"));
+      expect(
+        screen.getByText("Marked for deletion during drift remediation."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Removed: azurerm_key_vault.app"),
+      ).toBeInTheDocument();
+    });
   });
 });

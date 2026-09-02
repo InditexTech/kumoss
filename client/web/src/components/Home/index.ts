@@ -12,4 +12,15 @@ export {
   EstimatedCostsCard,
   CostsDetail,
 } from "./ResultPanel/EstimatedCosts/EstimatedCosts";
+export {
+  DriftChangesList,
+  DriftResourceDetail,
+} from "./ResultPanel/DriftReport/DriftReport";
+export {
+  ApplyChangesList,
+  ApplyResourceDetail,
+  ApplyRecommendations,
+} from "./ResultPanel/ApplyReport/ApplyReport";
+export type { ApplyFilterId } from "./ResultPanel/ApplyReport/ApplyReport";
+export { hasStructuredCosts } from "./ResultPanel/resultPanelUtils";
 export type { FilterId, DetailView } from "./ResultPanel/resultPanelUtils";

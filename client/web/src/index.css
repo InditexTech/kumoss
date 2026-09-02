@@ -99,6 +99,29 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Thin, neutral-grey scrollbars everywhere. `scrollbar-color` inherits,
+   `scrollbar-width` does not — hence the universal selector. The
+   ::-webkit-* rules are a fallback for engines without the standard
+   properties (they're ignored where scrollbar-width/color apply). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.4)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.4));
+  border-radius: 3px;
+}
+
 ::selection {
   color: light-dark(var(--background-color-light), var(--background-color-dark));;
   background: light-dark(var(--text-color-light), var(--text-color-dark));;
@@ -112,6 +135,7 @@ body {
   margin: 0;
   display: flex;
   height: 100vh;
+  height: 100dvh; /* mobile: exclude the browser URL bar */
   width: 100vw;
   overflow: hidden;
 }
@@ -120,6 +144,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
@@ -141,6 +166,22 @@ body {
   body {
     width: 100vw;
     overflow: initial;
+  }
+}
+
+/* 1080p-class screens (browser viewport ≲ 1080px tall): pull the
+   assistant block up so the wizard input clears the sessions row. */
+@media screen and (max-height: 1080px) {
+  :root {
+    --assistant-top-offset: 8rem;
+  }
+}
+
+/* Phones: reclaim the vertical space above the assistant block.
+   Must come after the max-height query so it wins when both apply. */
+@media screen and (max-width: 768px) {
+  :root {
+    --assistant-top-offset: 4rem;
   }
 }
 

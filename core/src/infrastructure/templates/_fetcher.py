@@ -21,7 +21,7 @@ class _PromptFetcher:
         self,
         prompt_name: str,
         scope: Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"],
-        type: Literal["resources", "guidelines"],
+        type: Literal["resources", "guidelines", "compliance"],
         tag: Literal["production", "development"],
     ) -> str:
         qualified_name = f"{scope}-{type}-{prompt_name}"
