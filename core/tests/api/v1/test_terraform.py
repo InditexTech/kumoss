@@ -10,10 +10,24 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from src.api.deps import CurrentUser, get_current_user
 from src.main import app
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.shared.config import system_config
+from src.shared.constants import OperationRole
+
+
+def _caller() -> CurrentUser:
+    return CurrentUser(
+        id=1,
+        issuer="urn:test",
+        subject="sub",
+        email="dev@example.com",
+        display_name="Dev",
+        operation_role=OperationRole.DEVELOPER,
+        panel_role=None,
+    )
 
 
 def _bare_remote(tmp: Path) -> str:
@@ -94,7 +108,11 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 400, resp.text)
 
     def test_request_with_neither_uri_nor_session_id_returns_422(self):
-        resp = self.client.post("/v1/iac/generate", json={"q": "x"})
+        app.dependency_overrides[get_current_user] = lambda: _caller()
+        try:
+            resp = self.client.post("/v1/iac/generate", json={"q": "x"})
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
         self.assertEqual(resp.status_code, 422, resp.text)
 
 

@@ -41,6 +41,7 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
             "repo_uri": "https://example.com/foo.git",
             "terraform_providers": "azure",
             "scope_id": "sub-123",
+            "iac_path": "infra",
             "q": "hi",
         }
         payload.update(overrides)

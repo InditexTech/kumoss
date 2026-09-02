@@ -7,8 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from src.api.deps import CurrentUser, get_current_user
 from src.infrastructure.filesystem.workspace import InvalidRepoURI
 from src.main import app
+from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -18,9 +20,25 @@ def _mock_service(detect_roots: AsyncMock) -> MagicMock:
     return svc
 
 
+def _caller() -> CurrentUser:
+    return CurrentUser(
+        id=7,
+        issuer="urn:test",
+        subject="sub",
+        email="dev@example.com",
+        display_name="Dev",
+        operation_role=OperationRole.DEVELOPER,
+        panel_role=None,
+    )
+
+
 class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        app.dependency_overrides[get_current_user] = lambda: _caller()
         self.client = TestClient(app)
+
+    async def asyncTearDown(self):
+        app.dependency_overrides.clear()
 
     def test_parse_returns_roots(self):
         svc = _mock_service(AsyncMock(return_value=["infra/dev", "infra/pro"]))
