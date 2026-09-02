@@ -38,7 +38,7 @@ from . import terraform as tf
 from .auth import verify_bearer_token
 from .config import Config, terraform_available
 from .jobs import JobRegistry, WorkspaceQueue
-from .log_context import configure_logging, set_request_id
+from .log_context import configure_logging, set_request_id, set_workspace
 from .models import (
     ApplyRequest,
     CredentialError,
@@ -213,6 +213,7 @@ def _check_submit_preconditions(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"workspace_path does not exist or is not a directory: {workspace}",
         )
+    set_workspace(str(workspace))
     return workspace
 
 
@@ -324,6 +325,7 @@ async def validate(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
         env = await _scope_env(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
@@ -373,6 +375,7 @@ async def show(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
         env = await _scope_env(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
