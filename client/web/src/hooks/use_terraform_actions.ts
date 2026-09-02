@@ -146,6 +146,7 @@ export function useTerraformActions() {
       }));
 
       const settleOutcome = (outcome: SessionOutcome, sessionId: string) => {
+        if (signal.aborted) return;
         clearInactivityTimer();
 
         if (outcome.kind === "failed") {
@@ -234,6 +235,7 @@ export function useTerraformActions() {
           };
 
           return (event: { data: string }) => {
+            if (signal.aborted) return;
             resetInactivityTimer(es);
             try {
               const data: SessionEventData = JSON.parse(event.data);
@@ -279,12 +281,14 @@ export function useTerraformActions() {
         es.onmessage = createMessageHandler(es);
 
         es.onerror = () => {
+          if (signal.aborted) return;
           es.close();
           eventSourceRef.current = null;
           clearInactivityTimer();
 
           checkSessionStatus(sessionId)
             .then(async (result) => {
+              if (signal.aborted) return;
               if (
                 result.status === "completed" ||
                 result.status === "uncompleted" ||
@@ -315,6 +319,7 @@ export function useTerraformActions() {
                 resetInactivityTimer(newEs);
                 newEs.onmessage = createMessageHandler(newEs);
                 newEs.onerror = () => {
+                  if (signal.aborted) return;
                   newEs.close();
                   eventSourceRef.current = null;
                   clearInactivityTimer();
@@ -332,6 +337,7 @@ export function useTerraformActions() {
               });
             })
             .catch(() => {
+              if (signal.aborted) return;
               dispatch({
                 type: "ERROR",
                 message: "Connection to server lost",

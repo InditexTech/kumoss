@@ -559,6 +559,35 @@ describe("useTerraformActions", () => {
     expect(signal.aborted).toBe(true);
   });
 
+  it("reset ignores a pending outcome", async () => {
+    let resolveOutcome: (outcome: SessionOutcome) => void = () => {};
+    mockResolveOutcome.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOutcome = resolve;
+        }),
+    );
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams, onOutcome);
+    });
+    act(() => {
+      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      result.current.reset();
+    });
+
+    await act(async () => {
+      resolveOutcome(makeResultsOutcome());
+    });
+
+    expect(result.current.state).toEqual({ status: "idle" });
+    expect(onOutcome).not.toHaveBeenCalled();
+  });
+
   it("SSE events update phases correctly", async () => {
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });

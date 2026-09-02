@@ -34,6 +34,9 @@ export function useMapperResolution() {
           project: resolved.project ?? null,
           paths: parsed.roots,
         };
+      } catch (error) {
+        if (requestId !== requestIdRef.current) return null;
+        throw error;
       } finally {
         if (requestId === requestIdRef.current) {
           setMapperLoading(false);
