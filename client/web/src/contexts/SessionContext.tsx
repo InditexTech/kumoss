@@ -19,6 +19,7 @@ interface SessionContextValue {
   resetSession: () => void;
   prDetails: PrDetails;
   updatePrDetails: (patch: Partial<PrDetails>) => void;
+  markPrMerged: (sessionId: string, prId: number) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(
@@ -61,14 +62,36 @@ export function SessionProvider({
     setPrDetails((prev: PrDetails) => ({ ...prev, ...patch }));
   }, []);
 
+  const markPrMerged = useCallback((sessionId: string, prId: number) => {
+    setPrDetails((prev: PrDetails) =>
+      prev.sessionId === sessionId && prev.id === prId
+        ? { ...prev, merged: true }
+        : prev,
+    );
+  }, []);
+
   const resetSession = useCallback(() => {
     setSession(initialSession);
     setPrDetails(initialPrDetails);
   }, []);
 
   const value = useMemo(
-    () => ({ session, updateSession, resetSession, prDetails, updatePrDetails }),
-    [session, updateSession, resetSession, prDetails, updatePrDetails],
+    () => ({
+      session,
+      updateSession,
+      resetSession,
+      prDetails,
+      updatePrDetails,
+      markPrMerged,
+    }),
+    [
+      session,
+      updateSession,
+      resetSession,
+      prDetails,
+      updatePrDetails,
+      markPrMerged,
+    ],
   );
 
   return (

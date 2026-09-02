@@ -122,7 +122,7 @@ describe("PrApprovalView", () => {
     mockMergePr.mockResolvedValue(undefined);
     const { props } = renderPr("confirming", {
       sessionPatch: { session_id: "sess-1", operation: "drift" },
-      prPatch: { id: 42 },
+      prPatch: { sessionId: "sess-1", id: 42 },
     });
 
     expect(screen.getByText("Merge Pull Request")).toBeInTheDocument();

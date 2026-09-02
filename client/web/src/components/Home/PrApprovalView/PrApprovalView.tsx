@@ -29,7 +29,7 @@ export default function PrApprovalView({
   onBackToReport,
   onContactTeam,
 }: PrApprovalViewProps) {
-  const { session, prDetails, updatePrDetails } = useSession();
+  const { session, prDetails, markPrMerged } = useSession();
   const { showNotification } = useNotification();
   const [approving, setApproving] = useState(false);
 
@@ -52,7 +52,7 @@ export default function PrApprovalView({
       await mergePullRequest({ session_id: session.session_id });
       if (isDriftOperation) {
         markPullRequestMerged(session.session_id, prId);
-        updatePrDetails({ merged: true });
+        markPrMerged(session.session_id, prId);
         onBackToReport();
       } else {
         onApprove();
@@ -72,7 +72,7 @@ export default function PrApprovalView({
     approving,
     onApprove,
     onBackToReport,
-    updatePrDetails,
+    markPrMerged,
     showNotification,
     onStepChange,
   ]);
