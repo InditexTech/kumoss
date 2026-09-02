@@ -8,6 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { mergePullRequest } from "@/services/core/iac_code";
 import { getApiErrorMessage } from "@/services/api";
+import { markPullRequestMerged } from "@/services/pullRequestState";
 import { isAllowedUrl } from "@/utils/sanitize";
 import { STRINGS } from "@/constants/strings";
 import type { PrApprovalStep } from "@/types/ui";
@@ -45,6 +46,7 @@ export default function PrApprovalView({
     try {
       await mergePullRequest({ session_id: session.session_id });
       if (isDriftOperation) {
+        markPullRequestMerged(session.session_id, prDetails.id);
         updatePrDetails({ merged: true });
         onBackToReport();
       } else {

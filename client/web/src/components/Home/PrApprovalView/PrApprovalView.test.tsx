@@ -9,6 +9,7 @@ import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { renderWithProviders } from "@/test/render";
 import { mergePullRequest } from "@/services/core/iac_code";
+import { isPullRequestMerged } from "@/services/pullRequestState";
 import type { PrApprovalStep } from "@/types/ui";
 import PrApprovalView from "./PrApprovalView";
 
@@ -71,6 +72,7 @@ function renderPr(
 describe("PrApprovalView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("renders initial step with PR ready message", () => {
@@ -133,6 +135,7 @@ describe("PrApprovalView", () => {
     expect(props.onApprove).not.toHaveBeenCalled();
     expect(props.onStepChange).not.toHaveBeenCalled();
     expect(screen.getByTestId("pr-merged")).toHaveTextContent("true");
+    expect(isPullRequestMerged("sess-1", 42)).toBe(true);
   });
 
   it("renders confirming step with confirm and request review buttons", () => {

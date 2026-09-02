@@ -11,6 +11,7 @@ import {
   buildAssistantMessage,
   appendAssistantMessage,
 } from "@/services/workflows/session_outcome";
+import { isPullRequestMerged } from "@/services/pullRequestState";
 
 interface SessionLoaderResult {
   loading: boolean;
@@ -69,7 +70,11 @@ export function useSessionLoader(
           const pr =
             lastRound?.pull_requests[lastRound.pull_requests.length - 1];
           if (pr) {
-            updatePrDetails({ id: pr.number, prUrl: pr.url, merged: false });
+            updatePrDetails({
+              id: pr.number,
+              prUrl: pr.url,
+              merged: isPullRequestMerged(sessionId, pr.number),
+            });
           }
         }
         setLoading(false);
