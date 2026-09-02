@@ -138,6 +138,16 @@ describe("PrApprovalView", () => {
     expect(isPullRequestMerged("sess-1", 42)).toBe(true);
   });
 
+  it("does not offer to merge an already merged drift pull request", () => {
+    renderPr("initial", {
+      sessionPatch: { session_id: "sess-1", operation: "drift" },
+      prPatch: { id: 42, merged: true },
+    });
+
+    expect(screen.getByText("Pull Request Merged")).toBeInTheDocument();
+    expect(screen.queryByText("Merge Pull Request")).not.toBeInTheDocument();
+  });
+
   it("renders confirming step with confirm and request review buttons", () => {
     renderPr("confirming", { prPatch: { id: 42 } });
 

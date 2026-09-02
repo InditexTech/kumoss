@@ -56,6 +56,7 @@ export const STRINGS = {
       "Do you want to apply the changes and create the infrastructure?",
     mergePrompt: "Do you want to merge the pull request?",
     merge: "Merge Pull Request",
+    merged: "Pull Request Merged",
     conflictNotice: "I created your PR, but you have one or more conflicts.",
     conflictAction:
       "Solve them, and notify the Data DevOps team to apply the infrastructure.",

@@ -104,6 +104,21 @@ export default function PrApprovalView({
 
   const showViewPr = prDetails.prUrl && isAllowedUrl(prDetails.prUrl);
 
+  if (isDriftOperation && prDetails.merged) {
+    return (
+      <div className={styles.container}>
+        <Typography variant="h1" className={styles.heading}>{STRINGS.pr.merged}</Typography>
+        <button
+          className={styles.backLink}
+          type="button"
+          onClick={onBackToReport}
+        >
+          {STRINGS.assistant.backToReport}
+        </button>
+      </div>
+    );
+  }
+
   if (isDriftOperation) {
     return (
       <div className={styles.container}>
