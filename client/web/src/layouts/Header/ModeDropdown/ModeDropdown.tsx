@@ -3,11 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Select, MenuItem } from "@mui/material";
+import { useAuth } from "@/contexts/AuthContext";
 import { useMode } from "@/contexts/ModeContext";
 import { MODE_OPTIONS } from "@/constants/modes";
+import { operationRoleAtLeast } from "@/types/api";
 import type { Mode } from "@/types/ui";
+import { MODE } from "@/types/ui";
 import type { SelectChangeEvent } from "@mui/material";
 import styles from "./ModeDropdown.module.css";
+
+const DEVOPS_ONLY_MODES: Mode[] = [MODE.DRIFT, MODE.PARTIAL_DRIFT];
+const DEVOPS_HINT = "Requires the devops operation role.";
 
 const selectSx = {
   fontSize: "14px",
@@ -72,6 +78,8 @@ const menuPropsSx = {
 
 export default function ModeDropdown({ disabled = false }: { disabled?: boolean }) {
   const { mode, setMode } = useMode();
+  const { operationRole } = useAuth();
+  const canRunDrift = operationRoleAtLeast(operationRole, "devops");
 
   const handleChange = (event: SelectChangeEvent<string>) => {
     setMode(event.target.value as Mode);
@@ -95,16 +103,24 @@ export default function ModeDropdown({ disabled = false }: { disabled?: boolean 
         );
       }}
     >
-      {MODE_OPTIONS.map(({ value, label, description }) => (
-        <MenuItem key={value} value={value} className={styles.menuItem}>
-          <div className={styles.menuItemContent}>
-            <span className={styles.menuItemLabel}>{label}</span>
-            {description && (
-              <span className={styles.menuItemDescription}>{description}</span>
-            )}
-          </div>
-        </MenuItem>
-      ))}
+      {MODE_OPTIONS.map(({ value, label, description }) => {
+        const locked = DEVOPS_ONLY_MODES.includes(value) && !canRunDrift;
+        return (
+          <MenuItem
+            key={value}
+            value={value}
+            className={styles.menuItem}
+            disabled={locked}
+          >
+            <div className={styles.menuItemContent}>
+              <span className={styles.menuItemLabel}>{label}</span>
+              <span className={styles.menuItemDescription}>
+                {locked ? DEVOPS_HINT : description}
+              </span>
+            </div>
+          </MenuItem>
+        );
+      })}
     </Select>
   );
 }

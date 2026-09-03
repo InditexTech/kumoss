@@ -42,6 +42,16 @@
   font-size: 11px !important;
 }
 
+.notice {
+  font-weight: 300;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.5px;
+  text-align: center;
+  margin: 0;
+  color: light-dark(var(--text-color-light), var(--text-color-dark));
+}
+
 .submitButton {
   width: 100%;
   padding: 14px !important;

@@ -24,9 +24,11 @@
     "dompurify": "^3.4.1",
     "lottie-react": "^2.4.1",
     "monaco-editor": "^0.53.0",
+    "oidc-client-ts": "^3.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
+    "react-oidc-context": "^3.3.1",
     "react-router-dom": "^7.13.2",
     "remark-gfm": "^4.0.1"
   },

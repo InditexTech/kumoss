@@ -59,6 +59,7 @@ class OidcConfig(BaseModel):
     issuer_url: str = ""
     client_id: str = ""
     audience: str = ""
+    scope: str = "openid profile email"
     clock_skew_seconds: int = 60
 
     @model_validator(mode="after")

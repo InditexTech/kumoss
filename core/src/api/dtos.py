@@ -12,6 +12,18 @@ from pydantic import BaseModel
 from src.shared.constants import OperationRole, PanelRole
 
 
+class AuthConfigResponse(BaseModel):
+    """Public OIDC settings the SPA needs to run its login flow.
+
+    Blank ``issuer_url`` means auth is disabled (dev mode).
+    """
+
+    issuer_url: str
+    client_id: str
+    audience: str
+    scope: str
+
+
 class UserMeResponse(BaseModel):
     """The caller's identity and roles, as the SPA consumes them."""
 

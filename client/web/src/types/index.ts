@@ -2,14 +2,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import type { OperationRole, PanelRole } from "./api";
+
+/** The signed-in user as resolved by GET /api/v1/users/me. */
 export interface UserInfo {
-  username: string;
-  name: string;
-  homeAccountId: string;
-  environment: string;
-  tenantId: string;
-  localAccountId: string;
-  roles: string[];
+  id: number;
+  email: string | null;
+  displayName: string | null;
+  operationRole: OperationRole;
+  panelRole: PanelRole | null;
 }
 
 // ─── Terraform Report ───────────────────────────────────────

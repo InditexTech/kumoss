@@ -13,6 +13,7 @@ from src.api.v1 import (
     events,
     repository,
     authorization,
+    auth,
     admin,
     session,
     mapping,
@@ -108,6 +109,10 @@ tags_metadata: list[dict[str, str]] = [
         "description": "Passthrough to the mapping service.",
     },
     {
+        "name": "Authentication",
+        "description": "Public auth configuration for the SPA login flow.",
+    },
+    {
         "name": "Users",
         "description": "The authenticated caller's identity and roles.",
     },
@@ -149,6 +154,7 @@ app.include_router(terraform.router, prefix="/v1")
 app.include_router(events.router, prefix="/v1")
 app.include_router(repository.router, prefix="/v1")
 app.include_router(authorization.router, prefix="/v1")
+app.include_router(auth.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")

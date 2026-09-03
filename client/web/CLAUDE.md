@@ -60,6 +60,6 @@ All run from `client/web`. Node ≥ 20 is required for the test toolchain (Vites
 ## Conventions
 
 - Every file starts with the SPDX header (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` / `SPDX-License-Identifier: Apache-2.0`) — REUSE compliance is enforced in CI and pre-commit; include it in new files.
-- Read env vars through `src/config/env.ts`, which prefers a `window.__ENV__` runtime injection over `import.meta.env`.
+- The client uses no env vars. Auth/OIDC settings come from the backend: `main.tsx` awaits `loadAuthConfig()` (`GET /api/v1/auth/config`, stored in `src/services/auth.ts`) before rendering; blank `issuer_url` = auth disabled (dev mode).
 - Production builds drop `console` and `debugger` statements (esbuild `drop`), so don't rely on console output in prod.
 - TypeScript is strict; ESLint uses a flat config — unused vars are warnings, prefix intentionally-unused args with `_`.

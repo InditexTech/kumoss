@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { apiFetch, ApiError } from "@/services/api";
+import { getAccessToken } from "@/services/token";
 
 const BASE = "/api/v1/events";
 const SSE_MAX_RETRIES = 3;
@@ -56,10 +57,16 @@ export function subscribeToSession(
       }
 
       try {
+        // Token read on every (re)connect so reconnects pick up renewals.
+        const token = getAccessToken();
         const response = await fetch(
           `${BASE}/subscribe/${encodeURIComponent(sessionId)}`,
           {
-            headers: { accept: "text/event-stream", ...headers },
+            headers: {
+              accept: "text/event-stream",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...headers,
+            },
             credentials: "include",
             signal: controller.signal,
           },

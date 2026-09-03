@@ -28,15 +28,6 @@ const mockMapperErrorValue = vi.fn<() => string | null>(() => null);
 const mockSetMapperError = vi.fn();
 const mockResetMapper = vi.fn();
 
-vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    user: { username: "test@example.com", name: "Test User" } as never,
-    isAuthenticated: true,
-    login: vi.fn(),
-    logout: vi.fn(),
-  }),
-}));
-
 const mockHandleOutcome = vi.fn();
 vi.mock("@/hooks/useWizardTerraform", () => ({
   useWizardTerraform: () => ({
@@ -343,7 +334,6 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
     expect(mockAuthRun).toHaveBeenCalledWith({
       repositoryUrl: "https://dev.azure.com/org/repo",
       query: "deploy a VM",
-      userEmail: "test@example.com",
       cloud: "azure",
       environment: "environments/dev",
     });
@@ -373,7 +363,6 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
       terraformProviders: "azure",
       scopeId: "sub-123",
       iacPath: "environments/dev",
-      userId: "test@example.com",
       mode: "generate",
     });
   });

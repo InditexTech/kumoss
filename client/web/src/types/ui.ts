@@ -74,7 +74,6 @@ export interface SessionFilter {
   project?: string;
   cloud?: string;
   environment?: string;
-  user_email?: string;
   unique_repository_name?: string;
   [key: string]: unknown;
 }
