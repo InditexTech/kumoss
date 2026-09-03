@@ -116,8 +116,8 @@ paths:
   upload_folder: "/workspaces"
   session_plan_filename: "session.plan"
 
-# Database Nebula postgres. Connection URLs embed credentials, so they are
-# referenced indirectly: this key name the env var that hold the actual URL.
+# Nebula Postgres database. Connection URLs embed credentials, so they are
+# referenced indirectly: this key names the env var that holds the actual URL.
 # Override only to read different env var names.
 # The core refuses to boot when the env var resolves empty.
 database:
