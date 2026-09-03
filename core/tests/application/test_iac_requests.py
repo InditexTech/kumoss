@@ -59,16 +59,35 @@ class TestGenerateRequest(unittest.TestCase):
 
 
 class TestDriftRequest(unittest.TestCase):
-    def test_drift_specific_field(self):
+    def test_drift_first_call(self):
         req = DriftRequest(
             repo_uri="https://example.com/foo.git",
-            cloud="azure",
-            environment="dev",
+            terraform_providers="azure",
             user_id="u",
             q="check drift",
             is_partial=True,
         )
         self.assertTrue(req.is_partial)
+        self.assertEqual(req.q, "check drift")
+
+    def test_drift_defaults_to_full(self):
+        req = DriftRequest(
+            repo_uri="https://example.com/foo.git",
+            terraform_providers="azure",
+            user_id="u",
+            q="detect all drift",
+        )
+        self.assertFalse(req.is_partial)
+
+    def test_partial_with_blank_query_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            DriftRequest(
+                repo_uri="https://example.com/foo.git",
+                terraform_providers="azure",
+                user_id="u",
+                is_partial=True,
+                q=" ",
+            )
 
 
 class TestApplyRequest(unittest.TestCase):

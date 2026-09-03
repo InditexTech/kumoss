@@ -10,7 +10,6 @@ from src.domains.services import SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.domains.value_objects import Conventions
 from src.shared.constants import OperationType, ToolContext, PromptsLibrary
 
 
@@ -31,7 +30,6 @@ class RequestsFilterService:
         self,
         q: str,
         history: History,
-        conventions: Conventions,
         operation_type: OperationType,
     ) -> tuple[bool, str]:
         response: ToolResultDTO = await self.__llm_svc.generate(
@@ -44,9 +42,6 @@ class RequestsFilterService:
             ),
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.REQUESTS_FILTER,
-                resources=conventions.templates,
-                abbreviations=conventions.abbreviations,
-                include_forbidden_actions=True,
                 operation_type=operation_type,
             ),
             history=history,

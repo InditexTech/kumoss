@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.shared.constants import OperationType, ReportType
+from src.shared.constants import OperationType, ReportType, TargetGenerationMode
 
 
 class ITemplate(ABC):
@@ -27,14 +27,11 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    async def render_predictive_target_calculator(
+    async def render_target_generator(
         self,
-        resources: list[str],
+        mode: TargetGenerationMode,
+        resources: list[str] | None = None,
     ) -> str:
-        pass
-
-    @abstractmethod
-    def render_target_generator(self) -> str:
         pass
 
     @abstractmethod
@@ -56,9 +53,6 @@ class ITemplate(ABC):
     @abstractmethod
     async def render_requests_filter(
         self,
-        resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
         operation_type: OperationType,
     ) -> str:
         pass

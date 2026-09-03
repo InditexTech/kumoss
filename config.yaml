@@ -95,7 +95,7 @@ orchestration:
 
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5@20250929"
+  model: "vertex_ai/claude-sonnet-5"
   temperature: 0.1
   max_output_tokens: 32000
   # Simple tasks model
@@ -105,9 +105,9 @@ llm:
 
   model_list:
     # Google Vertex AI
-    - model_name: "vertex_ai/claude-sonnet-4-5@20250929"
+    - model_name: "vertex_ai/claude-sonnet-5"
       litellm_params:
-        model: "vertex_ai/claude-sonnet-4-5@20250929"
+        model: "vertex_ai/claude-sonnet-5"
         vertex_project: "os.environ/VERTEXAI_PROJECT"
         vertex_location: "os.environ/VERTEXAI_LOCATION"
         vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
@@ -162,8 +162,13 @@ llm:
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
 # `workspaces` volume so both see the same cloned-repo paths.
+# `session_plan_filename` names the plan artifact inside a session
+# workspace (written by plan, carried by the pinned workspace, executed
+# by apply); it must be a bare filename (single path segment) and should
+# keep the `.plan` suffix so the injected terraform gitignore covers it.
 paths:
   upload_folder: "/workspaces"
+  session_plan_filename: "session.plan"
 
 # Databases (Nebula postgres + Phoenix collector). Connection URLs embed
 # credentials, so they are referenced indirectly: these keys name the

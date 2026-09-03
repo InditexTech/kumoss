@@ -91,7 +91,25 @@ class NotificationServiceClient:
     async def notify_compliance_failure(session_id: UUID, summary: str) -> None:
         await NotificationServiceClient.notify(
             kind="iac.compliance.check_failed",
-            severity=NotificationRequestSeverity.ERROR,
+            severity=NotificationRequestSeverity.WARNING,
             subject=f"Compliance check failed – session {session_id}",
+            body=summary,
+        )
+
+    @staticmethod
+    async def notify_exception_failure(session_id: UUID, summary: str) -> None:
+        await NotificationServiceClient.notify(
+            kind="system.exception.failure",
+            severity=NotificationRequestSeverity.ERROR,
+            subject=f"System Core exception failure – session {session_id}",
+            body=summary,
+        )
+
+    @staticmethod
+    async def notify_apply_failure(session_id: UUID, summary: str) -> None:
+        await NotificationServiceClient.notify(
+            kind="iac.apply.failure",
+            severity=NotificationRequestSeverity.ERROR,
+            subject=f"Infrastructure deployment failure – session {session_id}",
             body=summary,
         )

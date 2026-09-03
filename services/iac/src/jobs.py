@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""In-memory job registry for asynchronous terraform operations.
+"""In-memory job registry for asynchronous IaC engine operations.
 
 Submissions create an ``asyncio.Task`` that waits on the workspace's
 FIFO queue, runs the operation, and records the outcome on the
 ``JobRecord``. Two failure planes are kept distinct:
 
-* Terraform-level failures are returned by the operation as a result
+* Engine-level failures are returned by the operation as a result
   with a non-zero ``exit_code`` — the job still ends ``succeeded``.
 * Service-level faults (unexpected exceptions, cancellation on
   shutdown) end the job ``failed`` with a ``Problem`` whose ``status``

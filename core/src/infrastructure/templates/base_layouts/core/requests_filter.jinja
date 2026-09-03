@@ -23,47 +23,6 @@ All file paths are relative to this directory.
 </prohibited_actions_and_files>
 {% endif %}
 
-{% if OPERATION_TYPE == "generate" %}
-<code_structure_guidelines>
-{{ GENERAL_TERRAFORM_GUIDELINES }}
-</code_structure_guidelines>
-
-<resource_creation_rules>
-{{ RESOURCE_CREATION }}
-</resource_creation_rules>
-
-{% if NETWORKING %}
-<networking_restrictions>
-{{ NETWORKING }}
-</networking_restrictions>
-{% endif %}
-
-<permissions_guidelines>
-{{ PERMISSIONS }}
-</permissions_guidelines>
-
-{% if CONCRETE_IMPLEMENTATION %}
-<concrete_implementation_rules>
-{{ CONCRETE_IMPLEMENTATION }}
-</concrete_implementation_rules>
-{% endif %}
-
-{% elif OPERATION_TYPE == "drift" %}
-{% if CONCRETE_IMPLEMENTATION %}
-<drift_context>
-{{ CONCRETE_IMPLEMENTATION }}
-</drift_context>
-{% endif %}
-
-{% elif OPERATION_TYPE == "import" %}
-{% if CONCRETE_IMPLEMENTATION %}
-<import_context>
-{{ CONCRETE_IMPLEMENTATION }}
-</import_context>
-{% endif %}
-
-{% endif %}
-
 <request_assessment_guidelines>
 {{ REQUESTS_GUIDELINES }}
 </request_assessment_guidelines>
@@ -78,7 +37,7 @@ All file paths are relative to this directory.
   Classify the request into exactly one of three categories:
 
 {% if OPERATION_TYPE == "generate" %}
-  A. CHANGE REQUEST — the user wants to create, modify, or delete cloud infrastructure with Terraform. Set `status` to `true` and it will be handed to the downstream generator. Missing parameters NEVER block a creation request: names come from the naming conventions, settings come from the resource module templates, and placement (resource group, region, environment) comes from the existing workspace. The downstream generator fills in every blank. When in doubt about parameters, accept.
+  A. CHANGE REQUEST — the user wants to create, modify, or delete cloud infrastructure with Terraform. Set `status` to `true` and it will be handed to the downstream generator. Missing parameters NEVER block a creation request: names, settings, and placement (resource group, region, environment) are resolved downstream by the generator, using the naming conventions, resource module templates, and existing workspace evidence it has access to. When in doubt about parameters, accept.
 
 {% elif OPERATION_TYPE == "drift" %}
   A. DRIFT REQUEST — the user asks to detect and/or remediate configuration drift, either workspace-wide or scoped to named resources.

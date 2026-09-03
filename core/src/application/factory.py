@@ -376,6 +376,7 @@ class ApplicationFactory:
             target_service=target_svc,
             drift_service=drift_svc,
             compliance_service=compliance_svc,
+            workspace_service=WorkspaceService(),
         )
 
     def get_terraform_drift_handler(self) -> TerraformDriftHandler:
@@ -441,30 +442,22 @@ class ApplicationFactory:
             llm_service=llm_svc,
             tool_service=tool_svc,
         )
-        target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
-        terraform_svc = self._get_terraform_provider(file_utils.project_root)
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
-        validation_svc = self._get_terraform_validation_service(
-            git_utils=git_utils,
-            file_utils=file_utils,
-            session_service=session_svc,
-            template_service=template_svc,
-            main_llm_service=llm_svc,
-            tool_service=tool_svc,
-            artifact_service=artifact_svc,
+        workspace_svc = WorkspaceService()
+        terraform_svc = self._get_terraform_provider(
+            workspace_svc.pinned_dir(self.__ctx.id)
         )
+        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         return TerraformApplyHandler(
             terraform_service=terraform_svc,
-            validation_service=validation_svc,
-            target_service=target_svc,
             session_service=session_svc,
             report_service=report_svc,
             template_service=template_svc,
             session_ctx=self.__ctx,
             compliance_service=compliance_svc,
+            workspace_service=workspace_svc,
         )
 
     def get_terraform_import_handler(self) -> TerraformImportHandler:

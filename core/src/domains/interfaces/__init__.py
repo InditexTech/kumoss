@@ -11,6 +11,7 @@ from .template_interface import ITemplate
 from .terraform_interface import ITerraform
 from .tool_registry_interface import IToolRegistry
 from .tracer_interface import ITracer
+from .workspace_interface import IWorkspace
 
 __all__ = [
     "IFileSystem",
@@ -22,4 +23,5 @@ __all__ = [
     "ITerraform",
     "IToolRegistry",
     "ITracer",
+    "IWorkspace",
 ]

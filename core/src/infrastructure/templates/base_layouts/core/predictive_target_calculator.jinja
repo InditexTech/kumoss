@@ -88,11 +88,6 @@ Its eligibility depends on both:
 
 <examples>
 - "create storage account with key in existing KeyVault" — the repo contains `azurerm_key_vault.main_kvt`. The KeyVault is a pre-existing related resource (the new storage key is stored in it), so target `azurerm_key_vault.main_kvt`. Do NOT target the storage account — it is net-new within the current session.
-- "add a secret to KeyVault kvt_001" — the repo contains `module "keyvault_001"` AND `data.azurerm_key_vault.kvt_001`. The KeyVault is the pre-existing primary resource; the module creates it and the data source is a read-only reference. Target `module.keyvault_001`, NOT the data source.
-- Drift detected on tags of keyvault_002 — the repo contains `module "keyvault_002"` and `data.azurerm_key_vault.kvt_002`. The drift is on the pre-existing resource created by the module. Target `module.keyvault_002`.
-- `diff_history` shows `module "keyvault_003"` was added in the current branch — the logical resource is net-new within the current session, even if it was introduced by a previous request in this session. Exclude `module.keyvault_003` from the target list even if the workspace inspection finds it.
-- "create a new storage account" — every impacted logical resource is net-new. Return an empty targets list.
-- "create a VM named like vault-vm-01" — the repo contains `module "keyvault_vault01"`. The naming similarity is weak and no targeting rule or actual impact applies. Exclude it.
 </examples>
 </instructions>
 

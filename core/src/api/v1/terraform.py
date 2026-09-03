@@ -23,6 +23,7 @@ from src.application.iac_requests import (
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
+from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.constants import OperationType, SessionStatus
@@ -107,6 +108,7 @@ def _make_runner(
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
             await DatabaseService.mark_failed(ctx.id, msg)
+            await NotificationServiceClient.notify_exception_failure(ctx.id, msg)
             return
         finally:
             tracer.reset_current_tracer(tracer_token)
@@ -169,7 +171,8 @@ async def drift_detection_remediation(
 async def apply_infrastructure(
     background_tasks: BackgroundTasks, request: ApplyRequest
 ) -> dict[str, str]:
-    """Applies the infrastructure changes for a given project and environment.
+    """Applies the plan pinned by the session's last successful generate or
+    drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
     ctx = await _resolve_or_raise(request)

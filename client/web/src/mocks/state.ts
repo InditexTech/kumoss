@@ -24,6 +24,7 @@ export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
   return {
     id: nextRoundId++,
     number: 1,
+    query: "deploy a VM",
     statuses: [makeStatus("started"), makeStatus("completed")],
     report: null,
     plan: null,

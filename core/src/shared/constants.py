@@ -56,7 +56,6 @@ class PromptsLibrary(Enum):
     IAC_FILTER = "iac_filter"
     IAC_IMPORT = "iac_import"
     TARGET_GENERATOR = "target_generator"
-    PREDICTIVE_TARGET_CALCULATOR = "predictive_target_calculator"
     REPORT_GENERATOR = "report_generator"
     PR_GENERATOR = "pr_generator"
     COMPLIANCE_CHECKER = "compliance_checker"
@@ -124,3 +123,12 @@ class TracerProject(Enum):
     PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
     PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
     PRO_TERRAFORM_IMPORT = "pro-terraform-import"
+
+
+@unique
+class TargetGenerationMode(Enum):
+    """Selects the target generator template file: target_{value}_generator.jinja"""
+
+    SESSION = "session"
+    PREDICTIVE = "predictive"
+    DRIFT = "drift"
