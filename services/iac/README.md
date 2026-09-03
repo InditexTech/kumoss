@@ -101,11 +101,50 @@ default OpenTofu engine:
 
 The service operates on `workspace_path` as visible *inside* its
 container. The OSS reference docker-compose deployment mounts a named
-volume `workspaces` at `/workspaces` in both the `api` and `iac`
+volume `workspaces` at `/workspaces` in both the `core` and `iac`
 containers, so the core writes the cloned repo there and references the
 same path when submitting jobs. Other deployments may use a
 PersistentVolumeClaim (k8s), an NFS mount, or an entirely different
 workspace-staging mechanism — same contract, different mechanics.
+
+## Runtime user and workspace ownership
+
+The image runs as an unprivileged user, `nebula` (uid/gid `10001`, set
+by the `NEBULA_UID` / `NEBULA_GID` build args): the engine executes
+provider plugins and provisioners from generated code, so it must not
+run as root. The docker-compose stack hardens the container further —
+`cap_drop: [ALL]`, `no-new-privileges`, a read-only root filesystem
+(only `/workspaces`, `/tmp` and `$HOME` are writable, the latter two as
+tmpfs) and CPU / memory / pid limits; see the `iac` service in
+[`docker-compose.yml`](../../docker-compose.yml).
+
+Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
+files and state next to the configuration, **workspace directories must
+be writable by that uid**. In the compose stack this holds because the
+core image is built with the same `NEBULA_UID` / `NEBULA_GID` and also
+runs as `nebula`, so everything the core clones is owned by the same
+user. Override the two build args together or not at all, and keep the
+`uid=` / `gid=` options of the `/home/nebula` tmpfs in
+`docker-compose.yml` in sync with them.
+
+- **Existing volumes.** A `workspaces` volume created by a stack that
+  ran as root keeps root-owned directories the engine can no longer
+  write to (`plan` fails with `permission denied` on
+  `terraform.tfstate` or the plan file). Fix it once, with the stack
+  stopped:
+  `docker run --rm -v nebula_workspaces:/w alpine chown -R 10001:10001 /w`,
+  or drop the volume (it only holds transient clones):
+  `docker volume rm nebula_workspaces`.
+- **Other deployments.** On Kubernetes set `runAsUser: 10001` and
+  `fsGroup: 10001` in the `securityContext` of the iac pod and of
+  whatever writes the shared PersistentVolumeClaim; export an NFS
+  workspace with matching ownership.
+- **Cloud CLIs.** `az`, `gcloud` and `aws` keep their per-user state
+  under `$HOME` (`~/.azure`, `~/.config/gcloud`, `~/.aws`). The
+  `resource-graph` az extension is installed system-wide in
+  `/opt/azure-cli-extensions` (`AZURE_EXTENSION_DIR`) so the runtime
+  user finds it. Credential files you mount must be readable by uid
+  `10001`.
 
 ## Run locally
 
