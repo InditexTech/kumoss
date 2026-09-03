@@ -29,7 +29,7 @@ All run from `client/web`. Node ≥ 20 is required for the test toolchain (Vites
 - All API calls use same-origin relative paths (`/api/v1/...`). There is **no Vite dev proxy** in `vite.config.js`, so `npm run dev` alone has no backend.
 - The full stack runs via `docker compose up --build` from the repo root, browsed at `http://localhost`. The `proxy` (nginx) compose service serves a **static production build** of this app baked into the `nebula-nginx` image (`nginx/Dockerfile` runs `npm ci && npm run build`) and routes `/api` → `core:8000`, with a dedicated buffering-off location for the SSE endpoint.
 - To see frontend changes in the stack, rebuild the proxy: `docker compose build proxy && docker compose up -d proxy` (from repo root). `docker compose watch` hot-reloads only the `core` backend, not this client.
-- `npm run dev:mock` sets `VITE_MOCK_API=true` but is currently inert: the MSW browser-worker bootstrap in `src/main.tsx` is commented out and `src/mocks/browser.ts` does not exist. MSW is only active in tests (node server).
+- MSW is test-only: the node server starts in `src/test/setup.ts`. There is no browser worker or mock dev mode.
 
 ## Architecture
 
