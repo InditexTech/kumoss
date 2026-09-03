@@ -18,6 +18,15 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    async def render_iac_filter(
+        self,
+        unmanaged_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        pass
+
+    @abstractmethod
     async def render_target_generator(
         self,
         mode: TargetGenerationMode,
@@ -44,9 +53,6 @@ class ITemplate(ABC):
     @abstractmethod
     async def render_requests_filter(
         self,
-        resources: list[str],
-        abbreviations: list[str],
-        include_forbidden_actions: bool,
         operation_type: OperationType,
     ) -> str:
         pass
@@ -68,7 +74,12 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_iac_import(self) -> str:
+    async def render_iac_import(
+        self,
+        selected_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
         pass
 
     @abstractmethod

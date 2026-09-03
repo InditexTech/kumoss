@@ -40,6 +40,7 @@ from src.infrastructure.terraform.factory import TerraformFactory
 from src.application.services import (
     RequestsFilterService,
     TerraformDriftService,
+    TerraformImportService,
     PullRequestService,
     ReportService,
 )
@@ -47,6 +48,7 @@ from src.application.use_cases import (
     TerraformCRUDHandler,
     TerraformDriftHandler,
     TerraformApplyHandler,
+    TerraformImportHandler,
 )
 
 # Shared imports
@@ -289,6 +291,14 @@ class ApplicationFactory:
             artifact_service=artifact_service,
         )
 
+    @staticmethod
+    def _get_import_service(
+        import_provider: ITerraform,
+    ) -> TerraformImportService:
+        return TerraformImportService(
+            import_provider=import_provider,
+        )
+
     # --- Providers for Top-Level Use Cases ---
     # These providers compose the final use case objects.
 
@@ -448,4 +458,51 @@ class ApplicationFactory:
             session_ctx=self.__ctx,
             compliance_service=compliance_svc,
             workspace_service=workspace_svc,
+        )
+
+    def get_terraform_import_handler(self) -> TerraformImportHandler:
+        file_utils = self._get_file_utils()
+        artifact_svc = self._get_artifact_storage_service()
+        git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
+        tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
+        llm_svc = self._get_default_llm_service(tool_svc)
+        session_svc = self._get_session_service(llm_svc)
+        template_svc = self._get_template_service(
+            file_utils.project_root, llm_svc, tool_svc
+        )
+        report_svc = self._get_report_service(
+            llm_svc, tool_svc, template_svc, session_svc, artifact_svc
+        )
+        validator_prv = self._get_terraform_provider(file_utils.project_root)
+        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
+        validation_svc = self._get_terraform_validation_service(
+            git_utils=git_utils,
+            file_utils=file_utils,
+            session_service=session_svc,
+            template_service=template_svc,
+            main_llm_service=llm_svc,
+            tool_service=tool_svc,
+            artifact_service=artifact_svc,
+        )
+        filter_svc = self._get_requests_filter_service(
+            session_service=session_svc,
+            second_llm_service=llm_svc,
+            tool_service=tool_svc,
+            template_service=template_svc,
+        )
+        import_svc = self._get_import_service(
+            import_provider=validator_prv,
+        )
+        return TerraformImportHandler(
+            session_ctx=self.__ctx,
+            session_service=session_svc,
+            terraform_service=validator_prv,
+            validation_service=validation_svc,
+            template_service=template_svc,
+            requests_filter_service=filter_svc,
+            import_service=import_svc,
+            report_service=report_svc,
+            compliance_service=compliance_svc,
+            llm_service=llm_svc,
+            tool_service=tool_svc,
         )

@@ -4,7 +4,7 @@
 
 from collections.abc import Awaitable
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 from src.domains.entities import History, SessionContext
 from src.domains.exceptions import ValidationLoopExceededError
@@ -86,17 +86,27 @@ class TerraformValidationService:
         conventions: Conventions,
         include_forbidden_actions: bool,
         validator: Callable[[History], Awaitable[TerraformValidationDTO]],
+        prompt_key: PromptsLibrary | None = None,
+        sentinel_context: ToolContext | None = None,
+        prompt_kwargs: dict[str, Any] | None = None,
     ) -> TerraformValidationDTO:
         """
         Execute the terraform generation and validation cycle using tool calls
 
         :param query: User query
         :param history: task conversation history
+        :param prompt_key: Override the prompt template (defaults to IAC_GENERATOR)
+        :param sentinel_context: Override the sentinel tool context (defaults to GENERAL_TASK_COMPLETION)
+        :param prompt_kwargs: Extra kwargs passed to the template render
         :return: last validation state ValidationDTO
         """
+        effective_prompt = prompt_key or PromptsLibrary.IAC_GENERATOR
+        effective_sentinel = sentinel_context or ToolContext.GENERAL_TASK_COMPLETION
+
         first_q = q
         validation = TerraformValidationDTO.empty()
         local_history = ctx.history.deepcopy()
+        self.last_generation_result: ToolResultDTO | None = None
         for i in range(system_config.orchestration.max_validation_iteration):
             logging.debug(
                 f"Validation service {i}/{system_config.orchestration.max_validation_iteration}"
@@ -108,6 +118,15 @@ class TerraformValidationService:
                 history=local_history,
             )
 
+            render_kwargs: dict[str, Any] = {
+                "resources": conventions.templates,
+                "abbreviations": conventions.abbreviations,
+            }
+            if effective_prompt == PromptsLibrary.IAC_GENERATOR:
+                render_kwargs["include_forbidden_actions"] = include_forbidden_actions
+            if prompt_kwargs:
+                render_kwargs.update(prompt_kwargs)
+
             task_complete: ToolResultDTO = await self.__llm_svc.generate(
                 query=q,
                 tools=self.__tool_orchestration.get_available_tools(
@@ -118,16 +137,15 @@ class TerraformValidationService:
                     ]
                 ),
                 sentinel_tool=self.__tool_orchestration.get_sentinel_tool(
-                    context=ToolContext.GENERAL_TASK_COMPLETION,
+                    context=effective_sentinel,
                 ),
                 prompt=await self.__template_svc.render(
-                    prompt=PromptsLibrary.IAC_GENERATOR,
-                    resources=conventions.templates,
-                    abbreviations=conventions.abbreviations,
-                    include_forbidden_actions=include_forbidden_actions,
+                    prompt=effective_prompt,
+                    **render_kwargs,
                 ),
                 history=local_history,
             )
+            self.last_generation_result = task_complete
 
             local_history.append_turn(q, task_complete.result.get("summary"))
 

@@ -43,6 +43,9 @@ from src.clients.iac.api.jobs import get_job as get_job_op
 from src.clients.iac.api.plan import plan as plan_op
 from src.clients.iac.api.show import show as show_op
 from src.clients.iac.api.validate import validate as validate_op
+from src.clients.iac.api.import_ import state_resource_ids as state_op
+from src.clients.iac.api.import_ import scope_resource_ids as scope_op
+from src.clients.iac.api.import_ import import_resource as import_op
 from src.clients.iac.client import AuthenticatedClient
 from src.clients.iac.models.apply_request import ApplyRequest
 from src.clients.iac.models.init_request import InitRequest
@@ -54,17 +57,26 @@ from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
 from src.clients.iac.models.show_request import ShowRequest
 from src.clients.iac.models.validate_request import ValidateRequest
+from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
+from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
+from src.clients.iac.models.import_request import ImportRequest
 from src.clients.iac.types import UNSET
 from src.domains.dto import TerraformValidationDTO
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
 OperationRequest = (
-    InitRequest | ValidateRequest | PlanRequest | ShowRequest | ApplyRequest
+    InitRequest
+    | ValidateRequest
+    | PlanRequest
+    | ShowRequest
+    | ApplyRequest
+    | StateResourceIdsRequest
 )
 
 
@@ -284,6 +296,159 @@ class Terraform(ITerraform):
     @staticmethod
     def __needs_init(res: OperationResult) -> bool:
         return "terraform init" in f"{res.stderr}\n{res.stdout}".lower()
+
+    @override
+    async def state_resource_ids(self) -> list[str]:
+        cfg = system_config.services.iac
+        if not cfg.enabled or not cfg.endpoint:
+            raise ExceptionHandler(
+                message="IaC service is disabled or has no endpoint; cannot retrieve state resource IDs. "
+                + "Enable services.iac in the system config.",
+                error_code=500,
+            )
+
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__run_op(
+                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                )
+                if init_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                state_res = await self.__run_op(
+                    c, state_op, StateResourceIdsRequest(workspace_path=workspace), cfg
+                )
+                if state_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform state pull failed: {state_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                return json.loads(state_res.stdout)
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    @override
+    async def scope_resource_ids(
+        self,
+        scope_id: str,
+        terraform_provider: TerraformProvider,
+    ) -> list[str]:
+        cfg = system_config.services.iac
+        if not cfg.enabled or not cfg.endpoint:
+            raise ExceptionHandler(
+                message="IaC service is disabled or has no endpoint; cannot retrieve scope resource IDs. "
+                + "Enable services.iac in the system config.",
+                error_code=500,
+            )
+
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__run_op(
+                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                )
+                if init_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                scope_res = await self.__run_op(
+                    c,
+                    scope_op,
+                    ScopeResourceIdsRequest(
+                        workspace_path=workspace,
+                        scope_id=scope_id,
+                        terraform_provider=terraform_provider,
+                    ),
+                    cfg,
+                )
+                if scope_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform scope resource IDs failed: {scope_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                return json.loads(scope_res.stdout)
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    @trace_terraform
+    @override
+    async def import_resource(
+        self,
+        address: str,
+        resource_id: str,
+    ) -> TerraformValidationDTO:
+        cfg = system_config.services.iac
+        if not cfg.enabled or not cfg.endpoint:
+            raise ExceptionHandler(
+                message="IaC service is disabled or has no endpoint; cannot import resource. "
+                + "Enable services.iac in the system config.",
+                error_code=500,
+            )
+
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__run_op(
+                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                )
+                if init_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                import_res = await self.__run_op(
+                    c,
+                    import_op,
+                    ImportRequest(
+                        workspace_path=workspace,
+                        address=address,
+                        resource_id=resource_id,
+                    ),
+                    cfg,
+                )
+                if import_res.exit_code != 0:
+                    return TerraformValidationDTO(
+                        validation=False,
+                        feedback=import_res.stderr or "terraform import failed",
+                        terraform_plan=import_res.stdout,
+                        terraform_targets=[address],
+                    )
+                return TerraformValidationDTO(
+                    validation=True,
+                    feedback="",
+                    terraform_plan=import_res.stdout,
+                    terraform_targets=[address],
+                )
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
     async def __run_op(
         self,

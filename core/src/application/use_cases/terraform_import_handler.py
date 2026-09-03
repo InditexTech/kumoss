@@ -3,33 +3,36 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-from typing import Callable, Any
+from typing import Callable, Any, cast
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
-from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
+from src.application.services.terraform_import_service import TerraformImportService
+from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
-from src.domains.interfaces import ITerraform, IWorkspace
+from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
     TerraformValidationService,
-    TerraformTargetService,
 )
 from src.domains.services.database_service import DatabaseService
+from src.domains.services.llm_service import LLMOrchestrationService
+from src.domains.services.tool_service import ToolOrchestrationService
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.constants import (
     PromptsLibrary,
     ReportType,
     SessionStatus,
+    ToolContext,
 )
+from src.shared.logger import logging
 
 
-class TerraformCRUDHandler:
+class TerraformImportHandler:
     def __init__(
         self,
         session_ctx: SessionContext,
@@ -38,11 +41,11 @@ class TerraformCRUDHandler:
         validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
+        import_service: TerraformImportService,
         report_service: ReportService,
-        target_service: TerraformTargetService,
-        drift_service: TerraformDriftService,
         compliance_service: ComplianceCheckService,
-        workspace_service: IWorkspace,
+        llm_service: LLMOrchestrationService,
+        tool_service: ToolOrchestrationService,
     ):
         self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
@@ -50,10 +53,10 @@ class TerraformCRUDHandler:
         self.__template_svc = template_service
         self.__report_svc = report_service
         self.__requests_filter_svc = requests_filter_service
-        self.__target_svc = target_service
-        self.__drift_svc = drift_service
+        self.__import_svc = import_service
         self.__compliance_svc = compliance_service
-        self.__workspace_svc = workspace_service
+        self.__llm_svc = llm_service
+        self.__tool_svc = tool_service
         self.__ctx = session_ctx
 
     async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
@@ -70,8 +73,10 @@ class TerraformCRUDHandler:
                     status=SessionStatus.FILTERING,
                     history=ctx.history,
                 )
+                conventions = await self.__template_svc.compose_template(q, ctx.history)
+
                 ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, ctx.operation
+                    q, ctx.history, conventions, ctx.operation
                 )
                 if not ok:
                     ctx.history.append_turn(q, rationale)
@@ -81,36 +86,66 @@ class TerraformCRUDHandler:
                     )
                     return
 
-                conventions = await self.__template_svc.compose_template(q, ctx.history)
-
-                predictive_targets = await self.__target_svc.generate_predictive(
-                    query=q,
-                    history=ctx.history,
-                    conventions=conventions,
+                # Step 1 — Discovery
+                unmanaged_ids = await self.__import_svc.get_unmanaged_resources(
+                    scope_id=ctx.scope_id,
+                    terraform_provider=ctx.terraform_prv,
                 )
+                if not unmanaged_ids:
+                    msg = "No unmanaged resources found in scope."
+                    ctx.history.append_turn(q, msg)
+                    _ = await self.__session_svc.update_status(
+                        msg=msg,
+                        status=SessionStatus.UNCOMPLETED,
+                    )
+                    return
 
+                # Step 2 — Selection (iac_filter agent)
+                filter_result: ToolResultDTO = await self.__llm_svc.generate(
+                    query=q,
+                    tools=[],
+                    sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                        context=ToolContext.IAC_FILTER,
+                    ),
+                    prompt=await self.__template_svc.render(
+                        prompt=PromptsLibrary.IAC_FILTER,
+                        unmanaged_ids=unmanaged_ids,
+                        resources=conventions.templates,
+                        abbreviations=conventions.abbreviations,
+                    ),
+                    history=ctx.history,
+                )
+                selected_ids: list[str] = cast(
+                    list[str], filter_result.result["selected_resource_ids"]
+                )
+                filter_explanation: str = cast(str, filter_result.result["explanation"])
+
+                if not selected_ids:
+                    ctx.history.append_turn(q, filter_explanation)
+                    _ = await self.__session_svc.update_status(
+                        msg=filter_explanation,
+                        status=SessionStatus.UNCOMPLETED,
+                    )
+                    return
+
+                # Step 3 — Config generation (IAC_IMPORT prompt + IAC_IMPORT sentinel)
                 async def validation_callback(
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
-                    )
-
-                if predictive_targets:
-                    _ = await self.__drift_svc.detect_and_resolve_drift(
-                        targets=predictive_targets,
-                        conventions=conventions,
-                        max_iterations=2,
-                        validator=validation_callback,
+                        branch=ctx.branch_name,
+                        targets=[],
                     )
 
                 validation = await self.__validation_svc.generate_and_validate(
                     q=q,
                     ctx=ctx,
                     conventions=conventions,
-                    include_forbidden_actions=True,
+                    include_forbidden_actions=False,
                     validator=validation_callback,
+                    prompt_key=PromptsLibrary.IAC_IMPORT,
+                    sentinel_context=ToolContext.IAC_IMPORT,
+                    prompt_kwargs={"selected_ids": selected_ids},
                 )
 
                 if not validation.validation:
@@ -123,9 +158,45 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
+                # Step 4 — Import execution
+                generation_result = self.__validation_svc.last_generation_result
+                imports: list[tuple[str, str]] = [
+                    (entry["address"], entry["resource_id"])
+                    for entry in (
+                        generation_result.result.get("imports", [])
+                        if generation_result
+                        else []
+                    )
+                ]
+                import_results = await self.__import_svc.import_resources(imports)
+
+                failed = [r for r in import_results if not r.validation]
+                if failed:
+                    logging.warning(
+                        f"{len(failed)}/{len(import_results)} resource imports failed"
+                    )
+
+                # Step 5 — Convergence validation
+                imported_addresses = [
+                    r.terraform_targets[0]
+                    for r in import_results
+                    if r.validation and r.terraform_targets
+                ]
+                if imported_addresses:
+                    convergence = await self.__terraform_svc.validate(
+                        branch=ctx.branch_name,
+                        targets=imported_addresses,
+                    )
+                    if not convergence.validation:
+                        logging.warning(
+                            f"Convergence validation found pending changes: "
+                            f"{convergence.feedback}"
+                        )
+
+                # Step 6 — Gate
                 report = await self.__report_svc.generate_report(
                     ctx=ctx,
-                    type=ReportType.GENERATE,
+                    type=ReportType.IMPORT,
                     content=validation.terraform_plan,
                 )
                 check = await self.__compliance_svc.check(
@@ -148,7 +219,6 @@ class TerraformCRUDHandler:
                         message="Error updating DB session lock.",
                         error_code=500,
                     )
-                self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:
                 await self.__session_svc.save()
 

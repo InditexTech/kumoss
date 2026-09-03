@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP resource IDs that must never be imported into Terraform, regardless of query.
+body: |
+  # Import Exception List — GCP
+
+  Resource IDs listed here are excluded from every import operation.
+  The iac_filter agent removes them before selection, even on a
+  broad "import everything" query.
+
+  This placeholder is deliberately empty. Curate the real exception
+  list in the Phoenix UI; the seeder never overwrites it.
