@@ -123,7 +123,7 @@ class ApplicationFactory:
             git=git_utils,
             llm=ApplicationFactory.get_llm_adapter(
                 model_id=system_config.llm.small_model,
-                max_tokens=system_config.llm.small_model_max_output_tokens,
+                max_tokens=system_config.llm.max_output_tokens,
                 temperature=0.5,
             ),
         )
@@ -140,7 +140,7 @@ class ApplicationFactory:
             tool_registry=ToolRegistryStatic(
                 llm=ApplicationFactory.get_llm_adapter(
                     model_id=system_config.llm.small_model,
-                    max_tokens=system_config.llm.small_model_max_output_tokens,
+                    max_tokens=system_config.llm.max_output_tokens,
                     temperature=0.5,
                 ),
             )
@@ -300,8 +300,8 @@ class ApplicationFactory:
             main_max_tokens=system_config.llm.max_output_tokens,
             main_temp=system_config.llm.temperature,
             small_llm=system_config.llm.small_model,
-            small_temp=system_config.llm.small_model_temperature,
-            small_max_tokens=system_config.llm.small_model_max_output_tokens,
+            small_temp=system_config.llm.temperature,
+            small_max_tokens=system_config.llm.max_output_tokens,
             tool_service=tool_svc,
         )
 

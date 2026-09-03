@@ -17,6 +17,17 @@ Short description of what this project does and why it exists.
 
 ## LiteLLM Models and Params Reference
 
+To configure the LLMs, set `llm.model` and `llm.small_model` in `config.yaml`
+to `provider/model-id` strings (the **Model String Format** column below) and
+export that provider's **Default LiteLLM Env Vars** (middle column) in
+`core/.env`. The core fails boot when litellm reports required env vars
+missing; note that some providers (e.g. `azure_ai`) have no litellm
+validation mapping, so missing credentials surface on the first LLM call
+instead. For advanced routing — fallbacks, load balancing, or custom
+credential env var names — use the optional `llm.model_list` key (see
+[Advanced: `llm.model_list`](#advanced-llmmodel_list) below); the
+**Standard `litellm_params` Keys** column applies only there.
+
 ### 1. Major Cloud Platforms (Hyperscalers)
 
 
@@ -24,7 +35,7 @@ Short description of what this project does and why it exists.
 | :--- | :--- | :--- | :--- | :--- |
 | **Azure AI Foundry** (Claude, Llama, etc.) | `azure_ai/<model-name>` | `AZURE_AI_API_KEY`<br>`AZURE_AI_API_BASE` | `api_key`<br>`api_base` | `https://<resource>.services.ai.azure.com/anthropic` (or `/models`) |
 | **Azure OpenAI** | `azure/<deployment-name>` | `AZURE_API_KEY`<br>`AZURE_API_BASE`<br>`AZURE_API_VERSION` | `api_key`<br>`api_base`<br>`api_version` | `https://<resource>.openai.azure.com` |
-| **Google Vertex AI** | `vertex_ai/<model-name>` | `VERTEXAI_PROJECT`<br>`VERTEXAI_LOCATION`<br>`GOOGLE_APPLICATION_CREDENTIALS` | `vertex_project`<br>`vertex_location`<br>`vertex_credentials` | Auth via GCP Service Account JSON or ADC. |
+| **Google Vertex AI** | `vertex_ai/<model-name>` | `VERTEXAI_PROJECT`<br>`VERTEXAI_LOCATION`<br>`VERTEXAI_CREDENTIALS` | `vertex_project`<br>`vertex_location`<br>`vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account JSON — a file path or the raw JSON content. Alternatively omit it and use ADC (`GOOGLE_APPLICATION_CREDENTIALS` file path, workload identity, …). |
 | **Google AI Studio (Gemini API)** | `gemini/<model-name>` | `GEMINI_API_KEY` | `api_key` | Direct Google AI Studio API key. |
 | **AWS Bedrock** | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`<br>`AWS_SECRET_ACCESS_KEY`<br>`AWS_REGION_NAME` | `aws_access_key_id`<br>`aws_secret_access_key`<br>`aws_region_name` | Model IDs like `anthropic.claude-3-5-sonnet-20241022-v2:0`. |
 | **AWS SageMaker** | `sagemaker/<endpoint-name>` | `AWS_ACCESS_KEY_ID`<br>`AWS_SECRET_ACCESS_KEY`<br>`AWS_REGION_NAME` | `aws_access_key_id`<br>`aws_secret_access_key`<br>`aws_region_name` | Targeted SageMaker deployed endpoint. |
@@ -86,6 +97,32 @@ Short description of what this project does and why it exists.
 | **TGI (HuggingFace Text Gen)** | `huggingface/<model-name>` or `tgi/<endpoint>` | `HUGGINGFACE_API_KEY` | `api_key`<br>`api_base` | Endpoint URL from HF Dedicated Endpoints or local TGI. |
 | **Hugging Face Serverless** | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) | `api_key` | Standard Hugging Face inference tokens. |
 | **Generic OpenAI-Compatible** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Works with LocalAI, LM Studio, FastChat, TabbyAPI, etc. |
+
+### Advanced: `llm.model_list`
+
+`llm.model_list` follows the [LiteLLM Router
+format](https://docs.litellm.ai/docs/routing) and is only needed for
+fallbacks, load balancing, or credential env var names that differ from the
+provider defaults. When set, `llm.model` and `llm.small_model` must match a
+`model_name` entry, and credential values use the `os.environ/VAR_NAME`
+syntax so secrets stay in env vars. Each provider's keys are listed in the
+**Standard `litellm_params` Keys** column of the tables above (full
+reference: <https://docs.litellm.ai/docs/providers>):
+
+```yaml
+llm:
+  model: "anthropic/claude-sonnet-5"
+  small_model: "anthropic/claude-sonnet-5"
+  model_list:
+    - model_name: "anthropic/claude-sonnet-5"
+      litellm_params:
+        model: "anthropic/claude-sonnet-5"
+        api_key: "os.environ/MY_ANTHROPIC_KEY_VAR"
+```
+
+Note: boot validation checks the provider's *default* env var names even for
+`model_list` entries (a litellm limitation), so when using custom-named vars
+the default-named ones must also be set for the core to boot.
 
 ## Features
 
