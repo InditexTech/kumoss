@@ -43,6 +43,20 @@ class TestAuthConfig(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_scope_placeholder_served_expanded(self):
+        oidc = OidcConfig(
+            issuer_url="https://idp.example.com/realms/nebula",
+            client_id="nebula-spa",
+            scope="openid api://{client_id}/access_as_user",
+        )
+        with patch("src.api.v1.auth.system_config") as cfg:
+            cfg.oidc = oidc
+            resp = await self.client.get("/v1/auth/config")
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(body["scope"], "openid api://nebula-spa/access_as_user")
+        self.assertEqual(body["audience"], "")
+
     async def test_blank_issuer_means_auth_disabled(self):
         with patch("src.api.v1.auth.system_config") as cfg:
             cfg.oidc = OidcConfig()

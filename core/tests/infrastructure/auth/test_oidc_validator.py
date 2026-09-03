@@ -98,12 +98,20 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TokenValidationError):
             await self._validator().validate(self._token(aud="someone-else"))
 
+    async def test_api_uri_audience_accepted_by_default(self):
+        claims = await self._validator().validate(
+            self._token(aud=f"api://{_CLIENT_ID}")
+        )
+        self.assertEqual(claims.subject, "user-1")
+
     async def test_configured_audience_overrides_client_id(self):
         validator = self._validator(audience="api://nebula")
         claims = await validator.validate(self._token(aud="api://nebula"))
         self.assertEqual(claims.subject, "user-1")
         with self.assertRaises(TokenValidationError):
             await validator.validate(self._token(aud=_CLIENT_ID))
+        with self.assertRaises(TokenValidationError):
+            await validator.validate(self._token(aud=f"api://{_CLIENT_ID}"))
 
     async def test_expired_token_is_rejected(self):
         token = self._token(exp=int(time.time()) - 300)

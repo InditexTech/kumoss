@@ -1,9 +1,11 @@
 # Default Nebula system config bundled with the docker-compose stack.
 #
-# This file is read by the core when NEBULA_CONFIG points at it (the
-# docker-compose `api` service sets that env var and mounts this file
-# read-only at /etc/nebula/config.yaml). It carries deployment-tunable
-# knobs — no secrets.
+# This file is baked into the nebula-core image at build time (the
+# Dockerfile copies it to /etc/nebula/config.yaml, the path the core
+# reads by default; set NEBULA_CONFIG to load a different file). Edits
+# here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
+# so rebuild after changing it: `docker compose build core`. It carries
+# deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
 # names (AWS_ACCESS_KEY_ID, GOOGLE_APPLICATION_CREDENTIALS, GIT_TOKEN,
@@ -19,21 +21,14 @@
 # tagging; no behavior gates are keyed on it today.
 environment: "development"
 
-# OIDC issuer settings. The core validates bearer tokens against this
-# issuer (signature via JWKS discovery, iss, aud, exp) and the React
-# frontend uses the same issuer/client_id for its auth-code + PKCE login.
-# Leave issuer_url blank to disable auth entirely (dev default): every
-# request then acts as a local developer identity holding the top role of
-# both role groups. When audience is blank, client_id is accepted as the
-# expected token audience. IdP notes: Entra ID needs the SPA to request a
-# custom API scope (api://<client-id>/...) so the access token carries
-# your audience; Keycloak needs an audience mapper; Auth0 needs the
-# audience passed on the authorize request (the frontend sends it when
-# configured). clock_skew_seconds is the allowed leeway on exp/iat/nbf.
+# OIDC login + bearer-token validation. Blank issuer_url disables auth
+# entirely (dev default: every request acts as a local developer with
+# top roles). Optional overrides (`audience`, `scope`), per-IdP setup
+# and quirks (Entra ID, Keycloak, Auth0): docs/oidc-setup.md.
+# clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
   client_id: ""
-  audience: ""
   clock_skew_seconds: 60
 
 # Bootstrap administrator. The user whose OIDC token email matches this

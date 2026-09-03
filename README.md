@@ -112,6 +112,14 @@ Show basic usage or link to examples.
 your-tool init
 ```
 
+### Authentication
+
+Authentication is optional: with a blank `oidc.issuer_url` in
+`config.yaml` (the default) every request acts as a local developer.
+To enable it, set `oidc.issuer_url` and `oidc.client_id` — see
+[docs/oidc-setup.md](./docs/oidc-setup.md) for per-provider steps
+(Microsoft Entra ID, Keycloak, Auth0).
+
 ## Contributing
 
 We welcome contributions!

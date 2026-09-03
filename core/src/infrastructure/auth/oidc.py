@@ -47,7 +47,7 @@ class OidcTokenValidator:
 
     def __init__(self, issuer_url: str, client_id: str, audience: str, leeway: int):
         self._issuer = issuer_url.rstrip("/")
-        self._audiences = [audience] if audience else [client_id]
+        self._audiences = [audience] if audience else [client_id, f"api://{client_id}"]
         self._leeway = leeway
         self._jwks_client: jwt.PyJWKClient | None = None
         self._jwks_lock = threading.Lock()
