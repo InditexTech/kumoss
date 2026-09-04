@@ -76,7 +76,9 @@ async def cloud_login(config: Config) -> None:
     re-check inside the lock and skip if another task already refreshed.
 
     Each provider is guarded by its required env vars — missing vars
-    skip that provider with an info log.
+    skip that provider with an info log.  All configured providers are
+    attempted independently; failures are collected and raised together
+    so every broken credential surfaces in a single startup cycle.
     """
     global _last_login
     async with _login_lock:
@@ -84,12 +86,18 @@ async def cloud_login(config: Config) -> None:
             logger.debug("cloud tokens still valid, skipping re-login")
             return
 
+        errors: list[str] = []
+
         if (
             config.azure_client_id
             and config.azure_client_secret
             and config.azure_tenant_id
         ):
-            await _az_login_sp(config)
+            try:
+                await _az_login_sp(config)
+            except RuntimeError as exc:
+                logger.error("Azure login failed: %s", exc)
+                errors.append(f"Azure: {exc}")
         else:
             logger.info(
                 "Azure login skipped: ARM_CLIENT_ID, ARM_CLIENT_SECRET, "
@@ -97,7 +105,11 @@ async def cloud_login(config: Config) -> None:
             )
 
         if config.google_application_credentials or config.google_credentials:
-            await _gcloud_auth(config)
+            try:
+                await _gcloud_auth(config)
+            except RuntimeError as exc:
+                logger.error("GCP auth failed: %s", exc)
+                errors.append(f"GCP: {exc}")
         else:
             logger.info(
                 "GCP auth skipped: GOOGLE_APPLICATION_CREDENTIALS "
@@ -108,6 +120,11 @@ async def cloud_login(config: Config) -> None:
             logger.info("AWS ambient credentials detected")
         else:
             logger.info("AWS auth skipped: no ambient credentials detected")
+
+        if errors:
+            raise RuntimeError(
+                "Cloud login failed for: " + "; ".join(errors)
+            )
 
         _last_login = time.monotonic()
         logger.info("cloud login completed")

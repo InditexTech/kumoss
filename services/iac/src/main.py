@@ -306,7 +306,14 @@ async def init(
         env = await _scope_env(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
-        return _result(await tf.init(config.terraform_binary, workspace, env=env))
+        return _result(
+            await tf.init(
+                config.terraform_binary,
+                workspace,
+                backend_config=config.backend_config,
+                env=env,
+            )
+        )
 
     return _submit("init", workspace, response, _pipeline)
 
