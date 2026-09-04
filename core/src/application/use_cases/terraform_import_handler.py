@@ -76,7 +76,7 @@ class TerraformImportHandler:
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
                 ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, conventions, ctx.operation
+                    q, ctx.history, ctx.operation
                 )
                 if not ok:
                     ctx.history.append_turn(q, rationale)
@@ -103,10 +103,11 @@ class TerraformImportHandler:
                 # Step 2 — Selection (iac_filter agent)
                 filter_result: ToolResultDTO = await self.__llm_svc.generate(
                     query=q,
-                    tools=[],
-                    sentinel_tool=self.__tool_svc.get_sentinel_tool(
-                        context=ToolContext.IAC_FILTER,
-                    ),
+                    tools=[
+                        self.__tool_svc.get_sentinel_tool(
+                            context=ToolContext.IAC_FILTER,
+                        )
+                    ],
                     prompt=await self.__template_svc.render(
                         prompt=PromptsLibrary.IAC_FILTER,
                         unmanaged_ids=unmanaged_ids,
@@ -133,8 +134,8 @@ class TerraformImportHandler:
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        branch=ctx.branch_name,
                         targets=[],
+                        get_drift=False,
                     )
 
                 validation = await self.__validation_svc.generate_and_validate(
@@ -184,8 +185,8 @@ class TerraformImportHandler:
                 ]
                 if imported_addresses:
                     convergence = await self.__terraform_svc.validate(
-                        branch=ctx.branch_name,
                         targets=imported_addresses,
+                        get_drift=True,
                     )
                     if not convergence.validation:
                         logging.warning(
