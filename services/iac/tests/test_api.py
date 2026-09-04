@@ -299,6 +299,57 @@ def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> No
     )
 
 
+def test_init_passes_backend_config_when_set(tmp_path: Path) -> None:
+    """When TF_BACKEND_CONFIG is set, init passes -backend-config to terraform."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="Initialized", stderr="", exit_code=0)
+    service_main.config = Config(
+        expected_token="",
+        terraform_binary="sh",
+        backend_config="backend.tfbackend",
+    )
+    service_main.workspace_queue = WorkspaceQueue()
+    service_main.jobs = JobRegistry(
+        ttl_seconds=3600, workspace_queue=service_main.workspace_queue
+    )
+    with TestClient(service_main.app) as client:
+        with patch(
+            "src.terraform.init", new_callable=AsyncMock, return_value=ok
+        ) as init_mock:
+            response = client.post(
+                "/v1/init",
+                json={"workspace_path": str(workspace)},
+            )
+            assert response.status_code == 202
+            _poll_until_terminal(client, response.json()["job_id"])
+    init_mock.assert_awaited_once_with(
+        "sh", workspace, backend_config="backend.tfbackend", env=None
+    )
+
+
+def test_init_omits_backend_config_when_empty(tmp_path: Path) -> None:
+    """When TF_BACKEND_CONFIG is not set, init is called without backend_config."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="Initialized", stderr="", exit_code=0)
+    with _client_with() as client:
+        with patch(
+            "src.terraform.init", new_callable=AsyncMock, return_value=ok
+        ) as init_mock:
+            response = client.post(
+                "/v1/init",
+                json={"workspace_path": str(workspace)},
+            )
+            assert response.status_code == 202
+            _poll_until_terminal(client, response.json()["job_id"])
+    init_mock.assert_awaited_once_with(
+        "sh", workspace, backend_config="", env=None
+    )
+
+
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
     """An unexpected exception in the operation is a service-level
     fault: the job ends `failed` with a 500 problem."""

@@ -151,9 +151,16 @@ def _plan_file_arg(plan_file: str) -> str:
 
 
 async def init(
-    binary: str, cwd: Path, *, env: dict[str, str] | None = None
+    binary: str,
+    cwd: Path,
+    *,
+    backend_config: str = "",
+    env: dict[str, str] | None = None,
 ) -> CommandResult:
-    return await _run(binary, ["init", "-no-color", "-input=false"], cwd, env=env)
+    args = ["init", "-no-color", "-input=false"]
+    if backend_config:
+        args.append(f"-backend-config={backend_config}")
+    return await _run(binary, args, cwd, env=env)
 
 
 async def validate(

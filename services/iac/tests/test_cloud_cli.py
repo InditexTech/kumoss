@@ -343,3 +343,89 @@ async def test_az_login_sp_passes_secret_via_env() -> None:
     assert "-p" not in args[0]
     # Secret must be in the env dict
     assert kwargs["env"]["AZURE_CLIENT_SECRET"] == "super-secret"
+
+
+# ---------------------------------------------------------------------------
+# cloud_login — independent provider checks
+# ---------------------------------------------------------------------------
+
+
+def _both_providers_config() -> Config:
+    return Config(
+        expected_token="",
+        terraform_binary="sh",
+        azure_client_id="az-id",
+        azure_client_secret="az-secret",
+        azure_tenant_id="az-tenant",
+        google_credentials='{"type": "service_account"}',
+    )
+
+
+@pytest.mark.asyncio
+async def test_cloud_login_attempts_gcp_even_when_azure_fails() -> None:
+    """Both providers are attempted independently; a failing Azure login
+    does not prevent the GCP login from running."""
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = _both_providers_config()
+        with (
+            patch(
+                "src.cloud_cli._az_login_sp",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("az login: bad credentials"),
+            ),
+            patch(
+                "src.cloud_cli._gcloud_auth",
+                new_callable=AsyncMock,
+            ) as gcloud_mock,
+            pytest.raises(RuntimeError, match="Cloud login failed"),
+        ):
+            await cloud_cli.cloud_login(config)
+        gcloud_mock.assert_awaited_once_with(config)
+    finally:
+        cloud_cli._last_login = original
+
+
+@pytest.mark.asyncio
+async def test_cloud_login_reports_all_failures_combined() -> None:
+    """When multiple providers fail, the error message includes all of them."""
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = _both_providers_config()
+        with (
+            patch(
+                "src.cloud_cli._az_login_sp",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("az login: expired"),
+            ),
+            patch(
+                "src.cloud_cli._gcloud_auth",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("gcloud: invalid key"),
+            ),
+            pytest.raises(RuntimeError, match="Cloud login failed") as exc_info,
+        ):
+            await cloud_cli.cloud_login(config)
+        assert "Azure" in str(exc_info.value)
+        assert "GCP" in str(exc_info.value)
+    finally:
+        cloud_cli._last_login = original
+
+
+@pytest.mark.asyncio
+async def test_cloud_login_succeeds_when_all_providers_ok() -> None:
+    """When all configured providers login successfully, _last_login is set."""
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = _both_providers_config()
+        with (
+            patch("src.cloud_cli._az_login_sp", new_callable=AsyncMock),
+            patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock),
+        ):
+            await cloud_cli.cloud_login(config)
+        assert cloud_cli._last_login > 0.0
+    finally:
+        cloud_cli._last_login = original
