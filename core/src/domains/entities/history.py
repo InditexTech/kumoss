@@ -82,15 +82,3 @@ class History(Iterable[Turn]):  # for the type checker
             {"user": str(turn.user), "assistant": str(turn.assistant)}
             for turn in self.__history
         ]
-
-
-if __name__ == "__main__":
-    msgs = History(
-        [
-            {"user": "hey", "assistant": "how you doing mate"},
-            {"user": "i'm doin' o right", "assistant": "good to know"},
-        ]
-    )
-
-    for idx, msg in enumerate(msgs):
-        print(idx, msg)

@@ -52,7 +52,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
             system_prompt="answer the user's question",
             thinking=True,
         )
-        print(output)
         self.assertIsInstance(output, LLMResponseDTO)
 
     async def test_inference_tool(self):
@@ -71,7 +70,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
             ).prompt,
             tools=tools,
         )
-        print(output)
         self.assertIsInstance(output, LLMResponseDTO)
 
     async def test_inference_multiple_tools(self):
@@ -93,7 +91,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
         )
         tools_result = await self.__tool_svc.execute_tool_calls(output.tool_calls)
         history.append_turn(user_msg=query, assistant_msg=output.tool_calls)
-        print(tools_result)
         output = await self.main_service.inference(
             msg=tools_result,
             system_prompt=(
@@ -102,7 +99,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
             tools=tools,
             history=history,
         )
-        print(output)
         self.assertIsInstance(output, LLMResponseDTO)
 
     async def test_inference_complete_chain(self):
@@ -129,7 +125,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
             )
             tools_result = await self.__tool_svc.execute_tool_calls(output.tool_calls)
             history.append_turn(user_msg=query, assistant_msg=output.tool_calls)
-            print(tools_result)
             output = await self.main_service.inference(
                 msg=tools_result,
                 system_prompt=(
@@ -139,7 +134,6 @@ class TestLLMAdapter(unittest.IsolatedAsyncioTestCase):
                 history=history,
             )
             history.append_turn(user_msg=tools_result, assistant_msg=output.tool_calls)
-            print(output)
         self.assertIsInstance(output, LLMResponseDTO)
 
 

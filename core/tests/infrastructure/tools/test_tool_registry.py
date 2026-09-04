@@ -49,7 +49,6 @@ class TestToolRegistry(unittest.IsolatedAsyncioTestCase):
         output = self.main_service._ToolRegistryWorkspace__handle_grep_search(
             test_input
         )
-        print(output)
         self.assertIsInstance(output, str)
 
     async def test_handle_pr_generator(self):
