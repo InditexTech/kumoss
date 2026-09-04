@@ -196,7 +196,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
                 message=f"Target generation inference hasn't returned the expected structure. got={targets}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "targets": targets,
@@ -220,7 +220,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_drift_generator(
@@ -238,7 +238,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_apply_generator(
@@ -260,7 +260,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_requests_filter(
@@ -271,7 +271,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(status, bool):
             raise ToolInferenceParamsError(
                 message=f"Requests filter inference hasn't returned the expected structure. got={status}",
-                error_code=500,
+                error_code=400,
             )
         return {"status": status, "explanation": explanation}
 
@@ -282,7 +282,7 @@ class ToolRegistryStatic(IToolRegistry):
             raise ToolInferenceParamsError(
                 message="PR generation inference hasn't returned the expected structure."
                 + f" got={parameters}",
-                error_code=500,
+                error_code=400,
             )
         return {"title": title, "description": description}
 
@@ -316,7 +316,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(operations, list):
             raise ToolInferenceParamsError(
                 message=f"Task Splitter inference hasn't returned the expected structure. got={operations}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "operations": operations,
@@ -354,5 +354,5 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )

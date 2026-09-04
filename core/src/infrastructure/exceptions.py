@@ -155,3 +155,9 @@ class GitError(ExceptionHandler):
     """General git error exception"""
 
     pass
+
+
+class CustomFileNotFoundError(ExceptionHandler):
+    """FileNotFoundError custom exception"""
+
+    pass

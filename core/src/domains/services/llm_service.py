@@ -135,11 +135,11 @@ class LLMOrchestrationService:
         while not self.__sentinel_executed(sentinel_tool, tools_result, local_tools):
             if (
                 total_executions
-                == system_config.orchestration.max_tool_chain_executions
+                == system_config.orchestration.max_tool_agent_executions
             ):
                 raise ToolExecutionsExceeded(
                     message="The total number of tool executions in this chain has reached the limit. Limit="
-                    + f"{system_config.orchestration.max_tool_chain_executions}",
+                    + f"{system_config.orchestration.max_tool_agent_executions}",
                     error_code=500,
                 )
             response: LLMResponseDTO = await self.__select_model(prompt).inference(

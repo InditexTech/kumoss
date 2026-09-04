@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override
 
 from src.domains.interfaces.filesystem_interface import IFileSystem
-from src.infrastructure.exceptions import RipgrepError
+from src.infrastructure.exceptions import CustomFileNotFoundError, RipgrepError
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -31,18 +31,18 @@ class FileSystemUtils(IFileSystem):
         return Path(self.__project_root_path)
 
     @override
-    def write_file(self, target_file: str, content: str, is_safe: bool = True) -> bool:
+    def write_file(self, target_file: str, content: str, is_safe: bool = True) -> None:
         """Write content to a single file.
         If the file doesn't exist, a new one is created.
 
         :param target_file: Target file path relative to project root
         :param content: Content to write
         :param is_safe: Flag that checks a valid file extension
-        :returns: True if successful
         """
         file_path = self.__resolve_path(target_file)
-        if is_safe and not self.__validate_file_extension(file_path.name):
-            return False
+        if is_safe:
+            self.__validate_file_extension(file_path.name)
+
         file_path.parent.mkdir(parents=True, exist_ok=True)
         if file_path.exists():
             logging.warning(
@@ -51,8 +51,15 @@ class FileSystemUtils(IFileSystem):
         else:
             logging.info(f"The file {target_file} does not exist, it will be created.")
 
-        with open(file_path, "w", encoding="utf-8") as file:
-            _ = file.write(content)
+        try:
+            with open(file_path, "w", encoding="utf-8") as file:
+                _ = file.write(content)
+        except Exception as e:
+            logging.error(f"Error writing to file {target_file} - {str(e)}")
+            raise ExceptionHandler(
+                error_code=500,
+                message=f"Error writing to file {target_file} - {str(e)}",
+            )
 
         if not file_path.exists():
             raise ExceptionHandler(
@@ -61,10 +68,9 @@ class FileSystemUtils(IFileSystem):
             )
 
         logging.info(f"Successfully wrote to file {target_file}")
-        return True
 
     @override
-    def replace_in_file(self, target_file: str, search_replace_blocks: str) -> bool:
+    def replace_in_file(self, target_file: str, search_replace_blocks: str) -> None:
         """Replace content in a file using search/replace blocks
         :param target_file: Target file path relative to project root
         :param search_replace_blocks: Search/replace blocks in the expected format
@@ -75,8 +81,7 @@ class FileSystemUtils(IFileSystem):
             raise ExceptionHandler(
                 error_code=404, message=f"File {target_file} does not exist"
             )
-        if not self.__validate_file_extension(file_path.name):
-            return False
+        self.__validate_file_extension(file_path.name)
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 content = file.read()
@@ -88,7 +93,6 @@ class FileSystemUtils(IFileSystem):
                 _ = file.write(modified_content)
 
             logging.info(f"Successfully replaced content in file {target_file}")
-            return True
 
         except Exception as e:
             logging.error(f"Error replacing content in file {target_file}: {str(e)}")
@@ -98,26 +102,15 @@ class FileSystemUtils(IFileSystem):
             )
 
     @override
-    def delete_file(self, target_file: str) -> bool:
+    def delete_file(self, target_file: str) -> None:
         """Delete a single file
         :param target_file: Target file path relative to project root
         :returns: True if successful
         """
         try:
             file_path = self.__resolve_path(target_file)
-
-            if not file_path.exists():
-                logging.warning(f"The file {target_file} does not exist.")
-                return True
-
-            if file_path.is_dir():
-                logging.error(f"Path {target_file} is a directory, not a file.")
-                return False
-
             file_path.unlink()
             logging.info(f"Successfully deleted file {target_file}")
-            return True
-
         except Exception as e:
             logging.error(f"Error deleting file {target_file}: {str(e)}")
             raise ExceptionHandler(
@@ -134,7 +127,7 @@ class FileSystemUtils(IFileSystem):
             file_path = self.__resolve_path(target_file)
 
             if not file_path.exists():
-                raise ExceptionHandler(
+                raise CustomFileNotFoundError(
                     error_code=404, message=f"File {target_file} does not exist"
                 )
 
@@ -144,40 +137,38 @@ class FileSystemUtils(IFileSystem):
             logging.info(f"Successfully read file {target_file}")
             return content
 
+        except FileNotFoundError:
+            raise CustomFileNotFoundError(
+                error_code=404, message=f"File {target_file} does not exist"
+            )
         except Exception as e:
             logging.error(f"Error reading file {target_file}: {str(e)}")
             raise ExceptionHandler(
-                error_code=500, message=f"Failed to read file {target_file}: {str(e)}"
+                error_code=500, message=f"Failed to read file {target_file}: {str(e)},"
             )
 
     @override
-    def list_directory(self, relative_path: str = ".") -> list[str]:
+    def list_directory(self, relative_path: str = ".") -> list[Path]:
         """List contents of a directory
         :param relative_path: Directory path relative to project root
         :returns: List of file/directory names
         """
         try:
-            dir_path = self.__resolve_path(relative_path)
+            dir_path: Path = self.__resolve_path(relative_path)
 
             if not dir_path.exists():
                 raise ExceptionHandler(
-                    error_code=404, message=f"Directory {relative_path} does not exist"
+                    error_code=404,
+                    message=f"Directory {dir_path.as_posix()} does not exist",
                 )
 
             if not dir_path.is_dir():
                 raise ExceptionHandler(
-                    error_code=400, message=f"Path {relative_path} is not a directory"
+                    error_code=400,
+                    message=f"Path {dir_path.as_posix()} is not a directory",
                 )
 
-            contents = []
-            for item in dir_path.iterdir():
-                if item.is_dir():
-                    contents.append(f"{item.name}/")
-                else:
-                    contents.append(item.name)
-
-            contents.sort()
-            return contents
+            return [i for i in dir_path.iterdir()]
 
         except Exception as e:
             logging.error(f"Error listing directory {relative_path}: {str(e)}")
@@ -234,22 +225,20 @@ class FileSystemUtils(IFileSystem):
         file_path = self.__resolve_path(target_file)
         return file_path.exists() and file_path.is_file()
 
-    def __validate_file_extension(self, file_name: str) -> bool:
+    def __validate_file_extension(self, file_name: str) -> None:
         """Validate file extension against allowed extensions
         :param file_name: Name of the file to validate
-        :return: boolean - True if extension is valid
         """
         if not self.__file_ext:
-            return True
+            return
 
         file_ext = file_name.split(".")[-1] if "." in file_name else ""
         if file_ext not in self.__file_ext:
-            logging.error(
-                f"File extension '{file_ext}' for file '{file_name}' is not allowed. Allowed extensions: "
-                + f"{self.__file_ext}"
+            raise ExceptionHandler(
+                message=f"File extension violation. File '{file_name}' cannot be modified. "
+                + f"Allowed extensions: {self.__file_ext}",
+                error_code=400,
             )
-            return False
-        return True
 
     def __resolve_path(self, relative_path: str) -> Path:
         """Resolve a relative path to an absolute path within the project root

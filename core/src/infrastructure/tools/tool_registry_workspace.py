@@ -2,9 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from pathlib import Path
 from typing import Any, Callable, override
 
 from src.domains.interfaces import IFileSystem, IGit, ILLMProvider
+from src.infrastructure.exceptions import (
+    CustomFileNotFoundError,
+    ToolInferenceParamsError,
+)
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
@@ -46,40 +51,64 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "diff_history": self.__handle_diff_history,
         }
 
-    def __handle_write_file(self, parameters: dict[str, Any]) -> str:
+    def __handle_write_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
         content = parameters["content"]
 
-        if self.__filesystem.write_file(target_file, content):
-            return f"Successfully wrote to {target_file}"
-        return f"Failed to write to {target_file}"
+        self.__filesystem.write_file(target_file, content)
+        return {
+            "file": target_file,
+        }
 
-    def __handle_replace_file(self, parameters: dict[str, Any]) -> str:
+    def __handle_replace_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
         diff = parameters["diff"]
 
-        if self.__filesystem.replace_in_file(target_file, diff):
-            return f"Successfully replaced content in {target_file}"
-        return f"Failed to replace content in {target_file}"
+        self.__filesystem.replace_in_file(target_file, diff)
+        return {
+            "file": target_file,
+        }
 
-    def __handle_delete_file(self, parameters: dict[str, Any]) -> str:
+    def __handle_delete_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
 
-        if self.__filesystem.delete_file(target_file):
-            return f"Successfully deleted {target_file}"
-        return f"Failed to delete {target_file}"
+        self.__filesystem.delete_file(target_file)
+        return {
+            "file": target_file,
+        }
 
-    def __handle_read_file(self, parameters: dict[str, Any]) -> str:
+    def __handle_read_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
 
-        content = self.__filesystem.read_file(target_file)
-        return content
+        try:
+            content = self.__filesystem.read_file(target_file)
+        except CustomFileNotFoundError:
+            raise ToolInferenceParamsError(
+                message=f"{target_file} was not present in the authoritative "
+                + "directory listing. Do not probe guessed filenames.",
+                error_code=404,
+            )
+        return {
+            "file": target_file,
+            "content": content,
+        }
 
-    def __handle_list_dir(self, parameters: dict[str, Any]) -> str:
-        relative_path = parameters.get("relative_workspace_path", ".")
+    def __handle_list_dir(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        relative_path: str = parameters.get("relative_workspace_path", ".")
+        resolve: Path = self.__filesystem.project_root / relative_path
+        if not resolve.is_relative_to(self.__filesystem.project_root.resolve()):
+            raise ToolInferenceParamsError(
+                message="Path escapes workspace. This is not allowed. "
+                + f"Path: '{str(resolve.resolve())}'",
+                error_code=400,
+            )
 
-        contents = self.__filesystem.list_directory(relative_path)
-        return "\n".join(contents)
+        items: list[Path] = self.__filesystem.list_directory(relative_path)
+        return {
+            "path": relative_path,
+            "files": [str(i.relative_to(resolve)) for i in items if i.is_file()],
+            "directories": [str(i.relative_to(resolve)) for i in items if i.is_dir()],
+        }
 
     def __handle_grep_search(self, parameters: dict[str, Any]) -> str:
         results: list[list[str]] = []
@@ -100,8 +129,10 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             )
         return "\n".join(["\n".join(r) for r in results])
 
-    async def __handle_diff_history(self, parameters: dict[str, Any]) -> str:
-        result = await self.__git.show_diff(working_tree=False, full_content=False)
+    async def __handle_diff_history(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        result: list[str] = [
+            await self.__git.show_diff(working_tree=False, full_content=False)
+        ]
         untracked_files: list[str] = []
         for file in await self.__git.get_untracked_files():
             try:
@@ -111,7 +142,9 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                 continue
             untracked_files.append(f"{file}:\n{content}")
         if untracked_files:
-            result += "\n".join(untracked_files)
-        if not result:
-            return "None"
-        return result
+            result.append(untracked_files)
+
+        return {
+            "history_available": True,
+            "changes": result,
+        }
