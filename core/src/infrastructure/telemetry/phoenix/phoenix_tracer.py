@@ -350,15 +350,6 @@ def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
         yield SpanAttributes.LLM_PROVIDER, oi_provider
 
 
-_BULKY_INVOCATION_KEYS = {
-    "messages",
-    "contents",
-    "system",
-    "system_instruction",
-    "tools",
-}
-
-
 def _llm_invocation_parameters_attributes(
     invocation_parameters: dict[str, Any],
 ) -> Iterator[tuple[str, str]]:
@@ -369,13 +360,10 @@ def _llm_invocation_parameters_attributes(
     """
     params: dict[str, Any] = {}
     for k, v in invocation_parameters.items():
-        if k in _BULKY_INVOCATION_KEYS:
-            continue
-        if hasattr(v, "model_dump"):  # e.g. Gemini's GenerateContentConfig
+        if hasattr(v, "model_dump"):
             v = {
                 ck: cv
                 for ck, cv in v.model_dump(exclude_none=True, mode="json").items()
-                if ck not in _BULKY_INVOCATION_KEYS
             }
         params[k] = v
     yield (
@@ -426,7 +414,7 @@ def _llm_input_messages_attributes(
             )
             yield (
                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx + i}.{MessageAttributes.MESSAGE_CONTENT}",
-                str(t.result) if t.result else str(t.error_message),
+                str(t.result) if t.success else str(t.error_message),
             )
 
     def _trace_tool_calls(
