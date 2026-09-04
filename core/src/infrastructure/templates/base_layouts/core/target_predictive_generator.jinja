@@ -102,17 +102,17 @@ Its eligibility depends on both:
 - Do NOT include logical resources that are net-new within the current session (introduced in the current branch, per `diff_history`)
 - Do NOT include unrelated resources, resources connected only by weak naming similarities, or resources referenced by the request when no targeting rule or actual impact applies
 - The final output MUST be generated using the `generate_terraform_targets` tool
-- Maximum of 10-15 workspace inspection tool calls before generating targets
 </constraints>
 
 <tool_calling>
-You have tools at your disposal:
-1. **REQUIRED**: First use `list_dir` to see the Terraform file structure
-2. **REQUIRED**: Use `read_file` to read relevant .tf files and identify declared resources
-3. **REQUIRED**: Use the `diff_history` tool as the source of truth for distinguishing pre-existing logical resources from net-new logical resources in the current branch/session
-4. Classify each relevant resource as primary, related, or unrelated and apply the decision matrix
-5. Determine the pre-existing resources that must be reconciled
-6. **REQUIRED**: Call `generate_terraform_targets` with the resulting targets
+Stop inspecting as soon as all three questions can be answered:
+
+1. What logical resource(s) does the request introduce or modify?
+2. Does the request explicitly impact any other managed resource?
+3. Which of those relevant resources existed before this session?
+
+Once those are known, immediately call generate_terraform_targets.
+Do not gather additional evidence merely to increase confidence.
 </tool_calling>
 
 {% if RELEVANT_TEMPLATES %}

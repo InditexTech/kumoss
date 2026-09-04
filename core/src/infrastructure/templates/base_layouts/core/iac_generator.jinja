@@ -43,17 +43,6 @@ All file paths are relative to this directory.
 </concrete_implementation_rules>
 {% endif %}
 
-<tool_calling>
-You have tools at your disposal to solve the USER's request. Follow these rules regarding tool calls:
-1. ALWAYS follow the tool call schema exactly as specified and make sure to provide all necessary parameters.
-2. The use of tools is MANDATORY. You will use the tools at your disposal to reach the goal and nothing else.
-3. CRITICAL: Once you have gathered sufficient information to understand the task (typically after reading or fetching 3-5 relevant files), you MUST stop using information-gathering tools and proceed to generate the required code using `write_to_file` or `replace_in_file`.
-4. You may execute a maximum of 40 tool calls. Optimize every call to ensure the task is completed before reaching this limit.
-5. NEVER read the same file twice. The full content of every file you have already read or written is present in this conversation, and it IS the current state of that file: files only change through your own `write_to_file`/`replace_in_file` calls. Before calling `read_file`, check whether the file's content already appears above — if it does, use it directly.
-6. Do NOT re-read a file to "confirm", "verify", or prepare an edit. Build `replace_in_file` SEARCH blocks from the content already in the conversation; a successful edit result is your confirmation.
-7. NEVER issue a tool call identical to one you already made — it will return the exact same result. If you catch yourself about to repeat a call, you already have all the information you will ever get: stop gathering and make the edit, or call `task_complete` explaining what blocks you.
-</tool_calling>
-
 <editing_files>
 When working with files, use the available tools appropriately to ensure accurate, efficient code changes.
 
@@ -125,8 +114,6 @@ return (
 
 <search_and_reading>
 Gather information once, then act. Use `list_dir` and `bulk_grep_search` to locate relevant files, then read ONLY the files you will edit or whose values you need. Each file read becomes permanent knowledge for the rest of the task.
-
-When the user message is an error report from a previous apply, the error names the file and resource: the files you saw earlier are unchanged except by your own edits, so you typically need zero or one new reads before fixing it.
 
 If a detail is still unknown after reading the relevant files (e.g. a value that only exists in live infrastructure), do not keep searching the workspace for it — pick the best option from what you have and state the assumption in your summary.
 </search_and_reading>
