@@ -233,6 +233,7 @@ class TerraformPlan(Base):
 
     __tablename__ = "terraform_plans"
 
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     targets: Mapped[list[str]] = mapped_column(ARRAY(String))
@@ -252,6 +253,7 @@ class Report(Base):
 
     __tablename__ = "reports"
 
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     type: Mapped[ReportType] = mapped_column()
@@ -269,6 +271,7 @@ class CodeChange(Base):
 
     __tablename__ = "code_changes"
 
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
     artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
     file_name: Mapped[str] = mapped_column(String(254))
