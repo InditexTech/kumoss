@@ -1114,49 +1114,78 @@ class DatabaseService:
 
     @staticmethod
     async def add_report(
+        session_id: UUID,
         round_id: int,
         report_type: ReportType,
         uri: str,
         content_type: str,
         file_size_bytes: int,
     ) -> int:
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
         aid = await DatabaseService.__create_artifact(
             uri, content_type, file_size_bytes
         )
         report: Report = await db.create(
-            Report, round_id=round_id, artifact_id=aid, type=report_type
+            Report, session_id=sid, round_id=round_id, artifact_id=aid, type=report_type
         )
         return report.id
 
     @staticmethod
     async def add_terraform_plan(
+        session_id: UUID,
         round_id: int,
         targets: list[str],
         uri: str,
         content_type: str,
         file_size_bytes: int,
     ) -> int:
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
         aid = await DatabaseService.__create_artifact(
             uri, content_type, file_size_bytes
         )
         plan: TerraformPlan = await db.create(
-            TerraformPlan, round_id=round_id, artifact_id=aid, targets=targets
+            TerraformPlan,
+            session_id=sid,
+            round_id=round_id,
+            artifact_id=aid,
+            targets=targets,
         )
         return plan.id
 
     @staticmethod
     async def add_code_change(
+        session_id: UUID,
         round_id: int,
         file_name: str,
         uri: str,
         content_type: str,
         file_size_bytes: int,
     ) -> int:
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
         aid = await DatabaseService.__create_artifact(
             uri, content_type, file_size_bytes
         )
         change: CodeChange = await db.create(
-            CodeChange, round_id=round_id, artifact_id=aid, file_name=file_name
+            CodeChange,
+            session_id=sid,
+            round_id=round_id,
+            artifact_id=aid,
+            file_name=file_name,
         )
         return change.id
 

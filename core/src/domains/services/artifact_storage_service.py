@@ -81,6 +81,7 @@ class ArtifactStorageService:
             metadata=metadata if metadata else {},
             context=f"session {session_id} round {round_id}",
             db_write=lambda: DatabaseService.add_report(
+                session_id=session_id,
                 round_id=round_id,
                 report_type=report_type,
                 uri=key,
@@ -121,6 +122,7 @@ class ArtifactStorageService:
             metadata=metadata if metadata else {},
             context=f"session {session_id} round {round_id}",
             db_write=lambda: DatabaseService.add_terraform_plan(
+                session_id=session_id,
                 round_id=round_id,
                 targets=targets,
                 uri=key,
@@ -163,6 +165,7 @@ class ArtifactStorageService:
             metadata=metadata if metadata else {},
             context=f"session {session_id} round {round_id}",
             db_write=lambda: DatabaseService.add_code_change(
+                session_id=session_id,
                 round_id=round_id,
                 file_name=file_name,
                 uri=key,
