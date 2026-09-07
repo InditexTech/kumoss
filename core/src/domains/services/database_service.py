@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import selectinload
 
@@ -571,6 +571,7 @@ class DatabaseService:
                     .where(
                         History.first_query.ilike(pattern)
                         | Workspace.uri.ilike(pattern)
+                        | Session.uuid.cast(String).ilike(pattern)
                     )
                 )
             if status is not None:

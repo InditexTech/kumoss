@@ -48,6 +48,34 @@ function renderPage(variant: "admin" | "user", path: string) {
   });
 }
 
+describe("SessionsPage session id column", () => {
+  const uuid = "9b2e4c1a-7d3f-4e55-a1b2-c3d4e5f60789";
+
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("shows a shortened id with the full uuid on hover in the admin table", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({ uuid }));
+    renderPage("admin", "/admin");
+
+    const cell = await screen.findByTitle(uuid);
+    expect(cell).toHaveTextContent("9b2e4c1a");
+    expect(screen.getByRole("columnheader", { name: "Session ID" })).toBeInTheDocument();
+  });
+
+  it("has no id column in the user's own sessions view", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ uuid }));
+    renderPage("user", "/user/sessions");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.queryByRole("columnheader", { name: "Session ID" })).toBeNull();
+    expect(screen.queryByTitle(uuid)).toBeNull();
+  });
+});
+
 describe("SessionsPage apply lock in the detail panel", () => {
   beforeEach(() => {
     mockState.clear();

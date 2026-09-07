@@ -52,13 +52,15 @@ import { extractProjectName } from "./types";
 import SessionData from "./SessionData/SessionData";
 import styles from "./SessionsPage.module.css";
 
+const SEARCH_PLACEHOLDER = "Search by project name, query or session id";
+
 const userSearches: SearchFieldConfig[] = [
-  { key: "search", placeholder: "Search by project name or query" },
+  { key: "search", placeholder: SEARCH_PLACEHOLDER },
 ];
 
 const adminSearches: SearchFieldConfig[] = [
   { key: "userSearch", placeholder: "Search by user email" },
-  { key: "search", placeholder: "Search by project name or query" },
+  { key: "search", placeholder: SEARCH_PLACEHOLDER },
 ];
 
 const baseColumns: ColumnDef<SessionSummary>[] = [
@@ -131,9 +133,16 @@ function buildAdminColumns(
       render: (s) => (s.username ? s.username.split("@")[0] : "-"),
     },
     {
+      key: "id",
+      header: "Session ID",
+      width: "10%",
+      className: styles.secondaryCell,
+      render: (s) => <span title={s.uuid}>{s.uuid.slice(0, 8)}</span>,
+    },
+    {
       key: "query",
       header: "Query",
-      width: "26%",
+      width: "18%",
       render: (s) => (
         <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
       ),
@@ -175,7 +184,7 @@ function buildAdminColumns(
     {
       key: "created",
       header: "Created",
-      width: "15%",
+      width: "13%",
       className: styles.secondaryCell,
       render: (s) => formatDate(s.created_at),
     },

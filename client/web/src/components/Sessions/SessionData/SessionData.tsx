@@ -442,6 +442,22 @@ export default function SessionData({
           Additional Info
         </Typography>
         <div className={styles.infoContent}>
+          <div className={styles.infoRow}>
+            <Typography
+              variant="subtitleSemiBold"
+              component="span"
+              className={styles.infoLabel}
+            >
+              Session ID
+            </Typography>
+            <Typography
+              variant="subtitle2"
+              component="span"
+              className={styles.uuidValue}
+            >
+              {session.uuid}
+            </Typography>
+          </div>
           {session.workspace.root_path && (
             <div className={styles.infoRow}>
               <Typography

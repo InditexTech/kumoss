@@ -34,7 +34,8 @@ async def sessions_list(
     carries the operation, terraform provider, first query, workspace
     URI, latest status, and lock flags — everything the list view
     renders, resolved server-side. ``status`` matches a session's most
-    recent status; ``search`` matches first query or workspace URI.
+    recent status; ``search`` matches first query, workspace URI, or
+    session id.
     """
     try:
         return await DatabaseService.list_sessions(

@@ -192,4 +192,6 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await fetch(status="failed"), 0)
         self.assertEqual(await fetch(search="resource group"), 1)
         self.assertEqual(await fetch(search="foo.git"), 1)
+        self.assertEqual(await fetch(search=str(self.sid)), 1)
+        self.assertEqual(await fetch(search=str(self.sid)[:8]), 1)
         self.assertEqual(await fetch(search="no-match-xyz"), 0)

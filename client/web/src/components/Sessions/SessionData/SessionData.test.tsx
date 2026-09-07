@@ -9,6 +9,16 @@ import { makeSessionDetail } from "@/mocks/state";
 import { renderWithProviders } from "@/test/render";
 import SessionData from "./SessionData";
 
+describe("SessionData additional info", () => {
+  it("shows the full session id", () => {
+    const uuid = "9b2e4c1a-7d3f-4e55-a1b2-c3d4e5f60789";
+    renderWithProviders(<SessionData session={makeSessionDetail({ uuid })} />);
+
+    expect(screen.getByText("Session ID")).toBeInTheDocument();
+    expect(screen.getByText(uuid)).toBeInTheDocument();
+  });
+});
+
 describe("SessionData apply lock", () => {
   it("renders a read-only label when no lock handler is given", () => {
     renderWithProviders(

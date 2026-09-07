@@ -108,6 +108,17 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["items"][0]["username"], "a@example.com")
 
+    async def test_admin_sessions_search_matches_session_id(self):
+        _, sid = await self._seed_session("a@example.com")
+        _ = await self._seed_session("b@example.com")
+        resp = await self.client.get(
+            "/v1/admin/sessions", params={"search": str(sid)[:8]}
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(body["total"], 1)
+        self.assertEqual(body["items"][0]["uuid"], str(sid))
+
     async def test_admin_session_detail(self):
         _, sid = await self._seed_session("a@example.com")
         resp = await self.client.get(f"/v1/admin/sessions/{sid}")
