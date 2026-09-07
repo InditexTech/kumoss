@@ -21,7 +21,7 @@ import {
 import {
   listAdminSessions,
   getAdminSessionDetail,
-  setApplyAllowed,
+  setSessionLock,
 } from "@/services/core/admin";
 import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
 import {
@@ -312,8 +312,8 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const handleToggleLock = useCallback(
     async (uuid: string, blocked: boolean) => {
       try {
-        const res = await setApplyAllowed(uuid, blocked);
-        const nowBlocked = !res.apply_allowed;
+        const res = await setSessionLock(uuid, !blocked);
+        const nowBlocked = res.is_blocked;
         setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
         setDetail((prev) =>
           prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,

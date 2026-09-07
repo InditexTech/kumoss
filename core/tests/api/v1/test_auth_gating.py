@@ -98,6 +98,14 @@ class TestBearerRequirement(_GatingBase):
             )
         self.assertEqual(resp.status_code, 401, resp.text)
 
+    async def test_authorize_requires_a_token(self):
+        with patch("src.api.deps._oidc_enabled", return_value=True):
+            resp = await self.client.post(
+                "/v1/auth/authorize",
+                json={"cloud": "azure", "project_name": "p", "environment": "dev"},
+            )
+        self.assertEqual(resp.status_code, 401, resp.text)
+
     async def test_docs_stay_open(self):
         with patch("src.api.deps._oidc_enabled", return_value=True):
             resp = await self.client.get("/openapi.json")
@@ -147,10 +155,10 @@ class TestPanelRoleGates(_GatingBase):
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["total"], 0)
 
-    async def test_viewer_cannot_toggle_apply_allowed(self):
+    async def test_viewer_cannot_toggle_lock(self):
         self._act_as(_user(1, panel_role=PanelRole.VIEWER))
         resp = await self.client.patch(
-            f"/v1/admin/sessions/{uuid4()}/apply_allowed", json={"allowed": False}
+            f"/v1/admin/sessions/{uuid4()}/toggle_lock", json={"locked": True}
         )
         self.assertEqual(resp.status_code, 403, resp.text)
 
@@ -162,7 +170,7 @@ class TestPanelRoleGates(_GatingBase):
     async def test_editor_toggle_on_unknown_session_is_404(self):
         self._act_as(_user(1, panel_role=PanelRole.EDITOR))
         resp = await self.client.patch(
-            f"/v1/admin/sessions/{uuid4()}/apply_allowed", json={"allowed": False}
+            f"/v1/admin/sessions/{uuid4()}/toggle_lock", json={"locked": True}
         )
         self.assertEqual(resp.status_code, 404, resp.text)
 

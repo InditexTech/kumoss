@@ -17,7 +17,8 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from src.infrastructure.auth.oidc import OidcTokenValidator, TokenValidationError
+from src.infrastructure.auth.oidc import OidcTokenValidator
+from src.infrastructure.exceptions import TokenValidationError
 
 _ISSUER = "https://idp.test"
 _CLIENT_ID = "nebula-web"

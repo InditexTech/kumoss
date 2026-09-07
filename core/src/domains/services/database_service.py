@@ -11,6 +11,7 @@ from uuid import UUID
 
 from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 
@@ -26,12 +27,14 @@ from src.domains.dto import (
     TerraformPlanRef,
     WorkspaceRef,
 )
-from src.domains.entities import SessionContext
+from src.domains.entities import SessionContext, User
 from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
     SessionTerminal,
+    UserAlreadyExists,
+    UserNotFound,
 )
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
@@ -43,7 +46,7 @@ from src.infrastructure.database.models import (
     Report,
     Round,
     Status as DbStatus,
-    User,
+    User as DbUser,
     Session,
     Workspace,
     History,
@@ -52,7 +55,9 @@ from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.constants import (
+    OperationRole,
     OperationType,
+    PanelRole,
     ReportType,
     SessionStatus,
     TerraformProvider,
@@ -212,17 +217,96 @@ class DatabaseService:
 
     @staticmethod
     async def __map_user_email(pk: int) -> str:
-        """user pk -> display email for read models and tracing.
-
-        Deliberately not Redis-cached: the email is mutable (re-login can
-        change it) and user pks reshuffle whenever the DB is recreated,
-        which would leave pk-keyed cache entries pointing at the wrong
-        user. A primary-key lookup is cheap enough to read fresh.
-        """
-        user: User | None = await db.get_by(User, id=pk)
+        """user pk -> display email for read models and tracing."""
+        user: DbUser | None = await db.get_by(DbUser, id=pk)
         if user is not None and user.email:
             return user.email
         return f"user-{pk}"
+
+    # --- Users ----------------------------------------------------------------
+
+    @staticmethod
+    def __user_entity(row: DbUser) -> User:
+        return User(
+            id=row.id,
+            issuer=row.issuer,
+            subject=row.subject,
+            email=row.email,
+            display_name=row.display_name,
+            operation_role=row.operation_role,
+            panel_role=row.panel_role,
+            created_at=row.created_at,
+        )
+
+    @staticmethod
+    async def get_user(user_id: int) -> User | None:
+        row: DbUser | None = await db.get_by(DbUser, id=user_id)
+        return DatabaseService.__user_entity(row) if row is not None else None
+
+    @staticmethod
+    async def get_user_by_identity(issuer: str, subject: str) -> User | None:
+        row: DbUser | None = await db.get_by(DbUser, issuer=issuer, subject=subject)
+        return DatabaseService.__user_entity(row) if row is not None else None
+
+    @staticmethod
+    async def create_user(
+        issuer: str,
+        subject: str,
+        email: str | None,
+        display_name: str | None,
+        operation_role: OperationRole,
+        panel_role: PanelRole | None,
+    ) -> User:
+        try:
+            row = await db.create(
+                DbUser,
+                issuer=issuer,
+                subject=subject,
+                email=email,
+                display_name=display_name,
+                operation_role=operation_role,
+                panel_role=panel_role,
+            )
+        except IntegrityError:
+            raise UserAlreadyExists(f"User {issuer}/{subject} already exists", 409)
+        return DatabaseService.__user_entity(row)
+
+    @staticmethod
+    async def update_user(user_id: int, values: dict[str, Any]) -> User:
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(DbUser)
+                .where(DbUser.id == user_id)
+                .values(**values, updated_at=datetime.now(timezone.utc))
+            )
+            if cast(CursorResult[Any], res).rowcount != 1:
+                raise UserNotFound(f"User {user_id} not found", 404)
+        user = await DatabaseService.get_user(user_id)
+        if user is None:
+            raise UserNotFound(f"User {user_id} not found", 404)
+        return user
+
+    @staticmethod
+    async def list_users(
+        offset: int = 0, limit: int = 20, search: str | None = None
+    ) -> tuple[list[User], int]:
+        async with db.session() as sess:
+            stmt = select(DbUser)
+            if search:
+                pattern = f"%{search}%"
+                stmt = stmt.where(
+                    or_(
+                        DbUser.email.ilike(pattern),
+                        DbUser.display_name.ilike(pattern),
+                    )
+                )
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            count: int = (await sess.execute(count_stmt)).scalar_one()
+            stmt = stmt.order_by(DbUser.created_at.desc()).offset(offset).limit(limit)
+            rows = (await sess.execute(stmt)).scalars().all()
+        return [DatabaseService.__user_entity(r) for r in rows], count
+
+    # --- Sessions -------------------------------------------------------------
 
     @staticmethod
     async def get_session_owner(session_id: UUID) -> int:
@@ -558,8 +642,8 @@ class DatabaseService:
             if user_pk is not None:
                 stmt = stmt.where(Session.user_id == user_pk)
             if user_email:
-                stmt = stmt.join(User, User.id == Session.user_id).where(
-                    User.email.ilike(f"%{user_email}%")
+                stmt = stmt.join(DbUser, DbUser.id == Session.user_id).where(
+                    DbUser.email.ilike(f"%{user_email}%")
                 )
             if operation is not None:
                 stmt = stmt.where(Session.operation == operation)

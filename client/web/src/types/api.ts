@@ -100,7 +100,7 @@ export interface PullRequestDTO {
   status: string;
 }
 
-// ─── Authorization (/api/v1/authorize) ──────────────────────
+// ─── Authorization (/api/v1/auth/authorize) ─────────────────
 
 export interface AuthorizeRequest {
   cloud: string;
@@ -304,7 +304,7 @@ export interface UpdateUserRolesRequest {
   panel_role: PanelRole | null;
 }
 
-export interface ApplyAllowedResponse {
+export interface SessionLockResponse {
   uuid: string;
-  apply_allowed: boolean;
+  is_blocked: boolean;
 }

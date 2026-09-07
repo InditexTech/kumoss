@@ -55,6 +55,6 @@ class UpdateUserRolesRequest(BaseModel):
     panel_role: PanelRole | None = None
 
 
-class ApplyAllowedResponse(BaseModel):
+class SessionLockResponse(BaseModel):
     uuid: UUID
-    apply_allowed: bool
+    is_blocked: bool

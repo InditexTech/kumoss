@@ -5,34 +5,26 @@
 """OIDC bearer-token validation against the configured issuer."""
 
 import threading
-from dataclasses import dataclass
 
 import httpx
 import jwt
 
+from src.domains.value_objects import TokenClaims
+from src.infrastructure.exceptions import TokenValidationError
 from src.shared.config.system_config import system_config
-from src.shared.exceptions import ExceptionHandler
 from src.shared.utils.decorators import execute_pool
 
-
-class TokenValidationError(ExceptionHandler):
-    """Raised when a bearer token fails OIDC validation (HTTP 401)."""
-
-    def __init__(self, message: str):
-        super().__init__(message, 401)
-
-
-@dataclass(frozen=True)
-class TokenClaims:
-    """Identity claims extracted from a validated token."""
-
-    issuer: str
-    subject: str
-    email: str | None
-    name: str | None
-
-
-_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"]
+_ALGORITHMS = [
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES384",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+]
 _DISCOVERY_TIMEOUT = 10.0
 
 

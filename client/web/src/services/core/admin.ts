@@ -5,11 +5,11 @@
 import { apiFetch } from "@/services/api";
 import type {
   AdminUserEntry,
-  ApplyAllowedResponse,
   OperationType,
   PaginatedSessionSummary,
   PaginatedUsers,
   SessionDetail,
+  SessionLockResponse,
   SessionStatus,
   UpdateUserRolesRequest,
   UserMeResponse,
@@ -62,16 +62,16 @@ export async function getAdminSessionDetail(
   );
 }
 
-/** PATCH /api/v1/admin/sessions/{id}/apply_allowed — Lock/unlock apply (panel editor+) */
-export async function setApplyAllowed(
+/** PATCH /api/v1/admin/sessions/{id}/toggle_lock — Lock/unlock apply (panel editor+) */
+export async function setSessionLock(
   sessionId: string,
-  allowed: boolean,
-): Promise<ApplyAllowedResponse> {
-  return apiFetch<ApplyAllowedResponse>(
-    `${BASE}/sessions/${encodeURIComponent(sessionId)}/apply_allowed`,
+  locked: boolean,
+): Promise<SessionLockResponse> {
+  return apiFetch<SessionLockResponse>(
+    `${BASE}/sessions/${encodeURIComponent(sessionId)}/toggle_lock`,
     {
       method: "PATCH",
-      body: JSON.stringify({ allowed }),
+      body: JSON.stringify({ locked }),
     },
   );
 }

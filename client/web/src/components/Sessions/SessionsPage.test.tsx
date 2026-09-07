@@ -20,20 +20,20 @@ function paginated(items: SessionDetail[]) {
 }
 
 function mockAdminSession(detail: SessionDetail) {
-  const patches: Array<{ allowed: boolean }> = [];
+  const patches: Array<{ locked: boolean }> = [];
   server.use(
     http.get("/api/v1/admin/sessions", () =>
       HttpResponse.json(paginated([detail])),
     ),
     http.get("/api/v1/admin/sessions/:id", () => HttpResponse.json(detail)),
     http.patch(
-      "/api/v1/admin/sessions/:id/apply_allowed",
+      "/api/v1/admin/sessions/:id/toggle_lock",
       async ({ request }) => {
-        const body = (await request.json()) as { allowed: boolean };
+        const body = (await request.json()) as { locked: boolean };
         patches.push(body);
         return HttpResponse.json({
           uuid: detail.uuid,
-          apply_allowed: body.allowed,
+          is_blocked: body.locked,
         });
       },
     ),
@@ -90,7 +90,7 @@ describe("SessionsPage apply lock in the detail panel", () => {
       await screen.findByRole("button", { name: /apply locked/i }),
     );
 
-    await waitFor(() => expect(patches).toEqual([{ allowed: true }]));
+    await waitFor(() => expect(patches).toEqual([{ locked: false }]));
     expect(
       await screen.findByRole("button", { name: /apply open/i }),
     ).toBeInTheDocument();

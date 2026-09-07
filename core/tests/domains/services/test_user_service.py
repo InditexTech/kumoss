@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from src.domains.exceptions import UserNotFound
 from src.domains.services.user_service import DEV_CLAIMS, UserService
-from src.infrastructure.auth.oidc import TokenClaims
+from src.domains.value_objects import TokenClaims
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.shared.config.system_config import system_config

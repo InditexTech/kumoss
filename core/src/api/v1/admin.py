@@ -11,14 +11,14 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from src.api.deps import CurrentUser, require_panel_role
 from src.api.dtos import (
     AdminUserEntry,
-    ApplyAllowedResponse,
     PaginatedUsers,
+    SessionLockResponse,
     UpdateUserRolesRequest,
 )
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
+from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
-from src.infrastructure.database.models import User
 from src.shared.constants import OperationType, PanelRole, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
@@ -94,22 +94,22 @@ async def admin_session_detail(
 
 
 @router.patch(
-    path="/sessions/{session_id}/apply_allowed",
-    summary="Toggle whether a session's plan may be applied (lock/unlock).",
+    path="/sessions/{session_id}/toggle_lock",
+    summary="Lock or unlock a session's plan from being applied.",
     dependencies=[Depends(require_panel_role(PanelRole.EDITOR))],
     responses={404: {"description": "Unknown session."}},
 )
-async def toggle_apply_allowed(
+async def toggle_lock(
     session_id: UUID,
-    allowed: Annotated[
+    locked: Annotated[
         bool,
-        Body(description="True unlocks apply/merge; false blocks them.", embed=True),
+        Body(description="True blocks apply/merge; false unlocks them.", embed=True),
     ],
-) -> ApplyAllowedResponse:
-    updated = await DatabaseService.set_lock(session_id, lock=not allowed)
+) -> SessionLockResponse:
+    updated = await DatabaseService.set_lock(session_id, lock=locked)
     if not updated:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found.")
-    return ApplyAllowedResponse(uuid=session_id, apply_allowed=allowed)
+    return SessionLockResponse(uuid=session_id, is_blocked=locked)
 
 
 @router.get(

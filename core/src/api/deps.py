@@ -11,11 +11,11 @@ from uuid import UUID
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import DEV_CLAIMS, UserService
 from src.infrastructure.auth import oidc
-from src.infrastructure.auth.oidc import TokenValidationError
-from src.infrastructure.database.models import User
+from src.infrastructure.exceptions import TokenValidationError
 from src.shared.config.system_config import system_config
 from src.shared.constants import OperationRole, PanelRole
 from src.shared.exceptions import ExceptionHandler

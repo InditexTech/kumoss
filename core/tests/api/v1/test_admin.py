@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from src.api.deps import CurrentUser, get_current_user
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
-from src.infrastructure.auth.oidc import TokenClaims
+from src.domains.value_objects import TokenClaims
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.infrastructure.redis import redis_client
@@ -125,19 +125,20 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["uuid"], str(sid))
 
-    async def test_apply_allowed_toggle_round_trip(self):
+    async def test_toggle_lock_round_trip(self):
         _, sid = await self._seed_session("a@example.com")
         resp = await self.client.patch(
-            f"/v1/admin/sessions/{sid}/apply_allowed", json={"allowed": False}
+            f"/v1/admin/sessions/{sid}/toggle_lock", json={"locked": True}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertEqual(resp.json(), {"uuid": str(sid), "apply_allowed": False})
+        self.assertEqual(resp.json(), {"uuid": str(sid), "is_blocked": True})
         self.assertTrue(await DatabaseService.is_session_blocked(sid))
 
         resp = await self.client.patch(
-            f"/v1/admin/sessions/{sid}/apply_allowed", json={"allowed": True}
+            f"/v1/admin/sessions/{sid}/toggle_lock", json={"locked": False}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertEqual(resp.json(), {"uuid": str(sid), "is_blocked": False})
         self.assertFalse(await DatabaseService.is_session_blocked(sid))
 
     async def test_users_list_carries_roles_and_identity(self):
