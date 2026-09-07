@@ -5,15 +5,21 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from src.api.deps import (
+    CurrentUser,
+    assert_session_access,
+    require_operation_role,
+)
 from src.application.factory import ApplicationFactory
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/repository", tags=["Repository Operations"])
@@ -39,7 +45,11 @@ async def complete_pr(
             embed=True,
         ),
     ],
+    user: Annotated[
+        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
+    ],
 ) -> None:
+    await assert_session_access(user, session_id, write=True)
     try:
         ctx = await DatabaseService.get_session_context(session_id)
         if await DatabaseService.is_session_blocked(ctx.id):
@@ -68,7 +78,11 @@ async def create_pr(
             embed=True,
         ),
     ],
+    user: Annotated[
+        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
+    ],
 ) -> PullRequestDTO:
+    await assert_session_access(user, session_id, write=True)
     try:
         ctx: SessionContext = await DatabaseService.get_session_context(session_id)
     except ExceptionHandler as e:
@@ -98,6 +112,7 @@ async def create_pr(
 
 @router.post(
     path="/parse",
+    dependencies=[Depends(require_operation_role(OperationRole.DEVELOPER))],
     summary="Parse a repository for Terraform root-module directories.",
     description=(
         "Clones the repository and returns the Terraform root-module "

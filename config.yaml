@@ -1,9 +1,11 @@
 # Default Nebula system config bundled with the docker-compose stack.
 #
-# This file is read by the core when NEBULA_CONFIG points at it (the
-# docker-compose `api` service sets that env var and mounts this file
-# read-only at /etc/nebula/config.yaml). It carries deployment-tunable
-# knobs — no secrets.
+# This file is baked into the nebula-core image at build time (the
+# Dockerfile copies it to /etc/nebula/config.yaml, the path the core
+# reads by default; set NEBULA_CONFIG to load a different file). Edits
+# here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
+# so rebuild after changing it: `docker compose build core`. It carries
+# deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
 # names (AWS_ACCESS_KEY_ID, GOOGLE_APPLICATION_CREDENTIALS, GIT_TOKEN,
@@ -19,15 +21,25 @@
 # tagging; no behavior gates are keyed on it today.
 environment: "development"
 
-# OIDC issuer settings used by the React frontend when it logs in to the
-# core. Leave blank to disable OIDC auth (dev default).
+# OIDC login + bearer-token validation. Blank issuer_url disables auth
+# entirely (dev default: every request acts as a local developer with
+# top roles). Optional overrides (`audience`, `scope`), per-IdP setup
+# and quirks (Entra ID, Keycloak, Auth0): docs/oidc-setup.md.
+# clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
   client_id: ""
-  audience: ""
+  clock_skew_seconds: 60
 
-# Bootstrap administrator. The address listed here is granted the
-# root-admin role on first run. Leave blank to skip the bootstrap.
+# Bootstrap administrator. The user whose access token carries an `email`
+# claim matching this address together with `email_verified: true` is
+# elevated to the top role of both role groups (operation devops + panel
+# admin) when they log in — on first login for new users, on the next
+# login for existing ones. IdPs that never emit `email_verified` (Entra
+# ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
+# table instead (docs/oidc-setup.md, "Bootstrap admin"). Elevation is
+# one-way: clearing this field later never demotes anyone. Leave blank
+# to skip.
 admin:
   default_root_email: ""
 
@@ -95,15 +107,15 @@ orchestration:
 #   or
 #   - https://models.litellm.ai/              — model IDs
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
-
 llm:
   # Complex tasks model
-  model: "anthropic/claude-sonnet-5"
+  model: "vertex_ai/claude-sonnet-4-5"
   # Simple tasks model
-  small_model: "anthropic/claude-haiku-4-5"
+  small_model: "vertex_ai/gemini-3.7-flash"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
+ 
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the

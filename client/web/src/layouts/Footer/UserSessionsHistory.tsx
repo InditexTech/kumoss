@@ -9,7 +9,6 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Fade from "@mui/material/Fade";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { useAuth } from "@/contexts/AuthContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { getApiErrorMessage } from "@/services/api";
 import { listUserSessions } from "@/services/core/sessions";
@@ -28,7 +27,6 @@ export default function UserSessionsHistory({
   pageSize = 20,
   onSelectSession,
 }: UserSessionsHistoryProps) {
-  const { user } = useAuth();
   const { showNotification } = useNotification();
   const navigate = useNavigate();
   const drag = useDragScroll<HTMLDivElement>();
@@ -39,7 +37,6 @@ export default function UserSessionsHistory({
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    if (!user?.username) return;
     const cached = getCachedSessions();
     if (cached) {
       setSessions(cached.sessions);
@@ -49,7 +46,7 @@ export default function UserSessionsHistory({
       return;
     }
     let cancelled = false;
-    listUserSessions(user.username, { page: 1, page_size: pageSize })
+    listUserSessions({ page: 1, page_size: pageSize })
       .then((res) => {
         if (!cancelled) {
           setSessions(res.items);
@@ -70,13 +67,13 @@ export default function UserSessionsHistory({
     return () => {
       cancelled = true;
     };
-  }, [user?.username, pageSize, showNotification]);
+  }, [pageSize, showNotification]);
 
   const loadMore = useCallback(() => {
-    if (!user?.username || loadingMore) return;
+    if (loadingMore) return;
     const nextPage = page + 1;
     setLoadingMore(true);
-    listUserSessions(user.username, { page: nextPage, page_size: pageSize })
+    listUserSessions({ page: nextPage, page_size: pageSize })
       .then((res) => {
         setSessions((prev) => [...prev, ...res.items]);
         setTotal(res.total);
@@ -89,7 +86,7 @@ export default function UserSessionsHistory({
         ),
       )
       .finally(() => setLoadingMore(false));
-  }, [user?.username, page, pageSize, loadingMore, showNotification]);
+  }, [page, pageSize, loadingMore, showNotification]);
 
   const hasMore = total > sessions.length;
 

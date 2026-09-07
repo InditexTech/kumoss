@@ -155,3 +155,10 @@ class GitError(ExceptionHandler):
     """General git error exception"""
 
     pass
+
+
+class TokenValidationError(ExceptionHandler):
+    """Raised when a bearer token fails OIDC validation (HTTP 401)."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 401)

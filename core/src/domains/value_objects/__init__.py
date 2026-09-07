@@ -6,10 +6,12 @@ from .status import Status
 from .workspace_facts import WorkspaceFacts
 from .provider_facts import ProviderFacts
 from .conventions import Conventions
+from .token_claims import TokenClaims
 
 __all__ = [
     "Status",
     "WorkspaceFacts",
     "ProviderFacts",
     "Conventions",
+    "TokenClaims",
 ]

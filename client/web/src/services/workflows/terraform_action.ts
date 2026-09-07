@@ -27,7 +27,6 @@ import { MODE } from "@/types/ui";
 
 export interface TerraformActionParams {
   query: string;
-  userId: string;
   mode: Mode;
   repoUri?: string;
   terraformProviders?: TerraformProvider;
@@ -51,7 +50,6 @@ export async function runTerraformActionWorkflow(
   if (params.mode === MODE.IMPORT) {
     // Apply reuses the session's stored plan; it takes no query or targets.
     response = await applyInfrastructure({
-      user_id: params.userId,
       session_id: params.sessionId ?? "",
     });
     return { sessionId: response.session_id };
@@ -61,14 +59,12 @@ export async function runTerraformActionWorkflow(
     ? {
         session_id: params.sessionId,
         q: params.query,
-        user_id: params.userId,
       }
     : {
         repo_uri: params.repoUri,
         q: params.query,
         terraform_providers: params.terraformProviders,
         scope_id: params.scopeId,
-        user_id: params.userId,
         iac_path: params.iacPath ?? null,
       };
 

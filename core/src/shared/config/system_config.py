@@ -21,7 +21,7 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 import yaml
 from pathlib import Path
 from urllib.parse import urlparse
@@ -48,15 +48,57 @@ def _env(name: str, default: str = "") -> str:
 
 
 class OidcConfig(BaseModel):
-    """OIDC issuer settings for the React frontend logging in to the core."""
+    """OIDC issuer settings for authenticating requests to the core.
+
+    Blank ``issuer_url`` disables authentication entirely (dev default):
+    every request acts as a local developer identity holding the top role
+    of both groups. ``audience`` is an optional override for IdPs (e.g.
+    Auth0) that issue tokens for a dedicated API identifier; when blank,
+    ``client_id`` and ``api://{client_id}`` are accepted as the expected
+    token audience. A ``{client_id}`` placeholder in ``scope`` is
+    expanded at load time; when ``scope`` is left at its default and the
+    issuer is Entra ID, ``api://{client_id}/.default`` is appended
+    automatically so the access token is issued for this app instead of
+    Microsoft Graph.
+    """
+
+    DEFAULT_OIDC_SCOPE: ClassVar[str] = "openid profile email"
+    ENTRA_HOST: ClassVar[str] = "login.microsoftonline.com"
 
     issuer_url: str = ""
     client_id: str = ""
     audience: str = ""
+    scope: str = DEFAULT_OIDC_SCOPE
+    clock_skew_seconds: int = 60
+
+    @model_validator(mode="after")
+    def _validate_and_resolve(self) -> "OidcConfig":
+        if self.issuer_url and not self.client_id:
+            raise ConfigError(
+                "oidc.issuer_url is set but oidc.client_id is empty; "
+                + "set oidc.client_id (and optionally oidc.audience) in config.yaml."
+            )
+        if (
+            self.scope == self.DEFAULT_OIDC_SCOPE
+            and urlparse(self.issuer_url).hostname == self.ENTRA_HOST
+        ):
+            self.scope = f"{self.DEFAULT_OIDC_SCOPE} api://{{client_id}}/.default"
+        if "{client_id}" in self.scope:
+            if not self.client_id:
+                raise ConfigError(
+                    "oidc.scope references {client_id} but oidc.client_id is empty."
+                )
+            self.scope = self.scope.replace("{client_id}", self.client_id)
+        return self
 
 
 class AdminConfig(BaseModel):
-    """Bootstrap administrator. Granted root-admin role on first run if set."""
+    """Bootstrap administrator.
+
+    The user whose token email matches ``default_root_email`` is elevated
+    to the top role of both groups at login time. Elevation is one-way:
+    clearing this field later never demotes anyone.
+    """
 
     default_root_email: str = ""
 

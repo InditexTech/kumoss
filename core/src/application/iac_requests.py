@@ -12,13 +12,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from src.shared.constants import TerraformProvider
 
 
-class UserRequest(BaseModel):
-    user_id: Annotated[
-        str, Field(description="Caller identity. Required on every call.")
-    ]
-
-
-class SessionRequest(UserRequest):
+class SessionRequest(BaseModel):
     """Base for operations that require an existing session."""
 
     session_id: Annotated[
@@ -30,11 +24,11 @@ class SessionRequest(UserRequest):
     ]
 
 
-class BaseIacRequest(UserRequest):
+class BaseIacRequest(BaseModel):
     session_id: Annotated[
         UUID | None,
         Field(
-            description="Existing session id (iteration call). Mutually exclusive with any other parameter but user_id and q.",
+            description="Existing session id (iteration call). Mutually exclusive with any other parameter but q.",
             examples=["917d0485-a0a2-4c34-8f33-a89d28aba9b0"],
         ),
     ] = None

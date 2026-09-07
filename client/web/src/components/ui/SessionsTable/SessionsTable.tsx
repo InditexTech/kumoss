@@ -72,6 +72,7 @@ interface SessionsTableProps<T> {
   searchPlaceholder?: string;
   extraToolbarContent?: React.ReactNode;
   pageSize?: number;
+  emptyText?: string;
 }
 
 export function formatDate(dateStr: string | null): string {
@@ -101,6 +102,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
     searchPlaceholder = "Search...",
     extraToolbarContent,
     pageSize: defaultPageSize = 15,
+    emptyText = "No sessions found",
   } = props;
 
   const searchFields = useMemo(
@@ -335,7 +337,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className={styles.emptyRow}>
-                  No sessions found
+                  {emptyText}
                 </td>
               </tr>
             ) : (

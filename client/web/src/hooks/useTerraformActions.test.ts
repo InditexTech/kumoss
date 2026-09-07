@@ -79,7 +79,6 @@ const defaultParams: TerraformActionParams = {
   terraformProviders: "azure",
   scopeId: "sub-123",
   iacPath: "environments/dev",
-  userId: "user@test.com",
   mode: "generate",
 };
 
