@@ -1,0 +1,71 @@
+client/web/src/components/SupportModal/SupportModal.test.tsx
+  s_20c4eb140c57dd::t_728e762ad4c291 1-106
+client/web/src/components/SupportModal/SupportModal.tsx
+  s_20c4eb140c57dd::t_7e9770ecc0d737 5-21,23-110
+client/web/src/components/ui/SupportButton/SupportButton.test.tsx
+  s_20c4eb140c57dd::t_f6a27ab0525f75 1-137
+client/web/src/components/ui/SupportButton/SupportButton.tsx
+  s_20c4eb140c57dd::t_f7dcf5a269b904 13-20,43-51,53,96,99,101,105-131,135-138,142-151,185
+client/web/src/constants/strings.ts
+  s_20c4eb140c57dd::t_cb39c771c31267 86-90,94,110
+client/web/src/layouts/Header/Header.tsx
+  s_20c4eb140c57dd::t_bb01b98edf14f5 12-13,17,26,83-95,102
+client/web/src/services/notifications/notification.test.ts
+  s_20c4eb140c57dd::t_ade801ccbf8ac8 1-56
+client/web/src/services/notifications/notification.ts
+  s_20c4eb140c57dd::t_fba1dde14d24f5 5-6,8-21
+client/web/src/services/notifications/support.test.ts
+  s_20c4eb140c57dd::t_465e5432111cb5 1-56
+client/web/src/services/notifications/support.ts
+  s_20c4eb140c57dd::t_d5ed5faf73eb50 1-80
+core/src/api/v1/notifications.py
+  s_20c4eb140c57dd::t_6aa45b6b23259e 1-101
+core/src/api/v1/terraform.py
+  s_20c4eb140c57dd::t_f559d6359d263a 110
+core/src/application/use_cases/terraform_apply_handler.py
+  s_20c4eb140c57dd::t_e1e7362955a327 85
+core/src/application/use_cases/terraform_crud_handler.py
+  s_20c4eb140c57dd::t_6613df1c66661f 143
+core/src/application/use_cases/terraform_drift_handler.py
+  s_20c4eb140c57dd::t_0c9ca0fd5a315b 126
+core/src/infrastructure/external/notification_service.py
+  s_20c4eb140c57dd::t_afe60d933e6607 9-28,33,39,44-46,50-52,54,61-158,166-168,180-188,193-218,222,224,228,232,234,238,242,244
+core/src/main.py
+  s_20c4eb140c57dd::t_1db56012d2ffd8 19,147
+core/tests/api/v1/test_notifications.py
+  s_20c4eb140c57dd::t_3f8a07190f5c5d 1-112
+core/tests/infrastructure/external/test_notification_service.py
+  s_20c4eb140c57dd::t_f2966c17dfd4a8 1-223
+services/notifications/README.md
+  s_20c4eb140c57dd::t_0e344b953b99c1 26-30,38,44-62
+services/notifications/env.sample
+  s_20c4eb140c57dd::t_61c8df837f4132 13-18,20-25
+services/notifications/src/auth.py
+  s_20c4eb140c57dd::t_507d308a8adcbf 9-11,16-17,27-33,39,46-58
+services/notifications/src/config.py
+  s_20c4eb140c57dd::t_0f6ef0f7251e35 23-25,30,37
+services/notifications/src/main.py
+  s_20c4eb140c57dd::t_2cf20a41b843fa 9,21,25-48,53-71,135-145,147-149,156-165,168,171-172
+services/notifications/src/slack.py
+  s_20c4eb140c57dd::t_d6b45820258bbd 9-12,17-18,27-109,138-139,153-158,160-182
+services/notifications/tests/test_api.py
+  s_20c4eb140c57dd::t_e18f98b7629ab0 8-10,17,121-234
+services/notifications/tests/test_slack_payload.py
+  s_20c4eb140c57dd::t_17bfd2638677ff 1-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "4ab34c3afc55574ce6fd43c1d9f38d91ad687ffa",
+  "prompts": {},
+  "sessions": {
+    "s_20c4eb140c57dd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e1e1003c-cc02-4527-a691-9e9b2ec59414",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
