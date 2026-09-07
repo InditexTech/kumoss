@@ -22,6 +22,7 @@ def _claims(**overrides) -> TokenClaims:
         "subject": f"sub-{uuid4().hex[:8]}",
         "email": "alice@example.com",
         "name": "Alice",
+        "email_verified": True,
     }
     payload.update(overrides)
     return TokenClaims(**payload)
@@ -78,6 +79,16 @@ class TestUserService(unittest.IsolatedAsyncioTestCase):
             user = await UserService.resolve(_claims(email="root@example.com"))
         self.assertIs(user.operation_role, OperationRole.DEVOPS)
         self.assertIs(user.panel_role, PanelRole.ADMIN)
+
+    async def test_unverified_root_email_is_not_elevated(self):
+        with patch.object(
+            system_config.admin, "default_root_email", "root@example.com"
+        ):
+            user = await UserService.resolve(
+                _claims(email="root@example.com", email_verified=False)
+            )
+        self.assertIs(user.operation_role, OperationRole.DEVELOPER)
+        self.assertIsNone(user.panel_role)
 
     async def test_root_email_elevates_an_existing_user(self):
         claims = _claims(email="root@example.com")

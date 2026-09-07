@@ -31,11 +31,15 @@ oidc:
   client_id: ""
   clock_skew_seconds: 60
 
-# Bootstrap administrator. The user whose OIDC token email matches this
-# address is elevated to the top role of both role groups (operation
-# devops + panel admin) when they log in — on first login for new users,
-# on the next login for existing ones. Elevation is one-way: clearing
-# this field later never demotes anyone. Leave blank to skip.
+# Bootstrap administrator. The user whose access token carries an `email`
+# claim matching this address together with `email_verified: true` is
+# elevated to the top role of both role groups (operation devops + panel
+# admin) when they log in — on first login for new users, on the next
+# login for existing ones. IdPs that never emit `email_verified` (Entra
+# ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
+# table instead (docs/oidc-setup.md, "Bootstrap admin"). Elevation is
+# one-way: clearing this field later never demotes anyone. Leave blank
+# to skip.
 admin:
   default_root_email: ""
 
@@ -103,15 +107,15 @@ orchestration:
 #   or
 #   - https://models.litellm.ai/              — model IDs
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
-
 llm:
   # Complex tasks model
-  model: "anthropic/claude-sonnet-5"
+  model: "vertex_ai/claude-sonnet-4-5"
   # Simple tasks model
-  small_model: "anthropic/claude-haiku-4-5"
+  small_model: "vertex_ai/gemini-3.7-flash"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
+ 
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the

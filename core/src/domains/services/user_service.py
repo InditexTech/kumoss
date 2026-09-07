@@ -23,6 +23,7 @@ DEV_CLAIMS = TokenClaims(
     subject="dev",
     email="dev@nebula.local",
     name="Local Developer",
+    email_verified=True,
 )
 
 
@@ -42,8 +43,10 @@ class UserService:
     def __is_elevated(claims: TokenClaims) -> bool:
         if claims.issuer == _DEV_ISSUER:
             return True
+        if claims.email is None or not claims.email_verified:
+            return False
         root = system_config.admin.default_root_email.strip().lower()
-        return bool(root) and claims.email is not None and claims.email.lower() == root
+        return bool(root) and claims.email.lower() == root
 
     @staticmethod
     async def __provision(claims: TokenClaims) -> User:

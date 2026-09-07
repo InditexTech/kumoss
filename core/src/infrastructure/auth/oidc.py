@@ -72,11 +72,13 @@ class OidcTokenValidator:
             leeway=self._leeway,
             options={"require": ["exp", "iss", "sub"]},
         )
+        email = payload.get("email")
         return TokenClaims(
             issuer=payload["iss"],
             subject=payload["sub"],
-            email=payload.get("email") or payload.get("preferred_username"),
+            email=email or payload.get("preferred_username"),
             name=payload.get("name"),
+            email_verified=email is not None and payload.get("email_verified") is True,
         )
 
     async def validate(self, token: str) -> TokenClaims:

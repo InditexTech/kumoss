@@ -92,9 +92,12 @@ accepts when `audience` is blank.
 > (`login.microsoftonline.us`, …) are not auto-detected: set `scope`
 > explicitly there too. Without any `api://…` scope in the request,
 > Entra issues the access token for Microsoft Graph and the core
-> rejects it with a 401 audience mismatch. Entra tokens often omit the
-> `email` claim — the core falls back to `preferred_username`, so
-> bootstrap-admin matching via `admin.default_root_email` still works.
+> rejects it with a 401 audience mismatch. Entra access tokens omit the
+> `email` claim unless you add it (**Token configuration → Add optional
+> claim → Access → `email`**); without it the panel shows
+> `preferred_username` instead. Entra never emits `email_verified`, so
+> `admin.default_root_email` cannot elevate an Entra user — see
+> [Bootstrap admin](#bootstrap-admin).
 
 ## Keycloak
 
@@ -112,7 +115,9 @@ accepts when `audience` is blank.
    ```
 
    The default scope (`openid profile email`) suffices; leave
-   `audience` blank.
+   `audience` blank. Keycloak emits both `email` and `email_verified`
+   in access tokens, so `admin.default_root_email` works once the
+   user's email is marked verified in Keycloak.
 
 ## Auth0
 
@@ -133,6 +138,12 @@ accepts when `audience` is blank.
    requires it there to issue a JWT access token. Auth0 emits `iss`
    with a trailing slash; the core accepts the issuer with or without
    it, so the `issuer_url` above works as written.
+
+> Auth0 access tokens for a custom API carry neither `email` nor
+> `email_verified`, and Auth0 does not allow adding standard OIDC
+> claims to them: users show without an email and
+> `admin.default_root_email` cannot elevate anyone — see
+> [Bootstrap admin](#bootstrap-admin).
 
 ## Okta
 
@@ -155,7 +166,31 @@ accepts when `audience` is blank.
 
    `audience` must match the authorization server's audience setting
    verbatim (it is not derived from the client). The default scope
-   suffices.
+   suffices. Okta access tokens carry no `email` claim by default; add
+   one on that authorization server (**Security → API → Authorization
+   Servers → Claims**, value `user.email`) so the panel shows emails.
+   Okta emits no `email_verified`, so `admin.default_root_email` cannot
+   elevate an Okta user — see [Bootstrap admin](#bootstrap-admin).
+
+## Bootstrap admin
+
+`admin.default_root_email` elevates a user to the top role of both role
+groups at login only when the access token carries a matching `email`
+claim **and** `email_verified: true`. A `preferred_username` fallback
+or a missing `email_verified` never elevates. Of the providers above
+only Keycloak emits both claims in access tokens.
+
+For every other IdP, grant the first admin's roles directly in the
+database after their first login (role labels are the enum names):
+
+```sql
+UPDATE users SET operation_role = 'DEVOPS', panel_role = 'ADMIN'
+WHERE email = '<email>';
+-- or, when the token carries no email claim:
+-- WHERE issuer = '<issuer_url>' AND subject = '<sub>';
+```
+
+Everyone else is then managed from the admin panel's Users tab.
 
 ## Field reference
 
@@ -167,9 +202,8 @@ accepts when `audience` is blank.
 | `scope` | `"openid profile email"` | Scopes the SPA requests at login. `{client_id}` is expanded at load; Entra ID issuers auto-append `api://{client_id}/.default` when left at the default. |
 | `clock_skew_seconds` | `60` | Leeway on `exp`/`iat`/`nbf` validation. |
 
-Related: `admin.default_root_email` in `config.yaml` elevates the user
-whose token email matches it to the top role of both role groups at
-login (one-way; blank to skip).
+Related: `admin.default_root_email` in `config.yaml` — see
+[Bootstrap admin](#bootstrap-admin) (one-way; blank to skip).
 
 ## Troubleshooting
 

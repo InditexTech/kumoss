@@ -76,6 +76,30 @@ describe("SessionsPage session id column", () => {
   });
 });
 
+describe("SessionsPage apply lock in the table", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("offers the lock toggle for drift sessions in the admin view", async () => {
+    auth.panelRole = "editor";
+    mockAdminSession(makeSessionDetail({ operation: "drift", is_blocked: false }));
+    renderPage("admin", "/admin");
+
+    expect(
+      await screen.findByRole("button", { name: "Lock apply" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the lock state for drift sessions in the user view", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ operation: "drift", is_blocked: true }));
+    renderPage("user", "/user/sessions");
+
+    expect(await screen.findByTestId("LockOutlinedIcon")).toBeInTheDocument();
+  });
+});
+
 describe("SessionsPage apply lock in the detail panel", () => {
   beforeEach(() => {
     mockState.clear();

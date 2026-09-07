@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { apiFetch, ApiError } from "@/services/api";
-import { getAccessToken } from "@/services/token";
+import { getAccessToken, UNAUTHORIZED_EVENT } from "@/services/token";
 
 const BASE = "/api/v1/events";
 const SSE_MAX_RETRIES = 3;
@@ -71,6 +71,12 @@ export function subscribeToSession(
             signal: controller.signal,
           },
         );
+
+        if (response.status === 401) {
+          window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+          connection.onerror?.();
+          return;
+        }
 
         if (!response.ok || !response.body) {
           if (attempt < SSE_MAX_RETRIES) continue;

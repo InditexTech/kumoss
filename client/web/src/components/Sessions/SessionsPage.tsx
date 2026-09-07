@@ -105,13 +105,11 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     width: "6%",
     className: styles.applyCell,
     render: (s) =>
-      s.operation === "generate" || s.operation === "import" ? (
-        s.is_blocked ? (
-          <LockOutlinedIcon className={styles.applyIconLocked} />
-        ) : (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        )
-      ) : null,
+      s.is_blocked ? (
+        <LockOutlinedIcon className={styles.applyIconLocked} />
+      ) : (
+        <LockOpenOutlinedIcon className={styles.applyIconOpen} />
+      ),
   },
   {
     key: "created",
@@ -331,7 +329,6 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const adminColumns = useMemo(
     () =>
       buildAdminColumns((s) => {
-        if (s.operation !== "generate" && s.operation !== "import") return null;
         const blocked = lockOverrides[s.uuid] ?? s.is_blocked;
         const icon = blocked ? (
           <LockOutlinedIcon className={styles.applyIconLocked} />

@@ -62,6 +62,7 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
             "aud": _CLIENT_ID,
             "exp": int(time.time()) + 300,
             "email": "alice@example.com",
+            "email_verified": True,
             "name": "Alice",
         }
         payload.update(overrides)
@@ -76,11 +77,23 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.subject, "user-1")
         self.assertEqual(claims.email, "alice@example.com")
         self.assertEqual(claims.name, "Alice")
+        self.assertTrue(claims.email_verified)
 
-    async def test_email_falls_back_to_preferred_username(self):
+    async def test_email_falls_back_to_preferred_username_unverified(self):
         token = self._token(email=None, preferred_username="alice@corp.example")
         claims = await self._validator().validate(token)
         self.assertEqual(claims.email, "alice@corp.example")
+        self.assertFalse(claims.email_verified)
+
+    async def test_explicitly_unverified_email_is_flagged(self):
+        claims = await self._validator().validate(self._token(email_verified=False))
+        self.assertEqual(claims.email, "alice@example.com")
+        self.assertFalse(claims.email_verified)
+
+    async def test_missing_email_verified_claim_counts_as_unverified(self):
+        claims = await self._validator().validate(self._token(email_verified=None))
+        self.assertEqual(claims.email, "alice@example.com")
+        self.assertFalse(claims.email_verified)
 
     async def test_wrong_signature_is_rejected(self):
         token = self._token(pem=_pem(self.other_key))
