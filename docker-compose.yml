@@ -31,7 +31,7 @@ services:
     image: nebula-core:latest
     build:
       context: .
-      dockerfile: ./Dockerfile
+      dockerfile: ./core/Dockerfile
     expose:
       - 8000
     env_file:
@@ -101,34 +101,6 @@ services:
         required: false
     volumes:
       - workspaces:/workspaces
-    # Hardening (issue #103). The IaC engine executes provider plugins
-    # and provisioners from LLM-generated code, so this container gets
-    # the least privilege the stack can give it: the image already runs
-    # as an unprivileged user (see services/iac/Dockerfile); on top of
-    # that, no Linux capabilities, no privilege escalation via setuid
-    # binaries, a read-only root filesystem (only the workspaces volume,
-    # /tmp and the user's home are writable), and bounded CPU, memory
-    # and process count so a runaway provider cannot exhaust the host.
-    # Tune the limits to your workloads: large provider plans can need
-    # more than 4 GiB.
-    read_only: true
-    # The home tmpfs must be owned by the runtime uid/gid (Docker would
-    # otherwise mount it root-owned with the image dir's 0700 mode and
-    # az/gcloud/aws could not create their config dirs). Keep these
-    # numbers in sync with the NEBULA_UID/NEBULA_GID build ARGs.
-    tmpfs:
-      - /tmp
-      - /home/nebula:uid=10001,gid=10001,mode=0700
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 4g
-          pids: 512
     expose:
       - 8082
     networks:
@@ -203,14 +175,6 @@ volumes:
     driver: local
   object_storage_data:
     driver: local
-  # Shared read-write by core and iac. Both images run as the same
-  # unprivileged uid/gid (build ARGs NEBULA_UID/NEBULA_GID, default
-  # 10001) and pre-create /workspaces owned by it, so a *new* volume
-  # comes up with the right ownership. A volume created by an older,
-  # root-running stack keeps root-owned directories the IaC engine can
-  # no longer write to; fix it once, with the stack stopped, via
-  #   docker run --rm -v nebula_workspaces:/w alpine chown -R 10001:10001 /w
-  # or drop it (it only holds transient clones): docker volume rm nebula_workspaces
   workspaces:
     driver: local
   authz_data:

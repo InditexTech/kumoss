@@ -112,33 +112,27 @@ workspace-staging mechanism — same contract, different mechanics.
 The image runs as an unprivileged user, `nebula` (uid/gid `10001`, set
 by the `NEBULA_UID` / `NEBULA_GID` build args): the engine executes
 provider plugins and provisioners from generated code, so it must not
-run as root. The docker-compose stack hardens the container further —
-`cap_drop: [ALL]`, `no-new-privileges`, a read-only root filesystem
-(only `/workspaces`, `/tmp` and `$HOME` are writable, the latter two as
-tmpfs) and CPU / memory / pid limits; see the `iac` service in
-[`docker-compose.yml`](../../docker-compose.yml).
+run as root.
 
 Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
 files and state next to the configuration, **workspace directories must
 be writable by that uid**. In the compose stack this holds because the
 core image is built with the same `NEBULA_UID` / `NEBULA_GID` and also
 runs as `nebula`, so everything the core clones is owned by the same
-user. Override the two build args together or not at all, and keep the
-`uid=` / `gid=` options of the `/home/nebula` tmpfs in
-`docker-compose.yml` in sync with them.
+user. Override the two build args together or not at all.
 
 - **Existing volumes.** A `workspaces` volume created by a stack that
   ran as root keeps root-owned directories the engine can no longer
   write to (`plan` fails with `permission denied` on
-  `terraform.tfstate` or the plan file). Fix it once, with the stack
-  stopped:
-  `docker run --rm -v nebula_workspaces:/w alpine chown -R 10001:10001 /w`,
-  or drop the volume (it only holds transient clones):
-  `docker volume rm nebula_workspaces`.
-- **Other deployments.** On Kubernetes set `runAsUser: 10001` and
-  `fsGroup: 10001` in the `securityContext` of the iac pod and of
-  whatever writes the shared PersistentVolumeClaim; export an NFS
-  workspace with matching ownership.
+  `terraform.tfstate` or the plan file).
+- **Other deployments.** The requirement does not change with the
+  topology: whatever backs the shared workspace (a PersistentVolumeClaim,
+  an NFS export, a bind mount or any other staging mechanism) must be
+  owned by the unprivileged user the images were built with (`nebula`,
+  uid/gid `10001` by default), and every component that stages repos
+  into it must run as that same identity. How a platform expresses that
+  (a pod security context, export options, a one-off `chown`) is
+  deployment-specific; the ownership itself is not.
 - **Cloud CLIs.** `az`, `gcloud` and `aws` keep their per-user state
   under `$HOME` (`~/.azure`, `~/.config/gcloud`, `~/.aws`). The
   `resource-graph` az extension is installed system-wide in
