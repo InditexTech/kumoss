@@ -122,9 +122,7 @@ async def cloud_login(config: Config) -> None:
             logger.info("AWS auth skipped: no ambient credentials detected")
 
         if errors:
-            raise RuntimeError(
-                "Cloud login failed for: " + "; ".join(errors)
-            )
+            raise RuntimeError("Cloud login failed for: " + "; ".join(errors))
 
         _last_login = time.monotonic()
         logger.info("cloud login completed")
@@ -196,7 +194,7 @@ async def aws_assume_role(scope_id: str, role_name: str) -> dict[str, str]:
     Returns a dict with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
     AWS_SESSION_TOKEN from the assumed role.
     """
-    role_arn = f"arn:aws:iam::{scope_id}:role/{role_name}"
+    role_arn = f"arn:aws:iam::{scope_id}:{role_name}"
     result = await _run(
         [
             "aws",
