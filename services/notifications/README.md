@@ -23,6 +23,11 @@ etc.) of the same contract.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
   set; otherwise accepts any request (local-dev fallback).
+- If Slack answers with a non-2xx status or cannot be reached, the
+  response is `502 Bad Gateway` (RFC 7807 body). The detail names
+  Slack's status and short reply but never the webhook URL — that URL
+  is the Slack credential and must not appear in responses or logs.
+- Bearer tokens are compared in constant time (`hmac.compare_digest`).
 
 ## Configuration
 
@@ -30,10 +35,30 @@ etc.) of the same contract.
 |-------------------------------|----------|----------------------------------------------|
 | `SLACK_WEBHOOK_URL`           | yes\*    | Slack incoming-webhook URL.                  |
 | `NEBULA_NOTIFICATIONS_TOKEN`  | no       | Bearer token clients must present.           |
+| `LOG_LEVEL`                   | no       | Service log level (default `INFO`; `DEBUG` also logs the Slack payload). |
 
 \* If unset the service still boots and `/v1/notify` returns
 `503 Service Unavailable`, which is useful for smoke-testing the
 contract surface without wiring a real backend.
+
+## Troubleshooting
+
+The service logs to stdout (`docker compose logs -f notifications`).
+At `INFO` you should see, in order:
+
+1. On boot: `notifications service ready: slack_webhook_configured=True
+   bearer_auth_enforced=True ...`. `False` for either means the matching
+   env var is empty in `services/notifications/.env`.
+2. Per request: `delivery <id> received: kind=... severity=...`, then
+   either `delivery <id> delivered to slack (HTTP 200)` or a warning
+   with the reason (`SLACK_WEBHOOK_URL is not configured`, `Slack
+   responded with HTTP 4xx: <slack reason>`, `bearer token does not
+   match ...`).
+
+If no `received` line appears, the request never reached this
+container: check the caller (core logs `sending 'kind' notification to
+<endpoint>`), the `services.notifications` block in `config.yaml`, and
+that the core image was rebuilt after config changes.
 
 ## Run locally
 

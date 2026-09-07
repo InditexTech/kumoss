@@ -16,6 +16,7 @@ from src.api.v1 import (
     # admin,
     session,
     mapping,
+    notifications,
 )
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
@@ -143,3 +144,4 @@ app.include_router(authorization.router, prefix="/v1")
 # app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
+app.include_router(notifications.router, prefix="/v1")

@@ -82,7 +82,7 @@ class TerraformApplyHandler:
                 ctx.history.append_turn(q, report.execution_summary)
                 if not validation.validation:
                     await NotificationServiceClient.notify_apply_failure(
-                        session_id=ctx.id,
+                        ctx=ctx,
                         summary=report.execution_summary,
                     )
                     raise TerraformValidationFailedError(

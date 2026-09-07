@@ -107,7 +107,7 @@ def _make_runner(
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
             await DatabaseService.mark_failed(ctx.id, msg)
-            await NotificationServiceClient.notify_exception_failure(ctx.id, msg)
+            await NotificationServiceClient.notify_exception_failure(ctx, msg)
             return
         finally:
             tracer.reset_current_tracer(tracer_token)

@@ -20,14 +20,19 @@ class Config:
       against a service that hasn't been wired to a backend yet).
     - ``expected_token``: bearer token clients must present. If unset, the
       service accepts any (or no) token (intended for local development).
+    - ``log_level``: Python logging level name for the service's own
+      logger (``LOG_LEVEL``, default ``INFO``). ``DEBUG`` additionally
+      logs the rendered Slack payload.
     """
 
     slack_webhook_url: str
     expected_token: str
+    log_level: str = "INFO"
 
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
             slack_webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
             expected_token=os.environ.get("NEBULA_NOTIFICATIONS_TOKEN", ""),
+            log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
         )
