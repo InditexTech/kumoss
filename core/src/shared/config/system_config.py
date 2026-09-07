@@ -108,35 +108,44 @@ class LlmConfig(BaseModel):
 
     The core uses two model roles per workflow: ``model`` for high-quality
     reasoning and ``small_model`` for cheaper filler work.  Both are
-    LiteLLM model-id strings (``provider/model``) that must match a
-    ``model_name`` entry in ``model_list``.
+    LiteLLM model-id strings (``provider/model``).  Credentials are
+    resolved from the provider's standard env vars (see the README
+    "LiteLLM Models and Params Reference" tables); the validator fails
+    boot when litellm reports required env vars missing.
 
-    ``model_list`` follows the LiteLLM Router format.  Credential values
-    use the ``os.environ/VAR_NAME`` syntax so secrets stay in env vars;
-    the validator checks every such reference at boot.
+    ``temperature`` and ``max_output_tokens`` apply to both roles.
 
-    When ``model_list`` is empty, minimal entries are auto-generated and
-    credentials are resolved by LiteLLM at call time (deferred failure).
+    ``model_list`` is an advanced escape hatch in the LiteLLM Router
+    format (fallbacks, load balancing, custom credential env var names
+    via ``os.environ/VAR_NAME``).  When non-empty it is passed to the
+    Router verbatim, ``model`` / ``small_model`` must match its
+    ``model_name`` entries, and boot validation runs against the listed
+    entries instead of the two role models.
 
     Refer to https://docs.litellm.ai/docs/providers for provider-specific
     credential keys and to https://models.litellm.ai/ for model IDs.
     """
 
-    model: str = "azure_ai/claude-sonnet-5"
+    model: str = "anthropic/claude-sonnet-5"
+    small_model: str = "anthropic/claude-haiku-4-5"
     temperature: float = 0.1
     max_output_tokens: int = 32000
 
-    small_model: str = "azure_ai/claude-haiku-4-5"
-    small_model_temperature: float = 0.1
-    small_model_max_output_tokens: int = 32000
-
     model_list: list[dict[str, Any]] = Field(default_factory=list)
+
+    def _effective_model_list(self) -> list[dict[str, Any]]:
+        if self.model_list:
+            return self.model_list
+        return [
+            {"model_name": model_id, "litellm_params": {"model": model_id}}
+            for model_id in dict.fromkeys((self.model, self.small_model))
+        ]
 
     @model_validator(mode="after")
     def _assert_llm_credentials(self) -> "LlmConfig":
-        """Fail-fast on missing env vars referenced via os.environ/ in model_list."""
+        """Fail-fast on env vars litellm requires for the configured models."""
         missing: list[str] = []
-        for entry in self.model_list:
+        for entry in self._effective_model_list():
             if litellm_params := entry.get("litellm_params", {}):
                 model = litellm_params.get("model", "")
                 result = litellm.validate_environment(model=model)
@@ -144,29 +153,16 @@ class LlmConfig(BaseModel):
                 if missing_keys := result.get("missing_keys"):
                     missing.extend(missing_keys)
 
-        if missing:
+        if missing := list(dict.fromkeys(missing)):
             raise ConfigError(
                 "LLM credentials missing from environment: "
                 + "; ".join(missing)
-                + ". Set the listed env vars or update llm.model_list in config.yaml."
+                + ". Set the listed env vars or configure llm.model_list in config.yaml."
             )
         return self
 
     def create_router(self) -> Router:
-        if self.model_list:
-            return Router(model_list=self.model_list)
-        seen: set[str] = set()
-        entries: list[dict[str, Any]] = []
-        for model_id in (self.model, self.small_model):
-            if model_id not in seen:
-                seen.add(model_id)
-                entries.append(
-                    {
-                        "model_name": model_id,
-                        "litellm_params": {"model": model_id},
-                    }
-                )
-        return Router(model_list=entries)
+        return Router(model_list=self._effective_model_list())
 
 
 class ServiceConfig(BaseModel):
@@ -302,23 +298,18 @@ class GitConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    """Credentials for Phoenix collector and Nebula postgres databases"""
+    """Credentials for Nebula postgres database"""
 
     nebula_database_url_env: str = "NEBULA_SQL_DATABASE_URL"
-    phoenix_database_url_env: str = "PHOENIX_SQL_DATABASE_URL"
 
     @property
     def nebula_database_url(self) -> str:
         return _env(self.nebula_database_url_env)
 
-    @property
-    def phoenix_database_url(self) -> str:
-        return _env(self.phoenix_database_url_env)
-
     @model_validator(mode="after")
     def _assert_urls(self) -> DatabaseConfig:
-        if not self.phoenix_database_url or not self.nebula_database_url:
-            raise ConfigError("Missing env variable for phoenix or nebula databases")
+        if not self.nebula_database_url:
+            raise ConfigError("Missing env variable for nebula database")
         return self
 
 

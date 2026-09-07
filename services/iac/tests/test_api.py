@@ -6,11 +6,11 @@
 
 These cover the contract surface: healthz, auth, request validation
 (including the `plan_file` path-traversal guard), the
-404-on-missing-workspace path, the 503 when terraform isn't installed,
+404-on-missing-workspace path, the 503 when the engine isn't installed,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation,
 per-workspace FIFO queueing, and job expiry. They do NOT exercise an
-actual terraform run against a cloud — that requires network and
+actual engine run against a cloud — that requires network and
 credentials.
 """
 
@@ -29,19 +29,19 @@ from fastapi.testclient import TestClient
 from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
-from src.terraform import CommandResult
+from src.engine import CommandResult
 
 
-# (endpoint, terraform function to stub, extra request fields)
+# (endpoint, engine function to stub, extra request fields)
 OPERATIONS = [
-    ("/v1/init", "src.terraform.init", {}),
-    ("/v1/validate", "src.terraform.validate", {}),
-    ("/v1/plan", "src.terraform.plan", {"plan_file": "x.plan"}),
-    ("/v1/show", "src.terraform.show_plan_json", {"plan_file": "x.plan"}),
-    ("/v1/apply", "src.terraform.apply", {"plan_file": "x.plan"}),
+    ("/v1/init", "src.engine.init", {}),
+    ("/v1/validate", "src.engine.validate", {}),
+    ("/v1/plan", "src.engine.plan", {"plan_file": "x.plan"}),
+    ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}),
+    ("/v1/apply", "src.engine.apply", {"plan_file": "x.plan"}),
     (
         "/v1/import",
-        "src.terraform.import_resource",
+        "src.engine.import_resource",
         {
             "address": "azurerm_resource_group.main",
             "resource_id": "/subscriptions/x/resourceGroups/y",
@@ -53,15 +53,15 @@ OPERATIONS = [
 @contextmanager
 def _client_with(
     token: str = "",
-    terraform_binary: str = "sh",
+    iac_binary: str = "sh",
     job_ttl: int = 3600,
 ):
-    # `sh` stands in for terraform so Config's fail-fast binary check
-    # passes in terraform-less test environments; subprocess calls are
+    # `sh` stands in for the engine so Config's fail-fast binary check
+    # passes in engine-less test environments; subprocess calls are
     # patched in every test that would reach them.
     service_main.config = Config(
         expected_token=token,
-        terraform_binary=terraform_binary,
+        iac_binary=iac_binary,
         job_ttl=job_ttl,
     )
     # Fresh queue/registry per test so job records don't leak across tests.
@@ -113,9 +113,9 @@ def test_init_requires_token_when_configured() -> None:
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_init_503_when_terraform_missing() -> None:
+def test_init_503_when_engine_missing() -> None:
     with _client_with() as client:
-        with patch("src.main.terraform_available", return_value=False):
+        with patch("src.main.engine_available", return_value=False):
             response = client.post(
                 "/v1/init",
                 json={"workspace_path": "/tmp"},
@@ -175,9 +175,7 @@ def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with() as client:
-        with patch(
-            "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
                 json={"workspace_path": str(workspace)},
@@ -208,7 +206,7 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
         return CommandResult(ok=False, stdout="", stderr="init stubbed", exit_code=1)
 
     with _client_with() as client:
-        with patch("src.terraform.init", side_effect=blocked_init):
+        with patch("src.engine.init", side_effect=blocked_init):
             first = client.post(
                 "/v1/init", json={"workspace_path": str(workspace)}
             ).json()["job_id"]
@@ -240,11 +238,11 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     )
 
 
-@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
+@pytest.mark.parametrize(("endpoint", "engine_target", "extra"), OPERATIONS)
 def test_op_job_returns_raw_result_verbatim(
-    endpoint: str, tf_target: str, extra: dict, tmp_path: Path
+    endpoint: str, engine_target: str, extra: dict, tmp_path: Path
 ) -> None:
-    """A terraform-level failure is a `succeeded` job whose result is
+    """An engine-level failure is a `succeeded` job whose result is
     the raw {exit_code, stdout, stderr} — not a `failed` job, and not
     interpreted by the service."""
     workspace = tmp_path / "ws"
@@ -254,7 +252,7 @@ def test_op_job_returns_raw_result_verbatim(
         ok=False, stdout="partial output", stderr="Error: it broke", exit_code=1
     )
     with _client_with() as client:
-        with patch(tf_target, new_callable=AsyncMock, return_value=failed):
+        with patch(engine_target, new_callable=AsyncMock, return_value=failed):
             response = client.post(
                 endpoint,
                 json={"workspace_path": str(workspace), **extra},
@@ -271,16 +269,16 @@ def test_op_job_returns_raw_result_verbatim(
     }
 
 
-def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> None:
+def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
     """The plan job passes the request's targets and plan_file through
-    to the terraform wrapper unchanged."""
+    to the engine wrapper unchanged."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
     ok = CommandResult(ok=True, stdout="Plan: 1 to add", stderr="", exit_code=0)
     with _client_with() as client:
         with patch(
-            "src.terraform.plan", new_callable=AsyncMock, return_value=ok
+            "src.engine.plan", new_callable=AsyncMock, return_value=ok
         ) as plan_mock:
             response = client.post(
                 "/v1/plan",
@@ -305,7 +303,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
 
     with _client_with() as client:
         with patch(
-            "src.terraform.init",
+            "src.engine.init",
             new_callable=AsyncMock,
             side_effect=RuntimeError("subprocess exploded"),
         ):
@@ -349,9 +347,7 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with(job_ttl=0) as client:
-        with patch(
-            "src.terraform.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
                 json={"workspace_path": str(workspace)},
@@ -372,8 +368,10 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
                 raise AssertionError("terminal job was never swept")
 
 
-@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
-def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -> None:
+@pytest.mark.parametrize(("endpoint", "engine_target", "extra"), OPERATIONS)
+def test_endpoints_accept_scope_id(
+    endpoint: str, engine_target: str, extra: dict
+) -> None:
     """scope_id is accepted without 422 (extra='forbid' would reject
     unknown fields); the 404 comes from the nonexistent workspace."""
     with _client_with() as client:
@@ -424,7 +422,7 @@ def test_state_resource_ids_returns_managed_ids(tmp_path: Path) -> None:
     )
     with _client_with() as client:
         with patch(
-            "src.terraform.state_pull", new_callable=AsyncMock, return_value=pulled
+            "src.engine.state_pull", new_callable=AsyncMock, return_value=pulled
         ):
             response = client.post(
                 "/v1/import/state-resource-ids",
@@ -452,7 +450,7 @@ def test_state_resource_ids_passes_pull_failure_through(tmp_path: Path) -> None:
     )
     with _client_with() as client:
         with patch(
-            "src.terraform.state_pull", new_callable=AsyncMock, return_value=pulled
+            "src.engine.state_pull", new_callable=AsyncMock, return_value=pulled
         ):
             response = client.post(
                 "/v1/import/state-resource-ids",
@@ -519,7 +517,7 @@ def test_scope_resource_ids_validation() -> None:
 
 
 def test_scope_resource_ids_503_when_cli_missing(tmp_path: Path) -> None:
-    """Like the terraform binary, a missing cloud CLI is a submit-time
+    """Like the engine binary, a missing cloud CLI is a submit-time
     503, not a job-level failure."""
     workspace = tmp_path / "ws"
     workspace.mkdir()

@@ -17,7 +17,7 @@ import asyncio
 import json
 import shutil
 
-from .terraform import CommandResult
+from .engine import CommandResult
 
 
 # Provider value (contract vocabulary) → CLI binary it shells out to.

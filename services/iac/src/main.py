@@ -4,13 +4,13 @@
 
 """FastAPI application for the IaC reference implementation.
 
-A raw terraform executor: every POST enqueues a job that runs exactly
-one terraform command and returns ``202 Accepted`` immediately;
-clients poll ``GET /v1/jobs/{job_id}`` for the raw
+A raw IaC-engine executor (OpenTofu by default): every POST enqueues a
+job that runs exactly one engine command and returns ``202 Accepted``
+immediately; clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing terraform
+errors (auth, malformed body, missing workspace, missing engine
 binary) are still reported synchronously on the POST; everything after
 submission surfaces through the job.
 """
@@ -18,6 +18,8 @@ submission surfaces through the job.
 from __future__ import annotations
 
 import json
+import logging
+import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -28,9 +30,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from . import cloud_cli
-from . import terraform as tf
+from . import engine
 from .auth import verify_bearer_token
-from .config import Config, terraform_available
+from .config import Config, engine_available
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -49,6 +51,19 @@ from .models import (
     ValidateRequest,
 )
 
+
+# Console logging for the service's own loggers ("iac.*": engine
+# operations). uvicorn only configures its own loggers, so without
+# this handler the operation logs would be invisible at the default
+# log level.
+_iac_logger = logging.getLogger("iac")
+if not _iac_logger.handlers:
+    _handler = logging.StreamHandler(sys.stderr)
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    _iac_logger.addHandler(_handler)
+    _iac_logger.setLevel(logging.INFO)
 
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
@@ -106,18 +121,18 @@ async def healthz() -> Health:
 
 
 def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
-    """Submit-time checks: auth, terraform binary, workspace existence.
+    """Submit-time checks: auth, engine binary, workspace existence.
 
-    Everything that fails after these (the terraform command itself)
+    Everything that fails after these (the engine command itself)
     surfaces through the job instead.
     """
     verify_bearer_token(config, authorization)
 
-    if not terraform_available(config.terraform_binary):
+    if not engine_available(config.iac_binary):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Terraform binary '{config.terraform_binary}' not found "
+                f"IaC engine binary '{config.iac_binary}' not found "
                 "in PATH on the IaC service."
             ),
         )
@@ -139,7 +154,7 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
     return workspace
 
 
-async def _run_op(command: Awaitable[tf.CommandResult]) -> OperationResult:
+async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
     result = await command
     return OperationResult(
         exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
@@ -150,9 +165,9 @@ def _submit(
     kind: JobKind,
     workspace: Path,
     response: Response,
-    command: Callable[[], Awaitable[tf.CommandResult]],
+    command: Callable[[], Awaitable[engine.CommandResult]],
 ) -> JobAccepted:
-    """Enqueue one terraform command as a job and point at its resource."""
+    """Enqueue one engine command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,
@@ -178,7 +193,7 @@ async def init(
         "init",
         workspace,
         response,
-        lambda: tf.init(config.terraform_binary, workspace),
+        lambda: engine.init(config.iac_binary, workspace),
     )
 
 
@@ -198,7 +213,7 @@ async def validate(
         "validate",
         workspace,
         response,
-        lambda: tf.validate(config.terraform_binary, workspace),
+        lambda: engine.validate(config.iac_binary, workspace),
     )
 
 
@@ -218,9 +233,7 @@ async def plan(
         "plan",
         workspace,
         response,
-        lambda: tf.plan(
-            config.terraform_binary, workspace, body.targets, body.plan_file
-        ),
+        lambda: engine.plan(config.iac_binary, workspace, body.targets, body.plan_file),
     )
 
 
@@ -240,7 +253,7 @@ async def show(
         "show",
         workspace,
         response,
-        lambda: tf.show_plan_json(config.terraform_binary, workspace, body.plan_file),
+        lambda: engine.show_plan_json(config.iac_binary, workspace, body.plan_file),
     )
 
 
@@ -260,7 +273,7 @@ async def apply(
         "apply",
         workspace,
         response,
-        lambda: tf.apply(config.terraform_binary, workspace, body.plan_file),
+        lambda: engine.apply(config.iac_binary, workspace, body.plan_file),
     )
 
 
@@ -280,8 +293,8 @@ async def import_resource(
         "import",
         workspace,
         response,
-        lambda: tf.import_resource(
-            config.terraform_binary, workspace, body.address, body.resource_id
+        lambda: engine.import_resource(
+            config.iac_binary, workspace, body.address, body.resource_id
         ),
     )
 
@@ -308,12 +321,12 @@ async def state_resource_ids(
 
 
 async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    result = await tf.state_pull(config.terraform_binary, workspace)
+    result = await engine.state_pull(config.iac_binary, workspace)
     if not result.ok:
         return OperationResult(
             exit_code=result.exit_code, stdout="", stderr=result.stderr
         )
-    ids = tf.extract_managed_resource_ids(result.stdout)
+    ids = engine.extract_managed_resource_ids(result.stdout)
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
 
 

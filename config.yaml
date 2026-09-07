@@ -90,10 +90,13 @@ orchestration:
 
 # LLM model selection — powered by LiteLLM Router.
 #
-# `model` and `small_model` pick which model_list entry is used for each
-# role.  `model_list` follows the LiteLLM Router format; credential
-# values use the `os.environ/VAR_NAME` syntax so secrets stay in env
-# vars — the core validates every such reference at boot.
+# `model` handles complex tasks, `small_model` cheap filler tasks. Both
+# are LiteLLM model strings (`provider/model-id`). Credentials are read
+# from the provider's standard env vars — ANTHROPIC_API_KEY for the
+# Anthropic defaults below, set in core/.env — and the core fails boot
+# when litellm reports required env vars missing. Advanced routing
+# (fallbacks, load balancing, custom credential env var names) is
+# available via an optional `model_list` key.
 #
 # Refer to:
 #   - Readme # LiteLLM models and params reference
@@ -103,69 +106,12 @@ orchestration:
 
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5@20250929"
+  model: "anthropic/claude-sonnet-5"
+  # Simple tasks model
+  small_model: "anthropic/claude-haiku-4-5"
+  # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
-  # Simple tasks model
-  small_model: "vertex_ai/gemini-3.7-flash"
-  small_model_temperature: 0.1
-  small_model_max_output_tokens: 32000
-
-  model_list:
-    # Google Vertex AI
-    - model_name: "vertex_ai/claude-sonnet-4-5@20250929"
-      litellm_params:
-        model: "vertex_ai/claude-sonnet-4-5@20250929"
-        vertex_project: "os.environ/VERTEXAI_PROJECT"
-        vertex_location: "os.environ/VERTEXAI_LOCATION"
-        vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
-    - model_name: "vertex_ai/gemini-3.7-flash"
-      litellm_params:
-        model: "vertex_ai/gemini-3.7-flash"
-        vertex_project: "os.environ/VERTEXAI_PROJECT"
-        vertex_location: "os.environ/VERTEXAI_LOCATION"
-        vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
-
-    # Azure AI Foundry
-    # - model_name: "azure_ai/claude-sonnet-5"
-    #   litellm_params:
-    #     model: "azure_ai/claude-sonnet-5"
-    #     api_key: "os.environ/AZURE_AI_API_KEY"
-    #     api_base: "os.environ/AZURE_AI_API_BASE"
-    # - model_name: "azure_ai/claude-haiku-4-5"
-    #   litellm_params:
-    #     model: "azure_ai/claude-haiku-4-5"
-    #     api_key: "os.environ/AZURE_AI_API_KEY"
-    #     api_base: "os.environ/AZURE_AI_API_BASE"
-
-    # # AWS Bedrock
-    # - model_name: "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
-    #   litellm_params:
-    #     model: "bedrock/anthropic.claude-3-5-haiku-20241022-v1:0"
-    #     aws_access_key_id: "os.environ/AWS_ACCESS_KEY_ID"
-    #     aws_secret_access_key: "os.environ/AWS_SECRET_ACCESS_KEY"
-    #     aws_region_name: "os.environ/AWS_REGION_NAME"
-
-    # # Google Vertex AI
-    # - model_name: "vertex_ai/claude-haiku-4-5@20251001"
-    #   litellm_params:
-    #     model: "vertex_ai/claude-haiku-4-5@20251001"
-    #     vertex_project: "os.environ/VERTEXAI_PROJECT"
-    #     vertex_location: "os.environ/VERTEXAI_LOCATION"
-    #     vertex_credentials: "os.environ/GOOGLE_APPLICATION_CREDENTIALS"
-
-    # # OpenAI Direct
-    # - model_name: "openai/gpt-4o"
-    #   litellm_params:
-    #     model: "openai/gpt-4o"
-    #     api_key: "os.environ/OPENAI_API_KEY"
-
-    # # Local Ollama
-    # - model_name: "ollama/llama3.2"
-    #   litellm_params:
-    #     model: "ollama/llama3.2"
-    #     api_base: "os.environ/OLLAMA_API_BASE"
-
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -178,14 +124,12 @@ paths:
   upload_folder: "/workspaces"
   session_plan_filename: "session.plan"
 
-# Databases (Nebula postgres + Phoenix collector). Connection URLs embed
-# credentials, so they are referenced indirectly: these keys name the
-# env vars that hold the actual URLs (defaults shown). Override only to
-# read different env var names. The core refuses to boot when either
-# env var resolves empty.
+# Nebula Postgres database. Connection URLs embed credentials, so they are
+# referenced indirectly: this key names the env var that holds the actual URL.
+# Override only to read different env var names.
+# The core refuses to boot when the env var resolves empty.
 database:
   nebula_database_url_env: "NEBULA_SQL_DATABASE_URL"
-  phoenix_database_url_env: "PHOENIX_SQL_DATABASE_URL"
 
 # Redis session store / cache. The URL may embed a password, so it is
 # read from the env var named by `redis_url_env`; when that env var is
@@ -259,4 +203,5 @@ git:
   provider: "GITHUB"
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
+
 

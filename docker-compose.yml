@@ -122,7 +122,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:19.9.0
+    image: arizephoenix/phoenix:20.6.0
     expose:
       - 6006
       - 4317
@@ -183,3 +183,4 @@ volumes:
 networks:
   bridge-network:
     driver: bridge
+
