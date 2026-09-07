@@ -46,11 +46,13 @@ class OidcTokenValidator:
     """
 
     def __init__(self, issuer_url: str, client_id: str, audience: str, leeway: int):
-        self._issuer = issuer_url.rstrip("/")
-        self._audiences = [audience] if audience else [client_id, f"api://{client_id}"]
-        self._leeway = leeway
+        self._issuer: str = issuer_url.rstrip("/")
+        self._audiences: list[str] = (
+            [audience] if audience else [client_id, f"api://{client_id}"]
+        )
+        self._leeway: int = leeway
         self._jwks_client: jwt.PyJWKClient | None = None
-        self._jwks_lock = threading.Lock()
+        self._jwks_lock: threading.Lock = threading.Lock()
 
     def _jwks(self) -> jwt.PyJWKClient:
         with self._jwks_lock:
@@ -59,13 +61,12 @@ class OidcTokenValidator:
                     f"{self._issuer}/.well-known/openid-configuration",
                     timeout=_DISCOVERY_TIMEOUT,
                 )
-                response.raise_for_status()
+                _ = response.raise_for_status()
                 self._jwks_client = jwt.PyJWKClient(
                     response.json()["jwks_uri"], cache_keys=True
                 )
             return self._jwks_client
 
-    # execute_pool forwards positional args only: call these positionally.
     @execute_pool
     def _validate(self, token: str) -> TokenClaims:
         signing_key = self._jwks().get_signing_key_from_jwt(token)
