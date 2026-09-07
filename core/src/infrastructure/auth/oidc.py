@@ -32,7 +32,7 @@ class TokenClaims:
     name: str | None
 
 
-_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "PS256"]
+_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"]
 _DISCOVERY_TIMEOUT = 10.0
 
 
