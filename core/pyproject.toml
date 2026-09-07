@@ -23,6 +23,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0",
     "azure-storage-blob>=12.30.0",
     "graphql-core<3.3.0",
+    "pyjwt[crypto]>=2.10.1",
     "pyyaml>=6.0",
     "redis==8.0.1",
     "mcp==1.28.1",

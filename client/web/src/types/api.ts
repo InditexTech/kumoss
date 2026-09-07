@@ -64,7 +64,6 @@ export interface BaseIacRequest {
   session_id?: string | null;
   scope_id?: string | null;
   terraform_providers?: TerraformProvider | null;
-  user_id: string;
   q: string;
   iac_path?: string | null;
 }
@@ -77,7 +76,6 @@ export interface DriftRequest extends BaseIacRequest {
 
 /** Apply reuses the session's stored plan; it takes no query or targets. */
 export interface ApplyRequest {
-  user_id: string;
   session_id: string;
 }
 
@@ -102,13 +100,12 @@ export interface PullRequestDTO {
   status: string;
 }
 
-// ─── Authorization (/api/v1/authorize) ──────────────────────
+// ─── Authorization (/api/v1/auth/authorize) ─────────────────
 
 export interface AuthorizeRequest {
   cloud: string;
   project_name: string;
   environment: string;
-  user_email: string;
 }
 
 export interface AuthorizeResponse {
@@ -250,13 +247,64 @@ export interface SessionEventData {
   };
 }
 
-// ─── Users (/api/v1/users/*) ────────────────────────────────
-// DISABLED: GET /users/me has no backend route. Kept for when the
-// admin-role enrichment returns server-side.
+// ─── Auth (/api/v1/auth/*) ──────────────────────────────────
 
-// export interface UserMeResponse {
-//   id: string;
-//   email?: string | null;
-//   name?: string | null;
-//   roles: string[];
-// }
+/** Public OIDC settings; blank issuer_url = auth disabled (dev mode). */
+export interface AuthConfigResponse {
+  issuer_url: string;
+  client_id: string;
+  audience: string;
+  scope: string;
+}
+
+// ─── Users & Roles (/api/v1/users/*, /api/v1/admin/*) ───────
+// Two strictly hierarchical role groups; order encodes the hierarchy.
+
+export const OPERATION_ROLES = ["developer", "devops"] as const;
+export type OperationRole = (typeof OPERATION_ROLES)[number];
+
+export const PANEL_ROLES = ["viewer", "editor", "admin"] as const;
+export type PanelRole = (typeof PANEL_ROLES)[number];
+
+export function operationRoleAtLeast(
+  role: OperationRole | null | undefined,
+  minimum: OperationRole,
+): boolean {
+  if (!role) return false;
+  return OPERATION_ROLES.indexOf(role) >= OPERATION_ROLES.indexOf(minimum);
+}
+
+export function panelRoleAtLeast(
+  role: PanelRole | null | undefined,
+  minimum: PanelRole,
+): boolean {
+  if (!role) return false;
+  return PANEL_ROLES.indexOf(role) >= PANEL_ROLES.indexOf(minimum);
+}
+
+export interface UserMeResponse {
+  id: number;
+  email: string | null;
+  display_name: string | null;
+  operation_role: OperationRole;
+  panel_role: PanelRole | null;
+}
+
+export interface AdminUserEntry extends UserMeResponse {
+  issuer: string;
+  subject: string;
+  created_at: string;
+}
+
+export type PaginatedUsers = PaginatedResponse<AdminUserEntry>;
+
+/** Full-state PUT; `panel_role: null` clears panel access. */
+export interface UpdateUserRolesRequest {
+  operation_role: OperationRole;
+  panel_role: PanelRole | null;
+}
+
+export interface SessionLockResponse {
+  uuid: string;
+  is_blocked: boolean;
+}

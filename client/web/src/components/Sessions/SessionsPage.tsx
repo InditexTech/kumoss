@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import type { ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { IconButton } from "@mui/material";
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
@@ -16,6 +18,11 @@ import {
   listUserSessions,
   getSessionDetail,
 } from "@/services/core/sessions";
+import {
+  listAdminSessions,
+  getAdminSessionDetail,
+  setSessionLock,
+} from "@/services/core/admin";
 import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
 import {
   resolveSessionOutcome,
@@ -30,7 +37,7 @@ import type {
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
-import { normalizeHistory } from "@/types/api";
+import { normalizeHistory, panelRoleAtLeast } from "@/types/api";
 import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
@@ -45,13 +52,15 @@ import { extractProjectName } from "./types";
 import SessionData from "./SessionData/SessionData";
 import styles from "./SessionsPage.module.css";
 
+const SEARCH_PLACEHOLDER = "Search by project name, query or session id";
+
 const userSearches: SearchFieldConfig[] = [
-  { key: "search", placeholder: "Search by project name or query" },
+  { key: "search", placeholder: SEARCH_PLACEHOLDER },
 ];
 
 const adminSearches: SearchFieldConfig[] = [
   { key: "userSearch", placeholder: "Search by user email" },
-  { key: "search", placeholder: "Search by project name or query" },
+  { key: "search", placeholder: SEARCH_PLACEHOLDER },
 ];
 
 const baseColumns: ColumnDef<SessionSummary>[] = [
@@ -96,13 +105,11 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     width: "6%",
     className: styles.applyCell,
     render: (s) =>
-      s.operation === "generate" || s.operation === "import" ? (
-        s.is_blocked ? (
-          <LockOutlinedIcon className={styles.applyIconLocked} />
-        ) : (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        )
-      ) : null,
+      s.is_blocked ? (
+        <LockOutlinedIcon className={styles.applyIconLocked} />
+      ) : (
+        <LockOpenOutlinedIcon className={styles.applyIconOpen} />
+      ),
   },
   {
     key: "created",
@@ -113,70 +120,74 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
   },
 ];
 
-const adminColumns: ColumnDef<SessionSummary>[] = [
-  {
-    key: "user",
-    header: "User",
-    width: "12%",
-    render: (s) => (s.username ? s.username.split("@")[0] : "-"),
-  },
-  {
-    key: "query",
-    header: "Query",
-    width: "26%",
-    render: (s) => (
-      <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
-    ),
-  },
-  {
-    key: "project",
-    header: "Project",
-    width: "14%",
-    className: styles.secondaryCell,
-    render: (s) => extractProjectName(s.workspace_uri),
-  },
-  {
-    key: "type",
-    header: "Type",
-    width: "8%",
-    className: styles.secondaryCell,
-    render: (s) => s.operation,
-  },
-  {
-    key: "cloud",
-    header: "Cloud",
-    width: "12%",
-    className: styles.secondaryCell,
-    render: (s) => providerLabel(s.provider),
-  },
-  {
-    key: "status",
-    header: "Status",
-    width: "8%",
-    render: (s) => <StatusBadge variant={s.current_status} />,
-  },
-  {
-    key: "apply",
-    header: "Apply",
-    width: "5%",
-    className: styles.applyCell,
-    render: (s) =>
-      s.operation === "generate" || s.operation === "import" ? (
-        s.is_blocked ? (
-          <LockOutlinedIcon className={styles.applyIconLocked} />
-        ) : (
-          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
-        )
-      ) : null,
-  },
-  {
-    key: "created",
-    header: "Created",
-    width: "15%",
-    className: styles.secondaryCell,
-    render: (s) => formatDate(s.created_at),
-  },
-];
+function buildAdminColumns(
+  renderApply: (s: SessionSummary) => ReactNode,
+): ColumnDef<SessionSummary>[] {
+  return [
+    {
+      key: "user",
+      header: "User",
+      width: "12%",
+      render: (s) => (s.username ? s.username.split("@")[0] : "-"),
+    },
+    {
+      key: "id",
+      header: "Session ID",
+      width: "10%",
+      className: styles.secondaryCell,
+      render: (s) => <span title={s.uuid}>{s.uuid.slice(0, 8)}</span>,
+    },
+    {
+      key: "query",
+      header: "Query",
+      width: "18%",
+      render: (s) => (
+        <span title={s.first_query || ""}>{truncate(s.first_query)}</span>
+      ),
+    },
+    {
+      key: "project",
+      header: "Project",
+      width: "14%",
+      className: styles.secondaryCell,
+      render: (s) => extractProjectName(s.workspace_uri),
+    },
+    {
+      key: "type",
+      header: "Type",
+      width: "8%",
+      className: styles.secondaryCell,
+      render: (s) => s.operation,
+    },
+    {
+      key: "cloud",
+      header: "Cloud",
+      width: "12%",
+      className: styles.secondaryCell,
+      render: (s) => providerLabel(s.provider),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: "8%",
+      render: (s) => <StatusBadge variant={s.current_status} />,
+    },
+    {
+      key: "apply",
+      header: "Apply",
+      width: "5%",
+      className: styles.applyCell,
+      render: renderApply,
+    },
+    {
+      key: "created",
+      header: "Created",
+      width: "13%",
+      className: styles.secondaryCell,
+      render: (s) => formatDate(s.created_at),
+    },
+  ];
+}
 
 const filters: FilterConfig[] = [
   {
@@ -206,16 +217,17 @@ interface SessionsPageProps {
 
 export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
-  const { user } = useAuth();
+  const { panelRole } = useAuth();
   const navigate = useNavigate();
   const { updateSession } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
-  const username = user?.username || "";
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>({});
+  const canToggleLock = isAdminView && panelRoleAtLeast(panelRole, "editor");
 
   const setSessionParam = useCallback(
     (id: string | null) => {
@@ -247,7 +259,8 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     let cancelled = false;
     setLoadingDetail(true);
-    getSessionDetail(sessionId, { includeHistory: true })
+    const fetchDetail = isAdminView ? getAdminSessionDetail : getSessionDetail;
+    fetchDetail(sessionId, { includeHistory: true })
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -272,23 +285,71 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const fetchSessions = useCallback(
     async (params: FetchParams) => {
       const { page, page_size, search, userSearch, operation, status } = params;
-      // The admin view can scope the listing to another user by email;
-      // it falls back to the current user until cross-user admin
-      // endpoints exist again server-side.
-      const email = isAdminView ? (userSearch as string) || username : username;
-      const data = await listUserSessions(email, {
+      const listParams = {
         page: page as number,
         page_size: page_size as number,
         search: search as string | undefined,
         status: status as SessionStatus | undefined,
         operation: operation as OperationType | undefined,
-      });
+      };
+      const data = isAdminView
+        ? await listAdminSessions({
+            ...listParams,
+            user_email: (userSearch as string) || undefined,
+          })
+        : await listUserSessions(listParams);
       if (!isAdminView && page === 1 && !search && !status && !operation) {
         setCachedSessions(data.items, data.total);
       }
+      setLockOverrides({});
       return data;
     },
-    [username, isAdminView],
+    [isAdminView],
+  );
+
+  const handleToggleLock = useCallback(
+    async (uuid: string, blocked: boolean) => {
+      try {
+        const res = await setSessionLock(uuid, !blocked);
+        const nowBlocked = res.is_blocked;
+        setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
+        setDetail((prev) =>
+          prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,
+        );
+      } catch (err) {
+        showNotification(
+          "failure",
+          `Failed to update the apply lock: ${getApiErrorMessage(err)}`,
+        );
+      }
+    },
+    [showNotification],
+  );
+
+  const adminColumns = useMemo(
+    () =>
+      buildAdminColumns((s) => {
+        const blocked = lockOverrides[s.uuid] ?? s.is_blocked;
+        const icon = blocked ? (
+          <LockOutlinedIcon className={styles.applyIconLocked} />
+        ) : (
+          <LockOpenOutlinedIcon className={styles.applyIconOpen} />
+        );
+        if (!canToggleLock) return icon;
+        return (
+          <IconButton
+            size="small"
+            aria-label={blocked ? "Unlock apply" : "Lock apply"}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleToggleLock(s.uuid, blocked);
+            }}
+          >
+            {icon}
+          </IconButton>
+        );
+      }),
+    [lockOverrides, canToggleLock, handleToggleLock],
   );
 
   function handleRowClick(row: SessionSummary) {
@@ -389,6 +450,11 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
             session={detail}
             onReload={
               detail.current_status !== "failed" ? handleReload : undefined
+            }
+            onToggleLock={
+              canToggleLock
+                ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
+                : undefined
             }
             conversationHistory={
               isAdminView && detail.history

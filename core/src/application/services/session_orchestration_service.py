@@ -31,18 +31,27 @@ class SessionOrchestrationService:
         self,
         request: BaseIacRequest | SessionRequest,
         operation: OperationType | None = None,
+        user_pk: int | None = None,
     ) -> SessionContext:
-        if request.session_id is None and operation is not None:
-            return await self._create(request, operation)
+        if (
+            isinstance(request, BaseIacRequest)
+            and request.session_id is None
+            and operation is not None
+            and user_pk is not None
+        ):
+            return await self._create(request, operation, user_pk)
         return await self._load(request)
 
     async def _create(
-        self, request: GenerateRequest | DriftRequest, operation: OperationType
+        self,
+        request: GenerateRequest | DriftRequest,
+        operation: OperationType,
+        user_pk: int,
     ) -> SessionContext:
         sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=sid,
-            user_id=request.user_id,
+            user_pk=user_pk,
             operation=operation,
             repo_uri=request.repo_uri,
             terraform_prv=request.terraform_providers,

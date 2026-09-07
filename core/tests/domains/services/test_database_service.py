@@ -39,12 +39,19 @@ class _SessionBase(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        # Unique username per run so stale Redis mappings never leak in.
+        # Unique email per run so stale Redis mappings never leak in.
         self.username = f"user-{uuid4().hex[:8]}@example.com"
+        user = await db.create(
+            User,
+            issuer="urn:test",
+            subject=f"sub-{uuid4().hex[:8]}",
+            email=self.username,
+        )
+        self.user_pk = user.id
         self.sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=self.sid,
-            user_id=self.username,
+            user_pk=self.user_pk,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
@@ -117,7 +124,7 @@ class TestSessionContextFreshness(_SessionBase):
         other_sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=other_sid,
-            user_id=self.username,
+            user_pk=self.user_pk,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/bar.git",
             terraform_prv=TerraformProvider.AZURE,
@@ -171,10 +178,9 @@ class TestPullRequestFreshness(_SessionBase):
         # Only possible for rows written outside create_session (which
         # always opens round 1); the guard must still be explicit.
         orphan_uuid = uuid4()
-        user = await db.get_by(User, username=self.username)
         _ = await db.create(
             Session,
-            user_id=user.id,
+            user_id=self.user_pk,
             uuid=orphan_uuid,
             operation=OperationType.GENERATE,
         )

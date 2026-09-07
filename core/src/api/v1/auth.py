@@ -4,16 +4,34 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
+from src.api.deps import CurrentUser, get_current_user
+from src.api.dtos import AuthConfigResponse
 from src.infrastructure.external.authz_service import AuthzServiceClient
+from src.shared.config.system_config import system_config
 
-router = APIRouter(prefix="/authorize", tags=["Authorization"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# Deliberately unauthenticated: the SPA must read this before it can log in.
+@router.get(
+    path="/config",
+    summary="Public OIDC settings for the SPA login flow.",
+)
+async def auth_config() -> AuthConfigResponse:
+    oidc = system_config.oidc
+    return AuthConfigResponse(
+        issuer_url=oidc.issuer_url,
+        client_id=oidc.client_id,
+        audience=oidc.audience,
+        scope=oidc.scope,
+    )
 
 
 @router.post(
-    path="",
+    path="/authorize",
     summary="Endpoint to manage if a user has permissions on a given project",
     responses={
         200: {
@@ -38,15 +56,13 @@ async def authorize(
         str, Body(description="name of the project that we are checking")
     ],
     environment: Annotated[str, Body(description="environment that we are checking")],
-    user_email: Annotated[
-        str, Body(description="user email that is requesting access")
-    ],
+    user: Annotated[CurrentUser, Depends(get_current_user)],
 ):
     result = await AuthzServiceClient().check(
         cloud=cloud,
         project=project_name,
         environment=environment,
-        user_id=user_email,
+        user_id=user.email or user.subject,
     )
 
     if result.authorized:

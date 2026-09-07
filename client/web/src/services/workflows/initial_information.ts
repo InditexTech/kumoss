@@ -39,7 +39,6 @@ import type { AuthorizeResponse } from "@/types/api";
 export interface InitialInfoParams {
   repositoryUrl: string;
   query: string;
-  userEmail: string;
   cloud?: string;
   environment?: string;
 }
@@ -68,7 +67,6 @@ export async function runInitialInfoWorkflow(
     cloud: params.cloud ?? "",
     project_name: params.repositoryUrl,
     environment: params.environment ?? "",
-    user_email: params.userEmail,
   });
 
   if (!authResponse.result) {

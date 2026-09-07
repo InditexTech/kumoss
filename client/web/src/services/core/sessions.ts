@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { ApiError, apiFetch } from "@/services/api";
+import { apiFetch } from "@/services/api";
 import type {
   OperationType,
   PaginatedSessionSummary,
@@ -20,38 +20,18 @@ export interface ListSessionsParams {
   operation?: OperationType;
 }
 
-/** GET /api/v1/sessions — List a user's sessions with pagination and filters */
+/** GET /api/v1/sessions — The caller's own sessions (always self-scoped) */
 export async function listUserSessions(
-  userEmail: string,
   params: ListSessionsParams = {},
 ): Promise<PaginatedSessionSummary> {
   const query = new URLSearchParams();
-  query.set("username", userEmail);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") {
       query.set(key, String(value));
     }
   }
-  try {
-    return await apiFetch<PaginatedSessionSummary>(
-      `${BASE}?${query.toString()}`,
-    );
-  } catch (err) {
-    // A brand-new user has no User row server-side yet, so the list
-    // endpoint answers 404 ("User not found"). For a collection, that
-    // means "no sessions" — resolve with an empty page so callers render
-    // their empty state instead of a failure toast.
-    if (err instanceof ApiError && err.status === 404) {
-      return {
-        items: [],
-        total: 0,
-        page: params.page ?? 1,
-        page_size: params.page_size ?? 0,
-        total_pages: 0,
-      };
-    }
-    throw err;
-  }
+  const qs = query.toString();
+  return apiFetch<PaginatedSessionSummary>(qs ? `${BASE}?${qs}` : BASE);
 }
 
 /**

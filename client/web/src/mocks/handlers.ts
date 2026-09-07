@@ -6,6 +6,25 @@ import { http, HttpResponse } from "msw";
 import { mockState } from "./state";
 
 export const handlers = [
+  http.get("/api/v1/auth/config", () =>
+    HttpResponse.json({
+      issuer_url: "",
+      client_id: "",
+      audience: "",
+      scope: "openid profile email",
+    }),
+  ),
+
+  http.get("/api/v1/users/me", () =>
+    HttpResponse.json({
+      id: 1,
+      email: "dev@nebula.local",
+      display_name: "Local Developer",
+      operation_role: "devops",
+      panel_role: "admin",
+    }),
+  ),
+
   http.get("/api/v1/sessions/:sessionId", ({ params }) => {
     const detail = mockState.getSession(params.sessionId as string);
     if (!detail) {

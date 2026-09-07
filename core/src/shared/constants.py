@@ -6,6 +6,31 @@ from enum import Enum, unique
 
 
 @unique
+class OperationRole(Enum):
+    """Operation roles; definition order is the hierarchy."""
+
+    DEVELOPER = "developer"
+    DEVOPS = "devops"
+
+    def at_least(self, minimum: "OperationRole") -> bool:
+        order = list(type(self))
+        return order.index(self) >= order.index(minimum)
+
+
+@unique
+class PanelRole(Enum):
+    """Admin-panel roles; definition order is the hierarchy."""
+
+    VIEWER = "viewer"
+    EDITOR = "editor"
+    ADMIN = "admin"
+
+    def at_least(self, minimum: "PanelRole") -> bool:
+        order = list(type(self))
+        return order.index(self) >= order.index(minimum)
+
+
+@unique
 class TerraformProvider(Enum):
     AZURE = "azure"
     GCP = "gcp"

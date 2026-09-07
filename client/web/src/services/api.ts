@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ApiOptions } from "@/types";
+import { getAccessToken, UNAUTHORIZED_EVENT } from "@/services/token";
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -96,12 +97,15 @@ export async function apiFetch<T = unknown>(
 
   const timeoutId = setTimeout(() => controller.abort("timeout"), timeout);
 
+  const token = getAccessToken();
+
   let response: Response;
   try {
     response = await fetch(path, {
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       credentials: "include",
@@ -125,6 +129,9 @@ export async function apiFetch<T = unknown>(
       body = await response.json();
     } catch {
       body = await response.text().catch(() => null);
+    }
+    if (response.status === 401) {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
     throw new ApiError(response.status, body);
   }

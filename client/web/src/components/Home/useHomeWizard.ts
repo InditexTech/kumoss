@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useInitialInformation } from "@/hooks/use_initial_information";
 import { useTerraformActions } from "@/hooks/use_terraform_actions";
-import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { STRINGS } from "@/constants/strings";
@@ -19,7 +18,6 @@ import type { TerraformProvider } from "@/types/api";
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 export function useHomeWizard() {
-  const { user } = useAuth();
   const { session, updateSession } = useSession();
   const { mode } = useMode();
   const navigate = useNavigate();
@@ -48,14 +46,13 @@ export function useHomeWizard() {
           query: navigation.data.query,
           terraformProviders: navigation.data.provider as TerraformProvider,
           scopeId: navigation.data.cloudScope,
-          userId: user?.username ?? "",
           mode,
           iacPath: navigation.data.iacPath,
         },
         handleOutcome,
       );
     }
-  }, [auth.state.status, navigation.data, user, mode, terraform, navigate, handleOutcome]);
+  }, [auth.state.status, navigation.data, mode, terraform, navigate, handleOutcome]);
 
   useEffect(() => {
     if (terraform.state.status === "error" && homeView === "planning") {
@@ -115,7 +112,6 @@ export function useHomeWizard() {
           auth.run({
             repositoryUrl: navigation.data.repositoryUrl,
             query: navigation.data.query,
-            userEmail: user?.username ?? "",
             cloud: navigation.data.provider,
             environment: navigation.data.iacPath,
           });
@@ -126,7 +122,7 @@ export function useHomeWizard() {
           break;
       }
     },
-    [navigation, mapper, updateSession, auth, user],
+    [navigation, mapper, updateSession, auth],
   );
 
   const handlePath = useCallback(
@@ -171,13 +167,12 @@ export function useHomeWizard() {
         {
           sessionId: session.session_id,
           query,
-          userId: user?.username ?? "",
           mode,
         },
         handleOutcome,
       );
     },
-    [session, updateSession, navigate, terraform, user, mode, handleOutcome],
+    [session, updateSession, navigate, terraform, mode, handleOutcome],
   );
 
   const applyAfterPr = useCallback(() => {
@@ -189,12 +184,11 @@ export function useHomeWizard() {
       {
         sessionId: session.session_id,
         query: "",
-        userId: user?.username ?? "",
         mode: "import" as const,
       },
       handleOutcome,
     );
-  }, [session, user, navigate, terraform, handleOutcome]);
+  }, [session, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
     if (mapper.mapperError) {

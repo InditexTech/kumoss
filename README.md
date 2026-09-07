@@ -104,7 +104,7 @@ credential env var names — use the optional `llm.model_list` key (see
 format](https://docs.litellm.ai/docs/routing) and is only needed for
 fallbacks, load balancing, or credential env var names that differ from the
 provider defaults. When set, `llm.model` and `llm.small_model` must match a
-`model_name` entry, and credential values use the `os.environ/VAR_NAME`
+`model_name` entry (reference list <https://models.litellm.ai/>), and credential values use the `os.environ/VAR_NAME`
 syntax so secrets stay in env vars. Each provider's keys are listed in the
 **Standard `litellm_params` Keys** column of the tables above (full
 reference: <https://docs.litellm.ai/docs/providers>):
@@ -148,6 +148,14 @@ Show basic usage or link to examples.
 ```bash
 your-tool init
 ```
+
+### Authentication
+
+Authentication is optional: with a blank `oidc.issuer_url` in
+`config.yaml` (the default) every request acts as a local developer.
+To enable it, set `oidc.issuer_url` and `oidc.client_id` — see
+[docs/oidc-setup.md](./docs/oidc-setup.md) for per-provider steps
+(Microsoft Entra ID, Keycloak, Auth0).
 
 ## Contributing
 

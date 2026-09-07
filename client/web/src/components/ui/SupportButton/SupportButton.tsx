@@ -51,7 +51,7 @@ function SupportButton({
     console.log("Opening Nebula AI Support");
 
     const userInfo = user
-      ? { name: user.name || "", email: user.username }
+      ? { name: user.displayName ?? "", email: user.email ?? "" }
       : null;
 
     if (!userInfo?.email) {
