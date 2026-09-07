@@ -4,13 +4,13 @@
 
 """FastAPI application for the IaC reference implementation.
 
-A raw IaC-engine executor (OpenTofu by default): every POST enqueues a
-job that runs exactly one engine command and returns ``202 Accepted``
-immediately; clients poll ``GET /v1/jobs/{job_id}`` for the raw
+A raw terraform executor: every POST enqueues a job that runs exactly
+one terraform command and returns ``202 Accepted`` immediately;
+clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing engine
+errors (auth, malformed body, missing workspace, missing terraform
 binary) are still reported synchronously on the POST; everything after
 submission surfaces through the job.
 """
@@ -19,23 +19,29 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
+import os
+import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
+from http import HTTPStatus
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, Security, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import cloud_cli
-from . import engine
+from . import terraform as tf
 from .auth import verify_bearer_token
-from .config import Config, engine_available
+from .config import Config, terraform_available
 from .jobs import JobRegistry, WorkspaceQueue
+from .log_context import configure_logging, set_request_id, set_workspace
 from .models import (
     ApplyRequest,
+    CredentialError,
     Health,
     ImportRequest,
     InitRequest,
@@ -51,32 +57,40 @@ from .models import (
     ValidateRequest,
 )
 
-
-# Console logging for the service's own loggers ("iac.*": engine
-# operations). uvicorn only configures its own loggers, so without
-# this handler the operation logs would be invisible at the default
-# log level.
-_iac_logger = logging.getLogger("iac")
-if not _iac_logger.handlers:
-    _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
-    _iac_logger.addHandler(_handler)
-    _iac_logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(config.log_level)
+
+    tf.set_timeout(config.subprocess_timeout)
+    tf_ok = terraform_available(config.terraform_binary)
+    logger.info(
+        "iac service starting terraform_available=%s binary=%s auth_enabled=%s",
+        tf_ok,
+        config.terraform_binary,
+        bool(config.expected_token),
+    )
+
+    try:
+        await cloud_cli.cloud_login(config)
+        logger.info("iac service startup complete")
+    except Exception:
+        logger.exception("iac service startup failed")
+        raise
+
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see
     # 404 and must resubmit).
     await jobs.shutdown()
+    logger.info("iac service shutting down")
 
 
 app = FastAPI(
@@ -85,6 +99,29 @@ app = FastAPI(
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def correlation_middleware(request: Request, call_next):
+    rid = set_request_id(request.headers.get("x-request-id"))
+    t0 = time.monotonic()
+    logger.info("%s %s started", request.method, request.url.path)
+    response = await call_next(request)
+    elapsed = time.monotonic() - t0
+    logger.info(
+        "%s %s completed status=%d elapsed=%.2fs",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed,
+    )
+    response.headers["x-request-id"] = rid
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Exception handlers
+# ---------------------------------------------------------------------------
 
 
 def _problem(status_code: int, title: str, detail: str | None = None) -> JSONResponse:
@@ -98,21 +135,44 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
     )
 
 
+def _http_reason(code: int) -> str:
+    try:
+        return HTTPStatus(code).phrase
+    except ValueError:
+        return "HTTP error"
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return _problem(exc.status_code, exc.detail or "HTTP error")
+    return _problem(exc.status_code, _http_reason(exc.status_code), exc.detail)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(
+    request: Request, exc: StarletteHTTPException
+) -> JSONResponse:
+    return _problem(exc.status_code, _http_reason(exc.status_code), exc.detail)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    return _problem(422, "Request validation failed", str(exc))
+    logger.warning(
+        "request validation error path=%s detail=%s", request.url.path, str(exc)[:300]
+    )
+    return _problem(422, "Unprocessable Content", str(exc))
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("unhandled exception %s %s", request.method, request.url.path)
     return _problem(500, "Internal server error", str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @app.get("/healthz", response_model=Health, tags=["ops"])
@@ -120,19 +180,21 @@ async def healthz() -> Health:
     return Health(status="ok")
 
 
-def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
-    """Submit-time checks: auth, engine binary, workspace existence.
+def _check_submit_preconditions(
+    workspace_path: str, credentials: HTTPAuthorizationCredentials | None
+) -> Path:
+    """Submit-time checks: auth, terraform binary, workspace existence.
 
-    Everything that fails after these (the engine command itself)
+    Everything that fails after these (the terraform command itself)
     surfaces through the job instead.
     """
-    verify_bearer_token(config, authorization)
+    verify_bearer_token(config, credentials)
 
-    if not engine_available(config.iac_binary):
+    if not terraform_available(config.terraform_binary):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"IaC engine binary '{config.iac_binary}' not found "
+                f"Terraform binary '{config.terraform_binary}' not found "
                 "in PATH on the IaC service."
             ),
         )
@@ -151,27 +213,76 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"workspace_path does not exist or is not a directory: {workspace}",
         )
+    set_workspace(str(workspace))
     return workspace
 
 
-async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
-    result = await command
-    return OperationResult(
-        exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
+async def _scope_env(
+    scope_id: str | None, *, aws_terraform_role_name: str = ""
+) -> dict[str, str] | None:
+    if not scope_id:
+        return None
+
+    azure_ready = bool(
+        config.azure_client_id
+        and config.azure_client_secret
+        and config.azure_tenant_id
     )
+    gcp_ready = bool(
+        config.google_application_credentials or config.google_credentials
+    )
+    aws_ready = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
+
+    if not (azure_ready or gcp_ready or aws_ready):
+        missing: dict[str, list[str]] = {}
+        if config.azure_client_id or config.azure_client_secret or config.azure_tenant_id:
+            fields = []
+            if not config.azure_client_id:
+                fields.append("ARM_CLIENT_ID")
+            if not config.azure_client_secret:
+                fields.append("ARM_CLIENT_SECRET")
+            if not config.azure_tenant_id:
+                fields.append("ARM_TENANT_ID")
+            missing["azure"] = fields
+        if not gcp_ready:
+            missing["gcp"] = ["GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CREDENTIALS"]
+        if not aws_ready:
+            missing["aws"] = ["AWS_ACCESS_KEY_ID"]
+        raise CredentialError(missing)
+
+    env = {
+        **os.environ,
+        "ARM_SUBSCRIPTION_ID": scope_id,
+        "GOOGLE_PROJECT": scope_id,
+    }
+    if aws_terraform_role_name and aws_ready:
+        try:
+            assumed = await cloud_cli.aws_assume_role(scope_id, aws_terraform_role_name)
+            env.update(assumed)
+        except RuntimeError:
+            logger.debug(
+                "AWS AssumeRole skipped for scope_id=%s (not an AWS account or "
+                "role not assumable)",
+                scope_id,
+            )
+    return env
+
+
+def _result(r: tf.CommandResult) -> OperationResult:
+    return OperationResult(exit_code=r.exit_code, stdout=r.stdout, stderr=r.stderr)
 
 
 def _submit(
     kind: JobKind,
     workspace: Path,
     response: Response,
-    command: Callable[[], Awaitable[engine.CommandResult]],
+    pipeline: Callable[[], Awaitable[OperationResult]],
 ) -> JobAccepted:
-    """Enqueue one engine command as a job and point at its resource."""
+    """Enqueue one terraform command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,
-        pipeline=lambda: _run_op(command()),
+        pipeline=pipeline,
     )
     response.headers["Location"] = f"/v1/jobs/{record.job_id}"
     return JobAccepted(job_id=record.job_id)
@@ -186,15 +297,18 @@ def _submit(
 async def init(
     body: InitRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "init",
-        workspace,
-        response,
-        lambda: engine.init(config.iac_binary, workspace),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(await tf.init(config.terraform_binary, workspace, env=env))
+
+    return _submit("init", workspace, response, _pipeline)
 
 
 @app.post(
@@ -206,15 +320,18 @@ async def init(
 async def validate(
     body: ValidateRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "validate",
-        workspace,
-        response,
-        lambda: engine.validate(config.iac_binary, workspace),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(await tf.validate(config.terraform_binary, workspace, env=env))
+
+    return _submit("validate", workspace, response, _pipeline)
 
 
 @app.post(
@@ -226,15 +343,22 @@ async def validate(
 async def plan(
     body: PlanRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "plan",
-        workspace,
-        response,
-        lambda: engine.plan(config.iac_binary, workspace, body.targets, body.plan_file),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.plan(
+                config.terraform_binary, workspace, body.targets, body.plan_file, env=env
+            )
+        )
+
+    return _submit("plan", workspace, response, _pipeline)
 
 
 @app.post(
@@ -246,15 +370,22 @@ async def plan(
 async def show(
     body: ShowRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "show",
-        workspace,
-        response,
-        lambda: engine.show_plan_json(config.iac_binary, workspace, body.plan_file),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.show_plan_json(
+                config.terraform_binary, workspace, body.plan_file, env=env
+            )
+        )
+
+    return _submit("show", workspace, response, _pipeline)
 
 
 @app.post(
@@ -266,15 +397,20 @@ async def show(
 async def apply(
     body: ApplyRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "apply",
-        workspace,
-        response,
-        lambda: engine.apply(config.iac_binary, workspace, body.plan_file),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.apply(config.terraform_binary, workspace, body.plan_file, env=env)
+        )
+
+    return _submit("apply", workspace, response, _pipeline)
 
 
 @app.post(
@@ -286,17 +422,22 @@ async def apply(
 async def import_resource(
     body: ImportRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "import",
-        workspace,
-        response,
-        lambda: engine.import_resource(
-            config.iac_binary, workspace, body.address, body.resource_id
-        ),
-    )
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
+
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        )
+        return _result(
+            await tf.import_resource(
+                config.terraform_binary, workspace, body.address, body.resource_id, env=env
+            )
+        )
+
+    return _submit("import", workspace, response, _pipeline)
 
 
 @app.post(
@@ -308,26 +449,24 @@ async def import_resource(
 async def state_resource_ids(
     body: StateResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    record = jobs.submit(
-        kind="state_resource_ids",
-        workspace=workspace,
-        pipeline=lambda: _state_resource_ids_op(workspace),
-    )
-    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
-    return JobAccepted(job_id=record.job_id)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
-
-async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    result = await engine.state_pull(config.iac_binary, workspace)
-    if not result.ok:
-        return OperationResult(
-            exit_code=result.exit_code, stdout="", stderr=result.stderr
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        env = await _scope_env(
+            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
-    ids = engine.extract_managed_resource_ids(result.stdout)
-    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+        result = await tf.state_pull(config.terraform_binary, workspace, env=env)
+        if not result.ok:
+            return OperationResult(
+                exit_code=result.exit_code, stdout="", stderr=result.stderr
+            )
+        ids = tf.extract_managed_resource_ids(result.stdout)
+        return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+
+    return _submit("state_resource_ids", workspace, response, _pipeline)
 
 
 @app.post(
@@ -339,32 +478,36 @@ async def _state_resource_ids_op(workspace: Path) -> OperationResult:
 async def scope_resource_ids(
     body: ScopeResourceIdsRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    workspace = _check_submit_preconditions(body.workspace_path, credentials)
     if not cloud_cli.cli_available(body.terraform_provider):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Cloud CLI '{cloud_cli.CLI_BINARIES[body.terraform_provider]}' "
+                f"Cloud CLI '{cloud_cli.CLI_BINARIES.get(body.terraform_provider, body.terraform_provider)}' "
                 f"for provider '{body.terraform_provider}' not found in PATH "
                 "on the IaC service."
             ),
         )
-    return _submit(
-        "scope_resource_ids",
-        workspace,
-        response,
-        lambda: cloud_cli.list_resource_ids(body.terraform_provider, body.scope_id),
-    )
+    async def _pipeline() -> OperationResult:
+        await cloud_cli.ensure_cloud_login(config)
+        result = await cloud_cli.list_resource_ids(
+            body.terraform_provider,
+            body.scope_id,
+            aws_terraform_role_name=config.aws_terraform_role_name,
+        )
+        return _result(result)
+
+    return _submit("scope_resource_ids", workspace, response, _pipeline)
 
 
 @app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
 async def get_job(
     job_id: UUID,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> Job:
-    verify_bearer_token(config, authorization)
+    verify_bearer_token(config, credentials)
     record = jobs.get(str(job_id))
     if record is None:
         raise HTTPException(

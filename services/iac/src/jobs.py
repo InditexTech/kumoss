@@ -2,13 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""In-memory job registry for asynchronous IaC engine operations.
+"""In-memory job registry for asynchronous terraform operations.
 
 Submissions create an ``asyncio.Task`` that waits on the workspace's
 FIFO queue, runs the operation, and records the outcome on the
 ``JobRecord``. Two failure planes are kept distinct:
 
-* Engine-level failures are returned by the operation as a result
+* Terraform-level failures are returned by the operation as a result
   with a non-zero ``exit_code`` — the job still ends ``succeeded``.
 * Service-level faults (unexpected exceptions, cancellation on
   shutdown) end the job ``failed`` with a ``Problem`` whose ``status``
@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from pathlib import Path
 
+from .log_context import set_job_id
 from .models import (
     Job,
     JobKind,
@@ -39,6 +40,8 @@ from .models import (
     OperationResult,
     Problem,
 )
+from .models import CredentialError
+from .terraform import TerraformTimeoutError
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +148,7 @@ class JobRegistry:
             await asyncio.gather(*pending, return_exceptions=True)
 
     async def _run(self, record: JobRecord, pipeline: Pipeline) -> None:
+        set_job_id(record.job_id)
         try:
             async with self._queue.acquire(record.workspace):
                 record.status = "running"
@@ -154,6 +158,10 @@ class JobRegistry:
         except asyncio.CancelledError:
             self._fail(record, 503, "Service shut down before the job finished.")
             raise
+        except CredentialError as exc:
+            self._fail(record, 422, str(exc))
+        except TerraformTimeoutError as exc:
+            self._fail(record, 504, str(exc))
         except Exception as exc:
             logger.exception("job crashed job_id=%s", record.job_id)
             self._fail(record, 500, str(exc))

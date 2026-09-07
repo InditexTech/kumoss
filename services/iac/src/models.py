@@ -13,10 +13,28 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class CredentialError(Exception):
+    """No cloud provider has complete credentials."""
+
+    def __init__(
+        self, missing: dict[str, list[str]], message: str | None = None
+    ) -> None:
+        self.missing = missing
+        if message is None:
+            parts = [f"{prov}: {', '.join(fields)}" for prov, fields in missing.items()]
+            message = (
+                "No cloud provider credentials are complete. "
+                "At least one provider (Azure, GCP, or AWS) must have "
+                "complete credentials to proceed with Terraform operations. "
+                "Incomplete: " + "; ".join(parts)
+            )
+        super().__init__(message)
+
+
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Single path segment only: `plan_file` is passed to `-out`, `show`,
 # and `apply`, so it must not be able to escape the workspace.
-PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
+PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$")]
 
 
 class InitRequest(BaseModel):
@@ -88,7 +106,7 @@ class ScopeResourceIdsRequest(BaseModel):
 
 
 class OperationResult(BaseModel):
-    """Raw outcome of the single engine command a job ran."""
+    """Raw outcome of the single terraform command a job ran."""
 
     model_config = ConfigDict(extra="forbid")
 

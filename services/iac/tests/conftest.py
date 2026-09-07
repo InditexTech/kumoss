@@ -4,15 +4,12 @@
 
 """Test environment setup.
 
-``src.main`` resolves ``Config.from_env()`` at import time, and
-``Config.__post_init__`` fails fast when the IaC engine binary cannot
-be resolved. Point it at ``sh`` (always present) so the suite collects
-in engine-less environments (e.g. the CI/test container); unit tests
-never invoke the real binary — every subprocess call is patched. The
-real-engine checks live in ``test_integration_engine.py`` and skip
-themselves when no engine is installed.
+``src.main`` resolves ``Config.from_env()`` at import time. Point
+``TERRAFORM_BINARY`` at ``sh`` (always present) so the default config
+works in terraform-less environments (e.g. the CI/test container);
+tests never invoke the real binary — every subprocess call is patched.
 """
 
 import os
 
-os.environ.setdefault("IAC_BINARY", "sh")
+os.environ.setdefault("TERRAFORM_BINARY", "sh")

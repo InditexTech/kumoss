@@ -12,12 +12,14 @@ parsing, and failure propagation, not the real CLIs.
 from __future__ import annotations
 
 import json
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src import cloud_cli
-from src.engine import CommandResult
+from src.config import Config
+from src.terraform import CommandResult
 
 
 def _ok(stdout: str) -> CommandResult:
@@ -176,3 +178,168 @@ async def test_aws_listing_failure_names_region() -> None:
     assert not result.ok
     assert result.exit_code == 254
     assert "us-east-1" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# aws_assume_role
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aws_assume_role_success() -> None:
+    sts_response = json.dumps({
+        "Credentials": {
+            "AccessKeyId": "AKID",
+            "SecretAccessKey": "SECRET",
+            "SessionToken": "TOKEN",
+        }
+    })
+    with patch(
+        "src.cloud_cli._run",
+        new_callable=AsyncMock,
+        return_value=_ok(sts_response),
+    ):
+        result = await cloud_cli.aws_assume_role("123456789012", "my-role")
+    assert result == {
+        "AWS_ACCESS_KEY_ID": "AKID",
+        "AWS_SECRET_ACCESS_KEY": "SECRET",
+        "AWS_SESSION_TOKEN": "TOKEN",
+    }
+
+
+@pytest.mark.asyncio
+async def test_aws_assume_role_cli_failure() -> None:
+    with (
+        patch(
+            "src.cloud_cli._run",
+            new_callable=AsyncMock,
+            return_value=_err("access denied"),
+        ),
+        pytest.raises(RuntimeError, match="AssumeRole failed"),
+    ):
+        await cloud_cli.aws_assume_role("123456789012", "my-role")
+
+
+@pytest.mark.asyncio
+async def test_aws_assume_role_malformed_response() -> None:
+    with (
+        patch(
+            "src.cloud_cli._run",
+            new_callable=AsyncMock,
+            return_value=_ok(json.dumps({"unexpected": "shape"})),
+        ),
+        pytest.raises(RuntimeError, match="Malformed STS"),
+    ):
+        await cloud_cli.aws_assume_role("123456789012", "my-role")
+
+
+# ---------------------------------------------------------------------------
+# cli_available
+# ---------------------------------------------------------------------------
+
+
+def test_cli_available_known_provider_found() -> None:
+    with patch("shutil.which", return_value="/usr/bin/az"):
+        assert cloud_cli.cli_available("azure") is True
+
+
+def test_cli_available_known_provider_not_found() -> None:
+    with patch("shutil.which", return_value=None):
+        assert cloud_cli.cli_available("aws") is False
+
+
+def test_cli_available_unknown_provider() -> None:
+    assert cloud_cli.cli_available("unknown-provider") is False
+
+
+# ---------------------------------------------------------------------------
+# needs_relogin
+# ---------------------------------------------------------------------------
+
+
+def test_needs_relogin_fresh_state() -> None:
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        assert cloud_cli.needs_relogin(45) is True
+    finally:
+        cloud_cli._last_login = original
+
+
+def test_needs_relogin_recently_logged_in() -> None:
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = time.monotonic()
+        assert cloud_cli.needs_relogin(45) is False
+    finally:
+        cloud_cli._last_login = original
+
+
+def test_needs_relogin_expired() -> None:
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = time.monotonic() - 3600
+        assert cloud_cli.needs_relogin(45) is True
+    finally:
+        cloud_cli._last_login = original
+
+
+# ---------------------------------------------------------------------------
+# AWS pagination (I2 fix)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aws_paginates_get_resources() -> None:
+    """Verify _list_aws follows PaginationToken across pages."""
+    responses = [
+        _ok("123456789012\n"),  # sts get-caller-identity
+        _ok(json.dumps(["us-east-1"])),  # describe-regions
+        # page 1 with PaginationToken
+        _ok(json.dumps({
+            "ResourceTagMappingList": [{"ResourceARN": "arn:page1"}],
+            "PaginationToken": "tok1",
+        })),
+        # page 2 without PaginationToken
+        _ok(json.dumps({
+            "ResourceTagMappingList": [{"ResourceARN": "arn:page2"}],
+        })),
+    ]
+    with patch(
+        "src.cloud_cli._run", new_callable=AsyncMock, side_effect=responses
+    ) as run_mock:
+        result = await cloud_cli.list_resource_ids("aws", "123456789012")
+    assert result.ok
+    assert json.loads(result.stdout) == ["arn:page1", "arn:page2"]
+    # The third call (page 2) should include --starting-token
+    page2_command = run_mock.await_args_list[3].args[0]
+    assert "--starting-token" in page2_command
+    assert "tok1" in page2_command
+
+
+# ---------------------------------------------------------------------------
+# _az_login_sp passes secret via env, not CLI arg (C1 fix)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_az_login_sp_passes_secret_via_env() -> None:
+    config = Config(
+        expected_token="",
+        terraform_binary="sh",
+        azure_client_id="my-client-id",
+        azure_client_secret="super-secret",
+        azure_tenant_id="my-tenant",
+    )
+    with patch(
+        "src.cloud_cli._run",
+        new_callable=AsyncMock,
+        return_value=_ok(""),
+    ) as run_mock:
+        await cloud_cli._az_login_sp(config)
+    args, kwargs = run_mock.await_args
+    # Secret must NOT appear in the command args
+    assert "super-secret" not in args[0]
+    assert "-p" not in args[0]
+    # Secret must be in the env dict
+    assert kwargs["env"]["AZURE_CLIENT_SECRET"] == "super-secret"
