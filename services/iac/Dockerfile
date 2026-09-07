@@ -10,13 +10,18 @@ FROM ghcr.io/opentofu/opentofu:1.12.6-minimal@sha256:2fedbb3e956b083582543dabb76
 
 FROM python:3.13-slim AS base
 
+# Unprivileged runtime identity. The uid/gid MUST match the core image's
+# (same ARG names and defaults in core/Dockerfile): both containers
+# share the `workspaces` volume read-write.
+ARG NEBULA_UID=10001
+ARG NEBULA_GID=10001
+RUN groupadd --gid "${NEBULA_GID}" nebula \
+    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
+        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
+    && mkdir -p /workspaces && chown nebula:nebula /workspaces
+
 WORKDIR /app
 
-# IaC engines: the image ships both OpenTofu (MPL-2.0, copied from the
-# stage above) and HashiCorp Terraform (BUSL-1.1, fetched from
-# HashiCorp's release server and checksum-verified; your use of it is
-# subject to its license terms). Select at runtime with IAC_BINARY —
-# `tofu` (the default) or `terraform` — no rebuild needed to switch.
 ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
@@ -30,7 +35,6 @@ RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
     && apt-get purge -y unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
 ARG AWSCLI_VERSION=2.28.0
 ARG GCLOUD_VERSION=540.0.0
 RUN apt-get update \
@@ -49,13 +53,20 @@ RUN pip install --no-cache-dir uv
 
 # az is pip-installed (simplest route on a python base image); the
 # `az graph` command group lives in the resource-graph extension.
+ENV AZURE_EXTENSION_DIR=/opt/azure-cli-extensions
 RUN pip install --no-cache-dir azure-cli \
-    && az extension add --name resource-graph
+    && AZURE_CONFIG_DIR=/tmp/az-build az extension add --name resource-graph \
+    && rm -rf /tmp/az-build
 
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache .
 
 COPY src ./src
+
+ENV HOME=/home/nebula \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER ${NEBULA_UID}:${NEBULA_GID}
 
 EXPOSE 8082
 
