@@ -301,14 +301,14 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   );
 
   const handleToggleLock = useCallback(
-    async (s: SessionSummary) => {
-      const blocked = lockOverrides[s.uuid] ?? s.is_blocked;
+    async (uuid: string, blocked: boolean) => {
       try {
-        const res = await setApplyAllowed(s.uuid, blocked);
-        setLockOverrides((prev) => ({
-          ...prev,
-          [s.uuid]: !res.apply_allowed,
-        }));
+        const res = await setApplyAllowed(uuid, blocked);
+        const nowBlocked = !res.apply_allowed;
+        setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
+        setDetail((prev) =>
+          prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,
+        );
       } catch (err) {
         showNotification(
           "failure",
@@ -316,7 +316,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         );
       }
     },
-    [lockOverrides, showNotification],
+    [showNotification],
   );
 
   const adminColumns = useMemo(
@@ -336,7 +336,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
             aria-label={blocked ? "Unlock apply" : "Lock apply"}
             onClick={(e) => {
               e.stopPropagation();
-              void handleToggleLock(s);
+              void handleToggleLock(s.uuid, blocked);
             }}
           >
             {icon}
@@ -444,6 +444,11 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
             session={detail}
             onReload={
               detail.current_status !== "failed" ? handleReload : undefined
+            }
+            onToggleLock={
+              canToggleLock
+                ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
+                : undefined
             }
             conversationHistory={
               isAdminView && detail.history

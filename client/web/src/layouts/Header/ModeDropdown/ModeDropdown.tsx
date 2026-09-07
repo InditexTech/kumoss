@@ -12,7 +12,7 @@ import { MODE } from "@/types/ui";
 import type { SelectChangeEvent } from "@mui/material";
 import styles from "./ModeDropdown.module.css";
 
-const DEVOPS_ONLY_MODES: Mode[] = [MODE.DRIFT, MODE.PARTIAL_DRIFT];
+const DEVOPS_ONLY_MODES: Mode[] = [MODE.DRIFT, MODE.PARTIAL_DRIFT, MODE.IMPORT];
 const DEVOPS_HINT = "Requires the devops operation role.";
 
 const selectSx = {
@@ -79,7 +79,7 @@ const menuPropsSx = {
 export default function ModeDropdown({ disabled = false }: { disabled?: boolean }) {
   const { mode, setMode } = useMode();
   const { operationRole } = useAuth();
-  const canRunDrift = operationRoleAtLeast(operationRole, "devops");
+  const isDevops = operationRoleAtLeast(operationRole, "devops");
 
   const handleChange = (event: SelectChangeEvent<string>) => {
     setMode(event.target.value as Mode);
@@ -104,7 +104,7 @@ export default function ModeDropdown({ disabled = false }: { disabled?: boolean 
       }}
     >
       {MODE_OPTIONS.map(({ value, label, description }) => {
-        const locked = DEVOPS_ONLY_MODES.includes(value) && !canRunDrift;
+        const locked = DEVOPS_ONLY_MODES.includes(value) && !isDevops;
         return (
           <MenuItem
             key={value}
