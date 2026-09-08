@@ -56,7 +56,7 @@ class TerraformTargetService:
             query=query,
             tools=tools_definition,
             sentinel_tool=self.__tool_svc.get_sentinel_tool(
-                ToolContext.DRIFT_TARGET_GENERATOR
+                ToolContext.TARGET_GENERATOR
             ),
             prompt=await self.__template_svc.render(
                 prompt=PromptsLibrary.TARGET_GENERATOR,

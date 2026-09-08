@@ -53,15 +53,7 @@ class TerraformDriftService:
                 get_drift=True,
             )
 
-            if validation.terraform_plan:
-                _ = await self.__artifact_svc.store_terraform_plan(
-                    session_id=self.__ctx.id,
-                    round_id=self.__ctx.round_id,
-                    targets=targets,
-                    content=validation.terraform_plan,
-                    content_type=ContentType.TEXT,
-                    is_drift=False,
-                )
+            await self.__upload_artifacts(validation, targets)
 
             if validation.validation:
                 break
@@ -96,3 +88,28 @@ class TerraformDriftService:
             )
 
         return validation
+
+    async def __upload_artifacts(
+        self,
+        validation: TerraformValidationDTO,
+        targets: list[str],
+    ) -> None:
+        if validation.feedback:
+            _ = await self.__artifact_svc.store_terraform_plan(
+                session_id=self.__ctx.id,
+                round_id=self.__ctx.round_id,
+                targets=targets,
+                content=validation.feedback,
+                content_type=ContentType.TEXT,
+                is_drift=True,
+            )
+
+        if validation.terraform_plan:
+            _ = await self.__artifact_svc.store_terraform_plan(
+                session_id=self.__ctx.id,
+                round_id=self.__ctx.round_id,
+                targets=targets,
+                content=validation.terraform_plan,
+                content_type=ContentType.TEXT,
+                is_drift=False,
+            )
