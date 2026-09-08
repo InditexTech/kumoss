@@ -65,7 +65,7 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
             PromptsLibrary.FILTER_RECONCILIATION
         )
         self.tool_svc.get_available_tools.assert_called_once_with(
-            contexts=[ToolContext.WORKSPACE_INSPECTION]
+            ToolContext.WORKSPACE_INSPECTION
         )
         self.tool_svc.get_sentinel_tool.assert_called_once_with(
             ToolContext.TASK_SPLITTER

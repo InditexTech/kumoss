@@ -309,7 +309,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(prompt, str)
         self.assertIn("Drift Remediation", prompt)
-        self.assertIn("generate_drift_targets", prompt)
+        self.assertIn("generate_terraform_targets", prompt)
         self.assertIn("storage_account", prompt)
         self.assertIn("mocked_drift_guidelines", prompt)
         self.assertIn("/test/project", prompt)

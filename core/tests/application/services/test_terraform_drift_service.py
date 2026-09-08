@@ -125,7 +125,7 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.terraform_svc.validate.await_count, 2)
         self.validation_svc.generate_and_validate.assert_awaited_once()
 
-    async def test_stores_plan_and_drift_report_as_artifacts(self):
+    async def test_stores_drift_report_then_plan_so_plan_is_latest(self):
         self.terraform_svc.validate.return_value = _report("[drift]", self.targets)
         self.split_svc.split_task.return_value = [["op a"]]
 
@@ -135,7 +135,7 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
             call.kwargs["is_drift"]
             for call in self.artifact_svc.store_terraform_plan.await_args_list
         ]
-        self.assertEqual(flags, [False, True])
+        self.assertEqual(flags, [True, False])
 
 
 if __name__ == "__main__":
