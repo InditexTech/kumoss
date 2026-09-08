@@ -116,15 +116,16 @@ class TerraformCRUDHandler:
                     max_iterations=2,
                 )
 
-                report = await self.__report_svc.generate_report(
+                _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.GENERATE,
                     content=validation.terraform_plan,
                 )
+
                 check = await self.__compliance_svc.check(
-                    history=ctx.history,
+                    request=q,
                     conventions=conventions,
-                    report=report,
+                    plan=validation.terraform_plan,
                 )
                 if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):
