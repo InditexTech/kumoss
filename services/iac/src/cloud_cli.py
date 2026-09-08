@@ -71,6 +71,15 @@ async def _run(args: list[str], *, env: dict[str, str] | None = None) -> Command
 
 Login = Callable[[Config], Awaitable[None]]
 
+# Static AWS credentials the CLI and the provider both require; a key ID
+# without its secret is rejected by both, so it must not count as configured.
+_AWS_ENV_KEYS = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+
+
+def aws_missing_env() -> list[str]:
+    """Names of the required AWS credential env vars that are unset."""
+    return [key for key in _AWS_ENV_KEYS if not os.environ.get(key)]
+
 
 def _configured_providers(config: Config) -> dict[str, Login]:
     """Providers whose credentials are complete, keyed by display name.
@@ -96,10 +105,11 @@ def _configured_providers(config: Config) -> dict[str, Login]:
             "and GOOGLE_CREDENTIALS not set"
         )
 
-    if os.environ.get("AWS_ACCESS_KEY_ID"):
+    aws_missing = aws_missing_env()
+    if not aws_missing:
         logger.info("AWS ambient credentials detected")
     else:
-        logger.info("AWS auth skipped: no ambient credentials detected")
+        logger.info("AWS auth skipped: %s not set", ", ".join(aws_missing))
 
     return providers
 

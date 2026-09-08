@@ -488,6 +488,7 @@ def test_job_fails_422_when_no_provider_is_configured(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
 
     with _client_with(
         azure_client_id="", azure_client_secret="", azure_tenant_id=""
@@ -502,6 +503,35 @@ def test_job_fails_422_when_no_provider_is_configured(
     assert body["status"] == "failed"
     assert body["error"]["status"] == 422
     assert "No cloud provider credentials are complete" in body["error"]["detail"]
+    init.assert_not_awaited()
+
+
+def test_job_fails_422_when_aws_keys_are_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An access key ID without its secret is not usable by the AWS CLI or
+    the provider; preflight must reject it and name the missing variable
+    instead of letting the engine fail later with an opaque auth error."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+
+    with _client_with(
+        azure_client_id="", azure_client_secret="", azure_tenant_id=""
+    ) as client:
+        with patch("src.engine.init", new_callable=AsyncMock) as init:
+            response = client.post(
+                "/v1/init",
+                json={"workspace_path": str(workspace), "scope_id": "123456789012"},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "failed"
+    assert body["error"]["status"] == 422
+    detail = body["error"]["detail"]
+    assert "aws: AWS_SECRET_ACCESS_KEY" in detail
+    assert "AWS_ACCESS_KEY_ID" not in detail.split("aws:")[1]
     init.assert_not_awaited()
 
 

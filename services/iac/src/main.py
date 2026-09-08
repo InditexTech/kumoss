@@ -231,7 +231,8 @@ async def _scope_env(
         config.azure_client_id and config.azure_client_secret and config.azure_tenant_id
     )
     gcp_ready = bool(config.google_application_credentials or config.google_credentials)
-    aws_ready = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
+    aws_missing = cloud_cli.aws_missing_env()
+    aws_ready = not aws_missing
 
     if not (azure_ready or gcp_ready or aws_ready):
         missing: dict[str, list[str]] = {}
@@ -251,7 +252,7 @@ async def _scope_env(
         if not gcp_ready:
             missing["gcp"] = ["GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CREDENTIALS"]
         if not aws_ready:
-            missing["aws"] = ["AWS_ACCESS_KEY_ID"]
+            missing["aws"] = aws_missing
         raise CredentialError(missing)
 
     env = {

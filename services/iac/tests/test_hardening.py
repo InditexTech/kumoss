@@ -246,6 +246,7 @@ def test_assume_role_failure_does_not_fail_non_aws_job(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-test")
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
 
     with _client_with(

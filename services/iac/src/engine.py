@@ -23,7 +23,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_BUFFER_LIMIT = 10 * 1024 * 1024  # 10 MB — prevents deadlock on large plans
+_BUFFER_LIMIT = 10 * 1024 * 1024  # per-line StreamReader limit
 _CHUNK_SIZE = 64 * 1024  # fallback read size once a line overruns the limit
 _LOG_PREVIEW = 512  # chars of an oversized line echoed to the debug log
 
