@@ -2,16 +2,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { apiFetch, ApiError, ApiTimeoutError } from "./api";
+import { setAccessTokenProvider, UNAUTHORIZED_EVENT } from "./token";
 
 const TEST_PATH = "/api/v1/test";
 
 describe("apiFetch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    setAccessTokenProvider(null);
   });
 
   it("returns parsed JSON on success", async () => {
@@ -203,6 +208,50 @@ describe("apiFetch", () => {
     });
 
     expect(authHeader).toBe("admin@test.com");
+  });
+
+  it("attaches the bearer token from the registered provider", async () => {
+    setAccessTokenProvider(() => "token-123");
+    let authHeader = "";
+
+    server.use(
+      http.get(TEST_PATH, ({ request }) => {
+        authHeader = request.headers.get("authorization") ?? "";
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    await apiFetch(TEST_PATH);
+    expect(authHeader).toBe("Bearer token-123");
+  });
+
+  it("sends no Authorization header without a token provider", async () => {
+    let authHeader: string | null = "";
+
+    server.use(
+      http.get(TEST_PATH, ({ request }) => {
+        authHeader = request.headers.get("authorization");
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    await apiFetch(TEST_PATH);
+    expect(authHeader).toBeNull();
+  });
+
+  it("dispatches the unauthorized event on 401", async () => {
+    const listener = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, listener);
+
+    server.use(
+      http.get(TEST_PATH, () =>
+        HttpResponse.json({ detail: "Not authenticated" }, { status: 401 }),
+      ),
+    );
+
+    await expect(apiFetch(TEST_PATH)).rejects.toMatchObject({ status: 401 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(UNAUTHORIZED_EVENT, listener);
   });
 });
 

@@ -123,8 +123,7 @@ class TerraformDriftHandler:
                             error_code=500,
                         )
                     await NotificationServiceClient.notify_compliance_failure(
-                        ctx=ctx,
-                        summary=check.summary,
+                        ctx.id, ctx.user_id, check.summary
                     )
                 elif not await DatabaseService.set_lock(ctx.id, False):
                     raise SetLockError(

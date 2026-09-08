@@ -33,8 +33,8 @@ export function buildSupportContext({
   extra = {},
 }: SupportContextInput): Record<string, unknown> {
   return {
-    user_email: user?.username ?? null,
-    user_name: user?.name ?? null,
+    user_email: user?.email ?? null,
+    user_name: user?.displayName ?? null,
     session_id: session.session_id ?? null,
     cloud: session.cloud ?? null,
     project: session.project ?? null,
@@ -74,7 +74,7 @@ export function buildSupportSubject(
   user: UserInfo | null,
   session: Session,
 ): string {
-  const who = user?.username ?? "unknown user";
+  const who = user?.email ?? "unknown user";
   const where = session.session_id ? ` – session ${session.session_id}` : "";
   return `${prefix} from ${who}${where}`;
 }

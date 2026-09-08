@@ -31,6 +31,7 @@ import styles from "./SessionData.module.css";
 interface SessionDataProps {
   session: SessionDetail;
   onReload?: () => void;
+  onToggleLock?: () => void;
   conversationHistory?: HistoryEntry[];
 }
 
@@ -92,6 +93,7 @@ function roundArtifacts(
 export default function SessionData({
   session,
   onReload,
+  onToggleLock,
   conversationHistory,
 }: SessionDataProps) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -160,6 +162,12 @@ export default function SessionData({
   const started = formatShortDate(session.created_at);
   const completed = formatShortDate(session.updated_at);
   const hasTimeline = session.rounds.length > 0 || session.statuses.length > 0;
+  const lockIcon = session.is_blocked ? (
+    <LockOutlinedIcon className={styles.btnIcon} />
+  ) : (
+    <LockOpenOutlinedIcon className={styles.btnIcon} />
+  );
+  const lockLabel = session.is_blocked ? "Apply Locked" : "Apply Open";
 
   return (
     <div className={styles.container}>
@@ -434,6 +442,22 @@ export default function SessionData({
           Additional Info
         </Typography>
         <div className={styles.infoContent}>
+          <div className={styles.infoRow}>
+            <Typography
+              variant="subtitleSemiBold"
+              component="span"
+              className={styles.infoLabel}
+            >
+              Session ID
+            </Typography>
+            <Typography
+              variant="subtitle2"
+              component="span"
+              className={styles.uuidValue}
+            >
+              {session.uuid}
+            </Typography>
+          </div>
           {session.workspace.root_path && (
             <div className={styles.infoRow}>
               <Typography
@@ -526,18 +550,30 @@ export default function SessionData({
 
       {/* ── Action Buttons ── */}
       <div className={styles.actions}>
-        <span
-          className={
-            session.is_blocked ? styles.btnApply : styles.btnApplyOpen
-          }
-        >
-          {session.is_blocked ? (
-            <LockOutlinedIcon className={styles.btnIcon} />
-          ) : (
-            <LockOpenOutlinedIcon className={styles.btnIcon} />
-          )}
-          {session.is_blocked ? "Apply Locked" : "Apply Open"}
-        </span>
+        {onToggleLock ? (
+          <button
+            type="button"
+            className={
+              session.is_blocked
+                ? styles.btnApplyInteractive
+                : styles.btnApplyOpenInteractive
+            }
+            title={session.is_blocked ? "Unlock apply" : "Lock apply"}
+            onClick={onToggleLock}
+          >
+            {lockIcon}
+            {lockLabel}
+          </button>
+        ) : (
+          <span
+            className={
+              session.is_blocked ? styles.btnApply : styles.btnApplyOpen
+            }
+          >
+            {lockIcon}
+            {lockLabel}
+          </span>
+        )}
         {onReload && (
           <button type="button" className={styles.btnReload} onClick={onReload}>
             <ReplayIcon className={styles.btnIcon} />

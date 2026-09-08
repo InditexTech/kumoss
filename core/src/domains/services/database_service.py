@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 
@@ -26,12 +27,14 @@ from src.domains.dto import (
     TerraformPlanRef,
     WorkspaceRef,
 )
-from src.domains.entities import SessionContext
+from src.domains.entities import SessionContext, User
 from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
     SessionTerminal,
+    UserAlreadyExists,
+    UserNotFound,
 )
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
@@ -43,7 +46,7 @@ from src.infrastructure.database.models import (
     Report,
     Round,
     Status as DbStatus,
-    User,
+    User as DbUser,
     Session,
     Workspace,
     History,
@@ -52,7 +55,9 @@ from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.constants import (
+    OperationRole,
     OperationType,
+    PanelRole,
     ReportType,
     SessionStatus,
     TerraformProvider,
@@ -117,12 +122,8 @@ def _k_sid(session_id: UUID) -> str:
     return f"{_CACHE_NS}:map:sid:{session_id}"
 
 
-def _k_user_id(username: str) -> str:
-    return f"{_CACHE_NS}:map:user-id:{username}"
-
-
-def _k_user_name(pk: int) -> str:
-    return f"{_CACHE_NS}:map:user-name:{pk}"
+def _k_owner(session_id: UUID) -> str:
+    return f"{_CACHE_NS}:session:{session_id}:owner"
 
 
 def _k_workspace(session_id: UUID) -> str:
@@ -215,26 +216,129 @@ class DatabaseService:
         return session
 
     @staticmethod
-    async def __map_user_id(username: str) -> int | None:
-        """username -> user pk. Write-once."""
+    async def __map_user_email(pk: int) -> str:
+        """user pk -> display email for read models and tracing."""
+        user: DbUser | None = await db.get_by(DbUser, id=pk)
+        if user is not None and user.email:
+            return user.email
+        return f"user-{pk}"
 
-        async def _load() -> int | None:
-            user: User | None = await db.get_by(User, username=username)
-            return user.id if user is not None else None
+    # --- Users ----------------------------------------------------------------
 
-        return await redis_client.get_or_set(
-            _k_user_id(username), _ttl(_TTL_FACTS), _load
+    @staticmethod
+    def __user_entity(row: DbUser) -> User:
+        return User(
+            id=row.id,
+            issuer=row.issuer,
+            subject=row.subject,
+            email=row.email,
+            display_name=row.display_name,
+            operation_role=row.operation_role,
+            panel_role=row.panel_role,
+            created_at=row.created_at,
         )
 
     @staticmethod
-    async def __map_user_name(pk: int) -> str | None:
-        """user pk -> username. Write-once."""
+    async def get_user(user_id: int) -> User | None:
+        row: DbUser | None = await db.get_by(DbUser, id=user_id)
+        return DatabaseService.__user_entity(row) if row is not None else None
 
-        async def _load() -> str | None:
-            user: User | None = await db.get_by(User, id=pk)
-            return user.username if user is not None else None
+    @staticmethod
+    async def get_user_by_identity(issuer: str, subject: str) -> User | None:
+        row: DbUser | None = await db.get_by(DbUser, issuer=issuer, subject=subject)
+        return DatabaseService.__user_entity(row) if row is not None else None
 
-        return await redis_client.get_or_set(_k_user_name(pk), _ttl(_TTL_FACTS), _load)
+    @staticmethod
+    async def create_user(
+        issuer: str,
+        subject: str,
+        email: str | None,
+        display_name: str | None,
+        operation_role: OperationRole,
+        panel_role: PanelRole | None,
+    ) -> User:
+        try:
+            row = await db.create(
+                DbUser,
+                issuer=issuer,
+                subject=subject,
+                email=email,
+                display_name=display_name,
+                operation_role=operation_role,
+                panel_role=panel_role,
+            )
+        except IntegrityError:
+            raise UserAlreadyExists(f"User {issuer}/{subject} already exists", 409)
+        return DatabaseService.__user_entity(row)
+
+    @staticmethod
+    async def update_user(user_id: int, values: dict[str, Any]) -> User:
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(DbUser)
+                .where(DbUser.id == user_id)
+                .values(**values, updated_at=datetime.now(timezone.utc))
+            )
+            if cast(CursorResult[Any], res).rowcount != 1:
+                raise UserNotFound(f"User {user_id} not found", 404)
+        user = await DatabaseService.get_user(user_id)
+        if user is None:
+            raise UserNotFound(f"User {user_id} not found", 404)
+        return user
+
+    @staticmethod
+    async def list_users(
+        offset: int = 0, limit: int = 20, search: str | None = None
+    ) -> tuple[list[User], int]:
+        async with db.session() as sess:
+            stmt = select(DbUser)
+            if search:
+                pattern = f"%{search}%"
+                stmt = stmt.where(
+                    or_(
+                        DbUser.email.ilike(pattern),
+                        DbUser.display_name.ilike(pattern),
+                    )
+                )
+            count_stmt = select(func.count()).select_from(stmt.subquery())
+            count: int = (await sess.execute(count_stmt)).scalar_one()
+            stmt = stmt.order_by(DbUser.created_at.desc()).offset(offset).limit(limit)
+            rows = (await sess.execute(stmt)).scalars().all()
+        return [DatabaseService.__user_entity(r) for r in rows], count
+
+    @staticmethod
+    async def list_emails_with_panel_role(minimum: PanelRole) -> list[str]:
+        """Emails of users whose panel role is ``minimum`` or higher.
+
+        Users without an email are skipped: there is nowhere to notify.
+        """
+        roles = [role for role in PanelRole if role.at_least(minimum)]
+        async with db.session() as sess:
+            stmt = select(DbUser.email).where(
+                DbUser.panel_role.in_(roles), DbUser.email.is_not(None)
+            )
+            rows = (await sess.execute(stmt)).scalars().all()
+        return [email for email in rows if email]
+
+    # --- Sessions -------------------------------------------------------------
+
+    @staticmethod
+    async def get_session_owner(session_id: UUID) -> int:
+        """Owning user pk for a session. Write-once."""
+
+        async def _load() -> int | None:
+            session: Session | None = await db.get_by(Session, uuid=session_id)
+            return session.user_id if session is not None else None
+
+        owner = await redis_client.get_or_set(
+            _k_owner(session_id), _ttl(_TTL_FACTS), _load
+        )
+        if owner is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        return owner
 
     @staticmethod
     async def __workspace_facts(session_id: UUID) -> WorkspaceFacts | None:
@@ -369,7 +473,7 @@ class DatabaseService:
     @staticmethod
     async def create_session(
         session_id: UUID,
-        user_id: str,
+        user_pk: int,
         operation: OperationType,
         repo_uri: str,
         terraform_prv: TerraformProvider,
@@ -378,18 +482,6 @@ class DatabaseService:
         query: str,
         iac_path: str | None = None,
     ) -> Session:
-        user_pk: int | None = await DatabaseService.__map_user_id(user_id)
-        if user_pk is None:
-            user: User = await db.create(User, username=user_id)
-            user_pk = user.id
-            # Write-through the new user mappings (immutable once created).
-            await redis_client.set_json_many(
-                [
-                    (_k_user_id(user_id), user_pk, _ttl(_TTL_FACTS)),
-                    (_k_user_name(user_pk), user_id, _ttl(_TTL_FACTS)),
-                ]
-            )
-
         session: Session = await db.create(
             Session,
             user_id=user_pk,
@@ -425,6 +517,7 @@ class DatabaseService:
         await redis_client.set_json_many(
             [
                 (_k_sid(session_id), session.id, _ttl(_TTL_FACTS)),
+                (_k_owner(session_id), user_pk, _ttl(_TTL_FACTS)),
                 (
                     _k_workspace(session_id),
                     {"uri": repo_uri, "branch": branch_name, "root_path": iac_path},
@@ -450,17 +543,12 @@ class DatabaseService:
                     error_code=404,
                 )
             username, workspace, provider, payload, round_id = await asyncio.gather(
-                DatabaseService.__map_user_name(session.user_id),
+                DatabaseService.__map_user_email(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
                 DatabaseService.__history_payload(session_id),
                 DatabaseService.__latest_round_id(session.id),
             )
-            if username is None:
-                raise SessionTerminal(
-                    message=f"Session {session_id} has no owning user",
-                    error_code=500,
-                )
             if workspace is None:
                 raise SessionTerminal(
                     message=f"Session {session_id} does not have a workspace",
@@ -515,7 +603,7 @@ class DatabaseService:
         ) = await asyncio.gather(
             DatabaseService.__workspace_facts(s.uuid),
             DatabaseService.__provider_facts(s.uuid),
-            DatabaseService.__map_user_name(s.user_id),
+            DatabaseService.__map_user_email(s.user_id),
             DatabaseService.__first_query(s.uuid),
             DatabaseService.__current_status(s.uuid),
         )
@@ -550,24 +638,27 @@ class DatabaseService:
 
     @staticmethod
     async def list_sessions(
-        user_id: str,
+        user_pk: int | None,
         operation: OperationType | None = None,
         status: SessionStatus | None = None,
         search: str | None = None,
+        user_email: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
         offset: int = 0,
         limit: int = 20,
     ) -> PaginatedSessionSummary:
-        user_pk: int | None = await DatabaseService.__map_user_id(user_id)
-        if user_pk is None:
-            raise SessionTerminal(
-                message=f"User {user_id} not found",
-                error_code=404,
-            )
-
+        """Paginated summaries. ``user_pk`` None lists across all users
+        (admin path); ``user_email`` optionally filters that cross-user
+        listing by owner email."""
         async with db.session() as sess:
-            stmt = select(Session).where(Session.user_id == user_pk)
+            stmt = select(Session)
+            if user_pk is not None:
+                stmt = stmt.where(Session.user_id == user_pk)
+            if user_email:
+                stmt = stmt.join(DbUser, DbUser.id == Session.user_id).where(
+                    DbUser.email.ilike(f"%{user_email}%")
+                )
             if operation is not None:
                 stmt = stmt.where(Session.operation == operation)
             if search:
@@ -578,6 +669,7 @@ class DatabaseService:
                     .where(
                         History.first_query.ilike(pattern)
                         | Workspace.uri.ilike(pattern)
+                        | Session.uuid.cast(String).ilike(pattern)
                     )
                 )
             if status is not None:
@@ -754,7 +846,7 @@ class DatabaseService:
 
         detail = SessionDetail(
             uuid=s.uuid,
-            username=await DatabaseService.__map_user_name(s.user_id),
+            username=await DatabaseService.__map_user_email(s.user_id),
             operation=s.operation,
             provider=provider.provider,
             first_query=history.first_query if history else None,

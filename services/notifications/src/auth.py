@@ -7,13 +7,10 @@
 from __future__ import annotations
 
 import hmac
-import logging
 
 from fastapi import HTTPException, status
 
 from .config import Config
-
-logger = logging.getLogger("nebula.notifications.auth")
 
 
 def verify_bearer_token(
@@ -28,34 +25,20 @@ def verify_bearer_token(
     The token comparison is constant-time (``hmac.compare_digest``) so an
     attacker on the service network cannot recover the token byte by byte
     from response timing (docs/specs/authentication.md, SVC-1).
-
-    Rejections are logged (without the presented or expected token) so a
-    core↔sidecar token mismatch is visible in the sidecar's own log.
     """
     if not config.expected_token:
         return
 
     if not authorization:
-        logger.warning("rejected request: missing Authorization header")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization header.",
         )
 
     scheme, _, value = authorization.partition(" ")
-    if scheme.lower() != "bearer":
-        logger.warning("rejected request: Authorization scheme is not Bearer")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid bearer token.",
-        )
-    if not hmac.compare_digest(
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
         value.encode("utf-8"), config.expected_token.encode("utf-8")
     ):
-        logger.warning(
-            "rejected request: bearer token does not match "
-            "NEBULA_NOTIFICATIONS_TOKEN (check core/.env vs services/notifications/.env)"
-        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token.",

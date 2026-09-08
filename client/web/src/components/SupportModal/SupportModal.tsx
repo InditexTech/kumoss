@@ -56,7 +56,6 @@ export default function SupportModal({ onClose }: SupportModalProps) {
         severity: NotificationSeverity.INFO,
         subject: buildSupportSubject("Support question", user, session),
         body: question.trim(),
-        audience: user?.username ? [user.username] : [],
         links: buildSupportLinks(session, prDetails),
         context: buildSupportContext({ user, session, prDetails }),
       });

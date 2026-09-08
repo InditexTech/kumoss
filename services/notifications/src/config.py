@@ -6,28 +6,40 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
+
+
+class ConfigError(ValueError):
+    """Raised when the resolved service configuration is unusable."""
 
 
 @dataclass(frozen=True)
 class Config:
     """Resolved from environment at startup.
 
-    - ``slack_webhook_url``: full incoming-webhook URL. Required for actual
-      delivery; if unset, the service still accepts requests and returns
-      ``503 Service Unavailable`` from /v1/notify (handy for smoke tests
-      against a service that hasn't been wired to a backend yet).
+    - ``slack_webhook_url``: full incoming-webhook URL. Required: the
+      service refuses to start without it so a deployment that cannot
+      deliver anything fails at boot rather than on the first request.
     - ``expected_token``: bearer token clients must present. If unset, the
       service accepts any (or no) token (intended for local development).
-    - ``log_level``: Python logging level name for the service's own
-      logger (``LOG_LEVEL``, default ``INFO``). ``DEBUG`` additionally
-      logs the rendered Slack payload.
+    - ``log_level``: Python logging level name applied to the root logger
+      (``LOG_LEVEL``, default ``INFO``).
     """
 
     slack_webhook_url: str
     expected_token: str
     log_level: str = "INFO"
+
+    def __post_init__(self) -> None:
+        if not self.slack_webhook_url:
+            raise ConfigError("SLACK_WEBHOOK_URL must be set.")
+        level = logging.getLevelNamesMapping().get(self.log_level)
+        if level is None:
+            raise ConfigError(f"LOG_LEVEL {self.log_level!r} is not a logging level.")
+        logging.basicConfig(level=level)
+        logging.getLogger().setLevel(level)
 
     @classmethod
     def from_env(cls) -> "Config":

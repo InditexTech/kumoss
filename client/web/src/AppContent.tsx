@@ -14,7 +14,7 @@ import AppRouter from "./router";
 const SPLASH_DURATION_MS = 2000;
 
 export default function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [showGreeting, setShowGreeting] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
   const [showIntro, setShowIntro] = useState(false);
@@ -35,7 +35,7 @@ export default function AppContent() {
     setIntroComplete(true);
   }, []);
 
-  if (showGreeting) {
+  if (showGreeting || isLoading) {
     return <GreetingScreen />;
   }
 

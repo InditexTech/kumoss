@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -18,57 +17,14 @@ from fastapi.responses import JSONResponse
 from .auth import verify_bearer_token
 from .config import Config
 from .models import Health, NotificationAccepted, NotificationRequest, Problem
-from .slack import DeliveryError, deliver
+from .slack import deliver
 
 
 config = Config.from_env()
-logger = logging.getLogger("nebula.notifications")
-
-
-def configure_logging(level_name: str) -> None:
-    """Route the service's own loggers to stdout at ``LOG_LEVEL``.
-
-    uvicorn configures only its own loggers (``uvicorn.*``); records from
-    ``nebula.notifications*`` would otherwise be dropped below WARNING.
-    Applied to the ``nebula.notifications`` parent so the auth and slack
-    child loggers inherit it, and idempotent so tests can re-import.
-    """
-    level = logging.getLevelNamesMapping().get(level_name, logging.INFO)
-    root = logging.getLogger("nebula.notifications")
-    root.setLevel(level)
-    if not root.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-        )
-        root.addHandler(handler)
-    root.propagate = False
-
-
-configure_logging(config.log_level)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup summary: enough to diagnose "nothing arrives in Slack"
-    # without ever printing the webhook URL or the token.
-    logger.info(
-        "notifications service ready: slack_webhook_configured=%s "
-        "bearer_auth_enforced=%s log_level=%s",
-        bool(config.slack_webhook_url),
-        bool(config.expected_token),
-        config.log_level,
-    )
-    if not config.slack_webhook_url:
-        logger.warning(
-            "SLACK_WEBHOOK_URL is empty: every POST /v1/notify will return 503 "
-            "until it is set in services/notifications/.env"
-        )
-    if not config.expected_token:
-        logger.warning(
-            "NEBULA_NOTIFICATIONS_TOKEN is empty: accepting unauthenticated "
-            "requests (local-dev mode)"
-        )
     app.state.http = httpx.AsyncClient()
     try:
         yield
@@ -109,6 +65,16 @@ async def validation_exception_handler(
     return _problem(422, "Request validation failed", str(exc))
 
 
+@app.exception_handler(httpx.HTTPError)
+async def downstream_error_handler(
+    request: Request, exc: httpx.HTTPError
+) -> JSONResponse:
+    # Slack answered non-2xx or could not be reached: the contract's 502.
+    # No detail on purpose: httpx embeds the request URL in every error
+    # message and the webhook URL is the Slack credential.
+    return _problem(status.HTTP_502_BAD_GATEWAY, "Downstream channel error")
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return _problem(500, "Internal server error", str(exc))
@@ -131,42 +97,5 @@ async def notify(
     authorization: str | None = Header(default=None),
 ) -> NotificationAccepted:
     verify_bearer_token(config, authorization)
-
-    delivery_id = uuid4()
-    logger.info(
-        "delivery %s received: kind=%s severity=%s subject=%r audience=%d links=%d",
-        delivery_id,
-        body.kind,
-        body.severity,
-        body.subject[:80],
-        len(body.audience),
-        len(body.links),
-    )
-
-    if not config.slack_webhook_url:
-        logger.warning(
-            "delivery %s rejected: SLACK_WEBHOOK_URL is not configured", delivery_id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Notifications service is running but no SLACK_WEBHOOK_URL is configured.",
-        )
-
-    try:
-        slack_status = await deliver(
-            body, config.slack_webhook_url, request.app.state.http
-        )
-    except DeliveryError as exc:
-        # `exc.detail` is URL-free by construction (see slack.DeliveryError);
-        # the raw httpx message would leak the webhook URL, which is the
-        # Slack credential. Same rule for the log line.
-        logger.warning(
-            "delivery %s (kind=%s) failed: %s", delivery_id, body.kind, exc.detail
-        )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Slack delivery failed: {exc.detail}",
-        ) from exc
-
-    logger.info("delivery %s delivered to slack (HTTP %d)", delivery_id, slack_status)
-    return NotificationAccepted(delivery_id=delivery_id)
+    await deliver(body, config.slack_webhook_url, request.app.state.http)
+    return NotificationAccepted(delivery_id=uuid4())

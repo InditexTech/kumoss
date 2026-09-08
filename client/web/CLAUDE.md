@@ -29,7 +29,7 @@ All run from `client/web`. Node ≥ 20 is required for the test toolchain (Vites
 - All API calls use same-origin relative paths (`/api/v1/...`). There is **no Vite dev proxy** in `vite.config.js`, so `npm run dev` alone has no backend.
 - The full stack runs via `docker compose up --build` from the repo root, browsed at `http://localhost`. The `proxy` (nginx) compose service serves a **static production build** of this app baked into the `nebula-nginx` image (`nginx/Dockerfile` runs `npm ci && npm run build`) and routes `/api` → `core:8000`, with a dedicated buffering-off location for the SSE endpoint.
 - To see frontend changes in the stack, rebuild the proxy: `docker compose build proxy && docker compose up -d proxy` (from repo root). `docker compose watch` hot-reloads only the `core` backend, not this client.
-- `npm run dev:mock` sets `VITE_MOCK_API=true` but is currently inert: the MSW browser-worker bootstrap in `src/main.tsx` is commented out and `src/mocks/browser.ts` does not exist. MSW is only active in tests (node server).
+- MSW is test-only: the node server starts in `src/test/setup.ts`. There is no browser worker or mock dev mode.
 
 ## Architecture
 
@@ -60,6 +60,6 @@ All run from `client/web`. Node ≥ 20 is required for the test toolchain (Vites
 ## Conventions
 
 - Every file starts with the SPDX header (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` / `SPDX-License-Identifier: Apache-2.0`) — REUSE compliance is enforced in CI and pre-commit; include it in new files.
-- Read env vars through `src/config/env.ts`, which prefers a `window.__ENV__` runtime injection over `import.meta.env`.
+- The client uses no env vars. Auth/OIDC settings come from the backend: `main.tsx` awaits `loadAuthConfig()` (`GET /api/v1/auth/config`, stored in `src/services/auth.ts`) before rendering; blank `issuer_url` = auth disabled (dev mode).
 - Production builds drop `console` and `debugger` statements (esbuild `drop`), so don't rely on console output in prod.
 - TypeScript is strict; ESLint uses a flat config — unused vars are warnings, prefix intentionally-unused args with `_`.

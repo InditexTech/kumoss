@@ -5,8 +5,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.deps import CurrentUser, assert_session_access, get_current_user
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
 from src.domains.services.database_service import DatabaseService
 from src.shared.constants import OperationType, SessionStatus
@@ -17,10 +18,10 @@ router = APIRouter(prefix="/sessions", tags=["Session Management"])
 
 @router.get(
     path="",
-    summary="List a user's sessions.",
+    summary="List the caller's sessions.",
 )
 async def sessions_list(
-    username: Annotated[str, Query(min_length=3, max_length=254)],
+    user: Annotated[CurrentUser, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     operation: Annotated[OperationType | None, Query()] = None,
@@ -29,14 +30,16 @@ async def sessions_list(
 ) -> PaginatedSessionSummary:
     """Paginated session summaries for the sessions table.
 
-    Each item carries the operation, terraform provider, first query,
-    workspace URI, latest status, and lock flags — everything the list
-    view renders, resolved server-side. ``status`` matches a session's
-    most recent status; ``search`` matches first query or workspace URI.
+    Always scoped to the authenticated caller's own sessions. Each item
+    carries the operation, terraform provider, first query, workspace
+    URI, latest status, and lock flags — everything the list view
+    renders, resolved server-side. ``status`` matches a session's most
+    recent status; ``search`` matches first query, workspace URI, or
+    session id.
     """
     try:
         return await DatabaseService.list_sessions(
-            user_id=username,
+            user_pk=user.id,
             operation=operation,
             status=status,
             search=search,
@@ -54,6 +57,7 @@ async def sessions_list(
 )
 async def session_detail(
     session_id: UUID,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
     include_history: Annotated[
         bool,
         Query(description="Include the session's serialized conversation history."),
@@ -74,6 +78,7 @@ async def session_detail(
     Clients subscribed to the push channel should refetch this endpoint
     whenever a `session.updated` nudge arrives for this session id.
     """
+    await assert_session_access(user, session_id, write=False)
     try:
         return await DatabaseService.get_session_detail(
             session_id, include_history=include_history

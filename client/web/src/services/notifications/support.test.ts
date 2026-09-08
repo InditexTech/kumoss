@@ -3,16 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
+import type { UserInfo } from "@/types";
 import { buildSupportContext, buildSupportLinks, buildSupportSubject } from "./support";
 
-const user = {
-  username: "someone@example.com",
-  name: "Someone",
-  homeAccountId: "",
-  environment: "",
-  tenantId: "",
-  localAccountId: "",
-  roles: [],
+const user: UserInfo = {
+  id: 1,
+  email: "someone@example.com",
+  displayName: "Someone",
+  operationRole: "developer",
+  panelRole: null,
 };
 
 describe("support notification builders", () => {

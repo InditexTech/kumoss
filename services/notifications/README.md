@@ -24,41 +24,42 @@ etc.) of the same contract.
 - Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
   set; otherwise accepts any request (local-dev fallback).
 - If Slack answers with a non-2xx status or cannot be reached, the
-  response is `502 Bad Gateway` (RFC 7807 body). The detail names
-  Slack's status and short reply but never the webhook URL — that URL
-  is the Slack credential and must not appear in responses or logs.
+  response is `502 Bad Gateway` (RFC 7807 body, title `Downstream
+  channel error`, no detail). The webhook URL is the Slack credential
+  and httpx embeds it in every error message, so nothing from the
+  underlying error is echoed.
 - Bearer tokens are compared in constant time (`hmac.compare_digest`).
 
 ## Configuration
 
 | Env var                       | Required | Description                                  |
 |-------------------------------|----------|----------------------------------------------|
-| `SLACK_WEBHOOK_URL`           | yes\*    | Slack incoming-webhook URL.                  |
+| `SLACK_WEBHOOK_URL`           | yes      | Slack incoming-webhook URL. The service refuses to start without it. |
 | `NEBULA_NOTIFICATIONS_TOKEN`  | no       | Bearer token clients must present.           |
-| `LOG_LEVEL`                   | no       | Service log level (default `INFO`; `DEBUG` also logs the Slack payload). |
+| `LOG_LEVEL`                   | no       | Root log level (default `INFO`).             |
 
-\* If unset the service still boots and `/v1/notify` returns
-`503 Service Unavailable`, which is useful for smoke-testing the
-contract surface without wiring a real backend.
+Configuration is asserted at startup: a missing webhook URL or an
+unknown log level raises `ConfigError` and the process exits, so a
+deployment that cannot deliver anything fails at boot rather than on
+the first request. In `docker compose`, that means the `notifications`
+container exits until `services/notifications/.env` sets the URL; the
+core treats its notifications as best-effort and keeps working.
 
 ## Troubleshooting
 
-The service logs to stdout (`docker compose logs -f notifications`).
-At `INFO` you should see, in order:
+The service only reports problems, as `application/problem+json`
+responses to the caller and as warnings or errors on stdout
+(`docker compose logs -f notifications`); it does not trace deliveries.
 
-1. On boot: `notifications service ready: slack_webhook_configured=True
-   bearer_auth_enforced=True ...`. `False` for either means the matching
-   env var is empty in `services/notifications/.env`.
-2. Per request: `delivery <id> received: kind=... severity=...`, then
-   either `delivery <id> delivered to slack (HTTP 200)` or a warning
-   with the reason (`SLACK_WEBHOOK_URL is not configured`, `Slack
-   responded with HTTP 4xx: <slack reason>`, `bearer token does not
-   match ...`).
-
-If no `received` line appears, the request never reached this
-container: check the caller (core logs `sending 'kind' notification to
-<endpoint>`), the `services.notifications` block in `config.yaml`, and
-that the core image was rebuilt after config changes.
+- Container exits at boot with `ConfigError`: set `SLACK_WEBHOOK_URL`
+  (and a valid `LOG_LEVEL`) in `services/notifications/.env`.
+- `401` at the core: `NEBULA_NOTIFICATIONS_TOKEN` differs between
+  `core/.env` and `services/notifications/.env`.
+- `502 Downstream channel error`: Slack rejected the payload or was
+  unreachable. Check the webhook URL is still valid in Slack.
+- Nothing arrives and the core logs `Failed to send '<kind>'
+  notification`: check the `services.notifications` block in
+  `config.yaml` and that the core image was rebuilt after changing it.
 
 ## Run locally
 

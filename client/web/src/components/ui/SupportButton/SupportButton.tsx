@@ -31,6 +31,9 @@ interface SupportContext {
   [key: string]: unknown;
 }
 
+/** Whether the request came from the auto-trigger effect or a click. */
+type SupportTrigger = "automatic" | "manual";
+
 interface Props {
   message?: string;
   buttonText?: string;
@@ -47,7 +50,8 @@ interface Props {
  * notifications service, carrying the session metadata (session id,
  * request text, cloud/project/environment, PR link, whether the plan has
  * deletes or recreates) so the person answering in Slack can act
- * without asking the user for details.
+ * without asking the user for details. Recipients are chosen by the
+ * core from the signed-in user, not by this component.
  */
 function SupportButton({
   message,
@@ -63,11 +67,11 @@ function SupportButton({
   const [isLoading, setIsLoading] = useState(false);
   const hasAutoTriggered = useRef(false);
 
-  const handleSupportRequest = useCallback(async () => {
+  const handleSupportRequest = useCallback(async (trigger: SupportTrigger) => {
     setIsLoading(true);
 
     const userInfo = user
-      ? { name: user.name || "", email: user.username }
+      ? { name: user.displayName ?? "", email: user.email ?? "" }
       : null;
 
     if (!userInfo?.email) {
@@ -102,7 +106,6 @@ function SupportButton({
         }
       }
 
-      const trigger = autoTrigger && !hasAutoTriggered.current ? "automatic" : "manual";
       const body =
         message ??
         (hasDeletesOrRecreates
@@ -116,7 +119,6 @@ function SupportButton({
           : NotificationSeverity.INFO,
         subject: buildSupportSubject("Support request", user, session),
         body,
-        audience: [userInfo.email],
         links: buildSupportLinks(session, prDetails),
         context: buildSupportContext({
           user,
@@ -139,16 +141,7 @@ function SupportButton({
     } finally {
       setIsLoading(false);
     }
-  }, [
-    user,
-    session,
-    prDetails,
-    context,
-    message,
-    autoTrigger,
-    onSupportRequest,
-    showNotification,
-  ]);
+  }, [user, session, prDetails, context, message, onSupportRequest, showNotification]);
 
   useEffect(() => {
     const notificationKey = `nebulaai_notification_sent_${session.session_id}_${prDetails.prUrl || "no_pr"}`;
@@ -157,7 +150,7 @@ function SupportButton({
     if (autoTrigger && !hasAutoTriggered.current && !alreadySent && user) {
       hasAutoTriggered.current = true;
       setSessionItem(notificationKey, "true");
-      handleSupportRequest();
+      handleSupportRequest("automatic");
     }
   }, [
     autoTrigger,
@@ -179,7 +172,7 @@ function SupportButton({
       >
         <span style={{ display: "inline-flex" }}>
           <ButtonBase
-            onClick={handleSupportRequest}
+            onClick={() => handleSupportRequest("manual")}
             disabled={isLoading}
             className={styles.iconVariant}
             aria-label="Contact support"
@@ -204,7 +197,7 @@ function SupportButton({
         <span style={{ display: "inline-flex" }}>
           <button
             className={styles.supportButton}
-            onClick={handleSupportRequest}
+            onClick={() => handleSupportRequest("manual")}
             disabled={isLoading}
           >
             <span className={styles.text}>

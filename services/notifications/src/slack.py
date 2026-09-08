@@ -7,15 +7,10 @@
 from __future__ import annotations
 
 import json
-import logging
-import time
 
 import httpx
 
 from .models import NotificationRequest
-
-logger = logging.getLogger("nebula.notifications.slack")
-
 
 _SEVERITY_COLOR: dict[str, str] = {
     "info": "#36a64f",  # green
@@ -24,31 +19,11 @@ _SEVERITY_COLOR: dict[str, str] = {
     "critical": "#7a0b0b",  # dark red
 }
 
-# Slack answers webhook errors with a short plain-text reason such as
-# ``invalid_payload`` or ``no_service``; anything longer is not Slack's
-# and is truncated before it is echoed to the caller.
-_MAX_UPSTREAM_TEXT = 200
-
 # Attachment fields are capped well under Slack's per-field limit so one
 # oversized context value (a full request text, say) cannot push the rest
 # of the card out of view.
 _MAX_FIELD_VALUE = 1000
 _TRUNCATION_MARK = "…"
-
-
-class DeliveryError(Exception):
-    """Slack rejected or never received the notification.
-
-    ``detail`` is safe to return to the caller: it never contains the
-    webhook URL. The URL *is* the Slack credential (anyone holding it can
-    post to the channel) and httpx embeds the request URL in the message
-    of every ``HTTPStatusError`` / transport error, so the raw exception
-    text must not be surfaced.
-    """
-
-    def __init__(self, detail: str) -> None:
-        super().__init__(detail)
-        self.detail = detail
 
 
 def _humanize_key(key: str) -> str:
@@ -150,33 +125,14 @@ async def deliver(
     notification: NotificationRequest,
     webhook_url: str,
     client: httpx.AsyncClient,
-) -> int:
-    """POST a rendered notification to Slack; return Slack's HTTP status.
+) -> None:
+    """POST a rendered notification to Slack.
 
-    Raises ``DeliveryError`` (with a URL-free ``detail``) when Slack
-    answers with a non-2xx status or cannot be reached at all.
+    Errors propagate as ``httpx.HTTPError`` (non-2xx answer or transport
+    failure) for the application's exception handler to map to the
+    contract's 502.
     """
-    payload = _build_payload(notification)
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug("slack payload: %s", json.dumps(payload, ensure_ascii=False))
-    started = time.monotonic()
-    try:
-        response = await client.post(webhook_url, json=payload, timeout=10.0)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        upstream = exc.response.text.strip()[:_MAX_UPSTREAM_TEXT]
-        detail = f"Slack responded with HTTP {exc.response.status_code}"
-        if upstream:
-            detail += f": {upstream}"
-        raise DeliveryError(detail) from exc
-    except httpx.HTTPError as exc:
-        # Transport-level failure (DNS, connect, read timeout, ...). The
-        # class name says what went wrong without repeating the URL.
-        raise DeliveryError(
-            f"Slack webhook unreachable ({type(exc).__name__})."
-        ) from exc
-    elapsed_ms = (time.monotonic() - started) * 1000
-    logger.info(
-        "slack accepted payload (HTTP %d, %.0f ms)", response.status_code, elapsed_ms
+    response = await client.post(
+        webhook_url, json=_build_payload(notification), timeout=10.0
     )
-    return response.status_code
+    response.raise_for_status()

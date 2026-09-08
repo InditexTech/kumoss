@@ -7,10 +7,11 @@ from asyncio import sleep
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
+from src.api.deps import CurrentUser, assert_session_access, get_current_user
 from src.domains.value_objects import Status
 from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
@@ -47,6 +48,7 @@ async def subscribe_events(
         UUID,
         Path(description="session id to subscribe to server sent events"),
     ],
+    user: Annotated[CurrentUser, Depends(get_current_user)],
 ):
     """Subscribe to a stream of message events through Server-Sent Events (SSE).
 
@@ -102,6 +104,7 @@ async def subscribe_events(
 
             await sleep(5)
 
+    await assert_session_access(user, session_id, write=False)
     await sleep(2)
     try:
         _ = await DatabaseService.get_session_summary(session_id)

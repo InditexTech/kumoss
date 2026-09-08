@@ -11,9 +11,8 @@ export const STRINGS = {
   },
 
   login: {
-    emailLabel: "Email",
-    passwordLabel: "Password",
     signIn: "Sign In",
+    sessionExpired: "Your session has expired. Please sign in again.",
     generateTitle: "Generate Infrastructure",
     generateDescription:
       "Describe what you need in plain language and get production-ready Terraform code.",

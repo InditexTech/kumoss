@@ -12,10 +12,11 @@ from src.api.v1 import (
     terraform,
     events,
     repository,
-    authorization,
-    # admin,
+    auth,
+    admin,
     session,
     mapping,
+    users,
     notifications,
 )
 from src.infrastructure.database import db
@@ -96,16 +97,29 @@ tags_metadata: list[dict[str, str]] = [
         "description": "Git repository and pull-request operations.",
     },
     {
-        "name": "Authorization",
-        "description": "Authorization decisions for cloud projects.",
-    },
-    {
         "name": "Session Management",
         "description": "Session read models (list and detail).",
     },
     {
         "name": "Mapping",
         "description": "Passthrough to the mapping service.",
+    },
+    {
+        "name": "Authentication",
+        "description": "Public auth configuration for the SPA login flow and "
+        "authorization decisions for cloud projects.",
+    },
+    {
+        "name": "Users",
+        "description": "The authenticated caller's identity and roles.",
+    },
+    {
+        "name": "Admin",
+        "description": "Admin panel: cross-user sessions, locks, and role management.",
+    },
+    {
+        "name": "Notifications",
+        "description": "User-originated notifications relayed to the notifications service.",
     },
 ]
 
@@ -140,8 +154,9 @@ app.add_middleware(
 app.include_router(terraform.router, prefix="/v1")
 app.include_router(events.router, prefix="/v1")
 app.include_router(repository.router, prefix="/v1")
-app.include_router(authorization.router, prefix="/v1")
-# app.include_router(admin.router, prefix="/v1")
+app.include_router(auth.router, prefix="/v1")
+app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
+app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")

@@ -81,7 +81,7 @@ function Header() {
               )}
             </ButtonBase>
             {/* Opens the support modal, which posts a notification through
-                POST /api/v1/notifications → notifications sidecar. */}
+                POST /api/v1/notifications → notifications service. */}
             <ButtonBase
               onClick={() => setSupportOpen(true)}
               className={styles.iconButton}

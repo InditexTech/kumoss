@@ -26,7 +26,10 @@ const IntroScreen = ({ onComplete }: IntroScreenProps) => {
   const { user } = useAuth();
   const [phase, setPhase] = useState<IntroPhase>(0);
 
-  const firstName = capitalizeFirst(user?.name?.split(/[._-]/)[0] ?? "there");
+  const firstName = capitalizeFirst(
+    (user?.displayName || user?.email?.split("@")[0])?.split(/[._\s-]/)[0] ??
+      "there",
+  );
 
   const messages = [`Hello, ${firstName}`, "Welcome to Nebula AI"];
 

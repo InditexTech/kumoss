@@ -7,6 +7,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { mockState } from "@/mocks/state";
 import { subscribeToSession, checkSessionStatus } from "./events";
+import { UNAUTHORIZED_EVENT } from "@/services/token";
 
 const encoder = new TextEncoder();
 
@@ -71,6 +72,32 @@ describe("subscribeToSession", () => {
     }, { timeout: 3000 });
 
     expect(onerror).toHaveBeenCalledTimes(1);
+    conn.close();
+  });
+
+  it("signs out on 401 without retrying", async () => {
+    let calls = 0;
+    server.use(
+      http.get("/api/v1/events/subscribe/:sessionId", () => {
+        calls++;
+        return new HttpResponse(null, { status: 401 });
+      }),
+    );
+    const listener = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, listener);
+
+    const onerror = vi.fn();
+    const conn = subscribeToSession("expired", undefined, { retryBaseMs: 20 });
+    conn.onerror = onerror;
+
+    await vi.waitFor(() => {
+      expect(onerror).toHaveBeenCalledTimes(1);
+    }, { timeout: 3000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(calls).toBe(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(UNAUTHORIZED_EVENT, listener);
     conn.close();
   });
 

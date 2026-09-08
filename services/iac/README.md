@@ -101,11 +101,44 @@ default OpenTofu engine:
 
 The service operates on `workspace_path` as visible *inside* its
 container. The OSS reference docker-compose deployment mounts a named
-volume `workspaces` at `/workspaces` in both the `api` and `iac`
+volume `workspaces` at `/workspaces` in both the `core` and `iac`
 containers, so the core writes the cloned repo there and references the
 same path when submitting jobs. Other deployments may use a
 PersistentVolumeClaim (k8s), an NFS mount, or an entirely different
 workspace-staging mechanism — same contract, different mechanics.
+
+## Runtime user and workspace ownership
+
+The image runs as an unprivileged user, `nebula` (uid/gid `10001`, set
+by the `NEBULA_UID` / `NEBULA_GID` build args): the engine executes
+provider plugins and provisioners from generated code, so it must not
+run as root.
+
+Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
+files and state next to the configuration, **workspace directories must
+be writable by that uid**. In the compose stack this holds because the
+core image is built with the same `NEBULA_UID` / `NEBULA_GID` and also
+runs as `nebula`, so everything the core clones is owned by the same
+user. Override the two build args together or not at all.
+
+- **Existing volumes.** A `workspaces` volume created by a stack that
+  ran as root keeps root-owned directories the engine can no longer
+  write to (`plan` fails with `permission denied` on
+  `terraform.tfstate` or the plan file).
+- **Other deployments.** The requirement does not change with the
+  topology: whatever backs the shared workspace (a PersistentVolumeClaim,
+  an NFS export, a bind mount or any other staging mechanism) must be
+  owned by the unprivileged user the images were built with (`nebula`,
+  uid/gid `10001` by default), and every component that stages repos
+  into it must run as that same identity. How a platform expresses that
+  (a pod security context, export options, a one-off `chown`) is
+  deployment-specific; the ownership itself is not.
+- **Cloud CLIs.** `az`, `gcloud` and `aws` keep their per-user state
+  under `$HOME` (`~/.azure`, `~/.config/gcloud`, `~/.aws`). The
+  `resource-graph` az extension is installed system-wide in
+  `/opt/azure-cli-extensions` (`AZURE_EXTENSION_DIR`) so the runtime
+  user finds it. Credential files you mount must be readable by uid
+  `10001`.
 
 ## Run locally
 

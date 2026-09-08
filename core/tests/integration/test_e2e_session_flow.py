@@ -77,9 +77,8 @@ class TestEndToEndSessionLifecycle(unittest.IsolatedAsyncioTestCase):
             "/v1/iac/generate",
             json={
                 "repo_uri": uri,
-                "cloud": "azure",
-                "environment": "dev",
-                "user_id": "u@e.com",
+                "terraform_providers": "azure",
+                "scope_id": "dev",
                 "q": "hi",
             },
         )
