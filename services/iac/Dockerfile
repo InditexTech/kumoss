@@ -10,20 +10,35 @@ FROM ghcr.io/opentofu/opentofu:1.12.6-minimal@sha256:2fedbb3e956b083582543dabb76
 
 FROM python:3.13-slim AS base
 
+# Unprivileged runtime identity. The uid/gid MUST match the core image's
+# (same ARG names and defaults in core/Dockerfile): both containers
+# share the `workspaces` volume read-write.
+ARG NEBULA_UID=10001
+ARG NEBULA_GID=10001
+RUN groupadd --gid "${NEBULA_GID}" nebula \
+    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
+        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
+    && mkdir -p /workspaces && chown nebula:nebula /workspaces
+
 WORKDIR /app
 
-# Both IaC engines ship in the image; IAC_BINARY selects at runtime:
-# `tofu` (the default) or `terraform` — no rebuild needed to switch.
-ARG TERRAFORM_VERSION=1.11.1
+ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
-# Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
+RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends curl unzip ca-certificates \
+    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \
+    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" -o /tmp/terraform_SHA256SUMS \
+    && (cd /tmp && grep " ${tf_zip}\$" terraform_SHA256SUMS | sha256sum -c -) \
+    && unzip -q "/tmp/${tf_zip}" -d /usr/local/bin \
+    && rm "/tmp/${tf_zip}" /tmp/terraform_SHA256SUMS \
+    && apt-get purge -y unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 ARG AWSCLI_VERSION=2.28.0
 ARG GCLOUD_VERSION=540.0.0
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl unzip ca-certificates \
-    && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip \
-    && unzip /tmp/terraform.zip -d /usr/local/bin \
-    && rm /tmp/terraform.zip \
     && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscliv2.zip \
     && unzip -q /tmp/awscliv2.zip -d /tmp \
     && /tmp/aws/install \
@@ -38,13 +53,20 @@ RUN pip install --no-cache-dir uv
 
 # az is pip-installed (simplest route on a python base image); the
 # `az graph` command group lives in the resource-graph extension.
+ENV AZURE_EXTENSION_DIR=/opt/azure-cli-extensions
 RUN pip install --no-cache-dir azure-cli \
-    && az extension add --name resource-graph
+    && AZURE_CONFIG_DIR=/tmp/az-build az extension add --name resource-graph \
+    && rm -rf /tmp/az-build
 
 COPY pyproject.toml ./
 RUN uv pip install --system --no-cache .
 
 COPY src ./src
+
+ENV HOME=/home/nebula \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER ${NEBULA_UID}:${NEBULA_GID}
 
 EXPOSE 8082
 
