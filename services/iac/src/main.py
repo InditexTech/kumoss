@@ -4,13 +4,14 @@
 
 """FastAPI application for the IaC reference implementation.
 
-A raw terraform executor: every POST enqueues a job that runs exactly
-one terraform command and returns ``202 Accepted`` immediately;
+A raw IaC-engine executor (OpenTofu by default, Terraform via
+``IAC_BINARY``): every POST enqueues a job that runs exactly one engine
+command and returns ``202 Accepted`` immediately;
 clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing terraform
+errors (auth, malformed body, missing workspace, missing engine
 binary) are still reported synchronously on the POST; everything after
 submission surfaces through the job.
 """
@@ -34,9 +35,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import cloud_cli
-from . import terraform as tf
+from . import engine as tf
 from .auth import verify_bearer_token
-from .config import Config, terraform_available
+from .config import Config, engine_available
 from .jobs import JobRegistry, WorkspaceQueue
 from .log_context import configure_logging, set_request_id, set_workspace
 from .models import (
@@ -70,11 +71,11 @@ async def lifespan(app: FastAPI):
     configure_logging(config.log_level)
 
     tf.set_timeout(config.subprocess_timeout)
-    tf_ok = terraform_available(config.terraform_binary)
+    engine_ok = engine_available(config.iac_binary)
     logger.info(
-        "iac service starting terraform_available=%s binary=%s auth_enabled=%s",
-        tf_ok,
-        config.terraform_binary,
+        "iac service starting engine_available=%s binary=%s auth_enabled=%s",
+        engine_ok,
+        config.iac_binary,
         bool(config.expected_token),
     )
 
@@ -183,18 +184,18 @@ async def healthz() -> Health:
 def _check_submit_preconditions(
     workspace_path: str, credentials: HTTPAuthorizationCredentials | None
 ) -> Path:
-    """Submit-time checks: auth, terraform binary, workspace existence.
+    """Submit-time checks: auth, engine binary, workspace existence.
 
-    Everything that fails after these (the terraform command itself)
+    Everything that fails after these (the engine command itself)
     surfaces through the job instead.
     """
     verify_bearer_token(config, credentials)
 
-    if not terraform_available(config.terraform_binary):
+    if not engine_available(config.iac_binary):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Terraform binary '{config.terraform_binary}' not found "
+                f"IaC engine binary '{config.iac_binary}' not found "
                 "in PATH on the IaC service."
             ),
         )
@@ -278,7 +279,7 @@ def _submit(
     response: Response,
     pipeline: Callable[[], Awaitable[OperationResult]],
 ) -> JobAccepted:
-    """Enqueue one terraform command as a job and point at its resource."""
+    """Enqueue one engine command as a job and point at its resource."""
     record = jobs.submit(
         kind=kind,
         workspace=workspace,
@@ -308,7 +309,7 @@ async def init(
         )
         return _result(
             await tf.init(
-                config.terraform_binary,
+                config.iac_binary,
                 workspace,
                 backend_config=config.backend_config,
                 env=env,
@@ -336,7 +337,7 @@ async def validate(
         env = await _scope_env(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
-        return _result(await tf.validate(config.terraform_binary, workspace, env=env))
+        return _result(await tf.validate(config.iac_binary, workspace, env=env))
 
     return _submit("validate", workspace, response, _pipeline)
 
@@ -361,7 +362,7 @@ async def plan(
         )
         return _result(
             await tf.plan(
-                config.terraform_binary, workspace, body.targets, body.plan_file, env=env
+                config.iac_binary, workspace, body.targets, body.plan_file, env=env
             )
         )
 
@@ -388,7 +389,7 @@ async def show(
         )
         return _result(
             await tf.show_plan_json(
-                config.terraform_binary, workspace, body.plan_file, env=env
+                config.iac_binary, workspace, body.plan_file, env=env
             )
         )
 
@@ -414,7 +415,7 @@ async def apply(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
         return _result(
-            await tf.apply(config.terraform_binary, workspace, body.plan_file, env=env)
+            await tf.apply(config.iac_binary, workspace, body.plan_file, env=env)
         )
 
     return _submit("apply", workspace, response, _pipeline)
@@ -440,7 +441,7 @@ async def import_resource(
         )
         return _result(
             await tf.import_resource(
-                config.terraform_binary, workspace, body.address, body.resource_id, env=env
+                config.iac_binary, workspace, body.address, body.resource_id, env=env
             )
         )
 
@@ -465,7 +466,7 @@ async def state_resource_ids(
         env = await _scope_env(
             body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
         )
-        result = await tf.state_pull(config.terraform_binary, workspace, env=env)
+        result = await tf.state_pull(config.iac_binary, workspace, env=env)
         if not result.ok:
             return OperationResult(
                 exit_code=result.exit_code, stdout="", stderr=result.stderr

@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Tests for the hardening backport: plan-file injection prevention,
-subprocess timeout, TerraformTimeoutError → 504, StarletteHTTPException
+subprocess timeout, EngineTimeoutError → 504, StarletteHTTPException
 handler, and job-ID logging context."""
 
 from __future__ import annotations
 
-import asyncio
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,9 +21,8 @@ from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
 from src.models import PlanRequest
-from src.terraform import (
-    CommandResult,
-    TerraformTimeoutError,
+from src.engine import (
+    EngineTimeoutError,
     _plan_file_arg,
     set_timeout,
 )
@@ -33,12 +31,12 @@ from src.terraform import (
 @contextmanager
 def _client_with(
     token: str = "",
-    terraform_binary: str = "sh",
+    iac_binary: str = "sh",
     job_ttl: int = 3600,
 ):
     service_main.config = Config(
         expected_token=token,
-        terraform_binary=terraform_binary,
+        iac_binary=iac_binary,
         job_ttl=job_ttl,
     )
     service_main.workspace_queue = WorkspaceQueue()
@@ -97,9 +95,9 @@ def test_terraform_timeout_error_fails_job_504(tmp_path: Path) -> None:
 
     with _client_with() as client:
         with patch(
-            "src.terraform.init",
+            "src.engine.init",
             new_callable=AsyncMock,
-            side_effect=TerraformTimeoutError("timed out after 2700s"),
+            side_effect=EngineTimeoutError("timed out after 2700s"),
         ):
             response = client.post(
                 "/v1/init",
@@ -114,19 +112,19 @@ def test_terraform_timeout_error_fails_job_504(tmp_path: Path) -> None:
 
 def test_set_timeout_zero_disables() -> None:
     set_timeout(0)
-    from src.terraform import _timeout
+    from src.engine import _timeout
     assert _timeout is None
 
 
 def test_set_timeout_negative_disables() -> None:
     set_timeout(-1)
-    from src.terraform import _timeout
+    from src.engine import _timeout
     assert _timeout is None
 
 
 def test_set_timeout_positive_sets_value() -> None:
     set_timeout(120)
-    from src.terraform import _timeout
+    from src.engine import _timeout
     assert _timeout == 120
     set_timeout(0)
 
@@ -149,3 +147,23 @@ def test_starlette_404_returns_problem_json() -> None:
         response = client.get("/nonexistent/path")
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/problem+json")
+
+
+# -- engine wrapper is binary-agnostic --
+
+
+@pytest.mark.asyncio
+async def test_timeout_error_names_the_configured_binary(tmp_path: Path) -> None:
+    """The timeout message must name the engine actually invoked (tofu,
+    terraform, ...) rather than hard-coding 'terraform'."""
+    from src.engine import _run
+
+    set_timeout(1)
+    try:
+        with pytest.raises(EngineTimeoutError) as excinfo:
+            await _run("sh", ["-c", "exec sleep 5"], tmp_path)
+    finally:
+        set_timeout(0)
+    message = str(excinfo.value)
+    assert message.startswith("sh -c timed out")
+    assert "terraform" not in message

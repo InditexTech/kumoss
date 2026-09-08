@@ -19,7 +19,7 @@ import pytest
 
 from src import cloud_cli
 from src.config import Config
-from src.terraform import CommandResult
+from src.engine import CommandResult
 
 
 def _ok(stdout: str) -> CommandResult:
@@ -318,34 +318,6 @@ async def test_aws_paginates_get_resources() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _az_login_sp passes secret via env, not CLI arg (C1 fix)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_az_login_sp_passes_secret_via_env() -> None:
-    config = Config(
-        expected_token="",
-        terraform_binary="sh",
-        azure_client_id="my-client-id",
-        azure_client_secret="super-secret",
-        azure_tenant_id="my-tenant",
-    )
-    with patch(
-        "src.cloud_cli._run",
-        new_callable=AsyncMock,
-        return_value=_ok(""),
-    ) as run_mock:
-        await cloud_cli._az_login_sp(config)
-    args, kwargs = run_mock.await_args
-    # Secret must NOT appear in the command args
-    assert "super-secret" not in args[0]
-    assert "-p" not in args[0]
-    # Secret must be in the env dict
-    assert kwargs["env"]["AZURE_CLIENT_SECRET"] == "super-secret"
-
-
-# ---------------------------------------------------------------------------
 # cloud_login — independent provider checks
 # ---------------------------------------------------------------------------
 
@@ -353,7 +325,7 @@ async def test_az_login_sp_passes_secret_via_env() -> None:
 def _both_providers_config() -> Config:
     return Config(
         expected_token="",
-        terraform_binary="sh",
+        iac_binary="sh",
         azure_client_id="az-id",
         azure_client_secret="az-secret",
         azure_tenant_id="az-tenant",

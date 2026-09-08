@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 
 from .config import Config
-from .terraform import CommandResult
+from .engine import CommandResult
 
 logger = logging.getLogger(__name__)
 

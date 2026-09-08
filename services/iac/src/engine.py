@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Thin async wrapper around the terraform CLI.
+"""Thin async wrapper around the IaC engine CLI (OpenTofu or Terraform).
 
 Just enough to drive `init`, `validate`, `plan`, `show`, `apply`,
-`import`, and `state pull`, one command per call. Implementations that
-need more (state locking, custom backends, policy as code) should
-extend this or substitute their own.
+`import`, and `state pull`, one command per call — the flag surface is
+identical across both engines, so the caller only picks the binary.
+Implementations that need more (state locking, custom backends, policy
+as code) should extend this or substitute their own.
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ _BUFFER_LIMIT = 10 * 1024 * 1024  # 10 MB — prevents deadlock on large plans
 _timeout: int | None = None
 
 
-class TerraformTimeoutError(Exception):
-    """Raised when a terraform command exceeds the configured timeout."""
+class EngineTimeoutError(Exception):
+    """Raised when an engine command exceeds the configured timeout."""
 
 
 def set_timeout(seconds: int) -> None:
@@ -107,16 +108,16 @@ async def _run(
     except asyncio.TimeoutError:
         elapsed = time.monotonic() - t0
         logger.error(
-            "terraform %s timed out after %.1fs (limit=%ss) workspace=%s",
-            label, elapsed, _timeout, cwd,
+            "%s %s timed out after %.1fs (limit=%ss) workspace=%s",
+            binary, label, elapsed, _timeout, cwd,
         )
         try:
             proc.kill()
             await proc.wait()
         except ProcessLookupError:
             pass
-        raise TerraformTimeoutError(
-            f"terraform {label} timed out after {elapsed:.0f}s "
+        raise EngineTimeoutError(
+            f"{binary} {label} timed out after {elapsed:.0f}s "
             f"(limit={_timeout}s)"
         )
 
@@ -126,11 +127,13 @@ async def _run(
     stderr = "".join(stderr_chunks)
 
     if exit_code == 0:
-        logger.info("terraform %s succeeded elapsed=%.2fs workspace=%s", label, elapsed, cwd)
+        logger.info(
+            "%s %s succeeded elapsed=%.2fs workspace=%s", binary, label, elapsed, cwd
+        )
     else:
         logger.warning(
-            "terraform %s failed exit_code=%d elapsed=%.2fs workspace=%s",
-            label, exit_code, elapsed, cwd,
+            "%s %s failed exit_code=%d elapsed=%.2fs workspace=%s",
+            binary, label, exit_code, elapsed, cwd,
         )
 
     return CommandResult(

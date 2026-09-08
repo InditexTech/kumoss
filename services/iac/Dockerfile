@@ -2,12 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# IaC engine: OpenTofu, taken from the official minimal image (the
+# install method the OpenTofu project documents for custom images).
+# Digest-pinned so the build is reproducible and integrity-checked;
+# bump tag + digest together when upgrading.
+FROM ghcr.io/opentofu/opentofu:1.12.6-minimal@sha256:2fedbb3e956b083582543dabb76eba17e9f961dfd055311ea054a6191cfae9dd AS tofu
+
 FROM python:3.13-slim AS base
 
 WORKDIR /app
 
-# terraform binary; pinned in the env so OSS users can override.
+# Both IaC engines ship in the image; IAC_BINARY selects at runtime:
+# `tofu` (the default) or `terraform` — no rebuild needed to switch.
 ARG TERRAFORM_VERSION=1.11.1
+COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 # Cloud CLIs for `POST /v1/import/scope-resource-ids` (az / gcloud / aws).
 ARG AWSCLI_VERSION=2.28.0
 ARG GCLOUD_VERSION=540.0.0

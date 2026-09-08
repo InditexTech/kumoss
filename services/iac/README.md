@@ -8,9 +8,10 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference implementation of [`contracts/openapi/iac.v1.yaml`](../../contracts/openapi/iac.v1.yaml).
 
-The OSS default for the Nebula IaC contract: a raw terraform executor
-that runs individual terraform CLI commands against a workspace path
-on a docker-compose shared volume, as **asynchronous jobs**. Every
+The OSS default for the Nebula IaC contract: a raw IaC-engine executor
+that runs individual engine CLI commands (**OpenTofu** by default,
+Terraform via `IAC_BINARY`) against a workspace path on a
+docker-compose shared volume, as **asynchronous jobs**. Every
 POST enqueues exactly one command and returns `202 Accepted` with a
 `job_id` immediately; clients poll `GET /v1/jobs/{job_id}` for the raw
 `{exit_code, stdout, stderr}` result. Sequencing commands and
@@ -21,16 +22,20 @@ time in submission (FIFO) order.
 
 ## What it does
 
-- `POST /v1/init` — enqueues `terraform init`.
-- `POST /v1/validate` — enqueues `terraform validate`.
-- `POST /v1/plan` — enqueues `terraform plan -out <plan_file>` with
+The commands below are shown for the default engine (`tofu`); when the
+service is configured with `IAC_BINARY=terraform` it runs the same
+subcommands against that binary instead (e.g. `terraform init`).
+
+- `POST /v1/init` — enqueues `tofu init`.
+- `POST /v1/validate` — enqueues `tofu validate`.
+- `POST /v1/plan` — enqueues `tofu plan -out <plan_file>` with
   optional `-target=` filters.
-- `POST /v1/show` — enqueues `terraform show -json <plan_file>`; on
+- `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
-- `POST /v1/apply` — enqueues `terraform apply <plan_file>`.
-- `POST /v1/import` — enqueues `terraform import <address>
+- `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
+- `POST /v1/import` — enqueues `tofu import <address>
   <resource_id>`.
-- `POST /v1/import/state-resource-ids` — enqueues `terraform state
+- `POST /v1/import/state-resource-ids` — enqueues `tofu state
   pull`; on exit code 0 the result's `stdout` is a JSON array of the
   provider ids of every managed resource instance in the state.
 - `POST /v1/import/scope-resource-ids` — enqueues a cloud scope query
@@ -38,11 +43,11 @@ time in submission (FIFO) order.
   `gcloud` Cloud Asset Inventory / `aws` Resource Groups Tagging
   API); on exit code 0 the result's `stdout` is a JSON array of the
   resource IDs that exist in `scope_id`. Cloud query failures end the
-  job `succeeded` with a non-zero `exit_code`, like terraform-level
+  job `succeeded` with a non-zero `exit_code`, like engine-level
   failures.
 - `GET /v1/jobs/{job_id}` — job status (`queued` / `running` /
   `succeeded` / `failed`) plus `result` (succeeded) or `error`
-  (failed). Terraform-level failures end the job `succeeded` with a
+  (failed). Engine-level failures end the job `succeeded` with a
   non-zero `exit_code` in the result; service-level faults end it
   `failed` with a `Problem` in `error`. Terminal jobs are kept in
   memory for `NEBULA_IAC_JOB_TTL` seconds, then poll as 404 (as after
@@ -56,9 +61,44 @@ time in submission (FIFO) order.
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
-| `TERRAFORM_BINARY`                            | no       | Override the terraform binary path. Default: `terraform`. |
+| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | Terraform reads these directly. Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with terraform's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+
+## Choosing the IaC engine
+
+The bundled image ships both engines; `IAC_BINARY` selects one at
+runtime, with no rebuild needed to switch:
+
+- **OpenTofu 1.12.6** (MPL-2.0) — the default (`IAC_BINARY=tofu`).
+  Installed from the official
+  `ghcr.io/opentofu/opentofu:<version>-minimal` image, pinned by digest
+  in the [Dockerfile](Dockerfile).
+- **HashiCorp Terraform 1.11.1** (BUSL-1.1) — `IAC_BINARY=terraform`.
+  Fetched from `releases.hashicorp.com` at build time (version via the
+  `TERRAFORM_VERSION` build arg); your use of it is subject to its
+  license terms.
+
+The service itself is engine-agnostic: it only shells out to
+`init` / `validate` / `plan` / `show` / `apply` / `import` /
+`state pull`, whose flags are identical across both engines, so any
+Terraform-compatible engine on PATH (or at an absolute path) works.
+`TF_BACKEND_CONFIG` and the `TF_*` provider variables are honoured by
+both engines.
+
+Notes when pointing a workspace previously managed by Terraform at the
+default OpenTofu engine:
+
+- Providers resolve from `registry.opentofu.org` (hostless sources like
+  `hashicorp/azurerm` work unchanged); allow that egress alongside or
+  instead of `registry.terraform.io`.
+- A repo with a committed `.terraform.lock.hcl` generated by Terraform
+  may need one `tofu init -upgrade` to regenerate provider checksums;
+  the failure, if any, surfaces in the `init` job's `stderr`.
+- State remains readable in both directions until OpenTofu first
+  applies; after that, going back to Terraform requires restoring a
+  state backup (see the
+  [official migration guide](https://opentofu.org/docs/intro/migration/)).
 
 ## Workspace assumption
 

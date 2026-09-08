@@ -15,13 +15,19 @@ from dataclasses import dataclass
 class Config:
     """Resolved from environment at startup.
 
+    - ``iac_binary``: name or absolute path of the IaC engine CLI to
+      invoke, from ``IAC_BINARY``. The bundled image ships both engines,
+      so this is ``tofu`` (OpenTofu, the default) or ``terraform``; any
+      Terraform-compatible engine on PATH works. Availability is
+      checked per request (503), not at startup.
+
     All cloud credential fields default to empty and guard their
     respective login steps: missing values skip the provider with an
     info log rather than failing the service.
     """
 
     expected_token: str
-    terraform_binary: str
+    iac_binary: str
     job_ttl: int = 3600
 
     azure_client_id: str = ""
@@ -39,7 +45,7 @@ class Config:
     def from_env(cls) -> "Config":
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
-            terraform_binary=os.environ.get("TERRAFORM_BINARY", "terraform"),
+            iac_binary=os.environ.get("IAC_BINARY", "tofu"),
             job_ttl=int(os.environ.get("NEBULA_IAC_JOB_TTL") or "3600"),
             azure_client_id=os.environ.get("ARM_CLIENT_ID", ""),
             azure_client_secret=os.environ.get("ARM_CLIENT_SECRET", ""),
@@ -60,5 +66,5 @@ class Config:
         )
 
 
-def terraform_available(binary: str) -> bool:
+def engine_available(binary: str) -> bool:
     return shutil.which(binary) is not None
