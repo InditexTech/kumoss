@@ -10,7 +10,7 @@ from src.shared.constants import PromptsLibrary, ToolContext
 from src.shared.config import system_config
 
 
-class TaskSplitService:
+class TaskService:
     """this service splits a single task into simpler self-contained operations
     example: create a storage account and a redis cache -> ["create a storage account", "create a redis cache"]
     """

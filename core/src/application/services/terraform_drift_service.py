@@ -11,7 +11,7 @@ from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
     TerraformValidationService,
-    TaskSplitService,
+    TaskService,
 )
 from src.domains.value_objects import Conventions
 from src.shared.constants import ContentType
@@ -24,7 +24,7 @@ class TerraformDriftService:
         session_context: SessionContext,
         validation_service: TerraformValidationService,
         validator_provider: ITerraform,
-        split_service: TaskSplitService,
+        split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ):
         self.__ctx = session_context

@@ -19,7 +19,7 @@ from src.domains.services import (
     TerraformTargetService,
     TerraformValidationService,
     ToolOrchestrationService,
-    TaskSplitService,
+    TaskService,
     ArtifactStorageService,
 )
 
@@ -194,8 +194,8 @@ class ApplicationFactory:
         tool_service: ToolOrchestrationService,
         main_llm_service: LLMOrchestrationService,
         template_service: TemplateOrchestrationService,
-    ) -> TaskSplitService:
-        return TaskSplitService(
+    ) -> TaskService:
+        return TaskService(
             tool_service=tool_service,
             llm_service=main_llm_service,
             template_service=template_service,
@@ -278,7 +278,7 @@ class ApplicationFactory:
         self,
         validation_service: TerraformValidationService,
         validator_provider: ITerraform,
-        split_service: TaskSplitService,
+        split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ) -> TerraformDriftService:
         return TerraformDriftService(
