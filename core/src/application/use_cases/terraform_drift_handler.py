@@ -9,15 +9,11 @@ from src.application.exceptions import SetLockError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
-from src.domains.entities import History
 from src.domains.entities.session import SessionContext
-from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
-    TerraformValidationService,
     TerraformTargetService,
 )
 from src.domains.services.database_service import DatabaseService
@@ -35,8 +31,6 @@ class TerraformDriftHandler:
         self,
         session_ctx: SessionContext,
         session_service: SessionService,
-        terraform_service: ITerraform,
-        validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
         report_service: ReportService,
@@ -44,8 +38,6 @@ class TerraformDriftHandler:
         drift_service: TerraformDriftService,
         compliance_service: ComplianceCheckService,
     ):
-        self.__terraform_svc = terraform_service
-        self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
         self.__report_svc = report_service
@@ -91,19 +83,11 @@ class TerraformDriftHandler:
                         query=q, history=ctx.history, conventions=conventions
                     )
 
-                async def validation_callback(
-                    local_history: History,
-                ) -> TerraformValidationDTO:
-                    return await self.__terraform_svc.validate(
-                        targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
-                    )
-
                 validation = await self.__drift_svc.detect_and_resolve_drift(
+                    filter_session_changes=False,
                     targets=targets,
                     conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
-                    validator=validation_callback,
                 )
 
                 report = await self.__report_svc.generate_report(

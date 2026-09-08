@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import ToolResultDTO
+import json
+
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -26,22 +27,35 @@ class TaskService:
         self.__tool_svc = tool_service
 
     async def split_task(self, task: str) -> list[list[str]]:
-        tools = self.__tool_svc.get_available_tools(
-            contexts=[
-                ToolContext.WORKSPACE_INSPECTION,
-                ToolContext.EXTERNAL_INFORMATION,
-            ]
-        )
-        response: ToolResultDTO = await self.__llm_svc.generate(
+        response = await self.__llm_svc.generate(
             query=task,
-            tools=tools,
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER),
             prompt=await self.__template_svc.render(PromptsLibrary.TASK_SPLITTER),
+            tools=self.__tool_svc.get_available_tools(
+                [
+                    ToolContext.WORKSPACE_INSPECTION,
+                    ToolContext.EXTERNAL_INFORMATION,
+                ]
+            ),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER),
         )
-        ops: list[str] = response.result["operations"]
-        return [
-            ops[i : i + system_config.orchestration.drift_group_operations]
-            for i in range(
-                0, len(ops), system_config.orchestration.drift_group_operations
-            )
-        ]
+        return self.__group(response.result["operations"])
+
+    async def filter_reconciliation(
+        self, operations: list[list[str]]
+    ) -> list[list[str]]:
+        flat_operations: list[str] = [op for group in operations for op in group]
+        if not flat_operations:
+            return []
+        response = await self.__llm_svc.generate(
+            query=json.dumps(flat_operations),
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.FILTER_RECONCILIATION
+            ),
+            tools=self.__tool_svc.get_available_tools(ToolContext.WORKSPACE_INSPECTION),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER),
+        )
+        return self.__group(response.result["operations"])
+
+    def __group(self, ops: list[str]) -> list[list[str]]:
+        size = system_config.orchestration.drift_group_operations
+        return [ops[i : i + size] for i in range(0, len(ops), size)]

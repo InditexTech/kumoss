@@ -40,34 +40,6 @@ class TerraformTargetService:
         )
         return response.result["targets"]
 
-    async def generate_predictive(
-        self,
-        query: str,
-        history: History,
-        conventions: Conventions,
-    ) -> list[str]:
-
-        tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=[
-                ToolContext.WORKSPACE_INSPECTION,
-                ToolContext.EXTERNAL_INFORMATION,
-            ]
-        )
-        response: ToolResultDTO = await self.__llm_svc.generate(
-            query=query,
-            tools=tools_definition,
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(
-                ToolContext.TARGET_GENERATOR
-            ),
-            prompt=await self.__template_svc.render(
-                prompt=PromptsLibrary.TARGET_GENERATOR,
-                mode=TargetGenerationMode.PREDICTIVE,
-                resources=conventions.templates,
-            ),
-            history=history,
-        )
-        return response.result["targets"]
-
     async def generate_drift(
         self,
         query: str,

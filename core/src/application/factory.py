@@ -277,14 +277,14 @@ class ApplicationFactory:
     def _get_drift_service(
         self,
         validation_service: TerraformValidationService,
-        validator_provider: ITerraform,
+        terraform_service: ITerraform,
         split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ) -> TerraformDriftService:
         return TerraformDriftService(
             session_context=self.__ctx,
             validation_service=validation_service,
-            validator_provider=validator_provider,
+            terraform_service=terraform_service,
             split_service=split_service,
             artifact_service=artifact_service,
         )
@@ -351,7 +351,7 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
-            validator_provider=validator_prv,
+            terraform_service=validator_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
         )
@@ -403,15 +403,13 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
-            validator_provider=validator_prv,
+            terraform_service=validator_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
         )
         return TerraformDriftHandler(
             session_ctx=self.__ctx,
             session_service=session_svc,
-            terraform_service=validator_prv,
-            validation_service=validation_svc,
             template_service=template_svc,
             requests_filter_service=filter_svc,
             report_service=report_svc,
