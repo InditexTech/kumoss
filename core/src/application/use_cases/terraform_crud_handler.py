@@ -109,7 +109,7 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
-                _ = await self.__drift_svc.detect_and_resolve_drift(
+                validation = await self.__drift_svc.detect_and_resolve_drift(
                     filter_session_changes=True,
                     targets=validation.terraform_targets,
                     conventions=conventions,
