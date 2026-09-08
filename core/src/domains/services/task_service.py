@@ -31,7 +31,7 @@ class TaskService:
             query=task,
             prompt=await self.__template_svc.render(PromptsLibrary.TASK_SPLITTER),
             tools=self.__tool_svc.get_available_tools(
-                [
+                contexts=[
                     ToolContext.WORKSPACE_INSPECTION,
                     ToolContext.EXTERNAL_INFORMATION,
                 ]
