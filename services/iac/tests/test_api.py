@@ -17,6 +17,7 @@ credentials.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from contextlib import contextmanager
@@ -332,6 +333,44 @@ def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> No
     )
     # The required scope_id is injected into the engine environment.
     assert plan_mock.await_args.kwargs["env"]["ARM_SUBSCRIPTION_ID"] == "sub-test"
+
+
+def test_job_succeeded_log_reports_kind_and_exit_code(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The engine no longer logs anything itself, so the job's terminal
+    log line is the only place operators can see that a command ran and
+    whether the engine exited non-zero."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    failed = CommandResult(ok=False, stdout="", stderr="Error: it broke", exit_code=1)
+    caplog.set_level(logging.INFO, logger="src.jobs")
+    # The lifespan's configure_logging() resets root handlers, which would
+    # detach caplog; the log format is not under test here.
+    with patch("src.main.configure_logging"), _client_with() as client:
+        with patch("src.engine.plan", new_callable=AsyncMock, return_value=failed):
+            response = client.post(
+                "/v1/plan",
+                json={
+                    "workspace_path": str(workspace),
+                    "scope_id": "sub-test",
+                    "plan_file": "abc123.plan",
+                },
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "succeeded"
+
+    succeeded = [
+        r for r in caplog.records if r.getMessage().startswith("job succeeded")
+    ]
+    assert len(succeeded) == 1
+    message = succeeded[0].getMessage()
+    assert f"job_id={body['job_id']}" in message
+    assert "kind=plan" in message
+    assert "exit_code=1" in message
+    assert "elapsed=" in message
 
 
 def test_init_passes_backend_config_when_set(tmp_path: Path) -> None:

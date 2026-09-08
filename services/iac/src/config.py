@@ -2,7 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Runtime configuration for the IaC reference implementation."""
+"""Runtime configuration for the IaC reference implementation.
+
+Two kinds of settings, kept apart on purpose:
+
+- **Knobs** (this module's constants): deployment-tunable, not secret.
+  Edit them here; they are baked into the image and are *not* read from
+  the environment.
+- **Environment** (``Config.from_env``): credentials and tokens, plus
+  the deployment-specific ``TF_BACKEND_CONFIG`` and
+  ``AWS_TERRAFORM_ROLE_NAME``. ``env.sample`` lists them.
+
+Variables the service does not read but the engine and cloud CLIs do
+(``AWS_DEFAULT_REGION``, ``AWS_PROFILE``, ``ARM_ACCESS_KEY``,
+``GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT``, ...) are neither: they
+pass through the process environment unchanged and stay in ``.env``.
+"""
 
 from __future__ import annotations
 
@@ -10,16 +25,45 @@ import os
 import shutil
 from dataclasses import dataclass
 
+# --- Deployment-tunable knobs (no secrets) ---------------------------------
+
+# Name or absolute path of the IaC engine CLI to invoke. The bundled
+# image ships both OpenTofu and Terraform, so ``tofu`` (the default) or
+# ``terraform``; any Terraform-compatible binary on PATH or at an
+# absolute path also works. Availability is checked per request (503),
+# not at startup.
+IAC_BINARY = "tofu"
+
+# Seconds a finished (succeeded/failed) job stays pollable at
+# GET /v1/jobs/{job_id} before it is forgotten (polls then return 404).
+# Jobs are kept in memory only, so a service restart also forgets them.
+JOB_TTL_SECONDS = 3600
+
+# Seconds a single engine command (init/plan/apply/...) may run before
+# the job fails with a 504 error and the process is killed. 0 disables.
+SUBPROCESS_TIMEOUT_SECONDS = 2700
+
+# Log level for structured logging output. WARNING: at DEBUG every
+# engine stdout/stderr line (plan/apply output, provider diagnostics)
+# is written to the log; keep INFO in shared environments.
+LOG_LEVEL = "INFO"
+
+# Minutes between cloud CLI re-logins. Tokens are refreshed lazily by
+# the next job once the interval has elapsed.
+CLOUD_LOGIN_REFRESH_MIN = 45
+
+# A re-login that fails is retried this many times (only the providers
+# that failed), with exponential backoff starting at
+# CLOUD_LOGIN_RETRY_DELAY_SEC seconds (2s, 4s, 8s by default). Only if
+# every retry fails does the job fail (500); the following job tries
+# again. Startup never retries: a broken credential aborts boot.
+CLOUD_LOGIN_RETRIES = 3
+CLOUD_LOGIN_RETRY_DELAY_SEC = 2.0
+
 
 @dataclass(frozen=True)
 class Config:
-    """Resolved from environment at startup.
-
-    - ``iac_binary``: name or absolute path of the IaC engine CLI to
-      invoke, from ``IAC_BINARY``. The bundled image ships both engines,
-      so this is ``tofu`` (OpenTofu, the default) or ``terraform``; any
-      Terraform-compatible engine on PATH works. Availability is
-      checked per request (503), not at startup.
+    """Resolved at startup: knobs from this module, secrets from the env.
 
     All cloud credential fields default to empty and guard their
     respective login steps: missing values skip the provider with an
@@ -28,29 +72,30 @@ class Config:
     (see ``cloud_cli.cloud_login``).
     """
 
-    expected_token: str
-    iac_binary: str
-    job_ttl: int = 3600
-
+    # Environment (secrets and deployment-specific values).
+    expected_token: str = ""
     azure_client_id: str = ""
     azure_client_secret: str = ""
     azure_tenant_id: str = ""
     google_application_credentials: str = ""
     google_credentials: str = ""
-    aws_terraform_role_name: str = ""
     backend_config: str = ""
-    subprocess_timeout: int = 2700
-    log_level: str = "INFO"
-    cloud_login_refresh_min: int = 45
-    cloud_login_retries: int = 3
-    cloud_login_retry_delay_sec: float = 2.0
+    aws_terraform_role_name: str = ""
+
+    # Knobs (module constants above).
+    iac_binary: str = IAC_BINARY
+    job_ttl: int = JOB_TTL_SECONDS
+    subprocess_timeout: int = SUBPROCESS_TIMEOUT_SECONDS
+    log_level: str = LOG_LEVEL
+    cloud_login_refresh_min: int = CLOUD_LOGIN_REFRESH_MIN
+    cloud_login_retries: int = CLOUD_LOGIN_RETRIES
+    cloud_login_retry_delay_sec: float = CLOUD_LOGIN_RETRY_DELAY_SEC
 
     @classmethod
     def from_env(cls) -> "Config":
+        """Read the environment-supplied values; knobs keep their defaults."""
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
-            iac_binary=os.environ.get("IAC_BINARY", "tofu"),
-            job_ttl=int(os.environ.get("NEBULA_IAC_JOB_TTL") or "3600"),
             azure_client_id=os.environ.get("ARM_CLIENT_ID", ""),
             azure_client_secret=os.environ.get("ARM_CLIENT_SECRET", ""),
             azure_tenant_id=os.environ.get("ARM_TENANT_ID", ""),
@@ -58,19 +103,8 @@ class Config:
                 "GOOGLE_APPLICATION_CREDENTIALS", ""
             ),
             google_credentials=os.environ.get("GOOGLE_CREDENTIALS", ""),
-            aws_terraform_role_name=os.environ.get("AWS_TERRAFORM_ROLE_NAME", ""),
             backend_config=os.environ.get("TF_BACKEND_CONFIG", ""),
-            subprocess_timeout=int(
-                os.environ.get("NEBULA_SUBPROCESS_TIMEOUT") or "2700"
-            ),
-            log_level=os.environ.get("LOG_LEVEL", "INFO"),
-            cloud_login_refresh_min=int(
-                os.environ.get("CLOUD_LOGIN_REFRESH_MIN") or "45"
-            ),
-            cloud_login_retries=int(os.environ.get("CLOUD_LOGIN_RETRIES") or "3"),
-            cloud_login_retry_delay_sec=float(
-                os.environ.get("CLOUD_LOGIN_RETRY_DELAY_SEC") or "2"
-            ),
+            aws_terraform_role_name=os.environ.get("AWS_TERRAFORM_ROLE_NAME", ""),
         )
 
 

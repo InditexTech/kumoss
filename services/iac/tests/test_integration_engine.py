@@ -12,7 +12,7 @@ no cloud credentials). It runs once per engine the image bundles —
 OpenTofu (``tofu``) and Terraform — proving both work behind the same
 service; each engine skips itself when its binary is not on PATH.
 
-It is the only place ``engine._run`` streaming, the ``./`` plan-file
+It is the only place ``engine._run`` output capture, the ``./`` plan-file
 anchoring, the ``env=`` plumbing and ``-backend-config`` are exercised
 against a real process, so keep it green when touching ``engine.py``.
 """

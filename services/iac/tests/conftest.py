@@ -4,12 +4,10 @@
 
 """Test environment setup.
 
-``src.main`` resolves ``Config.from_env()`` at import time. Point
-``IAC_BINARY`` at ``sh`` (always present) so the default config
-works in engine-less environments (e.g. the CI/test container);
-tests never invoke the real binary — every subprocess call is patched.
+``src.main`` resolves ``Config.from_env()`` at import time, which only
+reads secrets; the engine binary is the ``IAC_BINARY`` constant in
+``src.config`` and is not read from the environment. Tests that reach
+the engine build their own ``Config(iac_binary="sh")`` (see
+``test_api._client_with``) so the per-request binary check passes in
+engine-less environments; every subprocess call is patched.
 """
-
-import os
-
-os.environ.setdefault("IAC_BINARY", "sh")

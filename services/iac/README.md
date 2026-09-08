@@ -10,7 +10,7 @@ Reference implementation of [`contracts/openapi/iac.v1.yaml`](../../contracts/op
 
 The OSS default for the Nebula IaC contract: a raw IaC-engine executor
 that runs individual engine CLI commands (**OpenTofu** by default,
-Terraform via `IAC_BINARY`) against a workspace path on a
+Terraform via the `IAC_BINARY` knob in `src/config.py`) against a workspace path on a
 docker-compose shared volume, as **asynchronous jobs**. Every
 POST enqueues exactly one command and returns `202 Accepted` with a
 `job_id` immediately; clients poll `GET /v1/jobs/{job_id}` for the raw
@@ -22,8 +22,8 @@ time in submission (FIFO) order.
 
 ## What it does
 
-The commands below are shown for the default engine (`tofu`); when the
-service is configured with `IAC_BINARY=terraform` it runs the same
+The commands below are shown for the default engine (`tofu`); when
+`IAC_BINARY` in `src/config.py` is set to `terraform` it runs the same
 subcommands against that binary instead (e.g. `terraform init`).
 
 - `POST /v1/init` — enqueues `tofu init`.
@@ -50,7 +50,7 @@ subcommands against that binary instead (e.g. `terraform init`).
   (failed). Engine-level failures end the job `succeeded` with a
   non-zero `exit_code` in the result; service-level faults end it
   `failed` with a `Problem` in `error`. Terminal jobs are kept in
-  memory for `NEBULA_IAC_JOB_TTL` seconds, then poll as 404 (as after
+  memory for `JOB_TTL_SECONDS` seconds (`src/config.py`), then poll as 404 (as after
   a restart).
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
@@ -58,22 +58,52 @@ subcommands against that binary instead (e.g. `terraform init`).
 
 ## Configuration
 
+Settings are split by kind, mirroring the core's `config.yaml` / `.env`
+split:
+
+- **Secrets and deployment-specific values** come from the environment
+  (`env.sample` → `.env`). The service reads only the variables in the
+  first table below.
+- **Knobs** (deployment-tunable, non-secret) are constants at the top of
+  [`src/config.py`](src/config.py). They are not read from the
+  environment; setting e.g. `LOG_LEVEL=DEBUG` in `.env` has no effect.
+  The image copies `src/` at build time, so changing a knob means
+  editing the file and rebuilding the `iac` image.
+- **Pass-through** variables are neither: the service never reads them,
+  but the engine and the cloud CLIs do, straight from the process
+  environment, so they stay in `.env`.
+
+### Environment variables (read by the service)
+
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
-| `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
-| `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
-| `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| `NEBULA_SUBPROCESS_TIMEOUT`                   | no       | Seconds a single engine command may run before the job fails with a `504` error. `0` disables. Default: `2700`. |
-| `LOG_LEVEL`                                   | no       | Log level. Default: `INFO`. At `DEBUG` every engine stdout/stderr line (plan and apply output, provider diagnostics) is written to the log. |
-| `TF_BACKEND_CONFIG`                           | no       | Path, relative to the workspace, of a backend configuration file passed to `init` as `-backend-config=<path>`. Empty uses the backend block in the HCL as-is. |
+| `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present. Empty disables auth. |
 | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` | no | Azure service principal. When all three are set the service runs `az login` at startup and on refresh. See "Cloud credentials and `scope_id`". |
 | `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | no | GCP service-account key, as a file path or inline JSON. When set the service runs `gcloud auth activate-service-account` at startup and on refresh. |
 | `AWS_ACCESS_KEY_ID`                           | no       | AWS ambient access key. No login step; inherited by the engine and the `aws` CLI. Its presence is the *only* signal that marks AWS as a configured provider for `scope_id` handling: `AWS_PROFILE` alone is not detected, so scoped jobs then fail with `422` unless another provider is configured. |
 | `AWS_SECRET_ACCESS_KEY`                       | no       | Not read by the service; passed through to the engine and the `aws` CLI, which require it whenever `AWS_ACCESS_KEY_ID` is set. |
 | `AWS_TERRAFORM_ROLE_NAME`                     | no       | IAM resource path of a role to assume via STS for AWS `scope_id`s, as `arn:aws:iam::{scope_id}:{value}`. Must include the `role/` prefix, e.g. `role/nebula-terraform`. |
-| `CLOUD_LOGIN_REFRESH_MIN`                     | no       | Minutes after which the next job re-runs the cloud logins before executing. Default: `45`. |
-| `CLOUD_LOGIN_RETRIES`, `CLOUD_LOGIN_RETRY_DELAY_SEC` | no | Retries for a failed re-login and the initial backoff delay (doubles each retry). Defaults: `3` and `2`. Startup never retries. |
-| Other `ARM_*`, `GOOGLE_*`, `AWS_*`, `TF_*`    | no       | Not read by the service: passed through to the engine's providers and backends unchanged (identical for OpenTofu and Terraform), e.g. `ARM_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`. |
+| `TF_BACKEND_CONFIG`                           | no       | Path, relative to the workspace, of a backend configuration file passed to `init` as `-backend-config=<path>`. Empty uses the backend block in the HCL as-is. |
+
+### Environment variables (pass-through, not read by the service)
+
+| Env var                                       | Description                                            |
+|-----------------------------------------------|--------------------------------------------------------|
+| `ARM_ACCESS_KEY`                              | Storage account access key for the `azurerm` backend, when the service principal lacks Storage Blob Data Contributor on the state storage account. |
+| `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`  | Service account to impersonate for GCS backend state access. |
+| `AWS_DEFAULT_REGION`, `AWS_PROFILE`           | Read by the engine's AWS provider and the `aws` CLI. |
+| Other `ARM_*`, `GOOGLE_*`, `AWS_*`, `TF_*`    | Passed through to the engine's providers and backends unchanged (identical for OpenTofu and Terraform). |
+
+### Knobs in `src/config.py` (non-secret)
+
+| Constant                                      | Default | Description                                            |
+|-----------------------------------------------|---------|--------------------------------------------------------|
+| `IAC_BINARY`                                  | `tofu`  | Name or absolute path of the IaC engine CLI. `tofu` (OpenTofu) or `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
+| `JOB_TTL_SECONDS`                             | `3600`  | Seconds a finished job stays pollable before it 404s. |
+| `SUBPROCESS_TIMEOUT_SECONDS`                  | `2700`  | Seconds a single engine command may run before the job fails with a `504` error. `0` disables. |
+| `LOG_LEVEL`                                   | `INFO`  | Log level. Engine stdout/stderr is never logged; it is returned in the job result, and each job logs one terminal line with its `exit_code`. |
+| `CLOUD_LOGIN_REFRESH_MIN`                     | `45`    | Minutes after which the next job re-runs the cloud logins before executing. |
+| `CLOUD_LOGIN_RETRIES`, `CLOUD_LOGIN_RETRY_DELAY_SEC` | `3`, `2.0` | Retries for a failed re-login and the initial backoff delay in seconds (doubles each retry). Startup never retries. |
 
 ## Cloud credentials and `scope_id`
 
@@ -88,7 +118,7 @@ ambient `az login` / `gcloud auth` state in the container.
   later with opaque engine auth errors. All configured providers are
   attempted before failing, so one startup log shows every broken
   credential.
-- **Refresh.** After `CLOUD_LOGIN_REFRESH_MIN` minutes the next job
+- **Refresh.** After `CLOUD_LOGIN_REFRESH_MIN` minutes (`src/config.py`) the next job
   re-runs the same logins before its engine command. Because a token
   refresh failure is usually transient, failed providers are retried
   `CLOUD_LOGIN_RETRIES` times with exponential backoff starting at
@@ -123,14 +153,14 @@ ambient `az login` / `gcloud auth` state in the container.
 
 ## Choosing the IaC engine
 
-The bundled image ships both engines; `IAC_BINARY` selects one at
-runtime, with no rebuild needed to switch:
+The bundled image ships both engines; the `IAC_BINARY` constant in
+`src/config.py` selects one (edit it and rebuild the image to switch):
 
-- **OpenTofu 1.12.6** (MPL-2.0) — the default (`IAC_BINARY=tofu`).
+- **OpenTofu 1.12.6** (MPL-2.0) — the default (`IAC_BINARY = "tofu"`).
   Installed from the official
   `ghcr.io/opentofu/opentofu:<version>-minimal` image, pinned by digest
   in the [Dockerfile](Dockerfile).
-- **HashiCorp Terraform 1.16.0** (BUSL-1.1) — `IAC_BINARY=terraform`.
+- **HashiCorp Terraform 1.16.0** (BUSL-1.1) — `IAC_BINARY = "terraform"`.
   Fetched from `releases.hashicorp.com` at build time (version via the
   `TERRAFORM_VERSION` build arg) and checksum-verified; your use of it
   is subject to its license terms.

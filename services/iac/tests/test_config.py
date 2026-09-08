@@ -2,22 +2,55 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""IAC_BINARY selects the IaC engine CLI (OpenTofu or Terraform)."""
+"""Knobs come from ``src.config`` constants; secrets and deployment-specific
+values come from the env."""
 
+from src import config as config_module
 from src.config import Config
 
 
-def test_iac_binary_defaults_to_tofu(monkeypatch) -> None:
-    monkeypatch.delenv("IAC_BINARY", raising=False)
-    assert Config.from_env().iac_binary == "tofu"
-
-
-def test_iac_binary_env_selects_terraform(monkeypatch) -> None:
+def test_knobs_are_not_read_from_env(monkeypatch) -> None:
+    """Operational knobs are edited in src/config.py; the environment
+    (including the legacy ``TERRAFORM_BINARY``) is ignored for them."""
     monkeypatch.setenv("IAC_BINARY", "terraform")
-    assert Config.from_env().iac_binary == "terraform"
-
-
-def test_legacy_terraform_binary_env_is_ignored(monkeypatch) -> None:
-    monkeypatch.delenv("IAC_BINARY", raising=False)
     monkeypatch.setenv("TERRAFORM_BINARY", "terraform")
-    assert Config.from_env().iac_binary == "tofu"
+    monkeypatch.setenv("NEBULA_IAC_JOB_TTL", "1")
+    monkeypatch.setenv("NEBULA_SUBPROCESS_TIMEOUT", "1")
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("CLOUD_LOGIN_REFRESH_MIN", "1")
+    monkeypatch.setenv("CLOUD_LOGIN_RETRIES", "9")
+    monkeypatch.setenv("CLOUD_LOGIN_RETRY_DELAY_SEC", "9")
+
+    cfg = Config.from_env()
+
+    assert cfg.iac_binary == config_module.IAC_BINARY
+    assert cfg.job_ttl == config_module.JOB_TTL_SECONDS
+    assert cfg.subprocess_timeout == config_module.SUBPROCESS_TIMEOUT_SECONDS
+    assert cfg.log_level == config_module.LOG_LEVEL
+    assert cfg.cloud_login_refresh_min == config_module.CLOUD_LOGIN_REFRESH_MIN
+    assert cfg.cloud_login_retries == config_module.CLOUD_LOGIN_RETRIES
+    assert cfg.cloud_login_retry_delay_sec == config_module.CLOUD_LOGIN_RETRY_DELAY_SEC
+
+
+def test_env_values_are_read_from_env(monkeypatch) -> None:
+    """The variable names are the contract with env.sample: a typo here
+    would silently disable a provider login."""
+    monkeypatch.setenv("NEBULA_IAC_TOKEN", "tok")
+    monkeypatch.setenv("ARM_CLIENT_ID", "az-id")
+    monkeypatch.setenv("ARM_CLIENT_SECRET", "az-secret")
+    monkeypatch.setenv("ARM_TENANT_ID", "az-tenant")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/key.json")
+    monkeypatch.setenv("GOOGLE_CREDENTIALS", "{}")
+    monkeypatch.setenv("TF_BACKEND_CONFIG", "backend.hcl")
+    monkeypatch.setenv("AWS_TERRAFORM_ROLE_NAME", "role/nebula-terraform")
+
+    cfg = Config.from_env()
+
+    assert cfg.expected_token == "tok"
+    assert cfg.azure_client_id == "az-id"
+    assert cfg.azure_client_secret == "az-secret"
+    assert cfg.azure_tenant_id == "az-tenant"
+    assert cfg.google_application_credentials == "/key.json"
+    assert cfg.google_credentials == "{}"
+    assert cfg.backend_config == "backend.hcl"
+    assert cfg.aws_terraform_role_name == "role/nebula-terraform"

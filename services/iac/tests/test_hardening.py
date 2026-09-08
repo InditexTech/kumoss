@@ -14,18 +14,16 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-
-from src.config import Config
 from src import main as service_main
-from src.models import PlanRequest
-
-from .test_api import _client_with, _poll_until_terminal
+from src.config import Config
 from src.engine import (
     EngineTimeoutError,
     _plan_file_arg,
     set_timeout,
 )
+from src.models import PlanRequest
 
+from .test_api import _client_with, _poll_until_terminal
 
 # -- Plan-file injection prevention --
 
@@ -144,47 +142,6 @@ async def test_timeout_error_names_the_configured_binary(tmp_path: Path) -> None
     message = str(excinfo.value)
     assert message.startswith("sh -c timed out")
     assert "terraform" not in message
-
-
-# -- oversized single line does not crash the job or orphan the process --
-
-
-@pytest.mark.asyncio
-async def test_oversized_line_is_captured_and_process_reaped(tmp_path: Path) -> None:
-    """A single stdout line larger than the 10 MB StreamReader limit used to
-    surface as ``ValueError`` from ``readline()`` and leave the engine
-    process running. The output is the job result, so it must be captured
-    in full; only the debug log is allowed to skip it."""
-    from src.engine import _BUFFER_LIMIT, _run
-
-    size = _BUFFER_LIMIT + 1_000_000
-    script = (
-        f"head -c {size} /dev/zero | tr '\\0' a; "
-        "printf '\\nafter\\n'; "
-        "echo err >&2; "
-        "exit 3"
-    )
-    result = await _run("sh", ["-c", script], tmp_path)
-
-    assert result.exit_code == 3
-    assert result.ok is False
-    assert len(result.stdout) == size + len("\nafter\n")
-    assert result.stdout.startswith("a" * 1000)
-    assert result.stdout.endswith("\nafter\n")
-    assert result.stderr == "err\n"
-
-
-@pytest.mark.asyncio
-async def test_oversized_line_on_stderr_is_captured(tmp_path: Path) -> None:
-    from src.engine import _BUFFER_LIMIT, _run
-
-    size = _BUFFER_LIMIT + 1
-    script = f"head -c {size} /dev/zero | tr '\\0' b >&2; echo ok"
-    result = await _run("sh", ["-c", script], tmp_path)
-
-    assert result.ok is True
-    assert result.stdout == "ok\n"
-    assert len(result.stderr) == size
 
 
 # -- Startup cloud login is all-or-nothing --

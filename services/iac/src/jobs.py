@@ -175,7 +175,17 @@ class JobRegistry:
         record.expires_at = time.monotonic() + self._ttl
         record.result = result
         record.status = "succeeded"
-        logger.info("job succeeded job_id=%s", record.job_id)
+        started = record.started_at or record.finished_at
+        elapsed = (record.finished_at - started).total_seconds()
+        # The engine wrapper logs nothing, so this is the one line that
+        # tells operators the command ran and how the engine exited.
+        logger.info(
+            "job succeeded job_id=%s kind=%s exit_code=%d elapsed=%.2fs",
+            record.job_id,
+            record.kind,
+            result.exit_code,
+            elapsed,
+        )
 
     def _fail(self, record: JobRecord, status_code: int, detail: str) -> None:
         record.finished_at = _utcnow()
