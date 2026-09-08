@@ -76,6 +76,7 @@ class PromptsLibrary(Enum):
     # core
     REQUESTS_FILTER = "requests_filter"
     TASK_SPLITTER = "task_splitter"
+    FILTER_RECONCILIATION = "filter_reconciliation"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
     TARGET_GENERATOR = "target_generator"
@@ -151,5 +152,4 @@ class TargetGenerationMode(Enum):
     """Selects the target generator template file: target_{value}_generator.jinja"""
 
     SESSION = "session"
-    PREDICTIVE = "predictive"
     DRIFT = "drift"
