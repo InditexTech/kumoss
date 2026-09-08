@@ -17,6 +17,7 @@ import os
 import shutil
 import tempfile
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from .config import Config
@@ -68,17 +69,73 @@ async def _run(args: list[str], *, env: dict[str, str] | None = None) -> Command
 # ---------------------------------------------------------------------------
 
 
-async def cloud_login(config: Config) -> None:
-    """Authenticate against cloud providers.
+Login = Callable[[Config], Awaitable[None]]
+
+
+def _configured_providers(config: Config) -> dict[str, Login]:
+    """Providers whose credentials are complete, keyed by display name.
+
+    Missing credentials skip the provider with an info log; AWS has no
+    login step (ambient keys are inherited by the engine and the CLI).
+    """
+    providers: dict[str, Login] = {}
+
+    if config.azure_client_id and config.azure_client_secret and config.azure_tenant_id:
+        providers["Azure"] = _az_login_sp
+    else:
+        logger.info(
+            "Azure login skipped: ARM_CLIENT_ID, ARM_CLIENT_SECRET, "
+            "and ARM_TENANT_ID not all set"
+        )
+
+    if config.google_application_credentials or config.google_credentials:
+        providers["GCP"] = _gcloud_auth
+    else:
+        logger.info(
+            "GCP auth skipped: GOOGLE_APPLICATION_CREDENTIALS "
+            "and GOOGLE_CREDENTIALS not set"
+        )
+
+    if os.environ.get("AWS_ACCESS_KEY_ID"):
+        logger.info("AWS ambient credentials detected")
+    else:
+        logger.info("AWS auth skipped: no ambient credentials detected")
+
+    return providers
+
+
+async def _attempt_logins(
+    config: Config, providers: dict[str, Login]
+) -> dict[str, str]:
+    """Run every login in *providers* independently; return the failures."""
+    errors: dict[str, str] = {}
+    for name, login in providers.items():
+        try:
+            await login(config)
+        except RuntimeError as exc:
+            logger.error("%s login failed: %s", name, exc)
+            errors[name] = str(exc)
+    return errors
+
+
+async def cloud_login(config: Config, *, retries: int = 0) -> None:
+    """Authenticate against every provider with complete credentials.
 
     Uses double-check locking: the first caller to find the token
     expired acquires the lock and re-authenticates; concurrent callers
     re-check inside the lock and skip if another task already refreshed.
 
-    Each provider is guarded by its required env vars — missing vars
-    skip that provider with an info log.  All configured providers are
-    attempted independently; failures are collected and raised together
-    so every broken credential surfaces in a single startup cycle.
+    All configured providers are attempted independently. Providers
+    that fail are retried up to *retries* more times with exponential
+    backoff (``cloud_login_retry_delay_sec * 2**n``), re-attempting
+    only the ones that failed. If any still fail, a single
+    ``RuntimeError`` naming all of them is raised and ``_last_login``
+    is left untouched, so the next caller tries again.
+
+    Startup calls this with ``retries=0`` (fail fast on broken
+    credentials); the per-job refresh in ``ensure_cloud_login`` uses
+    ``config.cloud_login_retries`` because a token refresh failure is
+    usually transient and should not cost the job.
     """
     global _last_login
     async with _login_lock:
@@ -86,56 +143,43 @@ async def cloud_login(config: Config) -> None:
             logger.debug("cloud tokens still valid, skipping re-login")
             return
 
-        errors: list[str] = []
+        pending = _configured_providers(config)
+        errors = await _attempt_logins(config, pending)
 
-        if (
-            config.azure_client_id
-            and config.azure_client_secret
-            and config.azure_tenant_id
-        ):
-            try:
-                await _az_login_sp(config)
-            except RuntimeError as exc:
-                logger.error("Azure login failed: %s", exc)
-                errors.append(f"Azure: {exc}")
-        else:
-            logger.info(
-                "Azure login skipped: ARM_CLIENT_ID, ARM_CLIENT_SECRET, "
-                "and ARM_TENANT_ID not all set"
+        for attempt in range(1, retries + 1):
+            if not errors:
+                break
+            delay = config.cloud_login_retry_delay_sec * 2 ** (attempt - 1)
+            logger.warning(
+                "cloud login retry %d/%d for %s in %.1fs",
+                attempt,
+                retries,
+                ", ".join(errors),
+                delay,
             )
-
-        if config.google_application_credentials or config.google_credentials:
-            try:
-                await _gcloud_auth(config)
-            except RuntimeError as exc:
-                logger.error("GCP auth failed: %s", exc)
-                errors.append(f"GCP: {exc}")
-        else:
-            logger.info(
-                "GCP auth skipped: GOOGLE_APPLICATION_CREDENTIALS "
-                "and GOOGLE_CREDENTIALS not set"
+            await asyncio.sleep(delay)
+            errors = await _attempt_logins(
+                config, {name: pending[name] for name in errors}
             )
-
-        if os.environ.get("AWS_ACCESS_KEY_ID"):
-            logger.info("AWS ambient credentials detected")
-        else:
-            logger.info("AWS auth skipped: no ambient credentials detected")
 
         if errors:
-            raise RuntimeError("Cloud login failed for: " + "; ".join(errors))
+            raise RuntimeError(
+                "Cloud login failed for: "
+                + "; ".join(f"{name}: {msg}" for name, msg in errors.items())
+            )
 
         _last_login = time.monotonic()
         logger.info("cloud login completed")
 
 
 async def ensure_cloud_login(config: Config) -> None:
-    """Re-login if cloud tokens have expired.
+    """Re-login if cloud tokens have expired, retrying transient failures.
 
     Intended for per-request lazy checks inside background jobs.
     No-op when tokens are still fresh.
     """
     if needs_relogin(config.cloud_login_refresh_min):
-        await cloud_login(config)
+        await cloud_login(config, retries=config.cloud_login_retries)
 
 
 async def _az_login_sp(config: Config) -> None:
@@ -191,6 +235,10 @@ async def _gcloud_auth(config: Config) -> None:
 async def aws_assume_role(scope_id: str, role_name: str) -> dict[str, str]:
     """Construct a role ARN from *scope_id* and *role_name*, then assume it.
 
+    *role_name* is the IAM resource path and must already carry the
+    ``role/`` prefix (e.g. ``role/nebula-terraform``); it is appended to
+    ``arn:aws:iam::{scope_id}:`` verbatim.
+
     Returns a dict with AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
     AWS_SESSION_TOKEN from the assumed role.
     """
@@ -211,17 +259,18 @@ async def aws_assume_role(scope_id: str, role_name: str) -> dict[str, str]:
     if not result.ok:
         raise RuntimeError(f"AWS AssumeRole failed for {role_arn}: {result.stderr}")
 
-    data = json.loads(result.stdout)
     try:
-        credentials = data["Credentials"]
+        credentials = json.loads(result.stdout)["Credentials"]
         env = {
             "AWS_ACCESS_KEY_ID": credentials["AccessKeyId"],
             "AWS_SECRET_ACCESS_KEY": credentials["SecretAccessKey"],
             "AWS_SESSION_TOKEN": credentials["SessionToken"],
         }
-    except KeyError as exc:
+    except (KeyError, TypeError, ValueError) as exc:
+        # ValueError covers json.JSONDecodeError; callers rely on every
+        # failure surfacing as RuntimeError.
         raise RuntimeError(
-            f"Malformed STS AssumeRole response for {role_arn}: missing {exc}"
+            f"Malformed STS AssumeRole response for {role_arn}: {exc!r}"
         ) from exc
     logger.info("AWS AssumeRole successful for %s", role_arn)
     return env

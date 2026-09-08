@@ -23,7 +23,9 @@ class Config:
 
     All cloud credential fields default to empty and guard their
     respective login steps: missing values skip the provider with an
-    info log rather than failing the service.
+    info log rather than failing the service. A provider whose
+    credentials are present but whose login fails aborts startup
+    (see ``cloud_cli.cloud_login``).
     """
 
     expected_token: str
@@ -40,6 +42,8 @@ class Config:
     subprocess_timeout: int = 2700
     log_level: str = "INFO"
     cloud_login_refresh_min: int = 45
+    cloud_login_retries: int = 3
+    cloud_login_retry_delay_sec: float = 2.0
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -62,6 +66,10 @@ class Config:
             log_level=os.environ.get("LOG_LEVEL", "INFO"),
             cloud_login_refresh_min=int(
                 os.environ.get("CLOUD_LOGIN_REFRESH_MIN") or "45"
+            ),
+            cloud_login_retries=int(os.environ.get("CLOUD_LOGIN_RETRIES") or "3"),
+            cloud_login_retry_delay_sec=float(
+                os.environ.get("CLOUD_LOGIN_RETRY_DELAY_SEC") or "2"
             ),
         )
 

@@ -32,30 +32,33 @@ class CredentialError(Exception):
 
 
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
-# Single path segment only: `plan_file` is passed to `-out`, `show`,
-# and `apply`, so it must not be able to escape the workspace.
-PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$")]
+# Mirrors the contract's PlanFile pattern exactly: a single path segment
+# (no `/`), so `plan_file` cannot escape the workspace when passed to
+# `-out`, `show` and `apply`. Leading `-` and `.` are allowed by the
+# contract; engine._plan_file_arg anchors the name with `./` so the
+# engine never parses it as a flag.
+PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
 
 
 class InitRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
 
 
 class ValidateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
 
 
 class PlanRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
     targets: list[TargetStr] = Field(default_factory=list, max_length=256)
     plan_file: PlanFileStr
 
@@ -64,7 +67,7 @@ class ShowRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
     plan_file: PlanFileStr
 
 
@@ -72,7 +75,7 @@ class ApplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
     plan_file: PlanFileStr
 
 
@@ -80,7 +83,7 @@ class ImportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
     address: str = Field(min_length=1, max_length=4096)
     resource_id: str = Field(min_length=1, max_length=4096)
 
@@ -92,12 +95,12 @@ class StateResourceIdsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: str = Field(min_length=1, max_length=1024)
 
 
 class ScopeResourceIdsRequest(BaseModel):
-    # Unlike the other requests, `scope_id` is required: it names the
-    # scope being listed rather than acting as a credential fallback.
+    # `scope_id` here names the scope being listed rather than the scope
+    # a command runs against.
     model_config = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)

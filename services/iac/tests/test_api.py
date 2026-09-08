@@ -21,7 +21,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -50,11 +50,22 @@ OPERATIONS = [
 ]
 
 
+# `scope_id` is required on every request and needs at least one provider
+# with complete credentials, so the default test config carries a fake
+# Azure service principal; the `az login` it would trigger is patched out.
+_TEST_PROVIDER = {
+    "azure_client_id": "test-client",
+    "azure_client_secret": "test-secret",
+    "azure_tenant_id": "test-tenant",
+}
+
+
 @contextmanager
 def _client_with(
     token: str = "",
     iac_binary: str = "sh",
     job_ttl: int = 3600,
+    **config_overrides,
 ):
     # `sh` stands in for the engine binary so the per-request binary
     # check passes in engine-less test environments; subprocess calls are
@@ -63,13 +74,18 @@ def _client_with(
         expected_token=token,
         iac_binary=iac_binary,
         job_ttl=job_ttl,
+        **{**_TEST_PROVIDER, **config_overrides},
     )
     # Fresh queue/registry per test so job records don't leak across tests.
     service_main.workspace_queue = WorkspaceQueue()
     service_main.jobs = JobRegistry(
         ttl_seconds=job_ttl, workspace_queue=service_main.workspace_queue
     )
-    with TestClient(service_main.app) as client:
+    with (
+        patch("src.cloud_cli._az_login_sp", new_callable=AsyncMock),
+        patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock),
+        TestClient(service_main.app) as client,
+    ):
         yield client
 
 
@@ -107,7 +123,7 @@ def test_init_requires_token_when_configured() -> None:
     with _client_with(token="expected") as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": "/tmp/anywhere"},
+            json={"workspace_path": "/tmp/anywhere", "scope_id": "sub-test"},
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -118,7 +134,7 @@ def test_init_503_when_engine_missing() -> None:
         with patch("src.main.engine_available", return_value=False):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": "/tmp"},
+                json={"workspace_path": "/tmp", "scope_id": "sub-test"},
             )
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -130,7 +146,10 @@ def test_init_404_when_workspace_missing(tmp_path: Path) -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": str(tmp_path / "does-not-exist")},
+            json={
+                "workspace_path": str(tmp_path / "does-not-exist"),
+                "scope_id": "sub-test",
+            },
         )
     assert response.status_code == 404
 
@@ -139,7 +158,7 @@ def test_init_request_validation_returns_problem_json() -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": ""},  # min_length=1
+            json={"workspace_path": "", "scope_id": "sub-test"},  # min_length=1
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -149,7 +168,12 @@ def test_plan_rejects_empty_target_string() -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/plan",
-            json={"workspace_path": "/tmp", "targets": [""], "plan_file": "x.plan"},
+            json={
+                "workspace_path": "/tmp",
+                "scope_id": "sub-test",
+                "targets": [""],
+                "plan_file": "x.plan",
+            },
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -162,7 +186,11 @@ def test_plan_file_traversal_rejected(endpoint: str) -> None:
     with _client_with() as client:
         response = client.post(
             endpoint,
-            json={"workspace_path": "/tmp", "plan_file": "../evil"},
+            json={
+                "workspace_path": "/tmp",
+                "scope_id": "sub-test",
+                "plan_file": "../evil",
+            },
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -175,12 +203,10 @@ def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with() as client:
-        with patch(
-            "src.engine.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             body = response.json()
@@ -210,10 +236,12 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     with _client_with() as client:
         with patch("src.engine.init", side_effect=blocked_init):
             first = client.post(
-                "/v1/init", json={"workspace_path": str(workspace)}
+                "/v1/init",
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             ).json()["job_id"]
             second = client.post(
-                "/v1/init", json={"workspace_path": str(workspace)}
+                "/v1/init",
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             ).json()["job_id"]
 
             # Wait for the first job to be running, then check the second
@@ -257,7 +285,11 @@ def test_op_job_returns_raw_result_verbatim(
         with patch(tf_target, new_callable=AsyncMock, return_value=failed):
             response = client.post(
                 endpoint,
-                json={"workspace_path": str(workspace), **extra},
+                json={
+                    "workspace_path": str(workspace),
+                    "scope_id": "sub-test",
+                    **extra,
+                },
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
@@ -286,6 +318,7 @@ def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> No
                 "/v1/plan",
                 json={
                     "workspace_path": str(workspace),
+                    "scope_id": "sub-test",
                     "targets": ["module.db"],
                     "plan_file": "abc123.plan",
                 },
@@ -295,8 +328,10 @@ def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> No
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
     plan_mock.assert_awaited_once_with(
-        "sh", workspace, ["module.db"], "abc123.plan", env=None
+        "sh", workspace, ["module.db"], "abc123.plan", env=ANY
     )
+    # The required scope_id is injected into the engine environment.
+    assert plan_mock.await_args.kwargs["env"]["ARM_SUBSCRIPTION_ID"] == "sub-test"
 
 
 def test_init_passes_backend_config_when_set(tmp_path: Path) -> None:
@@ -305,27 +340,18 @@ def test_init_passes_backend_config_when_set(tmp_path: Path) -> None:
     workspace.mkdir()
 
     ok = CommandResult(ok=True, stdout="Initialized", stderr="", exit_code=0)
-    service_main.config = Config(
-        expected_token="",
-        iac_binary="sh",
-        backend_config="backend.tfbackend",
-    )
-    service_main.workspace_queue = WorkspaceQueue()
-    service_main.jobs = JobRegistry(
-        ttl_seconds=3600, workspace_queue=service_main.workspace_queue
-    )
-    with TestClient(service_main.app) as client:
+    with _client_with(backend_config="backend.tfbackend") as client:
         with patch(
             "src.engine.init", new_callable=AsyncMock, return_value=ok
         ) as init_mock:
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             _poll_until_terminal(client, response.json()["job_id"])
     init_mock.assert_awaited_once_with(
-        "sh", workspace, backend_config="backend.tfbackend", env=None
+        "sh", workspace, backend_config="backend.tfbackend", env=ANY
     )
 
 
@@ -341,13 +367,11 @@ def test_init_omits_backend_config_when_empty(tmp_path: Path) -> None:
         ) as init_mock:
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             _poll_until_terminal(client, response.json()["job_id"])
-    init_mock.assert_awaited_once_with(
-        "sh", workspace, backend_config="", env=None
-    )
+    init_mock.assert_awaited_once_with("sh", workspace, backend_config="", env=ANY)
 
 
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
@@ -364,7 +388,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
         ):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
@@ -402,12 +426,10 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with _client_with(job_ttl=0) as client:
-        with patch(
-            "src.engine.init", new_callable=AsyncMock, return_value=init_failed
-        ):
+        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             job_id = response.json()["job_id"]
@@ -427,8 +449,8 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
 def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -> None:
-    """scope_id is accepted without 422 (extra='forbid' would reject
-    unknown fields); the 404 comes from the nonexistent workspace."""
+    """scope_id passes schema validation; the 404 comes from the
+    nonexistent workspace, proving validation ran first."""
     with _client_with() as client:
         response = client.post(
             endpoint,
@@ -439,6 +461,48 @@ def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -
             },
         )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
+@pytest.mark.parametrize("scope", [None, ""], ids=["missing", "empty"])
+def test_endpoints_require_scope_id(
+    endpoint: str, tf_target: str, extra: dict, scope: str | None
+) -> None:
+    """The contract makes scope_id required (minLength 1) on every
+    engine command: omitting it or sending "" is a schema 422."""
+    body = {"workspace_path": "/tmp", **extra}
+    if scope is not None:
+        body["scope_id"] = scope
+    with _client_with() as client:
+        response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+def test_job_fails_422_when_no_provider_is_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scope needs a provider to apply to: with no complete credentials
+    the job ends failed(422) listing what is missing, before the engine
+    is ever invoked."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+
+    with _client_with(
+        azure_client_id="", azure_client_secret="", azure_tenant_id=""
+    ) as client:
+        with patch("src.engine.init", new_callable=AsyncMock) as init:
+            response = client.post(
+                "/v1/init",
+                json={"workspace_path": str(workspace), "scope_id": "sub-1"},
+            )
+            assert response.status_code == 202
+            body = _poll_until_terminal(client, response.json()["job_id"])
+    assert body["status"] == "failed"
+    assert body["error"]["status"] == 422
+    assert "No cloud provider credentials are complete" in body["error"]["detail"]
+    init.assert_not_awaited()
 
 
 _STATE_DOC = {
@@ -481,7 +545,7 @@ def test_state_resource_ids_returns_managed_ids(tmp_path: Path) -> None:
         ):
             response = client.post(
                 "/v1/import/state-resource-ids",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
@@ -509,7 +573,7 @@ def test_state_resource_ids_passes_pull_failure_through(tmp_path: Path) -> None:
         ):
             response = client.post(
                 "/v1/import/state-resource-ids",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
             )
             assert response.status_code == 202
             body = _poll_until_terminal(client, response.json()["job_id"])
@@ -552,9 +616,7 @@ def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:
         "stdout": '["id-1", "id-2"]',
         "stderr": "",
     }
-    list_mock.assert_awaited_once_with(
-        "azure", "sub-1", aws_terraform_role_name=""
-    )
+    list_mock.assert_awaited_once_with("azure", "sub-1", aws_terraform_role_name="")
 
 
 def test_scope_resource_ids_validation() -> None:

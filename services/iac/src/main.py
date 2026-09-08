@@ -219,24 +219,27 @@ def _check_submit_preconditions(
 
 
 async def _scope_env(
-    scope_id: str | None, *, aws_terraform_role_name: str = ""
-) -> dict[str, str] | None:
-    if not scope_id:
-        return None
+    scope_id: str, *, aws_terraform_role_name: str = ""
+) -> dict[str, str]:
+    """Build the engine environment for a command scoped to *scope_id*.
 
+    ``scope_id`` is required by the contract, so every engine command
+    runs with the scope injected; at least one provider must have
+    complete credentials or the job fails with ``CredentialError``.
+    """
     azure_ready = bool(
-        config.azure_client_id
-        and config.azure_client_secret
-        and config.azure_tenant_id
+        config.azure_client_id and config.azure_client_secret and config.azure_tenant_id
     )
-    gcp_ready = bool(
-        config.google_application_credentials or config.google_credentials
-    )
+    gcp_ready = bool(config.google_application_credentials or config.google_credentials)
     aws_ready = bool(os.environ.get("AWS_ACCESS_KEY_ID"))
 
     if not (azure_ready or gcp_ready or aws_ready):
         missing: dict[str, list[str]] = {}
-        if config.azure_client_id or config.azure_client_secret or config.azure_tenant_id:
+        if (
+            config.azure_client_id
+            or config.azure_client_secret
+            or config.azure_tenant_id
+        ):
             fields = []
             if not config.azure_client_id:
                 fields.append("ARM_CLIENT_ID")
@@ -257,14 +260,21 @@ async def _scope_env(
         "GOOGLE_PROJECT": scope_id,
     }
     if aws_terraform_role_name and aws_ready:
+        # Cross-cloud plans are not supported, so an Azure/GCP scope_id
+        # reaching here can only fail AssumeRole (it is not an account
+        # id). That is expected and must not fail the job: continue with
+        # the ambient AWS credentials and let the engine report any real
+        # AWS auth problem in its own stderr. OSError covers a missing
+        # `aws` binary.
         try:
             assumed = await cloud_cli.aws_assume_role(scope_id, aws_terraform_role_name)
             env.update(assumed)
-        except RuntimeError:
+        except (RuntimeError, OSError) as exc:
             logger.debug(
-                "AWS AssumeRole skipped for scope_id=%s (not an AWS account or "
-                "role not assumable)",
+                "AWS AssumeRole skipped for scope_id=%s (not an AWS account, role "
+                "not assumable, or aws CLI unavailable): %s",
                 scope_id,
+                exc,
             )
     return env
 
@@ -498,6 +508,7 @@ async def scope_resource_ids(
                 "on the IaC service."
             ),
         )
+
     async def _pipeline() -> OperationResult:
         await cloud_cli.ensure_cloud_login(config)
         result = await cloud_cli.list_resource_ids(

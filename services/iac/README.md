@@ -63,7 +63,63 @@ subcommands against that binary instead (e.g. `terraform init`).
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+| `NEBULA_SUBPROCESS_TIMEOUT`                   | no       | Seconds a single engine command may run before the job fails with a `504` error. `0` disables. Default: `2700`. |
+| `LOG_LEVEL`                                   | no       | Log level. Default: `INFO`. At `DEBUG` every engine stdout/stderr line (plan and apply output, provider diagnostics) is written to the log. |
+| `TF_BACKEND_CONFIG`                           | no       | Path, relative to the workspace, of a backend configuration file passed to `init` as `-backend-config=<path>`. Empty uses the backend block in the HCL as-is. |
+| `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` | no | Azure service principal. When all three are set the service runs `az login` at startup and on refresh. See "Cloud credentials and `scope_id`". |
+| `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | no | GCP service-account key, as a file path or inline JSON. When set the service runs `gcloud auth activate-service-account` at startup and on refresh. |
+| `AWS_ACCESS_KEY_ID`                           | no       | AWS ambient access key. No login step; inherited by the engine and the `aws` CLI. Its presence is the *only* signal that marks AWS as a configured provider for `scope_id` handling: `AWS_PROFILE` alone is not detected, so scoped jobs then fail with `422` unless another provider is configured. |
+| `AWS_SECRET_ACCESS_KEY`                       | no       | Not read by the service; passed through to the engine and the `aws` CLI, which require it whenever `AWS_ACCESS_KEY_ID` is set. |
+| `AWS_TERRAFORM_ROLE_NAME`                     | no       | IAM resource path of a role to assume via STS for AWS `scope_id`s, as `arn:aws:iam::{scope_id}:{value}`. Must include the `role/` prefix, e.g. `role/nebula-terraform`. |
+| `CLOUD_LOGIN_REFRESH_MIN`                     | no       | Minutes after which the next job re-runs the cloud logins before executing. Default: `45`. |
+| `CLOUD_LOGIN_RETRIES`, `CLOUD_LOGIN_RETRY_DELAY_SEC` | no | Retries for a failed re-login and the initial backoff delay (doubles each retry). Defaults: `3` and `2`. Startup never retries. |
+| Other `ARM_*`, `GOOGLE_*`, `AWS_*`, `TF_*`    | no       | Not read by the service: passed through to the engine's providers and backends unchanged (identical for OpenTofu and Terraform), e.g. `ARM_ACCESS_KEY`, `AWS_DEFAULT_REGION`, `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`. |
+
+## Cloud credentials and `scope_id`
+
+The service authenticates the cloud CLIs itself; it does not rely on
+ambient `az login` / `gcloud auth` state in the container.
+
+- **Startup login is all-or-nothing.** At boot, every provider whose
+  credentials are *complete* (all three `ARM_*` values; a GCP key) is
+  logged in. A provider with no credentials is skipped with an info
+  log. A provider with credentials whose login **fails aborts
+  startup**: the service exits rather than accepting jobs it would fail
+  later with opaque engine auth errors. All configured providers are
+  attempted before failing, so one startup log shows every broken
+  credential.
+- **Refresh.** After `CLOUD_LOGIN_REFRESH_MIN` minutes the next job
+  re-runs the same logins before its engine command. Because a token
+  refresh failure is usually transient, failed providers are retried
+  `CLOUD_LOGIN_RETRIES` times with exponential backoff starting at
+  `CLOUD_LOGIN_RETRY_DELAY_SEC` seconds, re-attempting only the ones
+  that failed. Only when every retry fails does the job end `failed`
+  with a `500` error; the next job tries again.
+- **`scope_id` is required on every engine command.** Provider
+  blocks in generated code do not carry a subscription/project/account,
+  so `init`, `validate`, `plan`, `show`, `apply`, `import` and
+  `state-resource-ids` all require `scope_id` (Azure: subscription id,
+  GCP: project id, AWS: account id); a missing or empty value is a
+  schema `422` at submit time. The service injects it into the
+  engine's environment as `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT`,
+  and, if `AWS_TERRAFORM_ROLE_NAME` is set and AWS credentials are
+  configured, assumes `arn:aws:iam::{scope_id}:{role}` and injects the
+  temporary keys. Because the scope always comes from the request,
+  `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` are deliberately not
+  service configuration: do not set them in the service's environment.
+- **At least one provider must be configured.** If no provider has
+  complete credentials, every job ends `failed` with a `422` `Problem`
+  listing the missing variables per provider, because there is nothing
+  the scope could apply to. The engine is not invoked.
+- **Cross-cloud plans are not supported.** A workspace targets one
+  cloud. When AWS credentials and a role name are configured alongside
+  Azure or GCP credentials, an Azure/GCP `scope_id` still triggers an
+  AssumeRole attempt that cannot succeed (it is not an account id).
+  That failure is logged at debug level and ignored; the job continues
+  with the scope injected for the provider it targets. A genuine AWS
+  auth problem surfaces in the engine's own `stderr`, as before.
+- **`scope-resource-ids`** also requires `scope_id`, but there it names
+  the scope being *listed* rather than the scope a command runs against.
 
 ## Choosing the IaC engine
 

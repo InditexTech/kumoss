@@ -14,6 +14,7 @@ as code) should extend this or substitute their own.
 from __future__ import annotations
 
 import asyncio
+import codecs
 import json
 import logging
 import time
@@ -23,6 +24,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _BUFFER_LIMIT = 10 * 1024 * 1024  # 10 MB — prevents deadlock on large plans
+_CHUNK_SIZE = 64 * 1024  # fallback read size once a line overruns the limit
+_LOG_PREVIEW = 512  # chars of an oversized line echoed to the debug log
 
 _timeout: int | None = None
 
@@ -47,13 +50,57 @@ class CommandResult:
 async def _read_stream(
     stream: asyncio.StreamReader, chunks: list[str], channel: str, label: str
 ) -> None:
+    """Capture *stream* into *chunks*, echoing each line to the debug log.
+
+    Lines are the unit of logging only; the captured output is what the
+    job returns, so it must survive even when a single line exceeds
+    ``_BUFFER_LIMIT`` (e.g. a provider dumping a one-line JSON
+    diagnostic). ``readline()`` would *discard* the buffered data on
+    overrun before raising ``ValueError``, so we use ``readuntil()``,
+    whose ``LimitOverrunError`` leaves the data in place; we then drain
+    the rest of the stream in fixed-size chunks and log only a preview.
+    """
     while True:
-        line = await stream.readline()
-        if not line:
-            break
+        try:
+            line = await stream.readuntil(b"\n")
+        except asyncio.IncompleteReadError as exc:
+            line = exc.partial  # EOF without trailing newline
+            if not line:
+                break
+        except asyncio.LimitOverrunError:
+            await _drain_oversized(stream, chunks, channel, label)
+            return
         text = line.decode("utf-8", errors="replace").rstrip("\n")
         chunks.append(text + "\n")
         logger.debug("[%s] %s: %s", label, channel, text)
+        if not line.endswith(b"\n"):
+            break
+
+
+async def _drain_oversized(
+    stream: asyncio.StreamReader, chunks: list[str], channel: str, label: str
+) -> None:
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    total = 0
+    preview = ""
+    while True:
+        data = await stream.read(_CHUNK_SIZE)
+        if not data:
+            break
+        total += len(data)
+        text = decoder.decode(data)
+        if len(preview) < _LOG_PREVIEW:
+            preview += text[: _LOG_PREVIEW - len(preview)]
+        chunks.append(text)
+    chunks.append(decoder.decode(b"", final=True))
+    logger.debug(
+        "[%s] %s: line exceeded %d bytes; captured %d bytes unlogged. Preview: %s",
+        label,
+        channel,
+        _BUFFER_LIMIT,
+        total,
+        preview,
+    )
 
 
 async def _run(
@@ -89,9 +136,7 @@ async def _run(
                 )
             )
         else:
-            tasks.append(
-                asyncio.create_task(_bulk_read(proc.stdout, stdout_chunks))
-            )
+            tasks.append(asyncio.create_task(_bulk_read(proc.stdout, stdout_chunks)))
         tasks.append(
             asyncio.create_task(
                 _read_stream(proc.stderr, stderr_chunks, "stderr", label)
@@ -109,7 +154,11 @@ async def _run(
         elapsed = time.monotonic() - t0
         logger.error(
             "%s %s timed out after %.1fs (limit=%ss) workspace=%s",
-            binary, label, elapsed, _timeout, cwd,
+            binary,
+            label,
+            elapsed,
+            _timeout,
+            cwd,
         )
         try:
             proc.kill()
@@ -117,9 +166,16 @@ async def _run(
         except ProcessLookupError:
             pass
         raise EngineTimeoutError(
-            f"{binary} {label} timed out after {elapsed:.0f}s "
-            f"(limit={_timeout}s)"
+            f"{binary} {label} timed out after {elapsed:.0f}s (limit={_timeout}s)"
         )
+    except BaseException:
+        # Reader/decoder failure: never leave the engine running detached.
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+        raise
 
     exit_code = proc.returncode if proc.returncode is not None else -1
     elapsed = time.monotonic() - t0
@@ -133,7 +189,11 @@ async def _run(
     else:
         logger.warning(
             "%s %s failed exit_code=%d elapsed=%.2fs workspace=%s",
-            binary, label, exit_code, elapsed, cwd,
+            binary,
+            label,
+            exit_code,
+            elapsed,
+            cwd,
         )
 
     return CommandResult(
@@ -211,7 +271,13 @@ async def apply(
 ) -> CommandResult:
     return await _run(
         binary,
-        ["apply", "-no-color", "-input=false", "-auto-approve", _plan_file_arg(plan_file)],
+        [
+            "apply",
+            "-no-color",
+            "-input=false",
+            "-auto-approve",
+            _plan_file_arg(plan_file),
+        ],
         cwd,
         env=env,
     )

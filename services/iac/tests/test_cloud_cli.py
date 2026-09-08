@@ -187,24 +187,45 @@ async def test_aws_listing_failure_names_region() -> None:
 
 @pytest.mark.asyncio
 async def test_aws_assume_role_success() -> None:
-    sts_response = json.dumps({
-        "Credentials": {
-            "AccessKeyId": "AKID",
-            "SecretAccessKey": "SECRET",
-            "SessionToken": "TOKEN",
+    sts_response = json.dumps(
+        {
+            "Credentials": {
+                "AccessKeyId": "AKID",
+                "SecretAccessKey": "SECRET",
+                "SessionToken": "TOKEN",
+            }
         }
-    })
+    )
     with patch(
         "src.cloud_cli._run",
         new_callable=AsyncMock,
         return_value=_ok(sts_response),
-    ):
-        result = await cloud_cli.aws_assume_role("123456789012", "my-role")
+    ) as run:
+        result = await cloud_cli.aws_assume_role("123456789012", "role/my-role")
     assert result == {
         "AWS_ACCESS_KEY_ID": "AKID",
         "AWS_SECRET_ACCESS_KEY": "SECRET",
         "AWS_SESSION_TOKEN": "TOKEN",
     }
+    argv = run.await_args.args[0]
+    assert argv[argv.index("--role-arn") + 1] == (
+        "arn:aws:iam::123456789012:role/my-role"
+    )
+
+
+@pytest.mark.asyncio
+async def test_aws_assume_role_uses_role_name_verbatim() -> None:
+    """The service does not inject ``role/``; the operator supplies the
+    full IAM resource path in AWS_TERRAFORM_ROLE_NAME."""
+    with patch(
+        "src.cloud_cli._run",
+        new_callable=AsyncMock,
+        return_value=_err("access denied"),
+    ) as run:
+        with pytest.raises(RuntimeError, match="arn:aws:iam::123456789012:my-role"):
+            await cloud_cli.aws_assume_role("123456789012", "my-role")
+    argv = run.await_args.args[0]
+    assert argv[argv.index("--role-arn") + 1] == "arn:aws:iam::123456789012:my-role"
 
 
 @pytest.mark.asyncio
@@ -217,7 +238,7 @@ async def test_aws_assume_role_cli_failure() -> None:
         ),
         pytest.raises(RuntimeError, match="AssumeRole failed"),
     ):
-        await cloud_cli.aws_assume_role("123456789012", "my-role")
+        await cloud_cli.aws_assume_role("123456789012", "role/my-role")
 
 
 @pytest.mark.asyncio
@@ -230,7 +251,7 @@ async def test_aws_assume_role_malformed_response() -> None:
         ),
         pytest.raises(RuntimeError, match="Malformed STS"),
     ):
-        await cloud_cli.aws_assume_role("123456789012", "my-role")
+        await cloud_cli.aws_assume_role("123456789012", "role/my-role")
 
 
 # ---------------------------------------------------------------------------
@@ -296,14 +317,22 @@ async def test_aws_paginates_get_resources() -> None:
         _ok("123456789012\n"),  # sts get-caller-identity
         _ok(json.dumps(["us-east-1"])),  # describe-regions
         # page 1 with PaginationToken
-        _ok(json.dumps({
-            "ResourceTagMappingList": [{"ResourceARN": "arn:page1"}],
-            "PaginationToken": "tok1",
-        })),
+        _ok(
+            json.dumps(
+                {
+                    "ResourceTagMappingList": [{"ResourceARN": "arn:page1"}],
+                    "PaginationToken": "tok1",
+                }
+            )
+        ),
         # page 2 without PaginationToken
-        _ok(json.dumps({
-            "ResourceTagMappingList": [{"ResourceARN": "arn:page2"}],
-        })),
+        _ok(
+            json.dumps(
+                {
+                    "ResourceTagMappingList": [{"ResourceARN": "arn:page2"}],
+                }
+            )
+        ),
     ]
     with patch(
         "src.cloud_cli._run", new_callable=AsyncMock, side_effect=responses
@@ -399,5 +428,91 @@ async def test_cloud_login_succeeds_when_all_providers_ok() -> None:
         ):
             await cloud_cli.cloud_login(config)
         assert cloud_cli._last_login > 0.0
+    finally:
+        cloud_cli._last_login = original
+
+
+# ---------------------------------------------------------------------------
+# cloud_login — retry of transient refresh failures
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_relogin_retries_only_the_failed_provider_then_succeeds() -> None:
+    """A transient Azure failure during the per-job refresh is retried
+    with backoff; GCP, which succeeded, is not logged in again."""
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = _both_providers_config()
+        with (
+            patch(
+                "src.cloud_cli._az_login_sp",
+                new_callable=AsyncMock,
+                side_effect=[RuntimeError("az: transient"), None],
+            ) as az,
+            patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock) as gcloud,
+            patch("src.cloud_cli.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            await cloud_cli.ensure_cloud_login(config)
+        assert az.await_count == 2
+        assert gcloud.await_count == 1
+        sleep.assert_awaited_once_with(config.cloud_login_retry_delay_sec)
+        assert cloud_cli._last_login > 0.0
+    finally:
+        cloud_cli._last_login = original
+
+
+@pytest.mark.asyncio
+async def test_relogin_gives_up_after_configured_retries_with_backoff() -> None:
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = Config(
+            expected_token="",
+            iac_binary="sh",
+            azure_client_id="az-id",
+            azure_client_secret="az-secret",
+            azure_tenant_id="az-tenant",
+            cloud_login_retries=2,
+            cloud_login_retry_delay_sec=1.5,
+        )
+        with (
+            patch(
+                "src.cloud_cli._az_login_sp",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("az: still down"),
+            ) as az,
+            patch("src.cloud_cli.asyncio.sleep", new_callable=AsyncMock) as sleep,
+            pytest.raises(RuntimeError, match="Cloud login failed for: Azure"),
+        ):
+            await cloud_cli.ensure_cloud_login(config)
+        assert az.await_count == 3  # initial + 2 retries
+        assert [c.args[0] for c in sleep.await_args_list] == [1.5, 3.0]
+        assert cloud_cli._last_login == 0.0  # next job will try again
+    finally:
+        cloud_cli._last_login = original
+
+
+@pytest.mark.asyncio
+async def test_startup_login_does_not_retry() -> None:
+    """Startup is fail-fast: a broken credential must surface at once."""
+    original = cloud_cli._last_login
+    try:
+        cloud_cli._last_login = 0.0
+        config = _both_providers_config()
+        with (
+            patch(
+                "src.cloud_cli._az_login_sp",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("az: bad secret"),
+            ) as az,
+            patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock),
+            patch("src.cloud_cli.asyncio.sleep", new_callable=AsyncMock) as sleep,
+            pytest.raises(RuntimeError, match="Cloud login failed"),
+        ):
+            await cloud_cli.cloud_login(config)
+        assert az.await_count == 1
+        sleep.assert_not_awaited()
     finally:
         cloud_cli._last_login = original
