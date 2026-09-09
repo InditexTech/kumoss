@@ -9,19 +9,13 @@ from src.application.exceptions import SetLockError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
-from src.domains.entities import History
 from src.domains.entities.session import SessionContext
-from src.domains.interfaces import ITerraform
 from src.domains.services import (
-    ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
-    TerraformValidationService,
     TerraformTargetService,
 )
 from src.domains.services.database_service import DatabaseService
-from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
     PromptsLibrary,
@@ -35,24 +29,18 @@ class TerraformDriftHandler:
         self,
         session_ctx: SessionContext,
         session_service: SessionService,
-        terraform_service: ITerraform,
-        validation_service: TerraformValidationService,
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
         report_service: ReportService,
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
-        compliance_service: ComplianceCheckService,
     ):
-        self.__terraform_svc = terraform_service
-        self.__validation_svc = validation_service
         self.__session_svc = session_service
         self.__template_svc = template_service
         self.__report_svc = report_service
         self.__requests_filter_svc = requests_filter_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
-        self.__compliance_svc = compliance_service
         self.__ctx = session_ctx
 
     async def handle(
@@ -91,41 +79,19 @@ class TerraformDriftHandler:
                         query=q, history=ctx.history, conventions=conventions
                     )
 
-                async def validation_callback(
-                    local_history: History,
-                ) -> TerraformValidationDTO:
-                    return await self.__terraform_svc.validate(
-                        targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
-                    )
-
                 validation = await self.__drift_svc.detect_and_resolve_drift(
+                    filter_session_changes=False,
                     targets=targets,
                     conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
-                    validator=validation_callback,
                 )
 
-                report = await self.__report_svc.generate_report(
+                _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.DRIFT,
                     content=validation.terraform_plan,
                 )
-                check = await self.__compliance_svc.check(
-                    history=ctx.history,
-                    conventions=conventions,
-                    report=report,
-                )
-                if not check.passed:
-                    if not await DatabaseService.set_lock(ctx.id, True):
-                        raise SetLockError(
-                            message="Error updating DB session lock.",
-                            error_code=500,
-                        )
-                    await NotificationServiceClient.notify_compliance_failure(
-                        ctx.id, ctx.user_id, check.summary
-                    )
-                elif not await DatabaseService.set_lock(ctx.id, False):
+                if not await DatabaseService.set_lock(ctx.id, False):
                     raise SetLockError(
                         message="Error updating DB session lock.",
                         error_code=500,

@@ -7,7 +7,7 @@ from .compliance_check_service import ComplianceCheckService
 from .iac_root_detection_service import IacRootDetectionService
 from .llm_service import LLMOrchestrationService
 from .session_service import SessionService
-from .task_split_service import TaskSplitService
+from .task_service import TaskService
 from .template_service import TemplateOrchestrationService
 from .terraform_target_service import TerraformTargetService
 from .terraform_validation_service import TerraformValidationService
@@ -20,7 +20,7 @@ __all__ = [
     "IacRootDetectionService",
     "LLMOrchestrationService",
     "SessionService",
-    "TaskSplitService",
+    "TaskService",
     "TemplateOrchestrationService",
     "TerraformTargetService",
     "TerraformValidationService",

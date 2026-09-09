@@ -19,7 +19,7 @@ from src.domains.services import (
     TerraformTargetService,
     TerraformValidationService,
     ToolOrchestrationService,
-    TaskSplitService,
+    TaskService,
     ArtifactStorageService,
 )
 
@@ -194,8 +194,8 @@ class ApplicationFactory:
         tool_service: ToolOrchestrationService,
         main_llm_service: LLMOrchestrationService,
         template_service: TemplateOrchestrationService,
-    ) -> TaskSplitService:
-        return TaskSplitService(
+    ) -> TaskService:
+        return TaskService(
             tool_service=tool_service,
             llm_service=main_llm_service,
             template_service=template_service,
@@ -277,14 +277,14 @@ class ApplicationFactory:
     def _get_drift_service(
         self,
         validation_service: TerraformValidationService,
-        validator_provider: ITerraform,
-        split_service: TaskSplitService,
+        terraform_service: ITerraform,
+        split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ) -> TerraformDriftService:
         return TerraformDriftService(
             session_context=self.__ctx,
             validation_service=validation_service,
-            validator_provider=validator_provider,
+            terraform_service=terraform_service,
             split_service=split_service,
             artifact_service=artifact_service,
         )
@@ -351,7 +351,7 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
-            validator_provider=validator_prv,
+            terraform_service=validator_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
         )
@@ -385,7 +385,6 @@ class ApplicationFactory:
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils.project_root)
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -403,21 +402,18 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
-            validator_provider=validator_prv,
+            terraform_service=validator_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
         )
         return TerraformDriftHandler(
             session_ctx=self.__ctx,
             session_service=session_svc,
-            terraform_service=validator_prv,
-            validation_service=validation_svc,
             template_service=template_svc,
             requests_filter_service=filter_svc,
             report_service=report_svc,
             target_service=target_svc,
             drift_service=drift_svc,
-            compliance_service=compliance_svc,
         )
 
     def get_terraform_apply_handler(self) -> TerraformApplyHandler:

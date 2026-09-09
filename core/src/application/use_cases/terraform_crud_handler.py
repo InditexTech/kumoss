@@ -83,26 +83,12 @@ class TerraformCRUDHandler:
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                predictive_targets = await self.__target_svc.generate_predictive(
-                    query=q,
-                    history=ctx.history,
-                    conventions=conventions,
-                )
-
                 async def validation_callback(
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
                         targets=await self.__target_svc.generate_session(local_history),
                         get_drift=False,
-                    )
-
-                if predictive_targets:
-                    _ = await self.__drift_svc.detect_and_resolve_drift(
-                        targets=predictive_targets,
-                        conventions=conventions,
-                        max_iterations=2,
-                        validator=validation_callback,
                     )
 
                 validation = await self.__validation_svc.generate_and_validate(
@@ -123,15 +109,23 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
-                report = await self.__report_svc.generate_report(
+                validation = await self.__drift_svc.detect_and_resolve_drift(
+                    filter_session_changes=True,
+                    targets=validation.terraform_targets,
+                    conventions=conventions,
+                    max_iterations=2,
+                )
+
+                _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.GENERATE,
                     content=validation.terraform_plan,
                 )
+
                 check = await self.__compliance_svc.check(
-                    history=ctx.history,
+                    request=q,
                     conventions=conventions,
-                    report=report,
+                    plan=validation.terraform_plan,
                 )
                 if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):

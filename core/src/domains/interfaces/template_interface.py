@@ -57,6 +57,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    def render_filter_reconciliation(self) -> str:
+        pass
+
+    @abstractmethod
     def render_joker(self) -> str:
         pass
 
