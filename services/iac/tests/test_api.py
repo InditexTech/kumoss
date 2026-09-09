@@ -443,6 +443,30 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
     assert "subprocess exploded" in body["error"]["detail"]
 
 
+def test_unhandled_exception_returns_generic_problem_detail() -> None:
+    """A crash inside a request handler is logged with its traceback; the
+    client only gets the request id to correlate with, never the
+    exception text (which may carry paths or CLI output)."""
+    with _client_with() as client:
+        client_no_raise = TestClient(service_main.app, raise_server_exceptions=False)
+        with patch.object(
+            service_main,
+            "engine_available",
+            side_effect=RuntimeError("secret-bearing message"),
+        ):
+            response = client_no_raise.post(
+                "/v1/init",
+                json={"workspace_path": "/tmp", "scope_id": "sub-test"},
+                headers={"x-request-id": "req-123"},
+            )
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/problem+json")
+    body = response.json()
+    assert "secret-bearing message" not in body["detail"]
+    assert "req-123" in body["detail"]
+    del client
+
+
 def test_get_job_404_when_unknown() -> None:
     with _client_with() as client:
         response = client.get(f"/v1/jobs/{uuid.uuid4()}")

@@ -32,16 +32,16 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from pathlib import Path
 
+from .engine import EngineTimeoutError
 from .log_context import set_job_id
 from .models import (
+    CredentialError,
     Job,
     JobKind,
     JobStatus,
     OperationResult,
     Problem,
 )
-from .models import CredentialError
-from .engine import EngineTimeoutError
 
 logger = logging.getLogger(__name__)
 

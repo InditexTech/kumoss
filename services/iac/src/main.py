@@ -35,11 +35,16 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import engine as tf
-from .cloud_cli import CloudCli
 from .auth import verify_bearer_token
+from .cloud_cli import CloudCli
 from .config import Config, engine_available
 from .jobs import JobRegistry, WorkspaceQueue
-from .log_context import configure_logging, set_request_id, set_workspace
+from .log_context import (
+    configure_logging,
+    request_id_var,
+    set_request_id,
+    set_workspace,
+)
 from .models import (
     ApplyRequest,
     Health,
@@ -112,7 +117,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Nebula IaC Service",
-    version="1.0.0",
+    version="1.1.0",
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,
 )
@@ -183,8 +188,14 @@ async def validation_exception_handler(
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # The traceback is in the log under this request id; the exception
+    # text itself may carry paths or CLI output and stays server-side.
     logger.exception("unhandled exception %s %s", request.method, request.url.path)
-    return _problem(500, "Internal server error", str(exc))
+    return _problem(
+        500,
+        "Internal server error",
+        f"Unexpected error; see the service log for request_id={request_id_var.get()}.",
+    )
 
 
 # ---------------------------------------------------------------------------

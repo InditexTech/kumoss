@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import json
-import os
 
 from ..engine import CommandResult
 from ..models import LoginError
@@ -30,6 +29,11 @@ class AzureProvider(CloudProvider):
         }
 
     async def login(self) -> None:
+        # The client secret travels on argv, so it is readable from
+        # /proc/<pid>/cmdline by any process in the same PID namespace for
+        # the lifetime of the (short) `az login` call. Acceptable inside the
+        # single-purpose service container; a certificate or federated
+        # token (`--federated-token`) would avoid it if that ever changes.
         result = await _run(
             [
                 "az",
@@ -42,8 +46,7 @@ class AzureProvider(CloudProvider):
                 "--tenant",
                 self._config.azure_tenant_id,
                 "--allow-no-subscriptions",
-            ],
-            env={**os.environ},
+            ]
         )
         if not result.ok:
             raise LoginError({self.display_name: result.stderr.strip()})

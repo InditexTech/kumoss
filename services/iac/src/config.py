@@ -43,9 +43,9 @@ JOB_TTL_SECONDS = 3600
 # the job fails with a 504 error and the process is killed. 0 disables.
 SUBPROCESS_TIMEOUT_SECONDS = 2700
 
-# Log level for structured logging output. WARNING: at DEBUG every
-# engine stdout/stderr line (plan/apply output, provider diagnostics)
-# is written to the log; keep INFO in shared environments.
+# Log level for structured logging output. Engine stdout/stderr is never
+# logged at any level: it is returned verbatim in the job result, and the
+# job layer logs one terminal line per job with the exit code.
 LOG_LEVEL = "INFO"
 
 # Minutes between cloud CLI re-logins. Tokens are refreshed lazily by
@@ -65,11 +65,12 @@ CLOUD_LOGIN_RETRY_DELAY_SEC = 2.0
 class Config:
     """Resolved at startup: knobs from this module, secrets from the env.
 
-    All cloud credential fields default to empty and guard their
-    respective login steps: missing values skip the provider with an
-    info log rather than failing the service. A provider whose
-    credentials are present but whose login fails aborts startup
-    (see ``cloud_cli.CloudCli.login``).
+    All cloud credential fields default to empty. A provider with *none*
+    of its credential values set is skipped with an info log. A provider
+    with *some* but not all of them set is a deployment mistake and
+    aborts startup (``cloud_cli.CloudCli.validate_credentials``), as does
+    a provider whose complete credentials the CLI rejects
+    (``cloud_cli.CloudCli.login``).
     """
 
     # Environment (secrets and deployment-specific values).

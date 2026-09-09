@@ -151,7 +151,22 @@ async def test_timeout_error_names_the_configured_binary(tmp_path: Path) -> None
 # -- Startup cloud login is all-or-nothing --
 
 
-def test_startup_aborts_when_a_configured_cloud_login_fails() -> None:
+@pytest.fixture
+def restore_service_state():
+    """Save and restore the module-level service objects.
+
+    The startup tests below install their own ``Config`` / ``CloudCli`` on
+    ``src.main`` and never go through ``_client_with``, so without this
+    the swapped objects would leak into whichever test runs next.
+    """
+    saved = (service_main.config, service_main.cloud)
+    yield
+    service_main.config, service_main.cloud = saved
+
+
+def test_startup_aborts_when_a_configured_cloud_login_fails(
+    restore_service_state: None,
+) -> None:
     """Every provider with complete credentials is logged into at startup;
     if any of them fails the service must not come up (a half-authenticated
     service would fail jobs later with confusing engine errors)."""
@@ -179,7 +194,9 @@ def test_startup_aborts_when_a_configured_cloud_login_fails() -> None:
     gcloud.assert_awaited_once()  # GCP was still attempted
 
 
-def test_startup_aborts_when_azure_credentials_are_partial() -> None:
+def test_startup_aborts_when_azure_credentials_are_partial(
+    restore_service_state: None,
+) -> None:
     """A provider with some but not all of its credential vars set is a
     deployment mistake. Validation runs before any login, so the boot
     aborts with MissingCredentialError and no CLI is ever invoked."""

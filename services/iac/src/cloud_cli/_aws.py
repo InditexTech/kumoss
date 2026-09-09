@@ -43,17 +43,15 @@ class AwsProvider(CloudProvider):
         """No-op: the engine and the CLI inherit the ambient static keys."""
 
     async def scope_env(self, scope_id: str) -> dict[str, str]:
+        """AssumeRole credentials for *scope_id*, or ``{}`` without a role.
+
+        Raises ``RuntimeError`` (STS refused) or ``OSError`` (``aws`` CLI
+        missing). Whether that is fatal depends on which other providers
+        are ready, so ``CloudCli.scope_env`` decides, not this method.
+        """
         if not self._config.aws_terraform_role_name:
             return {}
-        try:
-            return await self._assume_role(scope_id)
-        except (RuntimeError, OSError) as exc:
-            # Cross-cloud plans are not supported, so a non-AWS scope_id
-            # (an Azure subscription, a GCP project) can only fail here.
-            # That is expected; the job runs with the env of the provider
-            # it actually targets.
-            logger.debug("AWS AssumeRole skipped for scope %s: %s", scope_id, exc)
-            return {}
+        return await self._assume_role(scope_id)
 
     async def _assume_role(self, scope_id: str) -> dict[str, str]:
         """Assume ``arn:aws:iam::{scope_id}:{aws_terraform_role_name}``.
@@ -144,15 +142,16 @@ class AwsProvider(CloudProvider):
             ],
             env=env,
         )
-        regions: list[str | None]
-        try:
-            regions = (
-                sorted(json.loads(regions_result.stdout))
-                if regions_result.ok
-                else [None]
-            )
-        except json.JSONDecodeError:
-            regions = [None]  # fall back to the default region only
+        regions: list[str | None] = [None]  # default region only
+        if regions_result.ok:
+            try:
+                names = json.loads(regions_result.stdout)
+            except json.JSONDecodeError:
+                names = None
+            # Anything but a list of names (e.g. an object, whose keys
+            # sorted() would happily treat as regions) keeps the fallback.
+            if isinstance(names, list) and all(isinstance(n, str) for n in names):
+                regions = sorted(names)
 
         async def _get_resources(region: str | None) -> list[str]:
             """Paginate ``get-resources`` in a single region."""
@@ -169,27 +168,44 @@ class AwsProvider(CloudProvider):
                 if not result.ok:
                     raise _AwsRegionError(region, result)
                 data = json.loads(result.stdout)
+                if not isinstance(data, dict):
+                    raise TypeError(
+                        f"expected a JSON object, got {type(data).__name__}"
+                    )
                 arns.extend(
                     r["ResourceARN"]
                     for r in data.get("ResourceTagMappingList", [])
-                    if "ResourceARN" in r
+                    if isinstance(r, dict) and "ResourceARN" in r
                 )
                 pagination_token = data.get("PaginationToken") or None
                 if not pagination_token:
                     break
             return arns
 
+        # TaskGroup (not gather) so the first failing region cancels its
+        # siblings' paging loops instead of leaving them running to
+        # completion after the result is already decided.
+        failure: CommandResult | None = None
+        tasks: list[asyncio.Task[list[str]]] = []
         try:
-            region_results = await asyncio.gather(*(_get_resources(r) for r in regions))
-        except _AwsRegionError as exc:
-            return _failure(
-                f"get-resources failed in region '{exc.region}': {exc.result.stderr}",
-                exc.result.exit_code,
+            async with asyncio.TaskGroup() as group:
+                tasks = [group.create_task(_get_resources(r)) for r in regions]
+        except* _AwsRegionError as region_errors:
+            first = region_errors.exceptions[0]
+            assert isinstance(first, _AwsRegionError)
+            failure = _failure(
+                f"get-resources failed in region '{first.region}': "
+                f"{first.result.stderr}",
+                first.result.exit_code,
             )
-        except (json.JSONDecodeError, KeyError) as exc:
-            return _failure(f"Failed to parse AWS response: {exc}")
+        except* (json.JSONDecodeError, KeyError, TypeError, AttributeError) as errs:
+            failure = failure or _failure(
+                f"Failed to parse AWS response: {errs.exceptions[0]}"
+            )
+        if failure is not None:
+            return failure
 
         arns: list[str] = []
-        for region_arns in region_results:
-            arns.extend(region_arns)
+        for task in tasks:
+            arns.extend(task.result())
         return _ids_result(arns)

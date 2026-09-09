@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 
 from fastapi import HTTPException, status
@@ -28,7 +29,7 @@ def verify_bearer_token(
             detail="Missing Authorization header.",
         )
 
-    if credentials.credentials != config.expected_token:
+    if not hmac.compare_digest(credentials.credentials, config.expected_token):
         logger.warning("invalid bearer token presented")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -80,8 +80,7 @@ split:
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present. Empty disables auth. |
 | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` | no | Azure service principal. When all three are set the service runs `az login` at startup and on refresh. See "Cloud credentials and `scope_id`". |
 | `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | no | GCP service-account key, as a file path or inline JSON. When set the service runs `gcloud auth activate-service-account` at startup and on refresh. |
-| `AWS_ACCESS_KEY_ID`                           | no       | AWS ambient access key. No login step; inherited by the engine and the `aws` CLI. Its presence is the *only* signal that marks AWS as a configured provider for `scope_id` handling: `AWS_PROFILE` alone is not detected, so scoped jobs then fail with `422` unless another provider is configured. |
-| `AWS_SECRET_ACCESS_KEY`                       | no       | Not read by the service; passed through to the engine and the `aws` CLI, which require it whenever `AWS_ACCESS_KEY_ID` is set. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | no       | AWS static keys. No login step; inherited by the engine and the `aws` CLI. Both are read by the service and both are required for AWS to count as a configured provider: setting only one aborts startup, and `AWS_PROFILE` or an instance role alone is not detected (scoped jobs then fail with `422` unless another provider is configured). |
 | `AWS_TERRAFORM_ROLE_NAME`                     | no       | IAM resource path of a role to assume via STS for AWS `scope_id`s, as `arn:aws:iam::{scope_id}:{value}`. Must include the `role/` prefix, e.g. `role/nebula-terraform`. |
 | `TF_BACKEND_CONFIG`                           | no       | Path, relative to the workspace, of a backend configuration file passed to `init` as `-backend-config=<path>`. Empty uses the backend block in the HCL as-is. |
 
@@ -102,7 +101,7 @@ split:
 | `JOB_TTL_SECONDS`                             | `3600`  | Seconds a finished job stays pollable before it 404s. |
 | `SUBPROCESS_TIMEOUT_SECONDS`                  | `2700`  | Seconds a single engine command may run before the job fails with a `504` error. `0` disables. |
 | `LOG_LEVEL`                                   | `INFO`  | Log level. Engine stdout/stderr is never logged; it is returned in the job result, and each job logs one terminal line with its `exit_code`. |
-| `CLOUD_LOGIN_REFRESH_MIN`                     | `45`    | Minutes after which the next job re-runs the cloud logins before executing. |
+| `CLOUD_LOGIN_REFRESH_MIN`                     | `45`    | Minutes after which the next `scope-resource-ids` job re-runs the cloud CLI logins before executing. Engine jobs do not log in (see "Cloud credentials and `scope_id`"). |
 | `CLOUD_LOGIN_RETRIES`, `CLOUD_LOGIN_RETRY_DELAY_SEC` | `3`, `2.0` | Retries for a failed re-login and the initial backoff delay in seconds (doubles each retry). Startup never retries. |
 
 ## Cloud credentials and `scope_id`
@@ -113,18 +112,27 @@ ambient `az login` / `gcloud auth` state in the container.
 - **Startup login is all-or-nothing.** At boot, every provider whose
   credentials are *complete* (all three `ARM_*` values; a GCP key) is
   logged in. A provider with no credentials is skipped with an info
-  log. A provider with credentials whose login **fails aborts
-  startup**: the service exits rather than accepting jobs it would fail
+  log; a provider with *some* of its variables set aborts startup
+  before any CLI runs, naming every missing variable. A provider with
+  complete credentials whose login **fails aborts startup**: the service exits rather than accepting jobs it would fail
   later with opaque engine auth errors. All configured providers are
   attempted before failing, so one startup log shows every broken
   credential.
-- **Refresh.** After `CLOUD_LOGIN_REFRESH_MIN` minutes (`src/config.py`) the next job
-  re-runs the same logins before its engine command. Because a token
-  refresh failure is usually transient, failed providers are retried
-  `CLOUD_LOGIN_RETRIES` times with exponential backoff starting at
-  `CLOUD_LOGIN_RETRY_DELAY_SEC` seconds, re-attempting only the ones
-  that failed. Only when every retry fails does the job end `failed`
-  with a `500` error; the next job tries again.
+- **Refresh applies to CLI jobs only.** Engine commands (`init`,
+  `validate`, `plan`, `show`, `apply`, `import`, `state-resource-ids`)
+  authenticate from the env vars the service injects (`ARM_*`,
+  `GOOGLE_*`, `AWS_*`), never from the CLI session, so they run without
+  a login check. Only `scope-resource-ids`, which shells out to `az` /
+  `gcloud` / `aws` itself, re-runs the logins first once
+  `CLOUD_LOGIN_REFRESH_MIN` minutes (`src/config.py`) have elapsed.
+  Because a token refresh failure is usually transient, failed providers
+  are retried `CLOUD_LOGIN_RETRIES` times with exponential backoff
+  starting at `CLOUD_LOGIN_RETRY_DELAY_SEC` seconds, re-attempting only
+  the ones that failed. Only when every retry fails does the job end
+  `failed` with a `500` error; the next job tries again. Consequence: a
+  backend that relies on the CLI session (`azurerm` with `use_cli`,
+  `gcs` on gcloud ADC) is not supported; configure backend credentials
+  through env vars instead.
 - **`scope_id` is required on every engine command.** Provider
   blocks in generated code do not carry a subscription/project/account,
   so `init`, `validate`, `plan`, `show`, `apply`, `import` and
@@ -146,8 +154,12 @@ ambient `az login` / `gcloud auth` state in the container.
   Azure or GCP credentials, an Azure/GCP `scope_id` still triggers an
   AssumeRole attempt that cannot succeed (it is not an account id).
   That failure is logged at debug level and ignored; the job continues
-  with the scope injected for the provider it targets. A genuine AWS
-  auth problem surfaces in the engine's own `stderr`, as before.
+  with the scope injected for the provider it targets. When AWS is the
+  **only** configured provider, the `scope_id` can only be an AWS
+  account, so a failed AssumeRole (denied, wrong role name, STS outage)
+  ends the job `failed` with a `500` naming the role ARN. It is never
+  ignored there: doing so would run the engine on the service's static
+  keys, i.e. against whatever account those keys belong to.
 - **`scope-resource-ids`** also requires `scope_id`, but there it names
   the scope being *listed* rather than the scope a command runs against.
 

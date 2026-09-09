@@ -111,15 +111,19 @@ class GcpProvider(CloudProvider):
             if isinstance(raw_resources, dict)
             else raw_resources
         )
-        ids = [a["name"] for a in assets if "name" in a]
-
         iam_policies = (
             raw_iam.get("results", raw_iam) if isinstance(raw_iam, dict) else raw_iam
         )
-        for policy_entry in iam_policies:
-            for binding in policy_entry.get("policy", {}).get("bindings", []):
-                role = binding.get("role", "")
-                if role and role not in ids:
-                    ids.append(role)
+        try:
+            ids = [a["name"] for a in assets if "name" in a]
+            for policy_entry in iam_policies:
+                for binding in policy_entry.get("policy", {}).get("bindings", []):
+                    role = binding.get("role", "")
+                    if role and role not in ids:
+                        ids.append(role)
+        except (AttributeError, TypeError) as exc:
+            # Valid JSON but not the asset / policy shape gcloud documents;
+            # report it like any other listing failure instead of a job 500.
+            return _failure(f"gcloud returned an unexpected JSON shape: {exc}")
 
         return _ids_result(ids)

@@ -327,6 +327,21 @@ async def test_gcp_reports_both_query_failures() -> None:
     assert "IAM: iam boom" in result.stderr
 
 
+@pytest.mark.asyncio
+async def test_gcp_listing_rejects_unexpected_json_shape() -> None:
+    """Valid JSON that is not the documented asset/policy shape must end
+    as a listing failure, not an AttributeError that fails the job 500."""
+    responses = [_ok(json.dumps([{"name": "r1"}])), _ok(json.dumps(["not-a-dict"]))]
+    with patch(
+        "src.cloud_cli._gcp._run", new_callable=AsyncMock, side_effect=responses
+    ):
+        result = await GcpProvider(_config(google_credentials="{}")).list_resource_ids(
+            "proj-1"
+        )
+    assert not result.ok
+    assert "unexpected JSON shape" in result.stderr
+
+
 # ---------------------------------------------------------------------------
 # AwsProvider
 # ---------------------------------------------------------------------------
@@ -398,23 +413,20 @@ async def test_aws_scope_env_returns_assumed_credentials() -> None:
     ],
     ids=["sts-denied", "cli-missing"],
 )
-async def test_aws_scope_env_swallows_assume_role_failure(
-    failure: Exception, caplog: pytest.LogCaptureFixture
+async def test_aws_scope_env_propagates_assume_role_failure(
+    failure: Exception,
 ) -> None:
-    """A non-AWS scope_id can only fail AssumeRole; that is expected and
-    must not fail the job."""
-    caplog.set_level(logging.DEBUG, logger="src.cloud_cli._aws")
-    with patch.object(
-        AwsProvider, "_assume_role", new_callable=AsyncMock, side_effect=failure
+    """The provider reports the failure; whether it is fatal is a
+    cross-provider decision that belongs to ``CloudCli.scope_env``."""
+    with (
+        patch.object(
+            AwsProvider, "_assume_role", new_callable=AsyncMock, side_effect=failure
+        ),
+        pytest.raises(type(failure)),
     ):
-        env = await AwsProvider(
+        await AwsProvider(
             _config(**_AWS, aws_terraform_role_name="role/nebula")
         ).scope_env("sub-uuid-1")
-    assert env == {}
-    assert any(
-        r.levelno == logging.DEBUG and "sub-uuid-1" in r.getMessage()
-        for r in caplog.records
-    )
 
 
 @pytest.mark.asyncio
@@ -538,6 +550,38 @@ async def test_aws_falls_back_to_default_region_when_enumeration_fails() -> None
     assert json.loads(result.stdout) == ["arn:1"]
     fallback_command = run_mock.await_args_list[2].args[0]
     assert "--region" not in fallback_command
+
+
+@pytest.mark.asyncio
+async def test_aws_falls_back_to_default_region_when_enumeration_is_not_a_list() -> (
+    None
+):
+    responses = [
+        _ok("123456789012\n"),
+        _ok(json.dumps({"Regions": "unexpected"})),  # valid JSON, wrong shape
+        _ok(json.dumps({"ResourceTagMappingList": []})),
+    ]
+    with patch(
+        "src.cloud_cli._aws._run", new_callable=AsyncMock, side_effect=responses
+    ) as run_mock:
+        result = await AwsProvider(_config()).list_resource_ids("123456789012")
+    assert result.ok
+    assert "--region" not in run_mock.await_args_list[2].args[0]
+
+
+@pytest.mark.asyncio
+async def test_aws_listing_rejects_unexpected_page_shape() -> None:
+    responses = [
+        _ok("123456789012\n"),
+        _ok(json.dumps(["us-east-1"])),
+        _ok(json.dumps(["not", "an", "object"])),
+    ]
+    with patch(
+        "src.cloud_cli._aws._run", new_callable=AsyncMock, side_effect=responses
+    ):
+        result = await AwsProvider(_config()).list_resource_ids("123456789012")
+    assert not result.ok
+    assert "Failed to parse AWS response" in result.stderr
 
 
 @pytest.mark.asyncio
@@ -986,10 +1030,13 @@ async def test_scope_env_merges_assume_role_output() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scope_env_swallows_assume_role_failure_for_non_aws_scope() -> None:
+async def test_scope_env_swallows_assume_role_failure_for_non_aws_scope(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Cross-cloud plans are not supported: with AWS keys and a role
     configured, an Azure scope_id still triggers an AssumeRole attempt
     that can only fail. The job continues with the Azure scope injected."""
+    caplog.set_level(logging.DEBUG, logger="src.cloud_cli._cli")
     cloud = CloudCli(_config(**_AZURE, **_AWS, aws_terraform_role_name="role/nebula"))
     with patch.object(
         AwsProvider,
@@ -1001,6 +1048,37 @@ async def test_scope_env_swallows_assume_role_failure_for_non_aws_scope() -> Non
     assume.assert_awaited_once_with("sub-uuid-1")
     assert env["ARM_SUBSCRIPTION_ID"] == "sub-uuid-1"
     assert "AWS_SESSION_TOKEN" not in env
+    assert any(
+        r.levelno == logging.DEBUG and "sub-uuid-1" in r.getMessage()
+        for r in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("AWS AssumeRole failed for arn:...: AccessDenied"),
+        FileNotFoundError("aws"),  # CLI not installed
+    ],
+    ids=["sts-denied", "cli-missing"],
+)
+async def test_scope_env_propagates_assume_role_failure_when_aws_is_sole_provider(
+    failure: Exception,
+) -> None:
+    """With AWS as the only ready provider there is no other cloud the
+    scope could belong to, so a failed AssumeRole is a real auth problem.
+    Swallowing it would run the engine with the service's static keys,
+    i.e. against whatever account those keys belong to."""
+    cloud = CloudCli(_config(**_AWS, aws_terraform_role_name="role/nebula"))
+    with (
+        patch.object(
+            AwsProvider, "_assume_role", new_callable=AsyncMock, side_effect=failure
+        ) as assume,
+        pytest.raises(type(failure)),
+    ):
+        await cloud.scope_env("123456789012")
+    assume.assert_awaited_once_with("123456789012")
 
 
 # ---------------------------------------------------------------------------

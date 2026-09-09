@@ -161,6 +161,16 @@ class CloudCli:
 
         Raises ``CredentialError`` (a 422 for the job) when no provider is
         ready, listing each provider's missing vars.
+
+        A provider's injection may fail (today only AWS AssumeRole raises:
+        ``RuntimeError`` when STS refuses, ``OSError`` when the CLI is
+        missing). Cross-cloud plans are not supported, so when *another*
+        provider is ready the ``scope_id`` most likely belongs to it and
+        the failure is expected: it is logged at debug and skipped. When
+        the failing provider is the *only* ready one, the scope can only be
+        its own and the error propagates (job fails 500). Swallowing it
+        there would run the engine on the service's static credentials,
+        i.e. against whatever account those belong to.
         """
         ready = [p for p in self._providers if p.is_ready()]
         if not ready:
@@ -169,7 +179,17 @@ class CloudCli:
             )
         env = dict(os.environ)
         for provider in ready:
-            env.update(await provider.scope_env(scope_id))
+            try:
+                env.update(await provider.scope_env(scope_id))
+            except (RuntimeError, OSError) as exc:
+                if len(ready) == 1:
+                    raise
+                logger.debug(
+                    "%s scope injection skipped for scope %s: %s",
+                    provider.display_name,
+                    scope_id,
+                    exc,
+                )
         return env
 
     # -- resource-id listing ------------------------------------------------
