@@ -153,22 +153,22 @@ export default function ConfigurationModal({ onClose }: ConfigurationModalProps)
         <h2 className={styles.sectionTitle}>Session</h2>
         <div className={styles.sessionGrid}>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Project</p>
-            <p className={styles.sessionValue}>{session.project || "—"}</p>
+            <p className={styles.sessionLabel}>Repository</p>
+            <p className={styles.sessionValue}>{session.workspace?.uri || "—"}</p>
           </div>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Cloud</p>
-            <p className={styles.sessionValue}>{session.cloud || "—"}</p>
+            <p className={styles.sessionLabel}>Provider</p>
+            <p className={styles.sessionValue}>{session.provider || "—"}</p>
           </div>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Environment</p>
+            <p className={styles.sessionLabel}>Path</p>
             <p className={styles.sessionValue}>
-              {session.environment || "—"}
+              {session.workspace?.root_path || "—"}
             </p>
           </div>
           <div className={styles.sessionCard}>
             <p className={styles.sessionLabel}>Session ID</p>
-            <p className={styles.sessionValue}>{session.session_id || "—"}</p>
+            <p className={styles.sessionValue}>{session.uuid || "—"}</p>
           </div>
         </div>
       </section>

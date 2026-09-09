@@ -28,7 +28,7 @@ export function useSessionLoader(
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef<string | null>(null);
 
-  const alreadyLoaded = !!sessionId && session.session_id === sessionId;
+  const alreadyLoaded = !!sessionId && session.uuid === sessionId;
 
   useEffect(() => {
     if (!sessionId || alreadyLoaded || fetchedRef.current === sessionId) return;
@@ -55,8 +55,8 @@ export function useSessionLoader(
         } else if (outcome.kind === "rejected") {
           updateSession({
             ...patch,
-            full_history: appendAssistantMessage(
-              patch.full_history,
+            history: appendAssistantMessage(
+              patch.history,
               buildAssistantMessage(outcome),
             ),
           });
@@ -68,7 +68,7 @@ export function useSessionLoader(
             outcome.detail.rounds[outcome.detail.rounds.length - 1];
           const pr =
             lastRound?.pull_requests[lastRound.pull_requests.length - 1];
-          if (pr) updatePrDetails({ id: pr.number, prUrl: pr.url });
+          if (pr) updatePrDetails({ number: pr.number, url: pr.url });
         }
         setLoading(false);
       })

@@ -80,7 +80,7 @@ export default function ResultsRoute() {
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;
 
   if (prStep) {
-    const isApplyBlocked = session.apply_allowed === false;
+    const isApplyBlocked = !!session.is_blocked;
     return (
       <div className={styles.fullPage}>
         <AssistantAnimation

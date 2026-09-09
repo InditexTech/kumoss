@@ -28,7 +28,7 @@ export function useWizardTerraform() {
       if (outcome.kind === "failed") {
         updateSession(patch);
         showNotification("failure", outcome.message);
-        const sessionId = session.session_id ?? outcome.detail?.uuid;
+        const sessionId = session.uuid ?? outcome.detail?.uuid;
         if (sessionId && session.applyResults) {
           navigate(`/home/apply-results/${sessionId}`, { replace: true });
         } else if (sessionId && session.code) {
@@ -39,15 +39,9 @@ export function useWizardTerraform() {
         return;
       }
 
-      const merged = {
-        ...patch,
-        project: session.project ?? patch.project,
-        environment: session.environment ?? patch.environment,
-      };
-
       if (outcome.kind === "apply-results") {
         updateSession({
-          ...merged,
+          ...patch,
           applyResults: buildApplyResults(outcome),
         });
         navigate(`/home/apply-results/${outcome.detail.uuid}`, {
@@ -57,9 +51,9 @@ export function useWizardTerraform() {
       }
 
       updateSession({
-        ...merged,
-        full_history: appendAssistantMessage(
-          merged.full_history,
+        ...patch,
+        history: appendAssistantMessage(
+          patch.history,
           buildAssistantMessage(outcome),
         ),
       });

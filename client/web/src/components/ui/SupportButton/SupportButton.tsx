@@ -18,6 +18,7 @@ import {
   buildSupportSubject,
 } from "@/services/notifications/support";
 import { NotificationSeverity } from "@/types/api_notifications";
+import { extractProjectName } from "@/utils/workspace";
 import { STRINGS } from "@/constants/strings";
 import styles from "./SupportButton.module.css";
 
@@ -82,10 +83,12 @@ function SupportButton({
 
     const supportContext: SupportContext = {
       user: userInfo,
-      cloud: session.cloud,
-      project: session.project,
-      environment: session.environment,
-      query: session.firstQuery,
+      cloud: session.provider,
+      project: session.workspace?.uri
+        ? extractProjectName(session.workspace.uri)
+        : undefined,
+      environment: session.workspace?.root_path ?? undefined,
+      query: session.first_query,
       ...context,
       timestamp: new Date().toISOString(),
     };
@@ -98,9 +101,9 @@ function SupportButton({
 
     try {
       let hasDeletesOrRecreates: boolean | null = null;
-      if (session.session_id) {
+      if (session.uuid) {
         try {
-          hasDeletesOrRecreates = !(await checkApplyAllowed(session.session_id));
+          hasDeletesOrRecreates = !(await checkApplyAllowed(session.uuid));
         } catch {
           // Unknown; the field is dropped by the renderer when null.
         }
@@ -114,9 +117,7 @@ function SupportButton({
 
       await sendNotification({
         kind: "support.contact_team",
-        severity: hasDeletesOrRecreates
-          ? NotificationSeverity.WARNING
-          : NotificationSeverity.INFO,
+        severity: NotificationSeverity.WARNING,
         subject: buildSupportSubject("Support request", user, session),
         body,
         links: buildSupportLinks(session, prDetails),
@@ -144,7 +145,7 @@ function SupportButton({
   }, [user, session, prDetails, context, message, onSupportRequest, showNotification]);
 
   useEffect(() => {
-    const notificationKey = `nebulaai_notification_sent_${session.session_id}_${prDetails.prUrl || "no_pr"}`;
+    const notificationKey = `nebulaai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
     const alreadySent = getSessionItem(notificationKey) === "true";
 
     if (autoTrigger && !hasAutoTriggered.current && !alreadySent && user) {
@@ -155,8 +156,8 @@ function SupportButton({
   }, [
     autoTrigger,
     user,
-    session.session_id,
-    prDetails.prUrl,
+    session.uuid,
+    prDetails.url,
     handleSupportRequest,
   ]);
 
