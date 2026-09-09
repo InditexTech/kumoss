@@ -39,7 +39,6 @@ def test_env_values_are_read_from_env(monkeypatch) -> None:
     monkeypatch.setenv("ARM_CLIENT_ID", "az-id")
     monkeypatch.setenv("ARM_CLIENT_SECRET", "az-secret")
     monkeypatch.setenv("ARM_TENANT_ID", "az-tenant")
-    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/key.json")
     monkeypatch.setenv("GOOGLE_CREDENTIALS", "{}")
     monkeypatch.setenv("TF_BACKEND_CONFIG", "backend.hcl")
     monkeypatch.setenv("AWS_TERRAFORM_ROLE_NAME", "role/nebula-terraform")
@@ -52,7 +51,6 @@ def test_env_values_are_read_from_env(monkeypatch) -> None:
     assert cfg.azure_client_id == "az-id"
     assert cfg.azure_client_secret == "az-secret"
     assert cfg.azure_tenant_id == "az-tenant"
-    assert cfg.google_application_credentials == "/key.json"
     assert cfg.google_credentials == "{}"
     assert cfg.backend_config == "backend.hcl"
     assert cfg.aws_terraform_role_name == "role/nebula-terraform"

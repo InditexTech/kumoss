@@ -22,47 +22,33 @@ class GcpProvider(CloudProvider):
     cli_binary = "gcloud"
 
     def credential_env(self) -> dict[str, str]:
-        return {
-            "GOOGLE_APPLICATION_CREDENTIALS": (
-                self._config.google_application_credentials
-            ),
-            "GOOGLE_CREDENTIALS": self._config.google_credentials,
-        }
-
-    def missing_env(self) -> list[str]:
-        """Either var alone is enough, so report one combined entry."""
-        if any(self.credential_env().values()):
-            return []
-        return [" or ".join(self.credential_env())]
+        return {"GOOGLE_CREDENTIALS": self._config.google_credentials}
 
     async def login(self) -> None:
-        key_file = self._config.google_application_credentials
-        key_json = self._config.google_credentials
+        """Activate the service account from the inline key JSON.
 
-        tmp_key_path: Path | None = None
+        ``gcloud`` only accepts a key *file*, so the JSON is written to a
+        0600 temp file for the duration of the command and removed
+        afterwards; gcloud copies the key into its own credential store
+        during activation.
+        """
+        tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False, mode="w")
+        tmp_key_path = Path(tmp.name)
         try:
-            if not key_file and key_json:
-                tmp = tempfile.NamedTemporaryFile(
-                    suffix=".json", delete=False, mode="w"
-                )
-                tmp.write(key_json)
-                tmp.close()
-                tmp_key_path = Path(tmp.name)
-                key_file = str(tmp_key_path)
-
+            tmp.write(self._config.google_credentials)
+            tmp.close()
             result = await _run(
                 [
                     "gcloud",
                     "auth",
                     "activate-service-account",
-                    f"--key-file={key_file}",
+                    f"--key-file={tmp_key_path}",
                 ]
             )
             if not result.ok:
                 raise LoginError({self.display_name: result.stderr.strip()})
         finally:
-            if tmp_key_path is not None:
-                tmp_key_path.unlink(missing_ok=True)
+            tmp_key_path.unlink(missing_ok=True)
 
     async def scope_env(self, scope_id: str) -> dict[str, str]:
         return {"GOOGLE_PROJECT": scope_id}

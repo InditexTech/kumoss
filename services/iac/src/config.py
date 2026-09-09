@@ -14,7 +14,7 @@ Two kinds of settings, kept apart on purpose:
   ``AWS_TERRAFORM_ROLE_NAME``. ``env.sample`` lists them.
 
 Variables the service does not read but the engine and cloud CLIs do
-(``AWS_DEFAULT_REGION``, ``AWS_PROFILE``, ``ARM_ACCESS_KEY``,
+(``AWS_DEFAULT_REGION``, ``AWS_PROFILE``,
 ``GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT``, ...) are neither: they
 pass through the process environment unchanged and stay in ``.env``.
 """
@@ -32,7 +32,7 @@ from dataclasses import dataclass
 # ``terraform``; any Terraform-compatible binary on PATH or at an
 # absolute path also works. Availability is checked per request (503),
 # not at startup.
-IAC_BINARY = "tofu"
+IAC_BINARY = "terraform"
 
 # Seconds a finished (succeeded/failed) job stays pollable at
 # GET /v1/jobs/{job_id} before it is forgotten (polls then return 404).
@@ -78,7 +78,6 @@ class Config:
     azure_client_id: str = ""
     azure_client_secret: str = ""
     azure_tenant_id: str = ""
-    google_application_credentials: str = ""
     google_credentials: str = ""
     backend_config: str = ""
     aws_terraform_role_name: str = ""
@@ -104,9 +103,6 @@ class Config:
             azure_client_id=os.environ.get("ARM_CLIENT_ID", ""),
             azure_client_secret=os.environ.get("ARM_CLIENT_SECRET", ""),
             azure_tenant_id=os.environ.get("ARM_TENANT_ID", ""),
-            google_application_credentials=os.environ.get(
-                "GOOGLE_APPLICATION_CREDENTIALS", ""
-            ),
             google_credentials=os.environ.get("GOOGLE_CREDENTIALS", ""),
             backend_config=os.environ.get("TF_BACKEND_CONFIG", ""),
             aws_terraform_role_name=os.environ.get("AWS_TERRAFORM_ROLE_NAME", ""),

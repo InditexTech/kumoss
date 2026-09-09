@@ -28,6 +28,7 @@ from fastapi.testclient import TestClient
 
 from src import main as service_main
 from src.cloud_cli import CloudCli
+from src.cloud_cli._aws import AwsProvider
 from src.cloud_cli._azure import AzureProvider
 from src.cloud_cli._gcp import GcpProvider
 from src.config import Config
@@ -91,6 +92,7 @@ def _client_with(
     with (
         patch.object(AzureProvider, "login", new_callable=AsyncMock),
         patch.object(GcpProvider, "login", new_callable=AsyncMock),
+        patch.object(AwsProvider, "login", new_callable=AsyncMock),
         TestClient(service_main.app) as client,
     ):
         yield client

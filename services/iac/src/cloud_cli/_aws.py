@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""AWS: ambient static keys, optional STS AssumeRole per scope, and
-Resource Groups Tagging API listing across every enabled region."""
+"""AWS: ambient static keys verified with STS, optional AssumeRole per
+scope, and Resource Groups Tagging API listing across every enabled
+region."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import logging
 import os
 
 from ..engine import CommandResult
+from ..models import LoginError
 from ._base import CloudProvider, _failure, _ids_result, _run
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,27 @@ class AwsProvider(CloudProvider):
         }
 
     async def login(self) -> None:
-        """No-op: the engine and the CLI inherit the ambient static keys."""
+        """Verify the static keys with STS.
+
+        ``get-caller-identity`` needs no IAM permission, so the only way
+        it fails is an invalid, revoked or expired key pair. The engine
+        and the CLI keep inheriting the ambient keys; nothing is written
+        to ``~/.aws``.
+        """
+        result = await _run(
+            [
+                "aws",
+                "sts",
+                "get-caller-identity",
+                "--query",
+                "Account",
+                "--output",
+                "text",
+            ]
+        )
+        if not result.ok:
+            raise LoginError({self.display_name: result.stderr.strip()})
+        logger.info("AWS credentials verified for account %s", result.stdout.strip())
 
     async def scope_env(self, scope_id: str) -> dict[str, str]:
         """AssumeRole credentials for *scope_id*, or ``{}`` without a role.

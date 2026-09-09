@@ -39,7 +39,7 @@ _AZURE = {
     "azure_tenant_id": "az-tenant",
 }
 _AWS = {"aws_access_key_id": "AKIA-test", "aws_secret_access_key": "secret-test"}
-_GCP_MISSING = "GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CREDENTIALS"
+_GCP_MISSING = "GOOGLE_CREDENTIALS"
 
 _STS_CREDS = {
     "AWS_ACCESS_KEY_ID": "AKID",
@@ -174,16 +174,8 @@ def test_gcp_readiness_empty() -> None:
     assert provider.is_ready() is False
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"google_application_credentials": "/key.json"},
-        {"google_credentials": "{}"},
-    ],
-    ids=["key-file", "inline-json"],
-)
-def test_gcp_is_ready_with_either_var_alone(overrides: dict) -> None:
-    provider = GcpProvider(_config(**overrides))
+def test_gcp_is_ready_with_inline_json() -> None:
+    provider = GcpProvider(_config(google_credentials="{}"))
     assert provider.missing_env() == []
     assert provider.is_configured() is True
     assert provider.is_ready() is True
@@ -196,17 +188,6 @@ async def test_gcp_scope_env_injects_project() -> None:
 
 
 @pytest.mark.asyncio
-async def test_gcp_login_uses_key_file_directly() -> None:
-    with patch(
-        "src.cloud_cli._gcp._run", new_callable=AsyncMock, return_value=_ok("")
-    ) as run_mock:
-        await GcpProvider(_config(google_application_credentials="/key.json")).login()
-    argv = run_mock.await_args.args[0]
-    assert argv[:3] == ["gcloud", "auth", "activate-service-account"]
-    assert "--key-file=/key.json" in argv
-
-
-@pytest.mark.asyncio
 async def test_gcp_login_writes_and_removes_temp_key_for_inline_json() -> None:
     key_json = '{"type": "service_account"}'
     seen: dict[str, object] = {}
@@ -215,12 +196,14 @@ async def test_gcp_login_writes_and_removes_temp_key_for_inline_json() -> None:
         key_path = Path(
             next(a for a in argv if a.startswith("--key-file=")).split("=", 1)[1]
         )
+        seen["argv"] = argv
         seen["path"] = key_path
         seen["content"] = key_path.read_text()
         return _ok("")
 
     with patch("src.cloud_cli._gcp._run", side_effect=fake_run):
         await GcpProvider(_config(google_credentials=key_json)).login()
+    assert seen["argv"][:3] == ["gcloud", "auth", "activate-service-account"]
     assert seen["content"] == key_json
     assert not Path(seen["path"]).exists()  # temp key removed afterwards
 
@@ -235,7 +218,7 @@ async def test_gcp_login_failure_raises_login_error() -> None:
         ),
         pytest.raises(LoginError, match="Cloud login failed for: GCP: invalid key"),
     ):
-        await GcpProvider(_config(google_application_credentials="/key.json")).login()
+        await GcpProvider(_config(google_credentials="{}")).login()
 
 
 @pytest.mark.asyncio
@@ -307,6 +290,33 @@ def test_aws_readiness_empty() -> None:
     assert provider.missing_env() == ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     assert provider.is_configured() is False
     assert provider.is_ready() is False
+
+
+@pytest.mark.asyncio
+async def test_aws_login_verifies_identity_with_sts() -> None:
+    with patch(
+        "src.cloud_cli._aws._run",
+        new_callable=AsyncMock,
+        return_value=_ok("123456789012\n"),
+    ) as run_mock:
+        await AwsProvider(_config(**_AWS)).login()
+    argv = run_mock.await_args.args[0]
+    assert argv[:3] == ["aws", "sts", "get-caller-identity"]
+
+
+@pytest.mark.asyncio
+async def test_aws_login_failure_raises_login_error() -> None:
+    with (
+        patch(
+            "src.cloud_cli._aws._run",
+            new_callable=AsyncMock,
+            return_value=_err("InvalidClientTokenId"),
+        ),
+        pytest.raises(
+            LoginError, match="Cloud login failed for: AWS: InvalidClientTokenId"
+        ),
+    ):
+        await AwsProvider(_config(**_AWS)).login()
 
 
 @pytest.mark.asyncio
@@ -713,6 +723,7 @@ async def test_cloud_login_logs_each_successful_provider(
     with (
         patch.object(AzureProvider, "login", new_callable=AsyncMock),
         patch.object(GcpProvider, "login", new_callable=AsyncMock),
+        patch.object(AwsProvider, "login", new_callable=AsyncMock),
     ):
         await cloud.login()
     messages = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
