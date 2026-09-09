@@ -7,19 +7,20 @@
 All collaborators are mocked: these cover the background task's
 sequencing (next_round → status update → apply → report), the pinned
 plan lifecycle (no pin → fail before any apply; the slot is always
-discarded when the round ends), the hard-fail path (summarize_problem
-awaited, TerraformValidationFailedError raised, no regeneration
-collaborators exist to retry with), and that the session is saved
-either way.
+discarded when the round ends), the hard-fail path (apply-failure
+notification sent, TerraformValidationFailedError raised with the report
+summary, no regeneration collaborators exist to retry with), and that the
+session is saved either way.
 """
 
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.application.exceptions import TerraformValidationFailedError
 from src.application.use_cases.terraform_apply_handler import TerraformApplyHandler
 from src.domains.dto import TerraformValidationDTO
+from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.constants import ReportType, SessionStatus
 
 
@@ -34,12 +35,17 @@ def _dto(validation: bool, plan: str = "apply output") -> TerraformValidationDTO
 
 class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
+        notify_patcher = patch.object(
+            NotificationServiceClient, "notify_apply_failure", AsyncMock()
+        )
+        self.notify = notify_patcher.start()
+        self.addCleanup(notify_patcher.stop)
+
         self.terraform_svc = AsyncMock()
         self.session_svc = AsyncMock()
         self.report_svc = AsyncMock()
         self.template_svc = AsyncMock()
         self.compliance_svc = AsyncMock()
-        self.compliance_svc.check.return_value = MagicMock(passed=True)
         self.workspace_svc = MagicMock()
         self.workspace_svc.pinned_plan_path.return_value = Path(
             "/workspaces/sid/pinned/iac/session.plan"
@@ -69,8 +75,7 @@ class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
         report_kwargs = self.report_svc.generate_report.await_args.kwargs
         self.assertIs(report_kwargs["type"], ReportType.APPLY)
         self.assertEqual(report_kwargs["content"], "apply output")
-        self.compliance_svc.check.assert_awaited_once()
-        self.report_svc.summarize_problem.assert_not_awaited()
+        self.notify.assert_not_awaited()
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)
         self.session_svc.save.assert_awaited_once()
 
@@ -87,19 +92,21 @@ class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)
         self.session_svc.save.assert_awaited_once()
 
-    async def test_failure_summarizes_problem_raises_and_consumes_pin(self):
+    async def test_failure_notifies_raises_with_summary_and_consumes_pin(self):
         self.terraform_svc.apply.return_value = _dto(False)
-        self.report_svc.summarize_problem.return_value = "apply failed: boom"
+        self.report_svc.generate_report.return_value = MagicMock(
+            execution_summary="apply failed: boom"
+        )
 
         task = await self.handler.handle()
         with self.assertRaises(TerraformValidationFailedError) as raised:
             await task()
 
-        # summarize_problem is async: the message must be its awaited
-        # result, not a coroutine object.
-        self.report_svc.summarize_problem.assert_awaited_once()
+        self.report_svc.generate_report.assert_awaited_once()
         self.assertEqual(raised.exception.message, "apply failed: boom")
-        self.report_svc.generate_report.assert_not_awaited()
+        self.notify.assert_awaited_once_with(
+            self.ctx.id, self.ctx.user_id, "apply failed: boom"
+        )
         # Hard fail: exactly one apply attempt, and the pin is spent.
         self.terraform_svc.apply.assert_awaited_once_with()
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)

@@ -22,6 +22,8 @@ from src.domains.dto import PullRequestDTO
 from src.infrastructure.filesystem import GitUtils
 from src.shared.constants import GitProviderName
 
+_REPO_URL = "https://github.com/octo/widgets"
+
 
 def _init_clone(tmp: Path, default_branch: str = "main") -> Path:
     bare = tmp / "remote.git"
@@ -61,9 +63,9 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.clone = _init_clone(self.tmp, default_branch="main")
         self.git = GitUtils(
+            uri=_REPO_URL,
             git_provider=GitProviderName.GITHUB,
             cwd=self.clone,
-            branch="Nebula/feature",
         )
         # Replace the factory-built provider with an AsyncMock so we can
         # assert on delegation arguments without doing any HTTP.
@@ -78,7 +80,7 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
         self.fake_provider.create_pr.return_value = expected
 
         result = await self.git.create_pr(
-            repository_url="https://github.com/octo/widgets",
+            repository_url=_REPO_URL,
             head_branch="Nebula/feature",
             title="My PR",
             description="Body",
@@ -86,7 +88,7 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(result, expected)
         self.fake_provider.create_pr.assert_awaited_once_with(
-            repository_url="https://github.com/octo/widgets",
+            repository_url=_REPO_URL,
             head="Nebula/feature",
             base="main",
             title="My PR",
@@ -95,13 +97,8 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
 
     async def test_complete_pr_forwards_args(self):
         self.fake_provider.complete_pr.return_value = None
-        await self.git.complete_pr(
-            repository_url="https://github.com/octo/widgets",
-            pr_id=42,
-        )
-        self.fake_provider.complete_pr.assert_awaited_once_with(
-            "https://github.com/octo/widgets", 42
-        )
+        await self.git.complete_pr(pr_id=42)
+        self.fake_provider.complete_pr.assert_awaited_once_with(_REPO_URL, 42)
 
 
 class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCase):
@@ -112,9 +109,9 @@ class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCa
         self.tmp = Path(tempfile.mkdtemp())
         self.clone = _init_clone(self.tmp, default_branch="master")
         self.git = GitUtils(
+            uri=_REPO_URL,
             git_provider=GitProviderName.GITHUB,
             cwd=self.clone,
-            branch="Nebula/feature",
         )
         self.fake_provider = AsyncMock()
         self.git._GitUtils__provider = self.fake_provider
@@ -127,7 +124,7 @@ class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCa
             id=1, url="", status="open"
         )
         await self.git.create_pr(
-            repository_url="https://github.com/octo/widgets",
+            repository_url=_REPO_URL,
             head_branch="Nebula/feature",
             title="t",
             description="d",

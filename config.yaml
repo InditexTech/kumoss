@@ -53,12 +53,12 @@ admin:
 # `enabled: false` to skip a service entirely.
 services:
   notifications:
-    enabled: true
+    enabled: false
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
     timeout: 30.0
   mapping:
-    enabled: true
+    enabled: false
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
     timeout: 30.0

@@ -19,7 +19,7 @@ from src.main import app
 
 class TestMappingPassthroughWired(unittest.TestCase):
     def test_resolve_route_is_registered_on_app(self):
-        paths = {route.path for route in app.routes}
+        paths = {getattr(route, "path", None) for route in app.routes}
         self.assertIn("/v1/mapping/resolve", paths)
 
     def test_endpoint_uses_mapping_service_client(self):

@@ -37,14 +37,18 @@ from src.infrastructure.exceptions import (
 from src.shared.constants import ToolContext
 
 
-def _make_adapter(**overrides) -> LiteLLMAdapter:
+def _make_adapter(**overrides) -> tuple[LiteLLMAdapter, MagicMock]:
+    router = MagicMock()
+    router.acompletion = AsyncMock()
+    router.aresponses = AsyncMock()
     defaults = dict(
         model="vertex_ai/claude-sonnet-4-6",
         temperature=0.1,
         max_tokens=4096,
+        router=router,
     )
     defaults.update(overrides)
-    return LiteLLMAdapter(**defaults)
+    return LiteLLMAdapter(**defaults), router
 
 
 def _model_response(
@@ -91,13 +95,10 @@ class TestInferencePlainText(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_returns_llm_response_dto(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response(text="hi there")
+    async def test_returns_llm_response_dto(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response(text="hi there")
 
-        adapter = _make_adapter()
         result = await adapter.inference(msg="hello", system_prompt="be helpful")
 
         self.assertIsInstance(result, LLMResponseDTO)
@@ -108,32 +109,26 @@ class TestInferencePlainText(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_calls, [])
         self.assertIsNone(result.thinking)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_messages_include_system_prompt(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response()
+    async def test_messages_include_system_prompt(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
-        adapter = _make_adapter()
         await adapter.inference(msg="hi", system_prompt="be concise")
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         messages = call_kwargs["messages"]
         self.assertEqual(messages[0]["role"], "system")
         self.assertEqual(messages[0]["content"], "be concise")
         self.assertEqual(messages[-1]["role"], "user")
         self.assertEqual(messages[-1]["content"], "hi")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_no_system_prompt(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response()
+    async def test_no_system_prompt(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
-        adapter = _make_adapter()
         await adapter.inference(msg="hi")
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         messages = call_kwargs["messages"]
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]["role"], "user")
@@ -146,10 +141,7 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_tool_calls_parsed_correctly(self, mock_acompletion):
+    async def test_tool_calls_parsed_correctly(self):
         tc = ChatCompletionMessageToolCall(
             id="call_abc",
             type="function",
@@ -158,7 +150,8 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
                 arguments=json.dumps({"query": "vault", "include_pattern": "*.tf"}),
             ),
         )
-        mock_acompletion.return_value = _model_response(
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response(
             text="", tool_calls=[tc], finish_reason="tool_calls"
         )
 
@@ -168,7 +161,6 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
             parameters={"type": "object", "properties": {"query": {"type": "string"}}},
             context=ToolContext.WORKSPACE_INSPECTION,
         )
-        adapter = _make_adapter()
         result = await adapter.inference(msg="find vault references", tools=[tool_def])
 
         self.assertEqual(len(result.tool_calls), 1)
@@ -177,11 +169,9 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.tool_calls[0].parameters["query"], "vault")
         self.assertEqual(result.metadata.finish_reason, "tool_use")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_tools_formatted_in_openai_format(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response()
+    async def test_tools_formatted_in_openai_format(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
         tool_def = ToolDefinitionDTO(
             name="read_file",
@@ -189,10 +179,9 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
             parameters={"type": "object", "properties": {"path": {"type": "string"}}},
             context=ToolContext.WORKSPACE_INSPECTION,
         )
-        adapter = _make_adapter()
         await adapter.inference(msg="read main.tf", tools=[tool_def])
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         self.assertIn("tools", call_kwargs)
         self.assertEqual(call_kwargs["tools"][0]["type"], "function")
         self.assertEqual(call_kwargs["tools"][0]["function"]["name"], "read_file")
@@ -206,20 +195,17 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_history_turns_included_in_messages(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response()
+    async def test_history_turns_included_in_messages(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
         history = History()
         history.append_turn(user_msg="first question", assistant_msg="first answer")
         history.append_turn(user_msg="second question", assistant_msg="second answer")
 
-        adapter = _make_adapter()
         await adapter.inference(msg="third question", history=history)
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         messages = call_kwargs["messages"]
         # 2 turns (4 messages) + final user message = 5
         self.assertEqual(len(messages), 5)
@@ -230,11 +216,9 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(messages[-1]["role"], "user")
         self.assertEqual(messages[-1]["content"], "third question")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_history_with_tool_calls(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response()
+    async def test_history_with_tool_calls(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
         tool_calls = [
             ToolCallDTO(id="call_1", name="grep_search", parameters={"q": "test"})
@@ -251,10 +235,9 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
         history = History()
         history.append_turn(user_msg="search for test", assistant_msg=tool_calls)
 
-        adapter = _make_adapter()
         await adapter.inference(msg=tool_results, history=history)
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         messages = call_kwargs["messages"]
         # user msg + assistant tool_calls msg + tool result msg = 3
         self.assertEqual(messages[0]["role"], "user")
@@ -270,23 +253,18 @@ class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_thinking_sets_reasoning_effort_and_temperature(
-        self, mock_acompletion
-    ):
-        mock_acompletion.return_value = _model_response()
+    async def test_thinking_sets_reasoning_effort_and_temperature(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
 
-        adapter = _make_adapter()
         await adapter.inference(msg="think hard", thinking=True)
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         self.assertEqual(call_kwargs["reasoning_effort"], "medium")
         self.assertEqual(call_kwargs["temperature"], 1.0)
 
     async def test_thinking_with_tools_raises(self):
-        adapter = _make_adapter()
+        adapter, _ = _make_adapter()
         tool_def = ToolDefinitionDTO(
             name="test",
             description="test",
@@ -305,31 +283,23 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         _teardown_mock_tracer(self)
 
     @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_native_web_search_passes_options(
-        self, mock_acompletion, mock_model_info
-    ):
+    async def test_native_web_search_passes_options(self, mock_model_info):
         mock_model_info.return_value = {
             "supported_openai_params": ["web_search_options"]
         }
-        mock_acompletion.return_value = _model_response()
+        adapter, router = _make_adapter(model="gemini/gemini-2.5-flash")
+        router.acompletion.return_value = _model_response()
 
-        adapter = _make_adapter(model="gemini/gemini-2.5-flash")
         await adapter.inference(msg="latest news", web_search=True)
 
-        call_kwargs = mock_acompletion.call_args[1]
+        call_kwargs = router.acompletion.call_args[1]
         self.assertIn("web_search_options", call_kwargs)
         self.assertEqual(
             call_kwargs["web_search_options"]["search_context_size"], "medium"
         )
 
     @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
-    @patch("src.infrastructure.llm._litellm.litellm.aresponses", new_callable=AsyncMock)
-    async def test_fallback_web_search_calls_aresponses(
-        self, mock_aresponses, mock_model_info
-    ):
+    async def test_fallback_web_search_calls_aresponses(self, mock_model_info):
         mock_model_info.return_value = {"supported_openai_params": []}
 
         content_block = MagicMock()
@@ -344,16 +314,17 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         mock_usage.output_tokens = 15
         mock_usage.total_tokens = 20
         mock_resp.usage = mock_usage
-        mock_aresponses.return_value = mock_resp
 
-        adapter = _make_adapter(model="openai/gpt-5")
+        adapter, router = _make_adapter(model="openai/gpt-5")
+        router.aresponses.return_value = mock_resp
+
         result = await adapter.inference(msg="search something", web_search=True)
 
-        mock_aresponses.assert_called_once()
+        router.aresponses.assert_awaited_once()
         self.assertEqual(result.text, "search result")
 
     async def test_web_search_with_tools_raises(self):
-        adapter = _make_adapter()
+        adapter, _ = _make_adapter()
         tool_def = ToolDefinitionDTO(
             name="test",
             description="test",
@@ -364,7 +335,7 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
             await adapter.inference(msg="test", tools=[tool_def], web_search=True)
 
     async def test_web_search_with_thinking_raises(self):
-        adapter = _make_adapter()
+        adapter, _ = _make_adapter()
         with self.assertRaises(InferenceCallThinkingToolError):
             await adapter.inference(msg="test", thinking=True, web_search=True)
 
@@ -376,18 +347,15 @@ class TestInferenceAPIError(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_api_error_raises_inference_call_error(self, mock_acompletion):
-        mock_acompletion.side_effect = APIError(
+    async def test_api_error_raises_inference_call_error(self):
+        adapter, router = _make_adapter()
+        router.acompletion.side_effect = APIError(
             message="service unavailable",
             model="claude-sonnet-4-6",
             llm_provider="vertex_ai",
             status_code=503,
         )
 
-        adapter = _make_adapter()
         with self.assertRaises(InferenceCallAPIError):
             await adapter.inference(msg="hello")
 
@@ -399,28 +367,22 @@ class TestStopReasonMapping(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         _teardown_mock_tracer(self)
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_stop_maps_to_end_turn(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response(finish_reason="stop")
-        result = await _make_adapter().inference(msg="hi")
+    async def test_stop_maps_to_end_turn(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response(finish_reason="stop")
+        result = await adapter.inference(msg="hi")
         self.assertEqual(result.metadata.finish_reason, "end_turn")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_length_maps_to_max_tokens(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response(finish_reason="length")
-        result = await _make_adapter().inference(msg="hi")
+    async def test_length_maps_to_max_tokens(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response(finish_reason="length")
+        result = await adapter.inference(msg="hi")
         self.assertEqual(result.metadata.finish_reason, "max_tokens")
 
-    @patch(
-        "src.infrastructure.llm._litellm.litellm.acompletion", new_callable=AsyncMock
-    )
-    async def test_tool_calls_maps_to_tool_use(self, mock_acompletion):
-        mock_acompletion.return_value = _model_response(finish_reason="tool_calls")
-        result = await _make_adapter().inference(msg="hi")
+    async def test_tool_calls_maps_to_tool_use(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response(finish_reason="tool_calls")
+        result = await adapter.inference(msg="hi")
         self.assertEqual(result.metadata.finish_reason, "tool_use")
 
 
