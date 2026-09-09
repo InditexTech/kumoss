@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.params import Path
 from fastapi.responses import StreamingResponse
 
-from src.api.deps import CurrentUser, assert_session_access, get_current_user
+from src.api.deps import assert_session_access, get_current_user
+from src.domains.entities import User
 from src.domains.value_objects import Status
 from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
@@ -48,7 +49,7 @@ async def subscribe_events(
         UUID,
         Path(description="session id to subscribe to server sent events"),
     ],
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ):
     """Subscribe to a stream of message events through Server-Sent Events (SSE).
 

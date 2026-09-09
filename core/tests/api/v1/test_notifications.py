@@ -11,15 +11,17 @@ audience, status mapping) is under test.
 
 import os
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
 from src.clients.notifications.models.notification_request_severity import (
     NotificationRequestSeverity,
 )
+from src.domains.entities import User
 from src.main import app
 from src.shared.config import system_config
 from src.shared.config.system_config import ServiceConfig
@@ -30,7 +32,7 @@ _RECIPIENTS = "src.api.v1.notifications.NotificationServiceClient.recipients"
 _DELIVERY_ID = UUID("8b5df7d0-c3dd-4db4-a93e-fdd5973be524")
 _RECIPIENT_LIST = ["ops@example.com", "someone@example.com"]
 
-_CALLER = CurrentUser(
+_CALLER = User(
     id=7,
     issuer="urn:test",
     subject="sub-7",
@@ -38,6 +40,7 @@ _CALLER = CurrentUser(
     display_name="Someone",
     operation_role=OperationRole.DEVELOPER,
     panel_role=None,
+    created_at=datetime.now(UTC),
 )
 
 

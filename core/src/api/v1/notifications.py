@@ -19,8 +19,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
 from src.api.dtos import NotificationAcceptedResponse, SubmitNotificationRequest
+from src.domains.entities import User
 from src.clients.notifications.models.notification_request_severity import (
     NotificationRequestSeverity,
 )
@@ -43,7 +44,7 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 )
 async def submit_notification(
     notification: SubmitNotificationRequest,
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> NotificationAcceptedResponse:
     if not system_config.services.notifications.enabled:
         raise HTTPException(status_code=503, detail="Notifications are disabled.")

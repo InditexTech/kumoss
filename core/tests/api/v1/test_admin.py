@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from httpx import ASGITransport, AsyncClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
 from src.domains.value_objects import TokenClaims
@@ -45,15 +45,7 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
             operation_role=OperationRole.DEVOPS,
             panel_role=PanelRole.ADMIN,
         )
-        app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-            id=self.admin.id,
-            issuer=self.admin.issuer,
-            subject=self.admin.subject,
-            email=self.admin.email,
-            display_name=self.admin.display_name,
-            operation_role=self.admin.operation_role,
-            panel_role=self.admin.panel_role,
-        )
+        app.dependency_overrides[get_current_user] = lambda: self.admin
         self.client = AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         )
