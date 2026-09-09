@@ -117,7 +117,9 @@ function SupportButton({
 
       await sendNotification({
         kind: "support.contact_team",
-        severity: NotificationSeverity.WARNING,
+        severity: hasDeletesOrRecreates
+          ? NotificationSeverity.WARNING
+          : NotificationSeverity.INFO,
         subject: buildSupportSubject("Support request", user, session),
         body,
         links: buildSupportLinks(session, prDetails),

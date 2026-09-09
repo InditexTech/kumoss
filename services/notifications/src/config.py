@@ -40,6 +40,9 @@ class Config:
             raise ConfigError(f"LOG_LEVEL {self.log_level!r} is not a logging level.")
         logging.basicConfig(level=level)
         logging.getLogger().setLevel(level)
+        third_party_level = max(level, logging.WARNING)
+        logging.getLogger("httpx").setLevel(third_party_level)
+        logging.getLogger("httpcore").setLevel(third_party_level)
 
     @classmethod
     def from_env(cls) -> "Config":
