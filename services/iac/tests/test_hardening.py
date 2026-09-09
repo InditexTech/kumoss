@@ -4,7 +4,7 @@
 
 """Tests for the hardening backport: plan-file injection prevention,
 subprocess timeout, EngineTimeoutError → 504, StarletteHTTPException
-handler, and job-ID logging context."""
+handler, and all-or-nothing startup credential validation and login."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from src import main as service_main
 from src.cloud_cli import CloudCli
 from src.cloud_cli._aws import AwsProvider
 from src.cloud_cli._azure import AzureProvider
-from src.cloud_cli._gcp import GcpProvider
 from src.config import Config
 from src.engine import (
     EngineTimeoutError,
@@ -65,7 +64,7 @@ def test_plan_file_regex_accepts_every_contract_valid_name(name: str) -> None:
 # -- Subprocess timeout --
 
 
-def test_terraform_timeout_error_fails_job_504(tmp_path: Path) -> None:
+def test_engine_timeout_error_fails_job_504(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -86,26 +85,19 @@ def test_terraform_timeout_error_fails_job_504(tmp_path: Path) -> None:
     assert "timed out" in body["error"]["detail"]
 
 
-def test_set_timeout_zero_disables() -> None:
-    set_timeout(0)
-    from src.engine import _timeout
+@pytest.mark.parametrize(
+    ("seconds", "expected"),
+    [(0, None), (-1, None), (120, 120)],
+    ids=["zero-disables", "negative-disables", "positive-sets"],
+)
+def test_set_timeout(seconds: int, expected: int | None) -> None:
+    from src import engine
 
-    assert _timeout is None
-
-
-def test_set_timeout_negative_disables() -> None:
-    set_timeout(-1)
-    from src.engine import _timeout
-
-    assert _timeout is None
-
-
-def test_set_timeout_positive_sets_value() -> None:
-    set_timeout(120)
-    from src.engine import _timeout
-
-    assert _timeout == 120
-    set_timeout(0)
+    try:
+        set_timeout(seconds)
+        assert engine._timeout == expected
+    finally:
+        set_timeout(0)
 
 
 # -- Starlette exception handler --
@@ -159,24 +151,35 @@ def restore_service_state():
     ``src.main`` and never go through ``_client_with``, so without this
     the swapped objects would leak into whichever test runs next.
     """
-    saved = (service_main.config, service_main.cloud)
+    saved = (
+        service_main.config,
+        service_main.cloud,
+        service_main.jobs,
+        service_main.workspace_queue,
+    )
     yield
-    service_main.config, service_main.cloud = saved
+    (
+        service_main.config,
+        service_main.cloud,
+        service_main.jobs,
+        service_main.workspace_queue,
+    ) = saved
 
 
 def test_startup_aborts_when_a_configured_cloud_login_fails(
     restore_service_state: None,
 ) -> None:
-    """Every provider with complete credentials is logged into at startup;
-    if any of them fails the service must not come up (a half-authenticated
-    service would fail jobs later with confusing engine errors)."""
+    """If any configured provider fails to log in, the service must not
+    come up (a half-authenticated service would fail jobs later with
+    confusing engine errors). The lifespan lets ``LoginError`` propagate.
+    That every provider is still attempted independently is covered by
+    the ``CloudCli.login`` unit tests."""
     service_main.config = Config(
         expected_token="",
         iac_binary="sh",
         azure_client_id="az-id",
         azure_client_secret="az-secret",
         azure_tenant_id="az-tenant",
-        google_credentials='{"type": "service_account"}',
     )
     service_main.cloud = CloudCli(service_main.config)
     with (
@@ -186,12 +189,10 @@ def test_startup_aborts_when_a_configured_cloud_login_fails(
             new_callable=AsyncMock,
             side_effect=LoginError({"Azure": "bad secret"}),
         ),
-        patch.object(GcpProvider, "login", new_callable=AsyncMock) as gcloud,
         pytest.raises(LoginError, match="Cloud login failed for: Azure: bad secret"),
     ):
         with TestClient(service_main.app):
             pass
-    gcloud.assert_awaited_once()  # GCP was still attempted
 
 
 def test_startup_aborts_when_azure_credentials_are_partial(
@@ -211,6 +212,23 @@ def test_startup_aborts_when_azure_credentials_are_partial(
         with TestClient(service_main.app):
             pass
     az.assert_not_awaited()
+
+
+def test_startup_aborts_when_aws_keys_are_incomplete(
+    restore_service_state: None,
+) -> None:
+    """An access key ID without its secret is not usable by the AWS CLI or
+    the provider. It is a deployment error, so it must fail the boot naming
+    the missing variable instead of being silently skipped and letting the
+    engine fail later with an opaque auth error."""
+    service_main.config = Config(
+        expected_token="", iac_binary="sh", aws_access_key_id="AKIA-test"
+    )
+    service_main.cloud = CloudCli(service_main.config)
+    with pytest.raises(MissingCredentialError) as exc_info:
+        with TestClient(service_main.app):
+            pass
+    assert exc_info.value.missing == {"AWS": ["AWS_SECRET_ACCESS_KEY"]}
 
 
 # -- AssumeRole failures for non-AWS scopes are non-fatal --

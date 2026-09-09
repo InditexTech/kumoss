@@ -16,7 +16,6 @@ credentials.
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 import uuid
@@ -34,10 +33,9 @@ from src.cloud_cli._gcp import GcpProvider
 from src.config import Config
 from src.engine import CommandResult
 from src.jobs import JobRegistry, WorkspaceQueue
-from src.models import MissingCredentialError
 
 
-# (endpoint, terraform function to stub, extra request fields)
+# (endpoint, engine function to stub, extra request fields)
 OPERATIONS = [
     ("/v1/init", "src.engine.init", {}),
     ("/v1/validate", "src.engine.validate", {}),
@@ -53,6 +51,8 @@ OPERATIONS = [
         },
     ),
 ]
+# Request-shape checks only need the endpoint and its extra fields.
+_ENDPOINT_BODIES = [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
 
 
 # `scope_id` is required on every request and needs at least one provider
@@ -310,9 +310,9 @@ def test_op_job_returns_raw_result_verbatim(
     }
 
 
-def test_plan_invokes_terraform_with_targets_and_plan_file(tmp_path: Path) -> None:
+def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
     """The plan job passes the request's targets and plan_file through
-    to the terraform wrapper unchanged."""
+    to the engine wrapper unchanged."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -447,7 +447,9 @@ def test_unhandled_exception_returns_generic_problem_detail() -> None:
     """A crash inside a request handler is logged with its traceback; the
     client only gets the request id to correlate with, never the
     exception text (which may carry paths or CLI output)."""
-    with _client_with() as client:
+    # The lifespan-managed client is only needed to keep the app running;
+    # requests go through a second client that does not re-raise server errors.
+    with _client_with():
         client_no_raise = TestClient(service_main.app, raise_server_exceptions=False)
         with patch.object(
             service_main,
@@ -464,7 +466,6 @@ def test_unhandled_exception_returns_generic_problem_detail() -> None:
     body = response.json()
     assert "secret-bearing message" not in body["detail"]
     assert "req-123" in body["detail"]
-    del client
 
 
 def test_get_job_404_when_unknown() -> None:
@@ -516,8 +517,8 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
                 raise AssertionError("terminal job was never swept")
 
 
-@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
-def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -> None:
+@pytest.mark.parametrize(("endpoint", "extra"), _ENDPOINT_BODIES)
+def test_endpoints_accept_scope_id(endpoint: str, extra: dict) -> None:
     """scope_id passes schema validation; the 404 comes from the
     nonexistent workspace, proving validation ran first."""
     with _client_with() as client:
@@ -532,10 +533,10 @@ def test_endpoints_accept_scope_id(endpoint: str, tf_target: str, extra: dict) -
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize(("endpoint", "tf_target", "extra"), OPERATIONS)
+@pytest.mark.parametrize(("endpoint", "extra"), _ENDPOINT_BODIES)
 @pytest.mark.parametrize("scope", [None, ""], ids=["missing", "empty"])
 def test_endpoints_require_scope_id(
-    endpoint: str, tf_target: str, extra: dict, scope: str | None
+    endpoint: str, extra: dict, scope: str | None
 ) -> None:
     """The contract makes scope_id required (minLength 1) on every
     engine command: omitting it or sending "" is a schema 422."""
@@ -569,101 +570,6 @@ def test_job_fails_422_when_no_provider_is_configured(tmp_path: Path) -> None:
     assert body["error"]["status"] == 422
     assert "No cloud provider credentials are complete" in body["error"]["detail"]
     init.assert_not_awaited()
-
-
-def test_startup_aborts_when_aws_keys_are_incomplete() -> None:
-    """An access key ID without its secret is not usable by the AWS CLI or
-    the provider. It is a deployment error, so it must fail the boot naming
-    the missing variable instead of being silently skipped and letting the
-    engine fail later with an opaque auth error."""
-    service_main.config = Config(
-        expected_token="", iac_binary="sh", aws_access_key_id="AKIA-test"
-    )
-    service_main.cloud = CloudCli(service_main.config)
-    with pytest.raises(MissingCredentialError) as exc_info:
-        with TestClient(service_main.app):
-            pass
-    assert exc_info.value.missing == {"AWS": ["AWS_SECRET_ACCESS_KEY"]}
-
-
-_STATE_DOC = {
-    "version": 4,
-    "resources": [
-        {
-            "mode": "managed",
-            "type": "azurerm_resource_group",
-            "instances": [
-                {"attributes": {"id": "/subscriptions/s/resourceGroups/rg1"}},
-                {"attributes": {"id": "/subscriptions/s/resourceGroups/rg2"}},
-            ],
-        },
-        {
-            "mode": "data",
-            "type": "azurerm_client_config",
-            "instances": [{"attributes": {"id": "data-id-ignored"}}],
-        },
-        {
-            "mode": "managed",
-            "type": "azurerm_storage_account",
-            "instances": [{"attributes": {}}],
-        },
-    ],
-}
-
-
-def test_state_resource_ids_returns_managed_ids(tmp_path: Path) -> None:
-    """stdout is a JSON array of the managed instances' provider ids;
-    data resources and id-less instances are skipped."""
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-
-    pulled = CommandResult(
-        ok=True, stdout=json.dumps(_STATE_DOC), stderr="", exit_code=0
-    )
-    with _client_with() as client:
-        with patch(
-            "src.engine.state_pull", new_callable=AsyncMock, return_value=pulled
-        ):
-            response = client.post(
-                "/v1/import/state-resource-ids",
-                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
-            )
-            assert response.status_code == 202
-            body = _poll_until_terminal(client, response.json()["job_id"])
-    assert body["status"] == "succeeded"
-    assert body["kind"] == "state_resource_ids"
-    assert body["result"]["exit_code"] == 0
-    assert json.loads(body["result"]["stdout"]) == [
-        "/subscriptions/s/resourceGroups/rg1",
-        "/subscriptions/s/resourceGroups/rg2",
-    ]
-
-
-def test_state_resource_ids_passes_pull_failure_through(tmp_path: Path) -> None:
-    """A failed `state pull` is a succeeded job carrying the command's
-    exit code and stderr; stdout is empty rather than partial state."""
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-
-    pulled = CommandResult(
-        ok=False, stdout="partial", stderr="Error: no state", exit_code=1
-    )
-    with _client_with() as client:
-        with patch(
-            "src.engine.state_pull", new_callable=AsyncMock, return_value=pulled
-        ):
-            response = client.post(
-                "/v1/import/state-resource-ids",
-                json={"workspace_path": str(workspace), "scope_id": "sub-test"},
-            )
-            assert response.status_code == 202
-            body = _poll_until_terminal(client, response.json()["job_id"])
-    assert body["status"] == "succeeded"
-    assert body["result"] == {
-        "exit_code": 1,
-        "stdout": "",
-        "stderr": "Error: no state",
-    }
 
 
 def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:

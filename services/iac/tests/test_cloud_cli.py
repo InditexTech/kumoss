@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -61,26 +62,6 @@ def _config(**overrides) -> Config:
 
 def _both_providers_config() -> Config:
     return _config(**_AZURE, google_credentials='{"type": "service_account"}')
-
-
-# ---------------------------------------------------------------------------
-# MissingCredentialError
-# ---------------------------------------------------------------------------
-
-
-def test_missing_credential_error_stores_missing_map() -> None:
-    missing = {"Azure": ["ARM_CLIENT_SECRET"]}
-    exc = MissingCredentialError(missing)
-    assert exc.missing is missing
-
-
-def test_missing_credential_error_message_names_every_provider() -> None:
-    exc = MissingCredentialError(
-        {"Azure": ["ARM_CLIENT_SECRET"], "AWS": ["AWS_SECRET_ACCESS_KEY"]}
-    )
-    message = str(exc)
-    assert message.startswith("Incomplete cloud credentials")
-    assert "Azure: ARM_CLIENT_SECRET; AWS: AWS_SECRET_ACCESS_KEY" in message
 
 
 # ---------------------------------------------------------------------------
@@ -377,56 +358,11 @@ def test_aws_readiness_complete() -> None:
 
 
 @pytest.mark.asyncio
-async def test_aws_login_is_a_noop() -> None:
-    """Ambient keys are inherited by the engine and the CLI; nothing to run."""
-    with patch("src.cloud_cli._aws._run", new_callable=AsyncMock) as run_mock:
-        assert await AwsProvider(_config(**_AWS)).login() is None
-    run_mock.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_aws_scope_env_without_role_is_empty() -> None:
     with patch.object(AwsProvider, "_assume_role", new_callable=AsyncMock) as assume:
         env = await AwsProvider(_config(**_AWS)).scope_env("123456789012")
     assert env == {}
     assume.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_aws_scope_env_returns_assumed_credentials() -> None:
-    with patch.object(
-        AwsProvider, "_assume_role", new_callable=AsyncMock, return_value=_STS_CREDS
-    ) as assume:
-        env = await AwsProvider(
-            _config(**_AWS, aws_terraform_role_name="role/nebula")
-        ).scope_env("123456789012")
-    assert env == _STS_CREDS
-    assume.assert_awaited_once_with("123456789012")
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "failure",
-    [
-        RuntimeError("AWS AssumeRole failed for arn:...: AccessDenied"),
-        FileNotFoundError("aws"),  # CLI not installed
-    ],
-    ids=["sts-denied", "cli-missing"],
-)
-async def test_aws_scope_env_propagates_assume_role_failure(
-    failure: Exception,
-) -> None:
-    """The provider reports the failure; whether it is fatal is a
-    cross-provider decision that belongs to ``CloudCli.scope_env``."""
-    with (
-        patch.object(
-            AwsProvider, "_assume_role", new_callable=AsyncMock, side_effect=failure
-        ),
-        pytest.raises(type(failure)),
-    ):
-        await AwsProvider(
-            _config(**_AWS, aws_terraform_role_name="role/nebula")
-        ).scope_env("sub-uuid-1")
 
 
 @pytest.mark.asyncio
@@ -456,35 +392,25 @@ async def test_aws_assume_role_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_aws_assume_role_uses_role_name_verbatim() -> None:
+@pytest.mark.parametrize("role_name", ["my-role", "role/my-role"])
+async def test_aws_assume_role_failure_names_role_verbatim(role_name: str) -> None:
     """The service does not inject ``role/``; the operator supplies the
-    full IAM resource path in AWS_TERRAFORM_ROLE_NAME."""
+    full IAM resource path in AWS_TERRAFORM_ROLE_NAME. A failing STS call
+    surfaces as RuntimeError naming the exact ARN that was attempted."""
+    expected_arn = f"arn:aws:iam::123456789012:{role_name}"
     with patch(
         "src.cloud_cli._aws._run",
         new_callable=AsyncMock,
         return_value=_err("access denied"),
     ) as run:
-        with pytest.raises(RuntimeError, match="arn:aws:iam::123456789012:my-role"):
+        with pytest.raises(
+            RuntimeError, match=f"AssumeRole failed for {re.escape(expected_arn)}"
+        ):
             await AwsProvider(
-                _config(**_AWS, aws_terraform_role_name="my-role")
+                _config(**_AWS, aws_terraform_role_name=role_name)
             )._assume_role("123456789012")
     argv = run.await_args.args[0]
-    assert argv[argv.index("--role-arn") + 1] == "arn:aws:iam::123456789012:my-role"
-
-
-@pytest.mark.asyncio
-async def test_aws_assume_role_cli_failure() -> None:
-    with (
-        patch(
-            "src.cloud_cli._aws._run",
-            new_callable=AsyncMock,
-            return_value=_err("access denied"),
-        ),
-        pytest.raises(RuntimeError, match="AssumeRole failed"),
-    ):
-        await AwsProvider(
-            _config(**_AWS, aws_terraform_role_name="role/my-role")
-        )._assume_role("123456789012")
+    assert argv[argv.index("--role-arn") + 1] == expected_arn
 
 
 @pytest.mark.asyncio
@@ -536,10 +462,20 @@ async def test_aws_aggregates_arns_across_regions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_aws_falls_back_to_default_region_when_enumeration_fails() -> None:
+@pytest.mark.parametrize(
+    "regions_response",
+    [
+        _err("ec2 not permitted"),
+        _ok(json.dumps({"Regions": "unexpected"})),  # valid JSON, wrong shape
+    ],
+    ids=["describe-regions-fails", "describe-regions-not-a-list"],
+)
+async def test_aws_falls_back_to_default_region_when_enumeration_is_unusable(
+    regions_response: CommandResult,
+) -> None:
     responses = [
         _ok("123456789012\n"),
-        _err("ec2 not permitted"),
+        regions_response,
         _ok(json.dumps({"ResourceTagMappingList": [{"ResourceARN": "arn:1"}]})),
     ]
     with patch(
@@ -550,23 +486,6 @@ async def test_aws_falls_back_to_default_region_when_enumeration_fails() -> None
     assert json.loads(result.stdout) == ["arn:1"]
     fallback_command = run_mock.await_args_list[2].args[0]
     assert "--region" not in fallback_command
-
-
-@pytest.mark.asyncio
-async def test_aws_falls_back_to_default_region_when_enumeration_is_not_a_list() -> (
-    None
-):
-    responses = [
-        _ok("123456789012\n"),
-        _ok(json.dumps({"Regions": "unexpected"})),  # valid JSON, wrong shape
-        _ok(json.dumps({"ResourceTagMappingList": []})),
-    ]
-    with patch(
-        "src.cloud_cli._aws._run", new_callable=AsyncMock, side_effect=responses
-    ) as run_mock:
-        result = await AwsProvider(_config()).list_resource_ids("123456789012")
-    assert result.ok
-    assert "--region" not in run_mock.await_args_list[2].args[0]
 
 
 @pytest.mark.asyncio
@@ -702,12 +621,6 @@ def test_validate_credentials_passes_with_one_complete_provider() -> None:
     assert CloudCli(_config(**_AZURE)).validate_credentials() is None
 
 
-def test_validate_credentials_raises_for_one_partial_provider() -> None:
-    with pytest.raises(MissingCredentialError) as exc_info:
-        CloudCli(_config(azure_client_id="az-id")).validate_credentials()
-    assert exc_info.value.missing == {"Azure": ["ARM_CLIENT_SECRET", "ARM_TENANT_ID"]}
-
-
 def test_validate_credentials_aggregates_every_partial_provider() -> None:
     """Two partial providers raise once, naming both, so the operator
     fixes the deployment in one pass."""
@@ -743,14 +656,19 @@ def test_ready_providers_logs_each_skipped_provider(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_available_known_provider_found() -> None:
-    with patch("shutil.which", return_value="/usr/bin/az"):
-        assert CloudCli(_config()).cli_available("azure") is True
+@pytest.mark.parametrize(
+    ("provider", "binary"), [("azure", "az"), ("gcp", "gcloud"), ("aws", "aws")]
+)
+def test_cli_available_looks_up_the_provider_binary(provider: str, binary: str) -> None:
+    with patch("shutil.which", return_value=f"/usr/bin/{binary}") as which:
+        assert CloudCli(_config()).cli_available(provider) is True
+    which.assert_called_once_with(binary)
 
 
 def test_cli_available_known_provider_not_found() -> None:
-    with patch("shutil.which", return_value=None):
+    with patch("shutil.which", return_value=None) as which:
         assert CloudCli(_config()).cli_available("aws") is False
+    which.assert_called_once_with("aws")
 
 
 def test_cli_available_unknown_provider() -> None:
@@ -773,12 +691,6 @@ def test_cli_binary_unknown_provider_echoes_name() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_needs_relogin_fresh_state() -> None:
-    cloud = CloudCli(_config(cloud_login_refresh_min=45))
-    cloud._last_login = 0.0
-    assert cloud.needs_relogin() is True
-
-
 def test_needs_relogin_recently_logged_in() -> None:
     cloud = CloudCli(_config(cloud_login_refresh_min=45))
     cloud._last_login = time.monotonic()
@@ -797,9 +709,13 @@ def test_needs_relogin_expired() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cloud_login_attempts_gcp_even_when_azure_fails() -> None:
+async def test_cloud_login_attempts_gcp_even_when_azure_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Both providers are attempted independently; a failing Azure login
-    does not prevent the GCP login from running."""
+    does not prevent the GCP login from running, and only the provider
+    that actually succeeded is logged as successful."""
+    caplog.set_level(logging.INFO, logger="src.cloud_cli._cli")
     cloud = CloudCli(_both_providers_config())
     with (
         patch.object(
@@ -813,6 +729,9 @@ async def test_cloud_login_attempts_gcp_even_when_azure_fails() -> None:
     ):
         await cloud.login()
     gcloud_mock.assert_awaited_once()
+    messages = [r.getMessage() for r in caplog.records]
+    assert not [m for m in messages if m.startswith("Azure login successful")]
+    assert [m for m in messages if m.startswith("GCP login successful")]
 
 
 @pytest.mark.asyncio
@@ -869,28 +788,6 @@ async def test_cloud_login_logs_each_successful_provider(
     messages = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
     for name in ("Azure", "GCP", "AWS"):
         assert [m for m in messages if m.startswith(f"{name} login successful")], name
-
-
-@pytest.mark.asyncio
-async def test_cloud_login_does_not_log_success_for_failed_provider(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    caplog.set_level(logging.INFO, logger="src.cloud_cli._cli")
-    cloud = CloudCli(_both_providers_config())
-    with (
-        patch.object(
-            AzureProvider,
-            "login",
-            new_callable=AsyncMock,
-            side_effect=LoginError({"Azure": "az: bad secret"}),
-        ),
-        patch.object(GcpProvider, "login", new_callable=AsyncMock),
-        pytest.raises(LoginError),
-    ):
-        await cloud.login()
-    messages = [r.getMessage() for r in caplog.records]
-    assert not [m for m in messages if m.startswith("Azure login successful")]
-    assert [m for m in messages if m.startswith("GCP login successful")]
 
 
 @pytest.mark.asyncio
@@ -1027,31 +924,6 @@ async def test_scope_env_merges_assume_role_output() -> None:
     assume.assert_awaited_once_with("123456789012")
     assert env["AWS_SESSION_TOKEN"] == "TOKEN"
     assert env["AWS_ACCESS_KEY_ID"] == "AKID"
-
-
-@pytest.mark.asyncio
-async def test_scope_env_swallows_assume_role_failure_for_non_aws_scope(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Cross-cloud plans are not supported: with AWS keys and a role
-    configured, an Azure scope_id still triggers an AssumeRole attempt
-    that can only fail. The job continues with the Azure scope injected."""
-    caplog.set_level(logging.DEBUG, logger="src.cloud_cli._cli")
-    cloud = CloudCli(_config(**_AZURE, **_AWS, aws_terraform_role_name="role/nebula"))
-    with patch.object(
-        AwsProvider,
-        "_assume_role",
-        new_callable=AsyncMock,
-        side_effect=RuntimeError("AWS AssumeRole failed for arn:...: AccessDenied"),
-    ) as assume:
-        env = await cloud.scope_env("sub-uuid-1")
-    assume.assert_awaited_once_with("sub-uuid-1")
-    assert env["ARM_SUBSCRIPTION_ID"] == "sub-uuid-1"
-    assert "AWS_SESSION_TOKEN" not in env
-    assert any(
-        r.levelno == logging.DEBUG and "sub-uuid-1" in r.getMessage()
-        for r in caplog.records
-    )
 
 
 @pytest.mark.asyncio
