@@ -27,6 +27,7 @@ WORKDIR /usr/src/app
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/usr/src/app/.venv/bin:$PATH" \
     HOME=/home/nebula
 

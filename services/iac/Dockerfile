@@ -64,6 +64,7 @@ RUN uv pip install --system --no-cache azure-cli \
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_HTTP_TIMEOUT=120 \
+    UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH" \
     HOME=/home/nebula \
     PYTHONDONTWRITEBYTECODE=1
