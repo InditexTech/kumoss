@@ -125,7 +125,7 @@ class NotificationServiceClient:
         session_id: UUID, owner_email: str, summary: str
     ) -> None:
         _ = await NotificationServiceClient.notify(
-            kind="iac.compliance.check_failed",
+            kind="iac.compliance.failed",
             severity=NotificationRequestSeverity.WARNING,
             subject=f"Compliance check failed – session {session_id}",
             body=summary,

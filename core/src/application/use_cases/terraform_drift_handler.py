@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
+import json
 from typing import Callable, Any
 
 from src.application.exceptions import SetLockError
@@ -85,11 +86,14 @@ class TerraformDriftHandler:
                     conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
                 )
+                content: str = json.dumps(ctx.history.serialize())
+                if not validation.validation:
+                    content += f"\n\nPlease note, this drift couldn't be reconcile: {validation.feedback}"
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.DRIFT,
-                    content=validation.terraform_plan,
+                    content=content,
                 )
                 if not await DatabaseService.set_lock(ctx.id, False):
                     raise SetLockError(
