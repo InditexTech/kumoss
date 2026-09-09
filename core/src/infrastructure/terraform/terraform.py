@@ -413,15 +413,13 @@ class Terraform(ITerraform):
         workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                init_res = await self.__run_op(
-                    c, init_op, InitRequest(workspace_path=workspace), cfg
-                )
-                if init_res.exit_code != 0:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
                     raise ExceptionHandler(
                         f"terraform init failed: {init_res.stderr or 'unknown error'}",
                         502,
                     )
-                import_res = await self.__run_op(
+                import_res = await self.__run_initialized_op(
                     c,
                     import_op,
                     ImportRequest(

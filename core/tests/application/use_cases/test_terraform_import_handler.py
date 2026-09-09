@@ -170,8 +170,12 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             db_mock.set_lock = AsyncMock(return_value=True)
             await task()
 
+        # The iac_filter sentinel is passed exactly once, inside `tools`,
+        # and never duplicated through a separate `sentinel_tool` kwarg.
         llm_kwargs = self.llm_svc.generate.await_args.kwargs
-        self.assertEqual(llm_kwargs["tools"], [])
+        sentinel = self.tool_svc.get_sentinel_tool.return_value
+        self.assertEqual(llm_kwargs["tools"], [sentinel])
+        self.assertNotIn("sentinel_tool", llm_kwargs)
         self.tool_svc.get_sentinel_tool.assert_called_with(
             context=ToolContext.IAC_FILTER
         )
