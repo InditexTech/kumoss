@@ -31,6 +31,35 @@ class CredentialError(Exception):
         super().__init__(message)
 
 
+class MissingCredentialError(Exception):
+    """A provider has some but not all of its credential env vars set."""
+
+    def __init__(self, missing: dict[str, list[str]]) -> None:
+        self.missing = missing
+        parts = [f"{prov}: {', '.join(fields)}" for prov, fields in missing.items()]
+        super().__init__(
+            "Incomplete cloud credentials; set every variable for a provider "
+            "or none of them. Incomplete: " + "; ".join(parts)
+        )
+
+
+class LoginError(Exception):
+    """A cloud CLI rejected the configured credentials.
+
+    ``failures`` maps provider display name ("Azure", "GCP") to the CLI's
+    error output. Providers raise it with a single entry; ``CloudCli.login``
+    merges the entries of every provider that failed so one exception
+    describes the whole startup (or refresh) outcome.
+    """
+
+    def __init__(self, failures: dict[str, str]) -> None:
+        self.failures = failures
+        super().__init__(
+            "Cloud login failed for: "
+            + "; ".join(f"{prov}: {msg}" for prov, msg in failures.items())
+        )
+
+
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Mirrors the contract's PlanFile pattern exactly: a single path segment
 # (no `/`), so `plan_file` cannot escape the workspace when passed to

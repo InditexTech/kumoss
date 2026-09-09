@@ -69,7 +69,7 @@ class Config:
     respective login steps: missing values skip the provider with an
     info log rather than failing the service. A provider whose
     credentials are present but whose login fails aborts startup
-    (see ``cloud_cli.cloud_login``).
+    (see ``cloud_cli.CloudCli.login``).
     """
 
     # Environment (secrets and deployment-specific values).
@@ -81,6 +81,10 @@ class Config:
     google_credentials: str = ""
     backend_config: str = ""
     aws_terraform_role_name: str = ""
+    # Static AWS keys. Both or neither: the CLI and the provider reject a
+    # key ID without its secret, so a partial pair aborts startup.
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
 
     # Knobs (module constants above).
     iac_binary: str = IAC_BINARY
@@ -105,6 +109,8 @@ class Config:
             google_credentials=os.environ.get("GOOGLE_CREDENTIALS", ""),
             backend_config=os.environ.get("TF_BACKEND_CONFIG", ""),
             aws_terraform_role_name=os.environ.get("AWS_TERRAFORM_ROLE_NAME", ""),
+            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID", ""),
+            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY", ""),
         )
 
 

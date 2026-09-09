@@ -13,14 +13,14 @@ interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
 errors (auth, malformed body, missing workspace, missing engine
 binary) are still reported synchronously on the POST; everything after
-submission surfaces through the job.
+submission surfaces through the job. The two ``/v1/import/*-resource-ids``
+endpoints are the exception to "raw output": their ``stdout`` is a
+synthesized JSON array of resource ids rather than engine output.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -34,21 +34,22 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import cloud_cli
 from . import engine as tf
+from .cloud_cli import CloudCli
 from .auth import verify_bearer_token
 from .config import Config, engine_available
 from .jobs import JobRegistry, WorkspaceQueue
 from .log_context import configure_logging, set_request_id, set_workspace
 from .models import (
     ApplyRequest,
-    CredentialError,
     Health,
     ImportRequest,
     InitRequest,
     Job,
     JobAccepted,
     JobKind,
+    LoginError,
+    MissingCredentialError,
     OperationResult,
     PlanRequest,
     Problem,
@@ -63,6 +64,7 @@ logger = logging.getLogger(__name__)
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
+cloud = CloudCli(config)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
@@ -80,8 +82,22 @@ async def lifespan(app: FastAPI):
     )
 
     try:
-        await cloud_cli.cloud_login(config)
+        # Partial credentials are a deployment mistake: refuse to boot
+        # before any CLI is invoked. Then log into every ready provider
+        # without retries so a broken credential surfaces at once.
+        cloud.validate_credentials()
+        await cloud.login(retries=0)
         logger.info("iac service startup complete")
+    except MissingCredentialError as exc:
+        # Deployment misconfiguration: the message already lists every
+        # missing variable, so a traceback would only add noise.
+        logger.error("iac service startup failed, incomplete credentials: %s", exc)
+        raise
+    except LoginError as exc:
+        # Credentials are complete but a cloud CLI rejected them (revoked
+        # secret, wrong tenant, expired key). Same reasoning: no traceback.
+        logger.error("iac service startup failed, cloud login rejected: %s", exc)
+        raise
     except Exception:
         logger.exception("iac service startup failed")
         raise
@@ -218,68 +234,6 @@ def _check_submit_preconditions(
     return workspace
 
 
-async def _scope_env(
-    scope_id: str, *, aws_terraform_role_name: str = ""
-) -> dict[str, str]:
-    """Build the engine environment for a command scoped to *scope_id*.
-
-    ``scope_id`` is required by the contract, so every engine command
-    runs with the scope injected; at least one provider must have
-    complete credentials or the job fails with ``CredentialError``.
-    """
-    azure_ready = bool(
-        config.azure_client_id and config.azure_client_secret and config.azure_tenant_id
-    )
-    gcp_ready = bool(config.google_application_credentials or config.google_credentials)
-    aws_missing = cloud_cli.aws_missing_env()
-    aws_ready = not aws_missing
-
-    if not (azure_ready or gcp_ready or aws_ready):
-        missing: dict[str, list[str]] = {}
-        if (
-            config.azure_client_id
-            or config.azure_client_secret
-            or config.azure_tenant_id
-        ):
-            fields = []
-            if not config.azure_client_id:
-                fields.append("ARM_CLIENT_ID")
-            if not config.azure_client_secret:
-                fields.append("ARM_CLIENT_SECRET")
-            if not config.azure_tenant_id:
-                fields.append("ARM_TENANT_ID")
-            missing["azure"] = fields
-        if not gcp_ready:
-            missing["gcp"] = ["GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_CREDENTIALS"]
-        if not aws_ready:
-            missing["aws"] = aws_missing
-        raise CredentialError(missing)
-
-    env = {
-        **os.environ,
-        "ARM_SUBSCRIPTION_ID": scope_id,
-        "GOOGLE_PROJECT": scope_id,
-    }
-    if aws_terraform_role_name and aws_ready:
-        # Cross-cloud plans are not supported, so an Azure/GCP scope_id
-        # reaching here can only fail AssumeRole (it is not an account
-        # id). That is expected and must not fail the job: continue with
-        # the ambient AWS credentials and let the engine report any real
-        # AWS auth problem in its own stderr. OSError covers a missing
-        # `aws` binary.
-        try:
-            assumed = await cloud_cli.aws_assume_role(scope_id, aws_terraform_role_name)
-            env.update(assumed)
-        except (RuntimeError, OSError) as exc:
-            logger.debug(
-                "AWS AssumeRole skipped for scope_id=%s (not an AWS account, role "
-                "not assumable, or aws CLI unavailable): %s",
-                scope_id,
-                exc,
-            )
-    return env
-
-
 def _result(r: tf.CommandResult) -> OperationResult:
     return OperationResult(exit_code=r.exit_code, stdout=r.stdout, stderr=r.stderr)
 
@@ -314,10 +268,7 @@ async def init(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(
             await tf.init(
                 config.iac_binary,
@@ -344,10 +295,7 @@ async def validate(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(await tf.validate(config.iac_binary, workspace, env=env))
 
     return _submit("validate", workspace, response, _pipeline)
@@ -367,10 +315,7 @@ async def plan(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(
             await tf.plan(
                 config.iac_binary, workspace, body.targets, body.plan_file, env=env
@@ -394,10 +339,7 @@ async def show(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(
             await tf.show_plan_json(
                 config.iac_binary, workspace, body.plan_file, env=env
@@ -421,10 +363,7 @@ async def apply(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(
             await tf.apply(config.iac_binary, workspace, body.plan_file, env=env)
         )
@@ -446,10 +385,7 @@ async def import_resource(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
-        )
+        env = await cloud.scope_env(body.scope_id)
         return _result(
             await tf.import_resource(
                 config.iac_binary, workspace, body.address, body.resource_id, env=env
@@ -473,17 +409,10 @@ async def state_resource_ids(
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        env = await _scope_env(
-            body.scope_id, aws_terraform_role_name=config.aws_terraform_role_name
+        env = await cloud.scope_env(body.scope_id)
+        return _result(
+            await cloud.state_resource_ids(config.iac_binary, workspace, env)
         )
-        result = await tf.state_pull(config.iac_binary, workspace, env=env)
-        if not result.ok:
-            return OperationResult(
-                exit_code=result.exit_code, stdout="", stderr=result.stderr
-            )
-        ids = tf.extract_managed_resource_ids(result.stdout)
-        return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
 
     return _submit("state_resource_ids", workspace, response, _pipeline)
 
@@ -500,24 +429,25 @@ async def scope_resource_ids(
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, credentials)
-    if not cloud_cli.cli_available(body.terraform_provider):
+    if not cloud.cli_available(body.terraform_provider):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                f"Cloud CLI '{cloud_cli.CLI_BINARIES.get(body.terraform_provider, body.terraform_provider)}' "
+                f"Cloud CLI '{cloud.cli_binary(body.terraform_provider)}' "
                 f"for provider '{body.terraform_provider}' not found in PATH "
                 "on the IaC service."
             ),
         )
 
     async def _pipeline() -> OperationResult:
-        await cloud_cli.ensure_cloud_login(config)
-        result = await cloud_cli.list_resource_ids(
-            body.terraform_provider,
-            body.scope_id,
-            aws_terraform_role_name=config.aws_terraform_role_name,
+        # The only endpoint that shells out to the cloud CLI itself (az graph,
+        # gcloud asset, aws tagging API), so the only one that needs a live
+        # CLI session. Engine commands authenticate from the env vars that
+        # scope_env injects and never read the CLI login.
+        await cloud.ensure_login()
+        return _result(
+            await cloud.scope_resource_ids(body.terraform_provider, body.scope_id)
         )
-        return _result(result)
 
     return _submit("scope_resource_ids", workspace, response, _pipeline)
 

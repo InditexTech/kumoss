@@ -43,6 +43,8 @@ def test_env_values_are_read_from_env(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_CREDENTIALS", "{}")
     monkeypatch.setenv("TF_BACKEND_CONFIG", "backend.hcl")
     monkeypatch.setenv("AWS_TERRAFORM_ROLE_NAME", "role/nebula-terraform")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "s3cr3t")
 
     cfg = Config.from_env()
 
@@ -54,3 +56,17 @@ def test_env_values_are_read_from_env(monkeypatch) -> None:
     assert cfg.google_credentials == "{}"
     assert cfg.backend_config == "backend.hcl"
     assert cfg.aws_terraform_role_name == "role/nebula-terraform"
+    assert cfg.aws_access_key_id == "AKIA"
+    assert cfg.aws_secret_access_key == "s3cr3t"
+
+
+def test_aws_keys_default_empty(monkeypatch) -> None:
+    """Unset AWS keys read as empty strings, which the AWS provider treats
+    as "not configured" rather than "partially configured"."""
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+
+    cfg = Config.from_env()
+
+    assert cfg.aws_access_key_id == ""
+    assert cfg.aws_secret_access_key == ""

@@ -27,10 +27,14 @@ from unittest.mock import ANY, AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from src.config import Config
-from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
+from src.cloud_cli import CloudCli
+from src.cloud_cli._azure import AzureProvider
+from src.cloud_cli._gcp import GcpProvider
+from src.config import Config
 from src.engine import CommandResult
+from src.jobs import JobRegistry, WorkspaceQueue
+from src.models import MissingCredentialError
 
 
 # (endpoint, terraform function to stub, extra request fields)
@@ -77,14 +81,16 @@ def _client_with(
         job_ttl=job_ttl,
         **{**_TEST_PROVIDER, **config_overrides},
     )
-    # Fresh queue/registry per test so job records don't leak across tests.
+    # Fresh queue/registry/orchestrator per test so job records and login
+    # state don't leak across tests.
     service_main.workspace_queue = WorkspaceQueue()
     service_main.jobs = JobRegistry(
         ttl_seconds=job_ttl, workspace_queue=service_main.workspace_queue
     )
+    service_main.cloud = CloudCli(service_main.config)
     with (
-        patch("src.cloud_cli._az_login_sp", new_callable=AsyncMock),
-        patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock),
+        patch.object(AzureProvider, "login", new_callable=AsyncMock),
+        patch.object(GcpProvider, "login", new_callable=AsyncMock),
         TestClient(service_main.app) as client,
     ):
         yield client
@@ -518,16 +524,12 @@ def test_endpoints_require_scope_id(
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-def test_job_fails_422_when_no_provider_is_configured(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_job_fails_422_when_no_provider_is_configured(tmp_path: Path) -> None:
     """A scope needs a provider to apply to: with no complete credentials
     the job ends failed(422) listing what is missing, before the engine
     is ever invoked."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
-    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
-    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
 
     with _client_with(
         azure_client_id="", azure_client_secret="", azure_tenant_id=""
@@ -545,33 +547,19 @@ def test_job_fails_422_when_no_provider_is_configured(
     init.assert_not_awaited()
 
 
-def test_job_fails_422_when_aws_keys_are_incomplete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_startup_aborts_when_aws_keys_are_incomplete() -> None:
     """An access key ID without its secret is not usable by the AWS CLI or
-    the provider; preflight must reject it and name the missing variable
-    instead of letting the engine fail later with an opaque auth error."""
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
-    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
-
-    with _client_with(
-        azure_client_id="", azure_client_secret="", azure_tenant_id=""
-    ) as client:
-        with patch("src.engine.init", new_callable=AsyncMock) as init:
-            response = client.post(
-                "/v1/init",
-                json={"workspace_path": str(workspace), "scope_id": "123456789012"},
-            )
-            assert response.status_code == 202
-            body = _poll_until_terminal(client, response.json()["job_id"])
-    assert body["status"] == "failed"
-    assert body["error"]["status"] == 422
-    detail = body["error"]["detail"]
-    assert "aws: AWS_SECRET_ACCESS_KEY" in detail
-    assert "AWS_ACCESS_KEY_ID" not in detail.split("aws:")[1]
-    init.assert_not_awaited()
+    the provider. It is a deployment error, so it must fail the boot naming
+    the missing variable instead of being silently skipped and letting the
+    engine fail later with an opaque auth error."""
+    service_main.config = Config(
+        expected_token="", iac_binary="sh", aws_access_key_id="AKIA-test"
+    )
+    service_main.cloud = CloudCli(service_main.config)
+    with pytest.raises(MissingCredentialError) as exc_info:
+        with TestClient(service_main.app):
+            pass
+    assert exc_info.value.missing == {"AWS": ["AWS_SECRET_ACCESS_KEY"]}
 
 
 _STATE_DOC = {
@@ -661,9 +649,10 @@ def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:
     listed = CommandResult(ok=True, stdout='["id-1", "id-2"]', stderr="", exit_code=0)
     with _client_with() as client:
         with (
-            patch("src.cloud_cli.cli_available", return_value=True),
-            patch(
-                "src.cloud_cli.list_resource_ids",
+            patch.object(service_main.cloud, "cli_available", return_value=True),
+            patch.object(
+                service_main.cloud,
+                "scope_resource_ids",
                 new_callable=AsyncMock,
                 return_value=listed,
             ) as list_mock,
@@ -685,7 +674,7 @@ def test_scope_resource_ids_returns_cli_result_verbatim(tmp_path: Path) -> None:
         "stdout": '["id-1", "id-2"]',
         "stderr": "",
     }
-    list_mock.assert_awaited_once_with("azure", "sub-1", aws_terraform_role_name="")
+    list_mock.assert_awaited_once_with("azure", "sub-1")
 
 
 def test_scope_resource_ids_validation() -> None:
@@ -711,7 +700,7 @@ def test_scope_resource_ids_503_when_cli_missing(tmp_path: Path) -> None:
     workspace.mkdir()
 
     with _client_with() as client:
-        with patch("src.cloud_cli.cli_available", return_value=False):
+        with patch.object(service_main.cloud, "cli_available", return_value=False):
             response = client.post(
                 "/v1/import/scope-resource-ids",
                 json={
@@ -722,3 +711,5 @@ def test_scope_resource_ids_503_when_cli_missing(tmp_path: Path) -> None:
             )
     assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/problem+json")
+    # The message names the CLI binary of the requested provider.
+    assert "gcloud" in response.json()["detail"]

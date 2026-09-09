@@ -15,13 +15,17 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from src import main as service_main
+from src.cloud_cli import CloudCli
+from src.cloud_cli._aws import AwsProvider
+from src.cloud_cli._azure import AzureProvider
+from src.cloud_cli._gcp import GcpProvider
 from src.config import Config
 from src.engine import (
     EngineTimeoutError,
     _plan_file_arg,
     set_timeout,
 )
-from src.models import PlanRequest
+from src.models import LoginError, MissingCredentialError, PlanRequest
 
 from .test_api import _client_with, _poll_until_terminal
 
@@ -151,8 +155,6 @@ def test_startup_aborts_when_a_configured_cloud_login_fails() -> None:
     """Every provider with complete credentials is logged into at startup;
     if any of them fails the service must not come up (a half-authenticated
     service would fail jobs later with confusing engine errors)."""
-    from src import cloud_cli
-
     service_main.config = Config(
         expected_token="",
         iac_binary="sh",
@@ -161,23 +163,37 @@ def test_startup_aborts_when_a_configured_cloud_login_fails() -> None:
         azure_tenant_id="az-tenant",
         google_credentials='{"type": "service_account"}',
     )
-    original = cloud_cli._last_login
-    cloud_cli._last_login = 0.0
-    try:
-        with (
-            patch(
-                "src.cloud_cli._az_login_sp",
-                new_callable=AsyncMock,
-                side_effect=RuntimeError("Azure login failed: bad secret"),
-            ),
-            patch("src.cloud_cli._gcloud_auth", new_callable=AsyncMock) as gcloud,
-            pytest.raises(RuntimeError, match="Cloud login failed for: Azure"),
-        ):
-            with TestClient(service_main.app):
-                pass
-        gcloud.assert_awaited_once()  # GCP was still attempted
-    finally:
-        cloud_cli._last_login = original
+    service_main.cloud = CloudCli(service_main.config)
+    with (
+        patch.object(
+            AzureProvider,
+            "login",
+            new_callable=AsyncMock,
+            side_effect=LoginError({"Azure": "bad secret"}),
+        ),
+        patch.object(GcpProvider, "login", new_callable=AsyncMock) as gcloud,
+        pytest.raises(LoginError, match="Cloud login failed for: Azure: bad secret"),
+    ):
+        with TestClient(service_main.app):
+            pass
+    gcloud.assert_awaited_once()  # GCP was still attempted
+
+
+def test_startup_aborts_when_azure_credentials_are_partial() -> None:
+    """A provider with some but not all of its credential vars set is a
+    deployment mistake. Validation runs before any login, so the boot
+    aborts with MissingCredentialError and no CLI is ever invoked."""
+    service_main.config = Config(
+        expected_token="", iac_binary="sh", azure_client_id="az-id"
+    )
+    service_main.cloud = CloudCli(service_main.config)
+    with (
+        patch.object(AzureProvider, "login", new_callable=AsyncMock) as az,
+        pytest.raises(MissingCredentialError, match="ARM_CLIENT_SECRET, ARM_TENANT_ID"),
+    ):
+        with TestClient(service_main.app):
+            pass
+    az.assert_not_awaited()
 
 
 # -- AssumeRole failures for non-AWS scopes are non-fatal --
@@ -192,7 +208,7 @@ def test_startup_aborts_when_a_configured_cloud_login_fails() -> None:
     ids=["sts-denied", "cli-missing"],
 )
 def test_assume_role_failure_does_not_fail_non_aws_job(
-    failure: Exception, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    failure: Exception, tmp_path: Path
 ) -> None:
     """Cross-cloud plans are not supported: with AWS keys and a role name
     configured, an Azure/GCP scope_id still triggers an AssumeRole attempt
@@ -202,20 +218,20 @@ def test_assume_role_failure_does_not_fail_non_aws_job(
 
     workspace = tmp_path / "ws"
     workspace.mkdir()
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA-test")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "secret-test")
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
 
     with _client_with(
         azure_client_id="az-id",
         azure_client_secret="az-secret",
         azure_tenant_id="az-tenant",
+        aws_access_key_id="AKIA-test",
+        aws_secret_access_key="secret-test",
         aws_terraform_role_name="role/nebula",
     ) as client:
         with (
-            patch("src.cloud_cli.ensure_cloud_login", new_callable=AsyncMock),
-            patch(
-                "src.cloud_cli.aws_assume_role",
+            patch.object(
+                AwsProvider,
+                "_assume_role",
                 new_callable=AsyncMock,
                 side_effect=failure,
             ) as assume,
@@ -229,7 +245,7 @@ def test_assume_role_failure_does_not_fail_non_aws_job(
             body = _poll_until_terminal(client, response.json()["job_id"])
 
     assert body["status"] == "succeeded", body
-    assume.assert_awaited_once_with("sub-uuid-1", "role/nebula")
+    assume.assert_awaited_once_with("sub-uuid-1")
     env = init.await_args.kwargs["env"]
     assert env["ARM_SUBSCRIPTION_ID"] == "sub-uuid-1"
     assert "AWS_SESSION_TOKEN" not in env  # nothing assumed
