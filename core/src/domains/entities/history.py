@@ -8,7 +8,7 @@ from collections.abc import Iterator, Iterable
 
 from src.domains.entities._turn import Turn
 from src.domains.dto import ToolResultDTO, ToolCallDTO
-from src.domains.exceptions import HistoryLastTurnError
+from src.domains.exceptions import HistoryFirstTurnError, HistoryLastTurnError
 from src.shared.logger import logging
 
 
@@ -51,6 +51,14 @@ class History(Iterable[Turn]):  # for the type checker
                 error_code=500,
             )
         return self.__history[-1]
+
+    def get_first_turn(self) -> Turn:
+        if not self.__history:
+            raise HistoryFirstTurnError(
+                message="History is empty. First turn cannot be retrieved.",
+                error_code=500,
+            )
+        return self.__history[0]
 
     def append_turn(
         self,

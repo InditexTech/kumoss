@@ -82,14 +82,15 @@ export const STRINGS = {
   },
 
   support: {
-    buttonText: "LIVE CHAT SUPPORT",
-    creatingNotification: "Creating Teams notification...",
-    creatingButton: "CREATING TEAMS NOTIFICATION",
-    groupCreated: "Nebula AI support group created successfully",
+    buttonText: "CONTACT SUPPORT",
+    creatingNotification: "Sending support request...",
+    creatingButton: "SENDING SUPPORT REQUEST",
+    groupCreated: "Support request sent. The team has been notified.",
+    sendFailed: "Support request could not be sent.",
     openLink: "Click here to open Nebula AI",
     noEmailError: "Error: No user email found. Please login again.",
     tooltip:
-      "Nebula AI support - Will help you to: \
+      "Contact the Nebula team - they will help you to: \
 - See the terraform plan \
 - Analyze the terraform report \
 - Help you to deploy your infraestructure",
@@ -105,6 +106,7 @@ export const STRINGS = {
     maxLengthError: "Question must be 500 characters or less",
     htmlError: "Please remove any HTML or code formatting",
     success: "Your question has been sent successfully",
+    failure: "Your question could not be sent.",
   },
 
   wizard: {

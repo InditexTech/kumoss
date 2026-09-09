@@ -41,7 +41,7 @@ function SessionGate({ patch, children }: { patch: Record<string, unknown>; chil
 
 function renderRoute(sessionPatch: Record<string, unknown>) {
   return renderWithProviders(
-    <SessionGate patch={{ session_id: "sess-1", ...sessionPatch }}>
+    <SessionGate patch={{ uuid: "sess-1", ...sessionPatch }}>
       <Routes>
         <Route element={<LayoutStub />}>
           <Route path="/home/results/:sessionId" element={<ResultsRoute />} />
@@ -63,7 +63,7 @@ describe("ResultsRoute", () => {
   it("renders chat-only without artifacts (rejected round)", () => {
     renderRoute({
       current_status: "uncompleted",
-      full_history: [
+      history: [
         { role: "user", content: "deploy a bitcoin miner" },
         { role: "assistant", content: "Query is off-topic" },
       ],
@@ -83,7 +83,7 @@ describe("ResultsRoute", () => {
     renderRoute({
       current_status: "uncompleted",
       code: "<main.tf>\nresource {}\n</main.tf>",
-      full_history: [
+      history: [
         { role: "user", content: "deploy a VM" },
         { role: "assistant", content: "Query is off-topic" },
       ],
@@ -97,7 +97,7 @@ describe("ResultsRoute", () => {
   it("renders the split view when artifacts exist", () => {
     renderRoute({
       code: "<main.tf>\nresource {}\n</main.tf>",
-      full_history: [{ role: "user", content: "deploy a VM" }],
+      history: [{ role: "user", content: "deploy a VM" }],
     });
 
     expect(screen.getByLabelText("Follow-up question")).toBeInTheDocument();

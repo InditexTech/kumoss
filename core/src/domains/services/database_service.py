@@ -306,6 +306,20 @@ class DatabaseService:
             rows = (await sess.execute(stmt)).scalars().all()
         return [DatabaseService.__user_entity(r) for r in rows], count
 
+    @staticmethod
+    async def list_emails_with_panel_role(minimum: PanelRole) -> list[str]:
+        """Emails of users whose panel role is ``minimum`` or higher.
+
+        Users without an email are skipped: there is nowhere to notify.
+        """
+        roles = [role for role in PanelRole if role.at_least(minimum)]
+        async with db.session() as sess:
+            stmt = select(DbUser.email).where(
+                DbUser.panel_role.in_(roles), DbUser.email.is_not(None)
+            )
+            rows = (await sess.execute(stmt)).scalars().all()
+        return [email for email in rows if email]
+
     # --- Sessions -------------------------------------------------------------
 
     @staticmethod

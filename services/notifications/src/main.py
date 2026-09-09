@@ -65,6 +65,16 @@ async def validation_exception_handler(
     return _problem(422, "Request validation failed", str(exc))
 
 
+@app.exception_handler(httpx.HTTPError)
+async def downstream_error_handler(
+    request: Request, exc: httpx.HTTPError
+) -> JSONResponse:
+    # Slack answered non-2xx or could not be reached: the contract's 502.
+    # No detail on purpose: httpx embeds the request URL in every error
+    # message and the webhook URL is the Slack credential.
+    return _problem(status.HTTP_502_BAD_GATEWAY, "Downstream channel error")
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return _problem(500, "Internal server error", str(exc))
@@ -87,19 +97,5 @@ async def notify(
     authorization: str | None = Header(default=None),
 ) -> NotificationAccepted:
     verify_bearer_token(config, authorization)
-
-    if not config.slack_webhook_url:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Notifications service is running but no SLACK_WEBHOOK_URL is configured.",
-        )
-
-    try:
-        await deliver(body, config.slack_webhook_url, request.app.state.http)
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Slack delivery failed: {exc}",
-        ) from exc
-
+    await deliver(body, config.slack_webhook_url, request.app.state.http)
     return NotificationAccepted(delivery_id=uuid4())

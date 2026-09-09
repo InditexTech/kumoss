@@ -123,7 +123,7 @@ class TerraformCRUDHandler:
                 )
 
                 check = await self.__compliance_svc.check(
-                    request=q,
+                    request=ctx.history.get_first_turn().user,
                     conventions=conventions,
                     plan=validation.terraform_plan,
                 )
@@ -134,8 +134,7 @@ class TerraformCRUDHandler:
                             error_code=500,
                         )
                     await NotificationServiceClient.notify_compliance_failure(
-                        session_id=ctx.id,
-                        summary=check.summary,
+                        ctx.id, ctx.user_id, check.summary
                     )
                 elif not await DatabaseService.set_lock(ctx.id, False):
                     raise SetLockError(

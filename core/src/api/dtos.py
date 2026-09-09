@@ -5,9 +5,10 @@
 """HTTP request/response envelopes owned by the API layer."""
 
 from datetime import datetime
+from typing import Any, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from src.shared.constants import OperationRole, PanelRole
 
@@ -58,3 +59,40 @@ class UpdateUserRolesRequest(BaseModel):
 class SessionLockResponse(BaseModel):
     uuid: UUID
     is_blocked: bool
+
+
+class NotificationLink(BaseModel):
+    """A link the notifications service may render as a button."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=128)
+    url: HttpUrl = Field(max_length=2048)
+
+
+class SubmitNotificationRequest(BaseModel):
+    """Body of ``POST /v1/notifications``.
+
+    Mirrors the contract's ``NotificationRequest`` except for ``audience``,
+    which the core derives from the authenticated caller and the users
+    store instead of trusting the client.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    kind: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Event category, dotted lowercase (e.g. support.user_question).",
+    )
+    severity: Literal["info", "warning", "error", "critical"]
+    subject: str = Field(min_length=1, max_length=256)
+    body: str = Field(min_length=1, max_length=16384)
+    links: list[NotificationLink] = Field(default_factory=list, max_length=32)
+    context: dict[str, Any] = Field(default_factory=dict)
+
+
+class NotificationAcceptedResponse(BaseModel):
+    """The notifications service's delivery id for an accepted request."""
+
+    delivery_id: UUID

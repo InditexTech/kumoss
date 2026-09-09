@@ -8,7 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from src.domains.exceptions import UserNotFound
-from src.domains.services.user_service import DEV_CLAIMS, UserService
+from src.domains.services.user_service import UserService
 from src.domains.value_objects import TokenClaims
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
@@ -114,7 +114,7 @@ class TestUserService(unittest.IsolatedAsyncioTestCase):
         self.assertIs(user.panel_role, PanelRole.ADMIN)
 
     async def test_dev_claims_resolve_to_a_fully_elevated_user(self):
-        user = await UserService.resolve(DEV_CLAIMS)
+        user = await UserService.resolve()
         self.assertIs(user.operation_role, OperationRole.DEVOPS)
         self.assertIs(user.panel_role, PanelRole.ADMIN)
 
@@ -161,3 +161,19 @@ class TestUserService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(total, 1)
         _, total = await UserService.list_users(search="corp.example")
         self.assertEqual(total, 2)
+
+    async def test_emails_with_panel_role_returns_editor_and_above_only(self):
+        viewer = await UserService.resolve(_claims(email="viewer@corp.example"))
+        editor = await UserService.resolve(_claims(email="editor@corp.example"))
+        admin = await UserService.resolve(_claims(email="admin@corp.example"))
+        _ = await UserService.resolve(_claims(email="dev@corp.example"))
+        for user, role in (
+            (viewer, PanelRole.VIEWER),
+            (editor, PanelRole.EDITOR),
+            (admin, PanelRole.ADMIN),
+        ):
+            _ = await UserService.set_roles(
+                user.id, operation_role=OperationRole.DEVELOPER, panel_role=role
+            )
+        emails = await UserService.emails_with_panel_role(PanelRole.EDITOR)
+        self.assertEqual(sorted(emails), ["admin@corp.example", "editor@corp.example"])

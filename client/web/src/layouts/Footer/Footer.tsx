@@ -8,6 +8,7 @@ import { useCurrentView } from "@/hooks/useCurrentView";
 import { Slide, Tooltip } from "@mui/material";
 import Typography from "@mui/material/Typography";
 import { ProviderIcon } from "@/components/ui";
+import { extractProjectName } from "@/utils/workspace";
 import UserSessionsHistory from "./UserSessionsHistory";
 import styles from "./Footer.module.css";
 
@@ -21,15 +22,11 @@ const Footer = () => {
 
   const isTimelineMode = view === null || view === "wizard";
 
-  const extractProjectName = (url: string) => {
-    return url.split("/").pop() || url;
-  };
+  const repoUri = session.workspace?.uri;
+  const rootPath = session.workspace?.root_path;
 
   const hasContent =
-    !!session.firstQuery ||
-    !!session.cloud ||
-    !!session.project ||
-    !!session.environment;
+    !!session.first_query || !!session.provider || !!repoUri || !!rootPath;
 
   if (isTimelineMode) {
     return (
@@ -51,46 +48,46 @@ const Footer = () => {
       unmountOnExit
     >
       <div className={styles.footerContainer}>
-        {session.firstQuery && (
+        {session.first_query && (
           <div className={styles.containerUnitLarge}>
             <Typography variant="h3">Query</Typography>
             <span>/</span>
-            <Tooltip title={session.firstQuery} arrow>
+            <Tooltip title={session.first_query} arrow>
               <Typography variant="h3" className={styles.mainMsg}>
-                {session.firstQuery}
+                {session.first_query}
               </Typography>
             </Tooltip>
           </div>
         )}
-        {session.project && (
+        {repoUri && (
           <div className={styles.containerUnit}>
             <Typography variant="h3">Project</Typography>
             <span>/</span>
-            <Tooltip title={session.project} arrow>
+            <Tooltip title={repoUri} arrow>
               <Typography variant="h3" className={styles.mainMsg}>
-                {extractProjectName(session.project)}
+                {extractProjectName(repoUri)}
               </Typography>
             </Tooltip>
           </div>
         )}
-        {session.environment && (
+        {rootPath && (
           <div className={styles.containerUnitSmall}>
             <Typography variant="h3">Path</Typography>
             <span>/</span>
-            <Tooltip title={session.environment} arrow>
+            <Tooltip title={rootPath} arrow>
               <Typography variant="h3" className={styles.mainMsg}>
-                {session.environment}
+                {rootPath}
               </Typography>
             </Tooltip>
           </div>
         )}
-        {session.cloud && (
+        {session.provider && (
           <div className={styles.containerUnitIcon}>
-            <Tooltip title={session.cloud} arrow>
+            <Tooltip title={session.provider} arrow>
               <ProviderIcon
-                provider={session.cloud}
+                provider={session.provider}
                 className={styles.providerBadge}
-                aria-label={session.cloud}
+                aria-label={session.provider}
               />
             </Tooltip>
           </div>

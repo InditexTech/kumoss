@@ -22,6 +22,9 @@ RUN groupadd --gid "${NEBULA_GID}" nebula \
 
 WORKDIR /app
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# OpenTofu and Terraform CLI installation
 ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
@@ -35,8 +38,11 @@ RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
     && apt-get purge -y unzip \
     && rm -rf /var/lib/apt/lists/*
 
+
+# AWS and GCP CLI installation
 ARG AWSCLI_VERSION=2.28.0
 ARG GCLOUD_VERSION=540.0.0
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl unzip ca-certificates \
     && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscliv2.zip \
@@ -49,22 +55,27 @@ RUN apt-get update \
     && apt-get purge -y unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir uv
-
-# az is pip-installed (simplest route on a python base image); the
-# `az graph` command group lives in the resource-graph extension.
+# Azure CLI: installed into system Python using uv pip (much faster than standard pip)
 ENV AZURE_EXTENSION_DIR=/opt/azure-cli-extensions
-RUN pip install --no-cache-dir azure-cli \
+RUN uv pip install --system --no-cache azure-cli \
     && AZURE_CONFIG_DIR=/tmp/az-build az extension add --name resource-graph \
     && rm -rf /tmp/az-build
 
-COPY pyproject.toml ./
-RUN uv pip install --system --no-cache .
-
-COPY src ./src
-
-ENV HOME=/home/nebula \
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=120 \
+    UV_CONCURRENT_DOWNLOADS=4 \
+    PATH="/app/.venv/bin:$PATH" \
+    HOME=/home/nebula \
     PYTHONDONTWRITEBYTECODE=1
+
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-install-project --no-dev
+
+COPY --chown=nebula:nebula src ./src
+
+RUN uv sync --frozen --no-dev
 
 USER ${NEBULA_UID}:${NEBULA_GID}
 

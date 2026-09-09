@@ -7,8 +7,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.deps import CurrentUser, assert_session_access, get_current_user
+from src.api.deps import assert_session_access, get_current_user
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
+from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.shared.constants import OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/sessions", tags=["Session Management"])
     summary="List the caller's sessions.",
 )
 async def sessions_list(
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     operation: Annotated[OperationType | None, Query()] = None,
@@ -57,7 +58,7 @@ async def sessions_list(
 )
 async def session_detail(
     session_id: UUID,
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
     include_history: Annotated[
         bool,
         Query(description="Include the session's serialized conversation history."),

@@ -8,14 +8,10 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.api.deps import (
-    CurrentUser,
-    assert_session_access,
-    require_operation_role,
-)
+from src.api.deps import assert_session_access, require_operation_role
 from src.application.factory import ApplicationFactory
 from src.domains.dto import PullRequestDTO
-from src.domains.entities import SessionContext
+from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
@@ -45,9 +41,7 @@ async def complete_pr(
             embed=True,
         ),
     ],
-    user: Annotated[
-        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
-    ],
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> None:
     await assert_session_access(user, session_id, write=True)
     try:
@@ -78,9 +72,7 @@ async def create_pr(
             embed=True,
         ),
     ],
-    user: Annotated[
-        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
-    ],
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> PullRequestDTO:
     await assert_session_access(user, session_id, write=True)
     try:

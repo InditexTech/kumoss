@@ -39,10 +39,10 @@ export default function PrApprovalView({
     session.terraform_report?.potential_impact?.banner?.level === "high";
 
   const handleConfirmApply = useCallback(async () => {
-    if (!prDetails.id || !session.session_id || approving) return;
+    if (!prDetails.number || !session.uuid || approving) return;
     setApproving(true);
     try {
-      await mergePullRequest({ session_id: session.session_id });
+      await mergePullRequest({ session_id: session.uuid });
       onApprove();
     } catch (err) {
       showNotification(
@@ -53,15 +53,15 @@ export default function PrApprovalView({
       onStepChange("initial");
     }
   }, [
-    prDetails.id,
-    session.session_id,
+    prDetails.number,
+    session.uuid,
     approving,
     onApprove,
     showNotification,
     onStepChange,
   ]);
 
-  if (session.apply_allowed === false) {
+  if (session.is_blocked) {
     return (
       <div className={styles.blockedContainer}>
         <Typography variant="h1" className={styles.heading}>
@@ -91,7 +91,7 @@ export default function PrApprovalView({
     );
   }
 
-  const showViewPr = prDetails.prUrl && isAllowedUrl(prDetails.prUrl);
+  const showViewPr = prDetails.url && isAllowedUrl(prDetails.url);
 
   if (highImpactWarning) {
     return (
@@ -120,7 +120,7 @@ export default function PrApprovalView({
             className={styles.dangerBtn}
             type="button"
             onClick={handleConfirmApply}
-            disabled={approving || !prDetails.id}
+            disabled={approving || !prDetails.number}
           >
             {approving ? "Applying…" : STRINGS.pr.highImpactConfirm}
           </button>
@@ -160,7 +160,7 @@ export default function PrApprovalView({
                 ? () => onStepChange("high_impact_warning")
                 : handleConfirmApply
             }
-            disabled={approving || !prDetails.id}
+            disabled={approving || !prDetails.number}
           >
             {approving ? "Applying…" : STRINGS.pr.confirmApply}
           </button>
@@ -186,7 +186,7 @@ export default function PrApprovalView({
         {showViewPr && (
           <a
             className={styles.noAnchor}
-            href={prDetails.prUrl}
+            href={prDetails.url}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -199,7 +199,7 @@ export default function PrApprovalView({
           className={styles.filledBtn}
           type="button"
           onClick={() => onStepChange("confirming")}
-          disabled={approving || !prDetails.id}
+          disabled={approving || !prDetails.number}
         >
           {STRINGS.assistant.approvePrAndApply}
         </button>

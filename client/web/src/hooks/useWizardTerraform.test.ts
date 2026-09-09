@@ -63,18 +63,17 @@ describe("useWizardTerraform — handleOutcome", () => {
     act(() => result.current.terraform.handleOutcome(outcome));
 
     const session = result.current.session.session;
-    expect(session.session_id).toBe("sess-1");
+    expect(session.uuid).toBe("sess-1");
     expect(session.code).toContain("<main.tf>");
-    expect(session.cloud).toBe("azure");
-    expect(session.branchName).toBe("nebula/sess-1");
-    expect(session.apply_allowed).toBe(true);
-    expect(session.terraform_targets).toEqual(["azurerm_resource_group.main"]);
+    expect(session.provider).toBe("azure");
+    expect(session.workspace?.branch).toBe("nebula/sess-1");
+    expect(session.is_blocked).toBe(false);
     // Rebuilt from {user, assistant} turns, plus the appended summary
-    expect(session.full_history?.[0]).toEqual({
+    expect(session.history?.[0]).toEqual({
       role: "user",
       content: "deploy a VM",
     });
-    expect(session.full_history?.[session.full_history.length - 1].role).toBe(
+    expect(session.history?.[session.history.length - 1].role).toBe(
       "assistant",
     );
   });
@@ -126,7 +125,7 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     act(() =>
       result.current.session.updateSession({
-        session_id: "sess-1",
+        uuid: "sess-1",
         code: "previous code",
         terraform_report: { status: "ok" },
       }),
@@ -143,7 +142,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     const session = result.current.session.session;
     expect(session.code).toBe("previous code");
     expect(session.terraform_report).toEqual({ status: "ok" });
-    expect(session.full_history?.[session.full_history.length - 1]).toEqual({
+    expect(session.history?.[session.history.length - 1]).toEqual({
       role: "assistant",
       content: "Query is off-topic",
     });
@@ -168,10 +167,10 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     // No code/report → the results route renders the history panel chat-only
     const session = result.current.session.session;
-    expect(session.session_id).toBe("sess-1");
+    expect(session.uuid).toBe("sess-1");
     expect(session.code).toBeUndefined();
     expect(session.terraform_report).toBeUndefined();
-    expect(session.full_history?.[session.full_history.length - 1]).toEqual({
+    expect(session.history?.[session.history.length - 1]).toEqual({
       role: "assistant",
       content: "Query is off-topic",
     });
@@ -201,7 +200,7 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     act(() => result.current.terraform.handleOutcome(outcome));
 
-    const history = result.current.session.session.full_history!;
+    const history = result.current.session.session.history!;
     expect(
       history.filter((m) => m.content === "Query is off-topic"),
     ).toHaveLength(1);
@@ -227,7 +226,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(result.current.session.session.current_status).toBe("failed");
   });
 
-  it("keeps live wizard values over derived fallbacks", () => {
+  it("replaces the wizard's partial workspace with the backend's facts", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -238,15 +237,20 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     act(() =>
       result.current.session.updateSession({
-        project: "mapper-project",
-        environment: "wizard/path",
+        workspace: {
+          uri: "https://dev.azure.com/org/project/_git/repo",
+          root_path: "environments/dev",
+        },
       }),
     );
 
     act(() => result.current.terraform.handleOutcome(makeResultsOutcome()));
 
-    expect(result.current.session.session.project).toBe("mapper-project");
-    expect(result.current.session.session.environment).toBe("wizard/path");
+    expect(result.current.session.session.workspace).toEqual({
+      uri: "https://dev.azure.com/org/project/_git/repo",
+      branch: "nebula/sess-1",
+      root_path: "environments/dev",
+    });
   });
 
   it("invalidates the sessions cache on every outcome", () => {

@@ -133,12 +133,12 @@ class TestPlanToDriftTagValues(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         changes = result[0]["changes"]
-        # Individual tag additions
-        self.assertIn("dictionary_item_added", changes)
-        added = changes["dictionary_item_added"]
-        self.assertIsInstance(added, dict)
-        self.assertEqual(added["root['tags']['environment']"], "pro")
-        self.assertEqual(added["root['tags']['project']"], "pixia")
+        self.assertIn("values_changed", changes)
+        tags_change = changes["values_changed"]["root['tags']"]
+        self.assertEqual(tags_change["old_value"], {})
+        self.assertEqual(
+            tags_change["new_value"], {"environment": "pro", "project": "pixia"}
+        )
 
     def test_mixed_tag_and_attribute_changes(self):
         """Tags and non-tag attributes drifting in the same resource."""

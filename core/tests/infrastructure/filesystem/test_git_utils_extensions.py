@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the new GitUtils primitives: ls_remote, push_branch,
-and the extended clone_repository (create_branch).
+"""Tests for the GitUtils primitives: ls_remote, clone_repository and
+push_branch.
 
 These tests use a file:// bare repo so they run without network access.
 """
@@ -59,13 +59,15 @@ class TestLsRemote(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_returns_true_for_reachable_remote(self):
-        git = GitUtils(git_provider=_PROVIDER, cwd=_TMP_DIR)
-        result = await git.ls_remote(self.uri)
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=_TMP_DIR)
+        result = await git.ls_remote()
         self.assertTrue(result)
 
     async def test_returns_false_for_bogus_remote(self):
-        git = GitUtils(git_provider=_PROVIDER, cwd=_TMP_DIR)
-        result = await git.ls_remote("file:///no/such/repo.git")
+        git = GitUtils(
+            uri="file:///no/such/repo.git", git_provider=_PROVIDER, cwd=_TMP_DIR
+        )
+        result = await git.ls_remote()
         self.assertFalse(result)
 
 
@@ -79,29 +81,8 @@ class TestCloneRepositoryExtensions(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    async def test_clone_with_create_branch(self):
-        git = GitUtils(git_provider=_PROVIDER, cwd=self.clone_root)
-        clone_name = "myclone"
-        ok = await git.clone_repository(
-            repo_url=self.uri,
-            repository_name=clone_name,
-            branch="Nebula/new-feat",
-            create_branch=True,
-        )
-        self.assertTrue(ok)
-        clone_dir = self.clone_root / clone_name
-        self.assertTrue(clone_dir.is_dir())
-        current = (
-            subprocess.check_output(
-                ["git", "-C", str(clone_dir), "branch", "--show-current"]
-            )
-            .decode()
-            .strip()
-        )
-        self.assertEqual(current, "Nebula/new-feat")
-
     async def test_clone_without_branch_uses_default(self):
-        git = GitUtils(git_provider=_PROVIDER, cwd=self.clone_root)
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=self.clone_root)
         ok = await git.clone_repository(
             repo_url=self.uri,
             repository_name="defaultclone",
@@ -117,46 +98,6 @@ class TestCloneRepositoryExtensions(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(current, "main")
 
-    async def test_clone_with_branch_checkout(self):
-        # Push an extra branch to the remote first.
-        seed = self.tmp / "seed"
-        subprocess.check_call(["git", "clone", str(self.bare), str(seed)])
-        subprocess.check_call(["git", "-C", str(seed), "checkout", "-b", "feature/x"])
-        (seed / "feature.txt").write_text("x\n")
-        subprocess.check_call(["git", "-C", str(seed), "add", "."])
-        subprocess.check_call(
-            [
-                "git",
-                "-C",
-                str(seed),
-                "-c",
-                "user.email=t@t",
-                "-c",
-                "user.name=t",
-                "commit",
-                "-m",
-                "feature",
-            ]
-        )
-        subprocess.check_call(["git", "-C", str(seed), "push", "origin", "feature/x"])
-
-        git = GitUtils(git_provider=_PROVIDER, cwd=self.clone_root)
-        ok = await git.clone_repository(
-            repo_url=self.uri,
-            repository_name="featclone",
-            branch="feature/x",
-        )
-        self.assertTrue(ok)
-        clone_dir = self.clone_root / "featclone"
-        current = (
-            subprocess.check_output(
-                ["git", "-C", str(clone_dir), "branch", "--show-current"]
-            )
-            .decode()
-            .strip()
-        )
-        self.assertEqual(current, "feature/x")
-
 
 class TestPushBranch(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -169,18 +110,18 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_push_branch_appears_on_origin(self):
-        # Clone + create branch
         clone_name = "pushclone"
-        git_clone = GitUtils(git_provider=_PROVIDER, cwd=self.clone_root)
+        git_clone = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=self.clone_root)
         ok = await git_clone.clone_repository(
             repo_url=self.uri,
             repository_name=clone_name,
-            branch="Nebula/push-branch",
-            create_branch=True,
         )
         self.assertTrue(ok)
 
         clone_dir = self.clone_root / clone_name
+        subprocess.check_call(
+            ["git", "-C", str(clone_dir), "checkout", "-b", "Nebula/push-branch"]
+        )
         # Make a commit so there's something to push
         (clone_dir / "new.txt").write_text("content\n")
         subprocess.check_call(["git", "-C", str(clone_dir), "add", "."])
@@ -199,7 +140,7 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        git_push = GitUtils(git_provider=_PROVIDER, cwd=clone_dir)
+        git_push = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=clone_dir)
         pushed = await git_push.push_branch("Nebula/push-branch")
         self.assertTrue(pushed)
 
@@ -230,7 +171,7 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
                 "init",
             ]
         )
-        git = GitUtils(git_provider=_PROVIDER, cwd=empty)
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=empty)
         self.assertFalse(await git.push_branch("main"))
         self.assertTrue(git.error_msg)
 
