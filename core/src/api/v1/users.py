@@ -6,8 +6,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
 from src.api.dtos import UserMeResponse
+from src.domains.entities import User
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
     summary="The authenticated caller's identity and roles.",
 )
 async def users_me(
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ) -> UserMeResponse:
     return UserMeResponse(
         id=user.id,

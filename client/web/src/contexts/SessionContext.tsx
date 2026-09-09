@@ -25,27 +25,9 @@ const SessionContext = createContext<SessionContextValue | undefined>(
   undefined,
 );
 
-const initialSession: Session = {
-  session_id: undefined,
-  cloud: undefined,
-  project: undefined,
-  environment: undefined,
-  uniqueRepositoryName: undefined,
-  branchName: undefined,
-  firstQuery: undefined,
-  validatorProvider: undefined,
-  terraform_targets: undefined,
-  terraform_report: undefined,
-  userQueries: [],
-  full_history: undefined,
-  apply_allowed: undefined,
-  current_status: undefined,
-};
+const initialSession: Session = {};
 
-const initialPrDetails: PrDetails = {
-  prUrl: undefined,
-  id: undefined,
-};
+const initialPrDetails: PrDetails = {};
 
 export function SessionProvider({
   children,

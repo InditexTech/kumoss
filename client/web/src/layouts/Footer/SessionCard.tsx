@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { extractProjectName } from "@/utils/workspace";
 import Typography from "@mui/material/Typography";
 import type { SessionSummary } from "@/types/api";
 import styles from "./SessionCard.module.css";
@@ -16,11 +17,6 @@ function formatDate(dateStr: string): string {
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   return `${day}.${month}.${d.getFullYear()}`;
-}
-
-function extractProjectName(repoUri: string): string {
-  const segments = repoUri.replace(/\/+$/, "").split("/");
-  return segments[segments.length - 1] || repoUri;
 }
 
 export default function SessionCard({ session, onClick }: SessionCardProps) {

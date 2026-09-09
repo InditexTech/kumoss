@@ -18,7 +18,7 @@ describe("support notification builders", () => {
   it("buildSupportContext maps session fields and keeps missing ones as null", () => {
     const ctx = buildSupportContext({
       user,
-      session: { session_id: "s1", cloud: "gcp", firstQuery: "add a bucket", userQueries: [] },
+      session: { uuid: "s1", provider: "gcp", first_query: "add a bucket" },
       prDetails: {},
       extra: { trigger: "manual" },
     });
@@ -29,26 +29,51 @@ describe("support notification builders", () => {
       cloud: "gcp",
       request: "add a bucket",
       project: null,
+      repository: null,
+      branch: null,
+      environment: null,
       pull_request: null,
       trigger: "manual",
     });
   });
 
+  it("buildSupportContext derives the project and workspace fields from the workspace", () => {
+    const ctx = buildSupportContext({
+      user,
+      session: {
+        uuid: "s1",
+        workspace: {
+          uri: "https://github.com/org/bucket-infra",
+          branch: "nebula/s1",
+          root_path: "envs/dev",
+        },
+      },
+      prDetails: { url: "https://github.com/org/bucket-infra/pull/3" },
+    });
+    expect(ctx).toMatchObject({
+      project: "bucket-infra",
+      repository: "https://github.com/org/bucket-infra",
+      branch: "nebula/s1",
+      environment: "envs/dev",
+      pull_request: "https://github.com/org/bucket-infra/pull/3",
+    });
+  });
+
   it("buildSupportLinks adds the session page and the PR when present", () => {
     expect(
-      buildSupportLinks({ session_id: "s1", userQueries: [] }, { prUrl: "https://x/pr/1" }, "https://nebula.example"),
+      buildSupportLinks({ uuid: "s1" }, { url: "https://x/pr/1" }, "https://nebula.example"),
     ).toEqual([
       { label: "Open session", url: "https://nebula.example/home/results/s1" },
       { label: "Pull request", url: "https://x/pr/1" },
     ]);
-    expect(buildSupportLinks({ userQueries: [] }, {}, "https://nebula.example")).toEqual([]);
+    expect(buildSupportLinks({}, {}, "https://nebula.example")).toEqual([]);
   });
 
   it("buildSupportSubject names the user and the session", () => {
-    expect(buildSupportSubject("Support request", user, { session_id: "s1", userQueries: [] })).toBe(
+    expect(buildSupportSubject("Support request", user, { uuid: "s1" })).toBe(
       "Support request from someone@example.com – session s1",
     );
-    expect(buildSupportSubject("Support question", null, { userQueries: [] })).toBe(
+    expect(buildSupportSubject("Support question", null, {})).toBe(
       "Support question from unknown user",
     );
   });

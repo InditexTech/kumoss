@@ -53,7 +53,7 @@ export default function SupportModal({ onClose }: SupportModalProps) {
     try {
       await sendNotification({
         kind: "support.user_question",
-        severity: NotificationSeverity.INFO,
+        severity: NotificationSeverity.WARNING,
         subject: buildSupportSubject("Support question", user, session),
         body: question.trim(),
         links: buildSupportLinks(session, prDetails),

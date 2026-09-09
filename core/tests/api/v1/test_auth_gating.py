@@ -10,15 +10,17 @@ real IdP.
 """
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import patch
 from uuid import uuid4
 
 from httpx import ASGITransport, AsyncClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
+from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
-from src.infrastructure.database.models import Base, User
+from src.infrastructure.database.models import Base, User as DbUser
 from src.infrastructure.redis import redis_client
 from src.main import app
 from src.shared.constants import (
@@ -33,8 +35,8 @@ def _user(
     pk: int,
     operation_role: OperationRole = OperationRole.DEVELOPER,
     panel_role: PanelRole | None = None,
-) -> CurrentUser:
-    return CurrentUser(
+) -> User:
+    return User(
         id=pk,
         issuer="urn:test",
         subject=f"sub-{pk}",
@@ -42,6 +44,7 @@ def _user(
         display_name=f"User {pk}",
         operation_role=operation_role,
         panel_role=panel_role,
+        created_at=datetime.now(UTC),
     )
 
 
@@ -62,12 +65,12 @@ class _GatingBase(unittest.IsolatedAsyncioTestCase):
         await redis_client.close()
         await db.close()
 
-    def _act_as(self, user: CurrentUser) -> None:
+    def _act_as(self, user: User) -> None:
         app.dependency_overrides[get_current_user] = lambda: user
 
     async def _seed_session(self, email: str):
         user = await db.create(
-            User, issuer="urn:test", subject=f"sub-{uuid4().hex[:8]}", email=email
+            DbUser, issuer="urn:test", subject=f"sub-{uuid4().hex[:8]}", email=email
         )
         sid = uuid4()
         _ = await DatabaseService.create_session(

@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
+from src.domains.entities import User
 from src.infrastructure.filesystem.workspace import InvalidRepoURI
 from src.main import app
 from src.shared.constants import OperationRole
@@ -20,8 +22,8 @@ def _mock_service(detect_roots: AsyncMock) -> MagicMock:
     return svc
 
 
-def _caller() -> CurrentUser:
-    return CurrentUser(
+def _caller() -> User:
+    return User(
         id=7,
         issuer="urn:test",
         subject="sub",
@@ -29,6 +31,7 @@ def _caller() -> CurrentUser:
         display_name="Dev",
         operation_role=OperationRole.DEVELOPER,
         panel_role=None,
+        created_at=datetime.now(UTC),
     )
 
 

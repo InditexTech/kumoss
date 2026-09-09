@@ -137,7 +137,7 @@ class NotificationServiceClient:
         if not NotificationServiceClient.enabled():
             return
         _ = await NotificationServiceClient.notify(
-            kind="iac.compliance.check_failed",
+            kind="iac.compliance.failed",
             severity=NotificationRequestSeverity.WARNING,
             subject=f"Compliance check failed – session {session_id}",
             body=summary,

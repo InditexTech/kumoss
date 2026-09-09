@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+from datetime import UTC, datetime
 from unittest.mock import patch, AsyncMock, MagicMock
 
 from fastapi.testclient import TestClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
+from src.domains.entities import User
 from src.main import app
 from src.domains.dto import PullRequestDTO, PullRequestRef
 from src.shared.constants import OperationRole
@@ -17,8 +19,8 @@ _REPO_URI = "https://github.com/org/repo"
 _SID = "00000000-0000-0000-0000-000000000001"
 
 
-def _caller(pk: int = 7) -> CurrentUser:
-    return CurrentUser(
+def _caller(pk: int = 7) -> User:
+    return User(
         id=pk,
         issuer="urn:test",
         subject="sub",
@@ -26,6 +28,7 @@ def _caller(pk: int = 7) -> CurrentUser:
         display_name="Dev",
         operation_role=OperationRole.DEVELOPER,
         panel_role=None,
+        created_at=datetime.now(UTC),
     )
 
 

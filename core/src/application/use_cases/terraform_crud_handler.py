@@ -123,7 +123,7 @@ class TerraformCRUDHandler:
                 )
 
                 check = await self.__compliance_svc.check(
-                    request=q,
+                    request=ctx.history.get_first_turn().user,
                     conventions=conventions,
                     plan=validation.terraform_plan,
                 )

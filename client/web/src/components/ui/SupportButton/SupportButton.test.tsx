@@ -81,13 +81,12 @@ describe("SupportButton", () => {
 
     renderButton(
       {
-        session_id: SESSION_ID,
-        cloud: "azure",
-        project: "demo",
-        environment: "dev",
-        firstQuery: "Create a storage account in west europe",
+        uuid: SESSION_ID,
+        provider: "azure",
+        workspace: { uri: "https://github.com/org/demo", root_path: "dev" },
+        first_query: "Create a storage account in west europe",
       },
-      { prUrl: "https://github.com/org/infra/pull/7" },
+      { url: "https://github.com/org/infra/pull/7" },
     );
 
     await userEvent.click(screen.getByRole("button", { name: STRINGS.support.buttonText }));
@@ -107,6 +106,7 @@ describe("SupportButton", () => {
         cloud: "azure",
         project: "demo",
         environment: "dev",
+        repository: "https://github.com/org/demo",
         request: "Create a storage account in west europe",
         pull_request: "https://github.com/org/infra/pull/7",
         has_deletes_or_recreates: false,
@@ -122,7 +122,7 @@ describe("SupportButton", () => {
     mockState.addSession(makeSessionDetail({ uuid: SESSION_ID, is_blocked: false }));
     const received = captureNotification();
 
-    renderButton({ session_id: SESSION_ID }, undefined, true);
+    renderButton({ uuid: SESSION_ID }, undefined, true);
 
     await waitFor(() => expect(received.current).not.toBeNull());
     expect(received.current).toMatchObject({
@@ -141,7 +141,7 @@ describe("SupportButton", () => {
       }),
     );
 
-    renderButton({ session_id: SESSION_ID });
+    renderButton({ uuid: SESSION_ID });
     await userEvent.click(screen.getByRole("button", { name: STRINGS.support.buttonText }));
 
     await waitFor(() => expect(received).not.toBeNull());

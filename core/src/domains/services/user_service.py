@@ -13,13 +13,12 @@ from src.domains.value_objects import TokenClaims
 from src.shared.config.system_config import system_config
 from src.shared.constants import OperationRole, PanelRole
 
-_DEV_ISSUER = "urn:nebula:dev"
 
 # Identity used for every request while OIDC auth is disabled (blank
 # issuer_url). Resolved into a real users row so session FKs and the
 # admin panel work in local dev; always elevated to the top roles.
-DEV_CLAIMS = TokenClaims(
-    issuer=_DEV_ISSUER,
+_DEV_CLAIMS = TokenClaims(
+    issuer="urn:nebula:dev",
     subject="dev",
     email="dev@nebula.local",
     name="Local Developer",
@@ -31,9 +30,11 @@ class UserService:
     """Identity resolution and role rules over the users store."""
 
     @staticmethod
-    async def resolve(claims: TokenClaims) -> User:
+    async def resolve(claims: TokenClaims | None = None) -> User:
         """Resolve token claims into the internal user, creating it on
         first login and syncing profile/elevation on every call."""
+        if claims is None:
+            claims = _DEV_CLAIMS
         user = await DatabaseService.get_user_by_identity(claims.issuer, claims.subject)
         if user is None:
             user = await UserService.__provision(claims)
@@ -41,7 +42,7 @@ class UserService:
 
     @staticmethod
     def __is_elevated(claims: TokenClaims) -> bool:
-        if claims.issuer == _DEV_ISSUER:
+        if claims.issuer == _DEV_CLAIMS.issuer:
             return True
         if claims.email is None or not claims.email_verified:
             return False

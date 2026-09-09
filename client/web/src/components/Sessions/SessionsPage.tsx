@@ -395,8 +395,8 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     if (outcome.kind === "rejected") {
       updateSession({
         ...patch,
-        full_history: [
-          ...(patch.full_history ?? []),
+        history: [
+          ...(patch.history ?? []),
           {
             role: "assistant" as const,
             content: buildAssistantMessage(outcome),

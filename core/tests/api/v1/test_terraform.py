@@ -5,12 +5,14 @@
 import subprocess
 import tempfile
 import unittest
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
+from src.domains.entities import User
 from src.main import app
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
@@ -18,8 +20,8 @@ from src.shared.config import system_config
 from src.shared.constants import OperationRole
 
 
-def _caller() -> CurrentUser:
-    return CurrentUser(
+def _caller() -> User:
+    return User(
         id=1,
         issuer="urn:test",
         subject="sub",
@@ -27,6 +29,7 @@ def _caller() -> CurrentUser:
         display_name="Dev",
         operation_role=OperationRole.DEVELOPER,
         panel_role=None,
+        created_at=datetime.now(UTC),
     )
 
 

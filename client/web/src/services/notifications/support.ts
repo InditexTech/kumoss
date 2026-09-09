@@ -16,6 +16,7 @@
 import type { UserInfo } from "@/types";
 import type { Session, PrDetails } from "@/types/ui";
 import type { NotificationLink } from "@/types/api_notifications";
+import { extractProjectName } from "@/utils/workspace";
 
 export interface SupportContextInput {
   user: UserInfo | null;
@@ -35,15 +36,17 @@ export function buildSupportContext({
   return {
     user_email: user?.email ?? null,
     user_name: user?.displayName ?? null,
-    session_id: session.session_id ?? null,
-    cloud: session.cloud ?? null,
-    project: session.project ?? null,
-    environment: session.environment ?? null,
-    repository: session.repositoryUrl ?? null,
-    branch: session.branchName ?? null,
-    request: session.firstQuery ?? null,
+    session_id: session.uuid ?? null,
+    cloud: session.provider ?? null,
+    project: session.workspace?.uri
+      ? extractProjectName(session.workspace.uri)
+      : null,
+    environment: session.workspace?.root_path ?? null,
+    repository: session.workspace?.uri ?? null,
+    branch: session.workspace?.branch ?? null,
+    request: session.first_query ?? null,
     status: session.current_status ?? null,
-    pull_request: prDetails.prUrl ?? null,
+    pull_request: prDetails.url ?? null,
     ...extra,
   };
 }
@@ -56,14 +59,14 @@ export function buildSupportLinks(
   origin: string = globalThis.location?.origin ?? "",
 ): NotificationLink[] {
   const links: NotificationLink[] = [];
-  if (session.session_id && origin) {
+  if (session.uuid && origin) {
     links.push({
       label: "Open session",
-      url: `${origin}/home/results/${session.session_id}`,
+      url: `${origin}/home/results/${session.uuid}`,
     });
   }
-  if (prDetails.prUrl) {
-    links.push({ label: "Pull request", url: prDetails.prUrl });
+  if (prDetails.url) {
+    links.push({ label: "Pull request", url: prDetails.url });
   }
   return links;
 }
@@ -75,6 +78,6 @@ export function buildSupportSubject(
   session: Session,
 ): string {
   const who = user?.email ?? "unknown user";
-  const where = session.session_id ? ` – session ${session.session_id}` : "";
+  const where = session.uuid ? ` – session ${session.uuid}` : "";
   return `${prefix} from ${who}${where}`;
 }
