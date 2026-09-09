@@ -46,6 +46,7 @@ class ReportService:
             ReportType.GENERATE: 0,
             ReportType.DRIFT: 1,
             ReportType.APPLY: 2,
+            ReportType.IMPORT: 0,
         }.get(type, 0)
 
         _ = await self.__session_svc.update_status(
