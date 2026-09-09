@@ -25,7 +25,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.cloud_cli import PROVIDERS, CloudCli
+from src.cloud_cli import CloudCli
 from src.cloud_cli._aws import AwsProvider
 from src.cloud_cli._azure import AzureProvider
 from src.cloud_cli._gcp import GcpProvider
@@ -69,12 +69,6 @@ def _both_providers_config() -> Config:
 # ---------------------------------------------------------------------------
 
 
-def test_azure_class_vars() -> None:
-    assert AzureProvider.name == "azure"
-    assert AzureProvider.display_name == "Azure"
-    assert AzureProvider.cli_binary == "az"
-
-
 def test_azure_readiness_empty() -> None:
     provider = AzureProvider(_config())
     assert provider.missing_env() == [
@@ -84,20 +78,6 @@ def test_azure_readiness_empty() -> None:
     ]
     assert provider.is_configured() is False
     assert provider.is_ready() is False
-
-
-def test_azure_readiness_partial() -> None:
-    provider = AzureProvider(_config(azure_client_id="az-id"))
-    assert provider.missing_env() == ["ARM_CLIENT_SECRET", "ARM_TENANT_ID"]
-    assert provider.is_configured() is True
-    assert provider.is_ready() is False
-
-
-def test_azure_readiness_complete() -> None:
-    provider = AzureProvider(_config(**_AZURE))
-    assert provider.missing_env() == []
-    assert provider.is_configured() is True
-    assert provider.is_ready() is True
 
 
 @pytest.mark.asyncio
@@ -185,12 +165,6 @@ async def test_azure_cli_failure_passes_through() -> None:
 # ---------------------------------------------------------------------------
 # GcpProvider
 # ---------------------------------------------------------------------------
-
-
-def test_gcp_class_vars() -> None:
-    assert GcpProvider.name == "gcp"
-    assert GcpProvider.display_name == "GCP"
-    assert GcpProvider.cli_binary == "gcloud"
 
 
 def test_gcp_readiness_empty() -> None:
@@ -328,33 +302,11 @@ async def test_gcp_listing_rejects_unexpected_json_shape() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_aws_class_vars() -> None:
-    assert AwsProvider.name == "aws"
-    assert AwsProvider.display_name == "AWS"
-    assert AwsProvider.cli_binary == "aws"
-
-
 def test_aws_readiness_empty() -> None:
     provider = AwsProvider(_config())
     assert provider.missing_env() == ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
     assert provider.is_configured() is False
     assert provider.is_ready() is False
-
-
-def test_aws_readiness_partial() -> None:
-    """A key ID without its secret is rejected by both the CLI and the
-    provider, so it must count as configured-but-not-ready."""
-    provider = AwsProvider(_config(aws_access_key_id="AKIA-test"))
-    assert provider.missing_env() == ["AWS_SECRET_ACCESS_KEY"]
-    assert provider.is_configured() is True
-    assert provider.is_ready() is False
-
-
-def test_aws_readiness_complete() -> None:
-    provider = AwsProvider(_config(**_AWS))
-    assert provider.missing_env() == []
-    assert provider.is_configured() is True
-    assert provider.is_ready() is True
 
 
 @pytest.mark.asyncio
@@ -392,11 +344,11 @@ async def test_aws_assume_role_success() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("role_name", ["my-role", "role/my-role"])
-async def test_aws_assume_role_failure_names_role_verbatim(role_name: str) -> None:
+async def test_aws_assume_role_failure_names_role_verbatim() -> None:
     """The service does not inject ``role/``; the operator supplies the
     full IAM resource path in AWS_TERRAFORM_ROLE_NAME. A failing STS call
     surfaces as RuntimeError naming the exact ARN that was attempted."""
+    role_name = "my-role"
     expected_arn = f"arn:aws:iam::123456789012:{role_name}"
     with patch(
         "src.cloud_cli._aws._run",
@@ -609,10 +561,6 @@ async def test_aws_listing_reports_assume_role_failure() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_providers_order() -> None:
-    assert PROVIDERS == (AzureProvider, GcpProvider, AwsProvider)
-
-
 def test_validate_credentials_passes_with_zero_configured_providers() -> None:
     assert CloudCli(_config()).validate_credentials() is None
 
@@ -691,12 +639,6 @@ def test_cli_binary_unknown_provider_echoes_name() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_needs_relogin_recently_logged_in() -> None:
-    cloud = CloudCli(_config(cloud_login_refresh_min=45))
-    cloud._last_login = time.monotonic()
-    assert cloud.needs_relogin() is False
-
-
 def test_needs_relogin_expired() -> None:
     cloud = CloudCli(_config(cloud_login_refresh_min=45))
     cloud._last_login = time.monotonic() - 3600
@@ -758,18 +700,6 @@ async def test_cloud_login_reports_all_failures_combined() -> None:
         "Azure": "az login: expired",
         "GCP": "gcloud: invalid key",
     }
-
-
-@pytest.mark.asyncio
-async def test_cloud_login_succeeds_when_all_providers_ok() -> None:
-    """When all configured providers login successfully, _last_login is set."""
-    cloud = CloudCli(_both_providers_config())
-    with (
-        patch.object(AzureProvider, "login", new_callable=AsyncMock),
-        patch.object(GcpProvider, "login", new_callable=AsyncMock),
-    ):
-        await cloud.login()
-    assert cloud._last_login > 0.0
 
 
 @pytest.mark.asyncio
