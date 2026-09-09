@@ -52,6 +52,16 @@ class NotificationServiceClient:
     """Stateless static client for the notifications service."""
 
     @staticmethod
+    def enabled() -> bool:
+        """True when the core is configured to talk to a notifications service.
+
+        Every public entry point checks this first so a disabled service is
+        never contacted — not even indirectly through the recipients lookup.
+        """
+        cfg = system_config.services.notifications
+        return bool(cfg.enabled and cfg.endpoint)
+
+    @staticmethod
     async def recipients(owner_email: str | None) -> list[str]:
         """Panel editors and above, plus the session owner, deduplicated.
 
@@ -82,9 +92,9 @@ class NotificationServiceClient:
         the service is disabled or unconfigured, times out, is unreachable,
         or answers with anything but an acceptance.
         """
-        cfg = system_config.services.notifications
-        if not cfg.enabled or not cfg.endpoint:
+        if not NotificationServiceClient.enabled():
             return None
+        cfg = system_config.services.notifications
 
         ctx = UNSET
         if context:
@@ -124,6 +134,8 @@ class NotificationServiceClient:
     async def notify_compliance_failure(
         session_id: UUID, owner_email: str, summary: str
     ) -> None:
+        if not NotificationServiceClient.enabled():
+            return
         _ = await NotificationServiceClient.notify(
             kind="iac.compliance.check_failed",
             severity=NotificationRequestSeverity.WARNING,
@@ -136,6 +148,8 @@ class NotificationServiceClient:
     async def notify_exception_failure(
         session_id: UUID, owner_email: str, summary: str
     ) -> None:
+        if not NotificationServiceClient.enabled():
+            return
         _ = await NotificationServiceClient.notify(
             kind="system.exception.failure",
             severity=NotificationRequestSeverity.ERROR,
@@ -148,6 +162,8 @@ class NotificationServiceClient:
     async def notify_apply_failure(
         session_id: UUID, owner_email: str, summary: str
     ) -> None:
+        if not NotificationServiceClient.enabled():
+            return
         _ = await NotificationServiceClient.notify(
             kind="iac.apply.failure",
             severity=NotificationRequestSeverity.ERROR,
