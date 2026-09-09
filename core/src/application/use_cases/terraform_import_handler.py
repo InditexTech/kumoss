@@ -8,6 +8,7 @@ from typing import Callable, Any, cast
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
+from src.application.services.terraform_drift_service import TerraformDriftService
 from src.application.services.terraform_import_service import TerraformImportService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.entities import History
@@ -23,6 +24,7 @@ from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.infrastructure.external.notification_service import NotificationServiceClient
+from src.shared.config import system_config
 from src.shared.constants import (
     PromptsLibrary,
     ReportType,
@@ -42,6 +44,7 @@ class TerraformImportHandler:
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
         import_service: TerraformImportService,
+        drift_service: TerraformDriftService,
         report_service: ReportService,
         compliance_service: ComplianceCheckService,
         llm_service: LLMOrchestrationService,
@@ -54,6 +57,7 @@ class TerraformImportHandler:
         self.__report_svc = report_service
         self.__requests_filter_svc = requests_filter_service
         self.__import_svc = import_service
+        self.__drift_svc = drift_service
         self.__compliance_svc = compliance_service
         self.__llm_svc = llm_service
         self.__tool_svc = tool_service
@@ -169,6 +173,12 @@ class TerraformImportHandler:
                         else []
                     )
                 ]
+                if not imports:
+                    logging.warning(
+                        f"There is nothing to import: "
+                        f"the iac_import sentinel returned an empty 'imports' mapping "
+                        f"for selected ids {selected_ids}"
+                    )
                 import_results = await self.__import_svc.import_resources(imports)
 
                 failed = [r for r in import_results if not r.validation]
@@ -177,28 +187,45 @@ class TerraformImportHandler:
                         f"{len(failed)}/{len(import_results)} resource imports failed"
                     )
 
-                # Step 5 — Convergence validation
+                # Step 5 — Convergence: the imported state now mirrors the real
+                # resources, but the generated blocks hold guessed arguments.
+                # Reuse the drift resolution loop so the LLM rewrites the code
+                # until a plan over the imported addresses reports no changes.
                 imported_addresses = [
                     r.terraform_targets[0]
                     for r in import_results
                     if r.validation and r.terraform_targets
                 ]
+                report_content = validation.terraform_plan
                 if imported_addresses:
-                    convergence = await self.__terraform_svc.validate(
+
+                    async def convergence_callback(
+                        local_history: History,
+                    ) -> TerraformValidationDTO:
+                        return await self.__terraform_svc.validate(
+                            targets=imported_addresses,
+                            get_drift=False,
+                        )
+
+                    convergence = await self.__drift_svc.detect_and_resolve_drift(
                         targets=imported_addresses,
-                        get_drift=True,
+                        conventions=conventions,
+                        max_iterations=system_config.orchestration.max_drift_reports,
+                        validator=convergence_callback,
                     )
                     if not convergence.validation:
                         logging.warning(
-                            f"Convergence validation found pending changes: "
+                            f"Convergence resolution completed but the generated "
+                            f"code still differs from the imported state: "
                             f"{convergence.feedback}"
                         )
+                    report_content = convergence.terraform_plan or report_content
 
                 # Step 6 — Gate
                 report = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.IMPORT,
-                    content=validation.terraform_plan,
+                    content=report_content,
                 )
                 check = await self.__compliance_svc.check(
                     history=ctx.history,
@@ -220,6 +247,12 @@ class TerraformImportHandler:
                         message="Error updating DB session lock.",
                         error_code=500,
                     )
+            except Exception as e:
+                logging.error(
+                    f"Import with session id: {ctx.id} aborted with "
+                    f"{type(e).__name__}: {e}"
+                )
+                raise
             finally:
                 await self.__session_svc.save()
 
