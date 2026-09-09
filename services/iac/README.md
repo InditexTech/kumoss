@@ -88,7 +88,7 @@ split:
 
 | Env var                                       | Description                                            |
 |-----------------------------------------------|--------------------------------------------------------|
-| `ARM_ACCESS_KEY`                              | Storage account access key for the `azurerm` backend, when the service principal lacks Storage Blob Data Contributor on the state storage account. |
+| `ARM_SAS_TOKEN`                               | Shared access signature the `azurerm` backend uses to reach the state blob container, instead of the storage account key or the service principal's RBAC. |
 | `GOOGLE_BACKEND_IMPERSONATE_SERVICE_ACCOUNT`  | Service account to impersonate for GCS backend state access. |
 | `AWS_DEFAULT_REGION`, `AWS_PROFILE`           | Read by the engine's AWS provider and the `aws` CLI. |
 | Other `ARM_*`, `GOOGLE_*`, `AWS_*`, `TF_*`    | Passed through to the engine's providers and backends unchanged (identical for OpenTofu and Terraform). |
