@@ -21,16 +21,22 @@ RUN groupadd --gid "${NEBULA_GID}" nebula \
 # config.yaml
 COPY config.yaml /etc/nebula/
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /usr/src/app
 
-# Python dependencies
-RUN pip install --no-cache-dir uv
-COPY core/pyproject.toml .
-RUN uv pip install --system --prerelease=allow -r pyproject.toml
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/usr/src/app/.venv/bin:$PATH" \
+    HOME=/home/nebula
+
+COPY core/pyproject.toml core/uv.lock ./
+
+RUN uv sync --frozen --no-install-project --no-dev
 
 COPY --chown=nebula:nebula core/ .
 
-ENV HOME=/home/nebula
+RUN uv sync --frozen --no-dev
 
 USER ${NEBULA_UID}:${NEBULA_GID}
 
