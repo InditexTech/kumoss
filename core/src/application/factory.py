@@ -489,6 +489,13 @@ class ApplicationFactory:
         import_svc = self._get_import_service(
             import_provider=validator_prv,
         )
+        split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
+        drift_svc = self._get_drift_service(
+            validation_service=validation_svc,
+            validator_provider=validator_prv,
+            split_service=split_svc,
+            artifact_service=artifact_svc,
+        )
         return TerraformImportHandler(
             session_ctx=self.__ctx,
             session_service=session_svc,
@@ -497,6 +504,7 @@ class ApplicationFactory:
             template_service=template_svc,
             requests_filter_service=filter_svc,
             import_service=import_svc,
+            drift_service=drift_svc,
             report_service=report_svc,
             compliance_service=compliance_svc,
             llm_service=llm_svc,
