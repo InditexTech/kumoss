@@ -81,10 +81,6 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def get_remote_url(self) -> str:
-        pass
-
-    @abstractmethod
     async def get_default_branch(self) -> str:
         pass
 

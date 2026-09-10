@@ -5,11 +5,31 @@
 """Request models for the URI-driven, session-iterating IaC endpoints."""
 
 from typing import Annotated
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from src.shared.constants import TerraformProvider
+
+
+def _reject_embedded_credentials(repo_uri: str) -> str:
+    """Reject repository URIs that carry credentials in their userinfo."""
+    parsed = urlparse(repo_uri)
+    if parsed.password or (parsed.username and parsed.scheme in ("http", "https")):
+        raise ValueError(
+            "repo_uri must not embed credentials; pass the bare repository URI."
+        )
+    return repo_uri
+
+
+RepoUri = Annotated[str, AfterValidator(_reject_embedded_credentials)]
 
 
 class SessionRequest(BaseModel):
@@ -33,9 +53,9 @@ class BaseIacRequest(BaseModel):
         ),
     ] = None
     repo_uri: Annotated[
-        str | None,
+        RepoUri | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id.",
+            description="Repository URI (first call only). Mutually exclusive with session_id. Must not embed credentials.",
             examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
