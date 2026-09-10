@@ -35,7 +35,8 @@ COPY core/pyproject.toml core/uv.lock ./
 
 RUN uv sync --frozen --no-install-project --no-dev
 
-COPY --chown=nebula:nebula core/ .
+COPY --chown=nebula:nebula core/src ./src
+COPY --chown=nebula:nebula core/prompts ./prompts
 
 RUN uv sync --frozen --no-dev
 

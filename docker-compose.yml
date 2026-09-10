@@ -52,6 +52,10 @@ services:
         - action: sync
           path: ./core
           target: /usr/src/app
+          ignore:
+            - .venv/
+            - .env
+            - __pycache__/
     networks:
       - bridge-network
 
