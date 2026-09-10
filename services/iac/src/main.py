@@ -32,7 +32,7 @@ from fastapi.responses import JSONResponse
 from . import cloud_cli
 from . import engine
 from .auth import verify_bearer_token
-from .config import Config, engine_available
+from .config import Config, engine_available, materialize_google_credentials
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -66,6 +66,10 @@ if not _iac_logger.handlers:
     _iac_logger.setLevel(logging.INFO)
 
 config = Config.from_env()
+# GOOGLE_CREDENTIALS (JSON content) is the only Google Cloud credential
+# input Nebula accepts; gcloud and Google client libraries need it as
+# an ADC file instead, so materialize one at boot.
+materialize_google_credentials()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 

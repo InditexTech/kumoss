@@ -132,6 +132,37 @@ the default-named ones must also be set for the core to boot.
 
 ## Getting Started
 
+Nebula ships with two configuration tiers, and it matters from the
+start which one you are setting up.
+
+The **default local setup** below is enough to generate and apply
+infrastructure end to end. All four sidecars (`iac`, `mapping`,
+`notifications`, `authz`) come bundled with their `config.yaml`
+defaults, but only `iac` is mandatory and enabled out of the box. `iac` and
+`notifications` ship complete, working reference implementations;
+`mapping` ships a simple direct passthrough usable as shipped for teams
+that address repositories by URL; `authz` ships a permissive
+placeholder that must be replaced before it enforces anything.
+`mapping`, `notifications` and `authz` all start **disabled**. Nebula
+also seeds an initial set of [Phoenix prompt templates](#phoenix-prompt-templates)
+at first boot: default guidelines and resource templates per cloud,
+covering naming conventions, security best practices and compliance
+rules for the main resource types, so a fresh install can generate
+compliant code without any prompt authoring.
+
+A **full or production configuration** goes further on both axes.
+Every sidecar your organization needs must be enabled, and `mapping`
+and `authz` in particular usually need to be reimplemented against
+your own systems (repository catalogue, access policy), since their
+bundled versions are a passthrough and a permissive stub, not real
+business logic. Just as important, the seeded
+[Phoenix prompt templates](#phoenix-prompt-templates) must be reviewed
+and adapted to your organization's own conventions — they are a
+working starting point, not your policy. A full configuration therefore
+spans `config.yaml`, the `.env` files of the core and all four
+sidecars, **and** your organization's own Phoenix prompt templates:
+none of these on their own is "fully configured" without the others.
+
 This guide runs the complete Nebula stack locally with Docker Compose:
 the core API, the four sidecar services (`iac`, `mapping`,
 `notifications`, `authz`), two PostgreSQL databases, Redis, RustFS
@@ -293,7 +324,7 @@ Terraform configuration uses:
 | Cloud | Variables in the sample |
 |---|---|
 | Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` |
-| Google Cloud | `GOOGLE_APPLICATION_CREDENTIALS` (path to a key file) or `GOOGLE_CREDENTIALS` (inline JSON) |
+| Google Cloud | `GOOGLE_CREDENTIALS` (service-account key, as JSON content, not a path) |
 | AWS | `AWS_ACCESS_KEY_ID`, `AWS_PROFILE`; add whatever else your AWS provider authentication needs, such as the matching secret key |
 
 Missing or invalid cloud credentials do not stop the container: `plan`
@@ -502,7 +533,7 @@ Only the proxy publishes host ports:
 | URL | What it serves |
 |---|---|
 | <http://localhost> | Nebula web application and the API under `/api/v1/...` |
-| <http://localhost/monitoring/> | Phoenix: traces of every run and the prompt registry |
+| <http://localhost/monitoring/> | Phoenix: traces of every run and the [prompt registry](#phoenix-prompt-templates) |
 | `http://localhost:9000` | Presigned artifact download URLs (opened by the web app, not a page to visit) |
 
 Checks:
@@ -578,3 +609,74 @@ See [ROADMAP.md](./ROADMAP.md) for planned features and development goals.
 This project is licensed under the [Apache-2.0 License](./LICENSE).
 
 © 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+## Phoenix Prompt Templates
+
+Nebula does not hard-code cloud knowledge in the core: the instructions
+that tell the LLM agents how to name, configure and secure resources
+live as prompts in Phoenix's runtime prompt registry, fetched by the
+core on every request. What ships in the repository is only the
+**initial seed** for that registry.
+
+### Where they live
+
+Seed files sit under [`core/prompts/seed/`](./core/prompts/seed/), one
+YAML file per prompt, at the fixed path
+`<scope>/<type>/<name>.yaml`:
+
+- **`scope`** — `general`, or a cloud: `aws`, `azure`, `gcp`, `oci`,
+  `kubernetes`.
+- **`type`** — `guidelines` (conventions that apply across resources:
+  naming/abbreviations, permissions, networking, forbidden actions, the
+  per-cloud resource catalogue) or `resources` (one file per resource
+  type, its default configuration); `general` additionally has
+  `compliance` (the rules the compliance-audit agent checks a report
+  against).
+- **`name`** — the prompt's identifier within its scope and type
+  (`snake_case`, derived from the filename).
+
+Scope, type and name are derived from the file's path, not declared
+inside it, so a misfiled prompt cannot misreport its own identity. Each
+file has just two keys: `description` (shown in the Phoenix UI) and
+`body` (the Markdown prompt text).
+
+### Examples
+
+| File | Scope / type | What it defines |
+|---|---|---|
+| [`aws/resources/s3_bucket.yaml`](./core/prompts/seed/aws/resources/s3_bucket.yaml) | aws / resources | Default S3 bucket configuration: naming convention, mandatory encryption, versioning, and public-access blocking. |
+| [`azure/resources/storage_account.yaml`](./core/prompts/seed/azure/resources/storage_account.yaml) | azure / resources | Default Storage Account configuration and naming. |
+| [`kubernetes/guidelines/permissions.yaml`](./core/prompts/seed/kubernetes/guidelines/permissions.yaml) | kubernetes / guidelines | Pod Security Admission levels and RBAC conventions applied to every generated manifest. |
+| [`gcp/guidelines/resources_list.yaml`](./core/prompts/seed/gcp/guidelines/resources_list.yaml) | gcp / guidelines | Catalogue of GCP resource templates the agent may select from. |
+| [`general/compliance/report.yaml`](./core/prompts/seed/general/compliance/report.yaml) | general / compliance | Business rules (with rule IDs and severities) the compliance-audit agent checks every generated report against. |
+
+Browse [`core/prompts/seed/`](./core/prompts/seed/) for the complete,
+current set — one directory per cloud, plus `general/`.
+
+### How seeding works, and how to adapt it
+
+At startup the core loads every seed file and creates in Phoenix only
+the prompts that do not already exist there; prompts already present
+(including ones you have edited) are left untouched. Created prompts
+are tagged with the core's `environment` (`config.yaml`'s top-level
+`environment` key), and the core fetches prompts by that same tag at
+request time — so, unlike `config.yaml`, editing a prompt takes effect
+immediately, with no core rebuild.
+
+Adapting the bundled prompts to your organization's conventions means
+one of:
+
+- **Editing an existing prompt directly in Phoenix** (the prompt
+  registry UI at `/monitoring/` in the default stack) — the durable way
+  to do it, since seeding never overwrites a prompt that already
+  exists.
+- **Adding or changing seed YAML files** before the *first* boot
+  against a given Phoenix database, so your version is what gets
+  created. This only affects prompts Phoenix does not already have; for
+  an already-seeded deployment, edit in Phoenix instead.
+
+Either way, review and rewrite the naming conventions, security
+defaults and compliance rules in these prompts for your organization
+before relying on a deployment for anything beyond local evaluation —
+see the tiers described at the top of
+[Getting Started](#getting-started).

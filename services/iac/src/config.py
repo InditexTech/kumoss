@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ConfigError(ValueError):
@@ -55,3 +57,48 @@ class Config:
 
 def engine_available(binary: str) -> bool:
     return shutil.which(binary) is not None
+
+
+_GOOGLE_CREDENTIALS_ENV = "GOOGLE_CREDENTIALS"
+_GOOGLE_APPLICATION_CREDENTIALS_ENV = "GOOGLE_APPLICATION_CREDENTIALS"
+
+
+def materialize_google_credentials(home: Path | None = None) -> Path | None:
+    """Turn ``GOOGLE_CREDENTIALS`` (a service-account key as JSON content)
+    into a file, and point ``GOOGLE_APPLICATION_CREDENTIALS`` at it.
+
+    Nebula accepts Google Cloud credentials in exactly one form:
+    ``GOOGLE_CREDENTIALS`` holding the JSON key content, which is also
+    what Terraform's/OpenTofu's ``google`` provider reads directly. The
+    ``gcloud`` CLI and Google's client libraries — used ambiently by
+    ``scope-resource-ids`` (see ``cloud_cli.py``) — only recognize
+    Application Default Credentials, resolved from
+    ``GOOGLE_APPLICATION_CREDENTIALS`` (a file path). This bridges the
+    two: it writes the JSON to a private file at boot and sets that
+    variable, so operators only ever configure ``GOOGLE_CREDENTIALS``
+    and never manage a mounted key file themselves.
+
+    A no-op returning ``None`` when ``GOOGLE_CREDENTIALS`` is unset.
+    Raises ``ConfigError`` when it is set but not valid JSON, so a
+    misconfigured credential fails at boot rather than on first use.
+    ``home`` is overridable for tests.
+    """
+    raw = os.environ.get(_GOOGLE_CREDENTIALS_ENV, "")
+    if not raw:
+        return None
+
+    try:
+        json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ConfigError(f"{_GOOGLE_CREDENTIALS_ENV} is not valid JSON: {e}") from e
+
+    creds_path = (home or Path.home()) / "google-credentials.json"
+    # Create at 0600 from the first inode -- write_text()+chmod() would
+    # briefly leave the file at the umask-default mode. Unlink any prior
+    # boot's file first so a stale, more permissive inode is never reused.
+    creds_path.unlink(missing_ok=True)
+    fd = os.open(str(creds_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(raw)
+    os.environ[_GOOGLE_APPLICATION_CREDENTIALS_ENV] = str(creds_path)
+    return creds_path

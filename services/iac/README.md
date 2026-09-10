@@ -63,7 +63,7 @@ subcommands against that binary instead (e.g. `terraform init`).
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+| Provider creds: `ARM_*`, `GOOGLE_CREDENTIALS`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. Google Cloud accepts credentials only as JSON content in `GOOGLE_CREDENTIALS`; the service also materializes it into a private file at boot and sets `GOOGLE_APPLICATION_CREDENTIALS` internally, since `gcloud` (behind `scope-resource-ids`) only understands a file path. Azure and AWS use their own ambient auth (`az login` state, `AWS_*`); their auth errors surface the same way. |
 
 ## Choosing the IaC engine
 
