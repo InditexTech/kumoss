@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from itertools import batched
 
 import httpx
 
@@ -24,6 +25,7 @@ _SEVERITY_COLOR: dict[str, str] = {
 # of the card out of view.
 _MAX_FIELD_VALUE = 1000
 _TRUNCATION_MARK = "…"
+_MAX_ACTIONS_PER_ATTACHMENT = 5
 
 
 def _humanize_key(key: str) -> str:
@@ -83,6 +85,23 @@ def _context_fields(context: dict) -> list[dict]:
     return fields
 
 
+def _audience_value(audience: list[str]) -> str:
+    """Comma-join recipients; past the field cap, cut at a recipient boundary."""
+    text = ", ".join(audience)
+    if len(text) <= _MAX_FIELD_VALUE:
+        return text
+    shown: list[str] = []
+    for recipient in audience:
+        if len(_with_hidden([*shown, recipient], len(audience))) > _MAX_FIELD_VALUE:
+            break
+        shown.append(recipient)
+    return _with_hidden(shown, len(audience))
+
+
+def _with_hidden(shown: list[str], total: int) -> str:
+    return f"{', '.join(shown)} +{total - len(shown)} more"
+
+
 def _build_payload(notification: NotificationRequest) -> dict:
     """Render a NotificationRequest into a Slack incoming-webhook payload.
 
@@ -105,20 +124,33 @@ def _build_payload(notification: NotificationRequest) -> dict:
         attachment["fields"].append(
             {
                 "title": "Audience",
-                "value": ", ".join(notification.audience),
+                "value": _audience_value(notification.audience),
                 "short": False,
             }
         )
 
     attachment["fields"].extend(_context_fields(notification.context))
 
+    attachments = [attachment]
     if notification.links:
-        attachment["actions"] = [
-            {"type": "button", "text": link.label, "url": str(link.url)}
-            for link in notification.links
-        ]
+        first, *rest = batched(
+            (
+                {"type": "button", "text": link.label, "url": str(link.url)}
+                for link in notification.links
+            ),
+            _MAX_ACTIONS_PER_ATTACHMENT,
+        )
+        attachment["actions"] = list(first)
+        attachments.extend(
+            {
+                "fallback": notification.subject,
+                "color": attachment["color"],
+                "actions": list(chunk),
+            }
+            for chunk in rest
+        )
 
-    return {"attachments": [attachment]}
+    return {"attachments": attachments}
 
 
 async def deliver(

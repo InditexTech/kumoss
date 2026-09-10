@@ -348,7 +348,7 @@ Terraform configuration uses:
 
 | Cloud | Variables in the sample |
 |---|---|
-| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` |
+| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` |
 | Google Cloud | `GOOGLE_CREDENTIALS` (service-account key, as JSON content, not a path) |
 | AWS | `AWS_ACCESS_KEY_ID`, `AWS_PROFILE`; add whatever else your AWS provider authentication needs, such as the matching secret key |
 
@@ -374,8 +374,8 @@ match between `core/.env` and `services/mapping/.env` (see
 **notifications (`services/notifications/.env`, optional, disabled by
 default).** While disabled, the core sends no notifications at all and
 the browser-facing notifications route answers `503`. When enabled,
-Nebula notifies compliance-check failures and apply failures, plus the
-support requests users submit from the web app. To enable it, set
+Nebula notifies compliance-check failures, high-impact detections and
+apply failures, plus the support requests users submit from the web app. To enable it, set
 `services.notifications.enabled: true` in `config.yaml`, rebuild the
 core image, and fill in:
 
@@ -671,8 +671,9 @@ YAML file per prompt, at the fixed path
   naming/abbreviations, permissions, networking, forbidden actions, the
   per-cloud resource catalogue) or `resources` (one file per resource
   type, its default configuration); `general` additionally has
-  `compliance` (the rules the compliance-audit agent checks a report
-  against).
+  `compliance` (the blocking policy: the rules the compliance-audit
+  agent checks a report against, and the impact levels the report
+  generator assigns to each change group).
 
 - **`name`** — the prompt's identifier within its scope and type
   (`snake_case`, derived from the filename).
@@ -693,6 +694,7 @@ file has just two keys: `description` (shown in the Phoenix UI) and
 | [`kubernetes/guidelines/permissions.yaml`](./core/prompts/seed/kubernetes/guidelines/permissions.yaml) | kubernetes / guidelines | Pod Security Admission levels and RBAC conventions applied to every generated manifest. |
 | [`gcp/guidelines/resources_list.yaml`](./core/prompts/seed/gcp/guidelines/resources_list.yaml) | gcp / guidelines | Catalogue of GCP resource templates the agent may select from. |
 | [`general/compliance/report.yaml`](./core/prompts/seed/general/compliance/report.yaml) | general / compliance | Business rules (with rule IDs and severities) the compliance-audit agent checks every generated report against. |
+| [`general/compliance/impact.yaml`](./core/prompts/seed/general/compliance/impact.yaml) | general / compliance | Criteria the report generator uses to label each change group `low`, `medium` or `high`; a `high` level blocks the session. |
 
 Browse [`core/prompts/seed/`](./core/prompts/seed/) for the complete,
 current set — one directory per cloud, plus `general/`.

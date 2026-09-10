@@ -16,7 +16,7 @@ import type { PrApprovalStep } from "@/types/ui";
 import styles from "../HomeScreen.module.css";
 
 const VALID_TABS: TabId[] = ["plan", "code", "report"];
-const VALID_PR_STEPS: PrApprovalStep[] = ["initial", "confirming", "high_impact_warning"];
+const VALID_PR_STEPS: PrApprovalStep[] = ["initial", "confirming"];
 
 function parsePrStep(view: string | null): PrApprovalStep | null {
   if (!view?.startsWith("pr-")) return null;

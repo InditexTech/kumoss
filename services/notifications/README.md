@@ -20,6 +20,10 @@ etc.) of the same contract.
   attachment (color-coded by severity, with action buttons for any
   links), posts it to `SLACK_WEBHOOK_URL`, returns `202 Accepted` with
   a delivery ID.
+- Slack allows five buttons per attachment, so links past the fifth
+  continue in follow-up attachments. Field values are capped at 1000
+  characters; an audience list over the cap is cut at a recipient
+  boundary and ends with `+N more`.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
   set; otherwise accepts any request (local-dev fallback).

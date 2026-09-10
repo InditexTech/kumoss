@@ -52,9 +52,17 @@ class TemplateAdapter(ITemplate):
         return t.render(**context)
 
     @override
-    def render_report_generator(self, report_type: ReportType) -> str:
+    async def render_report_generator(self, report_type: ReportType) -> str:
         t = self._get_template(self._core + "report_generator.jinja")
-        return t.render(REPORT_TYPE=report_type.value)
+        context: dict = {"REPORT_TYPE": report_type.value}
+        if report_type is ReportType.GENERATE:
+            context["IMPACT_ANALYSIS_RULES"] = await remote_fetcher.fetch(
+                prompt_name="impact",
+                scope="general",
+                type="compliance",
+                tag=system_config.environment,
+            )
+        return t.render(**context)
 
     @override
     def render_pr_generator(self, operation_type: OperationType) -> str:

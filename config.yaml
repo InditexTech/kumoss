@@ -82,9 +82,14 @@ services:
 # include a check_compliance tool that validates output
 # against curated rules before allowing completion.
 #
+# block_on_high_impact: When enabled, a generate round whose report
+# comes back with a "high" impact banner locks the session, blocking
+# apply and PR merge until an editor unlocks it.
+#
 # max_drift_reports: TODO
 orchestration:
   enable_compliance_checker: true
+  block_on_high_impact: true
   max_drift_reports: 3
   max_validation_iteration: 5
   max_tool_chain_executions: 70

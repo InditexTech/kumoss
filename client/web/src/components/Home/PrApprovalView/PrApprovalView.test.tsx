@@ -81,9 +81,27 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("Resource Deletion Detected")).toBeInTheDocument();
+    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
     expect(screen.getByText("Back to Report")).toBeInTheDocument();
     expect(screen.getByText("Contact Team")).toBeInTheDocument();
+    expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("blocked state shows the report's impact banner description", () => {
+    renderPr("confirming", {
+      sessionPatch: {
+        is_blocked: true,
+        terraform_report: {
+          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
   });
 
   it("calls onBackToReport when Back to Report clicked in blocked state", async () => {
@@ -113,10 +131,13 @@ describe("PrApprovalView", () => {
     expect(screen.getByText("Request Review")).toBeInTheDocument();
   });
 
-  it("confirm in confirming step with high impact shows warning", async () => {
+  it("confirm in confirming step with an unblocked high impact report still merges", async () => {
     const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
     const { props } = renderPr("confirming", {
       sessionPatch: {
+        uuid: "sess-1",
+        is_blocked: false,
         terraform_report: {
           potential_impact: { banner: { level: "high", title: "Major", description: "Destroys resources" } },
         },
@@ -125,7 +146,8 @@ describe("PrApprovalView", () => {
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
-    expect(props.onStepChange).toHaveBeenCalledWith("high_impact_warning");
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
+    expect(props.onApprove).toHaveBeenCalled();
   });
 
   it("confirm in confirming step without high impact calls mergePullRequest", async () => {
@@ -139,21 +161,6 @@ describe("PrApprovalView", () => {
     await user.click(screen.getByText("Confirm and Apply"));
     expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
     expect(props.onApprove).toHaveBeenCalled();
-  });
-
-  it("renders high_impact_warning step with warning banner", () => {
-    renderPr("high_impact_warning", {
-      sessionPatch: {
-        terraform_report: {
-          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
-        },
-      },
-      prPatch: { number: 42 },
-    });
-
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
-    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
-    expect(screen.getByText("I understand, Apply")).toBeInTheDocument();
   });
 
   it("API error shows notification and resets to initial", async () => {

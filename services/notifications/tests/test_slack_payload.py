@@ -81,6 +81,46 @@ def test_no_context_keeps_legacy_shape() -> None:
     assert "actions" not in payload["attachments"][0]
 
 
+def test_long_audience_is_cut_at_a_recipient_boundary() -> None:
+    audience = [f"user{i:03d}@example.com" for i in range(100)]
+    payload = _build_payload(_request(audience=audience))
+    value = _fields(payload)["Audience"]["value"]
+    shown, _, tail = value.rpartition(" +")
+    shown_items = shown.split(", ")
+
+    assert len(value) <= 1000
+    assert 0 < len(shown_items) < len(audience)
+    assert shown_items == audience[: len(shown_items)]
+    assert tail == f"{len(audience) - len(shown_items)} more"
+
+
+def test_five_links_fit_in_a_single_attachment() -> None:
+    payload = _build_payload(
+        _request(links=[{"label": f"L{i}", "url": f"https://x/{i}"} for i in range(5)])
+    )
+    assert len(payload["attachments"]) == 1
+    assert len(payload["attachments"][0]["actions"]) == 5
+
+
+def test_links_past_the_fifth_continue_in_follow_up_attachments() -> None:
+    payload = _build_payload(
+        _request(links=[{"label": f"L{i}", "url": f"https://x/{i}"} for i in range(12)])
+    )
+    attachments = payload["attachments"]
+    labels = [[a["text"] for a in att["actions"]] for att in attachments]
+
+    assert labels == [
+        ["L0", "L1", "L2", "L3", "L4"],
+        ["L5", "L6", "L7", "L8", "L9"],
+        ["L10", "L11"],
+    ]
+    assert "fields" in attachments[0]
+    for extra in attachments[1:]:
+        assert extra["fallback"] == attachments[0]["fallback"]
+        assert extra["color"] == attachments[0]["color"]
+        assert set(extra) == {"fallback", "color", "actions"}
+
+
 def test_links_render_as_buttons() -> None:
     payload = _build_payload(
         _request(

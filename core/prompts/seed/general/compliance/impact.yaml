@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Rules for assigning an impact level to each change group; a high level blocks the operation.
+body: |
+  - Assign an impact level (low, medium, high) to each group:
+    - high: destructive actions, restarts, service downtime, or critical networking changes.
+    - medium: significant configuration updates that change behavior but don't guarantee downtime.
+    - low: isolated new resources or non-disruptive updates like tags or locks.

@@ -6,7 +6,6 @@ from collections.abc import Coroutine
 import json
 from typing import Callable, Any
 
-from src.application.exceptions import SetLockError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
@@ -16,7 +15,6 @@ from src.domains.services import (
     TemplateOrchestrationService,
     TerraformTargetService,
 )
-from src.domains.services.database_service import DatabaseService
 from src.shared.config import system_config
 from src.shared.constants import (
     PromptsLibrary,
@@ -95,11 +93,6 @@ class TerraformDriftHandler:
                     type=ReportType.DRIFT,
                     content=content,
                 )
-                if not await DatabaseService.set_lock(ctx.id, False):
-                    raise SetLockError(
-                        message="Error updating DB session lock.",
-                        error_code=500,
-                    )
             finally:
                 await self.__session_svc.save()
 
