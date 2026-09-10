@@ -21,6 +21,7 @@ from src.shared.constants import TerraformProvider
 
 def _reject_embedded_credentials(repo_uri: str) -> str:
     """Reject repository URIs that carry credentials in their userinfo."""
+    repo_uri = repo_uri.strip()
     parsed = urlparse(repo_uri)
     if parsed.password or (parsed.username and parsed.scheme in ("http", "https")):
         raise ValueError(

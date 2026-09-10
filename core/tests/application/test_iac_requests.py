@@ -45,7 +45,7 @@ class TestRepoUri(unittest.TestCase):
                 "https://ghp_secret@github.com/foo/bar.git"
             )
 
-    def test_rejects_uppercase_scheme(self):
+    def test_rejects_credentials_with_mixed_case_scheme(self):
         with self.assertRaises(ValidationError):
             _ = self.adapter.validate_python(
                 "Https://user:ghp_secret@github.com/foo/bar.git"
