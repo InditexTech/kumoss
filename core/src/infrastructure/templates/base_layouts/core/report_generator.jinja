@@ -35,10 +35,7 @@ You are an expert Terraform Analysis & Reporting Agent. Your purpose is to analy
     - A concatenated `details` string with all plan details for that group.
 
   4. Analyze Potential Impact:
-  - Assign an impact level (low, medium, high) to each group:
-    - high: destructive actions, restarts, service downtime, or critical networking changes.
-    - medium: significant configuration updates that change behavior but don't guarantee downtime.
-    - low: isolated new resources or non-disruptive updates like tags or locks.
+{{ IMPACT_ANALYSIS_RULES | trim | indent(2, true) }}
 
   5. Generate Human-Friendly Explanations:
   - Produce a `summary` and `bullet_points` highlighting the key consequences of the plan in plain English.

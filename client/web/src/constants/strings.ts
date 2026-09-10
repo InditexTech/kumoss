@@ -41,11 +41,8 @@ export const STRINGS = {
     viewPr: "View Pull Request",
     approvePrAndApply: "Approve PR and Apply",
     backToReport: "Back to Report",
-    deletionDetectedTitle: "Resource Deletion Detected",
     deletionDetectedMessage:
       "The plan includes resources that will be deleted. The support team has been notified for review.",
-    blockedApplyMessage:
-      "The execution of your plan has been blocked. The proposed changes include one or more changes that could compromise service stability. For security reasons, the deployment has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
     contactTeam: "Contact Team",
   },
 
@@ -64,9 +61,7 @@ export const STRINGS = {
     requestReview: "Request Review",
     highImpactTitle: "High Impact Deployment",
     highImpactMessage:
-      "This deployment involves high-impact changes that could significantly affect your infrastructure. Please confirm you understand the risks before proceeding.",
-    highImpactConfirm: "I understand, Apply",
-    highImpactCancel: "Cancel",
+      "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",
   },
 
   applyResults: {

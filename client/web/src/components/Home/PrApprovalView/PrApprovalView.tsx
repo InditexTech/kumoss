@@ -33,10 +33,6 @@ export default function PrApprovalView({
   const [approving, setApproving] = useState(false);
 
   const confirming = step === "confirming";
-  const highImpactWarning = step === "high_impact_warning";
-
-  const isHighImpact =
-    session.terraform_report?.potential_impact?.banner?.level === "high";
 
   const handleConfirmApply = useCallback(async () => {
     if (!prDetails.number || !session.uuid || approving) return;
@@ -62,14 +58,29 @@ export default function PrApprovalView({
   ]);
 
   if (session.is_blocked) {
+    const impactDetail =
+      session.terraform_report?.potential_impact?.banner?.description;
     return (
       <div className={styles.blockedContainer}>
         <Typography variant="h1" className={styles.heading}>
-          {STRINGS.assistant.deletionDetectedTitle}
+          {STRINGS.pr.highImpactTitle}
         </Typography>
         <Typography variant="bodyText" className={styles.blockedText}>
-          {STRINGS.assistant.blockedApplyMessage}
+          {STRINGS.pr.highImpactMessage}
         </Typography>
+
+        {impactDetail && (
+          <div className={styles.warningBanner}>
+            <span className={styles.warningIcon}>⚠</span>
+            <Typography
+              variant="body2"
+              component="span"
+              className={styles.warningText}
+            >
+              {impactDetail}
+            </Typography>
+          </div>
+        )}
 
         <div className={styles.buttonRow}>
           <button
@@ -93,50 +104,6 @@ export default function PrApprovalView({
 
   const showViewPr = prDetails.url && isAllowedUrl(prDetails.url);
 
-  if (highImpactWarning) {
-    return (
-      <div className={styles.container}>
-        <Typography variant="h1" className={styles.heading}>{STRINGS.pr.highImpactTitle}</Typography>
-        <Typography variant="h4" className={styles.subtitle}>{STRINGS.pr.highImpactMessage}</Typography>
-
-        <div className={styles.warningBanner}>
-          <span className={styles.warningIcon}>⚠</span>
-          <Typography variant="body2" component="span" className={styles.warningText}>
-            {session.terraform_report?.potential_impact?.banner?.description ??
-              STRINGS.pr.highImpactMessage}
-          </Typography>
-        </div>
-
-        <div className={styles.buttonRow}>
-          <button
-            className={styles.outlineBtn}
-            type="button"
-            onClick={() => onStepChange("confirming")}
-            disabled={approving}
-          >
-            {STRINGS.pr.highImpactCancel}
-          </button>
-          <button
-            className={styles.dangerBtn}
-            type="button"
-            onClick={handleConfirmApply}
-            disabled={approving || !prDetails.number}
-          >
-            {approving ? "Applying…" : STRINGS.pr.highImpactConfirm}
-          </button>
-        </div>
-
-        <button
-          className={styles.backLink}
-          type="button"
-          onClick={onBackToReport}
-        >
-          {STRINGS.assistant.backToReport}
-        </button>
-      </div>
-    );
-  }
-
   if (confirming) {
     return (
       <div className={styles.container}>
@@ -155,11 +122,7 @@ export default function PrApprovalView({
           <button
             className={styles.filledBtn}
             type="button"
-            onClick={
-              isHighImpact
-                ? () => onStepChange("high_impact_warning")
-                : handleConfirmApply
-            }
+            onClick={handleConfirmApply}
             disabled={approving || !prDetails.number}
           >
             {approving ? "Applying…" : STRINGS.pr.confirmApply}

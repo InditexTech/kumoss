@@ -173,15 +173,10 @@ export function useTerraformActions() {
           notifyIfHidden("Pipeline completed", {
             body: "Your infrastructure changes are ready for review.",
           });
-          if (
-            outcome.kind === "results" &&
-            outcome.report?.potential_impact?.banner?.level === "high"
-          ) {
-            notifyIfHidden("High impact changes detected", {
-              body:
-                outcome.report.potential_impact.banner.description ||
-                "Review the potential impact before proceeding.",
-              tag: "nebula-high-impact",
+          if (outcome.detail.is_blocked) {
+            notifyIfHidden("Session blocked", {
+              body: "The proposed changes need a specialist review before they can be applied.",
+              tag: "nebula-session-blocked",
             });
           }
         }

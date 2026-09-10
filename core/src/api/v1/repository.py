@@ -49,7 +49,7 @@ async def complete_pr(
         if await DatabaseService.is_session_blocked(ctx.id):
             raise HTTPException(
                 status_code=409,
-                detail=f"Session {ctx.id} is blocked by a failed compliance check; PR merge is not allowed.",
+                detail=f"Session {ctx.id} is blocked; PR merge is not allowed.",
             )
         pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)

@@ -133,6 +133,18 @@ class NotificationServiceClient:
         )
 
     @staticmethod
+    async def notify_high_impact(
+        session_id: UUID, owner_email: str, summary: str
+    ) -> None:
+        _ = await NotificationServiceClient.notify(
+            kind="iac.impact.high",
+            severity=NotificationRequestSeverity.WARNING,
+            subject=f"High impact changes detected – session {session_id}",
+            body=summary,
+            audience=await NotificationServiceClient.recipients(owner_email),
+        )
+
+    @staticmethod
     async def notify_exception_failure(
         session_id: UUID, owner_email: str, summary: str
     ) -> None:

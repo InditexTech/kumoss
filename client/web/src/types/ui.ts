@@ -35,7 +35,7 @@ export interface ApplyResultsData {
   applyReport?: TerraformReport | null;
 }
 
-export type PrApprovalStep = "initial" | "confirming" | "high_impact_warning";
+export type PrApprovalStep = "initial" | "confirming";
 
 // ─── Pipeline Phases ────────────────────────────────────────
 
