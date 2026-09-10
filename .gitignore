@@ -93,5 +93,8 @@ coverage/
 # IDE
 *workspace
 
+# CLAUDE.md
+CLAUDE.md
+
 # Local Tests
 local_test/

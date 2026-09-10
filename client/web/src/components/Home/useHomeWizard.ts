@@ -66,10 +66,7 @@ export function useHomeWizard() {
         case "query": {
           if (!value.trim() || value.length > 500) return;
           navigation.setData((prev) => ({ ...prev, query: value.trim() }));
-          updateSession({
-            firstQuery: value.trim(),
-            userQueries: [value.trim()],
-          });
+          updateSession({ first_query: value.trim() });
           navigation.setStep("repository_url");
           break;
         }
@@ -82,17 +79,16 @@ export function useHomeWizard() {
               ...prev,
               repositoryUrl: result.repoUrl,
             }));
-            updateSession({
-              repositoryUrl: result.repoUrl,
-              ...(result.project ? { project: result.project } : {}),
-            });
+            updateSession({ workspace: { uri: result.repoUrl } });
 
             if (result.paths.length === 0) {
               mapper.setMapperError(STRINGS.wizard.noIacPaths);
             } else if (result.paths.length === 1) {
               const path = result.paths[0];
               navigation.setData((prev) => ({ ...prev, iacPath: path }));
-              updateSession({ environment: path });
+              updateSession({
+                workspace: { uri: result.repoUrl, root_path: path },
+              });
               navigation.setStep("provider");
             } else {
               navigation.setStep("iac_path");
@@ -108,6 +104,7 @@ export function useHomeWizard() {
           const scope = value.trim().toLowerCase();
           if (!scope || !CLOUD_SCOPE_PATTERN.test(scope)) return;
           navigation.setData((prev) => ({ ...prev, cloudScope: scope }));
+          updateSession({ scope_id: scope });
 
           auth.run({
             repositoryUrl: navigation.data.repositoryUrl,
@@ -128,16 +125,16 @@ export function useHomeWizard() {
   const handlePath = useCallback(
     (path: string) => {
       navigation.setData((prev) => ({ ...prev, iacPath: path }));
-      updateSession({ environment: path });
+      updateSession({ workspace: { ...session.workspace, root_path: path } });
       navigation.setStep("provider");
     },
-    [navigation, updateSession],
+    [navigation, updateSession, session.workspace],
   );
 
   const handleProvider = useCallback(
     (provider: TerraformProvider) => {
       navigation.setData((prev) => ({ ...prev, provider }));
-      updateSession({ cloud: provider });
+      updateSession({ provider });
       navigation.setStep("cloud_scope");
     },
     [navigation, updateSession],
@@ -155,40 +152,36 @@ export function useHomeWizard() {
 
   const iterate = useCallback(
     (query: string) => {
-      if (!session.session_id) return;
-
-      updateSession({
-        userQueries: [...session.userQueries, query],
-      });
+      if (!session.uuid) return;
 
       navigate("/home/planning");
 
       terraform.run(
         {
-          sessionId: session.session_id,
+          sessionId: session.uuid,
           query,
           mode,
         },
         handleOutcome,
       );
     },
-    [session, updateSession, navigate, terraform, mode, handleOutcome],
+    [session.uuid, navigate, terraform, mode, handleOutcome],
   );
 
   const applyAfterPr = useCallback(() => {
-    if (!session.session_id) return;
+    if (!session.uuid) return;
 
     navigate("/home/planning");
 
     terraform.run(
       {
-        sessionId: session.session_id,
+        sessionId: session.uuid,
         query: "",
         mode: "import" as const,
       },
       handleOutcome,
     );
-  }, [session, navigate, terraform, handleOutcome]);
+  }, [session.uuid, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
     if (mapper.mapperError) {

@@ -42,7 +42,7 @@ Your final output must be a list of target strings representing the resources th
    - Do NOT include Terraform `data` sources (they are read-only references)
    - **CRITICAL**: When drift is on a resource created by a module, target the MODULE, not any data sources
 
-5. **Use the `generate_drift_targets` tool** to output your findings. If no drifted resources are identified, return an empty targets list.
+5. **Use the `generate_terraform_targets` tool** to output your findings. If no drifted resources are identified, return an empty targets list.
 </instructions>
 
 <constraints>
@@ -52,7 +52,7 @@ Your final output must be a list of target strings representing the resources th
 - Do NOT include Terraform `data` sources in your output
 - **CRITICAL**: When a resource is created by a module, target the MODULE, not any data sources that reference it
 - ONLY include resources that currently exist in the Terraform files
-- You MUST use the `generate_drift_targets` tool as your final output
+- You MUST use the `generate_terraform_targets` tool as your final output
 - Maximum of 10-15 workspace inspection tool calls before generating targets
 </constraints>
 
@@ -61,7 +61,7 @@ You have tools at your disposal:
 1. **REQUIRED**: First use `list_dir` to see the Terraform file structure
 2. **REQUIRED**: Use `read_file` to read relevant .tf files and identify existing resources
 3. Analyze the user's request to identify drifted resources
-4. **REQUIRED**: Call `generate_drift_targets` with your identified resources
+4. **REQUIRED**: Call `generate_terraform_targets` with your identified resources
 </tool_calling>
 
 {% if RELEVANT_TEMPLATES %}
@@ -73,7 +73,7 @@ Use them as hints for which existing resources and modules to look for in the wo
 {% endif %}
 
 <business_targeting_policies>
-{{ PREDICTIVE_TARGETS_GUIDELINES }}
+{{ TARGETING_POLICIES }}
 </business_targeting_policies>
 
 </output>

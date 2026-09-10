@@ -64,21 +64,21 @@ describe("PrApprovalView", () => {
   });
 
   it("renders initial step with PR ready message", () => {
-    renderPr("initial", { prPatch: { id: 42, prUrl: "https://dev.azure.com/pr/42" } });
+    renderPr("initial", { prPatch: { number: 42, url: "https://dev.azure.com/pr/42" } });
 
     expect(screen.getByText("Here is your Pull Request.")).toBeInTheDocument();
     expect(screen.getByText("Approve PR and Apply")).toBeInTheDocument();
   });
 
-  it("shows View PR link when prUrl is set and allowed", () => {
-    renderPr("initial", { prPatch: { id: 42, prUrl: "https://dev.azure.com/pr/42" } });
+  it("shows View PR link when url is set and allowed", () => {
+    renderPr("initial", { prPatch: { number: 42, url: "https://dev.azure.com/pr/42" } });
     expect(screen.getByText("View Pull Request")).toBeInTheDocument();
   });
 
-  it("renders blocked state when apply_allowed is false", () => {
+  it("renders blocked state when is_blocked is true", () => {
     renderPr("initial", {
-      sessionPatch: { apply_allowed: false },
-      prPatch: { id: 42 },
+      sessionPatch: { is_blocked: true },
+      prPatch: { number: 42 },
     });
 
     expect(screen.getByText("Resource Deletion Detected")).toBeInTheDocument();
@@ -89,8 +89,8 @@ describe("PrApprovalView", () => {
   it("calls onBackToReport when Back to Report clicked in blocked state", async () => {
     const user = userEvent.setup();
     const { props } = renderPr("initial", {
-      sessionPatch: { apply_allowed: false },
-      prPatch: { id: 42 },
+      sessionPatch: { is_blocked: true },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Back to Report"));
@@ -99,14 +99,14 @@ describe("PrApprovalView", () => {
 
   it("clicking Approve PR and Apply advances to confirming step", async () => {
     const user = userEvent.setup();
-    const { props } = renderPr("initial", { prPatch: { id: 42 } });
+    const { props } = renderPr("initial", { prPatch: { number: 42 } });
 
     await user.click(screen.getByText("Approve PR and Apply"));
     expect(props.onStepChange).toHaveBeenCalledWith("confirming");
   });
 
   it("renders confirming step with confirm and request review buttons", () => {
-    renderPr("confirming", { prPatch: { id: 42 } });
+    renderPr("confirming", { prPatch: { number: 42 } });
 
     expect(screen.getByText("Confirmation")).toBeInTheDocument();
     expect(screen.getByText("Confirm and Apply")).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("PrApprovalView", () => {
           potential_impact: { banner: { level: "high", title: "Major", description: "Destroys resources" } },
         },
       },
-      prPatch: { id: 42 },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
@@ -132,8 +132,8 @@ describe("PrApprovalView", () => {
     const user = userEvent.setup();
     mockMergePr.mockResolvedValue(undefined);
     const { props } = renderPr("confirming", {
-      sessionPatch: { session_id: "sess-1" },
-      prPatch: { id: 42 },
+      sessionPatch: { uuid: "sess-1" },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
@@ -148,7 +148,7 @@ describe("PrApprovalView", () => {
           potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
         },
       },
-      prPatch: { id: 42 },
+      prPatch: { number: 42 },
     });
 
     expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
@@ -160,8 +160,8 @@ describe("PrApprovalView", () => {
     const user = userEvent.setup();
     mockMergePr.mockRejectedValue(new Error("Server error"));
     const { props } = renderPr("confirming", {
-      sessionPatch: { session_id: "sess-1" },
-      prPatch: { id: 42 },
+      sessionPatch: { uuid: "sess-1" },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
@@ -169,14 +169,14 @@ describe("PrApprovalView", () => {
     expect(props.onStepChange).toHaveBeenCalledWith("initial");
   });
 
-  it("Approve button is disabled without prDetails.id", () => {
+  it("Approve button is disabled without prDetails.number", () => {
     renderPr("initial");
     expect(screen.getByText("Approve PR and Apply")).toBeDisabled();
   });
 
   it("Request Review calls onContactTeam", async () => {
     const user = userEvent.setup();
-    const { props } = renderPr("confirming", { prPatch: { id: 42 } });
+    const { props } = renderPr("confirming", { prPatch: { number: 42 } });
 
     await user.click(screen.getByText("Request Review"));
     expect(props.onContactTeam).toHaveBeenCalled();

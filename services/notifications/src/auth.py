@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import HTTPException, status
 
 from .config import Config
@@ -19,6 +21,10 @@ def verify_bearer_token(
 
     If the service has no token configured (``expected_token`` is empty), all
     requests are accepted. This is documented as local-dev-only behavior.
+
+    The token comparison is constant-time (``hmac.compare_digest``) so an
+    attacker on the service network cannot recover the token byte by byte
+    from response timing (docs/specs/authentication.md, SVC-1).
     """
     if not config.expected_token:
         return
@@ -30,16 +36,10 @@ def verify_bearer_token(
         )
 
     scheme, _, value = authorization.partition(" ")
-    if scheme.lower() != "bearer" or value != config.expected_token:
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
+        value.encode("utf-8"), config.expected_token.encode("utf-8")
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid bearer token.",
         )
-
-
-def authorization_header() -> str | None:
-    """FastAPI dependency-friendly accessor for the Authorization header."""
-    # Wrapper so callers can `Depends(authorization_header)` if they prefer
-    # injection over reading the header inline. Currently the route reads it
-    # via Header() directly; this keeps the import surface for tests stable.
-    raise NotImplementedError  # not used at runtime; tests use Header() too

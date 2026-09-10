@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Business-specific policies for predictive target selection.
+description: Business-specific policies for drift target selection.
 body: |
-  # Predictive Target Policies
+  # Targeting Policies
 
   Apply these policies when deciding which existing Terraform resources
-  should be included or excluded from the predictive target list.
+  should be included or excluded from the target list.
 
   ## Exclusions
   - No organization-specific exclusions configured.

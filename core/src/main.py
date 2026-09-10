@@ -17,6 +17,7 @@ from src.api.v1 import (
     session,
     mapping,
     users,
+    notifications,
 )
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
@@ -116,6 +117,10 @@ tags_metadata: list[dict[str, str]] = [
         "name": "Admin",
         "description": "Admin panel: cross-user sessions, locks, and role management.",
     },
+    {
+        "name": "Notifications",
+        "description": "User-originated notifications relayed to the notifications service.",
+    },
 ]
 
 app = FastAPI(
@@ -154,3 +159,4 @@ app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
+app.include_router(notifications.router, prefix="/v1")

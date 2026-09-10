@@ -56,11 +56,6 @@ export function isApplyRound(round: RoundDetail): boolean {
   return round.statuses.some((s) => s.status === "apply");
 }
 
-export function extractProjectName(workspaceUri: string): string {
-  const segments = workspaceUri.replace(/\/+$/, "").split("/");
-  return segments[segments.length - 1] || workspaceUri;
-}
-
 // ─── Waiting for a new round (stale-terminal guard) ────────────
 // Iteration/apply calls write no status synchronously: the 202 returns
 // before the background runner creates the new round, so subscribing
@@ -266,41 +261,34 @@ export async function resolveSessionOutcome(
 
 // ─── Session-context projection ────────────────────────────────
 
-/**
- * Map an outcome onto the UI Session shape. Callers that already hold
- * live wizard values (project from the mapper, environment from the
- * chosen iac_path) should keep them over the derived fallbacks here.
- */
+/** Map an outcome onto the UI Session shape. */
 export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
   if (outcome.kind === "failed") {
     const patch: Partial<Session> = { current_status: "failed" };
-    if (outcome.detail) patch.session_id = outcome.detail.uuid;
+    if (outcome.detail) patch.uuid = outcome.detail.uuid;
     return patch;
   }
 
   const { detail } = outcome;
   const patch: Partial<Session> = {
-    session_id: detail.uuid,
-    cloud: detail.provider,
-    project: extractProjectName(detail.workspace_uri),
-    environment: detail.workspace.root_path ?? undefined,
-    repositoryUrl: detail.workspace.uri,
-    branchName: detail.workspace.branch,
-    firstQuery: detail.first_query ?? undefined,
-    full_history: normalizeHistory(detail.history),
-    apply_allowed: !detail.is_blocked,
+    uuid: detail.uuid,
+    operation: detail.operation,
+    provider: detail.provider,
+    scope_id: detail.scope_id,
+    first_query: detail.first_query ?? undefined,
+    workspace: detail.workspace,
     current_status: detail.current_status,
+    is_blocked: detail.is_blocked,
+    history: normalizeHistory(detail.history),
   };
 
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
-    patch.terraform_targets = outcome.targets;
     patch.code = outcome.code;
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
-    patch.terraform_targets = outcome.prior.targets;
     patch.code = outcome.prior.code;
   }
 

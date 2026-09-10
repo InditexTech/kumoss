@@ -9,13 +9,12 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SettingsIcon from "@mui/icons-material/Settings";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PersonIcon from "@mui/icons-material/Person";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { Authenticated } from "@/contexts/AuthContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
-import { SupportButton } from "@/components/ui";
 import ConfigurationModal from "@/components/ConfigurationModal/ConfigurationModal";
-// DISABLED: SupportModal posts to /api/v1/notifications, which has no
-// backend route. Re-enable the commented blocks below when it returns.
-// import SupportModal from "@/components/SupportModal/SupportModal";
+import SupportModal from "@/components/SupportModal/SupportModal";
 import ModeDropdown from "./ModeDropdown/ModeDropdown";
 import styles from "./Header.module.css";
 
@@ -24,7 +23,7 @@ function Header() {
   const location = useLocation();
   const view = useCurrentView();
   const [configOpen, setConfigOpen] = useState(false);
-  // const [supportOpen, setSupportOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const modeDisabled = view !== null && view !== "wizard";
 
   return (
@@ -81,31 +80,26 @@ function Header() {
                 <PersonOutlineIcon className={styles.headerIcon} />
               )}
             </ButtonBase>
-            <SupportButton variant="icon" />
-            {/* {hasWizardData ? (
-              <SupportButton variant="icon" />
-            ) : (
-              <ButtonBase
-                onClick={() => setSupportOpen(true)}
-                className={styles.iconButton}
-                aria-label="Support"
-              >
-                {supportOpen ? (
-                  <ChatBubbleIcon className={styles.headerIcon} />
-                ) : (
-                  <ChatBubbleOutlineIcon className={styles.headerIcon} />
-                )}
-              </ButtonBase>
-            )} */}
+            {/* Opens the support modal, which posts a notification through
+                POST /api/v1/notifications → notifications service. */}
+            <ButtonBase
+              onClick={() => setSupportOpen(true)}
+              className={styles.iconButton}
+              aria-label="Support"
+            >
+              {supportOpen ? (
+                <ChatBubbleIcon className={styles.headerIcon} />
+              ) : (
+                <ChatBubbleOutlineIcon className={styles.headerIcon} />
+              )}
+            </ButtonBase>
           </Authenticated>
         </div>
       </header>
       {configOpen && (
         <ConfigurationModal onClose={() => setConfigOpen(false)} />
       )}
-      {/* {supportOpen && (
-        <SupportModal onClose={() => setSupportOpen(false)} />
-      )} */}
+      {supportOpen && <SupportModal onClose={() => setSupportOpen(false)} />}
     </>
   );
 }

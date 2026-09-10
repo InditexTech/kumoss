@@ -2,4 +2,4 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-export { extractProjectName } from "@/services/workflows/session_outcome";
+export { extractProjectName } from "@/utils/workspace";

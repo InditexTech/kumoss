@@ -8,14 +8,10 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from src.api.deps import (
-    CurrentUser,
-    assert_session_access,
-    require_operation_role,
-)
+from src.api.deps import assert_session_access, require_operation_role
 from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
-from src.domains.entities.session import SessionContext
+from src.domains.entities import SessionContext, User
 from src.application.factory import ApplicationFactory
 from src.application.iac_requests import (
     BaseIacRequest,
@@ -51,7 +47,7 @@ _orchestration = SessionOrchestrationService()
 
 async def _resolve_or_raise(
     request: BaseIacRequest | SessionRequest,
-    user: CurrentUser,
+    user: User,
     operation: OperationType | None = None,
 ) -> SessionContext:
     """Validate URI (first call) and resolve to a SessionContext entity.
@@ -117,7 +113,9 @@ def _make_runner(
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
             await DatabaseService.mark_failed(ctx.id, msg)
-            await NotificationServiceClient.notify_exception_failure(ctx.id, msg)
+            await NotificationServiceClient.notify_exception_failure(
+                ctx.id, ctx.user_id, msg
+            )
             return
         finally:
             tracer.reset_current_tracer(tracer_token)
@@ -135,9 +133,7 @@ def _make_runner(
 async def generate_infrastructure(
     background_tasks: BackgroundTasks,
     request: GenerateRequest,
-    user: Annotated[
-        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
-    ],
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> dict[str, str]:
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
@@ -160,7 +156,7 @@ async def generate_infrastructure(
 async def drift_detection_remediation(
     background_tasks: BackgroundTasks,
     request: DriftRequest,
-    user: Annotated[CurrentUser, Depends(require_operation_role(OperationRole.DEVOPS))],
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVOPS))],
 ) -> dict[str, str]:
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
@@ -186,9 +182,7 @@ async def drift_detection_remediation(
 async def apply_infrastructure(
     background_tasks: BackgroundTasks,
     request: ApplyRequest,
-    user: Annotated[
-        CurrentUser, Depends(require_operation_role(OperationRole.DEVELOPER))
-    ],
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> dict[str, str]:
     """Applies the plan pinned by the session's last successful generate or
     drift round — exactly the reviewed changes, with no re-plan at apply time.

@@ -27,7 +27,7 @@ export default function ChatActionBar({
   const [, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
 
-  const prCreated = !!prDetails.id;
+  const prCreated = !!prDetails.number;
 
   const openPrView = useCallback(
     (step: string) => {
@@ -41,13 +41,13 @@ export default function ChatActionBar({
   );
 
   const handleCreatePr = useCallback(async () => {
-    if (!session.session_id || prCreated || loading) return;
+    if (!session.uuid || prCreated || loading) return;
     setLoading(true);
     try {
       const res = await createPullRequest({
-        session_id: session.session_id,
+        session_id: session.uuid,
       });
-      updatePrDetails({ id: res.id, prUrl: res.url });
+      updatePrDetails({ number: res.id, url: res.url });
       openPrView("initial");
     } catch (err) {
       showNotification(
@@ -57,7 +57,7 @@ export default function ChatActionBar({
       setLoading(false);
     }
   }, [
-    session.session_id,
+    session.uuid,
     prCreated,
     loading,
     updatePrDetails,
@@ -73,7 +73,7 @@ export default function ChatActionBar({
     onResetToReport();
   }, [onResetToReport]);
 
-  const canCreatePr = !!session.session_id && !prCreated && !disabled;
+  const canCreatePr = !!session.uuid && !prCreated && !disabled;
 
   if (isApplyResult) return null;
 

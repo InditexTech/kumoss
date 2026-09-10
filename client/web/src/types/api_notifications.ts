@@ -19,7 +19,6 @@ export interface Notification {
   severity: NotificationSeverity;
   subject: string;
   body: string;
-  audience?: string[];
   links?: NotificationLink[];
   context?: { [key: string]: unknown };
 }

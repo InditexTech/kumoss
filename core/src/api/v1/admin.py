@@ -8,7 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from src.api.deps import CurrentUser, require_panel_role
+from src.api.deps import require_panel_role
 from src.api.dtos import (
     AdminUserEntry,
     PaginatedUsers,
@@ -150,7 +150,7 @@ async def admin_users_list(
 async def set_user_roles(
     user_id: int,
     request: UpdateUserRolesRequest,
-    caller: Annotated[CurrentUser, Depends(require_panel_role(PanelRole.ADMIN))],
+    caller: Annotated[User, Depends(require_panel_role(PanelRole.ADMIN))],
 ) -> AdminUserEntry:
     if caller.id == user_id and request.panel_role is not PanelRole.ADMIN:
         raise HTTPException(

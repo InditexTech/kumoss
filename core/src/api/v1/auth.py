@@ -7,8 +7,9 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from fastapi.responses import JSONResponse
 
-from src.api.deps import CurrentUser, get_current_user
+from src.api.deps import get_current_user
 from src.api.dtos import AuthConfigResponse
+from src.domains.entities import User
 from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.config.system_config import system_config
 
@@ -56,7 +57,7 @@ async def authorize(
         str, Body(description="name of the project that we are checking")
     ],
     environment: Annotated[str, Body(description="environment that we are checking")],
-    user: Annotated[CurrentUser, Depends(get_current_user)],
+    user: Annotated[User, Depends(get_current_user)],
 ):
     result = await AuthzServiceClient().check(
         cloud=cloud,

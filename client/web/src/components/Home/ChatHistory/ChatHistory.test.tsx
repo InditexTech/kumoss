@@ -48,9 +48,9 @@ describe("ChatHistory", () => {
     expect(screen.getByLabelText("Send message")).toBeInTheDocument();
   });
 
-  it("renders messages from session.full_history", () => {
+  it("renders messages from session.history", () => {
     renderChat(undefined, {
-      full_history: [
+      history: [
         { role: "user", content: "deploy a VM" },
         { role: "assistant", content: "I'll create the terraform for that." },
       ],
@@ -62,7 +62,7 @@ describe("ChatHistory", () => {
 
   it("filters out validation messages", () => {
     renderChat(undefined, {
-      full_history: [
+      history: [
         { role: "user", content: "deploy a VM" },
         { role: "validation", content: "internal validation note" },
         { role: "assistant", content: "Done!" },

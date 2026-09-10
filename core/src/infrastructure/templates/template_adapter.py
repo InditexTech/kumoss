@@ -35,12 +35,9 @@ class TemplateAdapter(ITemplate):
     ) -> str:
         t = self._get_template(self._core + f"target_{mode.value}_generator.jinja")
         context: dict = {}
-        if mode in (
-            TargetGenerationMode.PREDICTIVE,
-            TargetGenerationMode.DRIFT,
-        ):
-            guidelines = await remote_fetcher.fetch(
-                prompt_name="predictive_targets",
+        if mode is TargetGenerationMode.DRIFT:
+            policies = await remote_fetcher.fetch(
+                prompt_name="targeting_policies",
                 scope="general",
                 type="guidelines",
                 tag=system_config.environment,
@@ -48,7 +45,7 @@ class TemplateAdapter(ITemplate):
             context.update(
                 {
                     "RELEVANT_TEMPLATES": resources or [],
-                    "PREDICTIVE_TARGETS_GUIDELINES": guidelines,
+                    "TARGETING_POLICIES": policies,
                     "CWD": self._cwd,
                 }
             )
@@ -88,6 +85,11 @@ class TemplateAdapter(ITemplate):
     def render_task_splitter(self) -> str:
         t = self._get_template(self._core + "task_splitter.jinja")
         return t.render()
+
+    @override
+    def render_filter_reconciliation(self) -> str:
+        t = self._get_template(self._core + "filter_reconciliation.jinja")
+        return t.render(CWD=self._cwd)
 
     @override
     def render_joker(self) -> str:
