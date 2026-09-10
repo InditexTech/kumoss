@@ -130,7 +130,6 @@ class TestDriftHandlerFlow(_HandlerTestCase):
             report_service=self.report_svc,
             target_service=self.target_svc,
             drift_service=self.drift_svc,
-            compliance_service=self.compliance_svc,
         )
 
     async def test_full_round_resolves_drift_unfiltered_on_all_resources(self):

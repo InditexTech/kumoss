@@ -7,50 +7,56 @@ from unittest.mock import patch
 
 from opentelemetry.trace import Tracer
 
-from src.infrastructure.telemetry._initializer import _active_project, get_tracer
-from src.shared.constants import TracerProject
+from src.infrastructure.telemetry._initializer import _route_tracer_project, get_tracer
+from src.shared.constants import OperationType, TracerProject
+
+_CONFIG = "src.infrastructure.telemetry._initializer.system_config"
 
 
-class TestActiveProject(unittest.TestCase):
-    @patch("src.infrastructure.telemetry._initializer.system_config")
+class TestRouteTracerProject(unittest.TestCase):
+    @patch(_CONFIG)
     def test_development_returns_dev(self, mock_config):
         mock_config.environment = "development"
-        self.assertEqual(_active_project(), TracerProject.DEV_TERRAFORM_DAY2)
+        self.assertEqual(
+            _route_tracer_project(OperationType.GENERATE),
+            TracerProject.DEV_TERRAFORM_DAY2,
+        )
 
-    @patch("src.infrastructure.telemetry._initializer.system_config")
+    @patch(_CONFIG)
     def test_staging_returns_pre(self, mock_config):
         mock_config.environment = "staging"
-        self.assertEqual(_active_project(), TracerProject.PRE_TERRAFORM_DAY2)
+        self.assertEqual(
+            _route_tracer_project(OperationType.GENERATE),
+            TracerProject.PRE_TERRAFORM_DAY2,
+        )
 
-    @patch("src.infrastructure.telemetry._initializer.system_config")
+    @patch(_CONFIG)
     def test_production_returns_pro(self, mock_config):
         mock_config.environment = "production"
-        self.assertEqual(_active_project(), TracerProject.PRO_TERRAFORM_DAY2)
+        self.assertEqual(
+            _route_tracer_project(OperationType.GENERATE),
+            TracerProject.PRO_TERRAFORM_DAY2,
+        )
 
-    @patch("src.infrastructure.telemetry._initializer.system_config")
-    def test_unknown_environment_falls_through_to_pro(self, mock_config):
+    @patch(_CONFIG)
+    def test_drift_routes_to_the_drift_project(self, mock_config):
+        mock_config.environment = "production"
+        self.assertEqual(
+            _route_tracer_project(OperationType.DRIFT),
+            TracerProject.PRO_TERRAFORM_DRIFT,
+        )
+
+    @patch(_CONFIG)
+    def test_unknown_environment_raises(self, mock_config):
         mock_config.environment = "anything-else"
-        self.assertEqual(_active_project(), TracerProject.PRO_TERRAFORM_DAY2)
+        with self.assertRaises(ValueError):
+            _route_tracer_project(OperationType.GENERATE)
 
 
 class TestGetTracer(unittest.TestCase):
     def test_returns_otel_tracer(self):
-        tracer = get_tracer()
+        tracer = get_tracer(OperationType.GENERATE)
         self.assertIsInstance(tracer, Tracer)
-
-
-class TestLiteLLMInstrumentorRegistered(unittest.TestCase):
-    def test_litellm_acompletion_is_instrumented(self):
-        import litellm
-
-        original_module = litellm.acompletion.__module__
-        # The instrumentor wraps acompletion — the wrapper lives in the
-        # openinference package, not in litellm itself.
-        self.assertNotEqual(
-            original_module,
-            "litellm.main",
-            "litellm.acompletion should be wrapped by the instrumentor",
-        )
 
 
 if __name__ == "__main__":

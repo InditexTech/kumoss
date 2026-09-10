@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from src.api.deps import get_current_user
 from src.domains.entities import User
-from src.infrastructure.filesystem.workspace import InvalidRepoURI
+from src.infrastructure.exceptions import InvalidRepoURI
 from src.main import app
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
@@ -46,7 +46,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_returns_roots(self):
         svc = _mock_service(AsyncMock(return_value=["infra/dev", "infra/pro"]))
         with patch(
-            "src.api.v1.repository.StatelessFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -60,7 +60,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_empty_repo_returns_empty_list(self):
         svc = _mock_service(AsyncMock(return_value=[]))
         with patch(
-            "src.api.v1.repository.StatelessFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -71,9 +71,9 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.json()["roots"], [])
 
     def test_parse_invalid_uri_returns_400(self):
-        svc = _mock_service(AsyncMock(side_effect=InvalidRepoURI("not a repo")))
+        svc = _mock_service(AsyncMock(side_effect=InvalidRepoURI("not a repo", 400)))
         with patch(
-            "src.api.v1.repository.StatelessFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -88,7 +88,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
             AsyncMock(side_effect=ExceptionHandler("clone failed", 502))
         )
         with patch(
-            "src.api.v1.repository.StatelessFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(

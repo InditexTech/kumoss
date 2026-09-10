@@ -22,6 +22,7 @@ to `provider/model-id` strings (the **Model String Format** column below) and
 export that provider's **Default LiteLLM Env Vars** (middle column) in
 `core/.env`. The core fails boot when litellm reports required env vars
 missing; note that some providers (e.g. `azure_ai`) have no litellm
+
 validation mapping, so missing credentials surface on the first LLM call
 instead. For advanced routing — fallbacks, load balancing, or custom
 credential env var names — use the optional `llm.model_list` key (see
@@ -29,7 +30,6 @@ credential env var names — use the optional `llm.model_list` key (see
 **Standard `litellm_params` Keys** column applies only there.
 
 ### 1. Major Cloud Platforms (Hyperscalers)
-
 
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
 | :--- | :--- | :--- | :--- | :--- |
@@ -73,11 +73,9 @@ credential env var names — use the optional `llm.model_list` key (see
 | **Voyage AI** (Embeddings) | `voyage/<model-name>` | `VOYAGE_API_KEY` | `api_key` | e.g., `voyage/voyage-3` |
 | **AI21** | `ai21/<model-name>` | `AI21_API_KEY` | `api_key` | e.g., `ai21/jamba-1.5-large` |
 
-
 ---
 
 ### 4. Enterprise Data Platforms
-
 
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Notes |
 | :--- | :--- | :--- | :--- | :--- |
@@ -86,7 +84,6 @@ credential env var names — use the optional `llm.model_list` key (see
 | **Snowflake Cortex** | `snowflake/<model-name>` | `SNOWFLAKE_ACCOUNT_ID`<br>`SNOWFLAKE_USER`<br>`SNOWFLAKE_PASSWORD` | `snowflake_account_id`<br>`snowflake_user`<br>`snowflake_password` | Supports Llama, Mistral hosted in Snowflake. |
 
 ---
-
 
 ### 5. Self-Hosted, Local, and OpenAI-Compatible Engines
 
@@ -105,6 +102,7 @@ format](https://docs.litellm.ai/docs/routing) and is only needed for
 fallbacks, load balancing, or credential env var names that differ from the
 provider defaults. When set, `llm.model` and `llm.small_model` must match a
 `model_name` entry (reference list <https://models.litellm.ai/>), and credential values use the `os.environ/VAR_NAME`
+
 syntax so secrets stay in env vars. Each provider's keys are listed in the
 **Standard `litellm_params` Keys** column of the tables above (full
 reference: <https://docs.litellm.ai/docs/providers>):

@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 from src.domains.services.database_service import DatabaseService
-from src.domains.services.user_service import DEV_CLAIMS, UserService
+from src.domains.services.user_service import UserService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.infrastructure.redis import redis_client
@@ -32,7 +32,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             await conn.run_sync(Base.metadata.create_all)
         # Auth is disabled in the test config, so every request acts as
         # the dev identity; the listed sessions must belong to it.
-        self.user = await UserService.resolve(DEV_CLAIMS)
+        self.user = await UserService.resolve()
         self.username = self.user.email
         self.sid = uuid4()
         _ = await DatabaseService.create_session(
@@ -69,16 +69,11 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["provider"], "azure")
         self.assertEqual(item["first_query"], "create a resource group")
         self.assertEqual(item["workspace_uri"], "https://example.com/foo.git")
-        # No status rows yet: summaries fall back to STARTED.
         self.assertEqual(item["current_status"], "started")
         self.assertFalse(item["in_flight"])
         self.assertFalse(item["is_blocked"])
 
     async def test_detail_aggregates_rounds_and_artifacts(self):
-        # Attaches to round 1, opened by create_session.
-        await DatabaseService.mark_session_status(
-            self.sid, SessionStatus.STARTED, "kick-off"
-        )
         round_id = await DatabaseService.create_round(self.sid, "add a vnet")
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "round 2", round_id=round_id

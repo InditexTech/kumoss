@@ -8,7 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from src.domains.exceptions import UserNotFound
-from src.domains.services.user_service import DEV_CLAIMS, UserService
+from src.domains.services.user_service import UserService
 from src.domains.value_objects import TokenClaims
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
@@ -114,7 +114,7 @@ class TestUserService(unittest.IsolatedAsyncioTestCase):
         self.assertIs(user.panel_role, PanelRole.ADMIN)
 
     async def test_dev_claims_resolve_to_a_fully_elevated_user(self):
-        user = await UserService.resolve(DEV_CLAIMS)
+        user = await UserService.resolve()
         self.assertIs(user.operation_role, OperationRole.DEVOPS)
         self.assertIs(user.panel_role, PanelRole.ADMIN)
 
