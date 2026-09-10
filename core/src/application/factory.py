@@ -205,7 +205,10 @@ class ApplicationFactory:
         self,
         project_root: Path,
     ) -> ITerraform:
-        return TerraformFactory(project_root).get()
+        return TerraformFactory(
+            project_root=project_root,
+            scope_id=self.__ctx.scope_id,
+        ).get()
 
     def _get_terraform_validation_service(
         self,

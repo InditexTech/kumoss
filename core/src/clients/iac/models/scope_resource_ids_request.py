@@ -25,9 +25,8 @@ class ScopeResourceIdsRequest:
             credentials the scope query runs with.
         scope_id (str): Cloud provider scope to list — Azure: subscription id (or
             any value matched as a substring of resource IDs), GCP:
-            project id, AWS: account id. Required here, unlike on the
-            other endpoints: it names the scope being listed rather
-            than acting as a credential fallback.
+            project id, AWS: account id. Names the scope being listed
+            rather than the scope a command runs against.
         terraform_provider (TerraformProvider): Cloud provider a scope query targets. Values follow the core's
             provider vocabulary (`azure`, `gcp`, `aws`), not Terraform
             registry provider names (`azurerm`, `google`).

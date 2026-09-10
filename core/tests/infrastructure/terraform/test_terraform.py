@@ -38,6 +38,10 @@ from src.shared.exceptions import ExceptionHandler
 # Mirrors paths.session_plan_filename in the patched system_config below.
 SESSION_PLAN_FILENAME = "session.plan"
 
+# Session cloud scope (subscription / project / account id); the IaC
+# contract requires it on every command request.
+SCOPE_ID = "sub-123"
+
 
 NO_CHANGES_PLAN_JSON = json.dumps({"format_version": "1.2", "resource_changes": []})
 
@@ -94,7 +98,9 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         tracer_patcher.start()
         self.addCleanup(tracer_patcher.stop)
 
-        self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
+        self.terraform = tv.Terraform(
+            workspace_path=Path("/workspaces/demo"), scope_id=SCOPE_ID
+        )
 
     def _use_config(self, **overrides) -> IacServiceConfig:
         cfg = IacServiceConfig(
@@ -198,6 +204,25 @@ class TestTerraformValidate(_TerraformTestCase):
         self.assertEqual(init_body.workspace_path, "/workspaces/demo")
         plan_body = submit_mocks["plan"].await_args.kwargs["body"]
         self.assertEqual(plan_body.targets, ["module.db"])
+
+    async def test_every_op_carries_the_session_scope(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=_ok(),
+            validate=_ok(),
+            plan=_ok(),
+            show=_ok(stdout=NO_CHANGES_PLAN_JSON),
+        )
+
+        _ = await self.terraform.validate(targets=[], get_drift=True)
+
+        for name in ("init", "validate", "plan", "show"):
+            with self.subTest(op=name):
+                body = submit_mocks[name].await_args.kwargs["body"]
+                self.assertEqual(body.scope_id, SCOPE_ID)
+                # scope_id is required by the contract: it must be
+                # serialized on the wire, not dropped as unset.
+                self.assertEqual(body.to_dict()["scope_id"], SCOPE_ID)
 
     async def test_drift_found_maps_to_validation_false(self):
         self._use_config()
@@ -314,7 +339,9 @@ class TestTerraformValidate(_TerraformTestCase):
             with self.subTest(rejected=rejected):
                 self._use_config()
                 self._patch_ops(init=rejected)
-                self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
+                self.terraform = tv.Terraform(
+                    workspace_path=Path("/workspaces/demo"), scope_id=SCOPE_ID
+                )
 
                 with self.assertRaises(ExceptionHandler) as ctx:
                     await self.terraform.validate(targets=[], get_drift=False)
@@ -458,6 +485,8 @@ class TestTerraformApply(_TerraformTestCase):
 
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
+        self.assertEqual(apply_body.scope_id, SCOPE_ID)
+        self.assertEqual(apply_body.to_dict()["scope_id"], SCOPE_ID)
         self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
         self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 

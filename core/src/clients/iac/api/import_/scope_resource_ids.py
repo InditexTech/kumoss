@@ -115,10 +115,9 @@ def sync_detailed(
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on the other endpoints) and
+    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
     credentials; the OSS reference impl shells out to the
     corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
     service's ambient credentials.
@@ -170,10 +169,9 @@ def sync(
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on the other endpoints) and
+    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
     credentials; the OSS reference impl shells out to the
     corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
     service's ambient credentials.
@@ -220,10 +218,9 @@ async def asyncio_detailed(
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on the other endpoints) and
+    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
     credentials; the OSS reference impl shells out to the
     corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
     service's ambient credentials.
@@ -273,10 +270,9 @@ async def asyncio(
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on the other endpoints) and
+    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
     credentials; the OSS reference impl shells out to the
     corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
     service's ambient credentials.
