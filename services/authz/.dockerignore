@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Local credentials
+**/.env
+**/.env.*
+
+# Host virtualenvs: built for the host's interpreter, and they would
+# shadow the venv the image builds for itself.
+**/.venv
+**/venv
+
+# Python caches
+**/__pycache__
+**/*.py[cod]
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+
+# Not needed by the image at runtime
+**/tests
+env.sample
+README.md
+Dockerfile
+.dockerignore
