@@ -348,7 +348,7 @@ Terraform configuration uses:
 
 | Cloud | Variables in the sample |
 |---|---|
-| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` |
+| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` |
 | Google Cloud | `GOOGLE_CREDENTIALS` (service-account key, as JSON content, not a path) |
 | AWS | `AWS_ACCESS_KEY_ID`, `AWS_PROFILE`; add whatever else your AWS provider authentication needs, such as the matching secret key |
 
