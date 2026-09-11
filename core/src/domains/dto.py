@@ -98,6 +98,33 @@ class TerraformValidationDTO:
 
 
 @dataclass
+class TerraformImportAttempt:
+    """One resource an import round tried to bring under Terraform management"""
+
+    address: str
+    resource_id: str
+    error: str = ""
+
+
+@dataclass
+class TerraformImportDTO:
+    """Outcome of an import round, partitioned by result.
+
+    Callers get the split they need instead of the raw per-resource
+    validations: ``imported`` drives the convergence plan and the report,
+    ``failed`` carries the reason each import was rejected.
+    """
+
+    imported: list[TerraformImportAttempt]
+    failed: list[TerraformImportAttempt]
+
+    @property
+    def addresses(self) -> list[str]:
+        """Terraform addresses now tracked in state."""
+        return [r.address for r in self.imported]
+
+
+@dataclass
 class PullRequestDTO:
     id: int
     url: str

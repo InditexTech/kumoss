@@ -11,12 +11,19 @@ rejection, empty discovery, empty selection), partial import
 failures, and that the session is saved even on errors.
 """
 
+import json
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.use_cases.terraform_import_handler import TerraformImportHandler
-from src.domains.dto import ComplianceCheckReport, TerraformValidationDTO, ToolResultDTO
+from src.domains.dto import (
+    ComplianceCheckReport,
+    TerraformImportAttempt,
+    TerraformImportDTO,
+    TerraformValidationDTO,
+    ToolResultDTO,
+)
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
 from src.shared.constants import (
@@ -38,12 +45,24 @@ def _validation_dto(
     )
 
 
-def _import_dto(validation: bool, address: str) -> TerraformValidationDTO:
-    return TerraformValidationDTO(
-        validation=validation,
-        feedback="" if validation else f"import failed for {address}",
-        terraform_plan="",
-        terraform_targets=[address],
+def _import_outcome(
+    imported: list[tuple[str, str]] | None = None,
+    failed: list[tuple[str, str]] | None = None,
+) -> TerraformImportDTO:
+    """Build the import round outcome from (address, resource_id) pairs."""
+    return TerraformImportDTO(
+        imported=[
+            TerraformImportAttempt(address=address, resource_id=resource_id)
+            for address, resource_id in imported or []
+        ],
+        failed=[
+            TerraformImportAttempt(
+                address=address,
+                resource_id=resource_id,
+                error=f"import failed for {address}",
+            )
+            for address, resource_id in failed or []
+        ],
     )
 
 
@@ -160,7 +179,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
         self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import everything", is_partial=True)
@@ -188,9 +207,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import everything", is_partial=False)
@@ -232,9 +251,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.terraform_svc.validate.return_value = _validation_dto(True)
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
@@ -284,10 +303,12 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                 {"address": "azurerm_virtual_network.vnet", "resource_id": "res-2"},
             ]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main"),
-            _import_dto(True, "azurerm_virtual_network.vnet"),
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[
+                ("azurerm_resource_group.main", "res-1"),
+                ("azurerm_virtual_network.vnet", "res-2"),
+            ]
+        )
         self.terraform_svc.validate.return_value = _validation_dto(True)
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
@@ -316,10 +337,10 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                 {"address": "azurerm_virtual_network.vnet", "resource_id": "res-2"},
             ]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main"),
-            _import_dto(False, "azurerm_virtual_network.vnet"),
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")],
+            failed=[("azurerm_virtual_network.vnet", "res-2")],
+        )
         self.terraform_svc.validate.return_value = _validation_dto(True)
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
@@ -338,7 +359,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
         self.validation_svc.last_generation_result = None
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
@@ -360,9 +381,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
@@ -392,9 +413,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.terraform_svc.validate.return_value = _validation_dto(True)
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
@@ -421,9 +442,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(
             True, plan="convergence plan"
         )
@@ -437,7 +458,8 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             await task()
 
         report_kwargs = self.report_svc.generate_report.await_args.kwargs
-        self.assertEqual(report_kwargs["content"], "convergence plan")
+        payload = json.loads(report_kwargs["content"])
+        self.assertEqual(payload["plan_after_import"], "convergence plan")
 
     async def test_unresolved_convergence_does_not_abort(self):
         self.requests_filter_svc.filter.return_value = (True, "")
@@ -447,9 +469,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(True, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")]
+        )
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(False)
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
@@ -470,9 +492,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.last_generation_result = _generation_result(
             [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
         )
-        self.import_svc.import_resources.return_value = [
-            _import_dto(False, "azurerm_resource_group.main")
-        ]
+        self.import_svc.import_resources.return_value = _import_outcome(
+            failed=[("azurerm_resource_group.main", "res-1")]
+        )
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
@@ -494,7 +516,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             True, plan="the plan"
         )
         self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
@@ -506,7 +528,65 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
         report_kwargs = self.report_svc.generate_report.await_args.kwargs
         self.assertIs(report_kwargs["type"], ReportType.IMPORT)
-        self.assertEqual(report_kwargs["content"], "the plan")
+        payload = json.loads(report_kwargs["content"])
+        self.assertEqual(payload["plan_after_import"], "the plan")
+
+    async def test_report_content_carries_the_per_resource_import_outcome(self):
+        self.requests_filter_svc.filter.return_value = (True, "")
+        self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
+        self.llm_svc.generate.return_value = _filter_result(["res-1", "res-2"])
+        self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
+        self.validation_svc.last_generation_result = _generation_result(
+            [
+                {"address": "azurerm_resource_group.main", "resource_id": "res-1"},
+                {"address": "azurerm_storage_account.sta", "resource_id": "res-2"},
+            ]
+        )
+        self.import_svc.import_resources.return_value = _import_outcome(
+            imported=[("azurerm_resource_group.main", "res-1")],
+            failed=[("azurerm_storage_account.sta", "res-2")],
+        )
+        self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(
+            True, plan="no changes"
+        )
+        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
+
+        task = await self.handler.handle("import res-1 and res-2", is_partial=True)
+        with patch(
+            "src.application.use_cases.terraform_import_handler.DatabaseService"
+        ) as db_mock:
+            db_mock.set_lock = AsyncMock(return_value=True)
+            await task()
+
+        # A clean plan says nothing on its own, so the import report is fed
+        # the outcome of every attempted import, successes and failures alike.
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(payload["selected_resource_ids"], ["res-1", "res-2"])
+        self.assertEqual(
+            payload["import_results"],
+            {
+                "imported": [
+                    {
+                        "address": "azurerm_resource_group.main",
+                        "resource_id": "res-1",
+                        "error": "",
+                    },
+                ],
+                "failed": [
+                    {
+                        "address": "azurerm_storage_account.sta",
+                        "resource_id": "res-2",
+                        "error": "import failed for azurerm_storage_account.sta",
+                    },
+                ],
+            },
+        )
+        # The compliance gate keeps auditing the plan text, not the payload.
+        self.assertEqual(
+            self.compliance_svc.check.await_args.kwargs["plan"], "no changes"
+        )
 
     @patch(
         "src.application.use_cases.terraform_import_handler.NotificationServiceClient"
@@ -518,7 +598,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
         self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport(
             passed=False,
             violations=[],
@@ -541,7 +621,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
         self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport(
             passed=False,
             violations=[],
@@ -563,7 +643,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
         self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
         self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
         db_mock.set_lock = AsyncMock(return_value=True)
 
@@ -618,7 +698,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
         async def track_import(*args, **kwargs):
             order.append("import")
-            return [_import_dto(True, "azurerm_resource_group.main")]
+            return _import_outcome(imported=[("azurerm_resource_group.main", "res-1")])
 
         async def track_convergence(*args, **kwargs):
             order.append("convergence")

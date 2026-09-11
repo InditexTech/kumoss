@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformImportAttempt, TerraformImportDTO
 from src.domains.interfaces import ITerraform
 from src.shared.constants import TerraformProvider
 from src.shared.logger import logging
@@ -37,16 +37,23 @@ class TerraformImportService:
     async def import_resources(
         self,
         imports: list[tuple[str, str]],
-    ) -> list[TerraformValidationDTO]:
-        results: list[TerraformValidationDTO] = []
+    ) -> TerraformImportDTO:
+        outcome = TerraformImportDTO(imported=[], failed=[])
         for address, resource_id in imports:
             result = await self.__import_prv.import_resource(
                 address=address,
                 resource_id=resource_id,
             )
-            results.append(result)
-            if not result.validation:
+            attempt = TerraformImportAttempt(
+                address=address,
+                resource_id=resource_id,
+                error=result.feedback,
+            )
+            if result.validation:
+                outcome.imported.append(attempt)
+            else:
+                outcome.failed.append(attempt)
                 logging.warning(
                     f"Import failed for {address} ({resource_id}): {result.feedback}"
                 )
-        return results
+        return outcome

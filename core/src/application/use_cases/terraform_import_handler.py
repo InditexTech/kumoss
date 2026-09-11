@@ -2,7 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from collections.abc import Coroutine
+from dataclasses import asdict
 from typing import Callable, Any, cast
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
@@ -192,23 +194,17 @@ class TerraformImportHandler:
                         f"for selected ids {selected_ids}"
                     )
                 import_results = await self.__import_svc.import_resources(imports)
-
-                failed = [r for r in import_results if not r.validation]
-                if failed:
+                if import_results.failed:
                     logging.warning(
-                        f"{len(failed)}/{len(import_results)} resource imports failed"
+                        f"{len(import_results.failed)}/{len(imports)} imports failed"
                     )
 
                 # Step 5 — Convergence: the imported state now mirrors the real
                 # resources, but the generated blocks hold guessed arguments.
                 # Reuse the drift resolution loop so the LLM rewrites the code
                 # until a plan over the imported addresses reports no changes.
-                imported_addresses = [
-                    r.terraform_targets[0]
-                    for r in import_results
-                    if r.validation and r.terraform_targets
-                ]
-                report_content = validation.terraform_plan
+                imported_addresses = import_results.addresses
+                plan_after_import = validation.terraform_plan
                 if imported_addresses:
                     # The drift service plans over the given targets with its
                     # own terraform service; the session changes filter stays
@@ -226,18 +222,27 @@ class TerraformImportHandler:
                             f"code still differs from the imported state: "
                             f"{convergence.feedback}"
                         )
-                    report_content = convergence.terraform_plan or report_content
+                    plan_after_import = convergence.terraform_plan or plan_after_import
 
-                # Step 6 — Gate
+                # Step 6 — Gate. The import report describes what is now
+                # tracked in state, so it needs the per-resource outcome and
+                # not only the plan: after a clean convergence the plan is
+                # empty, which on its own says nothing about the round.
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.IMPORT,
-                    content=report_content,
+                    content=json.dumps(
+                        {
+                            "selected_resource_ids": selected_ids,
+                            "import_results": asdict(import_results),
+                            "plan_after_import": plan_after_import,
+                        }
+                    ),
                 )
                 check = await self.__compliance_svc.check(
                     request=ctx.history.get_first_turn().user,
                     conventions=conventions,
-                    plan=report_content,
+                    plan=plan_after_import,
                 )
                 if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):

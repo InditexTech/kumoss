@@ -228,6 +228,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         "plan": ("FOR PLAN ANALYSIS REPORTS", "generate_terraform_plan_report"),
         "drift": ("FOR DRIFT REMEDIATION REPORTS", "generate_terraform_drift_report"),
         "apply": ("FOR APPLY REPORTS", "generate_terraform_apply_report"),
+        "import": ("FOR IMPORT REPORTS", "generate_terraform_import_report"),
     }
 
     def _run_report_generator_test(self, report_type: ReportType, branch: str | None):
@@ -252,8 +253,9 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self._run_report_generator_test(ReportType.GENERATE, branch="plan")
 
     def test_render_report_generator_import(self):
-        # IMPORT has no dedicated report workflow: no branch is rendered
-        self._run_report_generator_test(ReportType.IMPORT, branch=None)
+        # IMPORT has its own report: an import creates nothing, so the plan
+        # branch (impact analysis, cost estimation) must not be rendered.
+        self._run_report_generator_test(ReportType.IMPORT, branch="import")
 
     def test_render_report_generator_drift(self):
         self._run_report_generator_test(ReportType.DRIFT, branch="drift")
