@@ -124,6 +124,7 @@ class DriftRequest(BaseIacRequest):
 
 
 class ImportRequest(BaseIacRequest):
+    is_partial: bool = False
     q: Annotated[
         str,
         Field(
@@ -139,6 +140,12 @@ class ImportRequest(BaseIacRequest):
             self.scope_id is None or self.scope_id.strip() == ""
         ):
             raise ValueError("The `scope_id` must be provided when `repo_uri` is set.")
+        return self
+
+    @model_validator(mode="after")
+    def _partial_requires_query(self):
+        if self.is_partial and (not self.q or not self.q.strip()):
+            raise ValueError("Partial import requires a non-empty `q`.")
         return self
 
 

@@ -610,54 +610,6 @@ class TestTerraformImportResource(_ImportTestCase):
         self.assertIn("state lock held", ctx.exception.message)
 
 
-class _ImportTestCase(_TerraformTestCase):
-    """Extends _TerraformTestCase with import op patching."""
-
-    def _patch_import_ops(self, **outcomes) -> tuple[dict[str, AsyncMock], AsyncMock]:
-        """Patch init + import op modules and the job poll.
-
-        ``outcomes`` maps op name (init/state/scope/import) to either an
-        OperationResult, a Job, or a non-JobAccepted response.
-        """
-        jobs_by_id: dict[uuid.UUID, Job] = {}
-        submit_mocks: dict[str, AsyncMock] = {}
-        kind_map = {
-            "init": (tv.init_op, JobKind.INIT),
-            "state": (tv.state_op, JobKind.STATE_RESOURCE_IDS),
-            "scope": (tv.scope_op, JobKind.SCOPE_RESOURCE_IDS),
-            "import": (tv.import_op, JobKind.IMPORT),
-        }
-        for name, (module, kind) in kind_map.items():
-            if name not in outcomes:
-                mock = AsyncMock(
-                    side_effect=AssertionError(f"{name} op should not be submitted")
-                )
-            else:
-                outcome = outcomes[name]
-                if isinstance(outcome, OperationResult):
-                    outcome = _job(JobStatus.SUCCEEDED, kind=kind, result=outcome)
-                if isinstance(outcome, Job):
-                    job_id = uuid.uuid4()
-                    jobs_by_id[job_id] = outcome
-                    accepted = JobAccepted(job_id=job_id, status=JobStatus.QUEUED)
-                    mock = AsyncMock(return_value=accepted)
-                else:
-                    mock = AsyncMock(return_value=outcome)
-            submit_mocks[name] = mock
-            patcher = patch.object(module, "asyncio", mock)
-            patcher.start()
-            self.addCleanup(patcher.stop)
-
-        async def poll(job_id, client):
-            return jobs_by_id[job_id]
-
-        poll_mock = AsyncMock(side_effect=poll)
-        patcher = patch.object(tv.get_job_op, "asyncio", poll_mock)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        return submit_mocks, poll_mock
-
-
 class TestTerraformInitCache(_TerraformTestCase):
     async def test_init_runs_once_across_two_validates(self):
         self._use_config()

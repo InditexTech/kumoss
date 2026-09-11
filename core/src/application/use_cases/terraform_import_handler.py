@@ -63,7 +63,9 @@ class TerraformImportHandler:
         self.__tool_svc = tool_service
         self.__ctx = session_ctx
 
-    async def handle(self, q: str) -> Callable[[], Coroutine[Any, Any, None]]:
+    async def handle(
+        self, q: str, is_partial: bool
+    ) -> Callable[[], Coroutine[Any, Any, None]]:
         ctx = self.__ctx
 
         async def background_task():
@@ -79,16 +81,17 @@ class TerraformImportHandler:
                 )
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, ctx.operation
-                )
-                if not ok:
-                    ctx.history.append_turn(q, rationale)
-                    _ = await self.__session_svc.update_status(
-                        msg=rationale,
-                        status=SessionStatus.UNCOMPLETED,
+                if is_partial:
+                    ok, rationale = await self.__requests_filter_svc.filter(
+                        q, ctx.history, ctx.operation
                     )
-                    return
+                    if not ok:
+                        ctx.history.append_turn(q, rationale)
+                        _ = await self.__session_svc.update_status(
+                            msg=rationale,
+                            status=SessionStatus.UNCOMPLETED,
+                        )
+                        return
 
                 # Step 1 — Discovery
                 unmanaged_ids = await self.__import_svc.get_unmanaged_resources(
@@ -104,34 +107,41 @@ class TerraformImportHandler:
                     )
                     return
 
-                # Step 2 — Selection (iac_filter agent)
-                filter_result: ToolResultDTO = await self.__llm_svc.generate(
-                    query=q,
-                    tools=[
-                        self.__tool_svc.get_sentinel_tool(
-                            context=ToolContext.IAC_FILTER,
-                        )
-                    ],
-                    prompt=await self.__template_svc.render(
-                        prompt=PromptsLibrary.IAC_FILTER,
-                        unmanaged_ids=unmanaged_ids,
-                        resources=conventions.templates,
-                        abbreviations=conventions.abbreviations,
-                    ),
-                    history=ctx.history,
-                )
-                selected_ids: list[str] = cast(
-                    list[str], filter_result.result["selected_resource_ids"]
-                )
-                filter_explanation: str = cast(str, filter_result.result["explanation"])
-
-                if not selected_ids:
-                    ctx.history.append_turn(q, filter_explanation)
-                    _ = await self.__session_svc.update_status(
-                        msg=filter_explanation,
-                        status=SessionStatus.UNCOMPLETED,
+                # Step 2 — Selection (iac_filter agent), only for a partial
+                # round. A full round imports the whole scope diff, so every
+                # unmanaged id is selected without asking the agent to narrow
+                # it down.
+                selected_ids: list[str] = unmanaged_ids
+                if is_partial:
+                    filter_result: ToolResultDTO = await self.__llm_svc.generate(
+                        query=q,
+                        tools=[
+                            self.__tool_svc.get_sentinel_tool(
+                                context=ToolContext.IAC_FILTER,
+                            )
+                        ],
+                        prompt=await self.__template_svc.render(
+                            prompt=PromptsLibrary.IAC_FILTER,
+                            unmanaged_ids=unmanaged_ids,
+                            resources=conventions.templates,
+                            abbreviations=conventions.abbreviations,
+                        ),
+                        history=ctx.history,
                     )
-                    return
+                    selected_ids = cast(
+                        list[str], filter_result.result["selected_resource_ids"]
+                    )
+                    filter_explanation: str = cast(
+                        str, filter_result.result["explanation"]
+                    )
+
+                    if not selected_ids:
+                        ctx.history.append_turn(q, filter_explanation)
+                        _ = await self.__session_svc.update_status(
+                            msg=filter_explanation,
+                            status=SessionStatus.UNCOMPLETED,
+                        )
+                        return
 
                 # Step 3 — Config generation (IAC_IMPORT prompt + IAC_IMPORT sentinel)
                 async def validation_callback(
@@ -198,20 +208,15 @@ class TerraformImportHandler:
                 ]
                 report_content = validation.terraform_plan
                 if imported_addresses:
-
-                    async def convergence_callback(
-                        local_history: History,
-                    ) -> TerraformValidationDTO:
-                        return await self.__terraform_svc.validate(
-                            targets=imported_addresses,
-                            get_drift=False,
-                        )
-
+                    # The drift service plans over the given targets with its
+                    # own terraform service; the session changes filter stays
+                    # off because every imported address must converge, not
+                    # just the ones this round touched.
                     convergence = await self.__drift_svc.detect_and_resolve_drift(
+                        filter_session_changes=False,
                         targets=imported_addresses,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
-                        validator=convergence_callback,
                     )
                     if not convergence.validation:
                         logging.warning(
@@ -222,15 +227,15 @@ class TerraformImportHandler:
                     report_content = convergence.terraform_plan or report_content
 
                 # Step 6 — Gate
-                report = await self.__report_svc.generate_report(
+                _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.IMPORT,
                     content=report_content,
                 )
                 check = await self.__compliance_svc.check(
-                    history=ctx.history,
+                    request=ctx.history.get_first_turn().user,
                     conventions=conventions,
-                    report=report,
+                    plan=report_content,
                 )
                 if not check.passed:
                     if not await DatabaseService.set_lock(ctx.id, True):
@@ -239,8 +244,7 @@ class TerraformImportHandler:
                             error_code=500,
                         )
                     await NotificationServiceClient.notify_compliance_failure(
-                        session_id=ctx.id,
-                        summary=check.summary,
+                        ctx.id, ctx.user_id, check.summary
                     )
                 elif not await DatabaseService.set_lock(ctx.id, False):
                     raise SetLockError(

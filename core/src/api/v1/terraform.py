@@ -210,16 +210,18 @@ async def apply_infrastructure(
     summary="Start an IaC import session.",
 )
 async def import_infrastructure(
-    background_tasks: BackgroundTasks, request: ImportRequest
+    background_tasks: BackgroundTasks,
+    request: ImportRequest,
+    user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> dict[str, str]:
     """Imports, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, OperationType.IMPORT)
+    ctx = await _resolve_or_raise(request, user, OperationType.IMPORT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()
-        return await handler.handle(request.q)
+        return await handler.handle(request.q, request.is_partial)
 
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}
