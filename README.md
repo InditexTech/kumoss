@@ -37,7 +37,6 @@ credential env var names — use the optional `llm.model_list` key (see
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Azure AI Foundry** (Claude, Llama, etc.) | `azure_ai/<model-name>` | `AZURE_AI_API_KEY`<br>`AZURE_AI_API_BASE` | `api_key`<br>`api_base` | `https://<resource>.services.ai.azure.com/anthropic` (or `/models`) |
-
 | **Azure OpenAI** | `azure/<deployment-name>` | `AZURE_API_KEY`<br>`AZURE_API_BASE`<br>`AZURE_API_VERSION` | `api_key`<br>`api_base`<br>`api_version` | `https://<resource>.openai.azure.com` |
 | **Google Vertex AI** | `vertex_ai/<model-name>` | `VERTEXAI_PROJECT`<br>`VERTEXAI_LOCATION`<br>`VERTEXAI_CREDENTIALS` | `vertex_project`<br>`vertex_location`<br>`vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account JSON — a file path or the raw JSON content. Alternatively omit it and use ADC (`GOOGLE_APPLICATION_CREDENTIALS` file path, workload identity, …). |
 | **Google AI Studio (Gemini API)** | `gemini/<model-name>` | `GEMINI_API_KEY` | `api_key` | Direct Google AI Studio API key. |
@@ -64,10 +63,8 @@ credential env var names — use the optional `llm.model_list` key (see
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Groq** | `groq/<model-name>` | `GROQ_API_KEY` | `api_key` | e.g., `groq/llama-3.3-70b-versatile` |
-
 | **DeepSeek** | `deepseek/<model-name>` | `DEEPSEEK_API_KEY` | `api_key` | e.g., `deepseek/deepseek-chat`, `deepseek/deepseek-reasoner` |
 | **Together AI** | `together_ai/<model-name>` | `TOGETHERAI_API_KEY` | `api_key` | e.g., `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-
 | **Fireworks AI** | `fireworks_ai/<model-name>` | `FIREWORKS_AI_API_KEY` | `api_key` | e.g., `fireworks_ai/accounts/fireworks/models/llama-v3p3-70b-instruct` |
 | **OpenRouter** | `openrouter/<model-name>` | `OPENROUTER_API_KEY` | `api_key` | e.g., `openrouter/anthropic/claude-3.5-sonnet` |
 | **Perplexity AI** | `perplexity/<model-name>` | `PERPLEXITYAI_API_KEY` | `api_key` | e.g., `perplexity/sonar-pro` |
@@ -101,7 +98,6 @@ credential env var names — use the optional `llm.model_list` key (see
 | :--- | :--- | :--- | :--- | :--- |
 | **Ollama** | `ollama/<model-name>` | `OLLAMA_API_BASE` | `api_base` | Default base: `http://localhost:11434`. (No API key needed). |
 | **vLLM** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Point `api_base` to `http://<host>:<port>/v1`. Use dummy `api_key: "none"`. |
-
 | **TGI (HuggingFace Text Gen)** | `huggingface/<model-name>` or `tgi/<endpoint>` | `HUGGINGFACE_API_KEY` | `api_key`<br>`api_base` | Endpoint URL from HF Dedicated Endpoints or local TGI. |
 | **Hugging Face Serverless** | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) | `api_key` | Standard Hugging Face inference tokens. |
 | **Generic OpenAI-Compatible** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Works with LocalAI, LM Studio, FastChat, TabbyAPI, etc. |
@@ -690,7 +686,6 @@ file has just two keys: `description` (shown in the Phoenix UI) and
 |---|---|---|
 | [`aws/resources/s3_bucket.yaml`](./core/prompts/seed/aws/resources/s3_bucket.yaml) | aws / resources | Default S3 bucket configuration: naming convention, mandatory encryption, versioning, and public-access blocking. |
 | [`azure/resources/storage_account.yaml`](./core/prompts/seed/azure/resources/storage_account.yaml) | azure / resources | Default Storage Account configuration and naming. |
-
 | [`kubernetes/guidelines/permissions.yaml`](./core/prompts/seed/kubernetes/guidelines/permissions.yaml) | kubernetes / guidelines | Pod Security Admission levels and RBAC conventions applied to every generated manifest. |
 | [`gcp/guidelines/resources_list.yaml`](./core/prompts/seed/gcp/guidelines/resources_list.yaml) | gcp / guidelines | Catalogue of GCP resource templates the agent may select from. |
 | [`general/compliance/report.yaml`](./core/prompts/seed/general/compliance/report.yaml) | general / compliance | Business rules (with rule IDs and severities) the compliance-audit agent checks every generated report against. |
