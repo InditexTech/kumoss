@@ -109,9 +109,9 @@ class LlmConfig(BaseModel):
     The core uses two model roles per workflow: ``model`` for high-quality
     reasoning and ``small_model`` for cheaper filler work.  Both are
     LiteLLM model-id strings (``provider/model``).  Credentials are
-    resolved from the provider's standard env vars (see the README
-    "LiteLLM Models and Params Reference" tables); the validator fails
-    boot when litellm reports required env vars missing.
+    resolved from the provider's standard env vars (see the tables in
+    ``docs/litellm-reference.md``); the validator fails boot when
+    litellm reports required env vars missing.
 
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 

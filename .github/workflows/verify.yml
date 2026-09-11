@@ -37,6 +37,9 @@ jobs:
       - name: Tests
         run: npm run test:ci
 
+      - name: Build
+        run: npm run build
+
   services:
     name: services/${{ matrix.service }}
     runs-on: ubuntu-latest

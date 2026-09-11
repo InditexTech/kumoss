@@ -439,8 +439,11 @@ Stop the stack with:
 docker compose down
 ```
 
-This keeps the named volumes (databases, artifacts, authz roles), so
-sessions and prompts survive a restart.
+This keeps the named volumes (databases, artifacts, workspaces), so
+sessions and prompts survive a restart. Authz role assignments are not
+among them — they live inside the authz container and are lost when it
+is recreated; see [services/authz/README.md](./services/authz/README.md)
+to store them on a mounted path instead.
 
 ### 7. Open and verify the application
 
