@@ -19,10 +19,13 @@
 **/*.py[cod]
 **/.mypy_cache
 **/.pytest_cache
+**/.ruff_cache
 
-# Node
+# Node. nginx/Dockerfile regenerates these in its builder stage with
+# `npm ci && npm run build`.
 **/node_modules
 **/coverage
+client/web/dist
 
 # Not needed by any image at runtime
 **/tests

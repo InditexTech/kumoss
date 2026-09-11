@@ -144,9 +144,8 @@ user. Override the two build args together or not at all.
 
 ```bash
 cd services/iac
-uv venv && source .venv/bin/activate
-uv pip install -e '.[dev]'
-uvicorn src.main:app --host 0.0.0.0 --port 8082
+uv sync
+uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 ```
 
 ```bash
@@ -160,8 +159,8 @@ curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 
 ```bash
 cd services/iac
-uv pip install -e '.[dev]'
-pytest
+uv sync --group tooling
+uv run pytest
 ```
 
 ## Verifying conformance

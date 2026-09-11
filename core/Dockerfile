@@ -33,12 +33,12 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY core/pyproject.toml core/uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-default-groups
 
 COPY --chown=nebula:nebula core/src ./src
 COPY --chown=nebula:nebula core/prompts ./prompts
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-default-groups
 
 USER ${NEBULA_UID}:${NEBULA_GID}
 

@@ -389,38 +389,29 @@ wheels = [
 [[package]]
 name = "nebula-iac"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
-    { name = "pydantic" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 
-[package.optional-dependencies]
-dev = [
+[package.dev-dependencies]
+tooling = [
+    { name = "basedpyright" },
     { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "basedpyright" },
-]
-
 [package.metadata]
-requires-dist = [
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.116.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-]
-provides-extras = ["dev"]
+requires-dist = [{ name = "fastapi", extras = ["standard"], specifier = ">=0.116.0" }]
 
 [package.metadata.requires-dev]
-dev = [{ name = "basedpyright", specifier = ">=1.39.9" }]
+tooling = [
+    { name = "basedpyright", specifier = ">=1.39.9" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+]
 
 [[package]]
 name = "nodejs-wheel-binaries"

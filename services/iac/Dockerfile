@@ -66,16 +66,13 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_HTTP_TIMEOUT=120 \
     UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH" \
-    HOME=/home/nebula \
-    PYTHONDONTWRITEBYTECODE=1
+    HOME=/home/nebula
 
-COPY pyproject.toml uv.lock ./
+COPY services/iac/pyproject.toml services/iac/uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-default-groups
 
-COPY --chown=nebula:nebula src ./src
-
-RUN uv sync --frozen --no-dev
+COPY --chown=nebula:nebula services/iac/src ./src
 
 USER ${NEBULA_UID}:${NEBULA_GID}
 
