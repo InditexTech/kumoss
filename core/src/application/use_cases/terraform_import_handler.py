@@ -121,7 +121,7 @@ class TerraformImportHandler:
                             )
                         ],
                         prompt=await self.__template_svc.render(
-                            prompt=PromptsLibrary.IAC_FILTER,
+                            prompt=PromptsLibrary.IMPORT_FILTER,
                             unmanaged_ids=unmanaged_ids,
                             resources=conventions.templates,
                             abbreviations=conventions.abbreviations,

@@ -18,7 +18,7 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    async def render_iac_filter(
+    async def render_import_filter(
         self,
         unmanaged_ids: list[str],
         resources: list[str],

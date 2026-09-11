@@ -79,7 +79,7 @@ class PromptsLibrary(Enum):
     FILTER_RECONCILIATION = "filter_reconciliation"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
-    IAC_FILTER = "iac_filter"
+    IMPORT_FILTER = "import_filter"
     IAC_IMPORT = "iac_import"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"

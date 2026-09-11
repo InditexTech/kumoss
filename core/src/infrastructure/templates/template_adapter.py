@@ -102,7 +102,7 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
-    async def render_iac_filter(
+    async def render_import_filter(
         self,
         unmanaged_ids: list[str],
         resources: list[str],
@@ -120,7 +120,7 @@ class TemplateAdapter(ITemplate):
             type="guidelines",
             tag=system_config.environment,
         )
-        t = self._get_template(self._core + "iac_filter.jinja")
+        t = self._get_template(self._core + "import_filter.jinja")
         return t.render(
             UNMANAGED_IDS=unmanaged_ids,
             IMPORT_EXCEPTIONS=import_exceptions,
