@@ -22,16 +22,16 @@ class TerraformImportService:
     ) -> list[str]:
         managed_res = await self.__import_prv.state_resource_ids()
 
-        logging.info(f"Managed resources for scope {scope_id}: {managed_res}")
+        logging.debug(f"Managed resources for scope {scope_id}: {managed_res}")
 
         scope_res = await self.__import_prv.scope_resource_ids(
             scope_id=scope_id,
             terraform_provider=terraform_provider,
         )
-        logging.info(f"Scope resources for scope {scope_id}: {scope_res}")
+        logging.debug(f"Scope resources for scope {scope_id}: {scope_res}")
 
         unmanaged_res = sorted(set(scope_res) - set(managed_res))
-        logging.info(f"Unmanaged resources for scope {scope_id}: {unmanaged_res}")
+        logging.debug(f"Unmanaged resources for scope {scope_id}: {unmanaged_res}")
         return unmanaged_res
 
     async def import_resources(
