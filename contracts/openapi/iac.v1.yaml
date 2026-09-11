@@ -6,7 +6,7 @@ openapi: 3.1.0
 
 info:
   title: Nebula IaC Service
-  version: "1.0.0"
+  version: "1.1.0"
   summary: Run individual terraform operations as asynchronous jobs against a checked-out workspace.
   description: |
     The IaC service is a raw executor for the Terraform CLI. Each POST
@@ -743,10 +743,9 @@ paths:
         the job ends `succeeded` with a non-zero `exit_code` and
         diagnostics in `stderr`.
 
-        Unlike the other endpoints, `scope_id` is required here — it
-        names the scope being listed rather than acting as a
-        credential fallback — and `terraform_provider` selects which
-        provider is queried. The workspace is used to resolve provider
+        Here `scope_id` names the scope being listed (rather than the
+        scope a command runs against, as on the other endpoints) and
+        `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
         credentials; the OSS reference impl shells out to the
         corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
         service's ambient credentials.
@@ -902,7 +901,7 @@ components:
   schemas:
     InitRequest:
       type: object
-      required: [workspace_path]
+      required: [workspace_path, scope_id]
       additionalProperties: false
       properties:
         workspace_path:
@@ -916,18 +915,20 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
 
     ValidateRequest:
       type: object
-      required: [workspace_path]
+      required: [workspace_path, scope_id]
       additionalProperties: false
       properties:
         workspace_path:
@@ -941,18 +942,20 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
 
     PlanRequest:
       type: object
-      required: [workspace_path, plan_file]
+      required: [workspace_path, scope_id, plan_file]
       additionalProperties: false
       properties:
         workspace_path:
@@ -966,13 +969,15 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
         targets:
           type: array
@@ -997,7 +1002,7 @@ components:
 
     ShowRequest:
       type: object
-      required: [workspace_path, plan_file]
+      required: [workspace_path, scope_id, plan_file]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1011,13 +1016,15 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
         plan_file:
           type: string
@@ -1030,7 +1037,7 @@ components:
 
     ApplyRequest:
       type: object
-      required: [workspace_path, plan_file]
+      required: [workspace_path, scope_id, plan_file]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1044,13 +1051,15 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
         plan_file:
           type: string
@@ -1064,7 +1073,7 @@ components:
 
     ImportRequest:
       type: object
-      required: [workspace_path, address, resource_id]
+      required: [workspace_path, scope_id, address, resource_id]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1078,13 +1087,15 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
         address:
           type: string
@@ -1103,7 +1114,7 @@ components:
 
     StateResourceIdsRequest:
       type: object
-      required: [workspace_path]
+      required: [workspace_path, scope_id]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1117,13 +1128,15 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
             Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            subscription id, GCP: project id, AWS: account id. Required:
+            generated provider blocks do not carry a scope, so the
+            implementation injects it into the engine's environment
+            (e.g. `ARM_SUBSCRIPTION_ID` / `GOOGLE_PROJECT`, or an AWS
+            AssumeRole for the account) for this command only.
+          minLength: 1
           maxLength: 1024
 
     ScopeResourceIdsRequest:
@@ -1147,9 +1160,8 @@ components:
           description: |
             Cloud provider scope to list — Azure: subscription id (or
             any value matched as a substring of resource IDs), GCP:
-            project id, AWS: account id. Required here, unlike on the
-            other endpoints: it names the scope being listed rather
-            than acting as a credential fallback.
+            project id, AWS: account id. Names the scope being listed
+            rather than the scope a command runs against.
           minLength: 1
           maxLength: 1024
         terraform_provider:

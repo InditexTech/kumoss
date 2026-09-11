@@ -21,7 +21,11 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 ``exit_code`` is a terraform-level failure reported through the
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
-at the workspace path, which must be visible to the service.
+at the workspace path, which must be visible to the service, and
+carries the session's ``scope_id`` (subscription / project / account):
+the contract requires it on every command because generated provider
+blocks do not name a scope, so the service injects it into the
+engine's environment per command.
 """
 
 from __future__ import annotations
@@ -74,8 +78,10 @@ class Terraform(ITerraform):
     def __init__(
         self,
         workspace_path: Path,
+        scope_id: str,
     ):
         self.__workspace_path = workspace_path
+        self.__scope_id = scope_id
         self.__initialized = False
 
     @trace_terraform
@@ -112,7 +118,10 @@ class Terraform(ITerraform):
                 validate_res = await self.__run_initialized_op(
                     c,
                     validate_op,
-                    ValidateRequest(workspace_path=self.__workspace_path.as_posix()),
+                    ValidateRequest(
+                        workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
+                    ),
                     cfg,
                 )
                 if validate_res.exit_code != 0:
@@ -128,6 +137,7 @@ class Terraform(ITerraform):
                     plan_op,
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
@@ -154,6 +164,7 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -209,6 +220,7 @@ class Terraform(ITerraform):
                     apply_op,
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -248,7 +260,10 @@ class Terraform(ITerraform):
         init_res = await self.__run_op(
             client,
             init_op,
-            InitRequest(workspace_path=str(self.__workspace_path)),
+            InitRequest(
+                workspace_path=str(self.__workspace_path),
+                scope_id=self.__scope_id,
+            ),
             cfg,
         )
         if init_res.exit_code != 0:
