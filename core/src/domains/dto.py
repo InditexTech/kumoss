@@ -247,7 +247,47 @@ class TerraformApplyReport(BaseModel):
     recommendations: list[str]
 
 
-Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
+class TerraformImportedResource(BaseModel):
+    """Cloud resource an import round tried to bring under Terraform management"""
+
+    resource_address: str
+    resource_id: str
+    status: Literal["imported", "failed"]
+    details: str
+    error_message: str | None = None
+
+
+class TerraformImportSummary(BaseModel):
+    """Summary statistics of the import operation"""
+
+    selected: int
+    imported: int
+    failed: int
+
+
+class TerraformImportReport(BaseModel):
+    """
+    Report describing which unmanaged cloud resources were brought under
+    Terraform management. Unlike a plan report it describes resources that
+    already exist and already cost money: nothing is created, so the value
+    is in what is now tracked in state and whether the generated
+    configuration matches it.
+    """
+
+    summary: TerraformImportSummary
+    status: Literal["Succeeded", "Partial", "Failed"]
+    execution_summary: str
+    imported_resources: list[TerraformImportedResource]
+    state_alignment: str
+    recommendations: list[str]
+
+
+Reports = (
+    TerraformPlanReport
+    | TerraformApplyReport
+    | TerraformDriftReport
+    | TerraformImportReport
+)
 
 
 class ComplianceViolation(BaseModel):

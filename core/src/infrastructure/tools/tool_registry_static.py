@@ -18,6 +18,7 @@ from src.domains.dto import (
     ToolDefinitionDTO,
     TerraformPlanReport,
     TerraformApplyReport,
+    TerraformImportReport,
 )
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
@@ -85,6 +86,7 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_plan_report": self.__handle_report_plan_generator,
             "generate_terraform_drift_report": self.__handle_report_drift_generator,
             "generate_terraform_apply_report": self.__handle_report_apply_generator,
+            "generate_terraform_import_report": self.__handle_report_import_generator,
             # Domain tools
             "requests_filter": self.__handle_requests_filter,
             "generate_pull_request": self.__handle_pr_generator,
@@ -257,6 +259,30 @@ class ToolRegistryStatic(IToolRegistry):
                 status=status,
                 execution_summary=execution_summary,
                 resource_changes=resource_changes,
+                recommendations=recommendations,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
+
+    def __handle_report_import_generator(
+        self, parameters: dict[str, Any]
+    ) -> TerraformImportReport:
+        summary = parameters["summary"]
+        status = parameters["status"]
+        execution_summary = parameters["execution_summary"]
+        imported_resources = parameters["imported_resources"]
+        state_alignment = parameters["state_alignment"]
+        recommendations = parameters["recommendations"]
+        try:
+            return TerraformImportReport(
+                summary=summary,
+                status=status,
+                execution_summary=execution_summary,
+                imported_resources=imported_resources,
+                state_alignment=state_alignment,
                 recommendations=recommendations,
             )
         except ValidationError as e:

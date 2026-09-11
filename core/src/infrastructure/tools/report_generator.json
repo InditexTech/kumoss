@@ -411,5 +411,108 @@
         "recommendations"
       ]
     }
+  },
+  {
+    "name": "generate_terraform_import_report",
+    "description": "Reports the outcome of an import round: which unmanaged cloud resources were brought under Terraform management, which failed, and whether the generated configuration now matches the imported state. The resources already exist, so nothing is created and no cost is introduced.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "object",
+          "description": "High-level counts for the import round.",
+          "properties": {
+            "selected": {
+              "type": "integer",
+              "description": "Number of unmanaged resources selected for import in this round."
+            },
+            "imported": {
+              "type": "integer",
+              "description": "Number of resources successfully written into Terraform state."
+            },
+            "failed": {
+              "type": "integer",
+              "description": "Number of resources whose import failed."
+            }
+          },
+          "required": [
+            "selected",
+            "imported",
+            "failed"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "description": "Overall outcome: 'Succeeded' when every selected resource was imported, 'Partial' when some failed, 'Failed' when none were imported.",
+          "enum": [
+            "Succeeded",
+            "Partial",
+            "Failed"
+          ]
+        },
+        "execution_summary": {
+          "type": "string",
+          "description": "A prose paragraph summarising what was brought under Terraform management and what it means for the user. Never describe imported resources as created or new: they already existed in the cloud."
+        },
+        "imported_resources": {
+          "type": "array",
+          "description": "One entry per resource the round attempted to import.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_address": {
+                "type": "string",
+                "description": "The Terraform address the resource was imported into (e.g., 'azurerm_storage_account.sta_001')."
+              },
+              "resource_id": {
+                "type": "string",
+                "description": "The provider-native resource ID that was imported."
+              },
+              "status": {
+                "type": "string",
+                "description": "Whether this resource is now tracked in Terraform state.",
+                "enum": [
+                  "imported",
+                  "failed"
+                ]
+              },
+              "details": {
+                "type": "string",
+                "description": "Human-readable note about the resource: what it is and what its configuration block now covers."
+              },
+              "error_message": {
+                "type": "string",
+                "description": "The import error for this resource. Null when the import succeeded."
+              }
+            },
+            "required": [
+              "resource_address",
+              "resource_id",
+              "status",
+              "details"
+            ]
+          }
+        },
+        "state_alignment": {
+          "type": "string",
+          "description": "Whether the generated configuration matches the imported state, based on the plan produced after the import. State an explicit 'no changes' when the plan is clean; otherwise describe the remaining differences and the risk of applying them."
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "Actionable follow-ups, e.g. reviewing the generated blocks, retrying failed imports, or removing resources that should not be managed.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "summary",
+        "status",
+        "execution_summary",
+        "imported_resources",
+        "state_alignment",
+        "recommendations"
+      ]
+    }
   }
 ]
