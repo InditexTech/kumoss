@@ -207,7 +207,7 @@ class ApplicationFactory:
         self,
         project_root: Path,
     ) -> ITerraform:
-        return TerraformFactory(project_root).get()
+        return TerraformFactory(project_root, self.__ctx.scope_id).get()
 
     def _get_terraform_validation_service(
         self,
@@ -469,7 +469,7 @@ class ApplicationFactory:
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
-        validator_prv = self._get_terraform_provider(file_utils.project_root)
+        terraform_prv = self._get_terraform_provider(file_utils.project_root)
         compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
@@ -487,19 +487,19 @@ class ApplicationFactory:
             template_service=template_svc,
         )
         import_svc = self._get_import_service(
-            import_provider=validator_prv,
+            import_provider=terraform_prv,
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
-            validator_provider=validator_prv,
+            terraform_service=terraform_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
         )
         return TerraformImportHandler(
             session_ctx=self.__ctx,
             session_service=session_svc,
-            terraform_service=validator_prv,
+            terraform_service=terraform_prv,
             validation_service=validation_svc,
             template_service=template_svc,
             requests_filter_service=filter_svc,

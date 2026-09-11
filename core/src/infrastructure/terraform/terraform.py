@@ -22,6 +22,12 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
 at the workspace path, which must be visible to the service.
+
+Every request also carries the session's ``scope_id``: the service
+resolves it per command into the engine's environment (Azure
+``ARM_SUBSCRIPTION_ID``, GCP ``GOOGLE_PROJECT``, an AWS AssumeRole for
+the account) and keeps nothing between jobs, so it must be sent on
+each operation and not just on ``init``.
 """
 
 from __future__ import annotations
@@ -86,8 +92,10 @@ class Terraform(ITerraform):
     def __init__(
         self,
         workspace_path: Path,
+        scope_id: str,
     ):
         self.__workspace_path = workspace_path
+        self.__scope_id = scope_id
         self.__initialized = False
 
     @trace_terraform
@@ -124,7 +132,10 @@ class Terraform(ITerraform):
                 validate_res = await self.__run_initialized_op(
                     c,
                     validate_op,
-                    ValidateRequest(workspace_path=self.__workspace_path.as_posix()),
+                    ValidateRequest(
+                        workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
+                    ),
                     cfg,
                 )
                 if validate_res.exit_code != 0:
@@ -140,6 +151,7 @@ class Terraform(ITerraform):
                     plan_op,
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
@@ -166,6 +178,7 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -221,6 +234,7 @@ class Terraform(ITerraform):
                     apply_op,
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
+                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -260,7 +274,10 @@ class Terraform(ITerraform):
         init_res = await self.__run_op(
             client,
             init_op,
-            InitRequest(workspace_path=str(self.__workspace_path)),
+            InitRequest(
+                workspace_path=str(self.__workspace_path),
+                scope_id=self.__scope_id,
+            ),
             cfg,
         )
         if init_res.exit_code != 0:
@@ -316,7 +333,10 @@ class Terraform(ITerraform):
         try:
             async with client as c:
                 init_res = await self.__run_op(
-                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                    c,
+                    init_op,
+                    InitRequest(workspace_path=workspace, scope_id=self.__scope_id),
+                    cfg,
                 )
                 if init_res.exit_code != 0:
                     raise ExceptionHandler(
@@ -324,7 +344,12 @@ class Terraform(ITerraform):
                         502,
                     )
                 state_res = await self.__run_op(
-                    c, state_op, StateResourceIdsRequest(workspace_path=workspace), cfg
+                    c,
+                    state_op,
+                    StateResourceIdsRequest(
+                        workspace_path=workspace, scope_id=self.__scope_id
+                    ),
+                    cfg,
                 )
                 if state_res.exit_code != 0:
                     raise ExceptionHandler(
@@ -361,7 +386,10 @@ class Terraform(ITerraform):
         try:
             async with client as c:
                 init_res = await self.__run_op(
-                    c, init_op, InitRequest(workspace_path=workspace), cfg
+                    c,
+                    init_op,
+                    InitRequest(workspace_path=workspace, scope_id=self.__scope_id),
+                    cfg,
                 )
                 if init_res.exit_code != 0:
                     raise ExceptionHandler(
@@ -424,6 +452,7 @@ class Terraform(ITerraform):
                     import_op,
                     ImportRequest(
                         workspace_path=workspace,
+                        scope_id=self.__scope_id,
                         address=address,
                         resource_id=resource_id,
                     ),

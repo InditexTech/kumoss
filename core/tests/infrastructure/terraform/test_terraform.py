@@ -38,6 +38,10 @@ from src.shared.exceptions import ExceptionHandler
 # Mirrors paths.session_plan_filename in the patched system_config below.
 SESSION_PLAN_FILENAME = "session.plan"
 
+# The session scope every operation is submitted under; the IaC service
+# requires it on each request body.
+SESSION_SCOPE_ID = "00000000-1111-2222-3333-444444444444"
+
 
 NO_CHANGES_PLAN_JSON = json.dumps({"format_version": "1.2", "resource_changes": []})
 
@@ -96,6 +100,7 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
 
         self.terraform = tv.Terraform(
             workspace_path=Path("/workspaces/demo"),
+            scope_id=SESSION_SCOPE_ID,
         )
 
     def _use_config(self, **overrides) -> IacServiceConfig:
@@ -201,6 +206,11 @@ class TestTerraformValidate(_TerraformTestCase):
         self.assertEqual(init_body.workspace_path, "/workspaces/demo")
         plan_body = submit_mocks["plan"].await_args.kwargs["body"]
         self.assertEqual(plan_body.targets, ["module.db"])
+        # The service resolves the scope per command and keeps nothing
+        # between jobs, so every body must carry it, not just init's.
+        for name in ("init", "validate", "plan", "show"):
+            body = submit_mocks[name].await_args.kwargs["body"]
+            self.assertEqual(body.scope_id, SESSION_SCOPE_ID, f"{name} body")
 
     async def test_drift_found_maps_to_validation_false(self):
         self._use_config()
@@ -317,7 +327,10 @@ class TestTerraformValidate(_TerraformTestCase):
             with self.subTest(rejected=rejected):
                 self._use_config()
                 self._patch_ops(init=rejected)
-                self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
+                self.terraform = tv.Terraform(
+                    workspace_path=Path("/workspaces/demo"),
+                    scope_id=SESSION_SCOPE_ID,
+                )
 
                 with self.assertRaises(ExceptionHandler) as ctx:
                     await self.terraform.validate(targets=[], get_drift=False)
@@ -413,7 +426,7 @@ class _ImportTestCase(_TerraformTestCase):
 class TestTerraformStateResourceIds(_ImportTestCase):
     async def test_returns_parsed_resource_ids(self):
         self._use_config()
-        self._patch_import_ops(
+        submit_mocks, _ = self._patch_import_ops(
             init=_ok(),
             state=_ok(
                 stdout=json.dumps(["azurerm_resource_group.main", "azurerm_vnet.v1"])
@@ -423,6 +436,9 @@ class TestTerraformStateResourceIds(_ImportTestCase):
         ids = await self.terraform.state_resource_ids()
 
         self.assertEqual(ids, ["azurerm_resource_group.main", "azurerm_vnet.v1"])
+        for name in ("init", "state"):
+            body = submit_mocks[name].await_args.kwargs["body"]
+            self.assertEqual(body.scope_id, SESSION_SCOPE_ID, f"{name} body")
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -469,8 +485,12 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
 
         self.assertEqual(ids, ["res-1", "res-2", "res-3"])
         scope_body = submit_mocks["scope"].await_args.kwargs["body"]
+        # Here scope_id names the scope being listed, so it comes from the
+        # argument; the init that precedes it runs under the session scope.
         self.assertEqual(scope_body.scope_id, "scope-123")
         self.assertEqual(scope_body.terraform_provider, "azure")
+        init_body = submit_mocks["init"].await_args.kwargs["body"]
+        self.assertEqual(init_body.scope_id, SESSION_SCOPE_ID)
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -530,6 +550,7 @@ class TestTerraformImportResource(_ImportTestCase):
         import_body = submit_mocks["import"].await_args.kwargs["body"]
         self.assertEqual(import_body.address, "azurerm_resource_group.main")
         self.assertEqual(import_body.resource_id, "/subscriptions/.../rg/main")
+        self.assertEqual(import_body.scope_id, SESSION_SCOPE_ID)
 
     async def test_import_failure_returns_dto_with_validation_false(self):
         self._use_config()
@@ -736,6 +757,7 @@ class TestTerraformApply(_TerraformTestCase):
 
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
+        self.assertEqual(apply_body.scope_id, SESSION_SCOPE_ID)
         self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
         self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 
