@@ -107,17 +107,19 @@ class TerraformImportHandler:
                     )
                     return
 
-                # Step 2 — Selection (iac_filter agent), only for a partial
+                # Step 2 — Selection (import_filter agent), only for a partial
                 # round. A full round imports the whole scope diff, so every
                 # unmanaged id is selected without asking the agent to narrow
-                # it down.
+                # it down. The task splitter sentinel is the generic "report a
+                # list of strings" tool: here each operation is a selected
+                # resource id.
                 selected_ids: list[str] = unmanaged_ids
                 if is_partial:
                     filter_result: ToolResultDTO = await self.__llm_svc.generate(
                         query=q,
                         tools=[
                             self.__tool_svc.get_sentinel_tool(
-                                context=ToolContext.IAC_FILTER,
+                                context=ToolContext.TASK_SPLITTER,
                             )
                         ],
                         prompt=await self.__template_svc.render(
@@ -128,11 +130,11 @@ class TerraformImportHandler:
                         ),
                         history=ctx.history,
                     )
-                    selected_ids = cast(
-                        list[str], filter_result.result["selected_resource_ids"]
-                    )
-                    filter_explanation: str = cast(
-                        str, filter_result.result["explanation"]
+                    selected_ids = cast(list[str], filter_result.result["operations"])
+                    # `explanation` is optional on the task splitter tool.
+                    filter_explanation: str = (
+                        cast(str, filter_result.result.get("explanation", ""))
+                        or "No unmanaged resource matched the request."
                     )
 
                     if not selected_ids:

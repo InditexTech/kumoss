@@ -7,7 +7,7 @@ body: |
   # Import Exception List — OCI
 
   Resource IDs listed here are excluded from every import operation.
-  The iac_filter agent removes them before selection, even on a
+  The import_filter agent removes them before selection, even on a
   broad "import everything" query.
 
   This placeholder is deliberately empty. Curate the real exception

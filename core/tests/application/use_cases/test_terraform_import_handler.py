@@ -49,10 +49,10 @@ def _import_dto(validation: bool, address: str) -> TerraformValidationDTO:
 
 def _filter_result(selected: list[str], explanation: str = "matched") -> ToolResultDTO:
     return ToolResultDTO(
-        name="iac_filter",
+        name="report_decomposed_task_operations",
         tool_call_id="tc_1",
         success=True,
-        result={"selected_resource_ids": selected, "explanation": explanation},
+        result={"operations": selected, "explanation": explanation},
     )
 
 
@@ -154,7 +154,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.generate_and_validate.assert_not_awaited()
         self.session_svc.save.assert_awaited_once()
 
-    async def test_selection_calls_llm_with_iac_filter_sentinel(self):
+    async def test_selection_calls_llm_with_task_splitter_sentinel(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
@@ -170,14 +170,14 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             db_mock.set_lock = AsyncMock(return_value=True)
             await task()
 
-        # The iac_filter sentinel is passed exactly once, inside `tools`,
+        # The task splitter sentinel is passed exactly once, inside `tools`,
         # and never duplicated through a separate `sentinel_tool` kwarg.
         llm_kwargs = self.llm_svc.generate.await_args.kwargs
         sentinel = self.tool_svc.get_sentinel_tool.return_value
         self.assertEqual(llm_kwargs["tools"], [sentinel])
         self.assertNotIn("sentinel_tool", llm_kwargs)
         self.tool_svc.get_sentinel_tool.assert_called_with(
-            context=ToolContext.IAC_FILTER
+            context=ToolContext.TASK_SPLITTER
         )
 
     # --- Full round (is_partial=False) ---
@@ -200,7 +200,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             db_mock.set_lock = AsyncMock(return_value=True)
             await task()
 
-        # A full round asks neither the request analyst nor the iac_filter
+        # A full round asks neither the request analyst nor the import_filter
         # agent: the whole scope diff is the selection.
         self.requests_filter_svc.filter.assert_not_awaited()
         self.llm_svc.generate.assert_not_awaited()

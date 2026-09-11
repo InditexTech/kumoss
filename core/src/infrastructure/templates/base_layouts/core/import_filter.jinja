@@ -31,7 +31,7 @@ The following resource IDs must NEVER be imported, regardless of the user's quer
 <objective>
   1. Analyze the user's query to determine which unmanaged resources they want to import.
   2. Select the matching resource IDs from the unmanaged candidates list, excluding any that appear in the exception list.
-  3. Report your selection by calling the `iac_filter` tool.
+  3. Report your selection by calling the `report_decomposed_task_operations` tool, passing the selected resource IDs in `operations`.
 </objective>
 
 <instructions>
@@ -41,9 +41,11 @@ The following resource IDs must NEVER be imported, regardless of the user's quer
 
   2. TARGETED QUERY — if the user names specific resources, resource types, or patterns (e.g. "import storage account staweu1001", "import all the key vaults"): select only the unmanaged candidates that match, excluding any in the exception list.
 
-  3. EMPTY SELECTION — if no unmanaged candidates match the query (after excluding exceptions), return an empty `selected_resource_ids` array and explain why in `explanation`. This will result in an UNCOMPLETED status shown to the user.
+  3. EMPTY SELECTION — if no unmanaged candidates match the query (after excluding exceptions), return an empty `operations` array and explain why in `explanation`. This will result in an UNCOMPLETED status shown to the user.
 
   4. EXCEPTION LIST — resource IDs in the exception list are ALWAYS excluded, even on a broad query. Mention excluded exceptions in the explanation so the user knows they were skipped.
+
+  In `operations`, place one selected resource ID per entry — exactly as it appears in the unmanaged candidates list, with no extra wording.
 
   In `explanation`:
   - State which resources were selected and why they match the query.
@@ -52,7 +54,7 @@ The following resource IDs must NEVER be imported, regardless of the user's quer
 </instructions>
 
 <constraints>
-  - Your final action MUST be a call to the `iac_filter` tool.
+  - Your final action MUST be a call to the `report_decomposed_task_operations` tool.
   - You may ONLY select resource IDs from the unmanaged candidates list above.
   - You MUST NOT select resource IDs that appear in the exception list.
 </constraints>

@@ -52,7 +52,6 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
-            "iac_filter.json": ToolContext.IAC_FILTER,
             "iac_import.json": ToolContext.IAC_IMPORT,
             "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
@@ -93,7 +92,6 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
-            "iac_filter": self.__handle_iac_filter,
             "iac_import": self.__handle_iac_import,
             "report_compliance_findings": self._handle_compliance_findings,
             # External information
@@ -326,18 +324,6 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
-
-    def __handle_iac_filter(
-        self, parameters: dict[str, Any]
-    ) -> dict[str, list[str] | str]:
-        selected = parameters["selected_resource_ids"]
-        explanation = parameters["explanation"]
-        if not isinstance(selected, list):
-            raise ToolInferenceParamsError(
-                message=f"IAC filter inference hasn't returned the expected structure. got={selected}",
-                error_code=500,
-            )
-        return {"selected_resource_ids": selected, "explanation": explanation}
 
     def __handle_iac_import(self, parameters: dict[str, Any]) -> dict[str, Any]:
         status = parameters["status"]
