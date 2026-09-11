@@ -223,6 +223,7 @@ class OrchestrationConfig(BaseModel):
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
     enable_compliance_checker: bool = False
+    block_on_high_impact: bool = False
 
 
 class PathsConfig(BaseModel):

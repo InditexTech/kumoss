@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Version control
+.git
+.gitignore
+
+# Local credentials. These are gitignored, but the build context does not
+# honor .gitignore, so without this they end up in an image layer.
+**/.env
+**/.env.*
+
+# Python virtualenvs and caches. Host venvs are built for the host's
+# interpreter and would clobber the venv the image builds for itself.
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.mypy_cache
+**/.pytest_cache
+
+# Node
+**/node_modules
+**/coverage
+
+# Not needed by any image at runtime
+**/tests
+contracts/
+docs/
+LICENSES/
+local_test/
+repolinter.json
+**/env.sample
+**/pyrightconfig.json
+docker-compose.yml
+docker-compose.override.*
+
+# Editors and local tooling
+.idea/
+.vscode/
+CLAUDE.md

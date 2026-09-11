@@ -7,15 +7,18 @@
 All collaborators are mocked. The generate handler tests assert when the
 round's workspace is promoted into the session's pinned slot (only after a
 successful round) and that the drift pre-check runs on the validated
-targets with session changes filtered out. The drift handler tests assert
-that drift resolution runs unfiltered on the resolved targets.
+targets with session changes filtered out. They also cover the session
+lock the generate round writes: compliance violations and high-impact
+reports both block it, each with its own notification. The drift handler
+tests assert that drift resolution runs unfiltered on the resolved
+targets.
 """
 
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.application.exceptions import TerraformValidationFailedError
+from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.use_cases.terraform_crud_handler import TerraformCRUDHandler
 from src.application.use_cases.terraform_drift_handler import TerraformDriftHandler
 from src.domains.dto import TerraformValidationDTO
@@ -32,12 +35,19 @@ def _dto(validation: bool, targets: list[str] | None = None) -> TerraformValidat
     )
 
 
+def _report(level: str) -> MagicMock:
+    report = MagicMock()
+    report.potential_impact.banner.level = level
+    report.potential_impact.banner.description = f"{level} impact detail"
+    return report
+
+
 class _HandlerTestCase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         lock_patcher = patch.object(
             DatabaseService, "set_lock", AsyncMock(return_value=True)
         )
-        lock_patcher.start()
+        self.set_lock = lock_patcher.start()
         self.addCleanup(lock_patcher.stop)
 
         self.session_svc = AsyncMock()
@@ -56,7 +66,7 @@ class _HandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.ctx.call_dir = Path("/workspaces/sid/call-id")
 
 
-class TestCrudHandlerPinning(_HandlerTestCase):
+class _CrudHandlerTestCase(_HandlerTestCase):
     def _handler(self) -> TerraformCRUDHandler:
         return TerraformCRUDHandler(
             session_ctx=self.ctx,
@@ -72,6 +82,8 @@ class TestCrudHandlerPinning(_HandlerTestCase):
             workspace_service=self.workspace_svc,
         )
 
+
+class TestCrudHandlerPinning(_CrudHandlerTestCase):
     async def test_successful_round_pins_the_workspace(self):
         self.validation_svc.generate_and_validate.return_value = _dto(True)
 
@@ -118,6 +130,90 @@ class TestCrudHandlerPinning(_HandlerTestCase):
 
         self.workspace_svc.pin_workspace.assert_not_called()
         self.validation_svc.generate_and_validate.assert_not_awaited()
+
+
+class TestCrudHandlerBlocking(_CrudHandlerTestCase):
+    def setUp(self):
+        super().setUp()
+        flag_patcher = patch.object(
+            system_config.orchestration, "block_on_high_impact", True
+        )
+        flag_patcher.start()
+        self.addCleanup(flag_patcher.stop)
+
+        notify_patcher = patch(
+            "src.application.use_cases.terraform_crud_handler.NotificationServiceClient"
+        )
+        self.notifications = notify_patcher.start()
+        self.addCleanup(notify_patcher.stop)
+        self.notifications.notify_compliance_failure = AsyncMock()
+        self.notifications.notify_high_impact = AsyncMock()
+
+        self.validation_svc.generate_and_validate.return_value = _dto(True)
+        self.report_svc.generate_report.return_value = _report("low")
+
+    async def _run(self):
+        task = await self._handler().handle("create a bucket")
+        await task()
+
+    async def test_compliance_violation_locks_and_notifies_compliance_only(self):
+        self.compliance_svc.check.return_value = MagicMock(
+            passed=False, summary="rule NEB-001 violated"
+        )
+
+        await self._run()
+
+        self.set_lock.assert_awaited_once_with(self.ctx.id, True)
+        self.notifications.notify_compliance_failure.assert_awaited_once_with(
+            self.ctx.id, self.ctx.user_id, "rule NEB-001 violated"
+        )
+        self.notifications.notify_high_impact.assert_not_awaited()
+
+    async def test_high_impact_locks_and_notifies_high_impact_only(self):
+        self.report_svc.generate_report.return_value = _report("high")
+
+        await self._run()
+
+        self.set_lock.assert_awaited_once_with(self.ctx.id, True)
+        self.notifications.notify_high_impact.assert_awaited_once_with(
+            self.ctx.id, self.ctx.user_id, "high impact detail"
+        )
+        self.notifications.notify_compliance_failure.assert_not_awaited()
+
+    async def test_both_reasons_lock_once_and_notify_both(self):
+        self.compliance_svc.check.return_value = MagicMock(
+            passed=False, summary="rule NEB-001 violated"
+        )
+        self.report_svc.generate_report.return_value = _report("high")
+
+        await self._run()
+
+        self.set_lock.assert_awaited_once_with(self.ctx.id, True)
+        self.notifications.notify_compliance_failure.assert_awaited_once()
+        self.notifications.notify_high_impact.assert_awaited_once()
+
+    async def test_clean_round_clears_the_lock_without_notifying(self):
+        await self._run()
+
+        self.set_lock.assert_awaited_once_with(self.ctx.id, False)
+        self.notifications.notify_compliance_failure.assert_not_awaited()
+        self.notifications.notify_high_impact.assert_not_awaited()
+
+    async def test_high_impact_is_ignored_when_the_flag_is_off(self):
+        self.report_svc.generate_report.return_value = _report("high")
+
+        with patch.object(system_config.orchestration, "block_on_high_impact", False):
+            await self._run()
+
+        self.set_lock.assert_awaited_once_with(self.ctx.id, False)
+        self.notifications.notify_high_impact.assert_not_awaited()
+
+    async def test_failed_lock_write_raises(self):
+        self.set_lock.return_value = False
+
+        task = await self._handler().handle("create a bucket")
+        with self.assertRaises(SetLockError):
+            await task()
 
 
 class TestDriftHandlerFlow(_HandlerTestCase):

@@ -15,13 +15,16 @@ Short description of what this project does and why it exists.
 
 <!-- Add video/image/demo here -->
 
+
 ## LiteLLM Models and Params Reference
+
 
 To configure the LLMs, set `llm.model` and `llm.small_model` in `config.yaml`
 to `provider/model-id` strings (the **Model String Format** column below) and
 export that provider's **Default LiteLLM Env Vars** (middle column) in
 `core/.env`. The core fails boot when litellm reports required env vars
 missing; note that some providers (e.g. `azure_ai`) have no litellm
+
 validation mapping, so missing credentials surface on the first LLM call
 instead. For advanced routing — fallbacks, load balancing, or custom
 credential env var names — use the optional `llm.model_list` key (see
@@ -34,6 +37,7 @@ credential env var names — use the optional `llm.model_list` key (see
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Azure AI Foundry** (Claude, Llama, etc.) | `azure_ai/<model-name>` | `AZURE_AI_API_KEY`<br>`AZURE_AI_API_BASE` | `api_key`<br>`api_base` | `https://<resource>.services.ai.azure.com/anthropic` (or `/models`) |
+
 | **Azure OpenAI** | `azure/<deployment-name>` | `AZURE_API_KEY`<br>`AZURE_API_BASE`<br>`AZURE_API_VERSION` | `api_key`<br>`api_base`<br>`api_version` | `https://<resource>.openai.azure.com` |
 | **Google Vertex AI** | `vertex_ai/<model-name>` | `VERTEXAI_PROJECT`<br>`VERTEXAI_LOCATION`<br>`VERTEXAI_CREDENTIALS` | `vertex_project`<br>`vertex_location`<br>`vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account JSON — a file path or the raw JSON content. Alternatively omit it and use ADC (`GOOGLE_APPLICATION_CREDENTIALS` file path, workload identity, …). |
 | **Google AI Studio (Gemini API)** | `gemini/<model-name>` | `GEMINI_API_KEY` | `api_key` | Direct Google AI Studio API key. |
@@ -60,8 +64,10 @@ credential env var names — use the optional `llm.model_list` key (see
 | Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | **Groq** | `groq/<model-name>` | `GROQ_API_KEY` | `api_key` | e.g., `groq/llama-3.3-70b-versatile` |
+
 | **DeepSeek** | `deepseek/<model-name>` | `DEEPSEEK_API_KEY` | `api_key` | e.g., `deepseek/deepseek-chat`, `deepseek/deepseek-reasoner` |
 | **Together AI** | `together_ai/<model-name>` | `TOGETHERAI_API_KEY` | `api_key` | e.g., `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+
 | **Fireworks AI** | `fireworks_ai/<model-name>` | `FIREWORKS_AI_API_KEY` | `api_key` | e.g., `fireworks_ai/accounts/fireworks/models/llama-v3p3-70b-instruct` |
 | **OpenRouter** | `openrouter/<model-name>` | `OPENROUTER_API_KEY` | `api_key` | e.g., `openrouter/anthropic/claude-3.5-sonnet` |
 | **Perplexity AI** | `perplexity/<model-name>` | `PERPLEXITYAI_API_KEY` | `api_key` | e.g., `perplexity/sonar-pro` |
@@ -85,6 +91,7 @@ credential env var names — use the optional `llm.model_list` key (see
 | **IBM WatsonX** | `watsonx/<model-id>` | `WATSONX_APIKEY`<br>`WATSONX_URL`<br>`WATSONX_PROJECT_ID` | `api_key`<br>`api_base`<br>`watsonx_project_id` | `api_base` is the regional URL (e.g., `https://us-south.ml.cloud.ibm.com`). |
 | **Snowflake Cortex** | `snowflake/<model-name>` | `SNOWFLAKE_ACCOUNT_ID`<br>`SNOWFLAKE_USER`<br>`SNOWFLAKE_PASSWORD` | `snowflake_account_id`<br>`snowflake_user`<br>`snowflake_password` | Supports Llama, Mistral hosted in Snowflake. |
 
+
 ---
 
 
@@ -94,9 +101,11 @@ credential env var names — use the optional `llm.model_list` key (see
 | :--- | :--- | :--- | :--- | :--- |
 | **Ollama** | `ollama/<model-name>` | `OLLAMA_API_BASE` | `api_base` | Default base: `http://localhost:11434`. (No API key needed). |
 | **vLLM** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Point `api_base` to `http://<host>:<port>/v1`. Use dummy `api_key: "none"`. |
+
 | **TGI (HuggingFace Text Gen)** | `huggingface/<model-name>` or `tgi/<endpoint>` | `HUGGINGFACE_API_KEY` | `api_key`<br>`api_base` | Endpoint URL from HF Dedicated Endpoints or local TGI. |
 | **Hugging Face Serverless** | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) | `api_key` | Standard Hugging Face inference tokens. |
 | **Generic OpenAI-Compatible** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Works with LocalAI, LM Studio, FastChat, TabbyAPI, etc. |
+
 
 ### Advanced: `llm.model_list`
 
@@ -105,6 +114,7 @@ format](https://docs.litellm.ai/docs/routing) and is only needed for
 fallbacks, load balancing, or credential env var names that differ from the
 provider defaults. When set, `llm.model` and `llm.small_model` must match a
 `model_name` entry (reference list <https://models.litellm.ai/>), and credential values use the `os.environ/VAR_NAME`
+
 syntax so secrets stay in env vars. Each provider's keys are listed in the
 **Standard `litellm_params` Keys** column of the tables above (full
 reference: <https://docs.litellm.ai/docs/providers>):
@@ -120,6 +130,7 @@ llm:
         api_key: "os.environ/MY_ANTHROPIC_KEY_VAR"
 ```
 
+
 Note: boot validation checks the provider's *default* env var names even for
 `model_list` entries (a litellm limitation), so when using custom-named vars
 the default-named ones must also be set for the core to boot.
@@ -132,11 +143,46 @@ the default-named ones must also be set for the core to boot.
 
 ## Getting Started
 
+Nebula ships with two configuration tiers, and it matters from the
+start which one you are setting up.
+
+The **default local setup** below is enough to generate and apply
+infrastructure end to end. All four sidecars (`iac`, `mapping`,
+`notifications`, `authz`) come bundled with their `config.yaml`
+
+defaults, but only `iac` is mandatory and enabled out of the box. `iac` and
+`notifications` ship complete, working reference implementations;
+`mapping` ships a simple direct passthrough usable as shipped for teams
+that address repositories by URL; `authz` ships a permissive
+placeholder that must be replaced before it enforces anything.
+`mapping`, `notifications` and `authz` all start **disabled**. Nebula
+also seeds an initial set of [Phoenix prompt templates](#phoenix-prompt-templates)
+at first boot: default guidelines and resource templates per cloud,
+covering naming conventions, security best practices and compliance
+rules for the main resource types, so a fresh install can generate
+compliant code without any prompt authoring.
+
+A **full or production configuration** goes further on both axes.
+Every sidecar your organization needs must be enabled, and `mapping`
+and `authz` in particular usually need to be reimplemented against
+your own systems (repository catalogue, access policy), since their
+bundled versions are a passthrough and a permissive stub, not real
+business logic. Just as important, the seeded
+[Phoenix prompt templates](#phoenix-prompt-templates) must be reviewed
+and adapted to your organization's own conventions — they are a
+working starting point, not your policy. A full configuration therefore
+spans `config.yaml`, the `.env` files of the core and all four
+
+sidecars, **and** your organization's own Phoenix prompt templates:
+none of these on their own is "fully configured" without the others.
+
+
 This guide runs the complete Nebula stack locally with Docker Compose:
 the core API, the four sidecar services (`iac`, `mapping`,
 `notifications`, `authz`), two PostgreSQL databases, Redis, RustFS
 object storage, Phoenix, and the nginx proxy that serves the web app.
 Every `env.sample` file documents every supported variable; this guide
+
 only highlights the ones that normally need attention. Review the full
 sample files before starting the stack.
 
@@ -145,6 +191,7 @@ sample files before starting the stack.
 Nebula has two kinds of components:
 
 - **Core components are run as-is.** The core API, the web app, the
+
   nginx proxy, PostgreSQL, Redis, RustFS and Phoenix are the platform.
   Installations configure them through `config.yaml` and the `.env`
   files; they are not meant to be modified per installation.
@@ -152,6 +199,7 @@ Nebula has two kinds of components:
   `notifications` and `authz` each implement an OpenAPI contract in
   [`contracts/openapi/`](./contracts/openapi/). They are where an
   organization plugs in its own systems: any implementation of the
+
   contract can replace the bundled one by pointing
   `services.<name>.endpoint` in `config.yaml` at it.
 
@@ -164,6 +212,7 @@ The bundled implementations differ in how far they take you:
 | `mapping` | Optional | disabled | Simple direct mapping: the repository URL you enter is used as-is, with no catalogue lookup. While disabled the core does the same mapping itself; implement the contract to resolve business identifiers against your own catalogue. |
 | `authz` | Optional | disabled | Permissive placeholder: answers "authorized" to everything. Must be implemented with your access policy before enabling; see [Important authorization default](#important-authorization-default). |
 
+
 With the shipped defaults the core talks to `iac` only. A sidecar
 disabled in `config.yaml` is never contacted: the core answers those
 calls locally and sends no request to the service. Enabling one means
@@ -171,6 +220,7 @@ setting `services.<name>.enabled: true`, rebuilding the core image, and
 configuring the sidecar's `.env` as described in step 3. Compose still
 builds and starts every sidecar container unless you remove it from
 `docker-compose.yml`; a disabled sidecar that exits (for example
+
 `notifications` without a webhook URL) is harmless.
 
 ### Prerequisites
@@ -183,6 +233,7 @@ builds and starts every sidecar container unless you remove it from
   or GitLab) so Nebula can push branches and open pull requests.
 - Cloud-provider credentials for the cloud your Terraform code targets,
   used by `plan`, `apply` and `import`.
+
 
 OpenTofu is bundled in the `iac` image as the default IaC engine. The
 image also bundles HashiCorp Terraform, selectable with
@@ -213,6 +264,7 @@ cp services/authz/env.sample services/authz/.env
 `services/iac/.env` is needed because `iac` is the one mandatory
 sidecar. The other three `.env` files only matter once you enable the
 corresponding sidecar; Compose tolerates their absence and the
+
 containers start with their defaults.
 
 > **Secrets.** The `.env` files are gitignored and must never be
@@ -228,6 +280,7 @@ for that provider (variable names follow LiteLLM's provider
 conventions). The checked-in `config.yaml` selects Google Vertex AI
 models (`vertex_ai/...`), so set `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`
 and `VERTEXAI_CREDENTIALS` (service-account JSON as a file path or raw
+
 content). The `ANTHROPIC_API_KEY` line pre-filled in `core/env.sample`
 only applies if you switch to `anthropic/...` models. Changing a model
 identifier usually means changing the credential variables too; the
@@ -240,9 +293,11 @@ operations against the provider selected by `git.provider` in
 other values):
 
 ```dotenv
+
 GIT_USER=
 GIT_TOKEN=
 ```
+
 
 `GIT_USER` is the account username of the configured provider and
 `GIT_TOKEN` its personal access token. Required token permissions depend
@@ -277,6 +332,7 @@ generated secrets on both sides.
 
 **Settings that need no change for the default stack.**
 `NEBULA_SQL_DATABASE_URL` already points at the bundled `core-db`
+
 container, and `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` match the
 bundled RustFS credentials in `docker-compose.yml`. Redis needs no
 variable at all (the Compose service URL is the default).
@@ -292,8 +348,8 @@ Terraform configuration uses:
 
 | Cloud | Variables in the sample |
 |---|---|
-| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` |
-| Google Cloud | `GOOGLE_APPLICATION_CREDENTIALS` (path to a key file) or `GOOGLE_CREDENTIALS` (inline JSON) |
+| Azure | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` |
+| Google Cloud | `GOOGLE_CREDENTIALS` (service-account key, as JSON content, not a path) |
 | AWS | `AWS_ACCESS_KEY_ID`, `AWS_PROFILE`; add whatever else your AWS provider authentication needs, such as the matching secret key |
 
 Missing or invalid cloud credentials do not stop the container: `plan`
@@ -307,8 +363,10 @@ lookup and no request to any service, which is all teams that address
 repositories by URL need. The bundled sidecar does exactly the same
 mapping and serves as the template for a real implementation. To
 resolve business identifiers against your own catalogue, implement the
+
 [mapping contract](./contracts/openapi/mapping.v1.yaml), set
 `services.mapping.enabled: true` and `services.mapping.endpoint` in
+
 `config.yaml`, rebuild the core image, and make `NEBULA_MAPPING_TOKEN`
 match between `core/.env` and `services/mapping/.env` (see
 [services/mapping/README.md](./services/mapping/README.md)).
@@ -316,8 +374,8 @@ match between `core/.env` and `services/mapping/.env` (see
 **notifications (`services/notifications/.env`, optional, disabled by
 default).** While disabled, the core sends no notifications at all and
 the browser-facing notifications route answers `503`. When enabled,
-Nebula notifies compliance-check failures and apply failures, plus the
-support requests users submit from the web app. To enable it, set
+Nebula notifies compliance-check failures, high-impact detections and
+apply failures, plus the support requests users submit from the web app. To enable it, set
 `services.notifications.enabled: true` in `config.yaml`, rebuild the
 core image, and fill in:
 
@@ -376,6 +434,7 @@ Keep these points apart:
   but still enforces no real policy.
 - Organizations that need project-level authorization must set
   `services.authz.enabled: true`, rebuild the core image, make
+
   `NEBULA_AUTHZ_TOKEN` match between `core/.env` and
   `services/authz/.env`, and configure or replace the sidecar with an
   implementation of the [authz contract](./contracts/openapi/authz.v1.yaml)
@@ -399,10 +458,12 @@ llm:
 - `model` handles the complex generation and analysis tasks;
   `small_model` handles lighter orchestration tasks (filtering, status
   messages, PR text, the compliance audit).
+
 - Both are LiteLLM model identifiers (`provider/model-id`). Model IDs
   and credential variables must belong to the same provider; the
   [LiteLLM Models and Params Reference](#litellm-models-and-params-reference)
   above lists the model string format and the credential variables for
+
   every supported provider.
 - Provider secrets go in `core/.env`, never in `config.yaml`.
 - The core validates the selected models' credentials at startup and
@@ -411,6 +472,7 @@ llm:
   `azure_ai`) surface missing credentials on the first LLM call instead.
 - Fallbacks, load balancing and custom credential variable names are
   optional and use `llm.model_list`; see
+
   [Advanced: `llm.model_list`](#advanced-llmmodel_list).
 
 ### 5. Configure OIDC, if required
@@ -427,6 +489,7 @@ oidc:
 > blank `oidc.issuer_url` every request, from anyone who can reach port
 > 80, is resolved to Nebula's local developer identity holding the top
 > role of both role groups (`devops` and panel `admin`). This mode is
+
 > for trusted local development only and is not appropriate for a shared
 > or production deployment.
 
@@ -436,6 +499,7 @@ To enable login, set at least the issuer and the public client id:
 oidc:
   issuer_url: "https://your-identity-provider.example/..."
   client_id: "your-public-client-id"
+
   clock_skew_seconds: 60
 ```
 
@@ -453,6 +517,7 @@ oidc:
 - Per-provider steps (Microsoft Entra ID, Keycloak, Auth0, Okta),
   bootstrap-admin details and troubleshooting:
   [docs/oidc-setup.md](./docs/oidc-setup.md).
+
 - OIDC authenticates users and enables Nebula's identity and role
   checks. It does not configure project-level cloud authorization (see
   [Important authorization default](#important-authorization-default)).
@@ -476,6 +541,7 @@ With the `.env` files filled in (model credentials, Git credentials,
 the `iac` token, cloud credentials, plus the settings of any sidecar you
 enabled) and `config.yaml` adjusted if needed:
 
+
 ```bash
 docker compose up --build
 ```
@@ -488,6 +554,7 @@ running container during development.
 
 Stop the stack with:
 
+
 ```bash
 docker compose down
 ```
@@ -497,12 +564,13 @@ sessions and prompts survive a restart.
 
 ### 7. Open and verify the application
 
+
 Only the proxy publishes host ports:
 
 | URL | What it serves |
 |---|---|
 | <http://localhost> | Nebula web application and the API under `/api/v1/...` |
-| <http://localhost/monitoring/> | Phoenix: traces of every run and the prompt registry |
+| <http://localhost/monitoring/> | Phoenix: traces of every run and the [prompt registry](#phoenix-prompt-templates) |
 | `http://localhost:9000` | Presigned artifact download URLs (opened by the web app, not a page to visit) |
 
 Checks:
@@ -513,9 +581,11 @@ curl http://localhost/api/v1/auth/config   # public route: returns the OIDC sett
 docker compose logs -f core           # wait for "Application startup complete"
 ```
 
+
 Then open <http://localhost>. In the default (no-OIDC) mode you land
 directly in the wizard as the local developer; with OIDC enabled you
 are redirected to your identity provider first. Enter a repository your
+
 Git token can push to, describe the infrastructure you need, and follow
 the session progress in the UI.
 
@@ -559,6 +629,7 @@ the session progress in the UI.
 
 ## Contributing
 
+
 We welcome contributions!
 
 Please read our [CONTRIBUTING.md](./CONTRIBUTING.md) and follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
@@ -579,3 +650,81 @@ This project is licensed under the [Apache-2.0 License](./LICENSE).
 
 © 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 
+## Phoenix Prompt Templates
+
+
+Nebula does not hard-code cloud knowledge in the core: the instructions
+that tell the LLM agents how to name, configure and secure resources
+live as prompts in Phoenix's runtime prompt registry, fetched by the
+core on every request. What ships in the repository is only the
+**initial seed** for that registry.
+
+### Where they live
+
+Seed files sit under [`core/prompts/seed/`](./core/prompts/seed/), one
+YAML file per prompt, at the fixed path
+`<scope>/<type>/<name>.yaml`:
+
+- **`scope`** — `general`, or a cloud: `aws`, `azure`, `gcp`, `oci`,
+  `kubernetes`.
+- **`type`** — `guidelines` (conventions that apply across resources:
+  naming/abbreviations, permissions, networking, forbidden actions, the
+  per-cloud resource catalogue) or `resources` (one file per resource
+  type, its default configuration); `general` additionally has
+  `compliance` (the blocking policy: the rules the compliance-audit
+  agent checks a report against, and the impact levels the report
+  generator assigns to each change group).
+
+- **`name`** — the prompt's identifier within its scope and type
+  (`snake_case`, derived from the filename).
+
+Scope, type and name are derived from the file's path, not declared
+inside it, so a misfiled prompt cannot misreport its own identity. Each
+file has just two keys: `description` (shown in the Phoenix UI) and
+`body` (the Markdown prompt text).
+
+### Examples
+
+
+| File | Scope / type | What it defines |
+|---|---|---|
+| [`aws/resources/s3_bucket.yaml`](./core/prompts/seed/aws/resources/s3_bucket.yaml) | aws / resources | Default S3 bucket configuration: naming convention, mandatory encryption, versioning, and public-access blocking. |
+| [`azure/resources/storage_account.yaml`](./core/prompts/seed/azure/resources/storage_account.yaml) | azure / resources | Default Storage Account configuration and naming. |
+
+| [`kubernetes/guidelines/permissions.yaml`](./core/prompts/seed/kubernetes/guidelines/permissions.yaml) | kubernetes / guidelines | Pod Security Admission levels and RBAC conventions applied to every generated manifest. |
+| [`gcp/guidelines/resources_list.yaml`](./core/prompts/seed/gcp/guidelines/resources_list.yaml) | gcp / guidelines | Catalogue of GCP resource templates the agent may select from. |
+| [`general/compliance/report.yaml`](./core/prompts/seed/general/compliance/report.yaml) | general / compliance | Business rules (with rule IDs and severities) the compliance-audit agent checks every generated report against. |
+| [`general/compliance/impact.yaml`](./core/prompts/seed/general/compliance/impact.yaml) | general / compliance | Criteria the report generator uses to label each change group `low`, `medium` or `high`; a `high` level blocks the session. |
+
+Browse [`core/prompts/seed/`](./core/prompts/seed/) for the complete,
+current set — one directory per cloud, plus `general/`.
+
+### How seeding works, and how to adapt it
+
+
+At startup the core loads every seed file and creates in Phoenix only
+the prompts that do not already exist there; prompts already present
+(including ones you have edited) are left untouched. Created prompts
+are tagged with the core's `environment` (`config.yaml`'s top-level
+`environment` key), and the core fetches prompts by that same tag at
+request time — so, unlike `config.yaml`, editing a prompt takes effect
+immediately, with no core rebuild.
+
+Adapting the bundled prompts to your organization's conventions means
+one of:
+
+- **Editing an existing prompt directly in Phoenix** (the prompt
+  registry UI at `/monitoring/` in the default stack) — the durable way
+  to do it, since seeding never overwrites a prompt that already
+  exists.
+- **Adding or changing seed YAML files** before the *first* boot
+  against a given Phoenix database, so your version is what gets
+  created. This only affects prompts Phoenix does not already have; for
+  an already-seeded deployment, edit in Phoenix instead.
+
+
+Either way, review and rewrite the naming conventions, security
+defaults and compliance rules in these prompts for your organization
+before relying on a deployment for anything beyond local evaluation —
+see the tiers described at the top of
+[Getting Started](#getting-started).
