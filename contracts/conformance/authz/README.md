@@ -16,9 +16,8 @@ Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/authz
-uv venv && source .venv/bin/activate
-uv pip install -e .
-pytest \
+uv sync
+uv run pytest \
   --service-url=https://authz.your.example \
   --service-token=$YOUR_TOKEN
 ```

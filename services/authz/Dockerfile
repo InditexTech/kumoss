@@ -4,6 +4,13 @@
 
 FROM python:3.13-slim AS base
 
+ARG NEBULA_UID=10001
+ARG NEBULA_GID=10001
+RUN groupadd --gid "${NEBULA_GID}" nebula \
+    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
+        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
+    && mkdir -p /data && chown nebula:nebula /data
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
@@ -14,14 +21,14 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH"
 
-COPY pyproject.toml uv.lock ./
+COPY services/authz/pyproject.toml services/authz/uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-default-groups
 
-COPY src ./src
+COPY --chown=nebula:nebula services/authz/src ./src
 
-RUN uv sync --frozen --no-dev
+USER ${NEBULA_UID}:${NEBULA_GID}
 
 EXPOSE 8083
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8083"]
+CMD ["fastapi", "run", "src/main.py", "--port", "8083"]

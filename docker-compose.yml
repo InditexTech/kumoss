@@ -75,7 +75,8 @@ services:
   notifications:
     image: nebula-notifications:latest
     build:
-      context: ./services/notifications
+      context: .
+      dockerfile: ./services/notifications/Dockerfile
     env_file:
       - path: ./services/notifications/.env
         required: false
@@ -87,7 +88,8 @@ services:
   mapping:
     image: nebula-mapping:latest
     build:
-      context: ./services/mapping
+      context: .
+      dockerfile: ./services/mapping/Dockerfile
     env_file:
       - path: ./services/mapping/.env
         required: false
@@ -99,7 +101,8 @@ services:
   iac:
     image: nebula-iac:latest
     build:
-      context: ./services/iac
+      context: .
+      dockerfile: ./services/iac/Dockerfile
     env_file:
       - path: ./services/iac/.env
         required: false
@@ -113,13 +116,11 @@ services:
   authz:
     image: nebula-authz:latest
     build:
-      context: ./services/authz
+      context: .
+      dockerfile: ./services/authz/Dockerfile
     env_file:
       - path: ./services/authz/.env
         required: false
-    volumes:
-      # Roles persist across container restarts.
-      - authz_data:/data
     expose:
       - 8083
     networks:
@@ -180,8 +181,6 @@ volumes:
   object_storage_data:
     driver: local
   workspaces:
-    driver: local
-  authz_data:
     driver: local
 
 networks:
