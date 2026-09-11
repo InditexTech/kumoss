@@ -32,10 +32,7 @@ class ComplianceCheckService:
             return ComplianceCheckReport.empty()
 
         query: str = (
-            "The user request:\n"
-            f"{request}\n\n"
-            "The Terraform plan to audit:\n"
-            f"{plan}"
+            f"The user request:\n{request}\n\nThe Terraform plan to audit:\n{plan}"
         )
 
         result: ToolResultDTO = await self.__llm_svc.generate(
