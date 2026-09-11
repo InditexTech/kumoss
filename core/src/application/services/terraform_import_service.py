@@ -30,7 +30,7 @@ class TerraformImportService:
         )
         logging.info(f"Scope resources for scope {scope_id}: {scope_res}")
 
-        unmanaged_res = list(set(scope_res) - set(managed_res))
+        unmanaged_res = sorted(set(scope_res) - set(managed_res))
         logging.info(f"Unmanaged resources for scope {scope_id}: {unmanaged_res}")
         return unmanaged_res
 
