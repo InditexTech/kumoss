@@ -4,17 +4,15 @@
 
 """Thin async wrapper around the IaC engine CLI (OpenTofu or Terraform).
 
-Just enough to drive `init`, `validate`, `plan`, `show`, `apply`,
-`import`, and `state pull`, one command per call — the flag surface is
-identical across both engines. Implementations that need more (state
-locking, custom backends, policy as code) should extend this or
-substitute their own.
+Just enough to drive `init`, `validate`, `plan`, `show`, and `apply`,
+one command per call — the flag surface is identical across both
+engines. Implementations that need more (state locking, custom
+backends, policy as code) should extend this or substitute their own.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass
@@ -95,45 +93,3 @@ async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
         ["apply", "-no-color", "-input=false", "-auto-approve", plan_file],
         cwd,
     )
-
-
-async def import_resource(
-    binary: str, cwd: Path, address: str, resource_id: str
-) -> CommandResult:
-    return await _run(
-        binary,
-        ["import", "-no-color", "-input=false", address, resource_id],
-        cwd,
-    )
-
-
-async def state_pull(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["state", "pull"], cwd)
-
-
-def extract_managed_resource_ids(state_json: str) -> list[str]:
-    """Provider-assigned ids of every managed resource instance in a
-    pulled state document; [] when the state is empty or unparsable."""
-    try:
-        state = json.loads(state_json)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(state, dict):
-        return []
-    ids: list[str] = []
-    resources = state.get("resources") or []
-    if not isinstance(resources, list):
-        return []
-    for resource in resources:
-        if not isinstance(resource, dict) or resource.get("mode") != "managed":
-            continue
-        instances = resource.get("instances") or []
-        if not isinstance(instances, list):
-            continue
-        for instance in instances:
-            if not isinstance(instance, dict):
-                continue
-            rid = (instance.get("attributes") or {}).get("id")
-            if rid:
-                ids.append(rid)
-    return ids

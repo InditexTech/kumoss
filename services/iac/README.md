@@ -33,18 +33,10 @@ subcommands against that binary instead (e.g. `terraform init`).
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
 - `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
-- `POST /v1/import` — enqueues `tofu import <address>
-  <resource_id>`.
-- `POST /v1/import/state-resource-ids` — enqueues `tofu state
-  pull`; on exit code 0 the result's `stdout` is a JSON array of the
-  provider ids of every managed resource instance in the state.
-- `POST /v1/import/scope-resource-ids` — enqueues a cloud scope query
-  via the CLI matching `terraform_provider` (`az` Resource Graph /
-  `gcloud` Cloud Asset Inventory / `aws` Resource Groups Tagging
-  API); on exit code 0 the result's `stdout` is a JSON array of the
-  resource IDs that exist in `scope_id`. Cloud query failures end the
-  job `succeeded` with a non-zero `exit_code`, like engine-level
-  failures.
+- `POST /v1/import`, `POST /v1/import/state-resource-ids` and
+  `POST /v1/import/scope-resource-ids` — **not implemented**. They
+  answer `501` with a `Problem` body without inspecting the request
+  (no auth check, no body validation) and never enqueue a job.
 - `GET /v1/jobs/{job_id}` — job status (`queued` / `running` /
   `succeeded` / `failed`) plus `result` (succeeded) or `error`
   (failed). Engine-level failures end the job `succeeded` with a
@@ -63,7 +55,7 @@ subcommands against that binary instead (e.g. `terraform init`).
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. |
 
 ## Choosing the IaC engine
 
@@ -79,9 +71,9 @@ runtime, with no rebuild needed to switch:
   checksum-verified; your use of it is subject to its license terms.
 
 The service itself is engine-agnostic: it only shells out to
-`init` / `validate` / `plan` / `show` / `apply` / `import` /
-`state pull`, whose flags are identical across both engines, so any
-Terraform-compatible engine on PATH (or at an absolute path) works.
+`init` / `validate` / `plan` / `show` / `apply`, whose flags are
+identical across both engines, so any Terraform-compatible engine on
+PATH (or at an absolute path) works.
 
 Notes when pointing a workspace previously managed by Terraform at the
 default OpenTofu engine:
@@ -133,12 +125,10 @@ user. Override the two build args together or not at all.
   into it must run as that same identity. How a platform expresses that
   (a pod security context, export options, a one-off `chown`) is
   deployment-specific; the ownership itself is not.
-- **Cloud CLIs.** `az`, `gcloud` and `aws` keep their per-user state
-  under `$HOME` (`~/.azure`, `~/.config/gcloud`, `~/.aws`). The
-  `resource-graph` az extension is installed system-wide in
-  `/opt/azure-cli-extensions` (`AZURE_EXTENSION_DIR`) so the runtime
-  user finds it. Credential files you mount must be readable by uid
-  `10001`.
+- **Provider credentials.** Credential files you mount (`~/.azure`,
+  `~/.config/gcloud`, `~/.aws` under `$HOME`, or whatever the
+  `GOOGLE_APPLICATION_CREDENTIALS` path points at) must be readable by
+  uid `10001`.
 
 ## Run locally
 

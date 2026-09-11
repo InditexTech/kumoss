@@ -6,8 +6,8 @@
 
 Unlike the unit suite (which patches every subprocess call), this test
 drives the HTTP API end to end against a real engine binary:
-init → validate → plan → show -json → apply → state pull, using the
-hermetic ``terraform_data`` fixture (no provider downloads, no network,
+init → validate → plan → show -json → apply, using the hermetic
+``terraform_data`` fixture (no provider downloads, no network,
 no cloud credentials). It runs once per engine the image bundles —
 OpenTofu (``tofu``) and Terraform — proving both work behind the same
 service; each engine skips itself when its binary is not on PATH.
@@ -75,7 +75,3 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         assert actions == [["create"]]
 
         run("/v1/apply", {"plan_file": "smoke.plan"})
-
-        state_ids = run("/v1/import/state-resource-ids")
-        ids = json.loads(state_ids["stdout"])
-        assert len(ids) == 1  # the applied terraform_data.probe instance

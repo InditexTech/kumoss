@@ -58,35 +58,6 @@ class ApplyRequest(BaseModel):
     plan_file: PlanFileStr
 
 
-class ImportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
-    address: str = Field(min_length=1, max_length=4096)
-    resource_id: str = Field(min_length=1, max_length=4096)
-
-
-TerraformProvider = Literal["azure", "gcp", "aws"]
-
-
-class StateResourceIdsRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
-
-
-class ScopeResourceIdsRequest(BaseModel):
-    # Unlike the other requests, `scope_id` is required: it names the
-    # scope being listed rather than acting as a credential fallback.
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str = Field(min_length=1, max_length=1024)
-    terraform_provider: TerraformProvider
-
-
 class OperationResult(BaseModel):
     """Raw outcome of the single engine command a job ran."""
 
@@ -119,9 +90,6 @@ JobKind = Literal[
     "plan",
     "show",
     "apply",
-    "import",
-    "state_resource_ids",
-    "scope_resource_ids",
 ]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 

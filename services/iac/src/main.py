@@ -13,23 +13,25 @@ workspace run one at a time in submission (FIFO) order. Submit-time
 errors (auth, malformed body, missing workspace, missing engine
 binary) are still reported synchronously on the POST; everything after
 submission surfaces through the job.
+
+The ``/v1/import`` endpoints are unimplemented: they answer 501
+without inspecting the request.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import NoReturn
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from . import cloud_cli
 from . import engine
 from .auth import verify_bearer_token
 from .config import Config, engine_available
@@ -37,7 +39,6 @@ from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
     Health,
-    ImportRequest,
     InitRequest,
     Job,
     JobAccepted,
@@ -45,9 +46,7 @@ from .models import (
     OperationResult,
     PlanRequest,
     Problem,
-    ScopeResourceIdsRequest,
     ShowRequest,
-    StateResourceIdsRequest,
     ValidateRequest,
 )
 
@@ -277,86 +276,41 @@ async def apply(
     )
 
 
+def _import_not_implemented() -> NoReturn:
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Import is not implemented by this service.",
+    )
+
+
 @app.post(
     "/v1/import",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def import_resource(
-    body: ImportRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "import",
-        workspace,
-        response,
-        lambda: engine.import_resource(
-            config.iac_binary, workspace, body.address, body.resource_id
-        ),
-    )
+async def import_resource() -> Problem:
+    _import_not_implemented()
 
 
 @app.post(
     "/v1/import/state-resource-ids",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def state_resource_ids(
-    body: StateResourceIdsRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    record = jobs.submit(
-        kind="state_resource_ids",
-        workspace=workspace,
-        pipeline=lambda: _state_resource_ids_op(workspace),
-    )
-    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
-    return JobAccepted(job_id=record.job_id)
-
-
-async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    result = await engine.state_pull(config.iac_binary, workspace)
-    if not result.ok:
-        return OperationResult(
-            exit_code=result.exit_code, stdout="", stderr=result.stderr
-        )
-    ids = engine.extract_managed_resource_ids(result.stdout)
-    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+async def state_resource_ids() -> Problem:
+    _import_not_implemented()
 
 
 @app.post(
     "/v1/import/scope-resource-ids",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def scope_resource_ids(
-    body: ScopeResourceIdsRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    if not cloud_cli.cli_available(body.terraform_provider):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                f"Cloud CLI '{cloud_cli.CLI_BINARIES[body.terraform_provider]}' "
-                f"for provider '{body.terraform_provider}' not found in PATH "
-                "on the IaC service."
-            ),
-        )
-    return _submit(
-        "scope_resource_ids",
-        workspace,
-        response,
-        lambda: cloud_cli.list_resource_ids(body.terraform_provider, body.scope_id),
-    )
+async def scope_resource_ids() -> Problem:
+    _import_not_implemented()
 
 
 @app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
