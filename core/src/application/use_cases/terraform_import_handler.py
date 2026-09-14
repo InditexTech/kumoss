@@ -28,6 +28,7 @@ from src.domains.services.tool_service import ToolOrchestrationService
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
+    OperationType,
     PromptsLibrary,
     ReportType,
     SessionStatus,
@@ -161,10 +162,9 @@ class TerraformImportHandler:
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
+                    operation_type=OperationType.IMPORT,
                     validator=validation_callback,
-                    prompt_key=PromptsLibrary.IAC_IMPORT,
-                    sentinel_context=ToolContext.IAC_IMPORT,
-                    prompt_kwargs={"selected_ids": selected_ids},
+                    selected_ids=selected_ids,
                 )
 
                 if not validation.validation:

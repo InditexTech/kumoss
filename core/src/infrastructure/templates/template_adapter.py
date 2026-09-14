@@ -130,33 +130,23 @@ class TemplateAdapter(ITemplate):
         )
 
     @override
-    async def render_iac_import(
-        self,
-        selected_ids: list[str],
-        resources: list[str],
-        abbreviations: list[str],
-    ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions=False
-        )
-        t = self._get_template(self._core + "iac_import.jinja")
-        return t.render(
-            **context,
-            SELECTED_IDS=selected_ids,
-        )
-
-    @override
     async def render_iac_generator(
         self,
+        operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
+        selected_ids: list[str] | None = None,
     ) -> str:
         context = await self._compose_conventions_context(
             resources, abbreviations, include_forbidden_actions
         )
         base_template = self._get_template(self._core + "iac_generator.jinja")
-        return base_template.render(**context)
+        return base_template.render(
+            **context,
+            OPERATION_TYPE=operation_type.value,
+            SELECTED_IDS=selected_ids or [],
+        )
 
     @override
     async def render_prompt_compositor(

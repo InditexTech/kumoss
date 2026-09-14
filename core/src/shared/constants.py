@@ -80,7 +80,6 @@ class PromptsLibrary(Enum):
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
     IMPORT_FILTER = "import_filter"
-    IAC_IMPORT = "iac_import"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
     PR_GENERATOR = "pr_generator"

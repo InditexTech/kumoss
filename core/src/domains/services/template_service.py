@@ -38,7 +38,6 @@ class TemplateOrchestrationService:
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
             "import_filter": self.__templates.render_import_filter,
-            "iac_import": self.__templates.render_iac_import,
             "target_generator": self.__templates.render_target_generator,
             "report_generator": self.__templates.render_report_generator,
             "supervisor": self.__templates.render_supervisor,

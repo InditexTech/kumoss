@@ -23,6 +23,7 @@ from src.domains.services import (
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.constants import (
+    OperationType,
     PromptsLibrary,
     ReportType,
     SessionStatus,
@@ -96,6 +97,7 @@ class TerraformCRUDHandler:
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
+                    operation_type=OperationType.GENERATE,
                     validator=validation_callback,
                 )
 

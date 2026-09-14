@@ -17,7 +17,13 @@ from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformValidationDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import ContentType, PromptsLibrary, SessionStatus, ToolContext
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    PromptsLibrary,
+    SessionStatus,
+    ToolContext,
+)
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
 
@@ -85,7 +91,9 @@ class TerraformValidationService:
         ctx: SessionContext,
         conventions: Conventions,
         include_forbidden_actions: bool,
+        operation_type: OperationType,
         validator: Callable[[History], Awaitable[TerraformValidationDTO]],
+        selected_ids: list[str] | None = None,
     ) -> TerraformValidationDTO:
         """
         Execute the terraform generation and validation cycle using tool calls
@@ -118,13 +126,17 @@ class TerraformValidationService:
                     ]
                 ),
                 sentinel_tool=self.__tool_orchestration.get_sentinel_tool(
-                    context=ToolContext.GENERAL_TASK_COMPLETION,
+                    context=ToolContext.IAC_IMPORT
+                    if operation_type is OperationType.IMPORT
+                    else ToolContext.GENERAL_TASK_COMPLETION,
                 ),
                 prompt=await self.__template_svc.render(
                     prompt=PromptsLibrary.IAC_GENERATOR,
+                    operation_type=operation_type,
                     resources=conventions.templates,
                     abbreviations=conventions.abbreviations,
                     include_forbidden_actions=include_forbidden_actions,
+                    selected_ids=selected_ids,
                 ),
                 history=local_history,
             )

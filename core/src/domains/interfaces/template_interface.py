@@ -11,9 +11,11 @@ class ITemplate(ABC):
     @abstractmethod
     async def render_iac_generator(
         self,
+        operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
+        selected_ids: list[str] | None = None,
     ) -> str:
         pass
 
@@ -75,15 +77,6 @@ class ITemplate(ABC):
 
     @abstractmethod
     def render_status_update(self) -> str:
-        pass
-
-    @abstractmethod
-    async def render_iac_import(
-        self,
-        selected_ids: list[str],
-        resources: list[str],
-        abbreviations: list[str],
-    ) -> str:
         pass
 
     @abstractmethod
