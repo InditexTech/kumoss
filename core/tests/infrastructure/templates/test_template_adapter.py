@@ -305,6 +305,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sole source of truth", prompt)
         self.assertNotIn("Impact Analysis", prompt)
         self.assertNotIn("Drift Remediation", prompt)
+        self.assertIn("depends_on", prompt)
 
     def test_target_generation_modes_are_session_and_drift_only(self):
         self.assertEqual(
