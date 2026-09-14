@@ -9,6 +9,7 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { mergePullRequest } from "@/services/core/iac_code";
 import { getApiErrorMessage } from "@/services/api";
 import { isAllowedUrl } from "@/utils/sanitize";
+import { isDriftSession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
 import type { PrApprovalStep } from "@/types/ui";
 import styles from "./PrApprovalView.module.css";
@@ -33,6 +34,23 @@ export default function PrApprovalView({
   const [approving, setApproving] = useState(false);
 
   const confirming = step === "confirming";
+
+  // Drift ends at the merge, so only the wording differs — the merge itself
+  // below is identical for both flows.
+  const isDrift = isDriftSession(session);
+  const labels = isDrift
+    ? {
+        prompt: STRINGS.pr.mergePrompt,
+        approve: STRINGS.pr.approveAndMerge,
+        confirm: STRINGS.pr.confirmMerge,
+        inFlight: STRINGS.pr.merging,
+      }
+    : {
+        prompt: STRINGS.pr.applyPrompt,
+        approve: STRINGS.assistant.approvePrAndApply,
+        confirm: STRINGS.pr.confirmApply,
+        inFlight: "Applying…",
+      };
 
   const handleConfirmApply = useCallback(async () => {
     if (!prDetails.number || !session.uuid || approving) return;
@@ -125,7 +143,7 @@ export default function PrApprovalView({
             onClick={handleConfirmApply}
             disabled={approving || !prDetails.number}
           >
-            {approving ? "Applying…" : STRINGS.pr.confirmApply}
+            {approving ? labels.inFlight : labels.confirm}
           </button>
         </div>
 
@@ -143,7 +161,7 @@ export default function PrApprovalView({
   return (
     <div className={styles.container}>
       <Typography variant="h1" className={styles.heading}>{STRINGS.pr.ready}</Typography>
-      <Typography variant="h4" className={styles.subtitle}>{STRINGS.pr.applyPrompt}</Typography>
+      <Typography variant="h4" className={styles.subtitle}>{labels.prompt}</Typography>
 
       <div className={styles.buttonRow}>
         {showViewPr && (
@@ -164,7 +182,7 @@ export default function PrApprovalView({
           onClick={() => onStepChange("confirming")}
           disabled={approving || !prDetails.number}
         >
-          {STRINGS.assistant.approvePrAndApply}
+          {labels.approve}
         </button>
       </div>
 
