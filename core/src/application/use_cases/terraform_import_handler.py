@@ -12,7 +12,7 @@ from src.application.services.requests_filter_service import RequestsFilterServi
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.application.services.terraform_import_service import TerraformImportService
-from src.domains.dto import TerraformValidationDTO, ToolResultDTO
+from src.domains.dto import TerraformImportDTO, TerraformValidationDTO, ToolResultDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
@@ -20,6 +20,8 @@ from src.domains.services import (
     ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
+    TerraformImportAddressService,
+    TerraformTargetService,
     TerraformValidationService,
 )
 from src.domains.services.database_service import DatabaseService
@@ -47,6 +49,8 @@ class TerraformImportHandler:
         template_service: TemplateOrchestrationService,
         requests_filter_service: RequestsFilterService,
         import_service: TerraformImportService,
+        import_address_service: TerraformImportAddressService,
+        target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
         report_service: ReportService,
         compliance_service: ComplianceCheckService,
@@ -60,11 +64,37 @@ class TerraformImportHandler:
         self.__report_svc = report_service
         self.__requests_filter_svc = requests_filter_service
         self.__import_svc = import_service
+        self.__import_address_svc = import_address_service
+        self.__target_svc = target_service
         self.__drift_svc = drift_service
         self.__compliance_svc = compliance_service
         self.__llm_svc = llm_service
         self.__tool_svc = tool_service
         self.__ctx = session_ctx
+
+    async def __report_nothing_to_import(self, q: str, msg: str) -> None:
+        """Close a round that found nothing to import with an empty report.
+
+        The scope is already fully managed, or the request targets nothing
+        unmanaged. Reporting instead of dead-ending leaves the session
+        completed: the runner marks any handler that returns without setting
+        UNCOMPLETED as completed.
+        """
+        ctx = self.__ctx
+        ctx.history.append_turn(q, msg)
+        _ = await self.__report_svc.generate_report(
+            ctx=ctx,
+            type=ReportType.IMPORT,
+            content=json.dumps(
+                {
+                    "selected_resource_ids": [],
+                    "import_results": asdict(
+                        TerraformImportDTO(imported=[], failed=[])
+                    ),
+                    "summary": msg,
+                }
+            ),
+        )
 
     async def handle(
         self, q: str, is_partial: bool
@@ -82,8 +112,6 @@ class TerraformImportHandler:
                     status=SessionStatus.FILTERING,
                     history=ctx.history,
                 )
-                conventions = await self.__template_svc.compose_template(q, ctx.history)
-
                 if is_partial:
                     ok, rationale = await self.__requests_filter_svc.filter(
                         q, ctx.history, ctx.operation
@@ -96,17 +124,16 @@ class TerraformImportHandler:
                         )
                         return
 
+                conventions = await self.__template_svc.compose_template(q, ctx.history)
+
                 # Step 1 — Discovery
                 unmanaged_ids = await self.__import_svc.get_unmanaged_resources(
                     scope_id=ctx.scope_id,
                     terraform_provider=ctx.terraform_prv,
                 )
                 if not unmanaged_ids:
-                    msg = "No unmanaged resources found in scope."
-                    ctx.history.append_turn(q, msg)
-                    _ = await self.__session_svc.update_status(
-                        msg=msg,
-                        status=SessionStatus.UNCOMPLETED,
+                    await self.__report_nothing_to_import(
+                        q, "No unmanaged resources found in scope."
                     )
                     return
 
@@ -141,19 +168,15 @@ class TerraformImportHandler:
                     )
 
                     if not selected_ids:
-                        ctx.history.append_turn(q, filter_explanation)
-                        _ = await self.__session_svc.update_status(
-                            msg=filter_explanation,
-                            status=SessionStatus.UNCOMPLETED,
-                        )
+                        await self.__report_nothing_to_import(q, filter_explanation)
                         return
 
-                # Step 3 — Config generation (IAC_IMPORT prompt + IAC_IMPORT sentinel)
+                # Step 3 — Config generation (iac_generator prompt, import mode)
                 async def validation_callback(
                     local_history: History,
                 ) -> TerraformValidationDTO:
                     return await self.__terraform_svc.validate(
-                        targets=[],
+                        targets=await self.__target_svc.generate_session(local_history),
                         get_drift=False,
                     )
 
@@ -177,21 +200,16 @@ class TerraformImportHandler:
                         error_code=500,
                     )
 
-                # Step 4 — Import execution
-                generation_result = self.__validation_svc.last_generation_result
-                imports: list[tuple[str, str]] = [
-                    (entry["address"], entry["resource_id"])
-                    for entry in (
-                        generation_result.result.get("imports", [])
-                        if generation_result
-                        else []
-                    )
-                ]
+                # Step 4 — Import execution. The generated blocks are already
+                # committed, so the branch diff is the source of truth for which
+                # addresses exist and what each one must be imported from.
+                imports = await self.__import_address_svc.get_import_addresses(
+                    ctx.history
+                )
                 if not imports:
                     logging.warning(
-                        f"There is nothing to import: "
-                        f"the iac_import sentinel returned an empty 'imports' mapping "
-                        f"for selected ids {selected_ids}"
+                        f"There is nothing to import: no generated resource block "
+                        f"was found in the branch diff for selected ids {selected_ids}"
                     )
                 import_results = await self.__import_svc.import_resources(imports)
                 if import_results.failed:

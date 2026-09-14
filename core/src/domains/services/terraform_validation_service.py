@@ -126,9 +126,7 @@ class TerraformValidationService:
                     ]
                 ),
                 sentinel_tool=self.__tool_orchestration.get_sentinel_tool(
-                    context=ToolContext.IAC_IMPORT
-                    if operation_type is OperationType.IMPORT
-                    else ToolContext.GENERAL_TASK_COMPLETION,
+                    context=ToolContext.GENERAL_TASK_COMPLETION,
                 ),
                 prompt=await self.__template_svc.render(
                     prompt=PromptsLibrary.IAC_GENERATOR,

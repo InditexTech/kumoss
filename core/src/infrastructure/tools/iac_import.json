@@ -1,17 +1,17 @@
 [
   {
     "name": "iac_import",
-    "description": "CRITICAL: Call this tool to signal the final completion of the import config-generation task. Reports the status, a summary of actions taken, and the mapping of Terraform resource addresses to cloud resource IDs for the import execution step.",
+    "description": "CRITICAL: Call this tool to report the mapping of Terraform resource addresses to cloud resource IDs found in the workspace, and to signal the end of the inspection task.",
     "parameters": {
       "type": "object",
       "properties": {
         "status": {
           "type": "boolean",
-          "description": "The final status of the config generation. `true` if HCL resource blocks were successfully created for the selected resources, `false` if the operation failed."
+          "description": "The final status of the inspection. `true` if at least one generated resource block was found and mapped, `false` otherwise."
         },
         "summary": {
           "type": "string",
-          "description": "A detailed, human-readable narrative of the operation: which files were created or modified, which resource blocks were added, the naming and placement rationale, and any issues encountered."
+          "description": "A detailed, human-readable narrative of the inspection: which files were inspected, which resource blocks were found, and any block that could not be mapped to a cloud resource ID together with the reason."
         },
         "imports": {
           "type": "array",

@@ -16,6 +16,7 @@ from src.domains.services import (
     LLMOrchestrationService,
     SessionService,
     TemplateOrchestrationService,
+    TerraformImportAddressService,
     TerraformTargetService,
     TerraformValidationService,
     ToolOrchestrationService,
@@ -186,6 +187,18 @@ class ApplicationFactory:
         template_service: TemplateOrchestrationService,
     ) -> TerraformTargetService:
         return TerraformTargetService(
+            tool_service=tool_service,
+            llm_service=main_llm_service,
+            template_service=template_service,
+        )
+
+    def _get_terraform_import_address_service(
+        self,
+        tool_service: ToolOrchestrationService,
+        main_llm_service: LLMOrchestrationService,
+        template_service: TemplateOrchestrationService,
+    ) -> TerraformImportAddressService:
+        return TerraformImportAddressService(
             tool_service=tool_service,
             llm_service=main_llm_service,
             template_service=template_service,
@@ -489,6 +502,10 @@ class ApplicationFactory:
         import_svc = self._get_import_service(
             import_provider=terraform_prv,
         )
+        import_address_svc = self._get_terraform_import_address_service(
+            tool_svc, llm_svc, template_svc
+        )
+        target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         drift_svc = self._get_drift_service(
             validation_service=validation_svc,
@@ -504,6 +521,8 @@ class ApplicationFactory:
             template_service=template_svc,
             requests_filter_service=filter_svc,
             import_service=import_svc,
+            import_address_service=import_address_svc,
+            target_service=target_svc,
             drift_service=drift_svc,
             report_service=report_svc,
             compliance_service=compliance_svc,
