@@ -42,8 +42,8 @@ subcommands against that binary instead (e.g. `terraform init`).
   (failed). Engine-level failures end the job `succeeded` with a
   non-zero `exit_code` in the result; service-level faults end it
   `failed` with a `Problem` in `error`. Terminal jobs are kept in
-  memory for `NEBULA_IAC_JOB_TTL` seconds, then poll as 404 (as after
-  a restart).
+  memory for `Config.job_ttl` seconds (1 hour), then poll as 404 (as
+  after a restart).
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
   set.
@@ -54,8 +54,11 @@ subcommands against that binary instead (e.g. `terraform init`).
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
-| `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. |
+
+Everything else is a property of the service, not of a deployment, and
+lives in [`src/config.py`](src/config.py): `job_ttl` (how long a
+terminal job stays pollable) and `log_level` (root log level, `INFO`).
 
 ## Choosing the IaC engine
 

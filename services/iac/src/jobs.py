@@ -40,7 +40,7 @@ from .models import (
     Problem,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("iac.jobs")
 
 JobResult = OperationResult
 Pipeline = Callable[[], Awaitable[JobResult]]

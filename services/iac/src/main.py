@@ -33,7 +33,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from . import engine
 from .auth import bearer_scheme, verify_bearer_token
-from .config import Config
+from .config import Config, setup_logging
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -52,6 +52,7 @@ from .models import (
 
 
 config = Config.from_env()
+setup_logging(config)
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 

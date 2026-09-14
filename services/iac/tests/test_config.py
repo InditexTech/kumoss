@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import Config, ConfigError
+from src.config import Config
+from src.exceptions import ConfigError
 
 
 def _always_available(_binary: str) -> bool:
