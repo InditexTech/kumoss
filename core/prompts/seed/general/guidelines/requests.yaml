@@ -7,46 +7,21 @@ body: |
   # Request Assessment Guidelines
 
   Apply these criteria when deciding whether a request can be fulfilled.
-  The session's operation type determines what counts as in scope.
 
-  ## In scope (by operation type)
-
-  ### Generate
-  - Creating, modifying, or deleting cloud infrastructure managed with
-    Terraform.
-  - Questions that resolve directly into such changes.
-
-  ### Drift
-  - Detecting and/or remediating configuration drift between the Terraform
-    code and the actual cloud state, either workspace-wide or scoped to
-    named resources.
-
-  ### Import
-  - Bringing existing cloud resources that are not yet tracked by Terraform
-    under Terraform management.
-  - Broad scope requests ("import everything in the scope") and targeted
-    requests ("import storage account X") are both valid.
+  ## In scope
+  - Cloud infrastructure managed with Terraform, within what the current
+    operation covers.
+  - Questions about that infrastructure that resolve directly into such work.
 
   ## Fulfillable
-  A request is fulfillable when it is in scope for the current operation,
-  violates no prohibited action, and can be executed with defaults.
-
-  - Generate: missing parameters never make a request unfulfillable —
-    naming conventions supply names, resource module templates supply
-    settings, and the existing workspace supplies placement (resource group,
-    region, environment). "Create a new storage account", with nothing
-    else, is fulfillable.
-  - Drift: a bare full-workspace request needs no parameters. A scoped
-    request is fulfillable if the referent exists in the workspace.
-  - Import: a broad scope request needs no parameters. A targeted request
-    is fulfillable when it refers to cloud resources that can be identified
-    in the scope.
+  A request is fulfillable when it is in scope, violates no prohibited
+  action, and can be executed with defaults. Missing parameters never make
+  a request unfulfillable: naming conventions supply names, resource module
+  templates supply settings, and the existing workspace supplies placement
+  (resource group, region, environment).
 
   ## Not fulfillable — reject and explain why
   - Out of scope: not an actionable request for the current operation.
-  - Operation mismatch: the request belongs to a different operation
-    (e.g. "create a storage account" in an import session, "resolve the
-    drift" in an import session, "import X" in a generate session).
   - Prohibited: fulfilling it would violate a prohibited action.
   - Ambiguous target: it modifies, deletes, or asks about an existing
     resource but neither the request, the workspace, nor the conversation
