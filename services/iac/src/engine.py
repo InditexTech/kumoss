@@ -9,9 +9,12 @@ one command per call — the flag surface is identical across both
 engines. Implementations that need more (state locking, custom
 backends, policy as code) should extend this or substitute their own.
 
-Each command runs with the request's `scope_id` injected into its
-environment under the variable its `terraform_provider` selects (see
-``scope_env``); the contract's "Scope injection" section is normative.
+`plan` and `apply` reach the cloud, so they run with the request's
+`scope_id` injected into their environment under the variable its
+`terraform_provider` selects (see ``scope_env``). `init`, `validate`,
+and `show` make no cloud API call and take no scope at all: they run
+on the service's own environment, unmodified. The contract's "Scope
+injection" section is normative.
 """
 
 from __future__ import annotations
@@ -53,15 +56,15 @@ class CommandResult:
 
 
 async def _run(
-    binary: str, args: list[str], cwd: Path, env: dict[str, str]
+    binary: str, args: list[str], cwd: Path, env: dict[str, str] | None = None
 ) -> CommandResult:
-    logger.info("run: %s %s (cwd=%s, scope=%s)", binary, " ".join(args), cwd, env)
+    logger.info("run: %s %s (cwd=%s, scope=%s)", binary, " ".join(args), cwd, env or {})
     started = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         binary,
         *args,
         cwd=str(cwd),
-        env={**os.environ, **env},
+        env=None if env is None else {**os.environ, **env},
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -87,12 +90,12 @@ async def _run(
     return result
 
 
-async def init(binary: str, cwd: Path, env: dict[str, str]) -> CommandResult:
-    return await _run(binary, ["init", "-no-color", "-input=false"], cwd, env)
+async def init(binary: str, cwd: Path) -> CommandResult:
+    return await _run(binary, ["init", "-no-color", "-input=false"], cwd)
 
 
-async def validate(binary: str, cwd: Path, env: dict[str, str]) -> CommandResult:
-    return await _run(binary, ["validate", "-no-color"], cwd, env)
+async def validate(binary: str, cwd: Path) -> CommandResult:
+    return await _run(binary, ["validate", "-no-color"], cwd)
 
 
 async def plan(
@@ -104,10 +107,8 @@ async def plan(
     return await _run(binary, args, cwd, env)
 
 
-async def show_plan_json(
-    binary: str, cwd: Path, plan_file: str, env: dict[str, str]
-) -> CommandResult:
-    return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd, env)
+async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+    return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd)
 
 
 async def apply(

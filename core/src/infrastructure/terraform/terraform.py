@@ -21,12 +21,14 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 ``exit_code`` is a terraform-level failure reported through the
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
-at the workspace path, which must be visible to the service, and
-carries the session's ``scope_id`` (subscription / project / account)
-together with its ``terraform_provider``: the contract requires both on
-every command because generated provider blocks do not name a scope,
-so the service injects the scope into the engine's environment per
-command, under the variable the provider selects.
+at the workspace path, which must be visible to the service. ``plan``
+and ``apply`` reach a cloud API, so they carry the session's
+``scope_id`` (subscription / project / account) together with its
+``terraform_provider``: generated provider blocks do not name a scope,
+so the service injects it into the engine's environment for those two
+commands, under the variable the provider selects. ``init``,
+``validate`` and ``show`` reach no cloud API and are submitted
+unscoped.
 """
 
 from __future__ import annotations
@@ -127,8 +129,6 @@ class Terraform(ITerraform):
                     validate_op,
                     ValidateRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scope_id=self.__scope_id,
-                        terraform_provider=self.__terraform_provider,
                     ),
                     cfg,
                 )
@@ -173,8 +173,6 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scope_id=self.__scope_id,
-                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -273,8 +271,6 @@ class Terraform(ITerraform):
             init_op,
             InitRequest(
                 workspace_path=str(self.__workspace_path),
-                scope_id=self.__scope_id,
-                terraform_provider=self.__terraform_provider,
             ),
             cfg,
         )

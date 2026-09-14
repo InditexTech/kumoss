@@ -5,8 +5,9 @@
 """Unit tests for the IaC reference implementation.
 
 These cover the contract surface: healthz, auth, request validation
-(including the `plan_file` path-traversal guard and the required
-`scope_id` / `terraform_provider` pair), per-provider scope injection
+(including the `plan_file` path-traversal guard and the
+`scope_id` / `terraform_provider` pair, required on `plan` and `apply`
+and rejected everywhere else), per-provider scope injection
 into the engine environment, the 404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation, the 501
@@ -34,16 +35,32 @@ from src import main as service_main
 from src.engine import CommandResult
 
 
-# (endpoint, engine function to stub, extra request fields)
+SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
+
+# (endpoint, engine function to stub, the body fields besides
+# workspace_path that the endpoint documents)
 OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
     ("/v1/init", "src.engine.init", {}),
     ("/v1/validate", "src.engine.validate", {}),
-    ("/v1/plan", "src.engine.plan", {"plan_file": "x.plan"}),
+    ("/v1/plan", "src.engine.plan", {"plan_file": "x.plan", **SCOPE}),
     ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}),
-    ("/v1/apply", "src.engine.apply", {"plan_file": "x.plan"}),
+    ("/v1/apply", "src.engine.apply", {"plan_file": "x.plan", **SCOPE}),
 ]
 
-SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
+EXTRA: dict[str, dict[str, str]] = {
+    endpoint: extra for endpoint, _, extra in OPERATIONS
+}
+
+SCOPED_ENDPOINTS: list[str] = ["/v1/plan", "/v1/apply"]
+
+# (endpoint, engine function to stub, extra request fields, expected
+# engine args after binary and workspace) for the endpoints that reach
+# no cloud API and so take no scope.
+UNSCOPED_OPERATIONS: list[tuple[str, str, dict[str, str], tuple[object, ...]]] = [
+    ("/v1/init", "src.engine.init", {}, ()),
+    ("/v1/validate", "src.engine.validate", {}, ()),
+    ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}, ("x.plan",)),
+]
 
 IMPORT_ENDPOINTS: list[str] = [
     "/v1/import",
@@ -108,7 +125,7 @@ def test_init_requires_token_when_configured() -> None:
     with client_with(token="expected") as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": "/tmp/anywhere", **SCOPE},
+            json={"workspace_path": "/tmp/anywhere"},
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -120,7 +137,7 @@ def test_init_404_when_workspace_missing(tmp_path: Path) -> None:
     with client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": str(tmp_path / "does-not-exist"), **SCOPE},
+            json={"workspace_path": str(tmp_path / "does-not-exist")},
         )
     assert response.status_code == 404
 
@@ -129,7 +146,7 @@ def test_init_request_validation_returns_problem_json() -> None:
     with client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": "", **SCOPE},
+            json={"workspace_path": ""},
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -157,7 +174,7 @@ def test_plan_file_traversal_rejected(endpoint: str) -> None:
     with client_with() as client:
         response = client.post(
             endpoint,
-            json={"workspace_path": "/tmp", "plan_file": "../evil", **SCOPE},
+            json={"workspace_path": "/tmp", **EXTRA[endpoint], "plan_file": "../evil"},
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -173,7 +190,7 @@ def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
         with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace), **SCOPE},
+                json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
             body: dict[str, Any] = response.json()
@@ -203,10 +220,10 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     with client_with() as client:
         with patch("src.engine.init", side_effect=blocked_init):
             first: str = client.post(
-                "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
+                "/v1/init", json={"workspace_path": str(workspace)}
             ).json()["job_id"]
             second: str = client.post(
-                "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
+                "/v1/init", json={"workspace_path": str(workspace)}
             ).json()["job_id"]
 
             # Wait for the first job to be running, then check the second
@@ -252,7 +269,7 @@ def test_op_job_returns_raw_result_verbatim(
         with patch(engine_target, new_callable=AsyncMock, return_value=failed):
             response = client.post(
                 endpoint,
-                json={"workspace_path": str(workspace), **SCOPE, **extra},
+                json={"workspace_path": str(workspace), **extra},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -315,7 +332,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
         ):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace), **SCOPE},
+                json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -357,7 +374,7 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
         with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace), **SCOPE},
+                json={"workspace_path": str(workspace)},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -379,52 +396,113 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("endpoint", "extra"), [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
 )
-def test_endpoints_accept_scope_id(endpoint: str, extra: dict[str, str]) -> None:
-    """The required pair is accepted without 422 (extra='forbid' would
-    reject unknown fields); the 404 comes from the nonexistent
-    workspace."""
+def test_endpoints_accept_their_documented_body(
+    endpoint: str, extra: dict[str, str]
+) -> None:
+    """The body each endpoint documents validates: the only thing wrong
+    here is the nonexistent workspace, so the answer is 404 not 422."""
     with client_with() as client:
         response = client.post(
             endpoint,
-            json={"workspace_path": "/tmp/does-not-exist", **SCOPE, **extra},
+            json={"workspace_path": "/tmp/does-not-exist", **extra},
         )
     assert response.status_code == 404
 
 
-@pytest.mark.parametrize(
-    ("endpoint", "extra"), [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
-)
-@pytest.mark.parametrize(
-    "bad",
-    [
-        pytest.param({"scope_id": None}, id="scope_id-missing"),
-        pytest.param({"scope_id": ""}, id="scope_id-empty"),
-        pytest.param({"terraform_provider": None}, id="provider-missing"),
-        pytest.param({"terraform_provider": "azurerm"}, id="provider-registry-name"),
-        pytest.param({"terraform_provider": "alibaba"}, id="provider-unknown"),
-    ],
-)
-def test_endpoints_reject_bad_scope(
-    endpoint: str, extra: dict[str, str], bad: dict[str, str | None]
-) -> None:
-    """The contract requires scope_id and terraform_provider on every
-    command: omitting either, or naming a provider outside the enum, is
-    a 422 before the workspace is even resolved."""
+@pytest.mark.parametrize("endpoint", SCOPED_ENDPOINTS)
+@pytest.mark.parametrize("missing", ["scope_id", "terraform_provider"])
+def test_scoped_endpoints_require_the_scope(endpoint: str, missing: str) -> None:
+    """plan and apply run against a cloud scope, so omitting either half
+    of the pair is a 422."""
     body: dict[str, object] = {
-        "workspace_path": "/tmp/does-not-exist",
+        "workspace_path": "/tmp",
+        "plan_file": "x.plan",
         **SCOPE,
-        **extra,
     }
-    for key, value in bad.items():
-        if value is None:
-            del body[key]
-        else:
-            body[key] = value
+    del body[missing]
 
     with client_with() as client:
         response = client.post(endpoint, json=body)
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize("endpoint", SCOPED_ENDPOINTS)
+@pytest.mark.parametrize(
+    "bad",
+    [
+        pytest.param({"scope_id": ""}, id="scope_id-empty"),
+        pytest.param({"terraform_provider": "azurerm"}, id="provider-registry-name"),
+        pytest.param({"terraform_provider": "alibaba"}, id="provider-unknown"),
+    ],
+)
+def test_scoped_endpoints_reject_a_malformed_scope(
+    endpoint: str, bad: dict[str, str]
+) -> None:
+    """The pair is typed where it is required: an empty scope_id, or a
+    provider named after the Terraform registry rather than the core's
+    vocabulary, is a 422."""
+    body: dict[str, object] = {
+        "workspace_path": "/tmp",
+        "plan_file": "x.plan",
+        **SCOPE,
+        **bad,
+    }
+
+    with client_with() as client:
+        response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize("field", ["scope_id", "terraform_provider"])
+@pytest.mark.parametrize(
+    ("endpoint", "extra"),
+    [(endpoint, extra) for endpoint, _, extra, _ in UNSCOPED_OPERATIONS],
+)
+def test_unscoped_endpoints_reject_a_scope(
+    endpoint: str, extra: dict[str, str], field: str
+) -> None:
+    """init, validate, and show declare no scope, so sending either half
+    of the pair is an unknown field — 422, not silently ignored."""
+    body: dict[str, object] = {
+        "workspace_path": "/tmp",
+        **extra,
+        field: SCOPE[field],
+    }
+
+    with client_with() as client:
+        response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "engine_target", "extra", "tail"), UNSCOPED_OPERATIONS
+)
+def test_unscoped_endpoints_run_unscoped(
+    endpoint: str,
+    engine_target: str,
+    extra: dict[str, str],
+    tail: tuple[object, ...],
+    tmp_path: Path,
+) -> None:
+    """init, validate, and show reach no cloud API: the engine is called
+    with no environment overlay at all."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
+    with client_with() as client:
+        with patch(engine_target, new_callable=AsyncMock, return_value=ok) as mock:
+            response = client.post(
+                endpoint,
+                json={"workspace_path": str(workspace), **extra},
+            )
+            assert response.status_code == 202
+            accepted: dict[str, str] = response.json()
+            _ = poll_until_terminal(client, accepted["job_id"])
+    mock.assert_awaited_once_with("sh", workspace, *tail)
 
 
 @pytest.mark.parametrize(
@@ -449,12 +527,13 @@ def test_scope_is_injected_per_provider(
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
     with client_with() as client:
         with patch(
-            "src.engine.init", new_callable=AsyncMock, return_value=ok
-        ) as init_mock:
+            "src.engine.plan", new_callable=AsyncMock, return_value=ok
+        ) as plan_mock:
             response = client.post(
-                "/v1/init",
+                "/v1/plan",
                 json={
                     "workspace_path": str(workspace),
+                    "plan_file": "x.plan",
                     "scope_id": "scope-1",
                     "terraform_provider": terraform_provider,
                 },
@@ -462,7 +541,7 @@ def test_scope_is_injected_per_provider(
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
             _ = poll_until_terminal(client, accepted["job_id"])
-    init_mock.assert_awaited_once_with("sh", workspace, expected)
+    plan_mock.assert_awaited_once_with("sh", workspace, [], "x.plan", expected)
 
 
 @pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)

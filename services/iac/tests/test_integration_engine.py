@@ -49,7 +49,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         def run(endpoint: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
             response = client.post(
                 endpoint,
-                json={"workspace_path": str(workspace), **SCOPE, **(extra or {})},
+                json={"workspace_path": str(workspace), **(extra or {})},
             )
             assert response.status_code == 202, response.text
             accepted: dict[str, str] = response.json()
@@ -61,7 +61,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
 
         _ = run("/v1/init")
         _ = run("/v1/validate")
-        _ = run("/v1/plan", {"plan_file": "smoke.plan"})
+        _ = run("/v1/plan", {"plan_file": "smoke.plan", **SCOPE})
 
         show = run("/v1/show", {"plan_file": "smoke.plan"})
         stdout: str = show["stdout"]
@@ -78,4 +78,4 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         ]
         assert actions == [["create"]]
 
-        _ = run("/v1/apply", {"plan_file": "smoke.plan"})
+        _ = run("/v1/apply", {"plan_file": "smoke.plan", **SCOPE})

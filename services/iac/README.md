@@ -50,12 +50,16 @@ subcommands against that binary instead (e.g. `terraform init`).
 
 ## Scope injection
 
-Every command-running request must carry `scope_id` (the cloud scope
-the command targets) and `terraform_provider` (which cloud that is);
-both are required by the contract and a missing or empty value is a
-`422`. Generated provider blocks name no scope, so the service injects
-`scope_id` into the engine subprocess's environment for that command
-only, under the variable `terraform_provider` selects:
+`plan` and `apply` reach a cloud API, so they must carry `scope_id`
+(the cloud scope the command targets) and `terraform_provider` (which
+cloud that is); the contract requires both and a missing or empty value
+is a `422`. `init`, `validate`, and `show` make no cloud API call, so
+their bodies declare neither field — every request schema forbids
+unknown properties, so sending one is also a `422`.
+
+Generated provider blocks name no scope, so for `plan` and `apply` the
+service injects `scope_id` into the engine subprocess's environment for
+that command only, under the variable `terraform_provider` selects:
 
 | `terraform_provider` | Environment variable  |
 |----------------------|-----------------------|

@@ -116,11 +116,12 @@ def sync_detailed(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on the other endpoints) and
-    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl shells out to the corresponding cloud
+    CLI (`az`, `gcloud`, `aws`) with the service's ambient
+    credentials.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -170,11 +171,12 @@ def sync(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on the other endpoints) and
-    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl shells out to the corresponding cloud
+    CLI (`az`, `gcloud`, `aws`) with the service's ambient
+    credentials.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -219,11 +221,12 @@ async def asyncio_detailed(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on the other endpoints) and
-    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl shells out to the corresponding cloud
+    CLI (`az`, `gcloud`, `aws`) with the service's ambient
+    credentials.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -271,11 +274,12 @@ async def asyncio(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on the other endpoints) and
-    `terraform_provider` selects which provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl shells out to the corresponding cloud
+    CLI (`az`, `gcloud`, `aws`) with the service's ambient
+    credentials.
 
     Args:
         body (ScopeResourceIdsRequest):

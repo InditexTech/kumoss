@@ -23,16 +23,26 @@ TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes"]
 
 
 class WorkspaceRequest(BaseModel):
-    """Fields every submit request carries.
+    """The one field every submit request carries.
 
     Also the body model the ``resolve_workspace`` dependency binds to:
-    it sees only these three fields and ignores the operation-specific
+    it sees only ``workspace_path`` and ignores the operation-specific
     rest, which the endpoint's own model validates.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
+
+
+class ScopedRequest(WorkspaceRequest):
+    """Base for the commands whose scope decides what they run against.
+
+    The commands that reach no cloud API extend ``WorkspaceRequest``
+    directly: they declare no scope, and ``extra="forbid"`` makes
+    sending one a 422.
+    """
+
     scope_id: ScopeIdStr
     terraform_provider: TerraformProvider
 
@@ -45,7 +55,7 @@ class ValidateRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
-class PlanRequest(WorkspaceRequest):
+class PlanRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     targets: list[TargetStr] = Field(default_factory=list, max_length=256)
@@ -58,7 +68,7 @@ class ShowRequest(WorkspaceRequest):
     plan_file: PlanFileStr
 
 
-class ApplyRequest(WorkspaceRequest):
+class ApplyRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     plan_file: PlanFileStr
