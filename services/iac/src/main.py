@@ -14,6 +14,10 @@ errors (auth, malformed body, missing workspace) are still reported
 synchronously on the POST; everything after submission surfaces
 through the job.
 
+Every command runs scoped to the request's ``scope_id``, injected into
+the engine's environment under the variable its ``terraform_provider``
+selects.
+
 The ``/v1/import`` endpoints are unimplemented: they answer 501
 without inspecting the request.
 """
@@ -180,15 +184,16 @@ def _submit(
     dependencies=[Authenticated],
 )
 async def init(
-    body: InitRequest,  # pyright: ignore[reportUnusedParameter]
+    body: InitRequest,
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "init",
         workspace,
         response,
-        lambda: engine.init(config.iac_binary, workspace),
+        lambda: engine.init(config.iac_binary, workspace, env),
     )
 
 
@@ -200,15 +205,16 @@ async def init(
     dependencies=[Authenticated],
 )
 async def validate(
-    body: ValidateRequest,  # pyright: ignore[reportUnusedParameter]
+    body: ValidateRequest,
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "validate",
         workspace,
         response,
-        lambda: engine.validate(config.iac_binary, workspace),
+        lambda: engine.validate(config.iac_binary, workspace, env),
     )
 
 
@@ -224,11 +230,14 @@ async def plan(
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "plan",
         workspace,
         response,
-        lambda: engine.plan(config.iac_binary, workspace, body.targets, body.plan_file),
+        lambda: engine.plan(
+            config.iac_binary, workspace, body.targets, body.plan_file, env
+        ),
     )
 
 
@@ -244,11 +253,14 @@ async def show(
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "show",
         workspace,
         response,
-        lambda: engine.show_plan_json(config.iac_binary, workspace, body.plan_file),
+        lambda: engine.show_plan_json(
+            config.iac_binary, workspace, body.plan_file, env
+        ),
     )
 
 
@@ -264,11 +276,12 @@ async def apply(
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "apply",
         workspace,
         response,
-        lambda: engine.apply(config.iac_binary, workspace, body.plan_file),
+        lambda: engine.apply(config.iac_binary, workspace, body.plan_file, env),
     )
 
 

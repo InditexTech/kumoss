@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from .test_api import client_with, poll_until_terminal
+from .test_api import SCOPE, client_with, poll_until_terminal
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "engine_smoke" / "main.tf"
 _DEADLINE = 120.0  # real engine commands, generous but bounded
@@ -48,7 +48,8 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
 
         def run(endpoint: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
             response = client.post(
-                endpoint, json={"workspace_path": str(workspace), **(extra or {})}
+                endpoint,
+                json={"workspace_path": str(workspace), **SCOPE, **(extra or {})},
             )
             assert response.status_code == 202, response.text
             accepted: dict[str, str] = response.json()

@@ -48,13 +48,35 @@ subcommands against that binary instead (e.g. `terraform init`).
 - Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
   set.
 
+## Scope injection
+
+Every command-running request must carry `scope_id` (the cloud scope
+the command targets) and `terraform_provider` (which cloud that is);
+both are required by the contract and a missing or empty value is a
+`422`. Generated provider blocks name no scope, so the service injects
+`scope_id` into the engine subprocess's environment for that command
+only, under the variable `terraform_provider` selects:
+
+| `terraform_provider` | Environment variable  |
+|----------------------|-----------------------|
+| `azure`              | `ARM_SUBSCRIPTION_ID` |
+| `gcp`                | `GOOGLE_PROJECT`      |
+| `aws`                | `AWS_ACCOUNT_ID`      |
+| `oci`                | `OCI_TENANCY_OCID`    |
+| `kubernetes`         | none                  |
+
+`kubernetes` names no cloud scope, so nothing is injected for it. The
+overlay is applied on top of the service's own environment, so it wins
+over an `ARM_SUBSCRIPTION_ID` (etc.) set on the container — ambient
+provider credentials are otherwise untouched.
+
 ## Configuration
 
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
 
 Everything else is a property of the service, not of a deployment, and
 lives in [`src/config.py`](src/config.py): `job_ttl` (how long a

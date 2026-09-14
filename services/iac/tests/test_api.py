@@ -5,8 +5,9 @@
 """Unit tests for the IaC reference implementation.
 
 These cover the contract surface: healthz, auth, request validation
-(including the `plan_file` path-traversal guard), the
-404-on-missing-workspace path,
+(including the `plan_file` path-traversal guard and the required
+`scope_id` / `terraform_provider` pair), per-provider scope injection
+into the engine environment, the 404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation, the 501
 on the unimplemented import endpoints, per-workspace FIFO queueing, and
@@ -41,6 +42,8 @@ OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
     ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}),
     ("/v1/apply", "src.engine.apply", {"plan_file": "x.plan"}),
 ]
+
+SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
 
 IMPORT_ENDPOINTS: list[str] = [
     "/v1/import",
@@ -105,7 +108,7 @@ def test_init_requires_token_when_configured() -> None:
     with client_with(token="expected") as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": "/tmp/anywhere"},
+            json={"workspace_path": "/tmp/anywhere", **SCOPE},
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -117,7 +120,7 @@ def test_init_404_when_workspace_missing(tmp_path: Path) -> None:
     with client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": str(tmp_path / "does-not-exist")},
+            json={"workspace_path": str(tmp_path / "does-not-exist"), **SCOPE},
         )
     assert response.status_code == 404
 
@@ -126,7 +129,7 @@ def test_init_request_validation_returns_problem_json() -> None:
     with client_with() as client:
         response = client.post(
             "/v1/init",
-            json={"workspace_path": ""},  # min_length=1
+            json={"workspace_path": "", **SCOPE},
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -136,7 +139,12 @@ def test_plan_rejects_empty_target_string() -> None:
     with client_with() as client:
         response = client.post(
             "/v1/plan",
-            json={"workspace_path": "/tmp", "targets": [""], "plan_file": "x.plan"},
+            json={
+                "workspace_path": "/tmp",
+                "targets": [""],
+                "plan_file": "x.plan",
+                **SCOPE,
+            },
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -149,7 +157,7 @@ def test_plan_file_traversal_rejected(endpoint: str) -> None:
     with client_with() as client:
         response = client.post(
             endpoint,
-            json={"workspace_path": "/tmp", "plan_file": "../evil"},
+            json={"workspace_path": "/tmp", "plan_file": "../evil", **SCOPE},
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -165,7 +173,7 @@ def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
         with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), **SCOPE},
             )
             assert response.status_code == 202
             body: dict[str, Any] = response.json()
@@ -195,10 +203,10 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
     with client_with() as client:
         with patch("src.engine.init", side_effect=blocked_init):
             first: str = client.post(
-                "/v1/init", json={"workspace_path": str(workspace)}
+                "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
             ).json()["job_id"]
             second: str = client.post(
-                "/v1/init", json={"workspace_path": str(workspace)}
+                "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
             ).json()["job_id"]
 
             # Wait for the first job to be running, then check the second
@@ -244,7 +252,7 @@ def test_op_job_returns_raw_result_verbatim(
         with patch(engine_target, new_callable=AsyncMock, return_value=failed):
             response = client.post(
                 endpoint,
-                json={"workspace_path": str(workspace), **extra},
+                json={"workspace_path": str(workspace), **SCOPE, **extra},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -276,6 +284,7 @@ def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
                     "workspace_path": str(workspace),
                     "targets": ["module.db"],
                     "plan_file": "abc123.plan",
+                    **SCOPE,
                 },
             )
             assert response.status_code == 202
@@ -283,7 +292,13 @@ def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
             body = poll_until_terminal(client, accepted["job_id"])
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
-    plan_mock.assert_awaited_once_with("sh", workspace, ["module.db"], "abc123.plan")
+    plan_mock.assert_awaited_once_with(
+        "sh",
+        workspace,
+        ["module.db"],
+        "abc123.plan",
+        {"ARM_SUBSCRIPTION_ID": "sub-uuid-1234"},
+    )
 
 
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
@@ -300,7 +315,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
         ):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), **SCOPE},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -342,7 +357,7 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
         with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
             response = client.post(
                 "/v1/init",
-                json={"workspace_path": str(workspace)},
+                json={"workspace_path": str(workspace), **SCOPE},
             )
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
@@ -365,18 +380,89 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
     ("endpoint", "extra"), [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
 )
 def test_endpoints_accept_scope_id(endpoint: str, extra: dict[str, str]) -> None:
-    """scope_id is accepted without 422 (extra='forbid' would reject
-    unknown fields); the 404 comes from the nonexistent workspace."""
+    """The required pair is accepted without 422 (extra='forbid' would
+    reject unknown fields); the 404 comes from the nonexistent
+    workspace."""
     with client_with() as client:
         response = client.post(
             endpoint,
-            json={
-                "workspace_path": "/tmp/does-not-exist",
-                "scope_id": "sub-uuid-1234",
-                **extra,
-            },
+            json={"workspace_path": "/tmp/does-not-exist", **SCOPE, **extra},
         )
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "extra"), [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
+)
+@pytest.mark.parametrize(
+    "bad",
+    [
+        pytest.param({"scope_id": None}, id="scope_id-missing"),
+        pytest.param({"scope_id": ""}, id="scope_id-empty"),
+        pytest.param({"terraform_provider": None}, id="provider-missing"),
+        pytest.param({"terraform_provider": "azurerm"}, id="provider-registry-name"),
+        pytest.param({"terraform_provider": "alibaba"}, id="provider-unknown"),
+    ],
+)
+def test_endpoints_reject_bad_scope(
+    endpoint: str, extra: dict[str, str], bad: dict[str, str | None]
+) -> None:
+    """The contract requires scope_id and terraform_provider on every
+    command: omitting either, or naming a provider outside the enum, is
+    a 422 before the workspace is even resolved."""
+    body: dict[str, object] = {
+        "workspace_path": "/tmp/does-not-exist",
+        **SCOPE,
+        **extra,
+    }
+    for key, value in bad.items():
+        if value is None:
+            del body[key]
+        else:
+            body[key] = value
+
+    with client_with() as client:
+        response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize(
+    ("terraform_provider", "expected"),
+    [
+        ("azure", {"ARM_SUBSCRIPTION_ID": "scope-1"}),
+        ("gcp", {"GOOGLE_PROJECT": "scope-1"}),
+        ("aws", {"AWS_ACCOUNT_ID": "scope-1"}),
+        ("oci", {"OCI_TENANCY_OCID": "scope-1"}),
+        ("kubernetes", {}),
+    ],
+)
+def test_scope_is_injected_per_provider(
+    terraform_provider: str, expected: dict[str, str], tmp_path: Path
+) -> None:
+    """scope_id reaches the engine as the environment overlay the
+    request's terraform_provider selects; kubernetes names no cloud
+    scope, so nothing is injected."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
+    with client_with() as client:
+        with patch(
+            "src.engine.init", new_callable=AsyncMock, return_value=ok
+        ) as init_mock:
+            response = client.post(
+                "/v1/init",
+                json={
+                    "workspace_path": str(workspace),
+                    "scope_id": "scope-1",
+                    "terraform_provider": terraform_provider,
+                },
+            )
+            assert response.status_code == 202
+            accepted: dict[str, str] = response.json()
+            _ = poll_until_terminal(client, accepted["job_id"])
+    init_mock.assert_awaited_once_with("sh", workspace, expected)
 
 
 @pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)

@@ -17,20 +17,24 @@ TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Single path segment only: `plan_file` is passed to `-out`, `show`,
 # and `apply`, so it must not be able to escape the workspace.
 PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
+ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
+
+TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes"]
 
 
 class WorkspaceRequest(BaseModel):
     """Fields every submit request carries.
 
     Also the body model the ``resolve_workspace`` dependency binds to:
-    it sees only these two fields and ignores the operation-specific
+    it sees only these three fields and ignores the operation-specific
     rest, which the endpoint's own model validates.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    scope_id: ScopeIdStr
+    terraform_provider: TerraformProvider
 
 
 class InitRequest(WorkspaceRequest):

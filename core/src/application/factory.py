@@ -208,6 +208,7 @@ class ApplicationFactory:
         return TerraformFactory(
             project_root=project_root,
             scope_id=self.__ctx.scope_id,
+            terraform_provider=self.__ctx.terraform_prv,
         ).get()
 
     def _get_terraform_validation_service(

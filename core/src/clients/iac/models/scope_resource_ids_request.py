@@ -27,9 +27,10 @@ class ScopeResourceIdsRequest:
             any value matched as a substring of resource IDs), GCP:
             project id, AWS: account id. Names the scope being listed
             rather than the scope a command runs against.
-        terraform_provider (TerraformProvider): Cloud provider a scope query targets. Values follow the core's
-            provider vocabulary (`azure`, `gcp`, `aws`), not Terraform
-            registry provider names (`azurerm`, `google`).
+        terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
+            provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
+            `kubernetes`), not Terraform registry provider names
+            (`azurerm`, `google`).
     """
 
     workspace_path: str

@@ -63,10 +63,13 @@ class BaseIacRequest(BaseModel):
     scope_id: Annotated[
         str | None,
         Field(
-            description="""Infrastructure scope id:
+            min_length=1,
+            description="""Infrastructure scope id (first call only). Required with repo_uri:
                         - Azure -> subscription id
                         - GCP -> project id
-                        - AWS -> account id"""
+                        - AWS -> account id
+                        - OCI -> tenancy OCID
+                        - Kubernetes -> no cloud scope; any stable identifier""",
         ),
     ] = None
     terraform_providers: Annotated[
@@ -106,6 +109,8 @@ class BaseIacRequest(BaseModel):
             )
         if has_uri and (self.terraform_providers is None):
             raise ValueError("First call (repo_uri) requires `terraform_providers`.")
+        if has_uri and (self.scope_id is None):
+            raise ValueError("First call (repo_uri) requires `scope_id`.")
         if has_sid and self.iac_path is not None:
             raise ValueError(
                 "iac_path is set only on the first call; iteration calls inherit it from the session."

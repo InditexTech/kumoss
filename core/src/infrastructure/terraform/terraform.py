@@ -22,10 +22,11 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
 at the workspace path, which must be visible to the service, and
-carries the session's ``scope_id`` (subscription / project / account):
-the contract requires it on every command because generated provider
-blocks do not name a scope, so the service injects it into the
-engine's environment per command.
+carries the session's ``scope_id`` (subscription / project / account)
+together with its ``terraform_provider``: the contract requires both on
+every command because generated provider blocks do not name a scope,
+so the service injects the scope into the engine's environment per
+command, under the variable the provider selects.
 """
 
 from __future__ import annotations
@@ -57,6 +58,9 @@ from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
 from src.clients.iac.models.show_request import ShowRequest
+from src.clients.iac.models.terraform_provider import (
+    TerraformProvider as IacTerraformProvider,
+)
 from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.types import UNSET
 from src.domains.dto import TerraformValidationDTO
@@ -64,6 +68,7 @@ from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -79,9 +84,11 @@ class Terraform(ITerraform):
         self,
         workspace_path: Path,
         scope_id: str,
+        terraform_provider: TerraformProvider,
     ):
         self.__workspace_path = workspace_path
         self.__scope_id = scope_id
+        self.__terraform_provider = IacTerraformProvider(terraform_provider.value)
         self.__initialized = False
 
     @trace_terraform
@@ -121,6 +128,7 @@ class Terraform(ITerraform):
                     ValidateRequest(
                         workspace_path=self.__workspace_path.as_posix(),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                     ),
                     cfg,
                 )
@@ -138,6 +146,7 @@ class Terraform(ITerraform):
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
@@ -165,6 +174,7 @@ class Terraform(ITerraform):
                     ShowRequest(
                         workspace_path=self.__workspace_path.as_posix(),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -221,6 +231,7 @@ class Terraform(ITerraform):
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -263,6 +274,7 @@ class Terraform(ITerraform):
             InitRequest(
                 workspace_path=str(self.__workspace_path),
                 scope_id=self.__scope_id,
+                terraform_provider=self.__terraform_provider,
             ),
             cfg,
         )

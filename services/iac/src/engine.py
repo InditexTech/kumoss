@@ -8,12 +8,17 @@ Just enough to drive `init`, `validate`, `plan`, `show`, and `apply`,
 one command per call — the flag surface is identical across both
 engines. Implementations that need more (state locking, custom
 backends, policy as code) should extend this or substitute their own.
+
+Each command runs with the request's `scope_id` injected into its
+environment under the variable its `terraform_provider` selects (see
+``scope_env``); the contract's "Scope injection" section is normative.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +30,19 @@ logger = logging.getLogger("iac.engine")
 # the console log only carries a tail, to stay readable.
 _STDERR_LOG_LIMIT = 500
 
+_SCOPE_ENV_VARS: dict[str, str] = {
+    "azure": "ARM_SUBSCRIPTION_ID",
+    "gcp": "GOOGLE_PROJECT",
+    "aws": "AWS_ACCOUNT_ID",
+    "oci": "OCI_TENANCY_OCID",
+}
+
+
+def scope_env(terraform_provider: str, scope_id: str) -> dict[str, str]:
+    """Environment overlay scoping one command to ``scope_id``."""
+    var = _SCOPE_ENV_VARS.get(terraform_provider)
+    return {} if var is None else {var: scope_id}
+
 
 @dataclass
 class CommandResult:
@@ -34,13 +52,16 @@ class CommandResult:
     exit_code: int = 0
 
 
-async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
-    logger.info("run: %s %s (cwd=%s)", binary, " ".join(args), cwd)
+async def _run(
+    binary: str, args: list[str], cwd: Path, env: dict[str, str]
+) -> CommandResult:
+    logger.info("run: %s %s (cwd=%s, scope=%s)", binary, " ".join(args), cwd, env)
     started = time.monotonic()
     proc = await asyncio.create_subprocess_exec(
         binary,
         *args,
         cwd=str(cwd),
+        env={**os.environ, **env},
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -66,30 +87,35 @@ async def _run(binary: str, args: list[str], cwd: Path) -> CommandResult:
     return result
 
 
-async def init(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["init", "-no-color", "-input=false"], cwd)
+async def init(binary: str, cwd: Path, env: dict[str, str]) -> CommandResult:
+    return await _run(binary, ["init", "-no-color", "-input=false"], cwd, env)
 
 
-async def validate(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["validate", "-no-color"], cwd)
+async def validate(binary: str, cwd: Path, env: dict[str, str]) -> CommandResult:
+    return await _run(binary, ["validate", "-no-color"], cwd, env)
 
 
 async def plan(
-    binary: str, cwd: Path, targets: list[str], plan_file: str
+    binary: str, cwd: Path, targets: list[str], plan_file: str, env: dict[str, str]
 ) -> CommandResult:
     args = ["plan", "-no-color", "-input=false", "-out", plan_file]
     for t in targets:
         args.extend(["-target", t])
-    return await _run(binary, args, cwd)
+    return await _run(binary, args, cwd, env)
 
 
-async def show_plan_json(binary: str, cwd: Path, plan_file: str) -> CommandResult:
-    return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd)
+async def show_plan_json(
+    binary: str, cwd: Path, plan_file: str, env: dict[str, str]
+) -> CommandResult:
+    return await _run(binary, ["show", "-json", "-no-color", plan_file], cwd, env)
 
 
-async def apply(binary: str, cwd: Path, plan_file: str) -> CommandResult:
+async def apply(
+    binary: str, cwd: Path, plan_file: str, env: dict[str, str]
+) -> CommandResult:
     return await _run(
         binary,
         ["apply", "-no-color", "-input=false", "-auto-approve", plan_file],
         cwd,
+        env,
     )
