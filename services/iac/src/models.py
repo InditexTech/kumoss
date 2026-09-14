@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,21 +20,21 @@ PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
 
 
 class InitRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
 
 
 class ValidateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
 
 
 class PlanRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
@@ -43,7 +43,7 @@ class PlanRequest(BaseModel):
 
 
 class ShowRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
@@ -51,7 +51,7 @@ class ShowRequest(BaseModel):
 
 
 class ApplyRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
@@ -61,7 +61,7 @@ class ApplyRequest(BaseModel):
 class OperationResult(BaseModel):
     """Raw outcome of the single engine command a job ran."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     exit_code: int
     stdout: str
@@ -69,13 +69,13 @@ class OperationResult(BaseModel):
 
 
 class Health(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     status: Literal["ok"]
 
 
 class Problem(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     type: str = "about:blank"
     title: str
@@ -95,7 +95,7 @@ JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
 
 class JobAccepted(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     job_id: UUID
     status: Literal["queued"] = "queued"
@@ -106,7 +106,7 @@ class Job(BaseModel):
     they become meaningful (``result`` iff succeeded, ``error`` iff
     failed)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     job_id: UUID
     kind: JobKind

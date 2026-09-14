@@ -1,0 +1,20 @@
+{
+  "typeCheckingMode": "recommended",
+  "include": [
+    "src",
+    "tests"
+  ],
+
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv"
+  ],
+
+  "reportMissingImports": "error",
+  "reportExplicitAny": false,
+  "reportAny": false,
+
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Linux"
+}

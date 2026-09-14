@@ -24,13 +24,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http import HTTPStatus
 from pathlib import Path
+from uuid import UUID, uuid4
 
 from .models import (
     Job,
@@ -60,7 +60,7 @@ class WorkspaceQueue:
         self._holders: dict[str, int] = {}
 
     @asynccontextmanager
-    async def acquire(self, path: Path) -> AsyncIterator[None]:
+    async def acquire(self, path: Path) -> AsyncGenerator[None]:
         key = str(path.resolve())
         lock = self._locks.setdefault(key, asyncio.Lock())
         self._holders[key] = self._holders.get(key, 0) + 1
@@ -86,7 +86,7 @@ def _utcnow() -> datetime:
 
 @dataclass
 class JobRecord:
-    job_id: str
+    job_id: UUID
     kind: JobKind
     workspace: Path
     created_at: datetime = field(default_factory=_utcnow)
@@ -96,12 +96,12 @@ class JobRecord:
     result: JobResult | None = None
     error: Problem | None = None
     # asyncio holds only weak task references; this keeps the job alive.
-    task: asyncio.Task | None = None
+    task: asyncio.Task[None] | None = None
     expires_at: float | None = None  # time.monotonic(), set on terminal
 
     def to_model(self) -> Job:
         return Job(
-            job_id=uuid.UUID(self.job_id),
+            job_id=self.job_id,
             kind=self.kind,
             status=self.status,
             created_at=self.created_at,
@@ -114,17 +114,17 @@ class JobRecord:
 
 class JobRegistry:
     def __init__(self, ttl_seconds: int, workspace_queue: WorkspaceQueue) -> None:
-        self._ttl = ttl_seconds
-        self._queue = workspace_queue
+        self._ttl: int = ttl_seconds
+        self._queue: WorkspaceQueue = workspace_queue
         self._jobs: dict[str, JobRecord] = {}
 
     def submit(self, kind: JobKind, workspace: Path, pipeline: Pipeline) -> JobRecord:
         self._sweep()
-        record = JobRecord(job_id=str(uuid.uuid4()), kind=kind, workspace=workspace)
+        record = JobRecord(job_id=uuid4(), kind=kind, workspace=workspace)
         record.task = asyncio.create_task(
             self._run(record, pipeline), name=f"iac-job-{record.job_id}"
         )
-        self._jobs[record.job_id] = record
+        self._jobs[str(record.job_id)] = record
         logger.info("job submitted job_id=%s kind=%s", record.job_id, kind)
         return record
 
@@ -139,10 +139,10 @@ class JobRegistry:
             if r.task is not None and not r.task.done()
         ]
         for task in pending:
-            task.cancel()
+            _ = task.cancel()
         if pending:
             logger.warning("cancelling %d unfinished job(s) on shutdown", len(pending))
-            await asyncio.gather(*pending, return_exceptions=True)
+            _ = await asyncio.gather(*pending, return_exceptions=True)
 
     async def _run(self, record: JobRecord, pipeline: Pipeline) -> None:
         try:

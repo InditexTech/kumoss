@@ -25,7 +25,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import NoReturn
+from typing import Annotated, NoReturn
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response, status
@@ -70,7 +70,7 @@ jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see
@@ -98,19 +98,21 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
     return _problem(exc.status_code, exc.detail or "HTTP error")
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
+    _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     return _problem(422, "Request validation failed", str(exc))
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def unhandled_exception_handler(
+    _request: Request, exc: Exception
+) -> JSONResponse:
     return _problem(500, "Internal server error", str(exc))
 
 
@@ -185,7 +187,7 @@ def _submit(
 async def init(
     body: InitRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
@@ -205,7 +207,7 @@ async def init(
 async def validate(
     body: ValidateRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
@@ -225,7 +227,7 @@ async def validate(
 async def plan(
     body: PlanRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
@@ -245,7 +247,7 @@ async def plan(
 async def show(
     body: ShowRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
@@ -265,7 +267,7 @@ async def show(
 async def apply(
     body: ApplyRequest,
     response: Response,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
     workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
@@ -316,7 +318,7 @@ async def scope_resource_ids() -> Problem:
 @app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
 async def get_job(
     job_id: UUID,
-    authorization: str | None = Header(default=None),
+    authorization: Annotated[str | None, Header()] = None,
 ) -> Job:
     verify_bearer_token(config, authorization)
     record = jobs.get(str(job_id))

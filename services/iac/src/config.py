@@ -39,10 +39,11 @@ class Config:
 
     def __post_init__(self) -> None:
         if not engine_available(self.iac_binary):
-            raise ConfigError(
+            msg = (
                 f"IaC engine binary {self.iac_binary!r} not found on PATH. "
-                f"Set IAC_BINARY to a binary on PATH or an absolute path."
+                "Set IAC_BINARY to a binary on PATH or an absolute path."
             )
+            raise ConfigError(msg)
 
     @classmethod
     def from_env(cls) -> "Config":
