@@ -17,6 +17,7 @@ const mockAuthReset = vi.fn();
 
 const mockTerraformState = vi.fn<() => { status: string; message?: string }>(() => ({ status: "idle" }));
 const mockTerraformRun = vi.fn();
+const mockTerraformAttach = vi.fn();
 const mockTerraformReset = vi.fn();
 
 const mockResolveAndScan = vi.fn<
@@ -47,6 +48,7 @@ vi.mock("@/hooks/use_terraform_actions", () => ({
   useTerraformActions: () => ({
     state: mockTerraformState(),
     run: mockTerraformRun,
+    attach: mockTerraformAttach,
     reset: mockTerraformReset,
   }),
 }));
@@ -500,6 +502,45 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       sessionId: "abc-123",
       mode: "import",
     });
+  });
+
+});
+
+// Reopening a session whose round is still running has no results to show:
+// the wizard rejoins the live stream instead of starting new work.
+describe("useHomeWizard — resume", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthState.mockReturnValue({ status: "idle" });
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  it("attaches to the running round instead of starting a new one", () => {
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    act(() => {
+      result.current.resume({ sessionId: "sess-9", isApply: false });
+    });
+
+    expect(mockTerraformAttach).toHaveBeenCalledWith(
+      { sessionId: "sess-9", isApply: false },
+      mockHandleOutcome,
+    );
+    // No POST: the work already exists server-side.
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+  });
+
+  it("shows the planning view while the resumed round runs", () => {
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    act(() => {
+      result.current.resume({ sessionId: "sess-9", isApply: true });
+    });
+
+    expect(result.current.homeView).toBe("planning");
   });
 });
 

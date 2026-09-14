@@ -32,6 +32,8 @@ export const STRINGS = {
   planning: {
     preparingWorkspace: "Preparing your workspace…",
     resultsLoadError: "Completed, but results could not be loaded",
+    /** Shown when a session is reopened while its round is still running. */
+    stillRunning: "This session is still running — reconnecting to it…",
   },
 
   assistant: {

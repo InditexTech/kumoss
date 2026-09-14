@@ -7,9 +7,10 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
-import { makeSessionDetail, mockState } from "@/mocks/state";
+import { makeRound, makeSessionDetail, makeStatus, mockState } from "@/mocks/state";
 import { renderWithProviders } from "@/test/render";
 import type { PanelRole, SessionDetail } from "@/types/api";
+import { useLocation } from "react-router-dom";
 import SessionsPage from "./SessionsPage";
 
 const auth = vi.hoisted(() => ({ panelRole: null as PanelRole | null }));
@@ -41,11 +42,23 @@ function mockAdminSession(detail: SessionDetail) {
   return patches;
 }
 
+/** Surfaces the live URL so tests can assert on navigation side effects. */
+function LocationProbe() {
+  const { pathname } = useLocation();
+  return <div data-testid="location">{pathname}</div>;
+}
+
 function renderPage(variant: "admin" | "user", path: string) {
-  return renderWithProviders(<SessionsPage variant={variant} />, {
-    withNotifications: true,
-    routerProps: { initialEntries: [path] },
-  });
+  return renderWithProviders(
+    <>
+      <SessionsPage variant={variant} />
+      <LocationProbe />
+    </>,
+    {
+      withNotifications: true,
+      routerProps: { initialEntries: [path] },
+    },
+  );
 }
 
 describe("SessionsPage session id column", () => {
@@ -97,6 +110,66 @@ describe("SessionsPage apply lock in the table", () => {
     renderPage("user", "/user/sessions");
 
     expect(await screen.findByTestId("LockOutlinedIcon")).toBeInTheDocument();
+  });
+});
+
+// Reloading a session that is still running has no results to open: the
+// wizard routes have to be handed the round that is actually in flight, or
+// the user lands on the wrong (and empty) result view.
+describe("SessionsPage reload of a running session", () => {
+  beforeEach(() => {
+    mockState.clear();
+    auth.panelRole = null;
+  });
+
+  it("sends a running apply round to the apply-results route", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "apply",
+        in_flight: true,
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("apply")],
+          }),
+        ],
+      }),
+    );
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Reload Session/ }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/home/apply-results/sess-1",
+      ),
+    );
+  });
+
+  it("sends a running generate round to the results route", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "generating",
+        in_flight: true,
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("generating")],
+          }),
+        ],
+      }),
+    );
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Reload Session/ }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/home/results/sess-1",
+      ),
+    );
   });
 });
 

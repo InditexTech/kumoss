@@ -569,6 +569,86 @@ describe("useTerraformActions", () => {
     expect(mockSubscribe).not.toHaveBeenCalled();
   });
 
+  it("attach streams an already-running session without POSTing an action", async () => {
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.attach({ sessionId: "sess-abc", isApply: false });
+    });
+
+    expect(result.current.state).toEqual({
+      status: "streaming",
+      sessionId: "sess-abc",
+    });
+    expect(mockSubscribe).toHaveBeenCalledWith("sess-abc");
+    // Reattaching must not start new work, nor wait for a round that exists
+    expect(mockRunWorkflow).not.toHaveBeenCalled();
+    expect(mockWaitForNewRound).not.toHaveBeenCalled();
+  });
+
+  it("attach settles the outcome when the resumed round completes", async () => {
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.attach({ sessionId: "sess-abc", isApply: false }, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(mockResolveOutcome).toHaveBeenCalledWith("sess-abc");
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "results" }),
+        );
+      });
+    });
+
+    expect(result.current.state).toEqual({
+      status: "success",
+      sessionId: "sess-abc",
+    });
+  });
+
+  it("attach recovers a round that finished before the reconnect landed", async () => {
+    // The SSE endpoint 404s / errors for a session whose stream already
+    // closed; the status check then settles it from the session itself.
+    mockCheckSessionStatus.mockResolvedValueOnce({ status: "completed" });
+
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const onOutcome = vi.fn();
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.attach({ sessionId: "sess-abc", isApply: false }, onOutcome);
+    });
+
+    await act(async () => {
+      mockSseConnection.onerror?.();
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(onOutcome).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "results" }),
+        );
+      });
+    });
+
+    expect(result.current.state).toEqual({
+      status: "success",
+      sessionId: "sess-abc",
+    });
+  });
+
   it("reset closes connection and returns to idle", async () => {
     const useTerraformActions = await importHook();
     const wrapper = createWrapper({ withAssistantMsg: true });

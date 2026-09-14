@@ -318,6 +318,91 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.prior?.code).toContain("<main.tf>\nresource {}\n</main.tf>");
   });
 
+  it("reports a still-running round as in-progress instead of an empty result", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "generating",
+        in_flight: true,
+        rounds: [
+          makeRound({
+            statuses: [
+              makeStatus("started"),
+              makeStatus("filtering"),
+              makeStatus("generating"),
+            ],
+          }),
+        ],
+      }),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome).toMatchObject({ kind: "in-progress", status: "generating" });
+  });
+
+  it("reports a round that has not written its first status as in-progress", async () => {
+    // The iteration race: the 202 returns before the runner writes a status.
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "completed",
+        rounds: [
+          makeRound({ statuses: [makeStatus("started"), makeStatus("completed")] }),
+          makeRound({ number: 2, statuses: [] }),
+        ],
+      }),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("in-progress");
+  });
+
+  it("does not resurrect a prior round's artifacts while an iteration runs", async () => {
+    // Code changes are merged across rounds, so an unguarded resolve would
+    // present round 1's files as the running round's result.
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "generating",
+        in_flight: true,
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            report: reportRef(1, "report.json"),
+            code_changes: [{ ...artifactRef(2, "main.tf"), file_name: "main.tf" }],
+          }),
+          makeRound({ number: 2, statuses: [makeStatus("generating")] }),
+        ],
+      }),
+    );
+
+    // No artifact handlers registered: MSW fails the test on any fetch.
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("in-progress");
+  });
+
+  it("reports a running apply round as in-progress, not as apply results", async () => {
+    // `apply` is written when the apply starts, so matching on it alone
+    // would report an unfinished apply as a finished one.
+    mockState.addSession(
+      makeSessionDetail({
+        current_status: "apply",
+        in_flight: true,
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("apply")],
+          }),
+        ],
+      }),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome).toMatchObject({ kind: "in-progress", status: "apply" });
+    if (outcome.kind !== "in-progress") throw new Error("unreachable");
+    expect(isApplyRound(outcome.round)).toBe(true);
+  });
+
   it("maps a failed round to a failed outcome with the status message", async () => {
     mockState.addSession(
       makeSessionDetail({
@@ -454,6 +539,27 @@ describe("buildSessionPatch", () => {
       { role: "user", content: "deploy a VM" },
       { role: "assistant", content: "Here is your VM" },
     ]);
+  });
+
+  it("carries the session facts but no artifacts for an in-progress outcome", () => {
+    const detail = makeSessionDetail({
+      current_status: "generating",
+      in_flight: true,
+    });
+    const patch = buildSessionPatch({
+      kind: "in-progress",
+      detail,
+      round: detail.rounds[0],
+      status: "generating",
+    });
+
+    expect(patch).toMatchObject({
+      uuid: "sess-1",
+      operation: "generate",
+      current_status: "generating",
+    });
+    expect(patch.code).toBeUndefined();
+    expect(patch.terraform_report).toBeUndefined();
   });
 
   it("marks failed outcomes with current_status failed only", () => {

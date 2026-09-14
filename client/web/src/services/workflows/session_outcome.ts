@@ -17,8 +17,15 @@ import {
   fetchArtifactContent,
 } from "@/services/core/sessions";
 import { composeFileArtifacts } from "@/utils/diffUtils";
-import { normalizeHistory } from "@/types/api";
-import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
+import { STRINGS } from "@/constants/strings";
+import { normalizeHistory, TERMINAL_STATUSES } from "@/types/api";
+import type {
+  HistoryEntry,
+  CodeChangeRef,
+  RoundDetail,
+  SessionDetail,
+  SessionStatus,
+} from "@/types/api";
 import type { TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
@@ -47,6 +54,13 @@ export type SessionOutcome =
        *  rejection is an iteration on a session with earlier results —
        *  keeps the split result panel across deep links / refreshes. */
       prior?: RoundArtifacts;
+    }
+  | {
+      kind: "in-progress";
+      detail: SessionDetail;
+      round: RoundDetail;
+      /** The round's last written status; absent until the runner writes one. */
+      status: SessionStatus | null;
     }
   | { kind: "failed"; detail: SessionDetail | null; message: string };
 
@@ -238,6 +252,20 @@ export async function resolveSessionOutcome(
     }
   }
 
+  // Anything that is not resting on a terminal status is still running.
+  // Artifacts are only written when a round ends, so resolving here would
+  // hand back an empty result — or, on an iteration, the *previous* round's
+  // code (changes are merged across rounds) dressed up as the new one. An
+  // `apply` status means the apply has started, not that it finished.
+  if (!lastStatus || !TERMINAL_STATUSES.includes(lastStatus.status)) {
+    return {
+      kind: "in-progress",
+      detail,
+      round,
+      status: lastStatus?.status ?? null,
+    };
+  }
+
   // Apply outcomes ignore code, so skip the other rounds' file fetches.
   const codeRounds = (d: SessionDetail, r: RoundDetail) =>
     isApplyRound(r) ? [r] : d.rounds;
@@ -327,6 +355,8 @@ export function buildApplyResults(
 /** The assistant chat entry summarizing what the round produced. */
 export function buildAssistantMessage(outcome: SessionOutcome): string {
   switch (outcome.kind) {
+    case "in-progress":
+      return STRINGS.planning.stillRunning;
     case "rejected":
       return outcome.rationale;
     case "failed":

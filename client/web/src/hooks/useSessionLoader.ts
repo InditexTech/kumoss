@@ -4,18 +4,23 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/contexts/SessionContext";
+import { TERMINAL_STATUSES } from "@/types/api";
+import type { ResumeTarget } from "@/types/ui";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
   buildAssistantMessage,
   appendAssistantMessage,
+  isApplyRound,
 } from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
   loading: boolean;
   error: string | null;
   ready: boolean;
+  /** Set when the session has no results yet because it is still running. */
+  inProgress: ResumeTarget | null;
 }
 
 /** Rebuilds the session context for deep links / refreshes of
@@ -26,9 +31,17 @@ export function useSessionLoader(
   const { session, updateSession, updatePrDetails } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inProgress, setInProgress] = useState<ResumeTarget | null>(null);
   const fetchedRef = useRef<string | null>(null);
 
-  const alreadyLoaded = !!sessionId && session.uuid === sessionId;
+  // A session the context still holds as running has to be re-resolved: the
+  // sessions-table reload patches it in before navigating, and its stored
+  // status is by definition not the final one.
+  const contextIsRunning =
+    !!session.current_status &&
+    !TERMINAL_STATUSES.includes(session.current_status);
+  const alreadyLoaded =
+    !!sessionId && session.uuid === sessionId && !contextIsRunning;
 
   useEffect(() => {
     if (!sessionId || alreadyLoaded || fetchedRef.current === sessionId) return;
@@ -49,6 +62,19 @@ export function useSessionLoader(
 
         fetchedRef.current = sessionId;
         const patch = buildSessionPatch(outcome);
+
+        if (outcome.kind === "in-progress") {
+          // No artifacts exist yet. Rehydrate the facts so the resumed run has
+          // its session context, and hand the round back for the caller to
+          // reattach to; `ready` stays false so no empty result is rendered.
+          updateSession(patch);
+          setInProgress({
+            sessionId,
+            isApply: isApplyRound(outcome.round),
+          });
+          setLoading(false);
+          return;
+        }
 
         if (outcome.kind === "apply-results") {
           updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
@@ -88,6 +114,9 @@ export function useSessionLoader(
   return {
     loading,
     error,
-    ready: alreadyLoaded || (!!fetchedRef.current && !loading && !error),
+    ready:
+      !inProgress &&
+      (alreadyLoaded || (!!fetchedRef.current && !loading && !error)),
+    inProgress,
   };
 }

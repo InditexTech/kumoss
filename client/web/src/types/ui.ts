@@ -92,6 +92,17 @@ export interface Session {
   applyResults?: ApplyResultsData;
 }
 
+/**
+ * A round already running under this session id, reattached to instead of
+ * started: a deep link or a sessions-table reload of an unfinished session
+ * has no results to show, only a live stream to rejoin.
+ */
+export interface ResumeTarget {
+  sessionId: string;
+  /** An apply round, so the progress view uses the apply phase labels. */
+  isApply: boolean;
+}
+
 export interface PrDetails {
   url?: string;
   number?: number;

@@ -29,6 +29,7 @@ import {
   buildSessionPatch,
   buildApplyResults,
   buildAssistantMessage,
+  isApplyRound,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
 import type {
@@ -372,6 +373,24 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     }
     if (outcome.kind === "failed") {
       showNotification("failure", outcome.message);
+      return;
+    }
+
+    // Still running: there are no artifacts to open yet, only a stream to
+    // rejoin. Route by the round that is actually in flight — the results
+    // route picks the resume up from there.
+    if (outcome.kind === "in-progress") {
+      const isApply = isApplyRound(outcome.round);
+      setMode(
+        detail.operation === "drift" ? "drift" : isApply ? "import" : "generate",
+      );
+      updateSession(buildSessionPatch(outcome));
+      handleCloseOverlay();
+      navigate(
+        isApply
+          ? `/home/apply-results/${detail.uuid}`
+          : `/home/results/${detail.uuid}`,
+      );
       return;
     }
 

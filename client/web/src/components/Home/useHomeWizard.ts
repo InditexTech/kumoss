@@ -14,6 +14,7 @@ import { useWizardNavigation } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
 import type { TerraformProvider } from "@/types/api";
+import type { ResumeTarget } from "@/types/ui";
 
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
@@ -168,6 +169,20 @@ export function useHomeWizard() {
     [session.uuid, navigate, terraform, mode, handleOutcome],
   );
 
+  /**
+   * Rejoin a round that is already running under an existing session — a deep
+   * link, a refresh, or a reload from the sessions table. Unlike `iterate` no
+   * work is started: the planning view just picks the live stream back up and
+   * `handleOutcome` routes to the results once the round settles.
+   */
+  const resume = useCallback(
+    (target: ResumeTarget) => {
+      navigate("/home/planning");
+      terraform.attach(target, handleOutcome);
+    },
+    [navigate, terraform, handleOutcome],
+  );
+
   const applyAfterPr = useCallback(() => {
     if (!session.uuid) return;
 
@@ -245,6 +260,7 @@ export function useHomeWizard() {
     handlePath,
     handleProvider,
     iterate,
+    resume,
     applyAfterPr,
     retry,
     reset,

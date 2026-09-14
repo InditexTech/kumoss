@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
+import { STRINGS } from "@/constants/strings";
 import { AssistantAnimation } from "@/components/ui";
 import { useHomeLayoutContext } from "../HomeLayout";
 import ChatHistory from "../ChatHistory/ChatHistory";
@@ -26,9 +27,11 @@ function parsePrStep(view: string | null): PrApprovalStep | null {
 
 export default function ResultsRoute() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const { loading, error } = useSessionLoader(sessionId);
+  const { loading, error, inProgress } = useSessionLoader(sessionId);
   const { wizard, handleContactTeam } = useHomeLayoutContext();
   const { session, updatePrDetails } = useSession();
+
+  const resumedRef = useRef<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") as TabId | null;
@@ -74,9 +77,25 @@ export default function ResultsRoute() {
     }, { replace: true });
   }, [searchParams, setSearchParams, updatePrDetails]);
 
+  // The round is still running, so there is nothing to show here yet: rejoin
+  // the live stream, which lands back on this route once the round settles.
+  // `wizard` is rebuilt on every render, so the ref — not the dep array —
+  // is what keeps this to one resume per session.
+  useEffect(() => {
+    if (inProgress && resumedRef.current !== inProgress.sessionId) {
+      resumedRef.current = inProgress.sessionId;
+      wizard.resume(inProgress);
+    }
+  }, [inProgress, wizard]);
+
   const hasArtifacts = Boolean(session.code || session.terraform_report);
 
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
+  if (inProgress) {
+    return (
+      <div className={styles.leftSide}>{STRINGS.planning.stillRunning}</div>
+    );
+  }
   if (error) return <div className={styles.leftSide}>Error: {error}</div>;
 
   if (prStep) {
