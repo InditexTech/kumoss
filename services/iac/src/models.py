@@ -19,42 +19,44 @@ TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
 
 
-class InitRequest(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+class WorkspaceRequest(BaseModel):
+    """Fields every submit request carries.
+
+    Also the body model the ``resolve_workspace`` dependency binds to:
+    it sees only these two fields and ignores the operation-specific
+    rest, which the endpoint's own model validates.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
     scope_id: str | None = Field(default=None, max_length=1024)
 
 
-class ValidateRequest(BaseModel):
+class InitRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
 
-
-class PlanRequest(BaseModel):
+class ValidateRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+
+class PlanRequest(WorkspaceRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
     targets: list[TargetStr] = Field(default_factory=list, max_length=256)
     plan_file: PlanFileStr
 
 
-class ShowRequest(BaseModel):
+class ShowRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
     plan_file: PlanFileStr
 
 
-class ApplyRequest(BaseModel):
+class ApplyRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
     plan_file: PlanFileStr
 
 

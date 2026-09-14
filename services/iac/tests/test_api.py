@@ -6,7 +6,7 @@
 
 These cover the contract surface: healthz, auth, request validation
 (including the `plan_file` path-traversal guard), the
-404-on-missing-workspace path, the 503 when the engine isn't installed,
+404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation, the 501
 on the unimplemented import endpoints, per-workspace FIFO queueing, and
@@ -75,7 +75,6 @@ def client_with(
 def poll_until_terminal(
     client: TestClient,
     job_id: str,
-    headers: dict[str, str] | None = None,
     deadline: float = 5.0,
 ) -> dict[str, Any]:
     """Poll GET /v1/jobs/{job_id} until succeeded/failed.
@@ -86,7 +85,7 @@ def poll_until_terminal(
     """
     t0 = time.monotonic()
     while time.monotonic() - t0 < deadline:
-        response = client.get(f"/v1/jobs/{job_id}", headers=headers or {})
+        response = client.get(f"/v1/jobs/{job_id}")
         assert response.status_code == 200, response.text
         body: dict[str, Any] = response.json()
         if body["status"] in ("succeeded", "failed"):
@@ -109,17 +108,6 @@ def test_init_requires_token_when_configured() -> None:
             json={"workspace_path": "/tmp/anywhere"},
         )
     assert response.status_code == 401
-    assert response.headers["content-type"].startswith("application/problem+json")
-
-
-def test_init_503_when_engine_missing() -> None:
-    with client_with() as client:
-        with patch("src.main.engine_available", return_value=False):
-            response = client.post(
-                "/v1/init",
-                json={"workspace_path": "/tmp"},
-            )
-    assert response.status_code == 503
     assert response.headers["content-type"].startswith("application/problem+json")
 
 

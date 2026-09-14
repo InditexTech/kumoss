@@ -8,13 +8,15 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials
 
 from . import store
-from .auth import verify_bearer_token
+from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .models import (
     AssignRoleRequest,
@@ -77,8 +79,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return _problem(500, "Internal server error", str(exc))
 
 
-def _require_admin(authorization: str | None, user_id: str | None) -> None:
-    verify_bearer_token(config, authorization)
+def _require_admin(
+    credentials: HTTPAuthorizationCredentials | None, user_id: str | None
+) -> None:
+    verify_bearer_token(config, credentials)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -91,18 +95,28 @@ def _require_admin(authorization: str | None, user_id: str | None) -> None:
         )
 
 
+async def require_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> None:
+    """Reject the request unless it carries the configured bearer token."""
+    verify_bearer_token(config, credentials)
+
+
+Authenticated = Depends(require_bearer_token)
+
+
 @app.get("/healthz", response_model=Health, tags=["ops"])
 async def healthz() -> Health:
     return Health(status="ok")
 
 
-@app.post("/v1/check", response_model=CheckResponse, tags=["check"])
-async def check(
-    body: CheckRequest,
-    authorization: str | None = Header(default=None),
-) -> CheckResponse:
-    verify_bearer_token(config, authorization)
-
+@app.post(
+    "/v1/check",
+    response_model=CheckResponse,
+    tags=["check"],
+    dependencies=[Authenticated],
+)
+async def check(body: CheckRequest) -> CheckResponse:
     if config.permissive_check:
         return CheckResponse(
             authorized=True,
@@ -127,14 +141,16 @@ async def check(
     )
 
 
-@app.get("/v1/users/me", response_model=User, tags=["users"])
+@app.get(
+    "/v1/users/me",
+    response_model=User,
+    tags=["users"],
+    dependencies=[Authenticated],
+)
 async def get_current_user(
-    authorization: str | None = Header(default=None),
     x_user_id: str | None = Header(default=None),
     x_user_email: str | None = Header(default=None),
 ) -> User:
-    verify_bearer_token(config, authorization)
-
     if not x_user_id:
         # Anonymous: no identity asserted by the caller.
         return User(id="anonymous", email=None, name=None, roles=[])
@@ -148,11 +164,13 @@ async def get_current_user(
     return User(**record)
 
 
-@app.get("/v1/roles", response_model=RoleList, tags=["roles"])
-async def list_roles(
-    authorization: str | None = Header(default=None),
-) -> RoleList:
-    verify_bearer_token(config, authorization)
+@app.get(
+    "/v1/roles",
+    response_model=RoleList,
+    tags=["roles"],
+    dependencies=[Authenticated],
+)
+async def list_roles() -> RoleList:
     return RoleList(
         roles=[
             Role(name=name, description=desc)
@@ -163,10 +181,10 @@ async def list_roles(
 
 @app.get("/v1/users", response_model=UserList, tags=["users"])
 async def list_users(
-    authorization: str | None = Header(default=None),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     x_user_id: str | None = Header(default=None),
 ) -> UserList:
-    _require_admin(authorization, x_user_id)
+    _require_admin(credentials, x_user_id)
     users = store.list_users(Path(config.role_store_path))
     return UserList(users=[User(**u) for u in users])
 
@@ -179,10 +197,10 @@ async def list_users(
 async def assign_role(
     user_id: str,
     body: AssignRoleRequest,
-    authorization: str | None = Header(default=None),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     x_user_id: str | None = Header(default=None),
 ) -> Response:
-    _require_admin(authorization, x_user_id)
+    _require_admin(credentials, x_user_id)
     try:
         store.assign_role(Path(config.role_store_path), user_id, body.role)
     except KeyError:
@@ -201,9 +219,9 @@ async def assign_role(
 async def revoke_role(
     user_id: str,
     role: str,
-    authorization: str | None = Header(default=None),
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     x_user_id: str | None = Header(default=None),
 ) -> Response:
-    _require_admin(authorization, x_user_id)
+    _require_admin(credentials, x_user_id)
     store.revoke_role(Path(config.role_store_path), user_id, role)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
+import sys
 from dataclasses import dataclass
 
 
@@ -37,13 +39,23 @@ class Config:
     iac_binary: str
     job_ttl: int = 3600
 
+    logger: logging.Logger = logging.getLogger("iac")
+
     def __post_init__(self) -> None:
-        if not engine_available(self.iac_binary):
+        if not _engine_available(self.iac_binary):
             msg = (
                 f"IaC engine binary {self.iac_binary!r} not found on PATH. "
                 "Set IAC_BINARY to a binary on PATH or an absolute path."
             )
             raise ConfigError(msg)
+
+        if not self.logger.handlers:
+            _handler = logging.StreamHandler(sys.stderr)
+            _handler.setFormatter(
+                logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            )
+            self.logger.addHandler(_handler)
+            self.logger.setLevel(logging.INFO)
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -54,5 +66,5 @@ class Config:
         )
 
 
-def engine_available(binary: str) -> bool:
+def _engine_available(binary: str) -> bool:
     return shutil.which(binary) is not None

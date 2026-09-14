@@ -12,11 +12,14 @@ substitute their own implementation against the same contract.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 
-from .auth import verify_bearer_token
+from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .models import Health, Problem, ResolveRequest, ResolveResponse
 
@@ -59,6 +62,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return _problem(500, "Internal server error", str(exc))
 
 
+async def require_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> None:
+    """Reject the request unless it carries the configured bearer token."""
+    verify_bearer_token(config, credentials)
+
+
+Authenticated = Depends(require_bearer_token)
+
+
 @app.get("/healthz", response_model=Health, tags=["ops"])
 async def healthz() -> Health:
     return Health(status="ok")
@@ -69,13 +82,9 @@ async def healthz() -> Health:
     response_model=ResolveResponse,
     status_code=status.HTTP_200_OK,
     tags=["resolve"],
+    dependencies=[Authenticated],
 )
-async def resolve(
-    body: ResolveRequest,
-    authorization: str | None = Header(default=None),
-) -> ResolveResponse:
-    verify_bearer_token(config, authorization)
-
+async def resolve(body: ResolveRequest) -> ResolveResponse:
     # Identity passthrough: the identifier IS the repo URL. The canonical
     # project echoes the identifier, truncated to fit the contract's
     # `project` length cap (which is shorter than `identifier`'s because

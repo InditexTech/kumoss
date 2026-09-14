@@ -10,9 +10,9 @@ immediately; clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing engine
-binary) are still reported synchronously on the POST; everything after
-submission surfaces through the job.
+errors (auth, malformed body, missing workspace) are still reported
+synchronously on the POST; everything after submission surfaces
+through the job.
 
 The ``/v1/import`` endpoints are unimplemented: they answer 501
 without inspecting the request.
@@ -20,21 +20,20 @@ without inspecting the request.
 
 from __future__ import annotations
 
-import logging
-import sys
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, NoReturn
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 
 from . import engine
-from .auth import verify_bearer_token
-from .config import Config, engine_available
+from .auth import bearer_scheme, verify_bearer_token
+from .config import Config
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -48,21 +47,9 @@ from .models import (
     Problem,
     ShowRequest,
     ValidateRequest,
+    WorkspaceRequest,
 )
 
-
-# Console logging for the service's own loggers ("iac.*": engine
-# operations). uvicorn only configures its own loggers, so without
-# this handler the operation logs would be invisible at the default
-# log level.
-_iac_logger = logging.getLogger("iac")
-if not _iac_logger.handlers:
-    _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
-    _iac_logger.addHandler(_handler)
-    _iac_logger.setLevel(logging.INFO)
 
 config = Config.from_env()
 workspace_queue = WorkspaceQueue()
@@ -121,24 +108,26 @@ async def healthz() -> Health:
     return Health(status="ok")
 
 
-def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
-    """Submit-time checks: auth, engine binary, workspace existence.
+async def require_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> None:
+    """Reject the request unless it carries the configured bearer token."""
+    verify_bearer_token(config, credentials)
 
-    Everything that fails after these (the engine command itself)
+
+async def resolve_workspace(body: WorkspaceRequest) -> Path:
+    """Resolve the submit body's ``workspace_path`` to an existing directory.
+
+    Binds to the shared ``WorkspaceRequest`` base so one dependency
+    serves all five submit endpoints. The parameter must stay named
+    ``body`` to match the endpoints': FastAPI only collapses a
+    dependency's body param into the endpoint's documented body when
+    the two share a name, and embeds both under separate keys if not.
+
+    Everything that fails after this (the engine command itself)
     surfaces through the job instead.
     """
-    verify_bearer_token(config, authorization)
-
-    if not engine_available(config.iac_binary):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                f"IaC engine binary '{config.iac_binary}' not found "
-                "in PATH on the IaC service."
-            ),
-        )
-
-    workspace = Path(workspace_path)
+    workspace = Path(body.workspace_path)
     try:
         is_dir = workspace.is_dir()
     except OSError as exc:
@@ -153,6 +142,10 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
             detail=f"workspace_path does not exist or is not a directory: {workspace}",
         )
     return workspace
+
+
+Authenticated = Depends(require_bearer_token)
+Workspace = Annotated[Path, Depends(resolve_workspace)]
 
 
 async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
@@ -183,13 +176,13 @@ def _submit(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["init"],
+    dependencies=[Authenticated],
 )
 async def init(
-    body: InitRequest,
+    body: InitRequest,  # pyright: ignore[reportUnusedParameter]
+    workspace: Workspace,
     response: Response,
-    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "init",
         workspace,
@@ -203,13 +196,13 @@ async def init(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["validate"],
+    dependencies=[Authenticated],
 )
 async def validate(
-    body: ValidateRequest,
+    body: ValidateRequest,  # pyright: ignore[reportUnusedParameter]
+    workspace: Workspace,
     response: Response,
-    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "validate",
         workspace,
@@ -223,13 +216,13 @@ async def validate(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["plan"],
+    dependencies=[Authenticated],
 )
 async def plan(
     body: PlanRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "plan",
         workspace,
@@ -243,13 +236,13 @@ async def plan(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["show"],
+    dependencies=[Authenticated],
 )
 async def show(
     body: ShowRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "show",
         workspace,
@@ -263,13 +256,13 @@ async def show(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["apply"],
+    dependencies=[Authenticated],
 )
 async def apply(
     body: ApplyRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: Annotated[str | None, Header()] = None,
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "apply",
         workspace,
@@ -315,12 +308,13 @@ async def scope_resource_ids() -> Problem:
     _import_not_implemented()
 
 
-@app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
-async def get_job(
-    job_id: UUID,
-    authorization: Annotated[str | None, Header()] = None,
-) -> Job:
-    verify_bearer_token(config, authorization)
+@app.get(
+    "/v1/jobs/{job_id}",
+    response_model=Job,
+    tags=["jobs"],
+    dependencies=[Authenticated],
+)
+async def get_job(job_id: UUID) -> Job:
     record = jobs.get(str(job_id))
     if record is None:
         raise HTTPException(
