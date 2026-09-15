@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -51,7 +52,12 @@ app = FastAPI(
 )
 
 
-def _problem(status_code: int, title: str, detail: str | None = None) -> JSONResponse:
+def _problem(
+    status_code: int,
+    title: str,
+    detail: str | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
     payload = Problem(
         type="about:blank", title=title, status=status_code, detail=detail
     ).model_dump(exclude_none=True)
@@ -59,12 +65,13 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
         status_code=status_code,
         content=payload,
         media_type="application/problem+json",
+        headers=headers,
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return _problem(exc.status_code, exc.detail or "HTTP error")
+    return _problem(exc.status_code, exc.detail or "HTTP error", headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)

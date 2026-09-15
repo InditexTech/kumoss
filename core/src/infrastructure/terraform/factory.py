@@ -18,10 +18,10 @@ class TerraformFactory:
     workspace path so the IaC service (which runs in a separate process
     or container) can operate on the same files; the shared volume the
     docker-compose stack mounts into both `api` and `iac` makes
-paths line up. It also passes the session's cloud scope
-(subscription / project / account id) and its terraform provider,
-which the IaC contract requires on `init`, `plan` and `apply` so the
-service can inject the scope into the engine's environment.
+    the paths line up. It also passes the session's cloud scope
+    (subscription / project / account id) and its terraform provider,
+    which the IaC contract requires on `init`, `plan` and `apply` so
+    the service can inject the scope into the engine's environment.
     """
 
     def __init__(

@@ -42,16 +42,16 @@ info:
     scope they run against, and only those carry `scope_id` (the scope)
     and `terraform_provider` (which cloud it is):
 
-    | Endpoint                        | Scope        | Why                             |
-    |---------------------------------|--------------|---------------------------------|
-| `/v1/init`                      | required     | may access external services during initialization |
-    | `/v1/plan`                      | required     | refreshes state against the API |
-    | `/v1/apply`                     | required     | creates and changes resources   |
-    | `/v1/import`                    | required     | reads the live resource         |
-    | `/v1/import/scope-resource-ids` | required     | enumerates a scope              |
-    | `/v1/validate`                  | not accepted | local configuration check       |
-    | `/v1/show`                      | not accepted | reads the local plan file       |
-    | `/v1/import/state-resource-ids` | not accepted | reads terraform state           |
+    | Endpoint                        | Scope        | Why                                                |
+    |---------------------------------|--------------|----------------------------------------------------|
+    | `/v1/init`                      | required     | may access external services during initialization |
+    | `/v1/plan`                      | required     | refreshes state against the API                    |
+    | `/v1/apply`                     | required     | creates and changes resources                      |
+    | `/v1/import`                    | required     | reads the live resource                            |
+    | `/v1/import/scope-resource-ids` | required     | enumerates a scope                                 |
+    | `/v1/validate`                  | not accepted | local configuration check                          |
+    | `/v1/show`                      | not accepted | reads the local plan file                          |
+    | `/v1/import/state-resource-ids` | not accepted | reads terraform state                              |
 
     Every request schema sets `additionalProperties: false`, so the
     endpoints that take no scope reject both fields with a `422` rather
@@ -194,11 +194,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -280,11 +276,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -373,11 +365,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -459,11 +447,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -546,11 +530,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -634,11 +614,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -724,11 +700,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -829,11 +801,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -895,11 +863,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Job"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: |
             No job with this id: it never existed, its retention period
@@ -940,6 +904,23 @@ components:
         environment variable named in the system config (default
         `NEBULA_IAC_TOKEN`). Implementations MAY accept all
         requests when no token is configured for local development.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          description: |
+            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
+            least one challenge, so implementations must send this.
+          required: true
+          schema:
+            type: string
+            examples: ["Bearer"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
 
   schemas:
     InitRequest:

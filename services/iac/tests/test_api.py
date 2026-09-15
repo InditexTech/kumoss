@@ -120,14 +120,24 @@ def test_healthz_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_init_requires_token_when_configured() -> None:
+@pytest.mark.parametrize(
+    "headers",
+    [
+        pytest.param({}, id="no-authorization-header"),
+        pytest.param({"Authorization": "Basic Zm9vOmJhcg=="}, id="wrong-scheme"),
+        pytest.param({"Authorization": "Bearer nope"}, id="wrong-token"),
+    ],
+)
+def test_init_requires_token_when_configured(headers: dict[str, str]) -> None:
     with client_with(token="expected") as client:
         response = client.post(
             "/v1/init",
             json={"workspace_path": "/tmp/anywhere", **SCOPE},
+            headers=headers,
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_init_404_when_workspace_missing(tmp_path: Path) -> None:
@@ -386,6 +396,7 @@ def test_get_job_requires_token_when_configured() -> None:
         response = client.get(f"/v1/jobs/{uuid.uuid4()}")
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_job_expires_after_ttl(tmp_path: Path) -> None:
