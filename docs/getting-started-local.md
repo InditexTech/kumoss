@@ -21,7 +21,7 @@ Do **not** use it for shared or production environments. As shipped it has no TL
 ## 2. Prerequisites
 
 - Git, and Docker Engine or Docker Desktop with Docker Compose v2.
-- The build requires internet access.
+- Internet access for the build.
 - Credentials for one LLM provider supported by LiteLLM. The checked-in `config.yaml` selects Google Vertex AI models; you can keep them or switch provider in step 5.
 - A personal access token for your Git provider (GitHub, Azure DevOps, or GitLab) with permission to push branches and open pull requests on the repositories you will use. Without it you can still run the filtering and generation steps, but pushes fail.
 - Cloud credentials for the cloud your OpenTofu/Terraform code targets. They are used by `plan` and `apply` inside the IaC sidecar.
@@ -236,22 +236,21 @@ Open <http://localhost/monitoring/> to see the traces of the run under the `dev-
 
 ## 12. Stop or reset the stack
 
+### Stop Nebula
 ```bash
 docker compose down            # stop; named volumes are kept
 ```
 
 This keeps the named volumes (databases, artifacts, workspaces), so sessions and prompts survive a restart. Authz role assignments are not among them — they live inside the authz container and are lost when it is recreated; see [services/authz/README.md](./services/authz/README.md) to store them on a mounted path instead.
 
+### Delete Nebula volumes
 ```bash
 docker compose down -v         # stop and delete all volumes
 ```
 
-Deleting the volumes removes the session database, the artifacts, the Phoenix traces **and the prompts you edited in Phoenix**, and any in-progress workspaces. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
+**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, and any in-progress workspaces. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
 
-Authz role assignments are not
-among them — they live inside the authz container and are lost when it
-is recreated; see [services/authz/README.md](./services/authz/README.md)
-to store them on a mounted path instead.
+Authz role assignments are not among them — they live inside the authz container and are lost when it is recreated; see [services/authz/README.md](./services/authz/README.md) to store them on a mounted path instead.
 
 ## 13. Troubleshooting
 
