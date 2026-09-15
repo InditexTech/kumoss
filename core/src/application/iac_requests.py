@@ -68,7 +68,7 @@ class BaseIacRequest(BaseModel):
                         - Azure -> subscription id
                         - GCP -> project id
                         - AWS -> account id
-                        - OCI -> tenancy OCID
+                        - OCI -> compartment OCID
                         - Kubernetes -> no cloud scope; any stable identifier""",
         ),
     ] = None

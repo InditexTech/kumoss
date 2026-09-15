@@ -9,10 +9,10 @@ one command per call — the flag surface is identical across both
 engines. Implementations that need more (state locking, custom
 backends, policy as code) should extend this or substitute their own.
 
-`init`, `plan` and `apply` reach the cloud, so they run with the
+`init`, `plan` and `apply` may access external services, so they run with the
 request's `scope_id` injected into their environment where the cloud
-exposes a provider-level variable that names a scope — Azure and GCP
-only (see ``scope_env``). The other providers have no such variable,
+exposes a provider-level variable that names a scope — Azure and GCP only
+(see ``scope_env``). The other providers have no such variable,
 so nothing is injected and the command runs on the service's ambient
 credentials. `validate` and `show` make no cloud API call and take no
 scope at all: they run on the service's own environment, unmodified.
