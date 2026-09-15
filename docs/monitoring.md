@@ -6,11 +6,11 @@ SPDX-License-Identifier: Apache-2.0
 
 # Monitoring with Phoenix
 
-Nebula records what its agents do as **traces**: for every session run, the prompts sent to the language model, the tool calls the model made, the Terraform validations, and the results. Traces are exported with OpenTelemetry using the OpenInference conventions and, in the default Compose stack, collected and displayed by [Arize Phoenix](https://docs.arize.com/phoenix).
+Nebula records what its agents do as **traces**: for every session run, the prompts sent to the language model, the tool calls the model made, the Terraform validations, and the results. Traces are exported with OpenTelemetry using the OpenInference conventions and, in the default Compose stack, collected and displayed by [Arize Phoenix](https://arize.com/docs/phoenix).
 
 This guide covers tracing only. Phoenix also hosts Nebula's runtime prompt registry; that is a separate function described in [Phoenix prompt templates](phoenix-prompt-templates.md). How Phoenix is deployed in each model is covered by [Getting started: local/non-production](getting-started-local.md) and [Getting started: production](getting-started-production.md).
 
-> **Data sensitivity.** Phoenix receives, in clear text, the full system prompts, the user's requests and conversation history, repository metadata (URL, path, branch), Terraform plans and validation errors, tool inputs and outputs (which can include file contents from the repository), model outputs including generated code, and the user and session identifiers on every span. Nothing is redacted or truncated apart from a cap on the number of attributes. Operators must put Phoenix behind access control, decide on retention, and tell users not to paste secrets into requests or commit them into IaC. The default stack exposes Phoenix at `/monitoring/` on the same port as the application, with **no authentication of its own**.
+> **Data sensitivity.** Phoenix receives, in clear text, the full system prompts, the user's requests and conversation history, repository metadata (URL, path, branch), Terraform plans and validation errors, tool inputs and outputs (which can include file contents from the repository), model outputs including generated code, and the session identifier plus the **user's e-mail address** (as `user.id`) on every span. Nothing is redacted or truncated apart from a cap on the number of attributes. Operators must put Phoenix behind access control, decide on retention, and tell users not to paste secrets into requests or commit them into IaC. The default stack exposes Phoenix at `/monitoring/` on the same port as the application, with **no authentication of its own**.
 
 ## What ships in the Compose stack
 
@@ -34,12 +34,12 @@ All keys are in `config.yaml` under `telemetry` (details in the [configuration r
 | Key | Default in `config.yaml` | Meaning |
 |---|---|---|
 | `telemetry.collector_url` | `http://phoenix:6006/` | Base URL of the OTLP/HTTP collector. The core appends `v1/traces` by string concatenation, so the value **must end in `/`**. The code default `http://localhost:6006/` only works when the core runs outside Docker. |
-| `telemetry.otel_attribute_count_limit` | `1024` | Maximum attributes per span. Long conversations produce many `llm.input_messages.N.*` attributes; raise this if messages are truncated in Phoenix. |
+| `telemetry.otel_attribute_count_limit` | `1024` | Maximum attributes per span. Long conversations produce many `llm.input_messages.N.*` attributes. When the limit is hit the OpenTelemetry SDK drops the **oldest** attributes first, and on LLM spans those are `session.id`, `user.id`, `metadata`, the span kind, and the model name, so an over-long span loses its identity rather than its messages. Raise this for long sessions. |
 | `telemetry.otel_console_exporter` | `false` | Also print spans to the core's standard output. Useful for debugging without Phoenix, but spans carry prompts and plans. |
 
 **Replacing Phoenix as the trace collector.** The exporter is the standard OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts OTLP/HTTP on `<collector_url>v1/traces` (an OpenTelemetry Collector, a vendor endpoint) receives the spans. Two caveats:
 
-- No headers or authentication are configured on the exporter; put an OpenTelemetry Collector in between if the destination needs them.
+- The core sets no headers on the exporter itself, but the OpenTelemetry SDK reads `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) from the core's environment, and the Phoenix client used for prompts reads `PHOENIX_API_KEY`. Set those in the core's environment to reach an authenticated destination, or put an OpenTelemetry Collector in between.
 - Today `telemetry.collector_url` is **also** the base URL of the Phoenix client used for prompt seeding and fetching. Pointing it at a non-Phoenix collector breaks startup. To send traces elsewhere while keeping Phoenix for prompts, forward from Phoenix or place a collector at the same base URL that proxies the prompt API.
 
 ## Projects
@@ -103,8 +103,8 @@ One chain span is opened per orchestration step (filtering, target generation, c
 
 Every span of every kind carries:
 
-- `session.id` and `user.id` as top-level attributes;
-- a `metadata` JSON attribute with `session_id`, `user_id`, `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`, `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
+- `session.id` and `user.id` as top-level attributes. `user.id` is the user's e-mail address (or `user-<id>` when the account has none), so traces contain personal data;
+- a `metadata` JSON attribute with `session_id`, `user_id` (the same e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`, `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
 
 Use `session.id` to find everything that happened in one session.
 
@@ -142,6 +142,6 @@ Child spans are created after their work finishes, with a back-dated start time,
 
 **A session failed but its trace looks incomplete.** Expected: spans for work that raised are not exported. Use the session's failure message and artifacts.
 
-**Messages are missing from long LLM spans.** The attribute count hit `telemetry.otel_attribute_count_limit`. Raise it and rebuild the core image.
+**A long LLM span has no `session.id`, shows an unknown span kind, or does not appear in a session search.** The attribute count hit `telemetry.otel_attribute_count_limit`; the SDK dropped the oldest attributes, which on LLM spans are the identity and kind fields, not the messages. Raise the limit and rebuild the core image.
 
 **Traces from a different environment are mixed in.** The project prefix comes from `environment` in the core's baked-in `config.yaml`; rebuild after changing it. Prompt tags follow the same value, so also read [Phoenix prompt templates](phoenix-prompt-templates.md) before changing it on an existing deployment.

@@ -81,7 +81,7 @@ sequenceDiagram
   rect rgb(255,243,224)
     Note over AG,EX: PHASE 8 · Independent compliance audit → verdict computed in code
     alt compliance checker enabled (deployment config)
-      CT->>AG: Compliance Auditor (small, read-only tools) audits the report → report_compliance_findings
+      CT->>AG: Compliance Auditor (small, no repo tools) judges request + raw plan → report_compliance_findings
       AG-->>CT: structured findings (rule id, severity, resource, message, fix)
     else disabled
       CT->>CT: empty passing report

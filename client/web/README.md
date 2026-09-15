@@ -53,10 +53,8 @@ docker compose build proxy && docker compose up -d proxy
 | Production build | `npm run build` |
 | Preview build | `npm run preview` |
 
-> `npm run dev:mock` still exists in `package.json` but is currently a no-op:
-> the MSW browser-worker bootstrap in `src/main.tsx` is commented out and
-> `src/mocks/browser.ts` does not exist. MSW request mocking is active in
-> tests only.
+> MSW request mocking is active in tests only (the node server starts in
+> `src/test/setup.ts`). There is no browser worker and no mock dev mode.
 
 ## Stack
 

@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Phoenix prompt templates
 
-Nebula does not hard-code cloud knowledge. The instructions that tell its agents how to name, configure, and secure resources are **prompts** stored in the prompt registry of [Arize Phoenix](https://docs.arize.com/phoenix), fetched by the core at request time. This guide explains the three layers involved, the naming conventions, how seeding and runtime lookup work, how the prompts are composed into a system prompt, and how to add or change prompts safely.
+Nebula does not hard-code cloud knowledge. The instructions that tell its agents how to name, configure, and secure resources are **prompts** stored in the prompt registry of [Arize Phoenix](https://arize.com/docs/phoenix), fetched by the core at request time. This guide explains the three layers involved, the naming conventions, how seeding and runtime lookup work, how the prompts are composed into a system prompt, and how to add or change prompts safely.
 
 Phoenix also collects Nebula's traces. That is a separate function, documented in [Monitoring with Phoenix](monitoring.md). Where Phoenix runs and how it is protected in each deployment model is covered by [Getting started: local/non-production](getting-started-local.md) and [Getting started: production](getting-started-production.md).
 

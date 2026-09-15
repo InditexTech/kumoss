@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Nebula turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, while Nebula’s agents generate Terraform-compatible HCL directly in the appropriate repository, guided by the organization’s architecture, security, and networking standards.
 
-Its governed delivery rail and agent harness make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, evaluates them against deterministic compliance rules, opens a pull request, and applies the reviewed plan only after human authorization.
+Its governed delivery rail and agent harness make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, runs an independent compliance audit whose pass/fail verdict is computed in code from the reported findings, opens a pull request, and applies the reviewed plan only after human authorization.
 
 > Nebula is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services that implement OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization. Prompts live in Phoenix, an LLM observability tool that also stores Nebula's traces.
 
@@ -153,7 +153,7 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and fol
 
 ## Acknowledgments
 
-Nebula builds on [LiteLLM](https://docs.litellm.ai/) for model access, [Arize Phoenix](https://docs.arize.com/phoenix) for tracing and prompt management, [OpenTofu](https://opentofu.org/) as the default IaC engine, and [FastAPI](https://fastapi.tiangolo.com/) and [React](https://react.dev/) for the core and the web application.
+Nebula builds on [LiteLLM](https://docs.litellm.ai/) for model access, [Arize Phoenix](https://arize.com/docs/phoenix) for tracing and prompt management, [OpenTofu](https://opentofu.org/) as the default IaC engine, and [FastAPI](https://fastapi.tiangolo.com/) and [React](https://react.dev/) for the core and the web application.
 
 ## License
 

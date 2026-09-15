@@ -31,18 +31,43 @@ To maintain a collaborative and respectful environment, please consider the foll
 
 ## Contribution Guidelines
 
-- All contributors are expected to follow the project's [code of conduct](CODE_of_CONDUCT.md). Please be respectful and
+- All contributors are expected to follow the project's [code of conduct](CODE_OF_CONDUCT.md). Please be respectful and
 considerate towards other contributors.
-- Before starting work on a new feature or fix, check existing [issues](../../issues) and [pull requests](../../pulls)
+- Before starting work on a new feature or fix, check existing [issues](https://github.com/InditexTech/nebula/issues) and [pull requests](https://github.com/InditexTech/nebula/pulls)
 to avoid duplications and unnecessary discussions.
 - If you wish to work on an existing issue, comment on the issue to inform other contributors that you are working on it.
 This will help coordinate efforts and prevent conflicts.
 - It is always advisable to discuss and gather feedback from the community before making significant changes to the
 project's structure or architecture.
-- Ensure a clean and organized commit history. Divide your changes into logical and descriptive commits. We recommend to use the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/)
+- Ensure a clean and organized commit history. Divide your changes into logical and descriptive commits. Pull requests must use the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`).
 - Document any new changes or features you add. This will help other contributors and project users understand your work
 and its purpose.
 - Be sure to link the corresponding issue in your pull request to maintain proper tracking of contributions.
-- Remember to add license and copyright information following the [REUSE Specification](https://reuse.software/spec/#copyright-and-licensing-information).
+- Remember to add license and copyright information following the [REUSE Specification](https://reuse.software/spec-3.3/#licensing-information): every new file starts with an SPDX header (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check.
 
 ## Development
+
+The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](docs/architecture.md) explains how they fit together.
+
+**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Getting started: local/non-production](docs/getting-started-local.md) is the step-by-step guide; `docker compose up --watch` hot-reloads the core.
+
+**Core tests** (Python 3.13, `uv`):
+
+```bash
+cd core
+uv pip install --system --prerelease=allow -r pyproject.toml
+uv pip install --system pytest pytest-asyncio
+python -m pytest tests/ --asyncio-mode=auto
+```
+
+Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
+
+**Frontend checks** (Node 20+): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
+
+**Sidecar tests:** `cd services/<name> && uv venv && source .venv/bin/activate && uv pip install -e '.[dev]' && pytest`.
+
+**Lint and format.** `pre-commit run --all-files` runs Ruff (check and format), the REUSE check, and gitleaks secret scanning; install the hooks with `pre-commit install`.
+
+**Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
+
+**Pull requests.** Fill in the pull-request template (signed commits, Conventional Commits, documentation updated, CLA signed) and link the issue. Include UI screenshots for visible changes.

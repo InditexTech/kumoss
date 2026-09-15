@@ -52,7 +52,7 @@ Two related facts about the sample file:
 
 ### Cloud credentials for the IaC engine
 
-The IaC sidecar does not interpret cloud credentials. The Terraform and OpenTofu **providers** read them directly during `init`, `plan`, `apply`, and `import`. Missing or invalid credentials never stop the container; the command runs and the engine's own authentication error appears in the job's `stderr`, which the session shows to the user.
+The IaC sidecar does not interpret cloud credentials. It launches the engine and the cloud CLIs with its **entire container environment inherited and no allowlist**, so every variable in `services/iac/.env` (including `NEBULA_IAC_TOKEN` and `NEBULA_IAC_JOB_TTL`) is visible to the Terraform and OpenTofu **providers**, to `az`/`gcloud`/`aws`, and to any `external` or `local-exec` code in the repositories you run. The providers read their credentials directly during `init`, `plan`, `apply`, and `import`. Missing or invalid credentials never stop the container; the command runs and the engine's own authentication error appears in the job's `stderr`, which the session shows to the user. Keep only the variables the engine needs in that file, and treat the sidecar's environment as exposed to the IaC code it executes.
 
 The variables in the sample file are examples of each provider's standard authentication chain. Use whichever mechanism your provider configuration expects; the sidecar imposes nothing beyond what the provider supports.
 

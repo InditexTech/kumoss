@@ -197,7 +197,9 @@ Choose the provider and models in `config.yaml` and supply the credentials as se
 
 ## 10. Git credentials
 
-`GIT_USER` and `GIT_TOKEN` are written to `~/.git-credentials` inside the core container at boot and used for every push, pull-request creation, and merge. Use a dedicated service account, restrict the token to the repositories Nebula may change, and set `git.provider` to the matching host (`GITHUB`, `AZURE_DEVOPS`, or `GITLAB`). The core needs outbound HTTPS to the Git host. Repository URLs entered by users must not embed credentials; the API rejects them.
+`GIT_USER` and `GIT_TOKEN` are written to `~/.git-credentials` inside the core container at boot and used for every push, pull-request creation, and merge. Use a dedicated service account, restrict the token to the repositories Nebula may change, and set `git.provider` to the matching host (`GITHUB`, `AZURE_DEVOPS`, or `GITLAB`). The core needs outbound HTTPS to the Git host. Repository URLs entered by users must not embed credentials; the API rejects them. Azure DevOps users must remove the `<org>@` prefix that the portal's clone URL carries.
+
+**Supported hosts.** The pull-request adapters target the public SaaS hosts only: `github.com`, `gitlab.com` (top-level namespace and project; subgroups are rejected), and `dev.azure.com`. GitHub Enterprise Server, self-managed GitLab, and `*.visualstudio.com` URLs are not supported today and fail at pull-request time with `Malformed repository URL`. SSH keys can replace `GIT_TOKEN` for clone and push only; pull-request creation and merge always use the REST API over HTTPS.
 
 ## 11. Cloud credentials for the IaC engine
 

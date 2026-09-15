@@ -74,7 +74,7 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 | Setting | Requirement | What to do |
 |---|---|---|
 | `llm.model`, `llm.small_model` | **Mandatory review** | LiteLLM model strings (`provider/model-id`). The shipped file selects `vertex_ai/claude-sonnet-4-5` and `vertex_ai/gemini-3.7-flash`. Keep them if you have Vertex AI credentials; otherwise pick another provider and model pair from [LiteLLM providers and models](litellm.md). The provider prefix decides which credential variables step 6 needs. |
-| `git.provider` | Mandatory when you want pushes and pull requests | `GITHUB` (default), `AZURE_DEVOPS`, or `GITLAB`. It must match the host of the repositories you will use, because it selects the pull-request API and the host written into the git credential store. |
+| `git.provider` | Optional (default `GITHUB`) | `GITHUB`, `AZURE_DEVOPS`, or `GITLAB`. It must match the host of the repositories you will use, because it selects the pull-request API and the host written into the git credential store. Only the public SaaS hosts are supported (`github.com`, `gitlab.com` without subgroups, `dev.azure.com`), and repository URLs must be HTTPS. |
 | `services.iac.enabled` | **Must remain `true`** | Every mode runs engine commands through the IaC sidecar. The shipped file enables it with endpoint `http://iac:8082` and token variable `NEBULA_IAC_TOKEN`. |
 | `services.iac.endpoint`, `services.iac.token_env` | Optional | Change only if you rename the Compose service or the token variable. |
 | `services.notifications.enabled` | Optional | Set to `true` only when you complete step 8. |
@@ -82,7 +82,7 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 | `storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins` | Leave as shipped | They already point at the bundled containers (`object-storage:9000`, `phoenix:6006`, `redis:6379`, `core-db`, origin `http://localhost`). Change them only if the defaults are unsuitable, for example when the browser reaches the host under another name (then update `storage.public_endpoint_url` and `http.cors_origins`). |
 | `orchestration.*` | Leave as shipped | Iteration limits and the compliance and high-impact locks. |
 
-A minimal local file that keeps everything else at its default:
+A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables.
 
 ```yaml
 environment: "development"
@@ -92,6 +92,10 @@ services:
     enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
+
+orchestration:
+  enable_compliance_checker: true
+  block_on_high_impact: true
 
 llm:
   model: "anthropic/claude-sonnet-5"
@@ -109,7 +113,7 @@ git:
   provider: "GITHUB"
 ```
 
-Note that the code default for every sidecar is `enabled: false`; the `services.iac` block above (or the shipped one) is what turns the IaC sidecar on.
+Note that the code default for every sidecar is `enabled: false`; the `services.iac` block above (or the shipped one) is what turns the IaC sidecar on. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
 
 ## 6. Configure `core/.env`
 
@@ -241,16 +245,14 @@ Open <http://localhost/monitoring/> to see the traces of the run under the `dev-
 docker compose down            # stop; named volumes are kept
 ```
 
-This keeps the named volumes (databases, artifacts, workspaces), so sessions and prompts survive a restart. Authz role assignments are not among them — they live inside the authz container and are lost when it is recreated; see [services/authz/README.md](./services/authz/README.md) to store them on a mounted path instead.
+This keeps the named volumes (databases, artifacts, workspaces, and the authz sidecar's JSON role store on `authz_data`), so sessions, prompts, and sidecar roles survive a restart. The authz sidecar's roles are unrelated to Nebula's own operation and panel roles, which live in `core-db`; see [services/authz/README.md](../services/authz/README.md).
 
 ### Delete Nebula volumes
 ```bash
 docker compose down -v         # stop and delete all volumes
 ```
 
-**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, and any in-progress workspaces. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
-
-Authz role assignments are not among them — they live inside the authz container and are lost when it is recreated; see [services/authz/README.md](./services/authz/README.md) to store them on a mounted path instead.
+**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, any in-progress workspaces, and the authz sidecar's role store. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
 
 ## 13. Troubleshooting
 

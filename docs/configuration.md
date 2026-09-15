@@ -115,7 +115,7 @@ Model selection through LiteLLM. Details, provider tables, and router examples a
 | `llm.small_model` | string | `anthropic/claude-haiku-4-5` | `vertex_ai/gemini-3.7-flash` | Optional (credentials mandatory) | Cheaper model used by every other chain and by tool-internal LLM calls. |
 | `llm.temperature` | float | `0.1` | `0.1` | Optional | Applied to both roles (forced to `1.0` when a chain requests extended thinking). |
 | `llm.max_output_tokens` | integer | `32000` | `32000` | Optional | Completion cap sent on every call. |
-| `llm.model_list` | list of LiteLLM Router entries | `[]` | not set | Optional | Advanced routing (fallbacks, load balancing, `os.environ/VAR` credential references). When non-empty, `model` and `small_model` must match a `model_name` and boot validation runs against the listed entries. |
+| `llm.model_list` | list of LiteLLM Router entries | `[]` | not set | Optional | Advanced routing: load balancing across entries that share a `model_name`, per-entry endpoints, and `os.environ/VAR` credential references. Router-level fallbacks between different models are **not** configurable today; the core passes only `model_list` to the Router. When non-empty, `model` and `small_model` must match a `model_name` and boot validation runs against the listed entries. |
 
 Validation: at boot the core asks LiteLLM which environment variables each configured model needs and fails with `LLM credentials missing from environment: ...` if any is unset. Some providers have no validation mapping and fail on the first call instead; see the [LiteLLM guide](litellm.md#startup-credential-validation-and-its-limits).
 
@@ -162,7 +162,7 @@ OpenTelemetry export and, in the current implementation, also the address of the
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
 | `telemetry.collector_url` | string (base URL **ending in `/`**) | `http://localhost:6006/` | `http://phoenix:6006/` | Optional | Base URL of the trace collector. The core appends `v1/traces` by plain string concatenation, so the value must end with a slash: `http://phoenix:6006/` becomes `http://phoenix:6006/v1/traces`. The **same URL** is used as the Phoenix client base URL for prompt seeding and fetching, so today it must point at a Phoenix server even if you export traces elsewhere. |
-| `telemetry.otel_attribute_count_limit` | integer | `1024` | `1024` | Optional | Maximum number of attributes per span (attribute *count*, not length). |
+| `telemetry.otel_attribute_count_limit` | integer | `1024` | `1024` | Optional | Maximum number of attributes per span (attribute *count*, not length). When exceeded the SDK drops the oldest attributes first, which on LLM spans are the session and user identifiers and the span kind. |
 | `telemetry.otel_console_exporter` | boolean | `false` | `false` | Optional | Also print every span to the core's standard output. Spans contain prompts and plans; do not enable this where logs are shared. |
 
 The code default only works when the core runs outside Docker on the same host as Phoenix. Requires rebuild: yes.
@@ -186,7 +186,7 @@ Object storage for generated artifacts (reports, plans, code changes). The brows
 | `storage.endpoint_url` | string | `http://object-storage:9000` | Conditional | Endpoint the core's SDK calls from inside the compose network. For `STORAGE_ACCOUNT` it must be the account blob endpoint (`https://<account>.blob.core.windows.net`, or the emulator form `http://<host>:<port>/<account>`); the account name is derived from it. Boot fails with `storage.endpoint_url must be an account blob endpoint ...` when it cannot be derived. |
 | `storage.public_endpoint_url` | string | `http://localhost:9000` | Conditional | Host the **browser** reaches. Presigned S3 URLs bind the host header, so this must be the externally visible address of the store (in the compose stack, nginx forwards port 9000 to RustFS). |
 | `storage.region` | string | `us-east-1` | Optional | Region for signing (`RUSTFS`) or for building the endpoint (`S3`). Ignored for `STORAGE_ACCOUNT`. |
-| `storage.access_key_env` | string (variable name) | `RUSTFS_ACCESS_KEY` | Optional | Variable holding the access key. Falls back to `rustfsadmin` for `RUSTFS` when unset; empty for `S3`, which then uses the AWS SDK default credential chain. |
+| `storage.access_key_env` | string (variable name) | `RUSTFS_ACCESS_KEY` | Optional | Variable holding the access key. Falls back to `rustfsadmin` for `RUSTFS` when unset; empty for `S3`, which then uses the AWS SDK default credential chain. A non-empty value always wins, so **blank `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` in `core/.env` when switching to `S3`** (the sample ships them set to `rustfsadmin`). |
 | `storage.secret_key_env` | string (variable name) | `RUSTFS_SECRET_KEY` | Optional | Variable holding the secret key, same fallback rules. |
 | `storage.account_key_env` | string (variable name) | `STORAGE_ACCOUNT_KEY` | Optional (the variable is **mandatory** for `STORAGE_ACCOUNT`) | Variable holding the Azure shared key. Boot fails with `storage.provider STORAGE_ACCOUNT requires env var STORAGE_ACCOUNT_KEY.` when empty. |
 | `storage.connect_timeout` | float (seconds) | `3.0` | Optional | Per-request connect budget. |
@@ -202,13 +202,13 @@ Credentials and identity for the branches Nebula pushes and the pull requests it
 
 | YAML path | Type | Default | Requirement | Meaning and effect |
 |---|---|---|---|---|
-| `git.provider` | one of `GITHUB`, `AZURE_DEVOPS`, `GITLAB` (enum names) or `github.com`, `dev.azure.com`, `gitlab.com` (enum values) | `GITHUB` | Optional | Git hosting provider. Selects the pull-request API implementation and the host written into `~/.git-credentials`. Any other value, including an empty string, fails validation. |
+| `git.provider` | one of `GITHUB`, `AZURE_DEVOPS`, `GITLAB` (enum names) or `github.com`, `dev.azure.com`, `gitlab.com` (enum values) | `GITHUB` | Optional | Git hosting provider. Selects the pull-request API implementation and the host written into `~/.git-credentials`. Any other value, including an empty string, fails validation. The pull-request adapters support only the public SaaS hosts: `github.com`, `gitlab.com` (top-level namespace and project, no subgroups), and `dev.azure.com`. GitHub Enterprise Server, self-managed GitLab, and `*.visualstudio.com` URLs are rejected as malformed at pull-request time. |
 | `git.pat_user_env` | string (variable name) | `GIT_USER` | Optional | Variable holding the account username. |
 | `git.pat_token_env` | string (variable name) | `GIT_TOKEN` | Optional | Variable holding the personal access token. |
 | `git.author_name` | string | `Nebula` | Optional | Commit author name. |
 | `git.author_email` | string | `nebula@noreply.invalid` | Optional | Commit author e-mail. |
 
-At boot the core always sets the global git author identity. If both credential variables are non-empty it also writes `https://<user>:<token>@<provider-host>` to `~/.git-credentials` and enables the `store` credential helper. If either is empty it logs a warning and continues; pushes then need credentials from another source (mounted SSH keys, a pre-populated credentials file, or a token-bearing repository URL, which the API otherwise rejects).
+At boot the core always sets the global git author identity. If both credential variables are non-empty it also writes `https://<user>:<token>@<provider-host>` to `~/.git-credentials` and enables the `store` credential helper. If either is empty it logs a warning and continues; pushes then need credentials from another source (a pre-populated `~/.git-credentials`, or mounted SSH keys with an `ssh://` repository URL). Note that SSH covers clone and push only: pull-request creation and merge call the provider's REST API with `GIT_TOKEN` and require an HTTPS repository URL on the public host, so an SSH-only setup cannot open or merge pull requests. Repository URLs that embed a user name or token are rejected by the API.
 
 Requires rebuild: yes for the YAML; token values live in `core/.env`.
 

@@ -26,7 +26,7 @@ Short answers for people using the Nebula web application. The longer explanatio
 
 **Can I request several changes at once?** You can, but one intent per request produces better results and clearer reports. Use follow-ups for the next step; they run on the same branch.
 
-**Why was my repository URL rejected?** URLs that embed a user name or token are refused; enter the plain URL. The repository must also be reachable by Nebula's service account.
+**Why was my repository URL rejected?** URLs that embed a user name or token are refused; enter the plain HTTPS URL. Azure DevOps users: the portal's clone URL starts with `https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only `github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are supported for pull requests. The repository must also be reachable by Nebula's service account.
 
 **Why does the scope field not accept my value?** It accepts letters, digits, and hyphens only, up to 64 characters, and lower-cases the value. Underscores, dots, and spaces are not accepted.
 

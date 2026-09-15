@@ -14,7 +14,7 @@ Related guides: [Configuration](configuration.md) (every `config.yaml` field), [
 
 ## How Nebula uses LiteLLM
 
-Nebula configures two model roles in `config.yaml`. Both are applied by the core's LiteLLM Router; there is no provider enum in Nebula, so any model string LiteLLM understands is accepted.
+Nebula configures two model roles in `config.yaml`. Both are applied by the core's LiteLLM Router; there is no provider enum in Nebula, so any model string LiteLLM understands is accepted by the configuration. Whether a model *works* is a different matter; see [Model requirements](#model-requirements) below.
 
 | Key | Role | Used for |
 |---|---|---|
@@ -29,6 +29,17 @@ Two extra settings apply to both roles:
 | `llm.max_output_tokens` | `32000` | Sent as `max_tokens` (or `max_output_tokens` for the web-search path) on every call. Lower it if your provider caps completions below this value. |
 
 The core passes `drop_params=True` to LiteLLM, so a provider that does not support one of these parameters ignores it instead of failing.
+
+## Model requirements
+
+Nebula's agents are tool-calling loops, so the configuration accepting a model string does not mean the model can run a session. Both roles must provide:
+
+- **OpenAI-style function calling with forced tool choice.** Every agent call sends a `tools` list with `tool_choice: required` and expects well-formed JSON arguments back. Each loop ends only when the model calls its sentinel tool. Models without reliable function calling (many small self-hosted models) fail every session.
+- **A completion cap of at least `llm.max_output_tokens`** (32000 by default), or lower that setting to what the provider allows.
+- **Long context.** The generator receives the composed conventions, the repository excerpts it reads, and the plan output; models with short context windows truncate silently.
+- Optional: native `web_search_options` support, which LiteLLM reports per model. Without it the web-search tool falls back to the OpenAI Responses API path, which only works on OpenAI-compatible endpoints.
+
+The shipped and default models (Anthropic Claude and Google Gemini families, on Vertex AI or direct) satisfy all of these. Nebula has not tested every provider LiteLLM lists.
 
 ## The `provider/model-id` notation
 
@@ -71,7 +82,7 @@ Treat this check as a convenience, not a guarantee:
 
 - **Some providers have no validation mapping in LiteLLM.** For `azure_ai`, `databricks`, `watsonx`, `sambanova`, `anyscale`, and `snowflake` the check reports nothing missing even with no credentials set; the failure appears on the first LLM call instead.
 - **Unknown prefixes pass silently.** A string such as `nonexistent_provider/x` or a bare `model-name` without a provider is not rejected at boot.
-- **Vertex AI depends on ambient Google configuration.** In a clean environment LiteLLM reports `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` missing, but a host with Application Default Credentials or a Google Cloud SDK installation can satisfy the check even when those variables are unset.
+- **Vertex AI checks only the project and location variables.** Boot always requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` to be set; the check is a plain environment lookup and does not consult Application Default Credentials or a Google Cloud SDK installation. `VERTEXAI_CREDENTIALS` is not checked at boot: when it is unset, LiteLLM falls back to Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`) on the first call, and a missing credential file fails there.
 - **Only presence is checked, never validity.** A wrong or expired key passes validation and fails on the first call.
 - **Boot validation always uses the provider's default variable names**, even for `llm.model_list` entries that reference custom variables through `os.environ/...`. See the note under [Advanced routing](#advanced-routing-with-llmmodel_list).
 
@@ -167,7 +178,7 @@ VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
 
 `llm.model_list` follows the [LiteLLM Router format](https://docs.litellm.ai/docs/routing) and is passed to the Router verbatim. Use it only when you need something the two plain model strings cannot express:
 
-- **Fallbacks and load balancing.** Several entries sharing one `model_name` are load balanced; LiteLLM's router settings handle fallbacks between entries.
+- **Load balancing.** Several entries sharing one `model_name` are load balanced by the Router. Router-level **fallbacks** between different `model_name`s are **not** available: the core passes only `model_list` to the Router and exposes no `fallbacks` or `routing_strategy` setting. If the alias named by `llm.model` or `llm.small_model` has no healthy deployment, the call fails.
 - **Custom credential variable names.** A `litellm_params` value of the form `os.environ/VARIABLE_NAME` is resolved by LiteLLM from the environment at call time, so secrets stay out of `config.yaml`.
 - **Per-model endpoints**, such as a self-hosted OpenAI-compatible server for the small model and a cloud provider for the main model.
 
