@@ -14,9 +14,17 @@ import type { Session, PrDetails } from "@/types/ui";
 interface SessionContextValue {
   session: Session;
   updateSession: (patch: Partial<Session>) => void;
-  // Resets session and PR state for starting a new action from chat (same or different mode).
-  // Not wired up yet — will be connected when the "new action" chat flow is implemented.
+  /**
+   * Clears session and PR state. Called from the header logo so that going
+   * home also discards the information collected so far.
+   */
   resetSession: () => void;
+  /**
+   * Monotonic counter bumped by every `resetSession()` call. Consumers that
+   * own state outside this provider — the home wizard's steps and collected
+   * data — watch it to learn that a clear was requested elsewhere in the tree.
+   */
+  resetNonce: number;
   prDetails: PrDetails;
   updatePrDetails: (patch: Partial<PrDetails>) => void;
 }
@@ -34,6 +42,7 @@ export function SessionProvider({
 }: Readonly<{ children: React.ReactNode }>) {
   const [session, setSession] = useState<Session>(initialSession);
   const [prDetails, setPrDetails] = useState<PrDetails>(initialPrDetails);
+  const [resetNonce, setResetNonce] = useState(0);
 
   const updateSession = useCallback((patch: Partial<Session>) => {
     setSession((prev: Session) => ({ ...prev, ...patch }));
@@ -46,11 +55,26 @@ export function SessionProvider({
   const resetSession = useCallback(() => {
     setSession(initialSession);
     setPrDetails(initialPrDetails);
+    setResetNonce((n) => n + 1);
   }, []);
 
   const value = useMemo(
-    () => ({ session, updateSession, resetSession, prDetails, updatePrDetails }),
-    [session, updateSession, resetSession, prDetails, updatePrDetails],
+    () => ({
+      session,
+      updateSession,
+      resetSession,
+      resetNonce,
+      prDetails,
+      updatePrDetails,
+    }),
+    [
+      session,
+      updateSession,
+      resetSession,
+      resetNonce,
+      prDetails,
+      updatePrDetails,
+    ],
   );
 
   return (
