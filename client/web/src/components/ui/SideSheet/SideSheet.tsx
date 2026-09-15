@@ -45,14 +45,16 @@ export default function SideSheet({
   if (!isVisible) return null;
 
   return (
-    <div className={styles.overlay}>
-      <div
-        className={styles.content}
-        data-detail-content
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className={styles.overlay} data-detail-content>
+      <div className={styles.content}>
         <div className={styles.header}>
-          <Typography variant="subtitle1" component="h3" className={styles.title}>{title}</Typography>
+          <Typography
+            variant="subtitle1"
+            component="h3"
+            className={styles.title}
+          >
+            {title}
+          </Typography>
           <ButtonBase onClick={onClose} className={styles.close}>
             <CloseIcon style={{ fontSize: "18px" }} />
           </ButtonBase>
