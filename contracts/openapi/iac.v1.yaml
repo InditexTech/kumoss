@@ -58,25 +58,35 @@ info:
     than accepting them as no-ops. A field appears on a request only
     where the operation acts on it.
 
-    Generated provider blocks do not name a scope, so where the scope
-    is required the implementation injects `scope_id` into the engine's
-    environment for that command only, picking the variable from
+    Generated provider blocks do not name a scope, so where a cloud
+    exposes a provider-level environment variable that names one, the
+    implementation injects `scope_id` into the engine's environment
+    for that command only, picking the variable from
     `terraform_provider`:
 
-    | `terraform_provider` | Environment variable  |
-    |----------------------|-----------------------|
-    | `azure`              | `ARM_SUBSCRIPTION_ID` |
-    | `gcp`                | `GOOGLE_PROJECT`      |
-    | `aws`                | `AWS_ACCOUNT_ID`      |
-    | `oci`                | `OCI_TENANCY_OCID`    |
-    | `kubernetes`         | none                  |
+    | `terraform_provider` | Environment variable  | Scope it sets |
+    |----------------------|-----------------------|---------------|
+    | `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
+    | `gcp`                | `GOOGLE_PROJECT`      | project       |
+    | `aws`                | none                  | —             |
+    | `oci`                | none                  | —             |
+    | `kubernetes`         | none                  | —             |
 
-    `kubernetes` names no cloud scope, so nothing is injected for it;
-    `scope_id` is still required on the wire. Implementations MAY scope
-    a command by another mechanism instead (an AWS AssumeRole into the
-    account, a provider alias, a credential broker), as long as the
-    command runs against `scope_id` — callers need to know nothing
-    about which mechanism was used.
+    Only Azure and GCP have such a variable. An AWS account is implicit
+    in the credentials the provider resolves, and an OCI compartment or
+    a Kubernetes namespace is a resource argument rather than a
+    provider setting — no environment variable redirects a command to
+    one. For those providers this implementation injects nothing: the
+    command runs against whatever scope the deployment's ambient
+    credentials and configuration select, and making those agree with
+    `scope_id` is the deployment's responsibility. The pair stays
+    required on the wire so the intended scope is always stated, and
+    so implementations that can enforce it have what they need.
+
+    Implementations MAY scope a command by another mechanism instead
+    (an AWS AssumeRole into the account, a provider alias, a credential
+    broker), as long as the command runs against `scope_id` — callers
+    need to know nothing about which mechanism was used.
 
     Two failure planes are kept distinct:
 
@@ -941,19 +951,20 @@ components:
         scope_id:
           type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id, OCI:
-            tenancy OCID. Required: generated provider blocks do not
-            carry a scope, so the implementation injects it into the
-            engine's environment for this command only, choosing the
-            variable from `terraform_provider` (see "Scope injection").
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
           minLength: 1
           maxLength: 1024
         terraform_provider:
           $ref: "#/components/schemas/TerraformProvider"
           description: |
-            Cloud the command runs against. Selects the environment
-            variable `scope_id` is injected as (see "Scope injection").
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
 
     ValidateRequest:
       type: object
@@ -989,19 +1000,20 @@ components:
         scope_id:
           type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id, OCI:
-            tenancy OCID. Required: generated provider blocks do not
-            carry a scope, so the implementation injects it into the
-            engine's environment for this command only, choosing the
-            variable from `terraform_provider` (see "Scope injection").
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
           minLength: 1
           maxLength: 1024
         terraform_provider:
           $ref: "#/components/schemas/TerraformProvider"
           description: |
-            Cloud the command runs against. Selects the environment
-            variable `scope_id` is injected as (see "Scope injection").
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         targets:
           type: array
           description: |
@@ -1065,19 +1077,20 @@ components:
         scope_id:
           type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id, OCI:
-            tenancy OCID. Required: generated provider blocks do not
-            carry a scope, so the implementation injects it into the
-            engine's environment for this command only, choosing the
-            variable from `terraform_provider` (see "Scope injection").
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
           minLength: 1
           maxLength: 1024
         terraform_provider:
           $ref: "#/components/schemas/TerraformProvider"
           description: |
-            Cloud the command runs against. Selects the environment
-            variable `scope_id` is injected as (see "Scope injection").
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         plan_file:
           type: string
           description: |
@@ -1106,19 +1119,20 @@ components:
         scope_id:
           type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id, OCI:
-            tenancy OCID. Required: generated provider blocks do not
-            carry a scope, so the implementation injects it into the
-            engine's environment for this command only, choosing the
-            variable from `terraform_provider` (see "Scope injection").
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
           minLength: 1
           maxLength: 1024
         terraform_provider:
           $ref: "#/components/schemas/TerraformProvider"
           description: |
-            Cloud the command runs against. Selects the environment
-            variable `scope_id` is injected as (see "Scope injection").
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         address:
           type: string
           description: |

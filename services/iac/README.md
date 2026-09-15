@@ -59,21 +59,31 @@ schema forbids unknown properties, so sending one is also a `422`.
 
 Generated provider blocks name no scope, so for `init`, `plan` and
 `apply` the service injects `scope_id` into the engine subprocess's
-environment for that command only, under the variable
-`terraform_provider` selects:
+environment for that command only — where the cloud has a
+provider-level variable that names a scope:
 
-| `terraform_provider` | Environment variable  |
-|----------------------|-----------------------|
-| `azure`              | `ARM_SUBSCRIPTION_ID` |
-| `gcp`                | `GOOGLE_PROJECT`      |
-| `aws`                | `AWS_ACCOUNT_ID`      |
-| `oci`                | `OCI_TENANCY_OCID`    |
-| `kubernetes`         | none                  |
+| `terraform_provider` | Environment variable  | Scope it sets |
+|----------------------|-----------------------|---------------|
+| `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
+| `gcp`                | `GOOGLE_PROJECT`      | project       |
+| `aws`                | none                  | —             |
+| `oci`                | none                  | —             |
+| `kubernetes`         | none                  | —             |
 
-`kubernetes` names no cloud scope, so nothing is injected for it. The
-overlay is applied on top of the service's own environment, so it wins
-over an `ARM_SUBSCRIPTION_ID` (etc.) set on the container — ambient
-provider credentials are otherwise untouched.
+Only Azure and GCP have one. An AWS account is implicit in the
+credentials the provider resolves, and an OCI compartment or a
+Kubernetes namespace is a resource argument rather than a provider
+setting — no environment variable redirects a command to one. For those
+three the service injects nothing and the command runs against whatever
+scope its ambient credentials select, so a deployment that serves them
+is responsible for making those credentials agree with `scope_id`; it
+can also scope by another mechanism (an AWS AssumeRole into the
+account, a provider alias, a credential broker), which the contract
+explicitly allows.
+
+Where an overlay is applied it goes on top of the service's own
+environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
+container — ambient provider credentials are otherwise untouched.
 
 ## Configuration
 

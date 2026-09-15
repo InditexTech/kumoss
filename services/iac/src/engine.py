@@ -10,11 +10,13 @@ engines. Implementations that need more (state locking, custom
 backends, policy as code) should extend this or substitute their own.
 
 `init`, `plan` and `apply` reach the cloud, so they run with the
-request's `scope_id` injected into their environment under the
-variable its `terraform_provider` selects (see ``scope_env``).
-`validate` and `show` make no cloud API call and take no scope at
-all: they run on the service's own environment, unmodified. The
-contract's "Scope injection" section is normative.
+request's `scope_id` injected into their environment where the cloud
+exposes a provider-level variable that names a scope — Azure and GCP
+only (see ``scope_env``). The other providers have no such variable,
+so nothing is injected and the command runs on the service's ambient
+credentials. `validate` and `show` make no cloud API call and take no
+scope at all: they run on the service's own environment, unmodified.
+The contract's "Scope injection" section is normative.
 """
 
 from __future__ import annotations
@@ -36,15 +38,23 @@ _STDERR_LOG_LIMIT = 500
 _SCOPE_ENV_VARS: dict[str, str] = {
     "azure": "ARM_SUBSCRIPTION_ID",
     "gcp": "GOOGLE_PROJECT",
-    "aws": "AWS_ACCOUNT_ID",
-    "oci": "OCI_TENANCY_OCID",
 }
 
 
 def scope_env(terraform_provider: str, scope_id: str) -> dict[str, str]:
-    """Environment overlay scoping one command to ``scope_id``."""
+    """Environment overlay scoping one command to ``scope_id``.
+
+    Empty for providers with no variable that names a scope, whose
+    commands run on the service's ambient credentials instead.
+    """
     var = _SCOPE_ENV_VARS.get(terraform_provider)
-    return {} if var is None else {var: scope_id}
+    if var is None:
+        logger.info(
+            "no scope variable for provider=%s; command runs on ambient credentials",
+            terraform_provider,
+        )
+        return {}
+    return {var: scope_id}
 
 
 @dataclass

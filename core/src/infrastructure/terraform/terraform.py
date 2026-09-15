@@ -26,8 +26,9 @@ at the workspace path, which must be visible to the service. ``init``,
 ``scope_id`` (subscription / project / account) together with its
 ``terraform_provider``: generated provider blocks do not name a scope,
 so the service injects it into the engine's environment for those three
-commands, under the variable the provider selects. ``validate`` and
-``show`` reach no cloud API and are submitted unscoped.
+commands where the provider has a variable that names a scope (Azure
+and GCP). ``validate`` and ``show`` reach no cloud API and are
+submitted unscoped.
 """
 
 from __future__ import annotations

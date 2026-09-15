@@ -540,8 +540,8 @@ def test_unscoped_endpoints_run_unscoped(
     [
         ("azure", {"ARM_SUBSCRIPTION_ID": "scope-1"}),
         ("gcp", {"GOOGLE_PROJECT": "scope-1"}),
-        ("aws", {"AWS_ACCOUNT_ID": "scope-1"}),
-        ("oci", {"OCI_TENANCY_OCID": "scope-1"}),
+        ("aws", {}),
+        ("oci", {}),
         ("kubernetes", {}),
     ],
 )
@@ -549,8 +549,9 @@ def test_scope_is_injected_per_provider(
     terraform_provider: str, expected: dict[str, str], tmp_path: Path
 ) -> None:
     """scope_id reaches the engine as the environment overlay the
-    request's terraform_provider selects; kubernetes names no cloud
-    scope, so nothing is injected."""
+    request's terraform_provider selects, and only where that cloud has
+    a provider-level variable naming a scope. aws, oci and kubernetes
+    have none, so the engine is called with no overlay at all."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
