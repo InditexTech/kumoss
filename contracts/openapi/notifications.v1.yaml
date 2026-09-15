@@ -93,11 +93,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -143,6 +139,23 @@ components:
         environment variable named in the system config (default
         `NEBULA_NOTIFICATIONS_TOKEN`). If the implementation has no token
         configured, it MAY accept all requests for local development.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          description: |
+            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
+            least one challenge, so implementations must send this.
+          required: true
+          schema:
+            type: string
+            examples: ["Bearer"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
 
   schemas:
     NotificationRequest:

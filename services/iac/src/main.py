@@ -10,34 +10,39 @@ immediately; clients poll ``GET /v1/jobs/{job_id}`` for the raw
 ``{exit_code, stdout, stderr}`` result. Sequencing commands and
 interpreting their output is the caller's job. Jobs targeting the same
 workspace run one at a time in submission (FIFO) order. Submit-time
-errors (auth, malformed body, missing workspace, missing engine
-binary) are still reported synchronously on the POST; everything after
-submission surfaces through the job.
+errors (auth, malformed body, missing workspace) are still reported
+synchronously on the POST; everything after submission surfaces
+through the job.
+
+``init``, ``plan`` and ``apply`` run scoped to the request's
+``scope_id``, injected into the engine's environment under the
+variable its ``terraform_provider`` selects. ``validate`` and ``show``
+reach no cloud API, so their bodies declare no scope and reject one.
+
+The ``/v1/import`` endpoints are unimplemented: they answer 501
+without inspecting the request.
 """
 
 from __future__ import annotations
 
-import json
-import logging
-import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated, NoReturn
 from uuid import UUID
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 
-from . import cloud_cli
 from . import engine
-from .auth import verify_bearer_token
-from .config import Config, engine_available
+from .auth import bearer_scheme, verify_bearer_token
+from .config import Config, setup_logging
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
     Health,
-    ImportRequest,
     InitRequest,
     Job,
     JobAccepted,
@@ -45,33 +50,20 @@ from .models import (
     OperationResult,
     PlanRequest,
     Problem,
-    ScopeResourceIdsRequest,
     ShowRequest,
-    StateResourceIdsRequest,
     ValidateRequest,
+    WorkspaceRequest,
 )
 
 
-# Console logging for the service's own loggers ("iac.*": engine
-# operations). uvicorn only configures its own loggers, so without
-# this handler the operation logs would be invisible at the default
-# log level.
-_iac_logger = logging.getLogger("iac")
-if not _iac_logger.handlers:
-    _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
-    _iac_logger.addHandler(_handler)
-    _iac_logger.setLevel(logging.INFO)
-
 config = Config.from_env()
+setup_logging(config)
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     yield
     # Job records are in-memory only: cancelling here marks unfinished
     # jobs failed(503), and a restart forgets them entirely (clients see
@@ -87,7 +79,12 @@ app = FastAPI(
 )
 
 
-def _problem(status_code: int, title: str, detail: str | None = None) -> JSONResponse:
+def _problem(
+    status_code: int,
+    title: str,
+    detail: str | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
     payload = Problem(
         type="about:blank", title=title, status=status_code, detail=detail
     ).model_dump(exclude_none=True)
@@ -95,23 +92,26 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
         status_code=status_code,
         content=payload,
         media_type="application/problem+json",
+        headers=headers,
     )
 
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return _problem(exc.status_code, exc.detail or "HTTP error")
+async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
+    return _problem(exc.status_code, exc.detail or "HTTP error", headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
+    _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     return _problem(422, "Request validation failed", str(exc))
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def unhandled_exception_handler(
+    _request: Request, exc: Exception
+) -> JSONResponse:
     return _problem(500, "Internal server error", str(exc))
 
 
@@ -120,24 +120,26 @@ async def healthz() -> Health:
     return Health(status="ok")
 
 
-def _check_submit_preconditions(workspace_path: str, authorization: str | None) -> Path:
-    """Submit-time checks: auth, engine binary, workspace existence.
+async def require_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> None:
+    """Reject the request unless it carries the configured bearer token."""
+    verify_bearer_token(config, credentials)
 
-    Everything that fails after these (the engine command itself)
+
+async def resolve_workspace(body: WorkspaceRequest) -> Path:
+    """Resolve the submit body's ``workspace_path`` to an existing directory.
+
+    Binds to the shared ``WorkspaceRequest`` base so one dependency
+    serves all five submit endpoints. The parameter must stay named
+    ``body`` to match the endpoints': FastAPI only collapses a
+    dependency's body param into the endpoint's documented body when
+    the two share a name, and embeds both under separate keys if not.
+
+    Everything that fails after this (the engine command itself)
     surfaces through the job instead.
     """
-    verify_bearer_token(config, authorization)
-
-    if not engine_available(config.iac_binary):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                f"IaC engine binary '{config.iac_binary}' not found "
-                "in PATH on the IaC service."
-            ),
-        )
-
-    workspace = Path(workspace_path)
+    workspace = Path(body.workspace_path)
     try:
         is_dir = workspace.is_dir()
     except OSError as exc:
@@ -152,6 +154,10 @@ def _check_submit_preconditions(workspace_path: str, authorization: str | None) 
             detail=f"workspace_path does not exist or is not a directory: {workspace}",
         )
     return workspace
+
+
+Authenticated = Depends(require_bearer_token)
+Workspace = Annotated[Path, Depends(resolve_workspace)]
 
 
 async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
@@ -182,18 +188,19 @@ def _submit(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["init"],
+    dependencies=[Authenticated],
 )
 async def init(
     body: InitRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: str | None = Header(default=None),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "init",
         workspace,
         response,
-        lambda: engine.init(config.iac_binary, workspace),
+        lambda: engine.init(config.iac_binary, workspace, env),
     )
 
 
@@ -202,13 +209,13 @@ async def init(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["validate"],
+    dependencies=[Authenticated],
 )
 async def validate(
-    body: ValidateRequest,
+    body: ValidateRequest,  # pyright: ignore[reportUnusedParameter]
+    workspace: Workspace,
     response: Response,
-    authorization: str | None = Header(default=None),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "validate",
         workspace,
@@ -222,18 +229,21 @@ async def validate(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["plan"],
+    dependencies=[Authenticated],
 )
 async def plan(
     body: PlanRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: str | None = Header(default=None),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "plan",
         workspace,
         response,
-        lambda: engine.plan(config.iac_binary, workspace, body.targets, body.plan_file),
+        lambda: engine.plan(
+            config.iac_binary, workspace, body.targets, body.plan_file, env
+        ),
     )
 
 
@@ -242,13 +252,13 @@ async def plan(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["show"],
+    dependencies=[Authenticated],
 )
 async def show(
     body: ShowRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: str | None = Header(default=None),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
     return _submit(
         "show",
         workspace,
@@ -262,109 +272,66 @@ async def show(
     response_model=JobAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["apply"],
+    dependencies=[Authenticated],
 )
 async def apply(
     body: ApplyRequest,
+    workspace: Workspace,
     response: Response,
-    authorization: str | None = Header(default=None),
 ) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "apply",
         workspace,
         response,
-        lambda: engine.apply(config.iac_binary, workspace, body.plan_file),
+        lambda: engine.apply(config.iac_binary, workspace, body.plan_file, env),
+    )
+
+
+def _import_not_implemented() -> NoReturn:
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Import is not implemented by this service.",
     )
 
 
 @app.post(
     "/v1/import",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def import_resource(
-    body: ImportRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    return _submit(
-        "import",
-        workspace,
-        response,
-        lambda: engine.import_resource(
-            config.iac_binary, workspace, body.address, body.resource_id
-        ),
-    )
+async def import_resource() -> Problem:
+    _import_not_implemented()
 
 
 @app.post(
     "/v1/import/state-resource-ids",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def state_resource_ids(
-    body: StateResourceIdsRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    record = jobs.submit(
-        kind="state_resource_ids",
-        workspace=workspace,
-        pipeline=lambda: _state_resource_ids_op(workspace),
-    )
-    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
-    return JobAccepted(job_id=record.job_id)
-
-
-async def _state_resource_ids_op(workspace: Path) -> OperationResult:
-    result = await engine.state_pull(config.iac_binary, workspace)
-    if not result.ok:
-        return OperationResult(
-            exit_code=result.exit_code, stdout="", stderr=result.stderr
-        )
-    ids = engine.extract_managed_resource_ids(result.stdout)
-    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
+async def state_resource_ids() -> Problem:
+    _import_not_implemented()
 
 
 @app.post(
     "/v1/import/scope-resource-ids",
-    response_model=JobAccepted,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Problem,
+    status_code=status.HTTP_501_NOT_IMPLEMENTED,
     tags=["import"],
 )
-async def scope_resource_ids(
-    body: ScopeResourceIdsRequest,
-    response: Response,
-    authorization: str | None = Header(default=None),
-) -> JobAccepted:
-    workspace = _check_submit_preconditions(body.workspace_path, authorization)
-    if not cloud_cli.cli_available(body.terraform_provider):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                f"Cloud CLI '{cloud_cli.CLI_BINARIES[body.terraform_provider]}' "
-                f"for provider '{body.terraform_provider}' not found in PATH "
-                "on the IaC service."
-            ),
-        )
-    return _submit(
-        "scope_resource_ids",
-        workspace,
-        response,
-        lambda: cloud_cli.list_resource_ids(body.terraform_provider, body.scope_id),
-    )
+async def scope_resource_ids() -> Problem:
+    _import_not_implemented()
 
 
-@app.get("/v1/jobs/{job_id}", response_model=Job, tags=["jobs"])
-async def get_job(
-    job_id: UUID,
-    authorization: str | None = Header(default=None),
-) -> Job:
-    verify_bearer_token(config, authorization)
+@app.get(
+    "/v1/jobs/{job_id}",
+    response_model=Job,
+    tags=["jobs"],
+    dependencies=[Authenticated],
+)
+async def get_job(job_id: UUID) -> Job:
     record = jobs.get(str(job_id))
     if record is None:
         raise HTTPException(

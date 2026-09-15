@@ -87,13 +87,33 @@ class TestGenerateRequest(unittest.TestCase):
 
     def test_first_call_requires_terraform_providers(self):
         with self.assertRaises(ValidationError):
-            GenerateRequest(repo_uri="https://example.com/foo.git", q="x")
+            GenerateRequest(
+                repo_uri="https://example.com/foo.git", scope_id="sub-123", q="x"
+            )
+
+    def test_first_call_requires_scope_id(self):
+        with self.assertRaises(ValidationError):
+            GenerateRequest(
+                repo_uri="https://example.com/foo.git",
+                terraform_providers="azure",
+                q="x",
+            )
+
+    def test_first_call_rejects_a_blank_scope_id(self):
+        with self.assertRaises(ValidationError):
+            GenerateRequest(
+                repo_uri="https://example.com/foo.git",
+                terraform_providers="azure",
+                scope_id="",
+                q="x",
+            )
 
     def test_rejects_credentials_embedded_in_the_uri(self):
         with self.assertRaises(ValidationError):
             GenerateRequest(
                 repo_uri="https://user:ghp_secret@example.com/foo.git",
                 terraform_providers="azure",
+                scope_id="sub-123",
                 q="x",
             )
 
@@ -107,6 +127,7 @@ class TestDriftRequest(unittest.TestCase):
         req = DriftRequest(
             repo_uri="https://example.com/foo.git",
             terraform_providers="azure",
+            scope_id="sub-123",
             q="check drift",
             is_partial=True,
         )
@@ -117,6 +138,7 @@ class TestDriftRequest(unittest.TestCase):
         req = DriftRequest(
             repo_uri="https://example.com/foo.git",
             terraform_providers="azure",
+            scope_id="sub-123",
             q="detect all drift",
         )
         self.assertFalse(req.is_partial)
@@ -126,6 +148,7 @@ class TestDriftRequest(unittest.TestCase):
             DriftRequest(
                 repo_uri="https://example.com/foo.git",
                 terraform_providers="azure",
+                scope_id="sub-123",
                 is_partial=True,
                 q=" ",
             )
