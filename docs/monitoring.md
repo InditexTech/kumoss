@@ -1,0 +1,147 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Monitoring with Phoenix
+
+Nebula records what its agents do as **traces**: for every session run, the prompts sent to the language model, the tool calls the model made, the Terraform validations, and the results. Traces are exported with OpenTelemetry using the OpenInference conventions and, in the default Compose stack, collected and displayed by [Arize Phoenix](https://arize.com/docs/phoenix).
+
+This guide covers tracing only. Phoenix also hosts Nebula's runtime prompt registry; that is a separate function described in [Phoenix prompt templates](phoenix-prompt-templates.md). How Phoenix is deployed in each model is covered by [Getting started: local/non-production](getting-started-local.md) and [Getting started: production](getting-started-production.md).
+
+> **Data sensitivity.** Phoenix receives, in clear text, the full system prompts, the user's requests and conversation history, repository metadata (URL, path, branch), Terraform plans and validation errors, tool inputs and outputs (which can include file contents from the repository), model outputs including generated code, and the session identifier plus the **user's e-mail address** (as `user.id`) on every span. Nothing is redacted or truncated apart from a cap on the number of attributes. Operators must put Phoenix behind access control, decide on retention, and tell users not to paste secrets into requests or commit them into IaC. The default stack exposes Phoenix at `/monitoring/` on the same port as the application, with **no authentication of its own**.
+
+## What ships in the Compose stack
+
+| Component | Role |
+|---|---|
+| `phoenix` (`arizephoenix/phoenix:20.6.0`) | Receives traces over OTLP/HTTP on port 6006 and serves the UI (port 4317, OTLP/gRPC, is also exposed on the Compose network but unused by Nebula). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works behind the proxy prefix. Its MCP server is disabled. |
+| `phoenix-db` (PostgreSQL 17) | Persistence for Phoenix. Traces and prompts survive restarts in the `phoenix_db_data` volume. |
+| `proxy` (nginx) | Forwards `/monitoring/` to Phoenix. |
+
+Browser paths:
+
+- `http://localhost/monitoring/` opens Phoenix.
+- `http://localhost/monitoring/projects` lists the projects. The admin panel's **Phoenix** link points here.
+
+Only the proxy publishes host ports; Phoenix is not reachable directly from the host in the default stack.
+
+## Configuration
+
+All keys are in `config.yaml` under `telemetry` (details in the [configuration reference](configuration.md#telemetry)):
+
+| Key | Default in `config.yaml` | Meaning |
+|---|---|---|
+| `telemetry.collector_url` | `http://phoenix:6006/` | Base URL of the OTLP/HTTP collector. The core appends `v1/traces` by string concatenation, so the value **must end in `/`**. The code default `http://localhost:6006/` only works when the core runs outside Docker. |
+| `telemetry.otel_attribute_count_limit` | `1024` | Maximum attributes per span. Long conversations produce many `llm.input_messages.N.*` attributes. When the limit is hit the OpenTelemetry SDK drops the **oldest** attributes first, and on LLM spans those are `session.id`, `user.id`, `metadata`, the span kind, and the model name, so an over-long span loses its identity rather than its messages. Raise this for long sessions. |
+| `telemetry.otel_console_exporter` | `false` | Also print spans to the core's standard output. Useful for debugging without Phoenix, but spans carry prompts and plans. |
+
+**Replacing Phoenix as the trace collector.** The exporter is the standard OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts OTLP/HTTP on `<collector_url>v1/traces` (an OpenTelemetry Collector, a vendor endpoint) receives the spans. Two caveats:
+
+- The core sets no headers on the exporter itself, but the OpenTelemetry SDK reads `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) from the core's environment, and the Phoenix client used for prompts reads `PHOENIX_API_KEY`. Set those in the core's environment to reach an authenticated destination, or put an OpenTelemetry Collector in between.
+- Today `telemetry.collector_url` is **also** the base URL of the Phoenix client used for prompt seeding and fetching. Pointing it at a non-Phoenix collector breaks startup. To send traces elsewhere while keeping Phoenix for prompts, forward from Phoenix or place a collector at the same base URL that proxies the prompt API.
+
+## Projects
+
+Phoenix groups traces into projects. Nebula picks the project from the `environment` setting and the session's operation:
+
+| `environment` | Generate | Drift | Import |
+|---|---|---|---|
+| `development` | `dev-terraform-day2` | `dev-terraform-drift` | `dev-terraform-import` |
+| `staging` | `pre-terraform-day2` | `pre-terraform-drift` | `pre-terraform-import` |
+| `production` | `pro-terraform-day2` | `pro-terraform-drift` | `pro-terraform-import` |
+
+Notes:
+
+- `day2` is the project used for **generate** operations.
+- Apply runs re-use the operation of the session they belong to (generate or drift), so apply spans appear in the `day2` or `drift` project of that session.
+- The `import` projects are created (every provider is initialised at startup) but no current code path routes spans to them, because the core has no import operation yet (see [Operating modes](modes.md)). Expect them to be empty.
+- Each project has exactly one resource attribute, `openinference.project.name`. There is no `service.name` or version.
+
+## What a trace contains
+
+Nebula instruments four kinds of work with decorators in the domain layer; each produces one span type. Attribute keys follow the OpenInference semantic conventions.
+
+### 1. Agent (chain) spans
+
+- **Name:** `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`, `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain - REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain - COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain - TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain - STATUS_UPDATE`.
+- **Kind:** `AGENT`.
+- **Input:** the query handed to the chain (`input.value`).
+- **Output:** the chain's result, unwrapped to its `summary`, `explanation`, or `description` field when it is a tool result (`output.value`).
+- **Metadata:** the common metadata plus `chain_type`.
+
+One chain span is opened per orchestration step (filtering, target generation, code generation, reporting, and so on).
+
+### 2. LLM spans
+
+- **Name:** `Async Inference`.
+- **Kind:** `LLM`.
+- **Model and provider:** `llm.model_name`, and `llm.provider` when the LiteLLM prefix maps to an OpenInference provider name.
+- **Invocation parameters:** `llm.invocation_parameters` with the request arguments minus the bulky message and tool payloads (temperature, max tokens, retries, timeout, reasoning effort).
+- **Messages:** `llm.input_messages.N.message.role` and `.content` for the system prompt, the conversation history (user, assistant, tool results with their `tool_call_id`), and the current message; assistant tool calls appear under `.message.tool_calls.M.*`.
+- **Available tools:** `llm.tools.N.tool.json_schema`.
+- **Output:** `output.value` (text, or JSON with text and tool calls) and `llm.output_messages.0.*` including the tool calls made.
+- **Token counts:** `llm.token_count.prompt`, `llm.token_count.completion`, `llm.token_count.total`.
+
+### 3. Tool spans
+
+- **Name:** `Tool call - <tool name>`.
+- **Kind:** `TOOL`.
+- **Identity:** `tool.name`, `tool.id`.
+- **Arguments:** `tool.parameters` and `input.value`.
+- **Result:** `output.value`, a JSON document with `name`, `tool_call_id`, `success`, `result`, and `error_message`. A tool that returns a failure is recorded with `success: false` and its message here; the span status itself stays `OK`. A tool whose execution raises produces no span at all.
+
+### 4. Terraform evaluator spans
+
+- **Name:** `Terraform - validation True` or `Terraform - validation False`.
+- **Kind:** `EVALUATOR`.
+- **Input:** the validation arguments (targets and whether drift was requested; empty for apply).
+- **Output:** the Terraform plan text on success, or the validation feedback (engine errors) on failure. Apply runs also produce one of these spans.
+
+### Common metadata
+
+Every span of every kind carries:
+
+- `session.id` and `user.id` as top-level attributes. `user.id` is the user's e-mail address (or `user-<id>` when the account has none), so traces contain personal data;
+- a `metadata` JSON attribute with `session_id`, `user_id` (the same e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`, `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
+
+Use `session.id` to find everything that happened in one session.
+
+### How spans relate
+
+Do not expect a deep tree. The current implementation produces:
+
+- **Chain spans are roots.** Each orchestration step starts a new chain span and remembers it as the current root.
+- **LLM and tool spans are children of the current chain span**, as siblings of each other. A tool span is *not* nested under the LLM span that requested the call.
+- **Terraform evaluator spans have no parent.** Each one is a single-span trace of its own, linked to the rest only through `session.id` in the metadata.
+
+Child spans are created after their work finishes, with a back-dated start time, so durations are correct even though the nesting is flat.
+
+## What is *not* recorded
+
+- **Errors and exceptions.** Span status is always `OK`. When a chain, model call, tool, or Terraform command raises, the corresponding span is never ended and therefore never exported; a failed run appears truncated in Phoenix rather than marked failed. Tool-level failures are visible only as `success: false` in the tool span output. Use the session status and failure message in the application or the [admin portal](admin-portal.md) for error triage.
+- **Metrics, dashboards, alerts, evaluations.** Nebula emits traces only. Phoenix's evaluation and dataset features are available in the UI but nothing in Nebula populates them.
+- **Logs.** Application logs go to the container's standard output and are not correlated with traces.
+- **Sidecar activity.** The sidecars are not instrumented; engine commands appear only through the core's Terraform evaluator spans.
+
+## Startup and shutdown
+
+- Tracer providers for all nine projects are created when the core module is imported, before the FastAPI application starts. Each has a batching span processor with the OpenTelemetry SDK defaults (export every 5 seconds, batches of up to 512 spans, queue of 2048).
+- Span creation never touches the network; export happens on a background thread. If the collector is unreachable, the exporter retries with back-off within its timeout, logs `Failed to export span batch`, and drops the batch. Sessions are not affected; the traces are simply lost.
+- There is no startup connectivity check for the trace endpoint. The core does, however, need Phoenix's HTTP API at the same base URL for prompt seeding: it retries the connection for about 27 seconds and then aborts the boot. In the bundled stack that makes Phoenix effectively required at startup.
+- On shutdown the lifespan handler calls `shutdown()` on every provider, which drains pending spans (within a 30-second budget) before the process exits.
+
+## Troubleshooting
+
+**Phoenix does not open at `/monitoring/`.** Check `docker compose ps` for the `phoenix` and `phoenix-db` containers and `docker compose logs phoenix`. Phoenix waits for its database; a slow first start is normal. The proxy returns `502` until Phoenix listens.
+
+**Core exits at boot with `Phoenix unreachable after 8 attempts`.** The core could not reach `telemetry.collector_url` for prompt seeding. Confirm the URL resolves from inside the core container (`http://phoenix:6006/` in the stack), that the value ends with `/`, and that Phoenix is up. Start Phoenix first or restart the core.
+
+**No traces appear.** Confirm the project: with the default `environment: development`, generate runs are in `dev-terraform-day2` and drift runs in `dev-terraform-drift`. Check the core logs for `Failed to export span batch`, which means the OTLP endpoint `<collector_url>v1/traces` was not reachable when the batch was sent. Traces are exported in batches every few seconds; wait a moment and refresh.
+
+**A session failed but its trace looks incomplete.** Expected: spans for work that raised are not exported. Use the session's failure message and artifacts.
+
+**A long LLM span has no `session.id`, shows an unknown span kind, or does not appear in a session search.** The attribute count hit `telemetry.otel_attribute_count_limit`; the SDK dropped the oldest attributes, which on LLM spans are the identity and kind fields, not the messages. Raise the limit and rebuild the core image.
+
+**Traces from a different environment are mixed in.** The project prefix comes from `environment` in the core's baked-in `config.yaml`; rebuild after changing it. Prompt tags follow the same value, so also read [Phoenix prompt templates](phoenix-prompt-templates.md) before changing it on an existing deployment.

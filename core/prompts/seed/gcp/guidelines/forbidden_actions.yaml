@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP actions Nebula must never generate (security and cost guardrails).
+body: |
+  # STRICTLY FORBIDDEN GCP ACTIONS
+
+  Never generate Terraform that performs any of the following. If a
+  request requires one of these, refuse and explain why.
+
+  ## Networking
+  - Firewall rules with `source_ranges = ["0.0.0.0/0"]` on ports
+    other than 80 and 443, including SSH (22) and RDP (3389); use
+    Identity-Aware Proxy TCP forwarding for administrative access.
+  - External IP addresses on Cloud SQL instances, Memorystore
+    instances, GKE nodes, or Compute Engine instances intended for
+    internal use.
+  - Deploying resources into the `default` network or creating
+    auto-mode VPC networks.
+  - Disabling VPC Flow Logs or Private Google Access on existing
+    subnetworks.
+  - Public (non-private) GKE control planes or node pools without an
+    explicit user request.
+
+  ## Identity and access
+  - Binding `roles/owner` or `roles/editor` to service accounts, or
+    binding any role at organization or folder scope, without an
+    explicit user request.
+  - IAM bindings for `allUsers` or `allAuthenticatedUsers` on any
+    resource other than a public website bucket or a public Cloud Run
+    service explicitly requested by the user.
+  - Creating user-managed service account keys
+    (`google_service_account_key`); prefer workload identity
+    federation or attached runtime service accounts.
+  - Storing credentials in instance metadata, startup scripts,
+    labels, descriptions, or Terraform outputs.
+
+  ## Data
+  - Disabling uniform bucket-level access or enabling public access
+    prevention `inherited` on Cloud Storage buckets.
+  - Setting `deletion_protection = false` on Cloud SQL instances,
+    Spanner instances, BigQuery tables, or GKE clusters without an
+    explicit user request.
+  - Removing customer-managed encryption keys (CMEK) from resources
+    that already use them.
+  - Deleting or replacing stateful resources (Cloud SQL, Spanner,
+    BigQuery, Cloud Storage, Persistent Disks) without an explicit
+    `lifecycle.prevent_destroy = true` override request from the user.
+
+  ## Cost
+  - Provisioning accelerator-optimized or memory-optimized machine
+    families (e.g. `a2-*`, `a3-*`, `g2-*`, `m2-*`, `m3-*`) or GPUs
+    without an explicit user request.
+  - Creating Compute Engine instances with no schedule or
+    auto-scaling policy in non-production environments.
+  - Purchasing committed-use discounts, BigQuery slot reservations,
+    or Spanner processing units above the minimum without explicit
+    capacity planning from the user.
+  - Enabling multi-region Cloud Storage or Spanner configurations
+    without an explicit user request.
+
+  Replace this body with your organization's authoritative
+  forbidden-action policy.

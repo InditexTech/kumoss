@@ -9,10 +9,7 @@ const GreetingScreen = () => {
   return (
     <Fade in timeout={500}>
       <div className={`${styles.greetingScreen} ${styles.greetingContainer}`}>
-        <p className={styles.greetingTitle}>
-          <span>NEBULA</span>
-          <span>.AI</span>
-        </p>
+        <p className={styles.greetingTitle}>NEBULA</p>
       </div>
     </Fade>
   );
