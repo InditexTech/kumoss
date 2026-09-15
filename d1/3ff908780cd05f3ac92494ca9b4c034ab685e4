@@ -1,0 +1,16 @@
+README.md
+  h_f224e8cf34c0b8 13,30-31,33,42,44,46-47,51,57,74-76,136
+docs/getting-started-local.md
+  h_f224e8cf34c0b8 23,25-27,30,32,50,97,131,152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d13ff908780cd05f3ac92494ca9b4c034ab685e4",
+  "prompts": {},
+  "humans": {
+    "h_f224e8cf34c0b8": {
+      "author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
