@@ -66,7 +66,6 @@ class ITerraform(ABC):
               pinning that workspace at round end is what makes the plan
               appliable later
         """
-        pass
 
     @abstractmethod
     async def apply(self) -> TerraformValidationDTO:
@@ -93,4 +92,3 @@ class ITerraform(ABC):
             ExceptionHandler: When the IaC service is disabled, unreachable,
                              times out, or reports a service-level job failure
         """
-        pass

@@ -31,6 +31,7 @@ from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
 from src.domains.services.tracer_service import TracerService
 from src.infrastructure.terraform import terraform as tv
+from src.infrastructure.terraform.backend import TerraformBackend
 from src.shared.config.system_config import IacServiceConfig
 from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
@@ -98,10 +99,13 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         tracer_patcher.start()
         self.addCleanup(tracer_patcher.stop)
 
+        self.backend = MagicMock(spec=TerraformBackend)
+        self.backend.apply.return_value = True
         self.terraform = tv.Terraform(
             workspace_path=Path("/workspaces/demo"),
             scope_id=SCOPE_ID,
             terraform_provider=TERRAFORM_PROVIDER,
+            backend=self.backend,
         )
 
     def _use_config(self, **overrides) -> IacServiceConfig:
@@ -204,6 +208,8 @@ class TestTerraformValidate(_TerraformTestCase):
 
         init_body = submit_mocks["init"].await_args.kwargs["body"]
         self.assertEqual(init_body.workspace_path, "/workspaces/demo")
+        # The state backend lands in the workspace before init reads it.
+        self.backend.apply.assert_called_once_with(Path("/workspaces/demo"))
         plan_body = submit_mocks["plan"].await_args.kwargs["body"]
         self.assertEqual(plan_body.targets, ["module.db"])
 
@@ -326,6 +332,7 @@ class TestTerraformValidate(_TerraformTestCase):
                     workspace_path=Path("/workspaces/demo"),
                     scope_id=SCOPE_ID,
                     terraform_provider=TERRAFORM_PROVIDER,
+                    backend=self.backend,
                 )
 
                 with self.assertRaises(ExceptionHandler) as ctx:

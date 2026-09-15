@@ -84,10 +84,6 @@ class TerraformApplyHandler:
                     await NotificationServiceClient.notify_apply_failure(
                         ctx.id, ctx.user_id, report.execution_summary
                     )
-                    raise TerraformValidationFailedError(
-                        message=report.execution_summary,
-                        error_code=500,
-                    )
             finally:
                 self.__workspace_svc.discard_pinned(ctx.id)
                 await self.__session_svc.save()

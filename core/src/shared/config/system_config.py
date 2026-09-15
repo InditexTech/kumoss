@@ -358,12 +358,21 @@ class StorageConfig(BaseModel):
     host the browser will actually fetch, ``public_endpoint_url``. Azure
     account-key SAS has no such Host binding, so for STORAGE_ACCOUNT the
     URLs only differ in emulator-style split setups.
+
+    ``terraform_state_bucket`` names a second bucket (blob container on
+    STORAGE_ACCOUNT) in the same store, holding the Terraform state of
+    the projects Nebula manages. It is separate from ``bucket`` so that
+    state does not inherit whatever lifecycle or presign policy the
+    artifacts bucket carries. Empty turns managed state off: no backend
+    override is written and each workspace keeps the backend its own
+    configuration declares.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
     # core/src/shared/constants.py::ObjectStorageProvider).
     provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
     bucket: str = "nebula-artifacts"
+    terraform_state_bucket: str = "nebula-terraform-state"
     endpoint_url: str = "http://object-storage:9000"
     public_endpoint_url: str = "http://localhost:9000"
     region: str = "us-east-1"
@@ -399,6 +408,11 @@ class StorageConfig(BaseModel):
     @property
     def account_key(self) -> str:
         return _env(self.account_key_env)
+
+    @property
+    def state_bucket(self) -> str:
+        """The Terraform state bucket, or "" when state is not managed."""
+        return self.terraform_state_bucket.strip()
 
     @property
     def storage_account_name(self) -> str:

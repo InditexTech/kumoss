@@ -35,6 +35,7 @@ from src.infrastructure.filesystem import (
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.terraform.factory import TerraformFactory
+from src.infrastructure.terraform.utils import TerraformUtils
 
 # Application layer imports
 from src.application.services import (
@@ -209,6 +210,11 @@ class ApplicationFactory:
             project_root=project_root,
             scope_id=self.__ctx.scope_id,
             terraform_provider=self.__ctx.terraform_prv,
+            project_id=TerraformUtils.project_id(
+                repo_uri=self.__ctx.repo_uri,
+                scope_id=self.__ctx.scope_id,
+                iac_path=self.__ctx.iac_path,
+            ),
         ).get()
 
     def _get_terraform_validation_service(

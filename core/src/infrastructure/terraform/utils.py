@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
 import json
+from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import urlparse
 
 import deepdiff
 
@@ -11,6 +14,46 @@ from src.shared.exceptions import ExceptionHandler
 
 
 class TerraformUtils:
+    @staticmethod
+    def project_id(repo_uri: str, scope_id: str, iac_path: str) -> str:
+        """Identify the Terraform project a session operates on.
+
+        Digest over the triple that decides which state a run belongs
+        to: the repository, the cloud scope it deploys into, and the
+        root module within the repository. Independent of where the
+        repository was cloned, so every call and every session on the
+        same project resolves to the same state — which the clone
+        directory, recreated per call, cannot express.
+
+        The repository URI is normalized first: it reaches here in
+        whatever form the caller used, and credentials embedded for
+        push, a ``.git`` suffix or a different case must not split one
+        project into several.
+        """
+        seed = "\n".join(
+            (
+                TerraformUtils.__normalize_repo_uri(repo_uri),
+                scope_id.strip().lower(),
+                TerraformUtils.__normalize_iac_path(iac_path),
+            )
+        )
+        return hashlib.sha256(seed.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def __normalize_repo_uri(repo_uri: str) -> str:
+        uri = repo_uri.strip()
+        if "://" not in uri and "@" in uri:
+            uri = "ssh://" + uri.replace(":", "/", 1)
+        parsed = urlparse(uri)
+        host = (parsed.hostname or "").lower()
+        path = parsed.path.strip("/").removesuffix(".git").strip("/").lower()
+        return f"{host}/{path}"
+
+    @staticmethod
+    def __normalize_iac_path(iac_path: str) -> str:
+        path = iac_path.strip().strip("/")
+        return PurePosixPath(path).as_posix() if path else ""
+
     @staticmethod
     def plan_to_drift(
         plan_json: dict[str, Any], reversed: bool = False

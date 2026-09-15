@@ -183,6 +183,14 @@ http:
 # the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
 # ignored).
 #
+# `terraform_state_bucket` is a second bucket (blob container on
+# STORAGE_ACCOUNT) in that same store, holding the Terraform state of
+# the projects Nebula manages: the core creates it at boot and writes a
+# matching backend into every workspace before `init`, keyed by project,
+# so the same store serves artifacts and state. Blank turns managed
+# state off — each workspace then keeps the backend its own Terraform
+# code declares.
+#
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
 # (108000) or over the SigV4 7-day limit (604800).
@@ -192,6 +200,7 @@ http:
 storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
+  terraform_state_bucket: "nebula-terraform-state"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"

@@ -22,7 +22,7 @@ from src.api.v1 import (
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
-from src.infrastructure.storage import default_object_storage
+from src.infrastructure.storage import default_object_storage, terraform_state_storage
 from src.infrastructure.telemetry._initializer import shutdown_tracer_providers
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
@@ -48,18 +48,16 @@ async def lifespan(app: FastAPI):
         logging.error(f"Failed to initialize redis: {e}")
         raise
 
-    # A missing bucket would fail every artifact write in a worse place,
-    # so surface a broken store at boot like db/redis.
     try:
         await default_object_storage().ensure_bucket()
+        state_storage = terraform_state_storage()
+        if state_storage is not None:
+            await state_storage.ensure_bucket()
         logging.info("Object storage initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize object storage: {e}")
         raise
 
-    # Seed Phoenix with example prompts so a fresh deployment is runnable
-    # end-to-end. Only the prompts missing from Phoenix are created;
-    # user-curated prompts are left alone. Boot fails if seeding fails.
     try:
         await build_default_seeder().ensure_seeded()
     except Exception as e:

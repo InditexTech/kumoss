@@ -43,6 +43,7 @@ from uuid import UUID
 
 import httpx
 
+from .backend import TerraformBackend
 from .utils import TerraformUtils
 from src.clients.iac.api.apply import apply as apply_op
 from src.clients.iac.api.init import init as init_op
@@ -87,10 +88,12 @@ class Terraform(ITerraform):
         workspace_path: Path,
         scope_id: str,
         terraform_provider: TerraformProvider,
+        backend: TerraformBackend,
     ):
         self.__workspace_path = workspace_path
         self.__scope_id = scope_id
         self.__terraform_provider = IacTerraformProvider(terraform_provider.value)
+        self.__backend = backend
         self.__initialized = False
 
     @trace_terraform
@@ -266,6 +269,8 @@ class Terraform(ITerraform):
         """
         if self.__initialized:
             return None
+        if system_config.storage.state_bucket:
+            self.__backend.apply(self.__workspace_path)
         init_res = await self.__run_op(
             client,
             init_op,

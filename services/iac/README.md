@@ -85,12 +85,43 @@ Where an overlay is applied it goes on top of the service's own
 environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
 container — ambient provider credentials are otherwise untouched.
 
+## State backend
+
+The service does not choose where state goes. `init` reads the
+backend from the workspace it is handed, which is the caller's to
+prepare: Nebula's core writes a `backend_override.tf` into the
+workspace before calling `init`, pinning state to the object store it
+already holds the credentials for (see the core's
+`storage.terraform_state_bucket`). Terraform merges `*_override.tf`
+over the rest of the configuration, so an override both introduces a
+backend where the workspace declares none and replaces one that it
+does declare — any caller can use the same trick.
+
+`IAC_BACKEND_CONFIG` is the escape hatch for a deployment that owns the
+decision instead. Set it to the path (inside this container) of a
+backend configuration file — `.hcl` or `.tfbackend`, mounted in — and
+`init` runs with `-backend-config=<path>`, with the backend *type*
+still coming from the workspace's own `terraform { backend }` block.
+The service checks at startup that the path is a readable file and
+refuses to boot if it is not, for the same reason the engine binary is
+checked there. Note that a `backend_override.tf` in the workspace wins
+over the values in this file: the two are alternatives, not layers.
+
+**Reinitialization.** `init` always runs `-reconfigure`, so a workspace
+whose backend changed between calls is rebound to the new one instead
+of failing with *"Backend configuration changed"* (which
+`-input=false` could not answer interactively). State already in the
+target backend is adopted; state held under the previous backend is
+**not** migrated — move it yourself (`terraform state push`, or a
+manual `init -migrate-state`) if it matters.
+
 ## Configuration
 
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
+| `IAC_BACKEND_CONFIG`                          | no       | Path (inside this container) to a backend configuration file `init` passes to `-backend-config`. Unset, the backend comes from the workspace itself. See "State backend". |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
 
 Everything else is a property of the service, not of a deployment, and
