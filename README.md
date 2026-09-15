@@ -31,8 +31,9 @@ The **default local setup** below is enough to generate and apply
 infrastructure end to end. All four sidecars (`iac`, `mapping`,
 `notifications`, `authz`) come bundled with their `config.yaml`
 
-defaults, but only `iac` is mandatory and enabled out of the box. `iac` and
-`notifications` ship complete, working reference implementations;
+defaults, but only `iac` is mandatory: it is always on and has no
+`enabled` flag to turn it off. `iac` and `notifications` ship complete,
+working reference implementations;
 `mapping` ships a simple direct passthrough usable as shipped for teams
 that address repositories by URL; `authz` ships a permissive
 placeholder that must be replaced before it enforces anything.
@@ -88,21 +89,15 @@ The bundled implementations differ in how far they take you:
 
 | Sidecar | Required | Default in `config.yaml` | Bundled implementation |
 |---|---|---|---|
-| `iac` | **Mandatory** | enabled | Complete and working: runs OpenTofu (or Terraform) with the cloud credentials you supply. Usable as shipped. |
+| `iac` | **Mandatory** | always on (no `enabled` flag) | Complete and working: runs OpenTofu (or Terraform) with the cloud credentials you supply. Usable as shipped. |
 | `notifications` | Optional | disabled | Complete and working: posts to a Slack incoming webhook. Enable it and provide a webhook URL to use it as shipped, or replace it with another channel implementation. |
 | `mapping` | Optional | disabled | Simple direct mapping: the repository URL you enter is used as-is, with no catalogue lookup. While disabled the core does the same mapping itself; implement the contract to resolve business identifiers against your own catalogue. |
 | `authz` | Optional | disabled | Permissive placeholder: answers "authorized" to everything. Must be implemented with your access policy before enabling; see [Important authorization default](#important-authorization-default). |
 
 
-With the shipped defaults the core talks to `iac` only. A sidecar
-disabled in `config.yaml` is never contacted: the core answers those
-calls locally and sends no request to the service. Enabling one means
-setting `services.<name>.enabled: true`, rebuilding the core image, and
-configuring the sidecar's `.env` as described in step 3. Compose still
-builds and starts every sidecar container unless you remove it from
-`docker-compose.yml`; a disabled sidecar that exits (for example
-
-`notifications` without a webhook URL) is harmless.
+With the shipped defaults the core talks to `iac` only — and it always
+does: `iac` cannot be disabled, so `services.iac` only configures
+*where* the service lives (`endpoint`), never *whether* it is used.
 
 ### Prerequisites
 
@@ -203,9 +198,10 @@ only when their sidecar is enabled:
 | `NEBULA_NOTIFICATIONS_TOKEN` | `services/notifications/.env` → `NEBULA_NOTIFICATIONS_TOKEN` | `services.notifications.enabled: true` |
 | `NEBULA_AUTHZ_TOKEN` | `services/authz/.env` → `NEBULA_AUTHZ_TOKEN` | `services.authz.enabled: true` |
 
-Every enabled sidecar needs a matching, non-empty token: the core
-refuses to boot if an enabled service's token resolves to an empty
-value. Generate values with `openssl rand -hex 32`. The samples ship
+`iac` and every enabled sidecar need a matching, non-empty token: the
+core refuses to boot if `NEBULA_IAC_TOKEN` — or the token of an enabled
+optional service — resolves to an empty value. Generate values with
+`openssl rand -hex 32`. The samples ship
 placeholders (`dev-iac-token`, ...) in `core/.env` and empty values in
 the sidecar `.env` files; an empty sidecar token makes that sidecar
 accept any bearer, which is acceptable only for an isolated local
