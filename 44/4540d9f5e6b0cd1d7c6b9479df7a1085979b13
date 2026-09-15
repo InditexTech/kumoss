@@ -1,0 +1,101 @@
+REUSE.toml
+  s_0131715b563d53::t_ded72cfdb3a146 2,4
+client/web/src/components/ui/GreetingScreen/GreetingScreen.tsx
+  s_c937e66cf61d31::t_8f75792d50aa9f 12
+client/web/src/layouts/Header/Header.module.css
+  s_c937e66cf61d31::t_eab73664d1484d 77
+client/web/src/layouts/Header/Header.tsx
+  s_c937e66cf61d31::t_7cd19e8bdeb719 52
+config.yaml
+  s_833839dc9d6515::t_8233a86cd6d34c 11,13-15,21-24,92-93,108-112,117,209-211,213-215
+contracts/openapi/README.md
+  s_0131715b563d53::t_a822e5809f0f93 9-13,15-20,22,24-40
+core/env.sample
+  s_833839dc9d6515::t_0807c478d00d18 14-15,23,25,32-35,51-53
+core/prompts/seed/gcp/guidelines/abbreviations.yaml
+  s_0131715b563d53::t_55a9e07e0a3dd4 1-48
+core/prompts/seed/gcp/guidelines/forbidden_actions.yaml
+  s_0131715b563d53::t_b72319567cc6ca 1-64
+core/prompts/seed/gcp/guidelines/networking.yaml
+  s_0131715b563d53::t_e4509df4a97c6a 1-81
+core/src/shared/config/system_config.py
+  s_833839dc9d6515::t_09f0a71ec06933 112-114,199-200
+docs/admin-portal.md
+  s_961d87804d8249::t_6b056d1ec9d6f3 1-196
+docs/architecture.md
+  s_833839dc9d6515::t_f11886ccc61060 1-492
+docs/configuration.md
+  s_961d87804d8249::t_d984814f00bf36 1-318
+docs/environment-variables.md
+  s_961d87804d8249::t_e46234c6462083 1-292
+docs/faq.md
+  s_961d87804d8249::t_ebc0e55db4bbdf 1-89
+docs/getting-started-production.md
+  s_961d87804d8249::t_4fd350c3d68023 1-329
+docs/images/swimlane-sequence.mmd
+  s_3b18e6741a0a93::t_4100cc61294882 1-135
+docs/litellm.md
+  s_961d87804d8249::t_2605b31526976e 1-270
+docs/modes.md
+  s_961d87804d8249::t_cdfc6d4d683cf9 1-189
+docs/monitoring.md
+  s_961d87804d8249::t_9394d704dc9a50 1-147
+docs/oidc-setup.md
+  s_961d87804d8249::t_5b7467996f6ce8 9,17,19,23,34-36,40-41,46-47,56-58,62-63,72,76-77,87,89,93-94,104,108,110,131,135-138
+docs/phoenix-prompt-templates.md
+  s_961d87804d8249::t_a6312e9dfca575 1-251
+docs/user-guide.md
+  s_961d87804d8249::t_39bfdf5af7ce19 1-163
+services/notifications/README.md
+  s_833839dc9d6515::t_4651782a135c06 88-92
+client/web/src/components/ui/IntroScreen/IntroScreen.tsx
+  s_c937e66cf61d31::t_ca0522f791fe91 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "444540d9f5e6b0cd1d7c6b9479df7a1085979b13",
+  "prompts": {},
+  "sessions": {
+    "s_0131715b563d53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c20e876-16dd-41b7-af6e-c9a3dfd75105",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_3b18e6741a0a93": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "68b5d804-24bf-4e96-9117-b1bc35de421e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_833839dc9d6515": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2efd649b-68c1-4b84-8520-40867aba6903",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_961d87804d8249": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cbf1168-e09c-4926-a444-ee9c17f9bf96",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_c937e66cf61d31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c815c6cd-6c13-4e7e-96ac-fc2690fc8502",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
