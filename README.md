@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Nebula turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, while Nebula’s agents generate Terraform-compatible HCL directly in the appropriate repository, guided by the organization’s architecture, security, and networking standards.
 
-Its governed delivery rail and agent harness make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, runs an independent compliance audit whose pass/fail verdict is computed in code from the reported findings, opens a pull request, and applies the reviewed plan only after human authorization.
+Its governed delivery rail and agent harness make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, evaluates them against deterministic compliance rules, opens a pull request, and applies the reviewed plan only after human authorization.
 
 > Nebula is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services that implement OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization. Prompts live in Phoenix, an LLM observability tool that also stores Nebula's traces.
 
@@ -27,10 +27,10 @@ Core components are run as shipped and configured through `config.yaml` and the 
 | Component | Purpose |
 |---|---|
 | `core` | FastAPI orchestration API: sessions, agent chains, validation, reports, pull requests, apply, users and roles. |
-| `proxy` (nginx) | Serves the React web application it builds, forwards `/api` to the core and `/monitoring/` to Phoenix, and forwards port 9000 to object storage for artifact downloads. |
-| `core-db` (PostgreSQL 17) | Sessions, rounds, artifacts metadata, users and roles. |
+| `proxy` (nginx) | React web application,+
+| `core-db` (postgres) | Sessions, rounds, artifacts metadata, users and roles. |
 | `redis` | Fail-open cache in front of the database. |
-| `object-storage` (RustFS, S3-compatible) | Artifacts: reports, plans, code changes. AWS S3 or an Azure Storage Account can replace it. |
+| `object-storage` (RustFS) | Artifacts: reports, plans, code changes. |
 | `phoenix` + `phoenix-db` | Trace collector and UI, and the runtime prompt registry. |
 
 ### Sidecars
@@ -39,46 +39,24 @@ Sidecars are integration points between Nebula and your organization.
 
 Each implements a contract in [`contracts/openapi/`](contracts/openapi/), and any implementation of the contract can replace the bundled one by pointing `services.<name>.endpoint` in `config.yaml` at it.
 
-The bundled implementations exist so the stack runs end to end out of the box — they are references, not organizational policy.
+**The bundled implementations exist so the stack runs end to end out of the box** — they are references, not organizational policy.
 
-| Sidecar | Shipped `config.yaml` | Bundled implementation | Production-ready as shipped? |
+| Sidecar | Shipped `config.yaml` | Bundled implementation (local deployment) | Production-ready? |
 |---|---|---|---|
-| `iac` | **always on** (mandatory; no `enabled` flag) | Reference executor: runs OpenTofu 1.12.6 (default) or the bundled HashiCorp Terraform 1.16.0 as asynchronous jobs on the shared workspace volume. Terraform is BUSL-1.1 licensed; selecting it makes your use subject to its terms. | **No** — implement the contract for your requirements, or at minimum harden the bundled image. |
-| `notifications` | disabled | Slack only: renders a Slack-format message and posts it to one incoming webhook. | **Yes, for Slack only** — point it at your production channel and supply that channel's webhook URL, which is itself the credential. For Teams, email, PagerDuty, or any other system, implement the contract. |
+| `iac` | **enabled** (mandatory) | Reference executor: runs OpenTofu (default) or the bundled Terraform | **Yes** — Harden your image and configure the env vars accordingly. You can also implement based for your requirements. |
+| `notifications` | disabled | Slack only: renders a Slack-format message and posts it to one incoming webhook. | **Yes, for Slack only** — For Teams, email, PagerDuty, or any other system, implement the contract. |
 | `mapping` | disabled | Identity passthrough: the repository URL you enter is used as-is. While disabled, the core performs the same mapping itself. | **N/A** — leave disabled, or implement the contract against your catalogue. |
 | `authz` | disabled | Permissive placeholder: answers "authorized" to every cloud-project check. | **No** — never enable it as your access policy; implement the contract against your policy source. |
 
-A disabled sidecar is never contacted. Compose still builds and starts every sidecar container; a disabled `notifications` container that exits because it has no webhook URL is expected and harmless. Every *enabled* sidecar needs a bearer token that matches between the core and the sidecar.
+A disabled sidecar is never contacted.
 
 The end-to-end flow, the core's layering, and the data model are described in [Architecture](docs/architecture.md).
 
 ## Choose your deployment model
 
-Nebula supports **two deployment models**: Local/non-production and Production. 
+Nebula supports **two deployment models**: **Local/non-production** and **Production**.
 
 **Decide which one you need before touching any configuration, because they differ in what you must configure, harden, and replace.**
-
-Read the Production column as a checklist. Each cell starts with the action required:
-
-- **Use bundled** — the shipped component works; you only supply credentials or configuration.
-- **Harden** — the shipped component is the starting point, but needs production controls.
-- **Implement** — the shipped component is a reference or placeholder; write your own against the contract.
-- **Replace** — swap the shipped component for a managed or organizational equivalent.
-
-| Area | Local/non-production | Production |
-|---|---|---|
-| Intended use | Evaluation, development, demos, testing on one trusted host | Shared organizational use |
-| Platform | **Use bundled** Docker Compose stack, as shipped | **Replace** with a production platform such as Kubernetes. No manifests or Helm charts are shipped; Compose is the reference topology |
-| `core`, `proxy`, web application | **Use bundled** as shipped; just set the two models to be used in `config.yaml` | **Use bundled** as shipped; configure every relevant `config.yaml` section and front them with TLS and a real ingress |
-| `core-db`, `redis`, `object-storage`, Phoenix | **Use bundled** containers with their default credentials and single-host volumes | **Replace** with managed or hardened instances: real credentials, persistence, backups, and an authenticated Phoenix console |
-| `iac` sidecar (mandatory) | **Use bundled** executor; give it the shared bearer token and cloud credentials | **Implement** the contract to your requirements (how the engine runs, where workspaces and state live, which identity it uses, what isolation and approval controls apply), or **harden** the bundled image: production cloud identity, isolation, resource limits, egress policy, and a shared workspace volume owned by the same unprivileged user as the core |
-| `notifications` sidecar | **Use bundled**, optional: enable it and add any `SLACK_WEBHOOK_URL` to post to a test channel | **Configure** it for your notification system and credentials. On Slack, **use bundled** with your operational channel's production webhook URL; for Teams, email, PagerDuty, or anything else, **implement** the contract |
-| `mapping` sidecar | Leave disabled; the core maps repository URLs itself | **Implement** the contract against your repository catalogue, or leave disabled |
-| `authz` sidecar | Leave disabled; every cloud-project check answers "authorized" | **Implement** the contract against your policy source. The bundled placeholder must never be your access-control policy |
-| Authentication | OIDC may stay disabled: every request runs as a built-in identity holding the `devops` operation role and the panel `admin` role | **Configure** OIDC — it must be enabled |
-| Secrets | Local gitignored `.env` files with sample values | **Replace** with Kubernetes Secrets or an equivalent secret manager |
-| Prompts and compliance rules | **Use bundled** seeds as shipped | **Curate** them in Phoenix so they encode your architecture, security, and networking standards |
-| Operations | Single-host stack, no backups, no TLS | Production networking, persistence, backups, upgrades, and observability |
 
 ### QuickStart 
 
@@ -93,7 +71,9 @@ What you must configure is small and listed here in full:
 - `services/iac/.env` — the matching IaC bearer token and the cloud credentials your Terraform providers need.
 - Optionally, to enable notifications: `services.notifications` in `config.yaml`, `services/notifications/.env` with a matching `NEBULA_NOTIFICATIONS_TOKEN`, and `SLACK_WEBHOOK_URL`.
 
-Everything else runs as bundled. **Authentication may remain disabled only for trusted local development** — with OIDC disabled, every request runs as a privileged built-in identity holding the `devops` operation role and the panel `admin` role, so anyone who can reach the port has that access. Installation ends with a core build and `docker compose up --build`.
+Everything else runs as bundled.
+
+**Authentication may remain disabled only for trusted local development** — with OIDC disabled, every request runs as a privileged built-in identity holding the `devops` operation role and the panel `admin` role, so anyone who can reach the port has that access. Installation ends with a core build and `docker compose up --build`.
 
 This model is **not suitable for shared or production environments**: it ships well-known default credentials, no TLS, an unauthenticated Phoenix console, and a single host with no backups.
 
@@ -153,7 +133,7 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and fol
 
 ## Acknowledgments
 
-Nebula builds on [LiteLLM](https://docs.litellm.ai/) for model access, [Arize Phoenix](https://arize.com/docs/phoenix) for tracing and prompt management, [OpenTofu](https://opentofu.org/) as the default IaC engine, and [FastAPI](https://fastapi.tiangolo.com/) and [React](https://react.dev/) for the core and the web application.
+Nebula builds on [LiteLLM](https://docs.litellm.ai/) for model access, [Arize Phoenix](https://docs.arize.com/phoenix) for tracing and prompt management, [OpenTofu](https://opentofu.org/) as the default IaC engine, and [FastAPI](https://fastapi.tiangolo.com/) and [React](https://react.dev/) for the core and the web application.
 
 ## License
 

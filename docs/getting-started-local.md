@@ -20,36 +20,16 @@ Do **not** use it for shared or production environments. As shipped it has no TL
 
 ## 2. Prerequisites
 
-- Git, and Docker Engine or Docker Desktop with Docker Compose v2.
+- Git, and Docker Engine with Docker Compose v2.
 - Internet access for the build.
-- Credentials for one LLM provider supported by LiteLLM. The checked-in `config.yaml` selects Google Vertex AI models; you can keep them or switch provider in step 5.
-- A personal access token for your Git provider (GitHub, Azure DevOps, or GitLab) with permission to push branches and open pull requests on the repositories you will use. Without it you can still run the filtering and generation steps, but pushes fail.
-- Cloud credentials for the cloud your OpenTofu/Terraform code targets. They are used by `plan` and `apply` inside the IaC sidecar.
-- Several gigabytes of free disk for images and volumes. The first build compiles the web application and installs OpenTofu and Terraform into the IaC image, so it takes several minutes.
+- Credentials for one LLM provider supported by LiteLLM.
+- A personal access token for your Git provider with permission to push branches and open pull requests.
+- Cloud credentials for the cloud your OpenTofu/Terraform code targets.
+
 
 Git and Docker are the only things you install on the host. Everything the first build installs — OpenTofu and Terraform — goes into the `iac` container image, and the web application is compiled inside the `proxy` image.
 
-## 3. Components included in the Compose stack
-
-`docker-compose.yml` starts eleven containers on one bridge network. Only the proxy publishes host ports.
-
-| Service | Image | Role | Persistence |
-|---|---|---|---|
-| `proxy` | built from `nginx/Dockerfile` | Builds and serves the React web application, forwards `/api` to the core and `/monitoring/` to Phoenix, and forwards port 9000 to object storage for artifact downloads. Publishes ports 80 and 9000. | none |
-| `core` | built from `core/Dockerfile` | The FastAPI orchestration API. `config.yaml` is copied into this image at build time. | `workspaces` volume (shared with `iac`) |
-| `core-db` | `postgres:17` | Sessions, rounds, artifacts metadata, users and roles. | `core_db_data` volume |
-| `redis` | `redis:8.8` | Fail-open cache in front of the database. | none |
-| `object-storage` | `rustfs/rustfs:latest` | S3-compatible artifact store (reports, plans, code changes). | `object_storage_data` volume |
-| `phoenix` | `arizephoenix/phoenix:20.6.0` | Trace collector and UI, and the runtime prompt registry. Served behind `/monitoring/`. | through `phoenix-db` |
-| `phoenix-db` | `postgres:17` | Phoenix's own database (traces and prompt versions). | `phoenix_db_data` volume |
-| `iac` | built from `services/iac/Dockerfile` | **Mandatory sidecar.** Runs OpenTofu (default) or Terraform commands as asynchronous jobs on the shared workspace. A reference implementation for this deployment model; production deployments implement the contract to their own requirements. | `workspaces` volume |
-| `notifications` | built from `services/notifications/Dockerfile` | **Optional sidecar.** Posts to a Slack incoming webhook. Exits at start-up until `SLACK_WEBHOOK_URL` is set; that is expected while the integration is disabled. | none |
-| `mapping` | built from `services/mapping/Dockerfile` | **Optional sidecar, disabled by default.** Identity passthrough. | none |
-| `authz` | built from `services/authz/Dockerfile` | **Optional sidecar, disabled by default.** Permissive cloud-project check. | none (its JSON role store is container-local) |
-
-Every sidecar container is built and started regardless of whether the core is configured to call it. A disabled sidecar is simply never contacted.
-
-## 4. Copy required environment files
+## 3. Copy required environment files
 
 ```bash
 git clone https://github.com/InditexTech/nebula.git
@@ -67,7 +47,7 @@ cp services/notifications/env.sample services/notifications/.env
 
 You do not need `services/mapping/.env` or `services/authz/.env` for this deployment model.
 
-## 5. Configure the mandatory `config.yaml` values
+## 4. Configure the mandatory `config.yaml` values
 
 `config.yaml` at the repository root is the single configuration file. It is **baked into the core image at build time**, so every edit needs `docker compose build core` (the first `docker compose up --build` includes the current file). All fields are documented in the [configuration reference](configuration.md). Do not change settings whose Compose defaults already work; the list below is what to review.
 
@@ -114,7 +94,7 @@ git:
 
 Note that the three optional sidecars default to `enabled: false`, while `services.iac` has no such flag: it is always called, so its `endpoint` and `token_env` must be present (the code defaults for both are empty). Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
 
-## 6. Configure `core/.env`
+## 5. Configure `core/.env`
 
 Every variable is documented in [Environment variables and secrets](environment-variables.md). The effective minimum for this deployment:
 
@@ -148,7 +128,7 @@ RUSTFS_SECRET_KEY=rustfsadmin
 NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ```
 
-## 7. Configure `services/iac/.env`
+## 6. Configure `services/iac/.env`
 
 | Variable | Requirement | Notes |
 |---|---|---|
@@ -169,7 +149,7 @@ AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
 ```
 
-## 8. Optionally configure notifications
+## 7. Optionally configure notifications
 
 Skip this step unless you want Slack messages when a compliance check fails, a report is classified as high impact, an apply fails, or a user sends a support request from the web application's header.
 
