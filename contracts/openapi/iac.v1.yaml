@@ -44,7 +44,7 @@ info:
 
     | Endpoint                        | Scope        | Why                             |
     |---------------------------------|--------------|---------------------------------|
-    | `/v1/init`                      | required     | backend init reaches the API    |
+| `/v1/init`                      | required     | may access external services during initialization |
     | `/v1/plan`                      | required     | refreshes state against the API |
     | `/v1/apply`                     | required     | creates and changes resources   |
     | `/v1/import`                    | required     | reads the live resource         |
