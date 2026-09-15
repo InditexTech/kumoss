@@ -1,0 +1,41 @@
+CONTRIBUTING.md
+  s_9ff373cd437c0a::t_710e7daaccb0ad 71-72
+README.md
+  s_9ff373cd437c0a::t_9a892f6642ee6e 46
+core/env.sample
+  s_9ff373cd437c0a::t_6d3cab40dcc462 32
+core/src/shared/config/system_config.py
+  s_9ff373cd437c0a::t_772944f54b8427 168-169,190-200,203-207,213-214,219-220,224-232,495,497-499,505-506,508-510
+docs/architecture.md
+  s_9ff373cd437c0a::t_8391f73e06687f 110,399,473
+docs/configuration.md
+  s_9ff373cd437c0a::t_8ba3fd728fc23a 29,71,75-77,87
+docs/environment-variables.md
+  s_9ff373cd437c0a::t_110c55fcc13173 26,51-52,56,58,60,62-66,68,99,110,131
+docs/getting-started-local.md
+  s_9ff373cd437c0a::t_82ff4f28034f7d 28,30,48,78,115,157,245,252,257
+docs/getting-started-production.md
+  s_9ff373cd437c0a::t_8fdc8223c6794a 79,82,95-96,144,323
+docs/modes.md
+  s_9ff373cd437c0a::t_22cc6ac402d69f 112,135,166,169
+docs/user-guide.md
+  s_9ff373cd437c0a::t_81beeecf8c1b79 129
+services/iac/env.sample
+  s_9ff373cd437c0a::t_12cf9c10527a5f 7-10,23,27-32,34-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2725f3acb14baaa5cb30f8073c6600f974252365",
+  "prompts": {},
+  "sessions": {
+    "s_9ff373cd437c0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e52a97-db95-428c-bb3b-870574c19487",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
