@@ -44,11 +44,11 @@ info:
 
     | Endpoint                        | Scope        | Why                             |
     |---------------------------------|--------------|---------------------------------|
+    | `/v1/init`                      | required     | backend init reaches the API    |
     | `/v1/plan`                      | required     | refreshes state against the API |
     | `/v1/apply`                     | required     | creates and changes resources   |
     | `/v1/import`                    | required     | reads the live resource         |
     | `/v1/import/scope-resource-ids` | required     | enumerates a scope              |
-    | `/v1/init`                      | not accepted | provider plugins and backend    |
     | `/v1/validate`                  | not accepted | local configuration check       |
     | `/v1/show`                      | not accepted | reads the local plan file       |
     | `/v1/import/state-resource-ids` | not accepted | reads terraform state           |
@@ -944,7 +944,7 @@ components:
   schemas:
     InitRequest:
       type: object
-      required: [workspace_path]
+      required: [workspace_path, scope_id, terraform_provider]
       additionalProperties: false
       properties:
         workspace_path:
@@ -957,6 +957,22 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
+        scope_id:
+          type: string
+          description: |
+            Cloud provider scope the operation targets — Azure:
+            subscription id, GCP: project id, AWS: account id, OCI:
+            tenancy OCID. Required: generated provider blocks do not
+            carry a scope, so the implementation injects it into the
+            engine's environment for this command only, choosing the
+            variable from `terraform_provider` (see "Scope injection").
+          minLength: 1
+          maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: |
+            Cloud the command runs against. Selects the environment
+            variable `scope_id` is injected as (see "Scope injection").
 
     ValidateRequest:
       type: object

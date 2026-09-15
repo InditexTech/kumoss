@@ -47,7 +47,7 @@ class ScopedRequest(WorkspaceRequest):
     terraform_provider: TerraformProvider
 
 
-class InitRequest(WorkspaceRequest):
+class InitRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 

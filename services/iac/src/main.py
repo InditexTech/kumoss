@@ -14,9 +14,9 @@ errors (auth, malformed body, missing workspace) are still reported
 synchronously on the POST; everything after submission surfaces
 through the job.
 
-``plan`` and ``apply`` run scoped to the request's ``scope_id``,
-injected into the engine's environment under the variable its
-``terraform_provider`` selects. ``init``, ``validate``, and ``show``
+``init``, ``plan`` and ``apply`` run scoped to the request's
+``scope_id``, injected into the engine's environment under the
+variable its ``terraform_provider`` selects. ``validate`` and ``show``
 reach no cloud API, so their bodies declare no scope and reject one.
 
 The ``/v1/import`` endpoints are unimplemented: they answer 501
@@ -185,15 +185,16 @@ def _submit(
     dependencies=[Authenticated],
 )
 async def init(
-    body: InitRequest,  # pyright: ignore[reportUnusedParameter]
+    body: InitRequest,
     workspace: Workspace,
     response: Response,
 ) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
     return _submit(
         "init",
         workspace,
         response,
-        lambda: engine.init(config.iac_binary, workspace),
+        lambda: engine.init(config.iac_binary, workspace, env),
     )
 
 

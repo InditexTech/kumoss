@@ -59,7 +59,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
             assert result["exit_code"] == 0, result["stderr"]
             return result
 
-        _ = run("/v1/init")
+        _ = run("/v1/init", SCOPE)
         _ = run("/v1/validate")
         _ = run("/v1/plan", {"plan_file": "smoke.plan", **SCOPE})
 

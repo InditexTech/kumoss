@@ -50,16 +50,17 @@ subcommands against that binary instead (e.g. `terraform init`).
 
 ## Scope injection
 
-`plan` and `apply` reach a cloud API, so they must carry `scope_id`
-(the cloud scope the command targets) and `terraform_provider` (which
-cloud that is); the contract requires both and a missing or empty value
-is a `422`. `init`, `validate`, and `show` make no cloud API call, so
-their bodies declare neither field — every request schema forbids
-unknown properties, so sending one is also a `422`.
+`init`, `plan` and `apply` reach a cloud API, so they must carry
+`scope_id` (the cloud scope the command targets) and
+`terraform_provider` (which cloud that is); the contract requires both
+and a missing or empty value is a `422`. `validate` and `show` make no
+cloud API call, so their bodies declare neither field — every request
+schema forbids unknown properties, so sending one is also a `422`.
 
-Generated provider blocks name no scope, so for `plan` and `apply` the
-service injects `scope_id` into the engine subprocess's environment for
-that command only, under the variable `terraform_provider` selects:
+Generated provider blocks name no scope, so for `init`, `plan` and
+`apply` the service injects `scope_id` into the engine subprocess's
+environment for that command only, under the variable
+`terraform_provider` selects:
 
 | `terraform_provider` | Environment variable  |
 |----------------------|-----------------------|
@@ -170,7 +171,9 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 ```bash
 job_id=$(curl -s -X POST http://localhost:8082/v1/init \
   -H 'Content-Type: application/json' \
-  -d '{"workspace_path":"/path/to/your/iac/dir"}' | jq -r .job_id)
+  -d '{"workspace_path":"/path/to/your/iac/dir",
+       "scope_id":"00000000-0000-0000-0000-000000000000",
+       "terraform_provider":"azure"}' | jq -r .job_id)
 curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 ```
 

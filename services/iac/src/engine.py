@@ -9,12 +9,12 @@ one command per call — the flag surface is identical across both
 engines. Implementations that need more (state locking, custom
 backends, policy as code) should extend this or substitute their own.
 
-`plan` and `apply` reach the cloud, so they run with the request's
-`scope_id` injected into their environment under the variable its
-`terraform_provider` selects (see ``scope_env``). `init`, `validate`,
-and `show` make no cloud API call and take no scope at all: they run
-on the service's own environment, unmodified. The contract's "Scope
-injection" section is normative.
+`init`, `plan` and `apply` reach the cloud, so they run with the
+request's `scope_id` injected into their environment under the
+variable its `terraform_provider` selects (see ``scope_env``).
+`validate` and `show` make no cloud API call and take no scope at
+all: they run on the service's own environment, unmodified. The
+contract's "Scope injection" section is normative.
 """
 
 from __future__ import annotations
@@ -90,8 +90,8 @@ async def _run(
     return result
 
 
-async def init(binary: str, cwd: Path) -> CommandResult:
-    return await _run(binary, ["init", "-no-color", "-input=false"], cwd)
+async def init(binary: str, cwd: Path, env: dict[str, str]) -> CommandResult:
+    return await _run(binary, ["init", "-no-color", "-input=false"], cwd, env)
 
 
 async def validate(binary: str, cwd: Path) -> CommandResult:
