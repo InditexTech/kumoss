@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # GCP Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                       | Prefix |
+  |--------------------------------|--------|
+  | Project                        | prj    |
+  | VPC network                    | vpc    |
+  | Subnetwork                     | snet   |
+  | Firewall rule                  | fw     |
+  | Cloud Router                   | cr     |
+  | Cloud NAT                      | nat    |
+  | External IP address            | ip     |
+  | Load balancer                  | lb     |
+  | Backend service                | bes    |
+  | Cloud Armor policy             | armor  |
+  | Compute Engine instance        | vm     |
+  | Instance template              | tpl    |
+  | Managed instance group         | mig    |
+  | Persistent disk                | disk   |
+  | GKE cluster                    | gke    |
+  | GKE node pool                  | np     |
+  | Artifact Registry repository   | ar     |
+  | Cloud Run service              | run    |
+  | Cloud Functions function       | fn     |
+  | Cloud Storage bucket           | gcs    |
+  | Cloud SQL instance             | sql    |
+  | Spanner instance               | spn    |
+  | BigQuery dataset               | bq     |
+  | Pub/Sub topic                  | ps     |
+  | Pub/Sub subscription           | sub    |
+  | Memorystore (Redis) instance   | redis  |
+  | Secret Manager secret          | sm     |
+  | KMS key ring                   | kr     |
+  | KMS crypto key                 | kms    |
+  | Service account                | sa     |
+  | Vertex AI endpoint             | vtx    |
+  | Cloud DNS managed zone         | dns    |
+  | Log sink                       | sink   |
+
+  Replace this list with your organization's naming standard.

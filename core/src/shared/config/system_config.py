@@ -109,9 +109,9 @@ class LlmConfig(BaseModel):
     The core uses two model roles per workflow: ``model`` for high-quality
     reasoning and ``small_model`` for cheaper filler work.  Both are
     LiteLLM model-id strings (``provider/model``).  Credentials are
-    resolved from the provider's standard env vars (see the README
-    "LiteLLM Models and Params Reference" tables); the validator fails
-    boot when litellm reports required env vars missing.
+    resolved from the provider's standard env vars (see the provider
+    tables in ``docs/litellm.md``); the validator fails boot when
+    litellm reports required env vars missing.
 
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 
@@ -196,8 +196,8 @@ class IacServiceConfig(ServiceConfig):
     every ``job_poll_interval`` seconds until the job is terminal.
     ``job_timeout`` bounds the total wait for one job — it must cover
     both the FIFO queue wait (jobs on the same workspace run one at a
-    time) and the command itself, so keep it above the service's own
-    subprocess budget (2700s in the reference deployment). A validation
+    time) and the command itself; the reference service applies no
+    timeout of its own to the engine process. A validation
     run submits several jobs in sequence (init, validate, plan, and
     show when drift is requested), each with its own ``job_timeout``.
     """

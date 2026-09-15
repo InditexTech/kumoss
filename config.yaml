@@ -8,17 +8,20 @@
 # deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
-# names (AWS_ACCESS_KEY_ID, GOOGLE_APPLICATION_CREDENTIALS, GIT_TOKEN,
+# names (GIT_USER, GIT_TOKEN, NEBULA_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
 # NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
-# repeated here. Override only if you need a different env var name —
-# see core/src/shared/config/system_config.py for the `*_env` fields.
+# repeated here. LLM provider credentials use LiteLLM's own variable
+# names (docs/litellm.md). Override only if you need a different env var
+# name — see core/src/shared/config/system_config.py for the `*_env` fields.
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
 # true and point it at a self-hosted mapper) or override per-environment
 # via a docker-compose.override.yml / your own NEBULA_CONFIG path.
 
-# development | staging | production. Surface only — used in telemetry/log
-# tagging; no behavior gates are keyed on it today.
+# development | staging | production. Selects the Phoenix tracing project
+# prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
+# Phoenix prompts (docs/monitoring.md, docs/phoenix-prompt-templates.md).
+# No security gates are keyed on it.
 environment: "development"
 
 # OIDC login + bearer-token validation. Blank issuer_url disables auth
@@ -86,7 +89,8 @@ services:
 # comes back with a "high" impact banner locks the session, blocking
 # apply and PR merge until an editor unlocks it.
 #
-# max_drift_reports: TODO
+# max_drift_reports: maximum detect-and-remediate iterations in a drift
+# session. Every knob is described in docs/configuration.md.
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
@@ -101,15 +105,16 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars — ANTHROPIC_API_KEY for the
-# Anthropic defaults below, set in core/.env — and the core fails boot
-# when litellm reports required env vars missing. Advanced routing
+# from the provider's standard env vars, set in core/.env — for the
+# Vertex AI models below that is VERTEXAI_PROJECT, VERTEXAI_LOCATION and
+# VERTEXAI_CREDENTIALS; the in-code defaults (anthropic/...) need
+# ANTHROPIC_API_KEY instead — and the core fails boot when litellm
+# reports required env vars missing. Advanced routing
 # (fallbacks, load balancing, custom credential env var names) is
 # available via an optional `model_list` key.
 #
 # Refer to:
-#   - Readme # LiteLLM models and params reference
-#   or
+#   - docs/litellm.md                          — Nebula's LiteLLM guide
 #   - https://models.litellm.ai/              — model IDs
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
 llm:
@@ -201,13 +206,13 @@ storage:
   presign_expiry_seconds: 172800
 
 # Git push provider + author. Credentials (username + PAT) are read from
-# env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
-# disable push-credential setup (push will then need mounted
-# ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
+# env at boot (default GIT_USER / GIT_TOKEN). When either is empty the
+# core logs a warning and skips the credential setup (push will then
+# need mounted ~/.git-credentials or SSH keys).
 #
-# `provider` is GitProviderName enum names (see
-# core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
-# AZURE_DEVOPS, GITLAB.
+# `provider` is required and must be a GitProviderName enum name or
+# value (see core/src/shared/constants.py::GitProviderName): GITHUB,
+# AZURE_DEVOPS, GITLAB. Full field reference: docs/configuration.md.
 git:
   provider: "GITHUB"
   author_name: "Nebula"

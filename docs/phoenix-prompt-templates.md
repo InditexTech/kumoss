@@ -1,0 +1,251 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Phoenix prompt templates
+
+Nebula does not hard-code cloud knowledge. The instructions that tell its agents how to name, configure, and secure resources are **prompts** stored in the prompt registry of [Arize Phoenix](https://docs.arize.com/phoenix), fetched by the core at request time. This guide explains the three layers involved, the naming conventions, how seeding and runtime lookup work, how the prompts are composed into a system prompt, and how to add or change prompts safely.
+
+Phoenix also collects Nebula's traces. That is a separate function, documented in [Monitoring with Phoenix](monitoring.md). Where Phoenix runs and how it is protected in each deployment model is covered by [Getting started: local/non-production](getting-started-local.md) and [Getting started: production](getting-started-production.md).
+
+## Three different things, not one
+
+| Layer | Where | Who changes it | When it takes effect |
+|---|---|---|---|
+| **Runtime prompts** | Phoenix prompt registry (UI at `/monitoring/` in the default stack, persisted in `phoenix-db`) | Prompt maintainers, in the Phoenix UI or API | Immediately on the next request; the core caches nothing |
+| **Seed YAML files** | `core/prompts/seed/<scope>/<type>/<name>.yaml` in the repository | Contributors and operators preparing a *new* deployment | Only at core startup, and only for prompt names that do not yet exist in Phoenix |
+| **Local Jinja layouts** | `core/src/infrastructure/templates/base_layouts/` (`core/` and `messages/`), inside the core image | Nebula developers | After rebuilding the core image |
+
+The seed files are the initial content of the registry, nothing more. The Jinja layouts are the fixed skeletons of each agent's system prompt: they define the agent's role, its tools and its output rules, and they contain placeholders that the core fills with prompts fetched from Phoenix. Operators customise the **runtime prompts**; the layouts are code.
+
+## Seed file conventions
+
+### Path
+
+```text
+core/prompts/seed/<scope>/<type>/<name>.yaml
+```
+
+- `<scope>` is one of `general`, `aws`, `azure`, `gcp`, `oci`, `kubernetes`.
+- `<type>` is one of `guidelines`, `resources`, `compliance`.
+- `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits, underscores).
+
+The loader rejects any other depth, scope, type, or name at startup with a `PromptSeedLoadError`, for example `Invalid prompt name 'Bad-Name' in ...; must match ^[a-z0-9_]+$`.
+
+### Qualified name
+
+The Phoenix prompt name is derived **from the path**, never declared inside the file, so a misfiled prompt cannot misreport its identity:
+
+```text
+<scope>-<type>-<name>
+```
+
+| File | Phoenix prompt name |
+|---|---|
+| `aws/guidelines/networking.yaml` | `aws-guidelines-networking` |
+| `aws/guidelines/abbreviations.yaml` | `aws-guidelines-abbreviations` |
+| `aws/guidelines/resources_list.yaml` | `aws-guidelines-resources_list` |
+| `aws/resources/s3_bucket.yaml` | `aws-resources-s3_bucket` |
+| `azure/resources/storage_account.yaml` | `azure-resources-storage_account` |
+| `kubernetes/resources/deployment.yaml` | `kubernetes-resources-deployment` |
+| `general/guidelines/terraform.yaml` | `general-guidelines-terraform` |
+| `general/guidelines/requests.yaml` | `general-guidelines-requests` |
+| `general/compliance/report.yaml` | `general-compliance-report` |
+| `general/compliance/impact.yaml` | `general-compliance-impact` |
+
+Two files that would produce the same qualified name abort the boot with `Duplicate qualified name ...`.
+
+### Content
+
+Each seed is a YAML mapping with two keys:
+
+| Key | Required | Type | Meaning |
+|---|---|---|---|
+| `body` | yes | non-empty string | The prompt text, usually Markdown. Stored as a single user message in Phoenix. |
+| `description` | no | string | Shown in the Phoenix UI next to the prompt. |
+
+Every shipped seed provides both keys and starts with the repository's SPDX comment header.
+
+## How seeding works
+
+At every core startup, after the database, Redis, and object storage have been initialised, the seeder:
+
+1. Loads every seed file (sorted, validated as above).
+2. Probes Phoenix at `telemetry.collector_url`, retrying connection errors for about 27 seconds. If Phoenix stays unreachable the boot fails with `Phoenix unreachable after 8 attempts`. **Phoenix must therefore be available whenever the core starts.**
+3. For each seed, asks Phoenix whether a prompt with that name exists (by name, regardless of tags). If it exists, the seed is **skipped**. If not, the seeder creates the prompt with one version whose displayed model name is `nebula-seed` (Phoenix requires a model name; Nebula ignores it) and tags that version with the value of `environment` from `config.yaml` (`development` by default).
+4. Logs `Prompt seeding complete: N created, M already present`.
+
+Consequences to plan for:
+
+- **Seeding never overwrites.** Editing a seed file after the first boot against a given Phoenix database has no effect on the prompt that already exists there. To change an already seeded prompt, edit it in Phoenix (see below) or delete it there and restart the core.
+- **Only new names are pushed.** Adding a new seed file and restarting the core does create the new prompt, even on an existing deployment.
+- **The environment tag matters.** The core fetches prompts by name **and** tag, and the tag is `environment`. If you change `environment` (say from `development` to `production`) on a deployment whose prompts were seeded earlier, the seeder sees the names already exist, skips them, and never applies the new tag. The next session then fails because `general-guidelines-terraform` has no version tagged `production`. Tag a version of every prompt with the new value in Phoenix before switching, or start from an empty Phoenix database.
+- **Prompt versions are yours to manage.** Nebula always fetches the version currently carrying the environment tag. Publishing a new version and moving the tag is how you roll a change out; moving the tag back is how you roll it back.
+
+## Runtime lookup
+
+Each time an agent chain is rendered, the core fetches the prompts its layout needs from Phoenix with the `<scope>-<type>-<name>` name and the `environment` tag, and reads the text of the first message of that version. There is **no cache**: every session sees the current tagged version, so editing a prompt in Phoenix takes effect on the next run without rebuilding or restarting the core.
+
+If a requested prompt (or a version with the right tag) does not exist, the Phoenix client raises `Prompt not found: <name>` and the background run stops. This error is not one the runner converts into a failed round: the session keeps its last status (for example `filtering`), no failure message or notification is produced, and the browser's event stream stays open until its timeout. The workspace is cleaned up and the session's in-flight guard is released, so a new request can be sent once the prompt exists. There is no fallback to seed files at runtime.
+
+## Prompt categories
+
+### Provider-wide guidelines (`<cloud>-guidelines-*`)
+
+One set per cloud scope, applied across all resources of that cloud:
+
+| Name | Purpose | Used by |
+|---|---|---|
+| `abbreviations` | Table of short prefixes for resource names; the compositor offers them to the model. | Prompt compositor |
+| `forbidden_actions` | Actions the agents must refuse or avoid (for example destructive operations). | Request filter; IaC generator and compliance checker in generate rounds |
+| `networking` | Networking conventions (address plans, exposure rules, private endpoints). | IaC generator, compliance checker |
+| `permissions` | Identity and access conventions (least privilege, role assignment patterns). | IaC generator, compliance checker |
+| `resource_creation` | General conventions for creating resources (tags, naming, defaults). | IaC generator, compliance checker |
+| `resources_list` | Catalogue of the `<cloud>-resources-*` prompts the compositor may select. **Source of truth for discovery.** | Prompt compositor |
+
+### General cross-provider prompts (`general-guidelines-*`)
+
+| Name | Purpose | Used by |
+|---|---|---|
+| `general-guidelines-terraform` | Organisation-wide Terraform standards (structure, providers, state, style). | IaC generator, compliance checker |
+| `general-guidelines-requests` | Rules for classifying and accepting user requests. | Request filter |
+| `general-guidelines-targeting_policies` | Exclusions and policies for choosing drift remediation targets. Ships as a placeholder with no exclusions. | Target generator, drift mode only |
+
+### Compliance prompts (`general-compliance-*`)
+
+| Name | Purpose | Used by |
+|---|---|---|
+| `general-compliance-report` | Business rules with rule ids and severities that the compliance auditor checks a plan against. The shipped seed defines `scope_exceeded`, `scope_incomplete`, and `critical_deletion`. A failed check locks the session. | Compliance checker (when `orchestration.enable_compliance_checker` is `true`) |
+| `general-compliance-impact` | Criteria for labelling each change group `low`, `medium`, or `high`. A `high` banner locks the session when `orchestration.block_on_high_impact` is `true`. | Report generator, generate reports only |
+
+### Component and resource prompts (`<cloud>-resources-<name>`)
+
+One prompt per resource type, holding the default configuration the model should produce unless the user asks otherwise. Examples that ship today: `aws-resources-s3_bucket`, `azure-resources-storage_account`, `gcp-resources-cloud_run`, `oci-resources-compute_instance`, `kubernetes-resources-deployment`.
+
+## Shipped seed inventory
+
+Every cloud scope ships the same six guideline prompts; the resource prompts differ per cloud.
+
+| Scope | `guidelines` | `resources` | `compliance` |
+|---|---|---|---|
+| `general` | `requests`, `targeting_policies`, `terraform` | none | `impact`, `report` |
+| `aws` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`, `internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`, `route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc` | none |
+| `azure` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `application_insights`, `azure_openai`, `container_app`, `cosmosdb`, `function`, `key_vault`, `nat_gateway`, `network_security_group`, `postgres_flexible_server`, `redis_managed`, `resource_group`, `storage_account`, `subnet`, `virtual_machine`, `virtual_network`, `webapp` | none |
+| `gcp` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`, `cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`, `project`, `service_account`, `spanner`, `storage_bucket`, `subnetwork`, `vertex`, `vpc_network` | none |
+| `oci` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `autonomous_database`, `block_volume`, `compute_instance`, `dns_zone`, `file_storage`, `functions`, `iam_policy`, `internet_gateway`, `load_balancer`, `nat_gateway`, `network_security_group`, `object_storage`, `oke_cluster`, `security_list`, `subnet`, `vault`, `vcn` | none |
+| `kubernetes` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`, `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`, `namespace`, `network_policy`, `persistent_volume_claim`, `role`, `role_binding`, `secret`, `service`, `service_account`, `stateful_set` | none |
+
+### Guideline prompts every cloud scope must provide
+
+The core requests these guideline prompts **unconditionally** for the session's cloud, so every scope must have all of them in Phoenix or its sessions abort with `Prompt not found`:
+
+| Requested by | Prompt |
+|---|---|
+| Prompt compositor (every generate and drift round) | `<cloud>-guidelines-abbreviations`, `<cloud>-guidelines-resources_list` |
+| Request filter (every generate round and every partial drift round) | `<cloud>-guidelines-forbidden_actions` |
+| IaC generator and compliance checker | `<cloud>-guidelines-resource_creation`, `<cloud>-guidelines-networking`, `<cloud>-guidelines-permissions`; plus `<cloud>-guidelines-forbidden_actions` in generate rounds |
+
+Keep this in mind when you delete a prompt in Phoenix or trim the seed set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and `networking` seeds were missing before 2026-09-11 and have been added; an already seeded Phoenix database does not receive them until the core restarts, because only new names are pushed.)
+
+Also note that the loader's name pattern permits a leading underscore while Phoenix rejects names starting with `_`; avoid them.
+
+## How prompts are composed into a system prompt
+
+For a generate or drift round the core builds the conventions in two model passes and then renders the layouts:
+
+1. **First compositor pass.** The `prompt_compositor` layout is rendered with the cloud's `resources_list` (as the list of available templates) and `abbreviations` (as the list of available abbreviations). The small model reads the user's request and calls the `construct_information` tool with the resource template names and abbreviations it considers relevant. Names must match the `resources_list` entries exactly.
+2. **Second compositor pass.** The layout is rendered again, this time including the **full text** of the resource prompts selected in the first pass. The model looks for dependencies (a subnet needs a network, a function needs a storage account, and so on) and returns additional templates and abbreviations. Both passes are merged into the round's *conventions*.
+3. **Rendering the agent layouts.** The IaC generator layout (and the compliance checker layout) receives `general-guidelines-terraform`, the cloud's `resource_creation`, `networking`, and `permissions` guidelines, `forbidden_actions` in generate rounds (drift rounds omit it), and a concrete-implementation section built from the selected `<cloud>-resources-*` prompts and abbreviations. The compliance checker additionally receives `general-compliance-report`; the report generator receives `general-compliance-impact` for generate reports; the drift target generator receives `general-guidelines-targeting_policies`; the request filter receives `general-guidelines-requests` and the cloud's `forbidden_actions`.
+
+The layouts also carry fixed content that is not in Phoenix: the agent's role, the tools it may call, output format rules, and the working directory. Those change only with a core rebuild.
+
+**Discovery depends on `resources_list`.** Nothing enumerates the `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can only pick names that appear in `resources_list`, and every name it picks is then fetched, so a name listed there without a matching resource prompt aborts the run.
+
+## Examples
+
+All examples are fictitious and use the repository conventions.
+
+### A provider-wide guideline seed
+
+File `core/prompts/seed/aws/guidelines/networking.yaml`, producing the Phoenix prompt `aws-guidelines-networking`:
+
+```yaml
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Networking conventions applied to every generated AWS resource.
+body: |
+  # AWS Networking Conventions
+
+  - Place workloads in private subnets; only load balancers and NAT
+    gateways live in public subnets.
+  - Security groups must not allow `0.0.0.0/0` ingress except on
+    ports 80 and 443 of internet-facing load balancers.
+  - Use VPC endpoints for S3 and DynamoDB instead of NAT egress.
+```
+
+### A resource (component) seed
+
+File `core/prompts/seed/aws/resources/sqs_queue.yaml`, producing `aws-resources-sqs_queue`:
+
+```yaml
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS SQS queue default configuration (encryption, dead-letter queue, retention).
+body: |
+  # AWS SQS Queue
+
+  For an SQS queue, unless explicitly requested otherwise:
+
+  - Naming convention: `<project>-<purpose>-<environment>`.
+  - Enable server-side encryption with an AWS-managed KMS key.
+  - Attach a dead-letter queue with `maxReceiveCount` of 5.
+  - Set message retention to 4 days.
+```
+
+### The matching `resources_list` entry
+
+The compositor can only select `sqs_queue` once it appears in `core/prompts/seed/aws/guidelines/resources_list.yaml` (`aws-guidelines-resources_list`). The shipped file is a bulleted catalogue; add one line in the same style:
+
+```yaml
+description: Names of aws-resources-* prompts the compositor may select from.
+body: |
+  # Available AWS Resource Templates
+
+  ...
+  - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.
+  - `sqs_queue` — SQS queue with encryption, dead-letter queue, and retention.
+  ...
+```
+
+The name in backticks must equal the `<name>` part of the resource prompt exactly.
+
+### Adding a new component prompt to a fresh deployment
+
+1. Create `core/prompts/seed/<cloud>/resources/<name>.yaml` with `description` and `body`.
+2. Add the `<name>` entry to `core/prompts/seed/<cloud>/guidelines/resources_list.yaml`.
+3. Rebuild the core image (`docker compose build core`) so the new seed files are inside it, and start the stack. The seeder creates `<cloud>-resources-<name>` and, because `resources_list` does not exist yet either, the updated catalogue.
+
+### Adding or changing a prompt on an already running deployment
+
+The seeder will not touch `<cloud>-guidelines-resources_list` once it exists, so the catalogue must be edited in Phoenix:
+
+1. Open Phoenix (`/monitoring/` in the default stack) and go to **Prompts**.
+2. For a **new** component: either add the seed file and restart the core (new names are created), or create the prompt `<cloud>-resources-<name>` directly in Phoenix. In both cases the new version must carry the deployment's `environment` tag (`development` by default); the seeder tags what it creates, a manual creation must be tagged by hand.
+3. Open `<cloud>-guidelines-resources_list`, create a new version with the extra line, and move the environment tag to it.
+4. Run a session that mentions the new resource. No core rebuild or restart is needed for step 3 to take effect.
+
+To **change** an existing prompt (a naming rule, a security default, a compliance rule), create a new version in Phoenix and move the tag. Keep the previous version; moving the tag back is the rollback.
+
+## Checklist for operators
+
+- Review every shipped prompt before relying on a deployment: naming conventions, security defaults, forbidden actions, and compliance rules encode *a* policy, not yours.
+- Keep Phoenix reachable during core startups; seeding is part of the boot.
+- Decide who may edit prompts. Anyone with access to the Phoenix UI can change what the agents generate. Phoenix has no authentication in the default stack.
+- Treat the `environment` value as part of the prompt data model: it is the tag every fetch uses.
+- Back up `phoenix-db`; it holds your curated prompts as well as the traces.

@@ -1,0 +1,89 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Frequently asked questions
+
+Short answers for people using the Nebula web application. The longer explanations are in the [user guide](user-guide.md); mode-by-mode behaviour is in [Operating modes](modes.md).
+
+## Access and roles
+
+**Why are the drift modes and Import Infrastructure greyed out?** They require the `devops` operation role. New users start as `developer`. Ask your administrator to change your role in the admin portal; it takes effect on your next page load.
+
+**Can other people see my sessions?** Only reviewers who hold a panel role (viewer, editor, or admin) can read them, including the conversation. Nobody but you can continue, merge, or apply your sessions.
+
+**Why does the login page say my session has expired?** Your identity token expired and the application signed you out. Sign in again. Any Nebula session that was running continues on the server; reopen it from the footer or your user page.
+
+## Requests
+
+**Do I have to specify every parameter?** No. Missing parameters never block a creation request. Nebula applies your organization's naming conventions, resource defaults, and the placement it finds in the workspace, and it states the assumptions it made in the response.
+
+**My request was declined. Why?** The filter explains the reason in the chat. The four causes are: out of scope (not a Terraform-managed change), prohibited by your organization's forbidden-actions list, an ambiguous target (name the resource), or a missing referent (the thing you refer to does not exist in that repository and path).
+
+**Can I ask questions instead of requesting changes?** Yes. Inventory, improvement, and impact questions are answered in the chat; the round ends without changes and you can continue with a change request in the same session.
+
+**Can I request several changes at once?** You can, but one intent per request produces better results and clearer reports. Use follow-ups for the next step; they run on the same branch.
+
+**Why was my repository URL rejected?** URLs that embed a user name or token are refused; enter the plain URL. The repository must also be reachable by Nebula's service account.
+
+**Why does the scope field not accept my value?** It accepts letters, digits, and hyphens only, up to 64 characters, and lower-cases the value. Underscores, dots, and spaces are not accepted.
+
+## Sessions
+
+**How long does a session take?** From a couple of minutes for a small change to considerably longer for large roots: generation and up to five validation attempts run first, then a drift check and the report. The progress screen shows what is happening at each moment.
+
+**Can I close the browser?** Yes. The session runs on the server. Reopen it from the *Sessions* panel in the footer or from *View all sessions* on your user page.
+
+**Why can't I continue a failed session?** A failed round ends the session for good. Start a new session; if the failure was "Validation loop exceeded.", make the request more specific or split it.
+
+**Why does nothing happen when I send a second request while one is running?** Only one operation runs per session at a time. Wait for the current round to finish; the input is disabled during a run.
+
+**What is the branch called?** `Nebula/<date>_<time>` in UTC, created on the first request of the session. Every round pushes to it.
+
+## Results
+
+**What do Low, Medium, and High impact mean?** With the default criteria: high is destructive actions, restarts, downtime, or critical networking changes; medium is a significant configuration update that changes behaviour without guaranteed downtime; low is isolated new resources or non-disruptive updates such as tags.
+
+**Is the estimated cost accurate?** It is an approximation of fixed monthly prices for the resources in the plan, taken from public pricing pages when the report was written. Usage-based and free resources are listed but not included in the total. Use it to compare options, not as a quote.
+
+**Where are the compliance findings?** They are not displayed in the application. The audit's outcome is visible as the lock; the reviewers who receive the notification see the summary. Ask them for the rule-level detail.
+
+**Can I download the plan or the report?** Not as files. The plan, report, and changed files are shown inline in the results view and in the session details; the code itself is on the session branch in your repository.
+
+## Locks and approvals
+
+**Why is my session locked?** The compliance audit found an error-level or critical violation (with the default rules: changes outside the scope of your request, parts of the request left undone, or a standalone deletion), or the impact was rated High in a deployment that locks on high impact.
+
+**What can I do while locked?** Read everything, continue the conversation, and create the pull request so reviewers can see the diff. Merging and applying are refused.
+
+**How is a lock released?** A reviewer with the editor or admin panel role unlocks the session from the admin portal, or a new request in the same session produces a result that passes cleanly.
+
+**Why is a deletion I explicitly asked for flagged?** The default compliance rule treats any standalone deletion as a critical violation regardless of the request; only a recreate of the same resource is allowed. A reviewer can unlock the session after looking at it, and your organization can adapt the rule.
+
+## Pull requests and apply
+
+**Do I have to open a pull request?** No. You can apply directly after reviewing the report. Opening one is the recommended way to bring your team's review and CI into the decision.
+
+**Reviewers asked for changes. What now?** Type the changes as a follow-up request in the same session. The new round pushes to the same branch, so the pull request updates.
+
+**What exactly does Approve PR and Apply do?** After you confirm, it merges the pull request into the default branch and executes the plan you reviewed, without re-planning. The apply-results screen shows what happened.
+
+**The apply failed. Will Nebula retry?** No. Read the error in the apply results, fix the cause (often cloud permissions or a resource that changed since the plan), and send a new request, which produces a fresh plan to review.
+
+**Does Import Infrastructure import my existing resources?** Not yet. Today it runs the apply of an existing session's reviewed plan. Importing unmanaged resources is a planned capability.
+
+## Data and privacy
+
+**What data leaves Nebula when I make a request?** Your request text, the conversation, the repository files the agent reads, the plan, and validation errors are sent to the language model your platform team configured and stored in the tracing system for review. Do not paste secrets into requests or commit them to the repository.
+
+**Which cloud credentials does Nebula use?** The identity your platform team configured for the execution engine, never yours. Whether you may work on a given scope is checked at the start of each session.
+
+## Getting help
+
+**How do I contact support?** Use the chat-bubble *Support* icon in the header, or *Contact Team* on a locked session. The message carries your e-mail, the session id, and the session context automatically and reaches the reviewers of your deployment.
+
+**Support says notifications are disabled.** Your deployment has not connected a notification channel. Use your organization's usual support route and quote the session id from the session details.
+
+**What should I include when reporting a problem?** The session id, the mode, the repository and path, what you asked, and what you expected instead. Reviewers can then open the session's history, artifacts, and traces.

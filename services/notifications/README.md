@@ -85,10 +85,11 @@ curl -X POST http://localhost:8080/v1/notify \
 
 ## Run in docker compose
 
-The service is wired into the repo-root `docker-compose.yml`. Set
-`SLACK_WEBHOOK_URL` and `NEBULA_NOTIFICATIONS_TOKEN` in your
-environment (or a `.env` next to `docker-compose.yml`) and run
-`docker compose up`.
+The service is wired into the repo-root `docker-compose.yml`, which
+loads `services/notifications/.env` (copy `env.sample` to `.env` in
+this directory). Set `SLACK_WEBHOOK_URL` and `NEBULA_NOTIFICATIONS_TOKEN`
+there, enable `services.notifications` in the root `config.yaml`, rebuild
+the core image, and run `docker compose up`.
 
 ## Tests
 

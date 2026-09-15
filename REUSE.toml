@@ -1,7 +1,7 @@
 version = 1
-SPDX-PackageName = "base-archetype"
+SPDX-PackageName = "nebula"
 SPDX-PackageSupplier = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
-SPDX-PackageDownloadLocation = "https://github.com/InditexTech/base-archetype"
+SPDX-PackageDownloadLocation = "https://github.com/InditexTech/nebula"
 
 [[annotations]]
 path = [

@@ -31,7 +31,7 @@ const IntroScreen = ({ onComplete }: IntroScreenProps) => {
       "there",
   );
 
-  const messages = [`Hello, ${firstName}`, "Welcome to Nebula AI"];
+  const messages = [`Hello, ${firstName}`, "Welcome to Nebula"];
 
   useEffect(() => {
     const timer1 = setTimeout(() => setPhase(1), PHASE_DURATION_MS);

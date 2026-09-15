@@ -49,8 +49,7 @@ function Header() {
               navigate("/home");
             }}
           >
-            <span>NEBULA</span>
-            <span>.AI</span>
+            NEBULA
           </a>
         </div>
 

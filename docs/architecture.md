@@ -1,0 +1,492 @@
+<!--
+SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Nebula High-Level Architecture
+
+## Purpose and Scope
+
+Nebula is an LLM-powered platform that turns natural-language requests into compliant, Terraform-compatible infrastructure-as-code. This document describes the runtime components, the core's internal layering, the end-to-end request flow, and the persistence, telemetry, and integration boundaries, as implemented in the repository.
+
+**At a glance**
+
+- **Shape.** A layered FastAPI orchestration core, four contract-first FastAPI sidecars (IaC engine, mapping, notifications, authorization), and an nginx edge that serves a React single-page application and proxies the API.
+- **Engines.** OpenTofu (MPL-2.0) is the bundled, verified default; HashiCorp Terraform (BUSL-1.1) is also bundled and selectable with `IAC_BINARY` (see "Choosing the IaC engine" in [services/iac/README.md](../services/iac/README.md)).
+- **Default deployment.** One Docker Compose stack on one bridge network with nginx as the only public entry point. This is the local/non-production model and the reference topology for production; see [getting-started-local.md](getting-started-local.md) and [getting-started-production.md](getting-started-production.md).
+- **Open source end to end**, with one disclosed exception: OpenTofu, RustFS (Apache-2.0, the default artifact store), PostgreSQL, Redis, nginx, FastAPI, React, LiteLLM, and standards-based OpenID Connect against any compliant provider. Arize Phoenix (Elastic License 2.0, source-available) provides traces and the prompt registry; see [Licensing of the default stack](#licensing-of-the-default-stack).
+- **Control model.** Models propose, code decides: every state change and every blocking decision (in-flight guard, validation, compliance verdict, session lock, apply) is computed by application code, and apply is always a human action.
+
+Related guides: [getting-started-local.md](getting-started-local.md) and [getting-started-production.md](getting-started-production.md) (the two deployment models), [configuration.md](configuration.md) (every `config.yaml` field), [environment-variables.md](environment-variables.md), [litellm.md](litellm.md), [modes.md](modes.md) (what each operating mode does), [user-guide.md](user-guide.md) (for people who use the web application), [admin-portal.md](admin-portal.md) (own sessions and the admin panel), [monitoring.md](monitoring.md) (tracing), [phoenix-prompt-templates.md](phoenix-prompt-templates.md) (the prompt registry), and [oidc-setup.md](oidc-setup.md).
+
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    subgraph EDGE["Client and Edge"]
+        BROWSER["Browser<br/>React 18 + TypeScript SPA"]
+        NGINX["Nginx reverse proxy<br/>public ports 80 and 9000<br/>serves the built SPA"]
+    end
+
+    subgraph CORE["Core FastAPI application (port 8000)"]
+        API["API layer — /api/v1 routers<br/>terraform, events (SSE), session,<br/>repository, auth, users, admin,<br/>mapping, notifications<br/>bearer-JWT dependency on every route"]
+        APP["Application layer<br/>generate / drift / apply handlers,<br/>filter, drift, report, PR services,<br/>ApplicationFactory wiring"]
+        DOM["Domain layer<br/>entities, ports, LLM + tool<br/>orchestration, validation,<br/>compliance check, session"]
+        INFRA["Infrastructure adapters<br/>LiteLLM, git, generated service<br/>clients, storage, SQLAlchemy,<br/>Redis, telemetry"]
+    end
+
+    subgraph SIDE["Sidecar services (OpenAPI contracts)"]
+        AUTHZ["authz :8083<br/>cloud project access checks<br/>(disabled by default)"]
+        MAPPING["mapping :8081<br/>business identifier → repo"]
+        IAC["iac :8082<br/>async IaC engine (OpenTofu) jobs"]
+        NOTIF["notifications :8080<br/>Slack dispatch"]
+    end
+
+    subgraph DATA["Data and State"]
+        COREDB[("core-db<br/>PostgreSQL 17")]
+        REDIS[("Redis 8<br/>read-through cache")]
+        STORE[("object-storage<br/>RustFS (S3 API)<br/>bucket: nebula-artifacts")]
+        WS[/"workspaces volume<br/>ephemeral git clones"/]
+        AUTHZDATA[/"authz_data volume<br/>roles.json"/]
+    end
+
+    subgraph OBS["Observability"]
+        PHOENIX["Phoenix :6006<br/>trace UI + prompt registry"]
+        PHOENIXDB[("phoenix-db<br/>PostgreSQL 17")]
+    end
+
+    subgraph EXT["External systems"]
+        IDP["OIDC identity provider<br/>(Entra ID, Keycloak, Auth0, Okta…)<br/>optional — blank issuer = dev mode"]
+        LLM["LLM providers via LiteLLM<br/>(Vertex AI in default config)"]
+        GITHOST["Git hosting<br/>GitHub / Azure DevOps / GitLab"]
+        SLACK["Slack incoming webhook"]
+        ALTSTORE["AWS S3 / Azure Storage Account<br/>(selectable storage backends)"]
+    end
+
+    BROWSER -->|"HTTP :80 — SPA, REST, SSE<br/>Authorization: Bearer JWT"| NGINX
+    BROWSER -->|"presigned GET :9000"| NGINX
+    BROWSER -.->|"auth code + PKCE login,<br/>silent renew, RP-initiated logout"| IDP
+    INFRA -.->|"discovery + JWKS (cached,<br/>lazy on first request)"| IDP
+    NGINX -->|"/api + SSE location"| API
+    NGINX -->|"/monitoring/"| PHOENIX
+    NGINX -->|"S3 API :9000"| STORE
+    API --> APP
+    APP --> DOM
+    DOM -->|"ports → adapters"| INFRA
+    INFRA -->|"REST + bearer"| AUTHZ
+    INFRA -->|"REST + bearer"| MAPPING
+    INFRA -->|"REST + bearer, job polling"| IAC
+    INFRA -->|"REST + bearer, fire-and-forget"| NOTIF
+    INFRA -->|"SQL / asyncpg"| COREDB
+    INFRA -->|"cache reads/writes"| REDIS
+    INFRA -->|"S3 API + presigning"| STORE
+    INFRA -->|"clone, edit, commit"| WS
+    IAC -->|"IaC engine CLI on shared volume"| WS
+    AUTHZ -->|"JSON file"| AUTHZDATA
+    INFRA -->|"OTLP/HTTP traces, prompt seed + fetch"| PHOENIX
+    PHOENIX -->|"SQL"| PHOENIXDB
+    INFRA -->|"HTTPS completions"| LLM
+    INFRA -->|"git push + provider REST (PRs)"| GITHOST
+    NOTIF -->|"HTTPS webhook"| SLACK
+    STORE -.->|"alternative via storage.provider"| ALTSTORE
+
+    classDef alt stroke-dasharray: 5 5;
+    class ALTSTORE alt;
+    class IDP alt;
+```
+
+Solid edges are active in the default Compose deployment; dashed elements are configurable alternatives or wiring that exists but is not exercised by the checked-in `config.yaml` (the identity provider is only contacted once `oidc.issuer_url` is set).
+
+## Component Responsibilities
+
+| Component | Responsibility | Main relationships |
+|---|---|---|
+| React SPA (`client/web`) | OIDC public client (Authorization Code + PKCE via `oidc-client-ts` / `react-oidc-context`), session wizard, planning/results views, user page, admin panel; consumes REST and SSE with relative `/api` paths and a bearer token on every call | Built into the Nginx image; talks to Nginx for the API and directly to the identity provider for login |
+| Nginx (`proxy`) | Sole public entry point (ports 80, 9000); serves the built SPA, proxies `/api`, a buffering-disabled SSE location, `/monitoring/`, and port 9000 to object storage | Browser → core, Phoenix, object-storage |
+| Core API layer (`core/src/api/v1`) | Routers: `terraform` (generate/drift/apply, 202 + session id), `events` (SSE), `session` (caller-scoped read models), `repository` (PR create/merge, repo parse), `auth` (public OIDC config for the SPA + cloud-project authorization), `users` (`/users/me` identity and roles), `admin` (cross-user sessions, plan locks, role management), `mapping` (passthrough), `notifications` (user-originated notifications, 202 + delivery id). `core/src/api/deps.py` supplies the `get_current_user`, `require_operation_role`, `require_panel_role` and `assert_session_access` dependencies | Delegates to application handlers |
+| Application layer (`core/src/application`) | `TerraformCRUDHandler`, `TerraformDriftHandler`, `TerraformApplyHandler`; requests-filter, drift, report, pull-request services; `ApplicationFactory` builds a per-session object graph | Composes domain services |
+| Domain layer (`core/src/domains`) | Entities and ports (including `User` and the `TokenClaims` value object); `LLMOrchestrationService` (agent loop), `ToolOrchestrationService`, `SessionService`, `UserService` (identity resolution, first-login provisioning, bootstrap-admin elevation), `TerraformValidationService`, `ComplianceCheckService` (post-report audit) | Depends only on interfaces |
+| Infrastructure layer (`core/src/infrastructure`) | Adapters: `auth/oidc.py` (OIDC discovery + JWKS bearer-token validator built on PyJWT), LiteLLM Router, git CLI + provider REST, generated sidecar clients, S3/Azure storage, async SQLAlchemy, Redis, OpenTelemetry/Phoenix | Implements domain ports |
+| authz service | Cloud project access checks (`POST /v1/check`); permissive reference implementation, disabled by default (the core then answers "authorized" without calling it; when enabled, an unreachable sidecar is an error, not an allow). Its user/role endpoints are no longer consumed by the core, which keeps users and roles in core-db | Called from `POST /auth/authorize` with the caller's email or subject; `authz_data` volume |
+| iac service | Runs one IaC engine CLI command (OpenTofu by default, selected via `IAC_BINARY`) per async job (`init`, `validate`, `plan`, `show`, `apply`, `import`); 202 + job id, caller polls. The bundled implementation is a reference for non-production installs; production deployments are expected to implement the contract to their own requirements (see [getting-started-production.md](getting-started-production.md)) | Shares `workspaces` volume with core |
+| mapping service | Resolves a business identifier to repo URL/branch/path; identity passthrough reference | Called via core passthrough endpoint |
+| notifications service | Channel-agnostic notify contract; reference implementation posts color-coded Slack webhook messages | Invoked fire-and-forget by core on compliance-check, apply and pipeline failures; request/response from the browser-facing `POST /notifications` route (support requests from the header's chat-bubble modal) |
+| OpenAPI contracts (`contracts/openapi`) | Source of truth for the four sidecar APIs; generated httpx clients in `core/src/clients`; Schemathesis conformance suites | Contracts → generated clients → sidecars |
+| core-db (PostgreSQL 17) | System of record: users (identity key issuer + subject, operation and panel roles), sessions (owned by a user), workspaces, rounds, statuses, histories, pull requests, artifact metadata | Core via asyncpg |
+| Redis 8 | Fail-open read-through/write-through cache (session facts, last status, finished-session aggregates); no pub/sub, no locks | Core only |
+| object-storage (RustFS, Apache-2.0) | **Default, bundled** artifact store (`nebula-artifacts`): reports, plans, drift JSON, code changes; browser access via presigned URLs. Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob Storage through a storage account (`STORAGE_ACCOUNT`), or any other S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Holds artifacts only, never Terraform state | Core (SDK) and browser (via Nginx :9000) |
+| `workspaces` volume | Ephemeral per-run git clones under `/workspaces/<session>/<call>`; deleted after each run | Mounted by core and iac |
+| Phoenix + phoenix-db | OpenTelemetry trace collector/UI and prompt registry; prompts seeded at core boot from `core/prompts/seed` | Core via OTLP/HTTP and Prompts API |
+| OIDC identity provider | Authenticates users and issues the JWT access tokens the core validates; any spec-faithful provider with discovery, JWKS and JWT access tokens (Entra ID, Keycloak, Auth0 and Okta are documented) | Browser (login) and core (discovery + JWKS); configured in `config.yaml` `oidc` |
+| LLM providers | Model inference behind LiteLLM Router; main + small model roles | Selected by `llm.model` and `llm.small_model` in `config.yaml` (optional `llm.model_list` for routing); credentials in `core/.env` — see [litellm.md](litellm.md) |
+| Git hosting | Clone/push via git CLI; PR create/merge via GitHub, Azure DevOps, or GitLab REST APIs | Selected by `git.provider` |
+
+## End-to-End Flow: From Request to Applied Infrastructure
+
+The sequence below follows one generate session from the moment a user types a request until the reviewed plan is applied. It is a swimlane view with five lanes, left to right: the **user or human reviewer**, the **Nebula web UI and core API**, the **Nebula LLM agents** (each a prompt-driven agent loop), the **deterministic services and control gates** (database, guards, validators, locks: code, not models), and the **external systems** (Git hosting, the IaC engine in the iac sidecar, object storage, Slack, the cloud). Every step that changes state or blocks progress sits in the deterministic lane on purpose: models propose, code decides.
+
+![Swimlane sequence of a Nebula session, from request to applied infrastructure](images/swimlane-sequence.png)
+
+The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-sequence.mmd). The phases are numbered as in the diagram; the paragraphs below explain each one with the implementation details behind the arrows. Operating modes other than generate are described in [modes.md](modes.md).
+
+### Phases 1 and 2: request, identity, session
+
+1. **The user describes the infrastructure** in the wizard: repository URL, target cloud, scope id, optional IaC path, and the request text. The UI calls `POST /api/v1/iac/generate` with a bearer token.
+2. **Identity and role check.** The `get_current_user` dependency validates the OIDC JWT against the issuer's JWKS, or resolves the fixed local-developer identity when `oidc.issuer_url` is blank. `require_operation_role(developer)` then checks the operation role. A missing or invalid token answers `401`; an insufficient role answers `403`. Nothing else runs until this passes.
+3. **Cloud-project preflight.** The wizard's earlier `POST /api/v1/auth/authorize` asked the authz sidecar whether the user may work on that cloud project. With the shipped configuration the sidecar is disabled and the answer is "authorized" without any network call; it is an integration hook, not one of Nebula's own controls.
+4. **Repository reachability.** The core runs `git ls-remote` on the URL (which must not embed credentials). An unreachable or rejected repository answers `400` and no session is created.
+5. **Session creation.** A session row owned by the caller is created (or, when a `session_id` is sent, the existing session is resolved and ownership asserted), a new round is opened, and the API returns `202 Accepted` with the session id. From here on everything runs as an in-process background task.
+6. **Progress stream.** The UI subscribes to `GET /api/v1/events/subscribe/{session_id}`; ownership is checked once at connect time and status events are streamed every five seconds until a terminal status.
+7. **Guard, workspace, tracing.** The runner acquires the in-flight guard (an atomic compare-and-set on the session row, so a concurrent request gets `409`), clones the repository into `/workspaces/<session>/<call>` on the volume shared with the iac sidecar, creates and pushes the branch `Nebula/<UTC timestamp>`, and installs the per-session Phoenix tracer.
+
+### Phases 3 and 4: filter and compose (small model)
+
+8. **Request Filter Agent** (status `filtering`). The small model, with read-only workspace tools, classifies the request against the `general-guidelines-requests` and `<cloud>-guidelines-forbidden_actions` prompts. A change request proceeds. A question is answered in the conversation, and an out-of-scope, prohibited, or ambiguous request is declined with a rationale; in both cases the round ends `uncompleted` and the user is invited to reformulate. The session itself stays usable.
+9. **Prompt Compositor.** Two small-model passes select, from the cloud's `resources_list` and `abbreviations` prompts in Phoenix, the resource templates and abbreviations relevant to the request, then look for dependencies among the selected templates. The result, the round's *conventions*, is what every later agent is rendered with (see [phoenix-prompt-templates.md](phoenix-prompt-templates.md)).
+
+### Phase 5: generate, validate, correct (at most 5 iterations)
+
+10. **Infrastructure Generation Agent** (status `generating`). The main model edits Terraform files in the workspace through the tool registry (read, write, list, ripgrep search, web search), bounded by `orchestration.max_tool_chain_executions` (70) tool calls and terminated by the sentinel `task_complete` tool.
+11. **Persist and push.** Every changed or new file is uploaded as a code-change artifact and committed and pushed to the session branch, so the work is durable before validation starts.
+12. **Session Target Generator.** The main model derives the `-target` list for this round from the branch's diff history, so the plan covers what the round changed rather than the whole root module.
+13. **Validation** (status `validating`). The core submits `init`, `validate`, and `plan -out session.plan -target ...` as three asynchronous jobs to the iac sidecar, polling each every `services.iac.job_poll_interval` seconds within `services.iac.job_timeout`. The engine (OpenTofu by default) runs against the shared workspace with the cloud credentials of `services/iac/.env`.
+14. **Correct or fail.** Engine errors are fed back to the generation agent as the next query, and steps 10 to 13 repeat. After `orchestration.max_validation_iteration` (5) failures the round fails with `Validation loop exceeded.` (`422`) and a problem summary; the branch keeps the last pushed attempt.
+
+### Phase 6: implicit drift pre-check on the validated targets (at most 2 rounds)
+
+15. **Plan and inspect.** With the code validated, the core runs `plan` plus `show -json` on the round's targets and diffs each resource's `before` and `after` states. The differences are inverted into "make the code match the infrastructure" operations, and the drift JSON and plan are stored as artifacts.
+16. **Split and filter.** If the plan shows differences, the Drift Task Splitter (small model) turns them into plain-language operations, and the Reconciliation Filter (small model) reads the branch's `diff_history` and drops every operation that would merely undo the session's own intended changes.
+17. **Decide.** If genuine drift remains, it re-enters the generation loop in batches of `orchestration.drift_group_operations` (8) with the forbidden-actions block omitted, and the pre-check runs once more. If only the session's own changes remain, or the plan is clean, the pre-check stops and the last plan is final.
+
+### Phase 7: report and artifacts
+
+18. **Report Generator** (status `report`). The main model turns the final plan into a JSON report: create, update, delete, and recreate counts, detailed changes, an impact banner (`low`, `medium`, `high`) assigned with the `general-compliance-impact` criteria, and cost estimates.
+19. **Artifacts.** Report, plans, drift JSON, and code changes are stored in object storage under `sessions/<session>/rounds/<round>/`; their metadata is written to PostgreSQL, and the UI receives presigned URLs signed against the public port-9000 endpoint.
+
+### Phase 8: independent compliance audit, verdict computed in code
+
+20. **Compliance Auditor** (when `orchestration.enable_compliance_checker` is `true`). A second, independent small-model agent audits the report against the `general-compliance-report` rules with read-only tools (`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`) and must answer through the `report_compliance_findings` tool with structured findings: rule id, severity, resource, message, suggested fix. When the checker is disabled the step yields an empty passing report.
+21. **Verdict in code.** The tool handler recomputes `passed` from the severities: any `error` or `critical` finding fails the audit regardless of the model's own claim. The plan is **pinned** either way: the validated workspace with `session.plan` is kept as the session's pinned plan, replacing any earlier pin.
+22. **Lock or release.** The handler writes `is_blocked = (audit failed) or (impact is high and orchestration.block_on_high_impact)`. On failure, a fire-and-forget `iac.compliance.failed` notification (labelled `check_failed` in the diagram) or `iac.impact.high` notification goes to the notifications sidecar, and the UI shows that apply and pull-request merge will answer `409` while pull-request creation stays allowed. On pass the lock is cleared and the round completes: generated and validated, awaiting a human decision. A panel `editor` can toggle the lock from the admin panel ([admin-portal.md](admin-portal.md)).
+
+### Phase 9: optional pull request and human review
+
+23. **Pull request on demand.** `PUT /api/v1/repository/pr` (owner, `developer`) has the PR Title and Description Agent (small model) draft the text, then the Git provider adapter (GitHub, Azure DevOps, or GitLab REST API) opens the pull request from the session branch. Reviewers see the code, the plan, the drift and compliance reports, the cost estimate, and their own CI.
+24. **Review outcomes.** Requested changes become a new request in the same session (back to phase 3, a new round on the same branch). Approval leads to `PUT /api/v1/repository/pr/merge`, which merges into the default branch unless the session is locked (`409`). A rejected or closed pull request simply ends delivery; the session history and artifacts are kept.
+
+### Phase 10: human-triggered apply (never automatic)
+
+25. **Explicit human action.** `POST /api/v1/iac/apply` with the session id. Nothing in the pipeline applies on its own; in the UI this is the "Approve PR and Apply" button after a merge or the Import Infrastructure mode on an existing session.
+26. **Gates.** Before answering, the route requires a valid identity, the `developer` role, session ownership, and a session that is not locked (`409 Session ... is blocked`); it then answers `202`. In the background the runner needs a free in-flight guard (otherwise it logs and exits without changing the session) and the handler needs a pinned plan (otherwise the apply round ends `failed` with `No reviewed plan is pinned for this session`, which is what a drift-only session produces). The diagram abbreviates both background refusals as `409`.
+27. **One apply.** The iac sidecar runs a single `apply session.plan` on the pinned workspace: no re-plan, no retry. Exactly the reviewed plan executes.
+28. **Outcome.** On success the Report Generator writes an `apply` report and the session completes; the cloud is in the requested state. On failure it writes an apply failure report, an `iac.apply.failure` notification goes to Slack when notifications are enabled, and the session fails; there is no automatic retry, a new generate round is required.
+29. **Cleanup** (always). The pinned plan is discarded, the run directory is removed from the volume, and the in-flight guard is released in a `finally` block.
+
+### Reading the swimlane: legend
+
+The diagram is a Mermaid sequence diagram rendered from [`images/swimlane-sequence.mmd`](images/swimlane-sequence.mmd). Its conventions:
+
+| Element | Meaning |
+|---|---|
+| 👤 **User / Human Reviewer** (leftmost lane) | Human actor. Only humans start a request, create or merge a pull request, or apply. |
+| 🖥️ **Nebula Web UI + Core API** lane | The React application and the FastAPI routers: authentication dependency, `202` answers, SSE stream, presigned URLs. |
+| 🤖 **Nebula LLM Agents** lane | Prompt-driven agent loops. Each message into this lane names the agent and its model role (`main` = `llm.model`, `small` = `llm.small_model`); see the [agent catalogue](#agent-catalogue). |
+| ⚙️🔒 **Deterministic Services + Control Gates** lane | Application code with no model judgment: session and lock handling, in-flight guard, git operations, drift calculation, compliance verdict, artifact storage. Every state change and every blocking decision happens here. |
+| 🌐 **External** lane | Systems outside the core: Git hosting, the IaC engine in the iac sidecar, object storage, Slack through the notifications sidecar, and the cloud platform. |
+| Coloured band with a `PHASE n` note | One phase of the flow; the numbering matches the subsections above. Blue: request and session; purple: small-model filtering and composition; green: generation, report, and apply; amber: drift pre-check and compliance audit; grey: optional pull request. |
+| Solid arrow `→` | A call or hand-over in the direction of the arrow (a request, a command submitted, files handed to the next step). |
+| Dashed arrow `-->` | A result or answer flowing back: engine output, structured findings, an HTTP status, a message shown to the user. |
+| Open-headed arrow to the External lane (`-)`) | A **fire-and-forget** notification to the notifications sidecar. It never fails the pipeline. |
+| Self-arrow on a lane | Work that stays inside that lane, for example the compliance verdict computed in code or the final cleanup. |
+| `loop`, `alt`, `opt` frames | A bounded loop with its configured ceiling in the label, a branch with its conditions, or an optional part of the flow. |
+| Sequence numbers | Message order within the diagram. They do not correspond one-to-one with the numbered steps in the subsections above, which group several messages per step. |
+| ⛔ | A refusal before any work starts (`401`, `403`, `400`, `409`). |
+| 🔒 | A control gate whose outcome is computed by code and can block progress (the compliance verdict, the apply preconditions). |
+| 🔁 | Re-entry into an earlier step, always bounded by a configured maximum. |
+| 🔔 | Notification to Slack when the notifications sidecar is enabled. |
+| 🟩 | Successful end state. |
+| 🟥 | Rejection, blocked, or failure end state. |
+| 🟧 | State that waits for the human to reformulate, or a bounded loop that stopped without converging. |
+| 🟨 | State that waits for a human review. |
+| ☁️ | The cloud platform reaching the requested state. |
+
+Three labels in the rendered image are abbreviations of the implementation and should be read with the prose above: the notification kind is `iac.compliance.failed` (the image says `check_failed`); the apply gates shown as `409` for "no pinned plan" and "guard busy" are checked after the `202` answer and surface as a failed round or a log line, not as an HTTP status (step 26); and the authz preflight is "disabled by default", in which case the core answers "authorized" without a call, while an *enabled* but unreachable sidecar is an error (see [How the Architecture Works](#how-the-architecture-works)).
+
+### Agent catalogue
+
+Every message into the agents lane is one of the agents below. Each is an `LLMOrchestrationService` loop rendered from a Jinja layout with prompts fetched from Phoenix, given a fixed tool set, and ended by a **sentinel tool** whose structured arguments are the agent's result. Model routing is by prompt type: only the generation, target, and report prompts use the main model.
+
+| Agent | Model role | Tools available | Ends via | Where it appears |
+|---|---|---|---|---|
+| Infrastructure Generation Agent | main | `write_to_file`, `replace_in_file`, `delete_file`, `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search` | `task_complete` | Phase 5; re-entered by drift batches in Phase 6 and by dedicated drift sessions |
+| Session Target Generator | main | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (read-only) | `generate_terraform_targets` | Phase 5, before every `plan -target` |
+| Drift Target Generator | main | the same read-only set, rendered with the `general-guidelines-targeting_policies` prompt | `generate_terraform_targets` | Dedicated **partial** drift sessions only, never in the generate flow |
+| Report Generator | main | `web_search` | `generate_terraform_plan_report`, `generate_terraform_drift_report`, or `generate_terraform_apply_report` | Phase 7 (generate report), Phase 10 (apply report), dedicated drift sessions (drift report) |
+| Request Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` | `requests_filter` | Phase 3; also the first step of partial drift sessions |
+| Prompt Compositor | small | none besides its sentinel | `construct_information` (called in two passes) | Phase 4 |
+| Status Message Agent | small | none | plain text | Every status change; its text is what the SSE stream carries |
+| Drift Task Splitter | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search` | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions |
+| Reconciliation Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it **must** call `diff_history`) | `report_decomposed_task_operations` | Phase 6 only (generate rounds) |
+| Compliance Auditor Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (read-only) | `report_compliance_findings` | Phase 8, generate rounds only, when `orchestration.enable_compliance_checker` is `true` |
+| PR Title & Description Agent | small | none | `generate_pull_request` | Phase 9 |
+
+**Deterministic (non-LLM) components** that appear in the other lanes: the FastAPI routers and use-case handlers; PostgreSQL session, ownership, status, `in_flight`, and `is_blocked` controls; the git workspace service and the GitHub, Azure DevOps, and GitLab provider adapters; the iac sidecar (OpenTofu or Terraform command executor); drift calculation (`plan_to_drift`, DeepDiff); the code-computed compliance verdict; object storage with presigned URLs; SSE status delivery; the notifications sidecar.
+
+Nebula orchestrates these specialised agents through application code. Agents do not delegate to one another and there is no supervisor agent: the handler classes call each agent in a fixed order, and every loop has a configured ceiling (`orchestration.max_tool_chain_executions`, `max_validation_iteration`, `max_drift_reports`, `drift_group_operations`; the drift pre-check inside a generate round is fixed at two iterations).
+
+### Terminal states
+
+Where a generate session can end, what the database records, and where the diagram shows it.
+
+| End state | Reached when | Session status and side effects | In the diagram |
+|---|---|---|---|
+| Infrastructure applied | The human-triggered apply succeeded | `COMPLETED` (apply round); pinned plan discarded | 🟩 Phase 10 |
+| Generated and validated, awaiting human apply | The generate round passed the audit (or the checker is disabled) and the impact is not `high` | `COMPLETED`, `is_blocked = false`, plan pinned | 🟩 Phase 8 |
+| Awaiting pull-request review | The user created a pull request | `COMPLETED` (unchanged); pull request recorded | 🟨 Phase 9 |
+| Changes requested | The reviewer asked for changes, or CI or a conflict failed the pull request | A new round of the same session starts at Phase 3 | amber loop, Phase 9 |
+| Request declined or answered | The Request Filter Agent declined the request or answered a question | `UNCOMPLETED`; the session stays usable | 🟧 Phase 3 |
+| Apply locked | Any `error` or `critical` compliance finding, or a `high` impact banner with `orchestration.block_on_high_impact` | `COMPLETED`, `is_blocked = true`, plan pinned; `iac.compliance.failed` or `iac.impact.high` notification | 🟥 Phase 8 |
+| Validation failed after the maximum iterations | `orchestration.max_validation_iteration` (5) generate-and-validate attempts exhausted | `FAILED` with a summarised problem (`Validation loop exceeded.`); the branch keeps the last pushed attempt | 🟥 Phase 5 |
+| Drift pre-check did not converge | Two pre-check iterations used and the plan still differs | The round continues to the report with the last plan; a warning is logged | 🟧 Phase 6 |
+| Pull request rejected or closed | The reviewer closed the pull request | Session status unchanged; history and artifacts kept | 🟥 Phase 9 |
+| Apply failed | The engine's apply returned a non-zero exit code | `FAILED`; apply failure report; `iac.apply.failure` notification; no automatic retry | 🟥 Phase 10 |
+| Apply requested without a pinned plan | Apply on a session whose last round was drift-only, or whose pinned plan was already consumed | `202` answered, then the apply round ends `FAILED` with `No reviewed plan is pinned for this session` | shown as `409` in Phase 10 |
+| Pipeline failed | An LLM or tool error, a sidecar timeout, a git or storage failure, or any other handled exception | `FAILED`; `system.exception.failure` notification; workspace cleaned; in-flight guard released | 🟥 reachable from any phase |
+| Run stopped without a status | A prompt missing in Phoenix for the deployment's `environment` tag (an unhandled `Prompt not found`) | Last status kept, no failure message, guard released; see [phoenix-prompt-templates.md](phoenix-prompt-templates.md#runtime-lookup) | not shown |
+
+## How the Architecture Works
+
+This section explains the mechanisms behind the flow above, one concern per subsection.
+
+### Browser delivery and ingress
+
+- The nginx image compiles the SPA in a Node builder stage and serves the static bundle itself; there is no separate frontend container.
+- The SPA uses relative paths, so nginx is the only address the browser knows: `/api` proxies to `core:8000`, a dedicated `location /api/v1/events/subscribe/` disables proxy buffering so Server-Sent Events (SSE) stream immediately, and `/monitoring/` exposes the Phoenix UI.
+- nginx performs no authentication. Bearer tokens pass through to the core; the SSE location is treated like the rest of `/api`.
+
+### Authentication
+
+**Bootstrap.** Before rendering, the SPA (`main.tsx`) fetches the only unauthenticated route, `GET /api/v1/auth/config`, which returns the OIDC `issuer_url`, `client_id`, optional `audience`, and the resolved `scope` from `config.yaml`.
+
+**Auth disabled** (blank `issuer_url`, the checked-in default). The SPA mounts a dev provider that just calls `/users/me`; the core resolves every request to a fixed local-developer identity (`urn:nebula:dev` / `dev`), provisioned as a real `users` row with the top role of both groups.
+
+**Auth enabled.** The SPA runs the OpenID Connect Authorization Code flow with PKCE as a public client (no client secret exists anywhere):
+
+- login redirects to the IdP and returns to `/auth/callback`; tokens are kept by `oidc-client-ts` in `sessionStorage`; renewal is silent; logout is RP-initiated, falling back to a local sign-out when the IdP has no `end_session_endpoint`;
+- every `apiFetch` call and the SSE `fetch` attach `Authorization: Bearer <access_token>`; any `401` fires a window event that flips the UI to a "session expired" login screen.
+
+**On the core**, `get_current_user` (`core/src/api/deps.py`) is a dependency on every protected route. It validates the JWT signature against the issuer's JWKS (discovery fetched lazily on first use and cached by PyJWT's `PyJWKClient`, so boot never depends on the IdP), checks `iss` (with or without trailing slash), `aud` (`oidc.audience`, or `client_id` and `api://<client_id>` when blank), `exp`/`nbf` with `clock_skew_seconds` leeway, requires `exp`, `iss`, and `sub`, and accepts only asymmetric algorithms (RS*, ES*, PS*). `UserService` resolves the claims to a user keyed by `(issuer, subject)`: the first request provisions the row, later requests sync e-mail and display name, and a token whose `email` matches `admin.default_root_email` with `email_verified: true` is elevated one-way to `devops` + `admin` (so a newly configured root e-mail takes effect on the user's next request). Per-IdP steps are in [oidc-setup.md](oidc-setup.md).
+
+### Authorization and ownership
+
+Two independent role groups live on the `users` row:
+
+| Group | Values | Gates |
+|---|---|---|
+| Operation role | `developer` < `devops` | `generate`, `apply`, repository parse, and pull-request routes need `developer`; `drift` needs `devops`. The SPA mirrors this in the mode drop-down, offering drift, partial drift, and import only to `devops` users even though the backend accepts `apply` from a `developer`. |
+| Panel role | `viewer` < `editor` < `admin`, nullable | `viewer` lists cross-user sessions, `editor` toggles a session's plan lock, `admin` lists users and assigns roles. An admin cannot drop their own `admin` panel role (`409`). |
+
+Sessions carry a `user_id` owner. The sessions list is always scoped to the caller; `assert_session_access` makes writes (iterations, apply, pull requests) owner-only and allows reads (detail, SSE) to the owner or to anyone with a panel role.
+
+Separately from roles, the wizard's preflight `POST /api/v1/auth/authorize` asks the authz sidecar whether the caller may touch a given cloud project and environment. While the sidecar is disabled (the default) the core answers "authorized" without any call; once enabled, a timeout or unreachable sidecar is returned to the wizard as `504`/`502`, not as an allow. This is a hook for enterprise cloud-access policy, not the access control for Nebula's own data.
+
+### Session creation and orchestration
+
+- `POST /api/v1/iac/{generate|drift|apply}` validates the repository URI with `git ls-remote`, creates or resolves a session row owned by the caller, and returns `202 Accepted` with the session id.
+- The pipeline runs in-process as a FastAPI background task; there is no external job queue. The runner first acquires the in-flight guard, an atomic PostgreSQL compare-and-set; if the session is already running or finished, it logs and exits.
+- For each run, `ApplicationFactory` assembles a fresh object graph around a `SessionContext`: an `LLMOrchestrationService` with two LiteLLM-backed providers (`model` and `small_model`), a `ToolOrchestrationService` with the workspace tool registry (file edits, directory listing, ripgrep search, web search), template services that fetch prompts from Phoenix, and the validation, filter, report, drift, task-splitting, and pull-request services. The repository is cloned into the shared `/workspaces` volume.
+
+### The LLM-assisted pipeline
+
+The generate flow advances through the statuses the SSE stream reports:
+
+1. **FILTERING.** The small model screens the request against the request and forbidden-action prompts and can end the round as `UNCOMPLETED`.
+2. **GENERATING / VALIDATING**, up to five iterations. The main model edits Terraform files through tools (at most 70 executions, terminated by the sentinel `task_complete`); files are committed and pushed; the session target generator derives `-target` entries from the history; the iac sidecar runs `init`, `validate`, and `plan -target`.
+3. **Drift pre-check** on the validated targets (next subsection), then **REPORT**, the compliance gate, and the pin.
+
+Model routing is by prompt type: generation, target calculation, and report writing use the main model; filtering, status messages, pull-request text, task splitting, the reconciliation filter, and the compliance audit use the small model.
+
+### IaC and mapping sidecars
+
+- The iac sidecar is a deliberately thin executor, shipped as a reference for non-production installation and meant to be re-implemented against the organization's own execution platform in production. Each POST enqueues exactly one engine command (OpenTofu by default) as an asynchronous job and returns a job id; the core polls it (5-second interval, 1-hour budget per job) and sequences `init → validate → plan` (plus `show -json` for drift) itself. Both containers read the same `workspaces` volume.
+- The mapping sidecar translates a business identifier into a repository reference; the reference implementation is an identity passthrough.
+
+### Drift detection and remediation
+
+All drift work runs through `TerraformDriftService.detect_and_resolve_drift`, a bounded loop:
+
+1. Ask the iac sidecar for `plan` plus `show -json` on the given targets.
+2. `TerraformUtils.plan_to_drift` DeepDiffs each resource's `before` and `after` and *inverts* the result into "make the code match the infrastructure" operations; the drift JSON and the plan are stored as artifacts.
+3. If the plan is clean, stop. Otherwise the Drift Task Splitter (small model) turns the JSON into plain-language operations, chunked into groups of `drift_group_operations` (8), and each group re-enters the generation and validation loop with the forbidden-actions block omitted (the intent is reconciliation).
+
+The loop has two entry points that differ in *what* they target and *whether session intent is filtered out*:
+
+| Entry point | Targets | Iterations | Filtering | Outcome |
+|---|---|---|---|---|
+| **Pre-check inside every generate round** | The session's own validated targets | At most 2 | Yes. The Reconciliation Filter agent (small model) must call `diff_history` (the branch's committed diff against the default branch plus untracked files) and drops every operation that would merely revert a session change, trims mixed operations to their genuine-drift part, and keeps the rest. An empty survivor list ends the loop without invoking the generator. | The GENERATE report is written from the pre-check's final plan. |
+| **Dedicated drift session** (`POST /iac/drift`) | Full: the whole root module (empty target list). Partial: targets chosen by the Drift Target Generator (main model, `target_drift_generator.jinja` rendered with the `targeting_policies` guideline) after the request filter. | Up to `max_drift_reports` (3) | No; a drift session has no intended changes of its own. | A DRIFT report. The drift handler never touches the session lock, does not run the compliance audit (removed in `4eebf61`), and does not pin the workspace, so an apply after a drift-only round ends `failed` until a generate round pins a plan. |
+
+History note: the pre-check replaced an earlier design in which a *predictive* target agent guessed the affected resources and remediated drift *before* any code was generated. That agent, its `PREDICTIVE` mode, and its template were removed in commit `efe575a`, and the shared Phoenix guideline was renamed from `predictive_targets` to `targeting_policies`.
+
+### Apply, reporting, and pull requests
+
+- The apply handler runs the engine's `apply` through the sidecar. On failure it writes an apply report, sends an `iac.apply.failure` notification, and marks the session failed; there is no automatic retry or remediation cycle.
+- Every successful flow ends with an LLM-written report stored as an artifact.
+- Pull requests are created on demand (`PUT /repository/pr`): the small model drafts title and description, then a provider adapter (GitHub, Azure DevOps, or GitLab) calls the hosting REST API. Merge is a separate endpoint and is refused while the session is locked.
+
+### Compliance gate
+
+**Where it runs.** Only in the generate handler, after the report is written and behind `orchestration.enable_compliance_checker` (`true` in the checked-in `config.yaml`; the Pydantic default is `false`). The drift handler dropped it in `4eebf61`; the apply handler has the service injected but never calls it. When disabled, the check short-circuits to an empty passing report. The gate has no SSE status of its own.
+
+**How it audits.** `ComplianceCheckService` runs a second, independent agent loop on the small model. The auditor receives the report JSON as its query and the `compliance_checker` prompt from Phoenix rendered with the session's conventions, and it has a read-only toolset (`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`) so it can inspect the workspace but not change it. It must answer through the sentinel `report_compliance_findings`, whose JSON-schema arguments (`rule_id`, `severity`, `resource`, `message`, `suggested_fix` per violation) are parsed into a typed `ComplianceCheckReport`.
+
+**Verdict in code.** The tool handler recomputes `passed` from the reported severities: any `error` or `critical` violation fails the check regardless of the model's own claim.
+
+**Effect.** On every generate round the handler writes `is_blocked = (audit failed) or (high impact)`, where high impact means `orchestration.block_on_high_impact` is on and the report's banner is `high`. A failure sends `iac.compliance.failed` (or `iac.impact.high`) to the notifications sidecar. `POST /iac/apply` and pull-request merge refuse blocked sessions with `409`; pull-request creation is not lock-checked, and the audited code is already pushed to the working branch, so the lock guards the apply boundary specifically. A later generate round that passes with a non-high impact clears the lock; drift rounds leave it untouched; a panel `editor` can toggle it from the admin panel ([admin-portal.md](admin-portal.md)).
+
+### Progress and persistence
+
+- Status rows are appended to PostgreSQL with a Redis write-through; there is no message broker.
+- The SSE endpoint polls the last status every five seconds (usually served from Redis) and streams small JSON events until a terminal status.
+- The SPA consumes the stream with `fetch` plus `ReadableStream` (not `EventSource`, which cannot send an `Authorization` header), retrying up to three times with exponential backoff; a `401` is not retried and surfaces as a session-expired event. Token and ownership are checked once, at connect time.
+
+### Artifacts and telemetry
+
+- Reports, plans, drift JSON, and per-file code changes go to the `nebula-artifacts` bucket; metadata lands in PostgreSQL. The browser fetches them through presigned URLs signed against the public port-9000 endpoint that nginx forwards to RustFS.
+- Every run installs a per-session tracer exporting OpenInference-annotated spans (LLM, tool, chain, Terraform) to Phoenix over OTLP/HTTP.
+- Prompt templates live in Phoenix as a runtime registry, seeded at boot from `core/prompts/seed` and fetched per request by environment tag, so prompt edits apply without redeploys.
+- Notifications go through a thin static facade (`NotificationServiceClient`) over the generated client. They are fire-and-forget: the facade no-ops when the sidecar is disabled and logs every send failure instead of failing the pipeline.
+
+## Licensing of the Default Stack
+
+Every component that runs by default in the checked-in Compose stack is open source, with one source-available exception that is disclosed rather than hidden (the bundled but inactive Terraform binary is a second, opt-in exception). Identity has no licensing footprint at all: Nebula speaks standard OpenID Connect and trusts any spec-faithful issuer, so a fully open-source deployment can pair it with Keycloak (Apache-2.0, CNCF Incubating) while an enterprise can point it at Entra ID, Auth0 or Okta without changing a line of code.
+
+| Component | Role | Licence | Notes |
+|---|---|---|---|
+| Nebula (core, sidecars, SPA, contracts) | The platform | Apache-2.0 | REUSE-compliant SPDX headers |
+| OpenTofu 1.12.6 | Default IaC engine in the iac sidecar | MPL-2.0 (Linux Foundation) | Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and selectable via `IAC_BINARY=terraform`; running it makes your use subject to its licence terms |
+| RustFS | Default, bundled S3-compatible object storage for artifacts | Apache-2.0 | Rust implementation of the S3 API; AWS S3 or Azure Blob Storage selectable via `storage.provider`, or any other S3-compatible endpoint via the `RUSTFS` provider |
+| PostgreSQL 17 | core-db and phoenix-db | PostgreSQL Licence | — |
+| Redis 8 | Fail-open cache | Tri-licensed: AGPLv3 (OSI) / RSALv2 / SSPLv1 | AGPLv3 option restored in Redis 8.0 |
+| nginx | Reverse proxy and SPA host | BSD-2-Clause | — |
+| FastAPI, LiteLLM, React, oidc-client-ts | Framework, model router, portal, OIDC client | MIT | — |
+| OpenTelemetry / OpenInference | Tracing standard and semantic conventions | Apache-2.0 | OpenTelemetry is CNCF Graduated (2026-05-21) |
+| Arize Phoenix | Trace UI and runtime prompt registry | **Elastic License 2.0 (source-available, not OSI-approved)** | The only non-OSI component; disclosed in all public material |
+| OpenID Connect | Authentication protocol | Open standard (OpenID Foundation) | No component shipped; any compliant IdP |
+
+## Data, Storage, and State
+
+**core-db (PostgreSQL 17)** is the system of record for the application domain: users (unique on `(issuer, subject)`, with `email`, `display_name`, `operation_role`, nullable `panel_role`), sessions (owned by a `user_id`, including the `in_flight` concurrency flag and the `is_blocked` compliance lock that gates apply), workspaces, rounds, status timelines, conversation histories, pull requests, and artifact metadata. Roles are managed from the admin panel or, for the first administrator on IdPs that emit no `email_verified` claim, by a one-off SQL update (see `docs/oidc-setup.md`, "Bootstrap admin"). There is no migration tooling: the schema is created with SQLAlchemy `create_all`, so a `core_db_data` volume from a pre-auth stack (sessions keyed by a `username` column, no `users` table) must be migrated by hand or recreated.
+
+**phoenix-db (PostgreSQL 17)** belongs exclusively to Phoenix and stores traces and prompt versions — operational/LLM telemetry, fully separate from Nebula's domain data.
+
+**Redis 8** is a cache, not a store: read-through/write-through for session facts, last statuses, and finished-session aggregates, with 2-second timeouts so a slow Redis fails open to PostgreSQL. It holds no locks and no pub/sub channels.
+
+**Object storage (artifacts)** holds generated artifacts under `sessions/<id>/rounds/<n>/...`. RustFS is the **default and bundled** implementation: the Compose stack starts it as the `object-storage` container, and because it is open source (Apache-2.0) the default stack needs no proprietary or source-available storage component. It is not the only option. `storage.provider` selects one of three adapters, never more than one at a time:
+
+| `storage.provider` | Backend | Notes |
+|---|---|---|
+| `RUSTFS` (default) | The bundled RustFS, or **any S3-compatible object store** reached through a custom `endpoint_url` (path-style addressing, static access and secret keys) | Presigned URLs are signed against `public_endpoint_url`, the address browsers reach |
+| `S3` | **AWS S3** on its regional endpoint | Credentials from static keys or the AWS SDK default chain (instance role, workload identity) |
+| `STORAGE_ACCOUNT` | **Azure Blob Storage** in a storage account | Shared-key authentication, SAS-token presigning; the account name is derived from `endpoint_url` and the container from `bucket` |
+
+There is no dedicated Google Cloud Storage adapter for artifacts; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates. Field details are in [configuration.md](configuration.md#storage).
+
+**Terraform remote state** is a different concern and is **not stored by Nebula**. The IaC sidecar runs the engine against the backend declared in the repository's own configuration, so state lives wherever that backend points: Azure Blob Storage (`azurerm` backend), AWS S3 (`s3` backend), a Google Cloud Storage bucket (`gcs` backend), or any other backend the engine supports. The credentials for that backend are the cloud credentials given to the IaC sidecar (see [environment-variables.md](environment-variables.md#cloud-credentials-for-the-iac-engine)). A remote backend is required in practice: workspaces are ephemeral, and the `.gitignore` the core adds to repositories without one excludes `*.tfstate`, so a local state file would be lost after the run.
+
+**Workspaces** (`workspaces` volume) are ephemeral: each run clones the repository into a unique directory shared with the iac container and deletes it in a `finally` block. Durable outputs leave via git pushes and artifact uploads, not the volume.
+
+**authz persistence** is a JSON file (`/data/roles.json` on the `authz_data` volume), rewritten atomically under a process lock. It backs the sidecar's own user/role endpoints, which the core does not call; Nebula's roles live in core-db.
+
+## Deployment and Operational View
+
+### Infrastructure Diagram
+
+The block diagram below shows the deployment topology: every container in the Compose project, the host ports published by the proxy, the named volumes each container mounts (dashed), and the outbound connections that leave the stack.
+
+```mermaid
+flowchart LR
+    USER["User's browser"]
+
+    subgraph HOST["Docker Compose project 'nebula' — single bridge network"]
+        PROXY["proxy<br/>Nginx + built SPA<br/>publishes :80 and :9000"]
+        CORE["core<br/>FastAPI :8000"]
+        AUTHZ["authz<br/>FastAPI :8083"]
+        IAC["iac<br/>FastAPI + OpenTofu CLI :8082"]
+        MAPPING["mapping<br/>FastAPI :8081"]
+        NOTIF["notifications<br/>FastAPI :8080"]
+        COREDB["core-db<br/>PostgreSQL 17 :5432"]
+        REDIS["redis<br/>Redis 8 :6379"]
+        STORE["object-storage<br/>RustFS :9000"]
+        PHOENIX["phoenix<br/>Phoenix :6006"]
+        PHOENIXDB["phoenix-db<br/>PostgreSQL 17 :5432"]
+    end
+
+    subgraph VOLS["Named volumes"]
+        VWS[/"workspaces"/]
+        VCORE[/"core_db_data"/]
+        VPHX[/"phoenix_db_data"/]
+        VOBJ[/"object_storage_data"/]
+        VAUTHZ[/"authz_data"/]
+    end
+
+    subgraph EXT["External"]
+        LLMP["LLM provider APIs"]
+        GITHOST["Git hosting APIs"]
+        SLACK["Slack webhook"]
+    end
+
+    USER -->|":80 web + API"| PROXY
+    USER -->|":9000 presigned URLs"| PROXY
+    PROXY -->|"/api"| CORE
+    PROXY -->|"/monitoring/"| PHOENIX
+    PROXY -->|":9000"| STORE
+    CORE -->|"HTTP"| AUTHZ
+    CORE -->|"HTTP"| IAC
+    CORE -->|"HTTP"| MAPPING
+    CORE -->|"HTTP fire-and-forget"| NOTIF
+    CORE --> COREDB
+    CORE --> REDIS
+    CORE --> STORE
+    CORE -->|"traces + prompts"| PHOENIX
+    PHOENIX --> PHOENIXDB
+    CORE -.-> VWS
+    IAC -.-> VWS
+    COREDB -.-> VCORE
+    PHOENIXDB -.-> VPHX
+    STORE -.-> VOBJ
+    AUTHZ -.-> VAUTHZ
+    CORE --> LLMP
+    CORE --> GITHOST
+    NOTIF --> SLACK
+```
+
+Only the proxy publishes host ports; all other containers are reachable solely on the internal network. The `workspaces` volume is the one mount shared by two containers (core and iac), which is what lets the iac service run the IaC engine against the core's git clones. Both containers run as the same unprivileged user (`nebula`, uid/gid 10001, fixed by the `NEBULA_UID`/`NEBULA_GID` build args) so files either one creates are writable by the other. Additional Compose hardening for the iac container (dropping all capabilities, `no-new-privileges`, a read-only root filesystem and CPU/memory/pid limits) was prototyped but is not present in the checked-in `docker-compose.yml`; it remains a recommended deployment hardening because the container executes provider code from generated HCL.
+
+### Operational Notes
+
+The Compose stack described here is the **local/non-production** deployment model and the reference topology for production; the repository ships no Kubernetes manifests or Helm charts. The two models and what each requires are described in [getting-started-local.md](getting-started-local.md) and [getting-started-production.md](getting-started-production.md).
+
+**Topology**
+
+- All eleven containers share one Docker bridge network. Only `proxy` publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000 (presigned object-storage access); every other service is internal-only via `expose`.
+- Compose `depends_on` orders start-up (it does not health-check): core waits for core-db, Redis, object storage, and all four sidecars; the proxy waits for core, Phoenix, and object storage. The core has no Compose dependency on Phoenix, which is why its prompt seeder retries.
+- Five named volumes persist state: `core_db_data`, `phoenix_db_data`, `object_storage_data`, `workspaces`, and `authz_data`.
+
+**Core start-up**
+
+- The FastAPI lifespan enforces a strict order: database, then Redis, then object-storage bucket creation, then Phoenix prompt seeding. Failure of any step aborts boot. Git credential configuration follows and is best-effort.
+- Configuration comes from a single `config.yaml`, baked into the image at `/etc/nebula/config.yaml` by the core Dockerfile, so changes require an image rebuild unless `NEBULA_CONFIG` points at a file mounted elsewhere in the container ([configuration.md](configuration.md)).
+- Secrets never appear in the file: `*_env` fields name environment variables (database URL, service bearer tokens, storage keys, git personal access token), and the core validates at boot that every enabled service's token and every referenced LLM credential resolves. Each `NEBULA_<SERVICE>_TOKEN` must match between the core's outbound client and the sidecar's inbound validation.
+- Authentication needs no secret: the `oidc` block (`issuer_url`, `client_id`, optional `audience`, `scope`, `clock_skew_seconds`) and `admin.default_root_email` are plain configuration validated by Pydantic at load (an issuer without a client id fails boot; a `{client_id}` placeholder in `scope` is expanded; Entra ID issuers get `api://{client_id}/.default` appended when `scope` is left at its default). Enabling or changing OIDC therefore means `docker compose build core`, and the IdP must have `<origin>/auth/callback` registered as the SPA redirect URI.
+
+## Architectural Characteristics
+
+- **Ports and adapters.** Domain services depend on interfaces, infrastructure adapters implement them, and a per-session `ApplicationFactory` wires the graph explicitly, so LLM providers, git hosts, Terraform execution, and storage backends are replaceable through configuration alone.
+- **Contract-first sidecars.** OpenAPI specifications are the authoritative boundary, with generated clients on one side and intentionally minimal reference implementations on the other, inviting substitution in enterprise deployments.
+- **Deliberately direct execution.** Pipelines run as in-process background tasks with a database compare-and-set as the only concurrency control; sidecar calls are synchronous HTTP with job polling rather than event-driven messaging; SSE progress derives from status polling. These are visible trade-offs, not accidents.
+- **Deep, centralised telemetry.** Every model call, tool execution, and engine run is traced to Phoenix, which doubles as the runtime prompt registry, making prompt management an operational concern rather than a code change.
+- **LLM audits LLM, code decides.** The compliance auditor is a separate agent loop with read-only tools; the pass/fail verdict is computed deterministically from the structured violations it reports, and the resulting database lock is what actually stops a non-compliant plan from being applied.
+- **Stateless, local identity.** The core trusts only a signed JWT from the single configured issuer, validates it on every request without an introspection round-trip, and keeps users, roles, and session ownership in its own database, so federation, MFA, and session policy stay the identity provider's concern.
+
