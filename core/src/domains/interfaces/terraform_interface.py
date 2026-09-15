@@ -90,7 +90,7 @@ class ITerraform(ABC):
                   are recorded inside the saved plan
 
         Raises:
-            ExceptionHandler: When the IaC service is disabled, unreachable,
-                             times out, or reports a service-level job failure
+            ExceptionHandler: When the IaC service is unreachable, times out,
+                             or reports a service-level job failure
         """
         pass

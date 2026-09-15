@@ -33,28 +33,57 @@ subcommands against that binary instead (e.g. `terraform init`).
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
 - `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
-- `POST /v1/import` — enqueues `tofu import <address>
-  <resource_id>`.
-- `POST /v1/import/state-resource-ids` — enqueues `tofu state
-  pull`; on exit code 0 the result's `stdout` is a JSON array of the
-  provider ids of every managed resource instance in the state.
-- `POST /v1/import/scope-resource-ids` — enqueues a cloud scope query
-  via the CLI matching `terraform_provider` (`az` Resource Graph /
-  `gcloud` Cloud Asset Inventory / `aws` Resource Groups Tagging
-  API); on exit code 0 the result's `stdout` is a JSON array of the
-  resource IDs that exist in `scope_id`. Cloud query failures end the
-  job `succeeded` with a non-zero `exit_code`, like engine-level
-  failures.
+- `POST /v1/import`, `POST /v1/import/state-resource-ids` and
+  `POST /v1/import/scope-resource-ids` — **not implemented**. They
+  answer `501` with a `Problem` body without inspecting the request
+  (no auth check, no body validation) and never enqueue a job.
 - `GET /v1/jobs/{job_id}` — job status (`queued` / `running` /
   `succeeded` / `failed`) plus `result` (succeeded) or `error`
   (failed). Engine-level failures end the job `succeeded` with a
   non-zero `exit_code` in the result; service-level faults end it
   `failed` with a `Problem` in `error`. Terminal jobs are kept in
-  memory for `NEBULA_IAC_JOB_TTL` seconds, then poll as 404 (as after
-  a restart).
+  memory for `Config.job_ttl` seconds (1 hour), then poll as 404 (as
+  after a restart).
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
   set.
+
+## Scope injection
+
+`init`, `plan` and `apply` reach a cloud API, so they must carry
+`scope_id` (the cloud scope the command targets) and
+`terraform_provider` (which cloud that is); the contract requires both
+and a missing or empty value is a `422`. `validate` and `show` make no
+cloud API call, so their bodies declare neither field — every request
+schema forbids unknown properties, so sending one is also a `422`.
+
+Generated provider blocks name no scope, so for `init`, `plan` and
+`apply` the service injects `scope_id` into the engine subprocess's
+environment for that command only — where the cloud has a
+provider-level variable that names a scope:
+
+| `terraform_provider` | Environment variable  | Scope it sets |
+|----------------------|-----------------------|---------------|
+| `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
+| `gcp`                | `GOOGLE_PROJECT`      | project       |
+| `aws`                | none                  | —             |
+| `oci`                | none                  | —             |
+| `kubernetes`         | none                  | —             |
+
+Only Azure and GCP have one. An AWS account is implicit in the
+credentials the provider resolves, and an OCI compartment or a
+Kubernetes namespace is a resource argument rather than a provider
+setting — no environment variable redirects a command to one. For those
+three the service injects nothing and the command runs against whatever
+scope its ambient credentials select, so a deployment that serves them
+is responsible for making those credentials agree with `scope_id`; it
+can also scope by another mechanism (an AWS AssumeRole into the
+account, a provider alias, a credential broker), which the contract
+explicitly allows.
+
+Where an overlay is applied it goes on top of the service's own
+environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
+container — ambient provider credentials are otherwise untouched.
 
 ## Configuration
 
@@ -62,8 +91,11 @@ subcommands against that binary instead (e.g. `terraform init`).
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
-| `NEBULA_IAC_JOB_TTL`                          | no       | Seconds a finished job stays pollable before it 404s. Default: `3600`. |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply`/`import` fail with the engine's own auth errors in the result's `stderr`. The cloud CLIs behind `scope-resource-ids` use their own ambient auth (`az login` state, `gcloud` credentials, `AWS_*`); their auth errors surface the same way. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
+
+Everything else is a property of the service, not of a deployment, and
+lives in [`src/config.py`](src/config.py): `job_ttl` (how long a
+terminal job stays pollable) and `log_level` (root log level, `INFO`).
 
 ## Choosing the IaC engine
 
@@ -79,9 +111,9 @@ runtime, with no rebuild needed to switch:
   checksum-verified; your use of it is subject to its license terms.
 
 The service itself is engine-agnostic: it only shells out to
-`init` / `validate` / `plan` / `show` / `apply` / `import` /
-`state pull`, whose flags are identical across both engines, so any
-Terraform-compatible engine on PATH (or at an absolute path) works.
+`init` / `validate` / `plan` / `show` / `apply`, whose flags are
+identical across both engines, so any Terraform-compatible engine on
+PATH (or at an absolute path) works.
 
 Notes when pointing a workspace previously managed by Terraform at the
 default OpenTofu engine:
@@ -133,12 +165,10 @@ user. Override the two build args together or not at all.
   into it must run as that same identity. How a platform expresses that
   (a pod security context, export options, a one-off `chown`) is
   deployment-specific; the ownership itself is not.
-- **Cloud CLIs.** `az`, `gcloud` and `aws` keep their per-user state
-  under `$HOME` (`~/.azure`, `~/.config/gcloud`, `~/.aws`). The
-  `resource-graph` az extension is installed system-wide in
-  `/opt/azure-cli-extensions` (`AZURE_EXTENSION_DIR`) so the runtime
-  user finds it. Credential files you mount must be readable by uid
-  `10001`.
+- **Provider credentials.** Credential files you mount (`~/.azure`,
+  `~/.config/gcloud`, `~/.aws` under `$HOME`, or whatever the
+  `GOOGLE_APPLICATION_CREDENTIALS` path points at) must be readable by
+  uid `10001`.
 
 ## Run locally
 
@@ -151,7 +181,9 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 ```bash
 job_id=$(curl -s -X POST http://localhost:8082/v1/init \
   -H 'Content-Type: application/json' \
-  -d '{"workspace_path":"/path/to/your/iac/dir"}' | jq -r .job_id)
+  -d '{"workspace_path":"/path/to/your/iac/dir",
+       "scope_id":"00000000-0000-0000-0000-000000000000",
+       "terraform_provider":"azure"}' | jq -r .job_id)
 curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 ```
 

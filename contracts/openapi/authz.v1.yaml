@@ -93,11 +93,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "422":
           description: Request body failed schema validation.
           content:
@@ -137,11 +133,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/roles:
     get:
@@ -158,11 +150,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/RoleList"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/users:
     get:
@@ -184,11 +172,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserList"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Caller is not an admin.
           content:
@@ -222,11 +206,7 @@ paths:
         "204":
           description: Role assigned.
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Caller is not an admin.
           content:
@@ -273,11 +253,7 @@ paths:
         "204":
           description: Role revoked (or was already absent).
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Caller is not an admin.
           content:
@@ -303,6 +279,23 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          description: |
+            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
+            least one challenge, so implementations must send this.
+          required: true
+          schema:
+            type: string
+            examples: ["Bearer"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
 
   parameters:
     UserIdHeader:

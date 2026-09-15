@@ -32,11 +32,15 @@ from src.clients.iac.models.problem import Problem
 from src.domains.services.tracer_service import TracerService
 from src.infrastructure.terraform import terraform as tv
 from src.shared.config.system_config import IacServiceConfig
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
 # Mirrors paths.session_plan_filename in the patched system_config below.
 SESSION_PLAN_FILENAME = "session.plan"
+
+SCOPE_ID = "sub-uuid-1234"
+TERRAFORM_PROVIDER = TerraformProvider.AZURE
 
 
 NO_CHANGES_PLAN_JSON = json.dumps({"format_version": "1.2", "resource_changes": []})
@@ -94,11 +98,14 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         tracer_patcher.start()
         self.addCleanup(tracer_patcher.stop)
 
-        self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
+        self.terraform = tv.Terraform(
+            workspace_path=Path("/workspaces/demo"),
+            scope_id=SCOPE_ID,
+            terraform_provider=TERRAFORM_PROVIDER,
+        )
 
     def _use_config(self, **overrides) -> IacServiceConfig:
         cfg = IacServiceConfig(
-            enabled=True,
             endpoint="http://iac.test:8082",
             token_env="",
             timeout=1.0,
@@ -314,7 +321,11 @@ class TestTerraformValidate(_TerraformTestCase):
             with self.subTest(rejected=rejected):
                 self._use_config()
                 self._patch_ops(init=rejected)
-                self.terraform = tv.Terraform(workspace_path=Path("/workspaces/demo"))
+                self.terraform = tv.Terraform(
+                    workspace_path=Path("/workspaces/demo"),
+                    scope_id=SCOPE_ID,
+                    terraform_provider=TERRAFORM_PROVIDER,
+                )
 
                 with self.assertRaises(ExceptionHandler) as ctx:
                     await self.terraform.validate(targets=[], get_drift=False)

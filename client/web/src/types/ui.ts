@@ -107,6 +107,13 @@ export interface PrDetails {
   url?: string;
   number?: number;
   lastPrStep?: PrApprovalStep;
+  /**
+   * Session-local: set once this PR has been merged, so the report view stops
+   * offering the merge again. Cannot survive a refresh — the rehydration path
+   * rebuilds PR state from `PullRequestRef`, which carries no status.
+   * See `useSessionLoader`.
+   */
+  merged?: boolean;
 }
 
 // ─── Mode ───────────────────────────────────────────────────

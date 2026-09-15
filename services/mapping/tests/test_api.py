@@ -65,6 +65,7 @@ def test_resolve_requires_token_when_configured() -> None:
         response = client.post("/v1/resolve", json={"identifier": "x"})
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_resolve_rejects_wrong_token() -> None:
@@ -75,6 +76,7 @@ def test_resolve_rejects_wrong_token() -> None:
             json={"identifier": "x"},
         )
     assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_resolve_validation_error_returns_problem_json() -> None:

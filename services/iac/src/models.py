@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,80 +17,67 @@ TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Single path segment only: `plan_file` is passed to `-out`, `show`,
 # and `apply`, so it must not be able to escape the workspace.
 PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
+ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
+
+TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes"]
 
 
-class InitRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class WorkspaceRequest(BaseModel):
+    """The one field every submit request carries.
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+    Also the body model the ``resolve_workspace`` dependency binds to:
+    it sees only ``workspace_path`` and ignores the operation-specific
+    rest, which the endpoint's own model validates.
+    """
 
-
-class ValidateRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
-
-
-class PlanRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
 
     workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
+
+
+class ScopedRequest(WorkspaceRequest):
+    """Base for the commands whose scope decides what they run against.
+
+    The commands that reach no cloud API extend ``WorkspaceRequest``
+    directly: they declare no scope, and ``extra="forbid"`` makes
+    sending one a 422.
+    """
+
+    scope_id: ScopeIdStr
+    terraform_provider: TerraformProvider
+
+
+class InitRequest(ScopedRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class ValidateRequest(WorkspaceRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class PlanRequest(ScopedRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
     targets: list[TargetStr] = Field(default_factory=list, max_length=256)
     plan_file: PlanFileStr
 
 
-class ShowRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ShowRequest(WorkspaceRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
     plan_file: PlanFileStr
 
 
-class ApplyRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class ApplyRequest(ScopedRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
     plan_file: PlanFileStr
-
-
-class ImportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
-    address: str = Field(min_length=1, max_length=4096)
-    resource_id: str = Field(min_length=1, max_length=4096)
-
-
-TerraformProvider = Literal["azure", "gcp", "aws"]
-
-
-class StateResourceIdsRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str | None = Field(default=None, max_length=1024)
-
-
-class ScopeResourceIdsRequest(BaseModel):
-    # Unlike the other requests, `scope_id` is required: it names the
-    # scope being listed rather than acting as a credential fallback.
-    model_config = ConfigDict(extra="forbid")
-
-    workspace_path: str = Field(min_length=1, max_length=4096)
-    scope_id: str = Field(min_length=1, max_length=1024)
-    terraform_provider: TerraformProvider
 
 
 class OperationResult(BaseModel):
     """Raw outcome of the single engine command a job ran."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     exit_code: int
     stdout: str
@@ -98,13 +85,13 @@ class OperationResult(BaseModel):
 
 
 class Health(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     status: Literal["ok"]
 
 
 class Problem(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
 
     type: str = "about:blank"
     title: str
@@ -119,15 +106,12 @@ JobKind = Literal[
     "plan",
     "show",
     "apply",
-    "import",
-    "state_resource_ids",
-    "scope_resource_ids",
 ]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
 
 class JobAccepted(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     job_id: UUID
     status: Literal["queued"] = "queued"
@@ -138,7 +122,7 @@ class Job(BaseModel):
     they become meaningful (``result`` iff succeeded, ``error`` iff
     failed)."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     job_id: UUID
     kind: JobKind

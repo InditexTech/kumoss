@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Routes, Route, Outlet, useLocation } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -14,6 +15,7 @@ import {
   makeRound,
   makeStatus,
 } from "@/mocks/state";
+import { mergePullRequest } from "@/services/core/iac_code";
 import ResultsRoute from "./ResultsRoute";
 
 vi.mock("@/services/core/iac_code", () => ({
@@ -21,6 +23,7 @@ vi.mock("@/services/core/iac_code", () => ({
   mergePullRequest: vi.fn(),
 }));
 
+const mockMergePr = vi.mocked(mergePullRequest);
 const iterate = vi.fn();
 const applyAfterPr = vi.fn();
 const resume = vi.fn();
@@ -209,4 +212,66 @@ describe("ResultsRoute", () => {
     });
   });
 
+  describe("PR approval", () => {
+    const CONFIRMING = "/home/results/sess-1?view=pr-confirming";
+
+    function renderPrFlow(operation: string) {
+      return renderRoute(
+        { operation, code: "<main.tf>\nresource {}\n</main.tf>" },
+        { pr: { number: 42, url: "https://dev.azure.com/pr/42" }, entry: CONFIRMING },
+      );
+    }
+
+    // The defect: merging a drift PR *is* the remediation, so firing the apply
+    // afterwards re-runs work the merge just completed.
+    it("does not trigger an apply after merging a drift PR", async () => {
+      const user = userEvent.setup();
+      mockMergePr.mockResolvedValue(undefined);
+      renderPrFlow("drift");
+
+      await user.click(screen.getByText("Confirm and Merge"));
+
+      await waitFor(() => expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" }));
+      expect(applyAfterPr).not.toHaveBeenCalled();
+    });
+
+    it("returns to the report view after merging a drift PR", async () => {
+      const user = userEvent.setup();
+      mockMergePr.mockResolvedValue(undefined);
+      renderPrFlow("drift");
+
+      await user.click(screen.getByText("Confirm and Merge"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("location")).toHaveTextContent("/home/results/sess-1"),
+      );
+      expect(screen.getByTestId("location")).not.toHaveTextContent("view=pr");
+    });
+
+    // A hand-edited ?view= must not resurrect the approval screen for a PR
+    // that is already merged — the second merge would fail against a real
+    // git provider.
+    it("ignores a ?view deep link for an already merged drift session", () => {
+      renderRoute(
+        { operation: "drift", code: "<main.tf>\nresource {}\n</main.tf>" },
+        {
+          pr: { number: 42, url: "https://dev.azure.com/pr/42", merged: true },
+          entry: CONFIRMING,
+        },
+      );
+
+      expect(screen.queryByText("Confirm and Merge")).not.toBeInTheDocument();
+      expect(screen.getByText("View Report")).toBeInTheDocument();
+    });
+
+    it("still triggers the apply after merging a generate PR", async () => {
+      const user = userEvent.setup();
+      mockMergePr.mockResolvedValue(undefined);
+      renderPrFlow("generate");
+
+      await user.click(screen.getByText("Confirm and Apply"));
+
+      await waitFor(() => expect(applyAfterPr).toHaveBeenCalled());
+    });
+  });
 });

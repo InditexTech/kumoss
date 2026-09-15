@@ -5,7 +5,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
+import { useNotification } from "@/contexts/NotificationContext";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
+import { isDriftSession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
 import { AssistantAnimation } from "@/components/ui";
 import { useHomeLayoutContext } from "../HomeLayout";
@@ -29,14 +31,18 @@ export default function ResultsRoute() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { loading, error, inProgress } = useSessionLoader(sessionId);
   const { wizard, handleContactTeam } = useHomeLayoutContext();
-  const { session, updatePrDetails } = useSession();
+  const { session, prDetails, updatePrDetails } = useSession();
+  const { showNotification } = useNotification();
 
   const resumedRef = useRef<string | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") as TabId | null;
   const resultTab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : "report";
-  const prStep = parsePrStep(searchParams.get("view"));
+  // A merged drift PR has nothing left to approve, so a hand-edited ?view=
+  // must not reopen the flow and let the user merge twice.
+  const isPrMerged = !!prDetails.merged;
+  const prStep = isPrMerged ? null : parsePrStep(searchParams.get("view"));
 
   const handleTabChange = useCallback(
     (tab: TabId) => {
@@ -88,6 +94,27 @@ export default function ResultsRoute() {
     }
   }, [inProgress, wizard]);
 
+  /**
+   * Runs once `PrApprovalView` has merged the PR. For a drift session the merge
+   * is the whole remediation, so the flow ends here; only a generate session
+   * goes on to apply the plan.
+   */
+  const handlePrApproved = useCallback(() => {
+    updatePrDetails({ merged: true });
+
+    if (isDriftSession(session)) {
+      showNotification("success", STRINGS.pr.mergeSuccess);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("view");
+        return next;
+      }, { replace: true });
+      return;
+    }
+
+    wizard.applyAfterPr();
+  }, [session, updatePrDetails, showNotification, setSearchParams, wizard]);
+
   const hasArtifacts = Boolean(session.code || session.terraform_report);
 
   if (loading) return <div className={styles.leftSide}>Loading session…</div>;
@@ -109,7 +136,7 @@ export default function ResultsRoute() {
         <PrApprovalView
           step={prStep}
           onStepChange={handlePrStepChange}
-          onApprove={wizard.applyAfterPr}
+          onApprove={handlePrApproved}
           onBackToReport={handleBackToResult}
           onContactTeam={handleContactTeam}
         />

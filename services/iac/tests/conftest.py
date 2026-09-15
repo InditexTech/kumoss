@@ -15,4 +15,4 @@ themselves when no engine is installed.
 
 import os
 
-os.environ.setdefault("IAC_BINARY", "sh")
+_ = os.environ.setdefault("IAC_BINARY", "sh")

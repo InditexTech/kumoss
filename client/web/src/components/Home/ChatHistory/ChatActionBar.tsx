@@ -74,6 +74,9 @@ export default function ChatActionBar({
   }, [onResetToReport]);
 
   const canCreatePr = !!session.uuid && !prCreated && !disabled;
+  // A merged PR has nothing left to approve; re-entering the flow would issue a
+  // second merge, which a real git provider rejects.
+  const canContinuePr = prCreated && !prDetails.merged;
 
   if (isApplyResult) return null;
 
@@ -95,7 +98,7 @@ export default function ChatActionBar({
           {loading ? "Creating..." : "Create PR"}
         </button>
       )}
-      {prCreated && (
+      {canContinuePr && (
         <button
           className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
           onClick={handleContinuePr}
