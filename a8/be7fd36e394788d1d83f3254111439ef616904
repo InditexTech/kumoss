@@ -1,0 +1,53 @@
+CODE_OF_CONDUCT.md
+  s_9ff373cd437c0a::t_b1e498b75d6ff8 11
+CONTRIBUTING.md
+  s_9ff373cd437c0a::t_31184680c8674c 34,36,42,46,49-73
+README.md
+  s_9ff373cd437c0a::t_bd7fc97149e4ba 13,156
+client/web/README.md
+  s_9ff373cd437c0a::t_c59af392469c16 56-57
+config.yaml
+  s_9ff373cd437c0a::t_ac072a371c746a 211-213
+core/env.sample
+  s_9ff373cd437c0a::t_0502f42e8d1c37 51-56,63-65
+core/src/api/v1/auth.py
+  s_9ff373cd437c0a::t_8f4214eeb13fcc 7,15,63-73
+docs/architecture.md
+  s_9ff373cd437c0a::t_4634b5632bcc1e 123,169,231,342
+docs/configuration.md
+  s_9ff373cd437c0a::t_eea27f169782a9 118,165,189,205,211
+docs/environment-variables.md
+  s_9ff373cd437c0a::t_8f5cf2ae968217 55
+docs/faq.md
+  s_9ff373cd437c0a::t_130293cb83132e 29
+docs/getting-started-local.md
+  s_9ff373cd437c0a::t_513593ae414240 77,85,96-99,116,248,255
+docs/getting-started-production.md
+  s_9ff373cd437c0a::t_7b7e3926bb6d56 200-202
+docs/images/swimlane-sequence.mmd
+  s_9ff373cd437c0a::t_5eb687fa809004 84
+docs/litellm.md
+  s_9ff373cd437c0a::t_88dc833a987061 17,33-43,85,181
+docs/monitoring.md
+  s_9ff373cd437c0a::t_7129130797b14b 9,13,37,42,106-107,145
+docs/phoenix-prompt-templates.md
+  s_9ff373cd437c0a::t_2ac65614850acc 9
+services/iac/env.sample
+  s_9ff373cd437c0a::t_4c1ad16401c9f2 37-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8be7fd36e394788d1d83f3254111439ef616904",
+  "prompts": {},
+  "sessions": {
+    "s_9ff373cd437c0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e52a97-db95-428c-bb3b-870574c19487",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
