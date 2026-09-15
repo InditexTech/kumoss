@@ -39,8 +39,8 @@ export default function ResultsRoute() {
   const resultTab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : "report";
   // A merged drift PR has nothing left to approve, so a hand-edited ?view=
   // must not reopen the flow and let the user merge twice.
-  const isDriftMerged = isDriftSession(session) && !!prDetails.merged;
-  const prStep = isDriftMerged ? null : parsePrStep(searchParams.get("view"));
+  const isPrMerged = !!prDetails.merged;
+  const prStep = isPrMerged ? null : parsePrStep(searchParams.get("view"));
 
   const handleTabChange = useCallback(
     (tab: TabId) => {
