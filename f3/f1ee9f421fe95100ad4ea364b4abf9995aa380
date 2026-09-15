@@ -1,0 +1,19 @@
+core/tests/conftest.py
+  s_9ff373cd437c0a::t_8b1f5f768ebe9b 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f3f1ee9f421fe95100ad4ea364b4abf9995aa380",
+  "prompts": {},
+  "sessions": {
+    "s_9ff373cd437c0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42e52a97-db95-428c-bb3b-870574c19487",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
