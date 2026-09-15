@@ -188,4 +188,39 @@ describe("PrApprovalView", () => {
     await user.click(screen.getByText("Request Review"));
     expect(props.onContactTeam).toHaveBeenCalled();
   });
+
+  // For a drift session the merge IS the deliverable — no apply follows it — so
+  // the wording must not promise one. Gated on session.operation, not useMode().
+  it("labels the initial step for merging in a drift session", () => {
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Approve and Merge PR")).toBeInTheDocument();
+    expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
+  });
+
+  it("labels the confirming step for merging in a drift session", () => {
+    renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Confirm and Merge")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("still merges and notifies the caller in a drift session", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
+    const { props } = renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Confirm and Merge"));
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
+    expect(props.onApprove).toHaveBeenCalled();
+  });
 });
