@@ -26,7 +26,7 @@ Changing any field therefore means: edit `config.yaml`, rebuild the core image, 
 
 | Category | Fields |
 |---|---|
-| **Mandatory** (the core refuses to boot otherwise) | The environment variable named by `database.nebula_database_url_env` must be set; the variable named by `services.iac.token_env` must be set while `services.iac.enabled` is `true` (the shipped default); the credentials that LiteLLM requires for `llm.model` and `llm.small_model` must be set for providers LiteLLM can validate. |
+| **Mandatory** (the core refuses to boot otherwise) | The environment variable named by `database.nebula_database_url_env` must be set; the variable named by `services.iac.token_env` must be set (the IaC sidecar is always called and has no `enabled` flag); the credentials that LiteLLM requires for `llm.model` and `llm.small_model` must be set for providers LiteLLM can validate. |
 | **Conditionally mandatory** | `oidc.client_id` when `oidc.issuer_url` is set; the `token_env` variable of every other enabled sidecar; the variable named by `storage.account_key_env` when `storage.provider` is `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url` for `STORAGE_ACCOUNT`. |
 | **Optional with defaults** | Everything else. |
 
@@ -68,13 +68,13 @@ Requires rebuild: yes. This is the core's mechanism and is unrelated to the auth
 
 Wiring for the four sidecars. Each sidecar implements an OpenAPI contract in `contracts/openapi/`, and any implementation of the contract can replace the bundled one by changing `endpoint`.
 
-Common fields, available under `services.notifications`, `services.mapping`, `services.authz`, and `services.iac`:
+Common fields, available under `services.notifications`, `services.mapping`, `services.authz`, and `services.iac`. The `enabled` flag exists only for the three optional sidecars; `services.iac` has none because the core cannot run without it.
 
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
-| `services.<name>.enabled` | boolean | `false` | `true` for `iac`, `false` for the rest | Optional | Whether the core calls the sidecar. A disabled sidecar is never contacted: mapping is done locally, notifications are dropped, authorization answers "authorized". Compose still starts the container. |
-| `services.<name>.endpoint` | string (base URL) | `""` | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled) | Base URL the core calls, resolvable from inside the core container. |
-| `services.<name>.token_env` | string (variable name) | `""` | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional | Name of the environment variable holding the bearer token sent on every call. **An enabled sidecar whose variable resolves to an empty value aborts the boot** with `Enabled services have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars or flip the service to enabled: false.` |
+| `services.<name>.enabled` (not for `iac`) | boolean | `false` | `false` for `notifications`, `mapping`, `authz` | Optional | Whether the core calls the sidecar. A disabled sidecar is never contacted: mapping is done locally, notifications are dropped, authorization answers "authorized". Compose still starts the container. An `enabled` key under `services.iac` is ignored. |
+| `services.<name>.endpoint` | string (base URL) | `""` | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled; always for `iac`) | Base URL the core calls, resolvable from inside the core container. |
+| `services.<name>.token_env` | string (variable name) | `""` | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional (always for `iac`) | Name of the environment variable holding the bearer token sent on every call. **A sidecar the core will call whose variable resolves to an empty value aborts the boot** with `Services the core calls have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars; the optional sidecars can also be flipped to enabled: false (services.iac cannot — it is mandatory).` |
 | `services.<name>.timeout` | float (seconds) | `30.0` | `30.0` | Optional | Per-request HTTP budget. Every sidecar call returns promptly (long work runs as jobs the core polls), so this covers one round trip only. Honoured by the IaC and notifications clients; the mapping and authorization clients currently use fixed budgets of 10 and 15 seconds and ignore this field. |
 
 Fields specific to the IaC sidecar:
@@ -84,7 +84,7 @@ Fields specific to the IaC sidecar:
 | `services.iac.job_poll_interval` | float (seconds) | `5.0` | Optional | How often the core polls `GET /v1/jobs/{job_id}` for a submitted engine command. |
 | `services.iac.job_timeout` | float (seconds) | `3600.0` | Optional | Maximum total wait for **one** job. It must cover both the time the job spends queued (jobs on the same workspace run one at a time, in order) and the command itself. The bundled sidecar imposes no timeout of its own on the engine process, so this value is the only bound. A validation run submits several jobs in sequence (init, validate, plan, and show when drift is requested), each with its own `job_timeout`. |
 
-**The IaC sidecar is mandatory in the shipped configuration.** Every operating mode runs engine commands through it; disabling it leaves Nebula unable to validate, plan, or apply anything.
+**The IaC sidecar is mandatory.** Every operating mode runs engine commands through it, so its configuration has no `enabled` flag: `endpoint` and `token_env` are always required and the service is always contacted.
 
 Related environment variables: the ones named by each `token_env`, in `core/.env`, with the same value in the sidecar's `.env`. See [Environment variables](environment-variables.md). Requires rebuild: yes.
 

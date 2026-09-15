@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Self, TypeVar, cast
+from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 
-from ..types import UNSET, Unset
+from ..models.terraform_provider import TerraformProvider
 
 T = TypeVar("T", bound="InitRequest")
 
@@ -22,34 +22,38 @@ class InitRequest:
             to the implementation. For the OSS docker-compose deployment,
             this is a path on the shared volume mounted into both the
             core and the IaC service.
-        scope_id (None | str | Unset): Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+        scope_id (str): Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
+        terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
+            provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
+            `kubernetes`), not Terraform registry provider names
+            (`azurerm`, `google`).
     """
 
     workspace_path: str
-    scope_id: None | str | Unset = UNSET
+    scope_id: str
+    terraform_provider: TerraformProvider
 
     def to_dict(self) -> dict[str, Any]:
         workspace_path = self.workspace_path
 
-        scope_id: None | str | Unset
-        if isinstance(self.scope_id, Unset):
-            scope_id = UNSET
-        else:
-            scope_id = self.scope_id
+        scope_id = self.scope_id
+
+        terraform_provider = self.terraform_provider.value
 
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
             {
                 "workspace_path": workspace_path,
+                "scope_id": scope_id,
+                "terraform_provider": terraform_provider,
             }
         )
-        if scope_id is not UNSET:
-            field_dict["scope_id"] = scope_id
 
         return field_dict
 
@@ -58,18 +62,14 @@ class InitRequest:
         d = dict(src_dict)
         workspace_path = d.pop("workspace_path")
 
-        def _parse_scope_id(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
+        scope_id = d.pop("scope_id")
 
-        scope_id = _parse_scope_id(d.pop("scope_id", UNSET))
+        terraform_provider = TerraformProvider(d.pop("terraform_provider"))
 
         init_request = cls(
             workspace_path=workspace_path,
             scope_id=scope_id,
+            terraform_provider=terraform_provider,
         )
 
         return init_request

@@ -109,7 +109,7 @@ The web application is stricter than the API in one place: it disables Partial D
 
 **Plan pinned.** **No.** Drift sessions do not pin a plan, so apply (and therefore the Import Infrastructure mode) on a drift-only session is accepted with `202` but its round ends `failed` with `No reviewed plan is pinned for this session; run a generate or drift round before applying.`
 
-**Apply, pull requests, compliance, locks.** You can create a pull request from the branch. Drift rounds run no compliance audit and never set the lock. Apply is unavailable until a generate round pins a plan.
+**Apply, pull requests, compliance, locks.** You can create a pull request from the branch. Drift rounds run no compliance audit and never set the lock. Apply is unavailable until a generate round pins a plan. In the web application a drift session therefore ends at the pull-request merge: the merge button is labelled for merging only, and no apply is triggered afterwards.
 
 **Fictitious example.** "Resolve the drift on security group `sg-web-demo`; someone opened port 8080 in the console." Nebula plans with `-target` on that security group, detects the extra ingress rule, and generates code that restores the declared rules. You review the drift report and open a pull request.
 
@@ -132,7 +132,7 @@ The web application is stricter than the API in one place: it disables Partial D
 
 **Targets.** None; whole workspace.
 
-**Artifacts, plan pinning, apply, compliance, locks.** As for partial drift: artifacts and a `drift` report, no pinned plan, no compliance audit, no lock, apply unavailable until a generate round pins a plan.
+**Artifacts, plan pinning, apply, compliance, locks.** As for partial drift: artifacts and a `drift` report, no pinned plan, no compliance audit, no lock, apply unavailable until a generate round pins a plan, and the web application ends the session at the pull-request merge.
 
 **Fictitious example.** "Reconcile everything in `envs/dev`." Nebula plans the whole root, finds two drifted resources, generates the reconciling changes, and reports `Succeeded`.
 
@@ -163,10 +163,10 @@ The web application is stricter than the API in one place: it disables Partial D
 
 **What is *not* implemented.** Despite the label "Adds existing resources to manage them from the tool", the core has no route that discovers cloud resources, generates `import` blocks or runs the engine's `import` command as part of a browser-facing workflow. Related building blocks exist at a lower level:
 
-- The IaC sidecar exposes `POST /v1/import` (runs `import <address> <resource_id>`), `POST /v1/import/state-resource-ids` (lists managed resource ids from state), and `POST /v1/import/scope-resource-ids` (lists resource ids in a cloud scope through the `az`, `gcloud`, or `aws` CLIs). See `services/iac/README.md`.
+- The IaC contract defines `POST /v1/import`, `POST /v1/import/state-resource-ids`, and `POST /v1/import/scope-resource-ids`, but the bundled sidecar answers all three with `501 Not Implemented`; its earlier reference implementation and the bundled cloud CLIs were removed. See `services/iac/README.md`.
 - The core's generated IaC client contains these operations, and the core defines an `import` operation type, `import` report type, and `*-terraform-import` Phoenix projects. **None of these are called or selected by any reachable core code path.**
 
-Treat resource import as a planned capability. This guide will be updated when a core route wires the sidecar endpoints into a complete workflow.
+Treat resource import as a planned capability. This guide will be updated when a core route and a sidecar implementation turn the contract into a complete workflow.
 
 **Fictitious example (current behaviour).** After the generate example above is merged, choose Import Infrastructure and submit. Nebula applies the pinned plan, creates the bucket, and shows an `apply` report with `Success`.
 

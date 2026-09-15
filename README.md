@@ -43,7 +43,7 @@ The bundled implementations exist so the stack runs end to end out of the box �
 
 | Sidecar | Shipped `config.yaml` | Bundled implementation | Production-ready as shipped? |
 |---|---|---|---|
-| `iac` | **enabled** (mandatory) | Reference executor: runs OpenTofu 1.12.6 (default) or the bundled HashiCorp Terraform 1.16.0 as asynchronous jobs on the shared workspace volume. Terraform is BUSL-1.1 licensed; selecting it makes your use subject to its terms. | **No** — implement the contract for your requirements, or at minimum harden the bundled image. |
+| `iac` | **always on** (mandatory; no `enabled` flag) | Reference executor: runs OpenTofu 1.12.6 (default) or the bundled HashiCorp Terraform 1.16.0 as asynchronous jobs on the shared workspace volume. Terraform is BUSL-1.1 licensed; selecting it makes your use subject to its terms. | **No** — implement the contract for your requirements, or at minimum harden the bundled image. |
 | `notifications` | disabled | Slack only: renders a Slack-format message and posts it to one incoming webhook. | **Yes, for Slack only** — point it at your production channel and supply that channel's webhook URL, which is itself the credential. For Teams, email, PagerDuty, or any other system, implement the contract. |
 | `mapping` | disabled | Identity passthrough: the repository URL you enter is used as-is. While disabled, the core performs the same mapping itself. | **N/A** — leave disabled, or implement the contract against your catalogue. |
 | `authz` | disabled | Permissive placeholder: answers "authorized" to every cloud-project check. | **No** — never enable it as your access policy; implement the contract against your policy source. |

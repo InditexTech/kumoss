@@ -165,8 +165,8 @@ class LlmConfig(BaseModel):
         return Router(model_list=self._effective_model_list())
 
 
-class ServiceConfig(BaseModel):
-    """Configuration for a single microservice contract.
+class ServiceEndpointConfig(BaseModel):
+    """Outbound HTTP wiring shared by every microservice contract.
 
     ``token_env`` names the environment variable holding the bearer token
     the core sends with every call. Looking the token up indirectly
@@ -178,7 +178,6 @@ class ServiceConfig(BaseModel):
     to cover a single request/response round trip.
     """
 
-    enabled: bool = False
     endpoint: str = ""
     token_env: str = ""
     timeout: float = 30.0
@@ -188,22 +187,48 @@ class ServiceConfig(BaseModel):
         return _env(self.token_env)
 
 
-class IacServiceConfig(ServiceConfig):
+class ServiceConfig(ServiceEndpointConfig):
+    """Configuration for an optional microservice contract.
+
+    ``enabled: false`` skips the service entirely: the core never
+    contacts it and answers those calls locally (or not at all).
+    """
+
+    enabled: bool = False
+
+
+class IacServiceConfig(ServiceEndpointConfig):
     """IaC service wiring plus its async-job polling knobs.
+
+    The IaC service is mandatory — without it the core cannot validate
+    or apply anything — so this config deliberately has no ``enabled``
+    flag: ``endpoint`` and ``token_env`` are always required and the
+    service is always contacted.
 
     The IaC service enqueues one terraform command per job and returns
     a job id immediately; the core then polls ``GET /v1/jobs/{job_id}``
     every ``job_poll_interval`` seconds until the job is terminal.
     ``job_timeout`` bounds the total wait for one job — it must cover
     both the FIFO queue wait (jobs on the same workspace run one at a
-    time) and the command itself; the reference service applies no
-    timeout of its own to the engine process. A validation
+    time) and the command itself, so keep it above the service's own
+    subprocess budget (2700s in the reference deployment). A validation
     run submits several jobs in sequence (init, validate, plan, and
     show when drift is requested), each with its own ``job_timeout``.
     """
 
+    endpoint: str = "http://iac:8082"
+    token_env: str = "NEBULA_IAC_TOKEN"
     job_poll_interval: float = 5.0
     job_timeout: float = 3600.0
+
+    @model_validator(mode="after")
+    def _assert_endpoint(self) -> "IacServiceConfig":
+        if not self.endpoint:
+            raise ConfigError(
+                "services.iac.endpoint is empty; the IaC service is mandatory. "
+                + "Point it at an implementation of the iac contract."
+            )
+        return self
 
 
 class ServicesConfig(BaseModel):
@@ -467,22 +492,22 @@ class SystemConfig(BaseModel, frozen=True):
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":
-        """Every enabled service must have a non-empty bearer token resolved.
-
-        The outbound httpx clients always send ``Authorization: Bearer <token>``
-        and httpx rejects an empty bearer as a malformed header. Catching it
-        here turns a per-request 500 into a clear boot-time failure.
-        """
+        """Every service the core will call needs a bearer token resolved."""
         missing: list[str] = []
-        for name in ("notifications", "mapping", "authz", "iac"):
+        if not self.services.iac.token:
+            missing.append(f"services.iac → ${self.services.iac.token_env}")
+        for name in ("notifications", "mapping", "authz"):
             svc: ServiceConfig = getattr(self.services, name)
             if svc.enabled and not svc.token:
                 missing.append(f"services.{name} → ${svc.token_env}")
         if missing:
             raise ConfigError(
-                "Enabled services have no bearer token in the environment: "
+                "Services the core calls have no bearer token in the "
+                + "environment: "
                 + "; ".join(missing)
-                + ". Set the listed env vars or flip the service to enabled: false."
+                + ". Set the listed env vars; the optional sidecars can also "
+                + "be flipped to enabled: false (services.iac cannot — it is "
+                + "mandatory)."
             )
         return self
 

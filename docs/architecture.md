@@ -48,7 +48,6 @@ flowchart TB
         REDIS[("Redis 8<br/>read-through cache")]
         STORE[("object-storage<br/>RustFS (S3 API)<br/>bucket: nebula-artifacts")]
         WS[/"workspaces volume<br/>ephemeral git clones"/]
-        AUTHZDATA[/"authz_data volume<br/>roles.json"/]
     end
 
     subgraph OBS["Observability"]
@@ -108,7 +107,7 @@ Solid edges are active in the default Compose deployment; dashed elements are co
 | Application layer (`core/src/application`) | `TerraformCRUDHandler`, `TerraformDriftHandler`, `TerraformApplyHandler`; requests-filter, drift, report, pull-request services; `ApplicationFactory` builds a per-session object graph | Composes domain services |
 | Domain layer (`core/src/domains`) | Entities and ports (including `User` and the `TokenClaims` value object); `LLMOrchestrationService` (agent loop), `ToolOrchestrationService`, `SessionService`, `UserService` (identity resolution, first-login provisioning, bootstrap-admin elevation), `TerraformValidationService`, `ComplianceCheckService` (post-report audit) | Depends only on interfaces |
 | Infrastructure layer (`core/src/infrastructure`) | Adapters: `auth/oidc.py` (OIDC discovery + JWKS bearer-token validator built on PyJWT), LiteLLM Router, git CLI + provider REST, generated sidecar clients, S3/Azure storage, async SQLAlchemy, Redis, OpenTelemetry/Phoenix | Implements domain ports |
-| authz service | Cloud project access checks (`POST /v1/check`); permissive reference implementation, disabled by default (the core then answers "authorized" without calling it; when enabled, an unreachable sidecar is an error, not an allow). Its user/role endpoints are no longer consumed by the core, which keeps users and roles in core-db | Called from `POST /auth/authorize` with the caller's email or subject; `authz_data` volume |
+| authz service | Cloud project access checks (`POST /v1/check`); permissive reference implementation, disabled by default (the core then answers "authorized" without calling it; when enabled, an unreachable sidecar is an error, not an allow). Its user/role endpoints are no longer consumed by the core, which keeps users and roles in core-db | Called from `POST /auth/authorize` with the caller's email or subject; container-local JSON role store |
 | iac service | Runs one IaC engine CLI command (OpenTofu by default, selected via `IAC_BINARY`) per async job (`init`, `validate`, `plan`, `show`, `apply`, `import`); 202 + job id, caller polls. The bundled implementation is a reference for non-production installs; production deployments are expected to implement the contract to their own requirements (see [getting-started-production.md](getting-started-production.md)) | Shares `workspaces` volume with core |
 | mapping service | Resolves a business identifier to repo URL/branch/path; identity passthrough reference | Called via core passthrough endpoint |
 | notifications service | Channel-agnostic notify contract; reference implementation posts color-coded Slack webhook messages | Invoked fire-and-forget by core on compliance-check, apply and pipeline failures; request/response from the browser-facing `POST /notifications` route (support requests from the header's chat-bubble modal) |
@@ -397,7 +396,7 @@ There is no dedicated Google Cloud Storage adapter for artifacts; a GCS bucket c
 
 **Workspaces** (`workspaces` volume) are ephemeral: each run clones the repository into a unique directory shared with the iac container and deletes it in a `finally` block. Durable outputs leave via git pushes and artifact uploads, not the volume.
 
-**authz persistence** is a JSON file (`/data/roles.json` on the `authz_data` volume), rewritten atomically under a process lock. It backs the sidecar's own user/role endpoints, which the core does not call; Nebula's roles live in core-db.
+**authz persistence** is a JSON file (`/data/roles.json`, container-local in the shipped Compose file; set `NEBULA_AUTHZ_ROLE_STORE` to a mounted path to keep it), rewritten atomically under a process lock. It backs the sidecar's own user/role endpoints, which the core does not call; Nebula's roles live in core-db.
 
 ## Deployment and Operational View
 
@@ -428,7 +427,6 @@ flowchart LR
         VCORE[/"core_db_data"/]
         VPHX[/"phoenix_db_data"/]
         VOBJ[/"object_storage_data"/]
-        VAUTHZ[/"authz_data"/]
     end
 
     subgraph EXT["External"]
@@ -472,7 +470,7 @@ The Compose stack described here is the **local/non-production** deployment mode
 
 - All eleven containers share one Docker bridge network. Only `proxy` publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000 (presigned object-storage access); every other service is internal-only via `expose`.
 - Compose `depends_on` orders start-up (it does not health-check): core waits for core-db, Redis, object storage, and all four sidecars; the proxy waits for core, Phoenix, and object storage. The core has no Compose dependency on Phoenix, which is why its prompt seeder retries.
-- Five named volumes persist state: `core_db_data`, `phoenix_db_data`, `object_storage_data`, `workspaces`, and `authz_data`.
+- Four named volumes persist state: `core_db_data`, `phoenix_db_data`, `object_storage_data`, and `workspaces`. The authz sidecar's JSON role store has no volume and does not survive container recreation.
 
 **Core start-up**
 

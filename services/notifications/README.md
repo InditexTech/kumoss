@@ -69,10 +69,9 @@ responses to the caller and as warnings or errors on stdout
 
 ```bash
 cd services/notifications
-uv venv && source .venv/bin/activate
-uv pip install -e '.[dev]'
+uv sync
 SLACK_WEBHOOK_URL=https://hooks.slack.example/... \
-  uvicorn src.main:app --host 0.0.0.0 --port 8080
+  uv run fastapi run src/main.py --port 8080
 ```
 
 Then in another shell:
@@ -95,8 +94,8 @@ the core image, and run `docker compose up`.
 
 ```bash
 cd services/notifications
-uv pip install -e '.[dev]'
-pytest
+uv sync --group tooling
+uv run pytest
 ```
 
 ## Verifying conformance

@@ -54,6 +54,7 @@ def test_notify_requires_token_when_configured() -> None:
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_notify_rejects_wrong_token() -> None:
@@ -69,6 +70,7 @@ def test_notify_rejects_wrong_token() -> None:
             },
         )
     assert response.status_code == 401
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_notify_validation_error_returns_problem_json() -> None:

@@ -4,8 +4,6 @@
 
 # IaC engine: OpenTofu, taken from the official minimal image (the
 # install method the OpenTofu project documents for custom images).
-# Digest-pinned so the build is reproducible and integrity-checked;
-# bump tag + digest together when upgrading.
 FROM ghcr.io/opentofu/opentofu:1.12.6-minimal@sha256:2fedbb3e956b083582543dabb76eba17e9f961dfd055311ea054a6191cfae9dd AS tofu
 
 FROM python:3.13-slim AS base
@@ -24,7 +22,7 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# OpenTofu and Terraform CLI installation
+# Terraform CLI installation
 ARG TERRAFORM_VERSION=1.16.0
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
@@ -38,44 +36,18 @@ RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
     && apt-get purge -y unzip \
     && rm -rf /var/lib/apt/lists/*
 
-
-# AWS and GCP CLI installation
-ARG AWSCLI_VERSION=2.28.0
-ARG GCLOUD_VERSION=540.0.0
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl unzip ca-certificates \
-    && curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscliv2.zip \
-    && unzip -q /tmp/awscliv2.zip -d /tmp \
-    && /tmp/aws/install \
-    && rm -rf /tmp/awscliv2.zip /tmp/aws \
-    && curl -fsSL "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-${GCLOUD_VERSION}-linux-x86_64.tar.gz" \
-    | tar -xz -C /usr/local \
-    && ln -s /usr/local/google-cloud-sdk/bin/gcloud /usr/local/bin/gcloud \
-    && apt-get purge -y unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Azure CLI: installed into system Python using uv pip (much faster than standard pip)
-ENV AZURE_EXTENSION_DIR=/opt/azure-cli-extensions
-RUN uv pip install --system --no-cache azure-cli \
-    && AZURE_CONFIG_DIR=/tmp/az-build az extension add --name resource-graph \
-    && rm -rf /tmp/az-build
-
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_HTTP_TIMEOUT=120 \
     UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH" \
-    HOME=/home/nebula \
-    PYTHONDONTWRITEBYTECODE=1
+    HOME=/home/nebula
 
-COPY pyproject.toml uv.lock ./
+COPY services/iac/pyproject.toml services/iac/uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-default-groups
 
-COPY --chown=nebula:nebula src ./src
-
-RUN uv sync --frozen --no-dev
+COPY --chown=nebula:nebula services/iac/src ./src
 
 USER ${NEBULA_UID}:${NEBULA_GID}
 

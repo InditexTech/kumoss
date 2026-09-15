@@ -501,6 +501,27 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       mode: "import",
     });
   });
+
+  // Defence in depth: the route already declines to call this for a drift
+  // session, but applyAfterPr is exposed through the outlet context and any
+  // future route could reach it.
+  it("applyAfterPr refuses to apply a drift session", () => {
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.session.updateSession({
+        uuid: "abc-123",
+        operation: "drift",
+      });
+    });
+
+    act(() => { result.current.wizard.applyAfterPr(); });
+
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+  });
 });
 
 describe("useHomeWizard — retry", () => {

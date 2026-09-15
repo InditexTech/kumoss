@@ -23,7 +23,7 @@ The core reads variables through the names configured in `config.yaml`. The tabl
 | Variable | Requirement | Default / fallback | Meaning | Activated by | Must match | Checked |
 |---|---|---|---|---|---|---|
 | LLM provider credentials (for example `ANTHROPIC_API_KEY`, `VERTEXAI_PROJECT`) | Mandatory for the provider selected by `llm.model` and `llm.small_model` | none | Credentials that LiteLLM reads for the configured provider. Names follow LiteLLM conventions; see [LiteLLM providers and models](litellm.md). | `llm.model`, `llm.small_model`, `llm.model_list` | nothing | At boot for providers LiteLLM can validate; otherwise on the first LLM call |
-| `NEBULA_IAC_TOKEN` | Mandatory (the IaC sidecar is enabled in the shipped configuration) | sample value `dev-iac-token` | Bearer token the core sends to the IaC sidecar. | `services.iac.enabled: true` | `NEBULA_IAC_TOKEN` in `services/iac/.env` | At boot: an enabled sidecar with an empty token aborts startup |
+| `NEBULA_IAC_TOKEN` | Mandatory (the IaC sidecar is always called; it has no `enabled` flag) | sample value `dev-iac-token` | Bearer token the core sends to the IaC sidecar. | always | `NEBULA_IAC_TOKEN` in `services/iac/.env` | At boot: an empty token aborts startup |
 | `NEBULA_MAPPING_TOKEN` | Conditional | sample value `dev-mapping-token` | Bearer token for the mapping sidecar. | `services.mapping.enabled: true` | `NEBULA_MAPPING_TOKEN` in `services/mapping/.env` | At boot when enabled |
 | `NEBULA_NOTIFICATIONS_TOKEN` | Conditional | sample value `dev-notifications-token` | Bearer token for the notifications sidecar. | `services.notifications.enabled: true` | `NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env` | At boot when enabled |
 | `NEBULA_AUTHZ_TOKEN` | Conditional | sample value `dev-authz-token` | Bearer token for the authorization sidecar. | `services.authz.enabled: true` | `NEBULA_AUTHZ_TOKEN` in `services/authz/.env` | At boot when enabled |
@@ -48,23 +48,24 @@ Two related facts about the sample file:
 |---|---|---|---|---|
 | `NEBULA_IAC_TOKEN` | Recommended; mandatory outside an isolated workstation | empty (accepts any bearer) | Token the sidecar requires on every `/v1/*` call. Must equal the core's `NEBULA_IAC_TOKEN`. | Per request: a mismatch returns `401` to the core |
 | `IAC_BINARY` | Optional | `tofu` | Name or absolute path of the IaC engine CLI. `tofu` runs the bundled OpenTofu; `terraform` runs the bundled HashiCorp Terraform (BUSL-1.1 licensed; your use is subject to its terms). Any Terraform-compatible engine on `PATH` works. | At boot: the service refuses to start if the binary cannot be found |
-| `NEBULA_IAC_JOB_TTL` | Optional | `3600` | Seconds a finished job stays pollable at `GET /v1/jobs/{job_id}` before it is forgotten. Jobs live in memory, so a restart also forgets them. | At boot (must parse as an integer) |
+
+The job retention period (how long a finished job stays pollable at `GET /v1/jobs/{job_id}`, one hour) is a constant in `services/iac/src/config.py`, not an environment variable. Jobs live in memory, so a restart also forgets them.
 
 ### Cloud credentials for the IaC engine
 
-The IaC sidecar does not interpret cloud credentials. It launches the engine and the cloud CLIs with its **entire container environment inherited and no allowlist**, so every variable in `services/iac/.env` (including `NEBULA_IAC_TOKEN` and `NEBULA_IAC_JOB_TTL`) is visible to the Terraform and OpenTofu **providers**, to `az`/`gcloud`/`aws`, and to any `external` or `local-exec` code in the repositories you run. The providers read their credentials directly during `init`, `plan`, `apply`, and `import`. Missing or invalid credentials never stop the container; the command runs and the engine's own authentication error appears in the job's `stderr`, which the session shows to the user. Keep only the variables the engine needs in that file, and treat the sidecar's environment as exposed to the IaC code it executes.
+The IaC sidecar does not interpret cloud credentials. It launches the engine with its **entire container environment inherited and no allowlist**, so every variable in `services/iac/.env` (including `NEBULA_IAC_TOKEN`) is visible to the Terraform and OpenTofu **providers** and to any `external` or `local-exec` code in the repositories you run. The providers read their credentials directly during `init`, `plan`, and `apply`. Missing or invalid credentials never stop the container; the command runs and the engine's own authentication error appears in the job's `stderr`, which the session shows to the user. Keep only the variables the engine needs in that file, and treat the sidecar's environment as exposed to the IaC code it executes.
 
-The variables in the sample file are examples of each provider's standard authentication chain. Use whichever mechanism your provider configuration expects; the sidecar imposes nothing beyond what the provider supports.
+The sample file lists no cloud variables; add the ones your modules need. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) gives the minimum set per cloud and authentication method (service principal, OIDC federation, managed identity, named profile, and so on) plus the state-backend minimums, and [`services/iac/FULL_PROVIDERS.md`](../services/iac/FULL_PROVIDERS.md) lists every variable each provider and backend reads. The table below is a short orientation; the sidecar imposes nothing beyond what the provider supports.
 
-| Cloud | Variables in `env.sample` | Provider chain (examples, not a complete list) |
+| Cloud | Typical variables | Provider chain (examples, not a complete list) |
 |---|---|---|
-| Azure (`azurerm`, `azuread`) | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` | Service principal with client secret, as sampled. Add `ARM_SUBSCRIPTION_ID` if your configuration does not set the subscription. Certificate, OIDC federation, and managed identity are other documented provider options. |
-| Google Cloud (`google`) | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CREDENTIALS` | `GOOGLE_CREDENTIALS` holds the service-account key as JSON content; `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable inside the container. Set one of them. |
-| AWS (`aws`) | `AWS_ACCESS_KEY_ID`, `AWS_PROFILE` | Static keys need `AWS_SECRET_ACCESS_KEY` as well, and usually `AWS_REGION`. `AWS_PROFILE` selects a profile from a mounted credentials file. Instance roles and web-identity federation are other documented provider options. |
-| Oracle Cloud (`oci`) | none in the sample | The provider's documented mechanisms, for example `TF_VAR_*` inputs, an OCI configuration file mounted into the container, or instance principals. |
-| Kubernetes (`kubernetes`, `helm`) | none in the sample | The provider's documented mechanisms, for example a mounted kubeconfig referenced by `KUBE_CONFIG_PATH`, or in-cluster service-account credentials. |
+| Azure (`azurerm`, `azuread`) | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` | Service principal with client secret. Certificate, OIDC federation, and managed identity are other documented provider options. |
+| Google Cloud (`google`) | `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | `GOOGLE_CREDENTIALS` holds the service-account key as JSON content; `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable inside the container. Set one of them. |
+| AWS (`aws`) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, or `AWS_PROFILE` | Static keys, or a profile from a mounted credentials file. Instance roles and web-identity federation are other documented provider options. |
+| Oracle Cloud (`oci`) | `OCI_*` or `TF_VAR_*` | The provider's documented mechanisms, for example an OCI configuration file mounted into the container, or instance principals. |
+| Kubernetes (`kubernetes`, `helm`) | `KUBE_CONFIG_PATH` | A mounted kubeconfig, or in-cluster service-account credentials. |
 
-The bundled image also ships the `az`, `gcloud`, and `aws` command-line tools, which the sidecar's `POST /v1/import/scope-resource-ids` endpoint uses to list resources in a cloud scope. Those CLIs use their own ambient authentication (`az login` state, `gcloud` credentials, `AWS_*` variables); their errors surface in `stderr` the same way. See [Operating modes](modes.md) for what the core does and does not call today.
+The bundled image ships OpenTofu and Terraform only; it no longer includes the `az`, `gcloud`, or `aws` command-line tools, and the sidecar's `/v1/import*` endpoints answer `501 Not Implemented`. See [Operating modes](modes.md) for what the core calls today.
 
 Credential files you mount must be readable by the unprivileged user the image runs as (`nebula`, uid and gid `10001` by default).
 
@@ -95,7 +96,7 @@ The bundled notifications container **refuses to start without `SLACK_WEBHOOK_UR
 | `NEBULA_AUTHZ_TOKEN` | Recommended when the sidecar is enabled | empty (accepts any bearer) | Token required on `/v1/*`. Must equal the core's `NEBULA_AUTHZ_TOKEN`. | Per request |
 | `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` | Optional | empty | When set, the sidecar grants its own `admin` role to a user record keyed by this email at startup. | At boot |
 | `NEBULA_AUTHZ_PERMISSIVE` | Optional | `true` | `true` (case-insensitive): `POST /v1/check` answers `authorized: true` for every request. Any other value: it answers `authorized: false` for every request. Neither value implements a real policy. | At boot |
-| `NEBULA_AUTHZ_ROLE_STORE` | Optional | `/data/roles.json` | Path of the JSON file holding the sidecar's user-to-roles map. Compose mounts a named volume there so it survives restarts. | On first write |
+| `NEBULA_AUTHZ_ROLE_STORE` | Optional | `/data/roles.json` | Path of the JSON file holding the sidecar's user-to-roles map. The path is container-local in the shipped Compose file (no volume is mounted), so assignments are lost when the container is recreated; point it at a mounted path if you need them to survive. | On first write |
 
 Two things to keep apart:
 
@@ -106,8 +107,7 @@ Two things to keep apart:
 
 | Consumer | Where | Purpose |
 |---|---|---|
-| Terraform or OpenTofu providers | `services/iac/.env` | `init`, `validate`, `plan`, `show`, `apply`, `import` against your cloud |
-| `az`, `gcloud`, `aws` CLIs | `services/iac/.env` or mounted CLI state | Scope resource listing used by the sidecar's import endpoints |
+| Terraform or OpenTofu providers | `services/iac/.env` (see `services/iac/PROVIDERS.md`) | `init`, `validate`, `plan`, `show`, `apply` against your cloud |
 | AWS SDK (boto3) in the core | `core/.env` (`RUSTFS_*` or the default chain) | Artifact storage when `storage.provider` is `RUSTFS` or `S3` |
 | Azure Storage shared key in the core | `core/.env` (`STORAGE_ACCOUNT_KEY`) | Artifact storage when `storage.provider` is `STORAGE_ACCOUNT` |
 | LiteLLM in the core | `core/.env` | Cloud-hosted LLM providers (Vertex AI, Bedrock, Azure OpenAI, and so on) |
@@ -128,7 +128,7 @@ Variable names follow LiteLLM's provider conventions and are selected by the `ll
 
   Paste the output into both `core/.env` and the matching sidecar `.env`. Generate a distinct value per sidecar. Do not reuse the `dev-*-token` placeholders or an empty sidecar token outside an isolated workstation: an empty sidecar token disables its bearer check entirely.
 - **Never put secrets in `config.yaml`.** It is baked into the core image and is meant to be shareable. Use the `*_env` fields to rename variables if your platform imposes naming conventions.
-- **Know how the bundled sidecars compare tokens.** Only the notifications sidecar compares bearer tokens in constant time; the IaC, mapping, and authorization references use a plain string comparison. Keep sidecars on a private network that only the core can reach, and rotate tokens on a schedule.
+- **Keep sidecars private.** The bundled sidecars compare bearer tokens in constant time, but they are still simple services: keep them on a private network that only the core can reach, and rotate tokens on a schedule.
 - **Only the IaC and core images run unprivileged.** The bundled mapping, notifications, and authorization images run as root; apply your platform's pod or container security defaults to them.
 - **Prefer a secret manager or orchestrator secrets** (Docker secrets, Kubernetes Secrets, a vault) over plaintext `.env` files in shared and production deployments. Mount files with permissions readable only by uid `10001`.
 - **Scope Git tokens narrowly.** `GIT_TOKEN` is single-tenant: one token pushes every session's branch and opens every pull request. Give it the minimum repository permissions your provider offers.
@@ -176,7 +176,6 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ```dotenv
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
-NEBULA_IAC_JOB_TTL=3600
 
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
@@ -229,7 +228,6 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ```dotenv
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
-NEBULA_IAC_JOB_TTL=3600
 
 ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000
 ARM_CLIENT_SECRET=example-not-a-real-client-secret

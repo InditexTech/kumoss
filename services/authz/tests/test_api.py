@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Config
@@ -61,14 +62,24 @@ def test_check_non_permissive_returns_false(tmp_path: Path) -> None:
     assert response.json()["authorized"] is False
 
 
-def test_check_requires_token(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "headers",
+    [
+        pytest.param({}, id="no-authorization-header"),
+        pytest.param({"Authorization": "Basic Zm9vOmJhcg=="}, id="wrong-scheme"),
+        pytest.param({"Authorization": "Bearer nope"}, id="wrong-token"),
+    ],
+)
+def test_check_requires_token(tmp_path: Path, headers: dict[str, str]) -> None:
     with _client_with(tmp_path, token="expected") as client:
         response = client.post(
             "/v1/check",
             json={"cloud": "azure", "project": "p"},
+            headers=headers,
         )
     assert response.status_code == 401
     assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.headers["WWW-Authenticate"] == "Bearer"
 
 
 def test_users_me_anonymous_when_no_header(tmp_path: Path) -> None:

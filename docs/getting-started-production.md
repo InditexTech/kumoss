@@ -76,10 +76,10 @@ The Compose stack defines eleven services on one network. In production each row
 | Object storage | `rustfs/rustfs:latest` | Core (SDK) and **browsers** (presigned URLs) | **Required** | Prefer AWS S3 or an Azure Storage Account through `storage.provider`; RustFS or another S3-compatible store is also supported. |
 | Phoenix | `arizephoenix/phoenix:20.6.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring` | Core (traces and prompt API), operators (UI) | **Required** (through its PostgreSQL) | Operate it with persistence and access control. It is required at core start-up. |
 | PostgreSQL (Phoenix) | `postgres:17` | Phoenix | **Required** | Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on Phoenix. |
-| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0, `aws`, `gcloud`, `az`; port 8082; user `nebula` 10001) | Core only | Shared workspace volume | **Mandatory.** Recommended: your own implementation of the contract, built to your organization's requirements. The bundled image is a non-production reference; if you start from it, add production cloud identity and execution controls. |
+| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port 8082; user `nebula` 10001) | Core only | Shared workspace volume | **Mandatory.** Recommended: your own implementation of the contract, built to your organization's requirements. The bundled image is a non-production reference; if you start from it, add production cloud identity and execution controls. |
 | Mapping sidecar | `services/mapping/Dockerfile` (port 8081, runs as root) | Core only | none | Replace with an implementation against your catalogue, or leave disabled. |
 | Notifications sidecar | `services/notifications/Dockerfile` (port 8080, runs as root) | Core only | none | Use the bundled Slack implementation with a production webhook, or replace it. |
-| Authorization sidecar | `services/authz/Dockerfile` (port 8083, runs as root) | Core only | `authz_data` volume (JSON role file) | Replace with your policy implementation; the bundled one is permissive. |
+| Authorization sidecar | `services/authz/Dockerfile` (port 8083, runs as root) | Core only | none (container-local JSON role file; mount a path via `NEBULA_AUTHZ_ROLE_STORE` to keep it) | Replace with your policy implementation; the bundled one is permissive. |
 
 Two volumes matter beyond databases:
 
@@ -92,8 +92,8 @@ Each sidecar is an OpenAPI contract. The core calls it with a bearer token from 
 
 Common rules for every **enabled** sidecar:
 
-- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when an enabled sidecar's token variable is empty. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
-- Only the notifications reference compares tokens in constant time; the others use a plain comparison. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
+- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when the IaC sidecar's or an enabled optional sidecar's token variable is empty. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
+- The bundled sidecars compare tokens in constant time, but they remain simple reference services. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
 - The `services.<name>.timeout` field is honoured by the IaC and notifications clients; the mapping and authorization clients use fixed budgets of 10 and 15 seconds.
 - Every sidecar exposes `GET /healthz` for liveness probes.
 
@@ -141,7 +141,7 @@ Implement the contract in [`contracts/openapi/authz.v1.yaml`](../contracts/opena
 | `environment` | `production` (or `staging`). Decide before the first boot: it is the tag every prompt fetch uses, and changing it later requires re-tagging every prompt in Phoenix. |
 | `oidc` | `issuer_url` and `client_id` set; `audience` for Auth0 and Okta; `scope` when the default does not fit. |
 | `admin` | `default_root_email` for identity providers that emit `email_verified`; otherwise plan the one-off SQL grant ([OIDC setup](oidc-setup.md#bootstrap-admin)). |
-| `services.iac` | `enabled: true`, endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. |
+| `services.iac` | Endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. There is no `enabled` flag; the sidecar is always called. |
 | `services.notifications`, `services.mapping`, `services.authz` | Enabled only with a production-grade implementation behind `endpoint`; each with its own token variable. |
 | `orchestration` | Keep `enable_compliance_checker: true` and `block_on_high_impact: true` unless you have another approval gate; the code defaults are `false`. Review the iteration limits, which bound the cost of a runaway session. |
 | `llm` | Two model strings (or `model_list` aliases) for the provider you contract with; `max_output_tokens` within the provider's limits. |
@@ -320,7 +320,7 @@ Then, as the bootstrap administrator:
 
 ## 19. Troubleshooting
 
-- **Core exits with `Enabled services have no bearer token`.** A sidecar is enabled in `config.yaml` but its token variable is empty in the core's environment.
+- **Core exits with `Services the core calls have no bearer token`.** The IaC sidecar's token variable, or that of a sidecar enabled in `config.yaml`, is empty in the core's environment.
 - **Core exits with `Phoenix unreachable after 8 attempts`.** Phoenix is not reachable at `telemetry.collector_url` from the core, or the URL lacks the trailing slash.
 - **Core boots with every sidecar disabled although `config.yaml` enables them.** `NEBULA_CONFIG` points at a missing path or a directory; the core fell back to defaults.
 - **Users get `401 Token validation failed ... audience`.** See [OIDC troubleshooting](oidc-setup.md#troubleshooting); usually the API scope or `audience` setting.

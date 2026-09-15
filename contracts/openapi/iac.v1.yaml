@@ -36,6 +36,58 @@ info:
     concurrently. A submission is never rejected because the
     workspace is busy — it queues.
 
+    ## Scope injection
+
+    Only the commands that reach a cloud API need to know which cloud
+    scope they run against, and only those carry `scope_id` (the scope)
+    and `terraform_provider` (which cloud it is):
+
+    | Endpoint                        | Scope        | Why                                                |
+    |---------------------------------|--------------|----------------------------------------------------|
+    | `/v1/init`                      | required     | may access external services during initialization |
+    | `/v1/plan`                      | required     | refreshes state against the API                    |
+    | `/v1/apply`                     | required     | creates and changes resources                      |
+    | `/v1/import`                    | required     | reads the live resource                            |
+    | `/v1/import/scope-resource-ids` | required     | enumerates a scope                                 |
+    | `/v1/validate`                  | not accepted | local configuration check                          |
+    | `/v1/show`                      | not accepted | reads the local plan file                          |
+    | `/v1/import/state-resource-ids` | not accepted | reads terraform state                              |
+
+    Every request schema sets `additionalProperties: false`, so the
+    endpoints that take no scope reject both fields with a `422` rather
+    than accepting them as no-ops. A field appears on a request only
+    where the operation acts on it.
+
+    Generated provider blocks do not name a scope, so where a cloud
+    exposes a provider-level environment variable that names one, the
+    implementation injects `scope_id` into the engine's environment
+    for that command only, picking the variable from
+    `terraform_provider`:
+
+    | `terraform_provider` | Environment variable  | Scope it sets |
+    |----------------------|-----------------------|---------------|
+    | `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
+    | `gcp`                | `GOOGLE_PROJECT`      | project       |
+    | `aws`                | none                  | —             |
+    | `oci`                | none                  | —             |
+    | `kubernetes`         | none                  | —             |
+
+    Only Azure and GCP have such a variable. An AWS account is implicit
+    in the credentials the provider resolves, and an OCI compartment or
+    a Kubernetes namespace is a resource argument rather than a
+    provider setting — no environment variable redirects a command to
+    one. For those providers this implementation injects nothing: the
+    command runs against whatever scope the deployment's ambient
+    credentials and configuration select, and making those agree with
+    `scope_id` is the deployment's responsibility. The pair stays
+    required on the wire so the intended scope is always stated, and
+    so implementations that can enforce it have what they need.
+
+    Implementations MAY scope a command by another mechanism instead
+    (an AWS AssumeRole into the account, a provider alias, a credential
+    broker), as long as the command runs against `scope_id` — callers
+    need to know nothing about which mechanism was used.
+
     Two failure planes are kept distinct:
 
     * **Terraform-level failures** are normal outcomes: the job ends
@@ -152,11 +204,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -238,11 +286,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -331,11 +375,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -417,11 +457,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -504,11 +540,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -592,11 +624,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -682,11 +710,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -743,13 +767,13 @@ paths:
         the job ends `succeeded` with a non-zero `exit_code` and
         diagnostics in `stderr`.
 
-        Unlike the other endpoints, `scope_id` is required here — it
-        names the scope being listed rather than acting as a
-        credential fallback — and `terraform_provider` selects which
-        provider is queried. The workspace is used to resolve provider
-        credentials; the OSS reference impl shells out to the
-        corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-        service's ambient credentials.
+        Here `scope_id` names the scope being listed (rather than the
+        scope a command runs against, as on `plan`, `apply` and
+        `import`) and `terraform_provider` selects which provider is
+        queried. The workspace is used to resolve provider credentials;
+        the OSS reference impl shells out to the corresponding cloud
+        CLI (`az`, `gcloud`, `aws`) with the service's ambient
+        credentials.
       security:
         - bearerAuth: []
       requestBody:
@@ -787,11 +811,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Token is valid but not authorized to call this endpoint.
           content:
@@ -853,11 +873,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Job"
         "401":
-          description: Missing or invalid bearer token.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: |
             No job with this id: it never existed, its retention period
@@ -899,10 +915,27 @@ components:
         `NEBULA_IAC_TOKEN`). Implementations MAY accept all
         requests when no token is configured for local development.
 
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          description: |
+            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
+            least one challenge, so implementations must send this.
+          required: true
+          schema:
+            type: string
+            examples: ["Bearer"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
   schemas:
     InitRequest:
       type: object
-      required: [workspace_path]
+      required: [workspace_path, scope_id, terraform_provider]
       additionalProperties: false
       properties:
         workspace_path:
@@ -916,14 +949,22 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
+          minLength: 1
           maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: |
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
 
     ValidateRequest:
       type: object
@@ -940,19 +981,10 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scope_id:
-          type: [string, "null"]
-          description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
-          maxLength: 1024
 
     PlanRequest:
       type: object
-      required: [workspace_path, plan_file]
+      required: [workspace_path, scope_id, terraform_provider, plan_file]
       additionalProperties: false
       properties:
         workspace_path:
@@ -966,14 +998,22 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
+          minLength: 1
           maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: |
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         targets:
           type: array
           description: |
@@ -1010,15 +1050,6 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scope_id:
-          type: [string, "null"]
-          description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
-          maxLength: 1024
         plan_file:
           type: string
           description: |
@@ -1030,7 +1061,7 @@ components:
 
     ApplyRequest:
       type: object
-      required: [workspace_path, plan_file]
+      required: [workspace_path, scope_id, terraform_provider, plan_file]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1044,14 +1075,22 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
+          minLength: 1
           maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: |
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         plan_file:
           type: string
           description: |
@@ -1064,7 +1103,7 @@ components:
 
     ImportRequest:
       type: object
-      required: [workspace_path, address, resource_id]
+      required: [workspace_path, scope_id, terraform_provider, address, resource_id]
       additionalProperties: false
       properties:
         workspace_path:
@@ -1078,14 +1117,22 @@ components:
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
         scope_id:
-          type: [string, "null"]
+          type: string
           description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
+            Cloud scope the operation targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID.
+            Required: generated provider blocks do not carry a scope,
+            so where the cloud has a provider-level variable for one
+            the implementation injects it into the engine's
+            environment for this command only (see "Scope injection").
+          minLength: 1
           maxLength: 1024
+        terraform_provider:
+          $ref: "#/components/schemas/TerraformProvider"
+          description: |
+            Cloud the command runs against. Where that cloud has one,
+            it selects the environment variable `scope_id` is injected
+            as (see "Scope injection").
         address:
           type: string
           description: |
@@ -1116,15 +1163,6 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scope_id:
-          type: [string, "null"]
-          description: |
-            Cloud provider scope the operation targets — Azure:
-            subscription id, GCP: project id, AWS: account id. Used as a
-            fallback when the credentials resolved for the workspace do
-            not already carry a scope. Implementations MAY ignore it when
-            the resolved credentials are fully specified.
-          maxLength: 1024
 
     ScopeResourceIdsRequest:
       type: object
@@ -1147,9 +1185,8 @@ components:
           description: |
             Cloud provider scope to list — Azure: subscription id (or
             any value matched as a substring of resource IDs), GCP:
-            project id, AWS: account id. Required here, unlike on the
-            other endpoints: it names the scope being listed rather
-            than acting as a credential fallback.
+            project id, AWS: account id. Names the scope being listed
+            rather than the scope a command runs against.
           minLength: 1
           maxLength: 1024
         terraform_provider:
@@ -1158,11 +1195,12 @@ components:
 
     TerraformProvider:
       type: string
-      enum: [azure, gcp, aws]
+      enum: [azure, gcp, aws, oci, kubernetes]
       description: |
-        Cloud provider a scope query targets. Values follow the core's
-        provider vocabulary (`azure`, `gcp`, `aws`), not Terraform
-        registry provider names (`azurerm`, `google`).
+        Cloud provider a request targets. Values follow the core's
+        provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
+        `kubernetes`), not Terraform registry provider names
+        (`azurerm`, `google`).
 
     OperationResult:
       type: object

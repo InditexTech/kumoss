@@ -14,7 +14,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.config import Config, ConfigError
+from src.config import Config
+from src.exceptions import ConfigError
+
+
+def _always_available(_binary: str) -> bool:
+    return True
 
 
 def test_iac_binary_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -25,11 +30,11 @@ def test_iac_binary_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_default_engine_is_opentofu(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("IAC_BINARY", raising=False)
     # The default must resolve even on hosts without OpenTofu installed.
-    monkeypatch.setattr("src.config.engine_available", lambda binary: True)
+    monkeypatch.setattr("src.config._engine_available", _always_available)
     assert Config.from_env().iac_binary == "tofu"
 
 
 def test_unresolvable_binary_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IAC_BINARY", "definitely-not-an-engine-binary")
     with pytest.raises(ConfigError, match="IaC engine binary"):
-        Config.from_env()
+        _ = Config.from_env()

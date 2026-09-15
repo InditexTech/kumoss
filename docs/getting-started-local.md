@@ -25,9 +25,9 @@ Do **not** use it for shared or production environments. As shipped it has no TL
 - Credentials for one LLM provider supported by LiteLLM. The checked-in `config.yaml` selects Google Vertex AI models; you can keep them or switch provider in step 5.
 - A personal access token for your Git provider (GitHub, Azure DevOps, or GitLab) with permission to push branches and open pull requests on the repositories you will use. Without it you can still run the filtering and generation steps, but pushes fail.
 - Cloud credentials for the cloud your OpenTofu/Terraform code targets. They are used by `plan` and `apply` inside the IaC sidecar.
-- Several gigabytes of free disk for images and volumes. The first build compiles the web application and installs OpenTofu, Terraform, and the `aws`, `gcloud`, and `az` CLIs into the IaC image, so it takes several minutes.
+- Several gigabytes of free disk for images and volumes. The first build compiles the web application and installs OpenTofu and Terraform into the IaC image, so it takes several minutes.
 
-Git and Docker are the only things you install on the host. Everything the first build installs — OpenTofu, Terraform, and the cloud CLIs above — goes into the `iac` container image, and the web application is compiled inside the `proxy` image.
+Git and Docker are the only things you install on the host. Everything the first build installs — OpenTofu and Terraform — goes into the `iac` container image, and the web application is compiled inside the `proxy` image.
 
 ## 3. Components included in the Compose stack
 
@@ -45,7 +45,7 @@ Git and Docker are the only things you install on the host. Everything the first
 | `iac` | built from `services/iac/Dockerfile` | **Mandatory sidecar.** Runs OpenTofu (default) or Terraform commands as asynchronous jobs on the shared workspace. A reference implementation for this deployment model; production deployments implement the contract to their own requirements. | `workspaces` volume |
 | `notifications` | built from `services/notifications/Dockerfile` | **Optional sidecar.** Posts to a Slack incoming webhook. Exits at start-up until `SLACK_WEBHOOK_URL` is set; that is expected while the integration is disabled. | none |
 | `mapping` | built from `services/mapping/Dockerfile` | **Optional sidecar, disabled by default.** Identity passthrough. | none |
-| `authz` | built from `services/authz/Dockerfile` | **Optional sidecar, disabled by default.** Permissive cloud-project check. | `authz_data` volume |
+| `authz` | built from `services/authz/Dockerfile` | **Optional sidecar, disabled by default.** Permissive cloud-project check. | none (its JSON role store is container-local) |
 
 Every sidecar container is built and started regardless of whether the core is configured to call it. A disabled sidecar is simply never contacted.
 
@@ -75,7 +75,7 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 |---|---|---|
 | `llm.model`, `llm.small_model` | **Mandatory review** | LiteLLM model strings (`provider/model-id`). The shipped file selects `vertex_ai/claude-sonnet-4-5` and `vertex_ai/gemini-3.7-flash`. Keep them if you have Vertex AI credentials; otherwise pick another provider and model pair from [LiteLLM providers and models](litellm.md). The provider prefix decides which credential variables step 6 needs. |
 | `git.provider` | Optional (default `GITHUB`) | `GITHUB`, `AZURE_DEVOPS`, or `GITLAB`. It must match the host of the repositories you will use, because it selects the pull-request API and the host written into the git credential store. Only the public SaaS hosts are supported (`github.com`, `gitlab.com` without subgroups, `dev.azure.com`), and repository URLs must be HTTPS. |
-| `services.iac.enabled` | **Must remain `true`** | Every mode runs engine commands through the IaC sidecar. The shipped file enables it with endpoint `http://iac:8082` and token variable `NEBULA_IAC_TOKEN`. |
+| `services.iac` | **Always on** (no `enabled` flag) | Every mode runs engine commands through the IaC sidecar, so it cannot be disabled. The shipped file points it at `http://iac:8082` with token variable `NEBULA_IAC_TOKEN`. |
 | `services.iac.endpoint`, `services.iac.token_env` | Optional | Change only if you rename the Compose service or the token variable. |
 | `services.notifications.enabled` | Optional | Set to `true` only when you complete step 8. |
 | `oidc.issuer_url`, `oidc.client_id` | Optional | Leave blank to keep authentication disabled on a trusted workstation. Fill them to test a real login flow; see [OIDC setup](oidc-setup.md). |
@@ -89,7 +89,6 @@ environment: "development"
 
 services:
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
 
@@ -113,7 +112,7 @@ git:
   provider: "GITHUB"
 ```
 
-Note that the code default for every sidecar is `enabled: false`; the `services.iac` block above (or the shipped one) is what turns the IaC sidecar on. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
+Note that the three optional sidecars default to `enabled: false`, while `services.iac` has no such flag: it is always called, so its `endpoint` and `token_env` must be present (the code defaults for both are empty). Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
 
 ## 6. Configure `core/.env`
 
@@ -155,8 +154,7 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 |---|---|---|
 | `NEBULA_IAC_TOKEN` | **Must match `core/.env`** | The sidecar checks the bearer on every `/v1/*` call when this is set; a mismatch returns `401` to the core and every session fails at validation. An empty value disables the check on the sidecar side, which is acceptable only on an isolated workstation. |
 | `IAC_BINARY` | Optional, default `tofu` | `IAC_BINARY=tofu` (the bundled default) runs OpenTofu 1.12.6 (MPL-2.0). `IAC_BINARY=terraform` selects the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed; selecting it makes your use subject to that license. The service refuses to start if the binary cannot be found. |
-| `NEBULA_IAC_JOB_TTL` | Optional, default `3600` | Seconds a finished job stays pollable. |
-| Cloud credentials | Depends on your Terraform providers | Set the variables your providers read: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS. |
+| Cloud credentials | Depends on your Terraform providers | Set the variables your providers read: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) lists the minimum set per cloud and authentication method. |
 
 Missing or invalid cloud credentials do **not** stop the container. The engine runs anyway, and its own authentication error appears in the session as a failed `plan` or `apply`.
 
@@ -165,7 +163,6 @@ Fictitious example targeting AWS:
 ```dotenv
 NEBULA_IAC_TOKEN=local-example-token-not-for-production
 IAC_BINARY=tofu
-NEBULA_IAC_JOB_TTL=3600
 
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
@@ -245,19 +242,19 @@ Open <http://localhost/monitoring/> to see the traces of the run under the `dev-
 docker compose down            # stop; named volumes are kept
 ```
 
-This keeps the named volumes (databases, artifacts, workspaces, and the authz sidecar's JSON role store on `authz_data`), so sessions, prompts, and sidecar roles survive a restart. The authz sidecar's roles are unrelated to Nebula's own operation and panel roles, which live in `core-db`; see [services/authz/README.md](../services/authz/README.md).
+This keeps the named volumes (databases, artifacts, workspaces), so sessions and prompts survive a restart. The authz sidecar's own JSON role store is container-local and is lost when that container is recreated; it is unrelated to Nebula's operation and panel roles, which live in `core-db`. See [services/authz/README.md](../services/authz/README.md) if you need the sidecar's roles to persist.
 
 ### Delete Nebula volumes
 ```bash
 docker compose down -v         # stop and delete all volumes
 ```
 
-**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, any in-progress workspaces, and the authz sidecar's role store. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
+**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, and any in-progress workspaces. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
 
 ## 13. Troubleshooting
 
 - **Core exits with `LLM credentials missing from environment`.** The variables for the provider prefix in `llm.model` or `llm.small_model` are not in `core/.env`. See [LiteLLM troubleshooting](litellm.md#troubleshooting).
-- **Core exits with `Enabled services have no bearer token`.** An enabled sidecar's `NEBULA_*_TOKEN` is empty in `core/.env`.
+- **Core exits with `Services the core calls have no bearer token`.** `NEBULA_IAC_TOKEN`, or the `NEBULA_*_TOKEN` of an enabled optional sidecar, is empty in `core/.env`.
 - **Core exits with `Missing env variable for nebula database`.** `NEBULA_SQL_DATABASE_URL` is empty in `core/.env`.
 - **Core exits with `Phoenix unreachable after 8 attempts`.** Prompt seeding could not reach `telemetry.collector_url`. Check that `phoenix` is running and restart the core.
 - **Every session fails at validation with a `401` from the IaC sidecar.** `NEBULA_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
