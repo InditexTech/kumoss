@@ -101,13 +101,6 @@ class Terraform(ITerraform):
         get_drift: bool,
     ) -> TerraformValidationDTO:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot validate. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -209,13 +202,6 @@ class Terraform(ITerraform):
     @override
     async def apply(self) -> TerraformValidationDTO:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot apply. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,

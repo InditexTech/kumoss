@@ -48,9 +48,9 @@ admin:
 # the core sends on every request. `timeout` is the per-request HTTP
 # budget in seconds — every call returns promptly (long work runs as
 # asynchronous jobs the core polls), so it only needs to cover one
-# request/response round trip. Any enabled service whose token_env
-# resolves to an empty value will refuse the core's boot — flip
-# `enabled: false` to skip a service entirely.
+# request/response round trip. Any service the core calls whose
+# token_env resolves to an empty value will refuse the core's boot —
+# flip `enabled: false` to skip an optional service entirely.
 services:
   notifications:
     enabled: false
@@ -68,7 +68,6 @@ services:
     token_env: "NEBULA_AUTHZ_TOKEN"
     timeout: 30.0
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
     timeout: 30.0

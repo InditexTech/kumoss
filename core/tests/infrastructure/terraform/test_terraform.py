@@ -106,7 +106,6 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
 
     def _use_config(self, **overrides) -> IacServiceConfig:
         cfg = IacServiceConfig(
-            enabled=True,
             endpoint="http://iac.test:8082",
             token_env="",
             timeout=1.0,
