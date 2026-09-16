@@ -156,14 +156,6 @@ class Terraform(ITerraform):
                         terraform_targets=targets,
                     )
 
-                if not get_drift:
-                    return TerraformValidationDTO(
-                        validation=True,
-                        feedback="",
-                        terraform_plan=plan_res.stdout,
-                        terraform_targets=targets,
-                    )
-
                 show_res = await self.__run_initialized_op(
                     c,
                     show_op,
@@ -194,6 +186,13 @@ class Terraform(ITerraform):
             ) from e
 
         drift = TerraformUtils.plan_to_drift(plan_json=plan_json, reversed=True)
+        if not get_drift:
+            return TerraformValidationDTO(
+                validation=True,
+                feedback=json.dumps(drift) if drift else "",
+                terraform_plan=plan_res.stdout,
+                terraform_targets=targets,
+            )
         return TerraformValidationDTO(
             validation=not drift,
             feedback=json.dumps(drift) if drift else "",
