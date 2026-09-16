@@ -19,6 +19,11 @@ through the job.
 variable its ``terraform_provider`` selects. ``validate`` and ``show``
 reach no cloud API, so their bodies declare no scope and reject one.
 
+``init`` always reconfigures the backend, and passes
+``IAC_BACKEND_CONFIG`` to ``-backend-config`` when the deployment sets
+one; the backend itself comes from the workspace's own configuration,
+which the caller is free to have written an override for.
+
 The ``/v1/import`` endpoints are unimplemented: they answer 501
 without inspecting the request.
 """
@@ -36,9 +41,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
-from . import engine
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config, setup_logging
+from .engine import CommandResult, IacEngine
 from .jobs import JobRegistry, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -156,11 +161,17 @@ async def resolve_workspace(body: WorkspaceRequest) -> Path:
     return workspace
 
 
+def resolve_engine() -> IacEngine:
+    """The IaC engine the current configuration selects."""
+    return IacEngine(binary=config.iac_binary, backend_config=config.backend_config)
+
+
 Authenticated = Depends(require_bearer_token)
 Workspace = Annotated[Path, Depends(resolve_workspace)]
+Engine = Annotated[IacEngine, Depends(resolve_engine)]
 
 
-async def _run_op(command: Awaitable[engine.CommandResult]) -> OperationResult:
+async def _run_op(command: Awaitable[CommandResult]) -> OperationResult:
     result = await command
     return OperationResult(
         exit_code=result.exit_code, stdout=result.stdout, stderr=result.stderr
@@ -171,7 +182,7 @@ def _submit(
     kind: JobKind,
     workspace: Path,
     response: Response,
-    command: Callable[[], Awaitable[engine.CommandResult]],
+    command: Callable[[], Awaitable[CommandResult]],
 ) -> JobAccepted:
     """Enqueue one engine command as a job and point at its resource."""
     record = jobs.submit(
@@ -193,6 +204,7 @@ def _submit(
 async def init(
     body: InitRequest,
     workspace: Workspace,
+    engine: Engine,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -200,7 +212,7 @@ async def init(
         "init",
         workspace,
         response,
-        lambda: engine.init(config.iac_binary, workspace, env),
+        lambda: engine.init(workspace, env),
     )
 
 
@@ -214,13 +226,14 @@ async def init(
 async def validate(
     body: ValidateRequest,  # pyright: ignore[reportUnusedParameter]
     workspace: Workspace,
+    engine: Engine,
     response: Response,
 ) -> JobAccepted:
     return _submit(
         "validate",
         workspace,
         response,
-        lambda: engine.validate(config.iac_binary, workspace),
+        lambda: engine.validate(workspace),
     )
 
 
@@ -234,6 +247,7 @@ async def validate(
 async def plan(
     body: PlanRequest,
     workspace: Workspace,
+    engine: Engine,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -241,9 +255,7 @@ async def plan(
         "plan",
         workspace,
         response,
-        lambda: engine.plan(
-            config.iac_binary, workspace, body.targets, body.plan_file, env
-        ),
+        lambda: engine.plan(workspace, body.targets, body.plan_file, env),
     )
 
 
@@ -257,13 +269,14 @@ async def plan(
 async def show(
     body: ShowRequest,
     workspace: Workspace,
+    engine: Engine,
     response: Response,
 ) -> JobAccepted:
     return _submit(
         "show",
         workspace,
         response,
-        lambda: engine.show_plan_json(config.iac_binary, workspace, body.plan_file),
+        lambda: engine.show_plan_json(workspace, body.plan_file),
     )
 
 
@@ -277,6 +290,7 @@ async def show(
 async def apply(
     body: ApplyRequest,
     workspace: Workspace,
+    engine: Engine,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -284,7 +298,7 @@ async def apply(
         "apply",
         workspace,
         response,
-        lambda: engine.apply(config.iac_binary, workspace, body.plan_file, env),
+        lambda: engine.apply(workspace, body.plan_file, env),
     )
 
 

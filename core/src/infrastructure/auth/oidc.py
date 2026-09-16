@@ -84,10 +84,8 @@ class OidcTokenValidator:
     async def validate(self, token: str) -> TokenClaims:
         try:
             return await self._validate(token)
-        except TokenValidationError:
-            raise
         except Exception as e:
-            raise TokenValidationError(f"Token validation failed: {e}")
+            raise TokenValidationError(f"Token validation failed: {e}", 401)
 
 
 def _build_validator() -> OidcTokenValidator | None:

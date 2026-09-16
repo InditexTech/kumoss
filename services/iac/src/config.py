@@ -10,6 +10,7 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 
 from .exceptions import ConfigError
 
@@ -30,6 +31,13 @@ class Config:
       falls back to PATH so the bundled image needs no override.
       Asserted to be resolvable at startup so a misconfigured image
       fails fast instead of on the first request.
+    - ``backend_config``: from ``IAC_BACKEND_CONFIG``, the path of a
+      backend configuration file (``.hcl`` / ``.tfbackend``) as visible
+      inside this container. Set means `init` runs with
+      ``-backend-config`` pointing at it; unset means the backend comes
+      from the workspace's own configuration, which the caller may have
+      written an override for. Asserted to be a readable file at
+      startup, for the same reason the engine binary is.
     - ``job_ttl``: seconds a terminal job record stays pollable at
       `GET /v1/jobs/{job_id}` before it is swept (then 404). Not
       environment-driven: it is a property of the service, changed here.
@@ -39,14 +47,24 @@ class Config:
 
     expected_token: str
     iac_binary: str
+    backend_config: str | None = None
     job_ttl: int = 3600
     log_level: str = "INFO"
 
     def __post_init__(self) -> None:
-        if not _engine_available(self.iac_binary):
+        if not self._engine_available(self.iac_binary):
             msg = (
                 f"IaC engine binary {self.iac_binary!r} not found on PATH. "
                 "Set IAC_BINARY to a binary on PATH or an absolute path."
+            )
+            raise ConfigError(msg)
+        if self.backend_config is not None and not self._readable_file(
+            self.backend_config
+        ):
+            msg = (
+                f"IAC_BACKEND_CONFIG points at {self.backend_config!r}, which is "
+                "not a readable file inside this container. Mount the backend "
+                "configuration file there or unset the variable."
             )
             raise ConfigError(msg)
 
@@ -55,7 +73,14 @@ class Config:
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
             iac_binary=os.environ.get("IAC_BINARY", "tofu"),
+            backend_config=os.environ.get("IAC_BACKEND_CONFIG", "").strip() or None,
         )
+
+    def _engine_available(self, binary: str) -> bool:
+        return shutil.which(binary) is not None
+
+    def _readable_file(self, path: str) -> bool:
+        return os.access(path, os.R_OK) and Path(path).is_file()
 
 
 def setup_logging(config: Config) -> None:
@@ -67,7 +92,3 @@ def setup_logging(config: Config) -> None:
     """
     logging.basicConfig(level=config.log_level, format=_LOG_FORMAT)
     logging.getLogger().setLevel(config.log_level)
-
-
-def _engine_available(binary: str) -> bool:
-    return shutil.which(binary) is not None

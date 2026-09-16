@@ -5,7 +5,7 @@
 import shutil
 import tempfile
 from pathlib import Path
-from typing import final, override
+from typing import ClassVar, final, override
 from uuid import UUID
 from uuid import uuid4
 
@@ -21,6 +21,8 @@ from src.shared.logger import logging
 class WorkspaceService(IWorkspace):
     """Implements IWorkspace using GitUtils for git ops and shutil for filesystem ops."""
 
+    _REUSE_MARKER: ClassVar[str] = "INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
+
     def __init__(self, base_path: Path | None = None):
         self._override_base = base_path
 
@@ -30,14 +32,19 @@ class WorkspaceService(IWorkspace):
 
     def __add_terraform_gitignore(self, path: Path) -> bool:
         utils = FileSystemUtils(path)
-        if Path(utils.project_root / ".gitignore").exists():
-            return True
         with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
-            return utils.write_file(
-                target_file=".gitignore",
-                content=f.read(),
-                is_safe=False,
-            )
+            content = f.read()
+        target = utils.project_root / ".gitignore"
+        if target.exists():
+            existing = target.read_text(encoding="utf-8")
+            if self._REUSE_MARKER in existing:
+                return True
+            content = existing.rstrip("\n") + "\n\n" + content
+        return utils.write_file(
+            target_file=".gitignore",
+            content=content,
+            is_safe=False,
+        )
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:

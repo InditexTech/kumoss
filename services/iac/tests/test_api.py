@@ -11,9 +11,10 @@ These cover the contract surface: healthz, auth, request validation
 into the engine environment, the 404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation, the 501
-on the unimplemented import endpoints, per-workspace FIFO queueing, and
-job expiry. They do NOT exercise an actual engine run against a cloud —
-that requires network and credentials.
+on the unimplemented import endpoints, per-workspace FIFO queueing,
+job expiry, and the backend flags `init` runs with. They do NOT
+exercise an actual engine run against a cloud — that requires network
+and credentials.
 """
 
 from __future__ import annotations
@@ -37,14 +38,14 @@ from src.engine import CommandResult
 
 SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
 
-# (endpoint, engine function to stub, the body fields besides
+# (endpoint, engine method to stub, the body fields besides
 # workspace_path that the endpoint documents)
 OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
-    ("/v1/init", "src.engine.init", {**SCOPE}),
-    ("/v1/validate", "src.engine.validate", {}),
-    ("/v1/plan", "src.engine.plan", {"plan_file": "x.plan", **SCOPE}),
-    ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}),
-    ("/v1/apply", "src.engine.apply", {"plan_file": "x.plan", **SCOPE}),
+    ("/v1/init", "src.engine.IacEngine.init", {**SCOPE}),
+    ("/v1/validate", "src.engine.IacEngine.validate", {}),
+    ("/v1/plan", "src.engine.IacEngine.plan", {"plan_file": "x.plan", **SCOPE}),
+    ("/v1/show", "src.engine.IacEngine.show_plan_json", {"plan_file": "x.plan"}),
+    ("/v1/apply", "src.engine.IacEngine.apply", {"plan_file": "x.plan", **SCOPE}),
 ]
 
 EXTRA: dict[str, dict[str, str]] = {
@@ -53,12 +54,17 @@ EXTRA: dict[str, dict[str, str]] = {
 
 SCOPED_ENDPOINTS: list[str] = ["/v1/init", "/v1/plan", "/v1/apply"]
 
-# (endpoint, engine function to stub, extra request fields, expected
-# engine args after binary and workspace) for the endpoints that reach
-# no cloud API and so take no scope.
+# (endpoint, engine method to stub, extra request fields, expected
+# engine args after the workspace) for the endpoints that reach no
+# cloud API and so take no scope.
 UNSCOPED_OPERATIONS: list[tuple[str, str, dict[str, str], tuple[object, ...]]] = [
-    ("/v1/validate", "src.engine.validate", {}, ()),
-    ("/v1/show", "src.engine.show_plan_json", {"plan_file": "x.plan"}, ("x.plan",)),
+    ("/v1/validate", "src.engine.IacEngine.validate", {}, ()),
+    (
+        "/v1/show",
+        "src.engine.IacEngine.show_plan_json",
+        {"plan_file": "x.plan"},
+        ("x.plan",),
+    ),
 ]
 
 IMPORT_ENDPOINTS: list[str] = [
@@ -73,6 +79,7 @@ def client_with(
     token: str = "",
     iac_binary: str = "sh",
     job_ttl: int = 3600,
+    backend_config: str | None = None,
 ) -> Generator[TestClient]:
     # `sh` stands in for the engine so Config's fail-fast binary check
     # passes in engine-less test environments; subprocess calls are
@@ -80,6 +87,7 @@ def client_with(
     service_main.config = Config(
         expected_token=token,
         iac_binary=iac_binary,
+        backend_config=backend_config,
         job_ttl=job_ttl,
     )
     # Fresh queue/registry per test so job records don't leak across tests.
@@ -196,7 +204,11 @@ def test_init_submit_returns_202_with_location(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with client_with() as client:
-        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
+        with patch(
+            "src.engine.IacEngine.init",
+            new_callable=AsyncMock,
+            return_value=init_failed,
+        ):
             response = client.post(
                 "/v1/init",
                 json={"workspace_path": str(workspace), **SCOPE},
@@ -227,7 +239,7 @@ def test_jobs_fifo_same_workspace(tmp_path: Path) -> None:
         return CommandResult(ok=False, stdout="", stderr="init stubbed", exit_code=1)
 
     with client_with() as client:
-        with patch("src.engine.init", side_effect=blocked_init):
+        with patch("src.engine.IacEngine.init", side_effect=blocked_init):
             first: str = client.post(
                 "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
             ).json()["job_id"]
@@ -302,7 +314,7 @@ def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
     ok = CommandResult(ok=True, stdout="Plan: 1 to add", stderr="", exit_code=0)
     with client_with() as client:
         with patch(
-            "src.engine.plan", new_callable=AsyncMock, return_value=ok
+            "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
         ) as plan_mock:
             response = client.post(
                 "/v1/plan",
@@ -319,7 +331,6 @@ def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
     plan_mock.assert_awaited_once_with(
-        "sh",
         workspace,
         ["module.db"],
         "abc123.plan",
@@ -336,7 +347,7 @@ def test_init_invokes_engine_with_the_injected_scope(tmp_path: Path) -> None:
     ok = CommandResult(ok=True, stdout="has been initialized", stderr="")
     with client_with() as client:
         with patch(
-            "src.engine.init", new_callable=AsyncMock, return_value=ok
+            "src.engine.IacEngine.init", new_callable=AsyncMock, return_value=ok
         ) as init_mock:
             response = client.post(
                 "/v1/init",
@@ -348,8 +359,90 @@ def test_init_invokes_engine_with_the_injected_scope(tmp_path: Path) -> None:
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
     init_mock.assert_awaited_once_with(
-        "sh", workspace, {"ARM_SUBSCRIPTION_ID": "sub-uuid-1234"}
+        workspace, {"ARM_SUBSCRIPTION_ID": "sub-uuid-1234"}
     )
+
+
+def _init_argv(client: TestClient, workspace: Path) -> list[str]:
+    """Submit an init job with the engine subprocess stubbed, and return
+    the argv the engine wrapper assembled."""
+    ok = CommandResult(ok=True, stdout="has been initialized", stderr="")
+    with patch(
+        "src.engine.IacEngine._run", new_callable=AsyncMock, return_value=ok
+    ) as run:
+        response = client.post(
+            "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
+        )
+        assert response.status_code == 202, response.text
+        accepted: dict[str, str] = response.json()
+        job = poll_until_terminal(client, accepted["job_id"])
+    assert job["status"] == "succeeded", job
+    assert run.await_args is not None
+    args: list[str] = run.await_args.args[0]
+    return args
+
+
+def test_init_always_reconfigures(tmp_path: Path) -> None:
+    """`-input=false` cannot answer the "Backend configuration changed"
+    prompt, so a workspace bound to another backend must be rebound
+    rather than asked about."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    with client_with() as client:
+        args = _init_argv(client, workspace)
+
+    assert args == ["init", "-no-color", "-input=false", "-reconfigure"]
+
+
+def test_init_passes_the_backend_config_file(tmp_path: Path) -> None:
+    """A deployment that supplies its own backend configuration file
+    gets it on the command line instead."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    path = tmp_path / "backend.hcl"
+    _ = path.write_text('bucket = "somewhere"\n', encoding="utf-8")
+
+    with client_with(backend_config=str(path)) as client:
+        args = _init_argv(client, workspace)
+
+    assert args[-1] == f"-backend-config={path}"
+    assert "-reconfigure" in args
+
+
+def _always_available(_self: Config, _binary: str) -> bool:
+    return True
+
+
+def test_job_execs_the_configured_engine_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The engine each job runs on is built from the current config:
+    `IAC_BINARY` is the executable that gets spawned, in the workspace
+    the request named."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    monkeypatch.setattr(Config, "_engine_available", _always_available)
+
+    proc = AsyncMock()
+    proc.communicate.return_value = (b"has been initialized", b"")
+    proc.returncode = 0
+
+    with client_with(iac_binary="terraform") as client:
+        with patch(
+            "asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=proc
+        ) as spawn:
+            response = client.post(
+                "/v1/init", json={"workspace_path": str(workspace), **SCOPE}
+            )
+            assert response.status_code == 202, response.text
+            accepted: dict[str, str] = response.json()
+            job = poll_until_terminal(client, accepted["job_id"])
+
+    assert job["status"] == "succeeded", job
+    assert spawn.await_args is not None
+    assert spawn.await_args.args[0] == "terraform"
+    assert spawn.await_args.kwargs["cwd"] == str(workspace)
 
 
 def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
@@ -360,7 +453,7 @@ def test_unexpected_error_fails_job_500(tmp_path: Path) -> None:
 
     with client_with() as client:
         with patch(
-            "src.engine.init",
+            "src.engine.IacEngine.init",
             new_callable=AsyncMock,
             side_effect=RuntimeError("subprocess exploded"),
         ):
@@ -406,7 +499,11 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
 
     init_failed = CommandResult(ok=False, stdout="", stderr="nope", exit_code=1)
     with client_with(job_ttl=0) as client:
-        with patch("src.engine.init", new_callable=AsyncMock, return_value=init_failed):
+        with patch(
+            "src.engine.IacEngine.init",
+            new_callable=AsyncMock,
+            return_value=init_failed,
+        ):
             response = client.post(
                 "/v1/init",
                 json={"workspace_path": str(workspace), **SCOPE},
@@ -532,7 +629,7 @@ def test_unscoped_endpoints_run_unscoped(
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
             _ = poll_until_terminal(client, accepted["job_id"])
-    mock.assert_awaited_once_with("sh", workspace, *tail)
+    mock.assert_awaited_once_with(workspace, *tail)
 
 
 @pytest.mark.parametrize(
@@ -558,7 +655,7 @@ def test_scope_is_injected_per_provider(
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
     with client_with() as client:
         with patch(
-            "src.engine.plan", new_callable=AsyncMock, return_value=ok
+            "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
         ) as plan_mock:
             response = client.post(
                 "/v1/plan",
@@ -572,7 +669,7 @@ def test_scope_is_injected_per_provider(
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
             _ = poll_until_terminal(client, accepted["job_id"])
-    plan_mock.assert_awaited_once_with("sh", workspace, [], "x.plan", expected)
+    plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected)
 
 
 @pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)
