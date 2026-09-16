@@ -20,13 +20,15 @@ from src.shared.config import system_config
 SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
 
 
-def _init_bare_remote(tmp: Path) -> str:
+def _init_bare_remote(tmp: Path, files: dict[str, str] | None = None) -> str:
     """Create a bare repo, push one commit into it, return file:// URI."""
     bare = tmp / "remote.git"
     subprocess.check_call(["git", "init", "--bare", "-b", "main", str(bare)])
     work = tmp / "work"
     subprocess.check_call(["git", "init", "-b", "main", str(work)])
     (work / "README.md").write_text("hi\n")
+    for name, content in (files or {}).items():
+        (work / name).write_text(content)
     subprocess.check_call(["git", "-C", str(work), "add", "."])
     subprocess.check_call(
         [
@@ -147,6 +149,34 @@ class TestSetupCallDir(_WorkspaceBase):
         self.assertNotEqual(first, second)
         self.assertEqual(_current_branch(second), "Nebula/iter-x")
         self.assertTrue((second / "new.txt").is_file())
+
+
+class TestTerraformGitignore(_WorkspaceBase):
+    """Every workspace must carry the terraform ignores, and a project
+    that ships its own .gitignore must keep the rules it had."""
+
+    async def _clone_with(self, files: dict[str, str] | None = None) -> Path:
+        remote = self.tmp / uuid4().hex
+        remote.mkdir()
+        return await self.svc.setup_call_dir(
+            session_id=uuid4(),
+            repo_uri=_init_bare_remote(remote, files),
+            branch="Nebula/ignores",
+        )
+
+    async def test_writes_the_template_when_the_repo_has_none(self):
+        path = await self._clone_with()
+
+        content = (path / ".gitignore").read_text()
+        self.assertIn("INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)", content)
+        self.assertIn("*_override.tf", content)
+
+    async def test_appends_to_a_gitignore_the_project_owns(self):
+        path = await self._clone_with({".gitignore": "node_modules/\n"})
+
+        content = (path / ".gitignore").read_text()
+        self.assertTrue(content.startswith("node_modules/\n"))
+        self.assertIn("*_override.tf", content)
 
 
 class TestCleanup(_WorkspaceBase):
