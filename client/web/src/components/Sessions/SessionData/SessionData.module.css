@@ -97,6 +97,16 @@
   color: var(--color-content-muted);
 }
 
+/* Status message carried on a collapsed bootstrap round; unlike
+   .timelineQuery it is short and never clamped. */
+.timelineMessage {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 18px;
+  color: var(--color-content-muted);
+  overflow-wrap: anywhere;
+}
+
 .timelineCount {
   color: var(--color-content-muted);
 }

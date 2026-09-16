@@ -15,6 +15,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import type {
   ArtifactRef,
+  CodeChangeRef,
   HistoryEntry,
   RoundDetail,
   SessionDetail,
@@ -26,6 +27,13 @@ import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
+import {
+  codeChangeLabel,
+  isBootstrapRound,
+  roundArtifacts,
+  roundMeta,
+  roundTitle,
+} from "./roundSummary";
 import styles from "./SessionData.module.css";
 
 interface SessionDataProps {
@@ -67,27 +75,18 @@ function formatOpDate(iso: string | undefined | null): string {
 }
 
 function formatDuration(startIso: string, endIso: string): string {
-  const seconds = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000;
-  if (seconds < 0) return "-";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  const millis = new Date(endIso).getTime() - new Date(startIso).getTime();
+  if (millis < 0) return "-";
+  // Round to whole seconds *first*: splitting an unrounded value lets the
+  // remainder round up to 60 while the minute count stays floored, which is
+  // how 359.771 s rendered as "5m 60s".
+  const total = Math.round(millis / 1000);
+  if (total < 60) return `${total}s`;
+  return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-/** Every artifact of a round, flattened into openable rows. */
-function roundArtifacts(
-  round: RoundDetail,
-): { kind: ArtifactKind; artifact: ArtifactRef }[] {
-  const rows: { kind: ArtifactKind; artifact: ArtifactRef }[] = [];
-  if (round.report) rows.push({ kind: "report", artifact: round.report });
-  if (round.plan) rows.push({ kind: "plan", artifact: round.plan });
-  for (const change of round.code_changes) {
-    rows.push({ kind: "change", artifact: change });
-  }
-  return rows;
 }
 
 export default function SessionData({
@@ -158,6 +157,18 @@ export default function SessionData({
       .find((s) => s.status === "failed" || s.status === "uncompleted");
     return failed?.message || null;
   }, [hasFailure, session.statuses]);
+
+  // `create_session` opens an empty shell round with the same query the
+  // working round gets, so rendering it would duplicate the user's action.
+  // Its message is the only thing worth keeping, and it belongs on Started.
+  const timelineRounds = useMemo(
+    () => session.rounds.filter((r) => !isBootstrapRound(r)),
+    [session.rounds],
+  );
+  const bootstrapMessage = useMemo(
+    () => session.rounds.find(isBootstrapRound)?.statuses[0]?.message || null,
+    [session.rounds],
+  );
 
   const started = formatShortDate(session.created_at);
   const completed = formatShortDate(session.updated_at);
@@ -274,30 +285,37 @@ export default function SessionData({
                   <span className={styles.timelinePhase}>Started</span>
                   <span className={styles.timelineDate}>{started.date}</span>
                   <span className={styles.timelineDate}>{started.time}</span>
+                  {bootstrapMessage && (
+                    <span className={styles.timelineMessage}>
+                      {bootstrapMessage}
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Rounds */}
-              {session.rounds.map((round) => {
+              {timelineRounds.map((round) => {
                 const artifacts = roundArtifacts(round);
+                const meta = roundMeta(round);
                 return (
                   <div key={round.id} className={styles.timelineEntry}>
                     <div className={styles.timelineDot} />
                     <div className={styles.timelineContent}>
                       <span className={styles.timelinePhase}>
-                        Round {round.number}
+                        {roundTitle(round, session)}
                       </span>
                       <span className={styles.timelineQuery}>
                         {round.query}
                       </span>
-                      <Typography
-                        variant="overline"
-                        component="span"
-                        className={styles.timelineCount}
-                      >
-                        {artifacts.length} ARTIFACT
-                        {artifacts.length !== 1 ? "S" : ""}
-                      </Typography>
+                      {meta.length > 0 && (
+                        <Typography
+                          variant="overline"
+                          component="span"
+                          className={styles.timelineCount}
+                        >
+                          {meta.join(" · ")}
+                        </Typography>
+                      )}
                       <div className={styles.timelineOps}>
                         {round.statuses.length > 0 && (
                           <div className={styles.timelineOpGroup}>
@@ -394,7 +412,9 @@ export default function SessionData({
                               <InsertDriveFileOutlinedIcon
                                 className={styles.artifactFileIcon}
                               />
-                              {artifactLabel(kind, artifact)}
+                              {kind === "change"
+                                ? codeChangeLabel(round, artifact as CodeChangeRef)
+                                : artifactLabel(kind, artifact)}
                             </Typography>
                             <span className={styles.timelineOpDate}>
                               {formatOpDate(artifact.created_at)}
@@ -596,7 +616,7 @@ export default function SessionData({
                 >
                   /
                 </Typography>
-                <span>Round {selected.round.number}</span>
+                <span>{roundTitle(selected.round, session)}</span>
               </span>
               <span className={styles.breadcrumbCurrent}>
                 {artifactLabel(selected.kind, selected.artifact)}
