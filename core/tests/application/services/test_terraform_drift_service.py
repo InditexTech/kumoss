@@ -35,12 +35,18 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
             artifact_service=self.artifact_svc,
         )
 
-    async def _run(self, filter_session_changes: bool, max_iterations: int = 1):
+    async def _run(
+        self,
+        filter_session_changes: bool,
+        max_iterations: int = 1,
+        prev_validation: TerraformValidationDTO | None = None,
+    ):
         return await self.service.detect_and_resolve_drift(
             filter_session_changes=filter_session_changes,
             targets=self.targets,
             conventions=self.conventions,
             max_iterations=max_iterations,
+            prev_validation=prev_validation,
         )
 
     async def test_synchronized_resources_skip_splitting(self):
@@ -136,6 +142,31 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
             for call in self.artifact_svc.store_terraform_plan.await_args_list
         ]
         self.assertEqual(flags, [True, False])
+
+    async def test_clean_prev_validation_returns_untouched_without_planning(self):
+        prev = _report("", self.targets)
+
+        result = await self._run(filter_session_changes=True, prev_validation=prev)
+
+        self.assertIs(result, prev)
+        self.terraform_svc.validate.assert_not_awaited()
+        self.artifact_svc.store_terraform_plan.assert_not_awaited()
+        self.split_svc.split_task.assert_not_awaited()
+
+    async def test_seeded_prev_validation_defers_the_plan_to_the_next_iteration(self):
+        prev = _report("[seeded drift]", self.targets)
+        self.terraform_svc.validate.return_value = _report("", self.targets)
+        self.split_svc.split_task.return_value = [["revert sku"]]
+
+        result = await self._run(
+            filter_session_changes=False, max_iterations=2, prev_validation=prev
+        )
+
+        self.split_svc.split_task.assert_awaited_once_with(task="[seeded drift]")
+        self.terraform_svc.validate.assert_awaited_once_with(
+            targets=self.targets, get_drift=True
+        )
+        self.assertTrue(result.validation)
 
 
 if __name__ == "__main__":
