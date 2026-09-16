@@ -410,12 +410,19 @@ def test_init_passes_the_backend_config_file(tmp_path: Path) -> None:
     assert "-reconfigure" in args
 
 
-def test_job_execs_the_configured_engine_binary(tmp_path: Path) -> None:
+def _always_available(_self: Config, _binary: str) -> bool:
+    return True
+
+
+def test_job_execs_the_configured_engine_binary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The engine each job runs on is built from the current config:
     `IAC_BINARY` is the executable that gets spawned, in the workspace
     the request named."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
+    monkeypatch.setattr(Config, "_engine_available", _always_available)
 
     proc = AsyncMock()
     proc.communicate.return_value = (b"has been initialized", b"")

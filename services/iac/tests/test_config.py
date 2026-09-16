@@ -23,7 +23,7 @@ from src.config import Config
 from src.exceptions import ConfigError
 
 
-def _always_available(_binary: str) -> bool:
+def _always_available(_self: Config, _binary: str) -> bool:
     return True
 
 
@@ -35,7 +35,7 @@ def test_iac_binary_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_default_engine_is_opentofu(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("IAC_BINARY", raising=False)
     # The default must resolve even on hosts without OpenTofu installed.
-    monkeypatch.setattr("src.config._engine_available", _always_available)
+    monkeypatch.setattr(Config, "_engine_available", _always_available)
     assert Config.from_env().iac_binary == "tofu"
 
 
