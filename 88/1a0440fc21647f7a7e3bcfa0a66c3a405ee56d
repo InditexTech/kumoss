@@ -1,0 +1,68 @@
+config.yaml
+  h_f224e8cf34c0b8 190-197,207
+core/src/application/factory.py
+  h_f224e8cf34c0b8 38,213-217
+core/src/infrastructure/auth/oidc.py
+  h_f224e8cf34c0b8 88
+core/src/infrastructure/exceptions.py
+  h_f224e8cf34c0b8 137-139
+core/src/infrastructure/filesystem/terraform.gitignore
+  h_f224e8cf34c0b8 1-4
+core/src/infrastructure/filesystem/workspace.py
+  h_f224e8cf34c0b8 8,24-25,36-47
+core/src/infrastructure/storage/__init__.py
+  h_f224e8cf34c0b8 8,14
+core/src/infrastructure/storage/_s3.py
+  h_f224e8cf34c0b8 45-47,129,148,158,185
+core/src/infrastructure/storage/factory.py
+  h_f224e8cf34c0b8 14-16,18,21,36,39,54,57,70,72,77,79,81,87,91-105
+core/src/infrastructure/terraform/backend.py
+  h_f224e8cf34c0b8 1-125
+core/src/infrastructure/terraform/factory.py
+  h_f224e8cf34c0b8 10,17,21,28,33,40
+core/src/infrastructure/terraform/terraform.py
+  h_f224e8cf34c0b8 46,91,96,258-259
+core/src/infrastructure/terraform/utils.py
+  h_f224e8cf34c0b8 5,7,9,17-56
+core/src/main.py
+  h_f224e8cf34c0b8 25,53-55
+core/src/shared/config/system_config.py
+  h_f224e8cf34c0b8 386-393,400,437-441
+core/tests/infrastructure/filesystem/test_workspace.py
+  h_f224e8cf34c0b8 23,30-31,154-181
+core/tests/infrastructure/storage/test_factory.py
+  h_f224e8cf34c0b8 1-56
+core/tests/infrastructure/terraform/test_backend.py
+  h_f224e8cf34c0b8 1-227
+core/tests/infrastructure/terraform/test_terraform.py
+  h_f224e8cf34c0b8 34,102-103,108,210-211,334
+core/tests/infrastructure/terraform/test_utils.py
+  h_f224e8cf34c0b8 217-296
+docker-compose.yml
+  h_f224e8cf34c0b8 130
+services/iac/README.md
+  h_f224e8cf34c0b8 88-117,124
+services/iac/env.sample
+  h_f224e8cf34c0b8 26-36
+services/iac/src/config.py
+  h_f224e8cf34c0b8 13,34-40,50,55,61-69,76,79-84
+services/iac/src/engine.py
+  h_f224e8cf34c0b8 7-13,18,33,47-112,115-155
+services/iac/src/main.py
+  h_f224e8cf34c0b8 22-26,46,164-168,171,174,185,207,215,229,236,250,258,272,279,293,301
+services/iac/tests/test_api.py
+  h_f224e8cf34c0b8 14-17,41,44-48,57-59,61-67,82,90,207-211,242,317,350,362,366-447,456,502-506,632,658,672
+services/iac/tests/test_config.py
+  h_f224e8cf34c0b8 5,11-13,18-19,26,38,46-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "881a0440fc21647f7a7e3bcfa0a66c3a405ee56d",
+  "prompts": {},
+  "humans": {
+    "h_f224e8cf34c0b8": {
+      "author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
