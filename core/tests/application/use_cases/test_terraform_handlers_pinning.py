@@ -96,9 +96,10 @@ class TestCrudHandlerPinning(_CrudHandlerTestCase):
         self.session_svc.save.assert_awaited_once()
 
     async def test_successful_round_runs_filtered_drift_precheck_on_targets(self):
-        self.validation_svc.generate_and_validate.return_value = _dto(
+        validation = _dto(
             True, targets=["module.kvt_001", "azurerm_storage_account.sta_001"]
         )
+        self.validation_svc.generate_and_validate.return_value = validation
         self.template_svc.compose_template.return_value = "conventions"
 
         task = await self._handler().handle("create a bucket")
@@ -109,6 +110,7 @@ class TestCrudHandlerPinning(_CrudHandlerTestCase):
             targets=["module.kvt_001", "azurerm_storage_account.sta_001"],
             conventions="conventions",
             max_iterations=2,
+            prev_validation=validation,
         )
 
     async def test_failed_validation_does_not_pin_nor_check_drift(self):
