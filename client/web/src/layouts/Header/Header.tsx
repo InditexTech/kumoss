@@ -12,6 +12,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { Authenticated } from "@/contexts/AuthContext";
+import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import ConfigurationModal from "@/components/ConfigurationModal/ConfigurationModal";
 import SupportModal from "@/components/SupportModal/SupportModal";
@@ -22,6 +23,7 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const view = useCurrentView();
+  const { resetSession } = useSession();
   const [configOpen, setConfigOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const modeDisabled = view !== null && view !== "wizard";
@@ -46,6 +48,7 @@ function Header() {
                 return;
               }
               e.preventDefault();
+              resetSession(); // Going home also discards the information collected so far.
               navigate("/home");
             }}
           >
