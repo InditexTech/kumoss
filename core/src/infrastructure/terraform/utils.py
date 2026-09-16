@@ -34,7 +34,7 @@ class TerraformUtils:
             (
                 TerraformUtils.__normalize_repo_uri(repo_uri),
                 scope_id.strip().lower(),
-                TerraformUtils.__normalize_iac_path(iac_path),
+                TerraformUtils.__normalize_iac_path(iac_path or ""),
             )
         )
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()
