@@ -60,6 +60,8 @@ class AwsScopeLister:
         return await asyncio.to_thread(self._list, scope_id)
 
     def _list(self, scope_id: str) -> list[str]:
+        if not scope_id.isascii() or not scope_id.isdigit() or len(scope_id) != 12:
+            raise DiscoveryError(f"'{scope_id}' is not an AWS account id")
         region = self._environ.get("AWS_REGION") or self._environ.get(
             "AWS_DEFAULT_REGION"
         )
