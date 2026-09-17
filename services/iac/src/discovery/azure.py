@@ -170,17 +170,11 @@ class AzureScopeLister:
         scope = self._escape(scope_id)
         return "\n".join(
             [
-                "let managed = resourcecontainers",
-                f"| where type =~ '{self._GROUP_TYPE}'",
-                "| where isnotempty(managedBy) or name startswith 'MC_'"
-                + " or name =~ 'NetworkWatcherRG'",
-                "| project subscriptionId, managedGroup = tolower(name);",
                 "resources",
                 f"| where subscriptionId =~ '{scope}'",
                 f"| where type != '{self._ALERT_TYPE}'",
                 "| where tostring(tags) !contains '\"hidden-link'",
-                "| extend managedGroup = tolower(resourceGroup)",
-                "| join kind=leftanti managed on subscriptionId, managedGroup",
+                *self._unmanaged(""),
                 "| project id",
                 "| union (",
                 "    resourcecontainers",
@@ -194,13 +188,26 @@ class AzureScopeLister:
                 "    authorizationresources",
                 f"    | where type =~ '{self._ROLE_TYPE}'",
                 f"    | where subscriptionId =~ '{scope}'",
-                "    | extend managedGroup = tolower(resourceGroup)",
-                "    | join kind=leftanti managed on subscriptionId, managedGroup",
+                *self._unmanaged("    "),
                 "    | project id",
                 ")",
                 "| order by id asc",
             ]
         )
+
+    def _unmanaged(self, indent: str) -> list[str]:
+        return [
+            f"{indent}| extend managedGroup = tolower(resourceGroup)",
+            f"{indent}| join kind=leftouter (",
+            f"{indent}    resourcecontainers",
+            f"{indent}    | where type =~ '{self._GROUP_TYPE}'",
+            f"{indent}    | where isnotempty(managedBy) or name startswith 'MC_'"
+            + " or name =~ 'NetworkWatcherRG'",
+            f"{indent}    | project subscriptionId, managedGroup = tolower(name),"
+            + " managedMark = 1",
+            f"{indent}) on subscriptionId, managedGroup",
+            f"{indent}| where isnull(managedMark)",
+        ]
 
     def _escape(self, scope_id: str) -> str:
         return scope_id.replace("\\", "\\\\").replace("'", "\\'")

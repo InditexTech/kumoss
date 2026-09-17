@@ -157,7 +157,9 @@ def test_a_partial_environment_becomes_a_discovery_error() -> None:
         "name startswith 'MC_'",
         "NetworkWatcherRG",
         "isnotempty(managedBy)",
-        "join kind=leftanti managed on subscriptionId, managedGroup",
+        "join kind=leftouter (",
+        ") on subscriptionId, managedGroup",
+        "where isnull(managedMark)",
         "authorizationresources",
         "microsoft.resources/subscriptions/resourcegroups",
         "order by id asc",
@@ -166,6 +168,23 @@ def test_a_partial_environment_becomes_a_discovery_error() -> None:
 def test_the_query_carries_every_exclusion(clause: str) -> None:
     query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
     assert clause in query
+
+
+@pytest.mark.parametrize(
+    "rejected",
+    ["let ", "kind=leftanti", "kind=leftsemi", "kind=anti"],
+)
+def test_the_query_avoids_what_resource_graph_cannot_parse(rejected: str) -> None:
+    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    assert rejected not in query
+
+
+def test_the_query_inlines_the_managed_group_lookup() -> None:
+    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    assert query.count("join kind=leftouter (") == 2
+    assert query.count("    | join kind=leftouter (") == 1
+    assert query.count("isnull(managedMark)") == 2
+    assert query.count("managedGroup = tolower(name)") == 2
 
 
 def test_the_query_confines_every_arm_to_the_subscription() -> None:
