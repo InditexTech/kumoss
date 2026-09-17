@@ -11,7 +11,7 @@ One table per cloud — a single combined table would be ~90% empty cells. Group
 
 | Variable | Group | Purpose |
 |---|---|---|
-| `ARM_SUBSCRIPTION_ID` | Core | Target subscription. **Mandatory** in provider v4+ |
+| `ARM_SUBSCRIPTION_ID` | Core | Target subscription. **Mandatory** in provider v4+. Injected per request from `scope_id` — do not set it |
 | `ARM_TENANT_ID` | Core | Entra ID tenant |
 | `ARM_CLIENT_ID` | Core | App/SPN or managed identity client ID |
 | `ARM_CLIENT_ID_FILE_PATH` | Core | Read client ID from a file |
@@ -84,7 +84,7 @@ No `AWS_ACCOUNT_ID` — the account is implicit in the credential.
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC / WIF | Key file or Workload Identity Federation config |
 | `GOOGLE_OAUTH_ACCESS_TOKEN` | Token | Short-lived bearer token |
 | `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` | Impersonation | Target SA to impersonate |
-| `GOOGLE_PROJECT` | Targeting | Default project — **required** unless in provider block |
+| `GOOGLE_PROJECT` | Targeting | Default project — **required** unless in provider block. Injected per request from `scope_id` — do not set it |
 | `GOOGLE_CLOUD_PROJECT` | Targeting | Alias |
 | `GCLOUD_PROJECT` | Targeting | Alias |
 | `CLOUDSDK_CORE_PROJECT` | Targeting | Alias |
@@ -124,7 +124,7 @@ Compartment OCID is a *resource* argument, not an env var — commonly passed as
 
 | Variable | Backend | Purpose |
 |---|---|---|
-| `ARM_SUBSCRIPTION_ID` | azurerm | Subscription of the state storage account |
+| `ARM_SUBSCRIPTION_ID` | azurerm | Subscription of the state storage account. Overlaid from `scope_id` during `init`, so pin `subscription_id` in the backend config for split state |
 | `ARM_TENANT_ID` | azurerm | Tenant |
 | `ARM_CLIENT_ID` | azurerm | SPN / managed identity |
 | `ARM_CLIENT_SECRET` | azurerm | SPN secret |

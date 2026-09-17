@@ -93,6 +93,12 @@ Where an overlay is applied it goes on top of the service's own
 environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
 container — ambient provider credentials are otherwise untouched.
 
+On Azure that variable is the azurerm backend's too, so `init` resolves
+the state storage account in `scope_id`'s subscription; a deployment
+keeping state outside the managed subscription has to name
+`subscription_id` in its backend config. See "Backend minimums" in
+`PROVIDERS.md`.
+
 `import/scope-resource-ids` is the exception: it launches no
 subprocess, so there is no environment to overlay. Its `scope_id` is
 the argument of the inventory query itself — the subscription,
