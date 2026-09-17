@@ -38,6 +38,7 @@ from src import main as service_main
 from src.engine import CommandResult
 from src.discovery import ScopeDiscovery
 from src.exceptions import DiscoveryError
+from src.state import StateResourceIds
 
 
 SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
@@ -907,6 +908,29 @@ def test_state_resource_ids_passes_an_engine_failure_through(tmp_path: Path) -> 
     assert body["result"]["exit_code"] == 1
     assert body["result"]["stdout"] == ""
     assert "Backend initialization required" in body["result"]["stderr"]
+
+
+def test_state_resource_ids_fails_the_job_on_an_unexpected_reader_error(
+    tmp_path: Path,
+) -> None:
+    """Only StateReadError is an engine-plane failure. Any other error out
+    of the reader is a service fault, so the job ends `failed` with a
+    Problem instead of a `succeeded` job reporting exit 1."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    with patch.object(
+        StateResourceIds, "read", side_effect=ValueError("reader exploded")
+    ):
+        body = run_state_resource_ids(
+            CommandResult(ok=True, stdout=STATE_DOCUMENT, stderr="", exit_code=0),
+            workspace,
+        )
+
+    assert body["status"] == "failed"
+    assert body["result"] is None
+    assert body["error"]["status"] == 500
+    assert "reader exploded" in body["error"]["detail"]
 
 
 def test_scope_resource_ids_answers_a_deduplicated_json_array(tmp_path: Path) -> None:
