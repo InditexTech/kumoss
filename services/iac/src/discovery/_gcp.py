@@ -245,7 +245,7 @@ class GcpScopeLister:
             for raw in as_list(entry.get("members")):
                 member = as_text(raw)
                 if member and self._kept_member(member, scope_id):
-                    ids.append(f"{scope_id}/{role}/{member}")
+                    ids.append(f"{scope_id} {role} {member}")
         return ids
 
     def _kept_member(self, member: str, scope_id: str) -> bool:

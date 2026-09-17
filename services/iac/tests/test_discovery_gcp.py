@@ -247,9 +247,9 @@ def test_iam_bindings_become_one_id_per_role_and_member(
         ]
     }
     assert list_ids(handler_for(assets(), policy)) == [
-        "proj-1/roles/viewer/user:ada@example.com",
-        "proj-1/roles/viewer/serviceAccount:app@proj-1.iam.gserviceaccount.com",
-        "proj-1/roles/editor/group:team@example.com",
+        "proj-1 roles/viewer user:ada@example.com",
+        "proj-1 roles/viewer serviceAccount:app@proj-1.iam.gserviceaccount.com",
+        "proj-1 roles/editor group:team@example.com",
     ]
 
 

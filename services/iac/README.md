@@ -186,12 +186,11 @@ The service, not the caller, decides the ID shape.
   services by project number while Terraform IDs use the ID. The
   number comes from the `projects.get` call; if the answer carries no
   `projectNumber` the rewrite is skipped silently and those names keep
-  the number they arrived with. Project
-  IAM produces one entry per role and member,
-  `<project-id>/<role>/<member>`, matching the `id`
-  `google_project_iam_member` stores in state so the two listings line
-  up. Importing one takes the provider's own space-delimited
-  identifier, `<project-id> <role> <member>`. `deleted:` members are
+  the number they arrived with. Project IAM produces one entry per role
+  and member in the provider's own space-delimited form,
+  `<project-id> <role> <member>`, which is both the `id`
+  `google_project_iam_member` stores in state — so the two listings line
+  up — and the identifier `import` takes verbatim. `deleted:` members are
   dropped, and so is every `*.gserviceaccount.com` member that does not
   end in `@<project-id>.iam.gserviceaccount.com`: Google's own service
   agents, and with them any service account owned by a different
