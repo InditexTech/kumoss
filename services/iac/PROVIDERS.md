@@ -20,7 +20,7 @@ No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it mandatory
 
 OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
 
-Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variables through `azure-identity` — the subscription it lists comes from the request's `scope_id`, never from the environment. Two exceptions: the `az login` row has no equivalent (discovery needs an SPN, a managed identity or a workload identity), and the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN` or `ARM_OIDC_TOKEN_FILE_PATH` — the `ARM_OIDC_REQUEST_URL` exchange the CI runner performs is not reimplemented here. `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only.
+Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variables through `azure-identity` — the subscription it lists comes from the request's `scope_id`, never from the environment. Three exceptions: the `az login` row has no equivalent (discovery needs an SPN, a managed identity or a workload identity); the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN` or `ARM_OIDC_TOKEN_FILE_PATH`, because the `ARM_OIDC_REQUEST_URL` exchange the CI runner performs is not reimplemented here; and only the direct `ARM_CLIENT_ID`/`ARM_CLIENT_SECRET` forms are read, not the `ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH` ones the provider also accepts (`FULL_PROVIDERS.md`) — a deployment using those runs every command fine and fails discovery with `no Azure credentials configured`. `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only, and `ARM_ENVIRONMENT` is ignored: discovery talks to the public cloud only.
 
 ## AWS — provider minimum
 
@@ -38,7 +38,7 @@ Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variab
 
 `AWS_REGION` is the only universal requirement. Never an account ID — and unlike Azure and GCP, nothing here is injected from `scope_id`, because no environment variable redirects the provider to an account. Every command runs against whatever account the credentials above resolve to, so making them agree with the `scope_id` callers send is the deployment's job (`README.md`, "Scope injection").
 
-Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it, since boto3's default chain resolves the same credentials the provider does. Discovery does not select the account either: it calls STS and fails if the resolved account is not the requested `scope_id`. See "Import discovery" in `README.md`.
+Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it except LocalStack, which has no Resource Explorer to query, since boto3's default chain resolves the same credentials the provider does. Two details are discovery's alone: it reads the region from `AWS_REGION`/`AWS_DEFAULT_REGION` only, so the region a profile names does not satisfy it, and it does not select the account either — it calls STS and fails if the resolved account is not the requested `scope_id`. See "Import discovery" in `README.md`.
 
 ## GCP — provider minimum
 
