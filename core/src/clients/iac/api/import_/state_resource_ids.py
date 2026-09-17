@@ -99,8 +99,11 @@ def sync_detailed(
 
      Enqueues a job that runs `terraform state pull` against the
     workspace at `workspace_path` and extracts the
-    provider-assigned `id` of every managed resource instance in
-    the state, then returns `202 Accepted` immediately. Poll
+    provider-assigned identifier of every managed resource instance
+    in the state — its `arn` attribute when it has one, otherwise
+    its `id`, so that AWS entries are comparable with the ARNs
+    `/v1/import/scope-resource-ids` reports — then returns
+    `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of resource ID strings (empty when
     the state tracks nothing). If `state pull` fails, its exit
@@ -139,8 +142,11 @@ def sync(
 
      Enqueues a job that runs `terraform state pull` against the
     workspace at `workspace_path` and extracts the
-    provider-assigned `id` of every managed resource instance in
-    the state, then returns `202 Accepted` immediately. Poll
+    provider-assigned identifier of every managed resource instance
+    in the state — its `arn` attribute when it has one, otherwise
+    its `id`, so that AWS entries are comparable with the ARNs
+    `/v1/import/scope-resource-ids` reports — then returns
+    `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of resource ID strings (empty when
     the state tracks nothing). If `state pull` fails, its exit
@@ -174,8 +180,11 @@ async def asyncio_detailed(
 
      Enqueues a job that runs `terraform state pull` against the
     workspace at `workspace_path` and extracts the
-    provider-assigned `id` of every managed resource instance in
-    the state, then returns `202 Accepted` immediately. Poll
+    provider-assigned identifier of every managed resource instance
+    in the state — its `arn` attribute when it has one, otherwise
+    its `id`, so that AWS entries are comparable with the ARNs
+    `/v1/import/scope-resource-ids` reports — then returns
+    `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of resource ID strings (empty when
     the state tracks nothing). If `state pull` fails, its exit
@@ -212,8 +221,11 @@ async def asyncio(
 
      Enqueues a job that runs `terraform state pull` against the
     workspace at `workspace_path` and extracts the
-    provider-assigned `id` of every managed resource instance in
-    the state, then returns `202 Accepted` immediately. Poll
+    provider-assigned identifier of every managed resource instance
+    in the state — its `arn` attribute when it has one, otherwise
+    its `id`, so that AWS entries are comparable with the ARNs
+    `/v1/import/scope-resource-ids` reports — then returns
+    `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of resource ID strings (empty when
     the state tracks nothing). If `state pull` fails, its exit

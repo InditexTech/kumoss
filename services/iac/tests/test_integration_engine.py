@@ -6,7 +6,8 @@
 
 Unlike the unit suite (which patches every subprocess call), this test
 drives the HTTP API end to end against a real engine binary:
-init → validate → plan → show -json → apply, using the hermetic
+init → validate → plan → show -json → apply, plus an offline
+init → import → state-resource-ids round trip, using the hermetic
 ``terraform_data`` fixture (no provider downloads, no network,
 no cloud credentials). It runs once per engine the image bundles —
 OpenTofu (``tofu``) and Terraform — proving both work behind the same
@@ -79,3 +80,49 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         assert actions == [["create"]]
 
         _ = run("/v1/apply", {"plan_file": "smoke.plan", **SCOPE})
+
+
+_IMPORTED_ID = "nebula-import-probe-1"
+
+
+@pytest.mark.parametrize("binary", [_engine("tofu"), _engine("terraform")])
+def test_import_then_state_resource_ids_with_real_engine(
+    binary: str, tmp_path: Path
+) -> None:
+    """`terraform_data` is importable on both engines without an apply,
+    so the import endpoint and the state listing can be exercised
+    against a real engine with no provider download and no cloud."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    _ = shutil.copy(_FIXTURE, workspace / "main.tf")
+
+    with client_with(iac_binary=binary) as client:
+
+        def run(endpoint: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
+            response = client.post(
+                endpoint,
+                json={"workspace_path": str(workspace), **(extra or {})},
+            )
+            assert response.status_code == 202, response.text
+            accepted: dict[str, str] = response.json()
+            body = poll_until_terminal(client, accepted["job_id"], deadline=_DEADLINE)
+            assert body["status"] == "succeeded", body
+            result: dict[str, Any] = body["result"]
+            assert result["exit_code"] == 0, result["stderr"]
+            return result
+
+        _ = run("/v1/init", SCOPE)
+        imported = run(
+            "/v1/import",
+            {
+                "address": "terraform_data.probe",
+                "resource_id": _IMPORTED_ID,
+                **SCOPE,
+            },
+        )
+        assert "Import successful" in imported["stdout"]
+
+        listed = run("/v1/import/state-resource-ids")
+
+    stdout: str = listed["stdout"]
+    assert json.loads(stdout) == [_IMPORTED_ID]

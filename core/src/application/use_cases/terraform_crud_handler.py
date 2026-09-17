@@ -117,7 +117,6 @@ class TerraformCRUDHandler:
                     targets=validation.terraform_targets,
                     conventions=conventions,
                     max_iterations=2,
-                    prev_validation=validation,
                 )
 
                 report: TerraformPlanReport = cast(

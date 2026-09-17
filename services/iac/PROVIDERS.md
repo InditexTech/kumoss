@@ -7,16 +7,20 @@ SPDX-License-Identifier: Apache-2.0
 
 | Scenario | Required |
 |---|---|
-| SPN + secret | `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` |
-| SPN + certificate | `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_CERTIFICATE_PATH`, `ARM_CLIENT_CERTIFICATE_PASSWORD` |
-| OIDC (GitHub Actions) | `ARM_USE_OIDC=true`, `ARM_SUBSCRIPTION_ID`, `ARM_TENANT_ID`, `ARM_CLIENT_ID` |
+| SPN + secret | `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` |
+| SPN + certificate | `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_CERTIFICATE_PATH`, `ARM_CLIENT_CERTIFICATE_PASSWORD` |
+| OIDC (GitHub Actions) | `ARM_USE_OIDC=true`, `ARM_TENANT_ID`, `ARM_CLIENT_ID` |
 | OIDC (Azure DevOps) | above + `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` |
-| Managed identity (system-assigned) | `ARM_USE_MSI=true`, `ARM_SUBSCRIPTION_ID` |
-| Managed identity (user-assigned) | `ARM_USE_MSI=true`, `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID` |
-| AKS workload identity | `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_SUBSCRIPTION_ID`, `ARM_CLIENT_ID`, `ARM_TENANT_ID` |
-| Local dev (`az login`) | `ARM_SUBSCRIPTION_ID` only |
+| Managed identity (system-assigned) | `ARM_USE_MSI=true` |
+| Managed identity (user-assigned) | `ARM_USE_MSI=true`, `ARM_CLIENT_ID` |
+| AKS workload identity | `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_CLIENT_ID`, `ARM_TENANT_ID` |
+| Local dev (`az login`) | none |
 
-`ARM_SUBSCRIPTION_ID` is in every row — mandatory in azurerm v4+. OIDC rows omit `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
+No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it mandatory: `init`, `plan`, `apply` and `import` carry a `scope_id`, and the service injects it as `ARM_SUBSCRIPTION_ID` into the engine subprocess for that one command, overriding whatever the container has. Set the credential variables in each row and leave the subscription to the request. See "Scope injection" in `README.md`.
+
+OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
+
+Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variables through `azure-identity` — the subscription it lists comes from the request's `scope_id`, never from the environment. Three exceptions: the `az login` row has no equivalent (discovery needs an SPN, a managed identity or a workload identity); the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN` or `ARM_OIDC_TOKEN_FILE_PATH`, because the `ARM_OIDC_REQUEST_URL` exchange the CI runner performs is not reimplemented here; and only the direct `ARM_CLIENT_ID`/`ARM_CLIENT_SECRET` forms are read, not the `ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH` ones the provider also accepts (`FULL_PROVIDERS.md`) — a deployment using those runs every command fine and fails discovery with `no Azure credentials configured`. `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only, and `ARM_ENVIRONMENT` is ignored: discovery talks to the public cloud only.
 
 ## AWS — provider minimum
 
@@ -32,20 +36,26 @@ SPDX-License-Identifier: Apache-2.0
 | ECS task role | `AWS_REGION` only |
 | LocalStack | `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_REGION`, `AWS_ENDPOINT_URL` |
 
-`AWS_REGION` is the only universal requirement. Never an account ID.
+`AWS_REGION` is the only universal requirement. Never an account ID — and unlike Azure and GCP, nothing here is injected from `scope_id`, because no environment variable redirects the provider to an account. Every command runs against whatever account the credentials above resolve to, so making them agree with the `scope_id` callers send is the deployment's job (`README.md`, "Scope injection").
+
+Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it except LocalStack, which has no Resource Explorer to query, since boto3's default chain resolves the same credentials the provider does. Two details are discovery's alone: it reads the region from `AWS_REGION`/`AWS_DEFAULT_REGION` only, so the region a profile names does not satisfy it, and it does not select the account either — it calls STS and fails if the resolved account is not the requested `scope_id`. See "Import discovery" in `README.md`.
 
 ## GCP — provider minimum
 
 | Scenario | Required |
 |---|---|
-| Service account key | `GOOGLE_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`), `GOOGLE_PROJECT` |
-| Workload Identity Federation | `GOOGLE_APPLICATION_CREDENTIALS` (WIF config path), `GOOGLE_PROJECT` |
+| Service account key | `GOOGLE_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`) |
+| Workload Identity Federation | `GOOGLE_APPLICATION_CREDENTIALS` (WIF config path) |
 | WIF + impersonation | above + `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` |
-| GCE / GKE / Cloud Run attached SA | `GOOGLE_PROJECT` only |
-| Local dev (`gcloud auth application-default login`) | `GOOGLE_PROJECT` only |
-| Short-lived token | `GOOGLE_OAUTH_ACCESS_TOKEN`, `GOOGLE_PROJECT` |
+| GCE / GKE / Cloud Run attached SA | none |
+| Local dev (`gcloud auth application-default login`) | none |
+| Short-lived token | `GOOGLE_OAUTH_ACCESS_TOKEN` |
 
-`GOOGLE_PROJECT` in every row. `GOOGLE_REGION`/`GOOGLE_ZONE` are optional but omitting them forces explicit `region`/`zone` on many resources.
+`GOOGLE_REGION`/`GOOGLE_ZONE` are optional but leaving them out forces explicit `region`/`zone` on many resources.
+
+No row carries `GOOGLE_PROJECT` either, for the same reason as `ARM_SUBSCRIPTION_ID` above: the service injects the request's `scope_id` under that name for `init`, `plan`, `apply` and `import`. It sets `GOOGLE_PROJECT` specifically, which outranks the `GOOGLE_CLOUD_PROJECT`/`GCLOUD_PROJECT`/`CLOUDSDK_CORE_PROJECT` aliases (`FULL_PROVIDERS.md`), so an ambient alias cannot quietly win. Set the credential variables in each row and leave the project to the request.
+
+Import discovery reads the *credential* variables through `google-auth`, including `GOOGLE_OAUTH_ACCESS_TOKEN` and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`, and falls back to application-default credentials exactly as the provider does — so the `gcloud auth application-default login` row works for it too. The project it lists is the request's `scope_id`; the project that application-default credentials name is deliberately discarded. It needs `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com` enabled on that project.
 
 ## OCI — provider minimum
 
@@ -74,6 +84,8 @@ Add `TF_VAR_compartment_ocid` in practice — not a provider setting, but nearly
 
 Non-env HCL always needed: `resource_group_name`, `storage_account_name`, `container_name`, `key`.
 
+Add `subscription_id` too when the state storage account lives in a different subscription than the resources being managed. The backend resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs with that variable overlaid from the request's `scope_id` — so a backend that does not name its subscription explicitly looks for the storage account in the *workload's* subscription and fails. Pin it in the backend block or in the file `IAC_BACKEND_CONFIG` points at. The `ARM_ACCESS_KEY` and `ARM_SAS_TOKEN` rows are unaffected: they address the account directly rather than resolving it through a subscription.
+
 ### s3
 
 | Scenario | Required env |
@@ -98,6 +110,8 @@ No project or region needed — bucket names are globally unique. Non-env HCL: `
 
 ## Copy-paste: typical CI setups
 
+These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive with each request's `scope_id`. Add them only when you run the engine yourself.
+
 Azure, GitHub Actions OIDC, RBAC state access:
 
 ```bash
@@ -105,7 +119,6 @@ export ARM_USE_OIDC=true
 export ARM_USE_AZUREAD=true
 export ARM_TENANT_ID=...
 export ARM_CLIENT_ID=...
-export ARM_SUBSCRIPTION_ID=...
 ```
 
 AWS, GitHub Actions OIDC:
@@ -118,13 +131,14 @@ export AWS_REGION=eu-west-1
 GCP, GitHub Actions WIF:
 
 ```bash
-export GOOGLE_PROJECT=my-app-prod
 export GOOGLE_REGION=europe-west1
 # google-github-actions/auth sets GOOGLE_APPLICATION_CREDENTIALS
 ```
 
-## Two things that trip people up
+## Three things that trip people up
 
-**Azure needs the most variables by a wide margin.** AWS and GCP collapse to one or two in keyless CI because their SDKs auto-discover identity and the account/project is either implicit or a single value. Azure always needs tenant + client + subscription explicitly.
+**Azure needs the most variables by a wide margin.** AWS and GCP collapse to one or two in keyless CI because their SDKs auto-discover identity and the account/project is either implicit or a single value. Azure always needs tenant + client + subscription explicitly — though under this service the subscription arrives with the request rather than from the environment.
 
 **Backend env vars are usually a subset of provider ones** — with `ARM_ACCESS_KEY` and `GOOGLE_BACKEND_CREDENTIALS` being the deliberate exceptions for splitting identities. If you set the full provider set, `init` almost always works too; the reverse is not true.
+
+**The scope this service injects reaches the azurerm backend as well**, because provider and backend read the same `ARM_SUBSCRIPTION_ID`. Split state — a state account outside the managed subscription — therefore needs `subscription_id` in the backend config, not just provider credentials. GCP has no equivalent problem: the `gcs` backend needs no project.
