@@ -6,19 +6,20 @@
 
 `IacEngine` binds one engine binary (and the deployment's backend
 configuration file, when it sets one) and drives `init`, `validate`,
-`plan`, `show`, and `apply`, one command per call — the flag surface is
-identical across both engines. The instance holds configuration only,
-never command or job state, so one can be shared or built per request
-interchangeably. Implementations that need more (state locking, custom
-backends, policy as code) should subclass this or substitute their own.
+`plan`, `show`, `apply`, `import` and `state pull`, one command per call
+— the flag surface is identical across both engines. The instance holds
+configuration only, never command or job state, so one can be shared or
+built per request interchangeably. Implementations that need more (state
+locking, custom backends, policy as code) should subclass this or
+substitute their own.
 
-`init`, `plan` and `apply` may access external services, so they run with the
-request's `scope_id` injected into their environment where the cloud
+`init`, `plan`, `apply` and `import` may access external services, so they
+run with the request's `scope_id` injected into their environment where the cloud
 exposes a provider-level variable that names a scope — Azure and GCP only
 (see ``IacEngine.scope_env``). The other providers have no such variable,
 so nothing is injected and the command runs on the service's ambient
-credentials. `validate` and `show` make no cloud API call and take no
-scope at all: they run on the service's own environment, unmodified.
+credentials. `validate`, `show` and `state pull` take no scope at all:
+they run on the service's own environment, unmodified.
 The contract's "Scope injection" section is normative.
 """
 
@@ -111,6 +112,16 @@ class IacEngine:
             cwd,
             env,
         )
+
+    async def import_resource(
+        self, cwd: Path, address: str, resource_id: str, env: dict[str, str]
+    ) -> CommandResult:
+        return await self._run(
+            ["import", "-no-color", "-input=false", address, resource_id], cwd, env
+        )
+
+    async def state_pull(self, cwd: Path) -> CommandResult:
+        return await self._run(["state", "pull"], cwd)
 
     async def _run(
         self, args: list[str], cwd: Path, env: dict[str, str] | None = None

@@ -11,15 +11,15 @@ One table per cloud — a single combined table would be ~90% empty cells. Group
 
 | Variable | Group | Purpose |
 |---|---|---|
-| `ARM_SUBSCRIPTION_ID` | Core | Target subscription. **Mandatory** in provider v4+ |
+| `ARM_SUBSCRIPTION_ID` | Core | Target subscription. **Mandatory** in provider v4+. Injected per request from `scope_id` — do not set it |
 | `ARM_TENANT_ID` | Core | Entra ID tenant |
 | `ARM_CLIENT_ID` | Core | App/SPN or managed identity client ID |
-| `ARM_CLIENT_ID_FILE_PATH` | Core | Read client ID from a file |
-| `ARM_ENVIRONMENT` | Core | `public`, `usgovernment`, `china` |
+| `ARM_CLIENT_ID_FILE_PATH` | Core | Read client ID from a file. Provider only — import discovery reads `ARM_CLIENT_ID` |
+| `ARM_ENVIRONMENT` | Core | `public`, `usgovernment`, `china`. Provider only — import discovery is public-cloud |
 | `ARM_METADATA_HOST` | Core | Custom metadata endpoint (Azure Stack) |
 | `ARM_AUXILIARY_TENANT_IDS` | Core | Comma-separated, for cross-tenant |
 | `ARM_CLIENT_SECRET` | SPN + secret | Client secret |
-| `ARM_CLIENT_SECRET_FILE_PATH` | SPN + secret | Read secret from file |
+| `ARM_CLIENT_SECRET_FILE_PATH` | SPN + secret | Read secret from file. Provider only — import discovery reads `ARM_CLIENT_SECRET` |
 | `ARM_CLIENT_CERTIFICATE` | SPN + cert | Base64 PKCS#12 bundle |
 | `ARM_CLIENT_CERTIFICATE_PATH` | SPN + cert | Path to `.pfx` |
 | `ARM_CLIENT_CERTIFICATE_PASSWORD` | SPN + cert | Cert password |
@@ -84,7 +84,7 @@ No `AWS_ACCOUNT_ID` — the account is implicit in the credential.
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC / WIF | Key file or Workload Identity Federation config |
 | `GOOGLE_OAUTH_ACCESS_TOKEN` | Token | Short-lived bearer token |
 | `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` | Impersonation | Target SA to impersonate |
-| `GOOGLE_PROJECT` | Targeting | Default project — **required** unless in provider block |
+| `GOOGLE_PROJECT` | Targeting | Default project — **required** unless in provider block. Injected per request from `scope_id` — do not set it |
 | `GOOGLE_CLOUD_PROJECT` | Targeting | Alias |
 | `GCLOUD_PROJECT` | Targeting | Alias |
 | `CLOUDSDK_CORE_PROJECT` | Targeting | Alias |
@@ -124,7 +124,7 @@ Compartment OCID is a *resource* argument, not an env var — commonly passed as
 
 | Variable | Backend | Purpose |
 |---|---|---|
-| `ARM_SUBSCRIPTION_ID` | azurerm | Subscription of the state storage account |
+| `ARM_SUBSCRIPTION_ID` | azurerm | Subscription of the state storage account. Overlaid from `scope_id` during `init`, so pin `subscription_id` in the backend config for split state |
 | `ARM_TENANT_ID` | azurerm | Tenant |
 | `ARM_CLIENT_ID` | azurerm | SPN / managed identity |
 | `ARM_CLIENT_SECRET` | azurerm | SPN secret |

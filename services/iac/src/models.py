@@ -18,6 +18,8 @@ TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # and `apply`, so it must not be able to escape the workspace.
 PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
 ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
+AddressStr = Annotated[str, Field(min_length=1, max_length=4096)]
+ResourceIdStr = Annotated[str, Field(min_length=1, max_length=4096)]
 
 TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes"]
 
@@ -38,7 +40,7 @@ class WorkspaceRequest(BaseModel):
 class ScopedRequest(WorkspaceRequest):
     """Base for the commands whose scope decides what they run against.
 
-    The commands that reach no cloud API extend ``WorkspaceRequest``
+    The commands that take no scope extend ``WorkspaceRequest``
     directly: they declare no scope, and ``extra="forbid"`` makes
     sending one a 422.
     """
@@ -74,6 +76,21 @@ class ApplyRequest(ScopedRequest):
     plan_file: PlanFileStr
 
 
+class ImportRequest(ScopedRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    address: AddressStr
+    resource_id: ResourceIdStr
+
+
+class StateResourceIdsRequest(WorkspaceRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
+class ScopeResourceIdsRequest(ScopedRequest):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+
 class OperationResult(BaseModel):
     """Raw outcome of the single engine command a job ran."""
 
@@ -106,6 +123,9 @@ JobKind = Literal[
     "plan",
     "show",
     "apply",
+    "import",
+    "state_resource_ids",
+    "scope_resource_ids",
 ]
 JobStatus = Literal["queued", "running", "succeeded", "failed"]
 
