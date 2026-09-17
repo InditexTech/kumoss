@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from src.exceptions import StateReadError
 from src.state import StateResourceIds
 
 
@@ -132,5 +133,5 @@ def test_empty_output_yields_empty_list() -> None:
 
 @pytest.mark.parametrize("document", ["not json", "[]", "42", '"text"'])
 def test_unparsable_document_raises(document: str) -> None:
-    with pytest.raises(ValueError, match="unparsable state document"):
+    with pytest.raises(StateReadError, match="unparsable state document"):
         _ = _ids(document)

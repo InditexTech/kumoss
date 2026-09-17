@@ -16,7 +16,7 @@ import pytest
 
 from src.discovery import _azure as azure_module
 from src.discovery._azure import AzureCredentials, AzurosCloudapi
-from src.discovery._base import DiscoveryError
+from src.exceptions import DiscoveryError
 
 Handler = Callable[[httpx.Request], httpx.Response]
 

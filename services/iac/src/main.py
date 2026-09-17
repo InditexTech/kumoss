@@ -50,8 +50,9 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
-from .discovery import DiscoveryError, ScopeDiscovery
+from .discovery import ScopeDiscovery
 from .engine import CommandResult, IacEngine
+from .exceptions import DiscoveryError, StateReadError
 from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
     ApplyRequest,
@@ -226,7 +227,7 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
         )
     try:
         ids = StateResourceIds().read(result.stdout)
-    except ValueError as exc:
+    except StateReadError as exc:
         return OperationResult(exit_code=1, stdout="", stderr=str(exc))
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
 

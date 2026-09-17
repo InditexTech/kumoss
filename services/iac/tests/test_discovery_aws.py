@@ -17,7 +17,7 @@ from botocore.exceptions import (  # pyright: ignore[reportMissingTypeStubs]
 )
 
 from src.discovery._aws import AwsScopeLister
-from src.discovery._base import DiscoveryError
+from src.exceptions import DiscoveryError
 
 ACCOUNT: str = "123456789012"
 REGION: dict[str, str] = {"AWS_REGION": "eu-west-1"}
