@@ -126,7 +126,12 @@ class TemplateAdapter(ITemplate):
             if abbreviations
             else []
         )
-        concrete_implementations.extend(await self._get_resources_templates(resources))
+        resources_content = await self._get_resources_templates(resources)
+        if resources_content:
+            concrete_implementations.extend(
+                f"{resource}:\n{content}"
+                for resource, content in resources_content.items()
+            )
         import_exceptions: str = await remote_fetcher.fetch(
             prompt_name="import_exceptions",
             scope=self._scope,
