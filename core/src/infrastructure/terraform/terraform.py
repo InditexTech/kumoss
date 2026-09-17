@@ -88,6 +88,8 @@ OperationRequest = (
     | ShowRequest
     | ApplyRequest
     | StateResourceIdsRequest
+    | ScopeResourceIdsRequest
+    | ImportRequest
 )
 
 
@@ -136,7 +138,6 @@ class Terraform(ITerraform):
                     validate_op,
                     ValidateRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scope_id=self.__scope_id,
                     ),
                     cfg,
                 )
@@ -317,13 +318,6 @@ class Terraform(ITerraform):
     @override
     async def state_resource_ids(self) -> list[str]:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot retrieve state resource IDs. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -332,22 +326,17 @@ class Terraform(ITerraform):
         workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                init_res = await self.__run_op(
-                    c,
-                    init_op,
-                    InitRequest(workspace_path=workspace, scope_id=self.__scope_id),
-                    cfg,
-                )
-                if init_res.exit_code != 0:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
                     raise ExceptionHandler(
                         f"terraform init failed: {init_res.stderr or 'unknown error'}",
                         502,
                     )
-                state_res = await self.__run_op(
+                state_res = await self.__run_initialized_op(
                     c,
                     state_op,
                     StateResourceIdsRequest(
-                        workspace_path=workspace, scope_id=self.__scope_id
+                        workspace_path=workspace,
                     ),
                     cfg,
                 )
@@ -370,13 +359,6 @@ class Terraform(ITerraform):
         terraform_provider: TerraformProvider,
     ) -> list[str]:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot retrieve scope resource IDs. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -385,18 +367,13 @@ class Terraform(ITerraform):
         workspace = str(self.__workspace_path)
         try:
             async with client as c:
-                init_res = await self.__run_op(
-                    c,
-                    init_op,
-                    InitRequest(workspace_path=workspace, scope_id=self.__scope_id),
-                    cfg,
-                )
-                if init_res.exit_code != 0:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
                     raise ExceptionHandler(
                         f"terraform init failed: {init_res.stderr or 'unknown error'}",
                         502,
                     )
-                scope_res = await self.__run_op(
+                scope_res = await self.__run_initialized_op(
                     c,
                     scope_op,
                     ScopeResourceIdsRequest(
@@ -426,13 +403,6 @@ class Terraform(ITerraform):
         resource_id: str,
     ) -> TerraformValidationDTO:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot import resource. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -453,6 +423,7 @@ class Terraform(ITerraform):
                     ImportRequest(
                         workspace_path=workspace,
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         address=address,
                         resource_id=resource_id,
                     ),
