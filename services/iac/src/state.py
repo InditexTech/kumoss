@@ -10,6 +10,7 @@ import json
 from collections.abc import Iterator, Mapping
 from typing import Any, ClassVar, cast
 
+from .exceptions import StateReadError
 from .identifiers import unique
 
 
@@ -42,8 +43,8 @@ class StateResourceIds:
         document = cast(Mapping[str, Any], obj)
         return unique(self._identifiers(document))
 
-    def _unparsable(self) -> ValueError:
-        return ValueError("state pull returned an unparsable state document")
+    def _unparsable(self) -> StateReadError:
+        return StateReadError("state pull returned an unparsable state document")
 
     def _identifiers(self, document: Mapping[str, Any]) -> Iterator[str]:
         resources = document.get("resources")

@@ -10,9 +10,7 @@ from typing import Any, ClassVar, Protocol, cast
 
 import httpx
 
-
-class DiscoveryError(Exception):
-    """A scope listing could not be completed."""
+from ..exceptions import DiscoveryError
 
 
 class ScopeLister(Protocol):

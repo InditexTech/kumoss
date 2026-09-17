@@ -23,7 +23,8 @@ from azure.identity import (
     WorkloadIdentityCredential,
 )
 
-from ._base import CloudApi, DiscoveryError, as_list, as_mapping, as_text
+from ..exceptions import DiscoveryError
+from ._base import CloudApi, as_list, as_mapping, as_text
 
 logger = logging.getLogger("iac.discovery.azure")
 

@@ -36,7 +36,8 @@ from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
 from src.engine import CommandResult
-from src.discovery import DiscoveryError, ScopeDiscovery
+from src.discovery import ScopeDiscovery
+from src.exceptions import DiscoveryError
 
 
 SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
