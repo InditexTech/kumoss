@@ -14,9 +14,9 @@ from typing import Any
 import httpx
 import pytest
 
-from src.discovery import azure as azure_module
-from src.discovery.azure import AzureCredentials, AzureScopeLister
-from src.discovery.base import DiscoveryError
+from src.discovery import _azure as azure_module
+from src.discovery._azure import AzureCredentials, AzurosCloudapi
+from src.discovery._base import DiscoveryError
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
@@ -64,7 +64,7 @@ def patch_token(monkeypatch: pytest.MonkeyPatch) -> None:
 def list_ids(handler: Handler, environ: dict[str, str], scope_id: str) -> list[str]:
     async def call() -> list[str]:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            return await AzureScopeLister(environ, client).list_resource_ids(scope_id)
+            return await AzurosCloudapi(environ, client).list_resource_ids(scope_id)
 
     return asyncio.run(call())
 
@@ -166,7 +166,7 @@ def test_a_partial_environment_becomes_a_discovery_error() -> None:
     ],
 )
 def test_the_query_carries_every_exclusion(clause: str) -> None:
-    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    query = AzurosCloudapi({}, httpx.AsyncClient()).query(SUBSCRIPTION)
     assert clause in query
 
 
@@ -175,12 +175,12 @@ def test_the_query_carries_every_exclusion(clause: str) -> None:
     ["let ", "kind=leftanti", "kind=leftsemi", "kind=anti"],
 )
 def test_the_query_avoids_what_resource_graph_cannot_parse(rejected: str) -> None:
-    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    query = AzurosCloudapi({}, httpx.AsyncClient()).query(SUBSCRIPTION)
     assert rejected not in query
 
 
 def test_the_query_inlines_the_managed_group_lookup() -> None:
-    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    query = AzurosCloudapi({}, httpx.AsyncClient()).query(SUBSCRIPTION)
     assert query.count("join kind=leftouter (") == 2
     assert query.count("    | join kind=leftouter (") == 1
     assert query.count("isnull(managedMark)") == 2
@@ -188,13 +188,13 @@ def test_the_query_inlines_the_managed_group_lookup() -> None:
 
 
 def test_the_query_confines_every_arm_to_the_subscription() -> None:
-    query = AzureScopeLister({}, httpx.AsyncClient()).query(SUBSCRIPTION)
+    query = AzurosCloudapi({}, httpx.AsyncClient()).query(SUBSCRIPTION)
     assert query.count(f"where subscriptionId =~ '{SUBSCRIPTION}'") == 3
     assert f"contains '{SUBSCRIPTION}'" not in query
 
 
 def test_the_query_escapes_the_scope() -> None:
-    query = AzureScopeLister({}, httpx.AsyncClient()).query("o'brien\\x")
+    query = AzurosCloudapi({}, httpx.AsyncClient()).query("o'brien\\x")
     assert "=~ 'o\\'brien\\\\x'" in query
 
 

@@ -49,8 +49,8 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
 from .auth import bearer_scheme, verify_bearer_token
-from .config import Config, setup_logging
-from .discovery import DiscoveryError, ScopeDiscovery, unique
+from .config import Config
+from .discovery import DiscoveryError, ScopeDiscovery
 from .engine import CommandResult, IacEngine
 from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
@@ -70,11 +70,11 @@ from .models import (
     ValidateRequest,
     WorkspaceRequest,
 )
-from .state import resource_ids
+from .state import StateResourceIds
 
 
 config = Config.from_env()
-setup_logging(config)
+config.setup_logging()
 workspace_queue = WorkspaceQueue()
 jobs = JobRegistry(ttl_seconds=config.job_ttl, workspace_queue=workspace_queue)
 
@@ -225,7 +225,7 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
             exit_code=result.exit_code, stdout="", stderr=result.stderr
         )
     try:
-        ids = resource_ids(result.stdout)
+        ids = StateResourceIds().read(result.stdout)
     except ValueError as exc:
         return OperationResult(exit_code=1, stdout="", stderr=str(exc))
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
@@ -234,19 +234,17 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
 async def _scope_resource_ids(
     discovery: ScopeDiscovery, terraform_provider: str, scope_id: str
 ) -> OperationResult:
-    async with discovery.client() as client:
-        try:
-            lister = discovery.lister(terraform_provider, client)
-            if lister is None:
-                return OperationResult(
-                    exit_code=2,
-                    stdout="",
-                    stderr=f"no scope discovery for provider '{terraform_provider}'",
-                )
-            ids = await lister.list_resource_ids(scope_id)
-        except DiscoveryError as exc:
-            return OperationResult(exit_code=1, stdout="", stderr=str(exc))
-    return OperationResult(exit_code=0, stdout=json.dumps(unique(ids)), stderr="")
+    try:
+        ids = await discovery.resource_ids(terraform_provider, scope_id)
+    except DiscoveryError as exc:
+        return OperationResult(exit_code=1, stdout="", stderr=str(exc))
+    if ids is None:
+        return OperationResult(
+            exit_code=2,
+            stdout="",
+            stderr=f"no scope discovery for provider '{terraform_provider}'",
+        )
+    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
 
 
 @app.post(

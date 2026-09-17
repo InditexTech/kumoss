@@ -12,14 +12,13 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from src.discovery.base import (
+from src.discovery._base import (
     CloudApi,
     DiscoveryError,
     as_list,
     as_mapping,
     as_text,
     require_mapping,
-    unique,
 )
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -32,10 +31,6 @@ def _post(handler: Handler) -> dict[str, object]:
             return await api.post("https://api.test/query", {"query": "q"})
 
     return asyncio.run(call())
-
-
-def test_unique_keeps_the_first_occurrence() -> None:
-    assert unique(["b", "a", "b", "c", "a"]) == ["b", "a", "c"]
 
 
 def test_as_mapping_replaces_anything_else_with_an_empty_object() -> None:

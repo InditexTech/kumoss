@@ -18,7 +18,7 @@ from botocore.exceptions import (  # pyright: ignore[reportMissingTypeStubs]
     ClientError,
 )
 
-from .base import DiscoveryError, as_list, as_mapping, as_text
+from ._base import DiscoveryError, as_list, as_mapping, as_text
 
 logger = logging.getLogger("iac.discovery.aws")
 

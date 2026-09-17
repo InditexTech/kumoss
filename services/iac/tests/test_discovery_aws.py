@@ -16,8 +16,8 @@ from botocore.exceptions import (  # pyright: ignore[reportMissingTypeStubs]
     ProfileNotFound,
 )
 
-from src.discovery.aws import AwsScopeLister
-from src.discovery.base import DiscoveryError
+from src.discovery._aws import AwsScopeLister
+from src.discovery._base import DiscoveryError
 
 ACCOUNT: str = "123456789012"
 REGION: dict[str, str] = {"AWS_REGION": "eu-west-1"}

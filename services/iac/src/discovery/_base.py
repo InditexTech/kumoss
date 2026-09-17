@@ -47,17 +47,6 @@ def require_mapping(value: Any, source: str) -> dict[str, Any]:
     return cast("dict[str, Any]", value)
 
 
-def unique(ids: list[str]) -> list[str]:
-    """The identifiers without repeats, in first-seen order."""
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for identifier in ids:
-        if identifier not in seen:
-            seen.add(identifier)
-            ordered.append(identifier)
-    return ordered
-
-
 class CloudApi:
     """JSON calls against one cloud REST API, with its errors mapped."""
 

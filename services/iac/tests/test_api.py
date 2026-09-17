@@ -775,7 +775,7 @@ def post_scope_resource_ids(
 
 def run_scope_resource_ids(lister: FakeLister, workspace: Path) -> dict[str, Any]:
     with client_with() as client:
-        with patch.object(ScopeDiscovery, "lister", return_value=lister):
+        with patch.object(ScopeDiscovery, "_lister", return_value=lister):
             return post_scope_resource_ids(client, workspace, "azure")
 
 

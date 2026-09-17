@@ -11,10 +11,9 @@ import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 from .exceptions import ConfigError
-
-_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 
 @dataclass(frozen=True)
@@ -44,6 +43,8 @@ class Config:
     - ``log_level``: Python logging level name `setup_logging` applies
       to the root logger. Not environment-driven either.
     """
+
+    _LOG_FORMAT: ClassVar[str] = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
     expected_token: str
     iac_binary: str
@@ -76,19 +77,18 @@ class Config:
             backend_config=os.environ.get("IAC_BACKEND_CONFIG", "").strip() or None,
         )
 
+    def setup_logging(self) -> None:
+        """Send every logger to stderr at ``log_level``.
+
+        uvicorn only configures its own ``uvicorn*`` loggers, so without
+        this the service's records fall back to ``logging.lastResort``:
+        INFO dropped, warnings printed bare.
+        """
+        logging.basicConfig(level=self.log_level, format=self._LOG_FORMAT)
+        logging.getLogger().setLevel(self.log_level)
+
     def _engine_available(self, binary: str) -> bool:
         return shutil.which(binary) is not None
 
     def _readable_file(self, path: str) -> bool:
         return os.access(path, os.R_OK) and Path(path).is_file()
-
-
-def setup_logging(config: Config) -> None:
-    """Send every logger to stderr at ``config.log_level``.
-
-    uvicorn only configures its own ``uvicorn*`` loggers, so without
-    this the service's records fall back to ``logging.lastResort``:
-    INFO dropped, warnings printed bare.
-    """
-    logging.basicConfig(level=config.log_level, format=_LOG_FORMAT)
-    logging.getLogger().setLevel(config.log_level)

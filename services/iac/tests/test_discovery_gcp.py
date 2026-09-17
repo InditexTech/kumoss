@@ -15,8 +15,8 @@ import httpx
 import pytest
 from google.auth import impersonated_credentials
 
-from src.discovery.base import DiscoveryError
-from src.discovery.gcp import GcpScopeLister, GoogleCredentials
+from src.discovery._base import DiscoveryError
+from src.discovery._gcp import GcpScopeLister, GoogleCredentials
 
 Handler = Callable[[httpx.Request], httpx.Response]
 

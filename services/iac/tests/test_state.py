@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from src.state import resource_ids
+from src.state import StateResourceIds
 
 
 def _resource(
@@ -32,12 +32,16 @@ def _state(*resources: dict[str, Any]) -> str:
     return json.dumps({"version": 4, "resources": list(resources)})
 
 
+def _ids(state_json: str) -> list[str]:
+    return StateResourceIds().read(state_json)
+
+
 def test_managed_instance_ids_are_listed() -> None:
     state = _state(
         _resource("managed", "azurerm_resource_group", {"id": "/subscriptions/s/rg"}),
         _resource("managed", "azurerm_storage_account", {"id": "/subscriptions/s/sa"}),
     )
-    assert resource_ids(state) == ["/subscriptions/s/rg", "/subscriptions/s/sa"]
+    assert _ids(state) == ["/subscriptions/s/rg", "/subscriptions/s/sa"]
 
 
 def test_data_sources_are_skipped() -> None:
@@ -45,7 +49,7 @@ def test_data_sources_are_skipped() -> None:
         _resource("data", "azurerm_client_config", {"id": "cfg"}),
         _resource("managed", "azurerm_resource_group", {"id": "/subscriptions/s/rg"}),
     )
-    assert resource_ids(state) == ["/subscriptions/s/rg"]
+    assert _ids(state) == ["/subscriptions/s/rg"]
 
 
 def test_arn_is_preferred_over_id() -> None:
@@ -57,14 +61,14 @@ def test_arn_is_preferred_over_id() -> None:
         ),
         _resource("managed", "aws_iam_role", {"id": "role", "arn": ""}),
     )
-    assert resource_ids(state) == ["arn:aws:ec2:eu-west-1:1:instance/i-0abc", "role"]
+    assert _ids(state) == ["arn:aws:ec2:eu-west-1:1:instance/i-0abc", "role"]
 
 
 def test_every_instance_of_a_resource_is_listed() -> None:
     state = _state(
         _resource("managed", "aws_subnet", {"id": "subnet-1"}, {"id": "subnet-2"})
     )
-    assert resource_ids(state) == ["subnet-1", "subnet-2"]
+    assert _ids(state) == ["subnet-1", "subnet-2"]
 
 
 def test_child_module_resources_are_included() -> None:
@@ -76,7 +80,7 @@ def test_child_module_resources_are_included() -> None:
             module="module.net",
         )
     )
-    assert resource_ids(state) == ["projects/p/global/networks/n"]
+    assert _ids(state) == ["projects/p/global/networks/n"]
 
 
 def test_duplicates_are_dropped_keeping_first_occurrence() -> None:
@@ -85,7 +89,7 @@ def test_duplicates_are_dropped_keeping_first_occurrence() -> None:
         _resource("managed", "b", {"id": "same"}),
         _resource("managed", "c", {"id": "other"}),
     )
-    assert resource_ids(state) == ["same", "other"]
+    assert _ids(state) == ["same", "other"]
 
 
 @pytest.mark.parametrize(
@@ -98,7 +102,7 @@ def test_duplicates_are_dropped_keeping_first_occurrence() -> None:
 )
 def test_instances_without_a_usable_id_are_skipped(attributes: dict[str, Any]) -> None:
     state = _state(_resource("managed", "a", attributes))
-    assert resource_ids(state) == []
+    assert _ids(state) == []
 
 
 def test_missing_instances_or_attributes_are_tolerated() -> None:
@@ -113,20 +117,20 @@ def test_missing_instances_or_attributes_are_tolerated() -> None:
             ],
         }
     )
-    assert resource_ids(state) == []
+    assert _ids(state) == []
 
 
 def test_empty_state_yields_empty_list() -> None:
-    assert resource_ids(_state()) == []
-    assert resource_ids(json.dumps({"version": 4})) == []
+    assert _ids(_state()) == []
+    assert _ids(json.dumps({"version": 4})) == []
 
 
 def test_empty_output_yields_empty_list() -> None:
-    assert resource_ids("") == []
-    assert resource_ids("  \n") == []
+    assert _ids("") == []
+    assert _ids("  \n") == []
 
 
 @pytest.mark.parametrize("document", ["not json", "[]", "42", '"text"'])
 def test_unparsable_document_raises(document: str) -> None:
     with pytest.raises(ValueError, match="unparsable state document"):
-        _ = resource_ids(document)
+        _ = _ids(document)
