@@ -182,7 +182,6 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scope_id=self.__scope_id,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
