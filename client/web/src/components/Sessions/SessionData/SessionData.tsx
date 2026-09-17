@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useCallback, useState } from "react";
+import { Fragment, useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -31,6 +31,7 @@ import {
   codeChangeLabel,
   isBootstrapRound,
   roundArtifacts,
+  roundEvents,
   roundMeta,
   roundTitle,
 } from "./roundSummary";
@@ -295,7 +296,7 @@ export default function SessionData({
 
               {/* Rounds */}
               {timelineRounds.map((round) => {
-                const artifacts = roundArtifacts(round);
+                const events = roundEvents(round);
                 const meta = roundMeta(round);
                 return (
                   <div key={round.id} className={styles.timelineEntry}>
@@ -316,112 +317,102 @@ export default function SessionData({
                           {meta.join(" · ")}
                         </Typography>
                       )}
+                      {/* One row per event, with the artifacts that event
+                          produced nested directly beneath it. */}
                       <div className={styles.timelineOps}>
-                        {round.statuses.length > 0 && (
-                          <div className={styles.timelineOpGroup}>
-                            <Typography
-                              variant="overline"
-                              component="span"
-                              className={styles.timelineOpGroupLabel}
-                            >
-                              Statuses
-                            </Typography>
-                          </div>
-                        )}
-                        {round.statuses.map((st, i) => {
+                        {events.map((event, i) => {
                           const statusKey = `${round.id}:${i}`;
-                          const expandable = !!st.message;
+                          const expandable = !!event.message;
                           const expanded = expandedStatuses.has(statusKey);
                           return (
-                            <div
-                              key={`st-${i}`}
-                              className={`${styles.timelineOpRow}${expandable ? ` ${styles.timelineOpRowClickable}` : ""}`}
-                              onClick={
-                                expandable
-                                  ? () => toggleStatus(statusKey)
-                                  : undefined
-                              }
-                              role={expandable ? "button" : undefined}
-                              tabIndex={expandable ? 0 : undefined}
-                              onKeyDown={
-                                expandable
-                                  ? (e) => {
-                                      if (e.key === "Enter")
-                                        toggleStatus(statusKey);
-                                    }
-                                  : undefined
-                              }
-                              aria-expanded={expandable ? expanded : undefined}
-                            >
-                              <Typography
-                                variant="subtitle2"
-                                component="div"
-                                className={styles.timelineOpName}
+                            <Fragment key={statusKey}>
+                              <div
+                                className={`${styles.timelineOpRow}${expandable ? ` ${styles.timelineOpRowClickable}` : ""}`}
+                                onClick={
+                                  expandable
+                                    ? () => toggleStatus(statusKey)
+                                    : undefined
+                                }
+                                role={expandable ? "button" : undefined}
+                                tabIndex={expandable ? 0 : undefined}
+                                onKeyDown={
+                                  expandable
+                                    ? (e) => {
+                                        if (e.key === "Enter")
+                                          toggleStatus(statusKey);
+                                      }
+                                    : undefined
+                                }
+                                aria-expanded={
+                                  expandable ? expanded : undefined
+                                }
                               >
-                                {capitalize(st.status)}
-                              </Typography>
-                              <span className={styles.timelineOpDate}>
-                                {formatOpDate(st.created_at)}
-                                {expandable &&
-                                  (expanded ? (
-                                    <ExpandLessIcon
+                                <Typography
+                                  variant="subtitle2"
+                                  component="div"
+                                  className={styles.timelineOpName}
+                                >
+                                  {capitalize(event.status)}
+                                </Typography>
+                                <span className={styles.timelineOpDate}>
+                                  {formatOpDate(event.created_at)}
+                                  {expandable &&
+                                    (expanded ? (
+                                      <ExpandLessIcon
+                                        className={styles.artifactIcon}
+                                      />
+                                    ) : (
+                                      <ExpandMoreIcon
+                                        className={styles.artifactIcon}
+                                      />
+                                    ))}
+                                </span>
+                                {expanded && event.message && (
+                                  <div className={styles.timelineOpMessage}>
+                                    <MarkdownText content={event.message} />
+                                  </div>
+                                )}
+                              </div>
+                              {event.artifacts.map(({ kind, artifact }) => (
+                                <div
+                                  key={`${kind}:${artifact.id}`}
+                                  className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
+                                  onClick={() =>
+                                    setArtifactParam({ kind, artifact })
+                                  }
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter")
+                                      setArtifactParam({ kind, artifact });
+                                  }}
+                                >
+                                  <Typography
+                                    variant="subtitle2"
+                                    component="span"
+                                    className={styles.timelineOpName}
+                                  >
+                                    <InsertDriveFileOutlinedIcon
+                                      className={styles.artifactFileIcon}
+                                    />
+                                    {kind === "change"
+                                      ? codeChangeLabel(
+                                          round,
+                                          artifact as CodeChangeRef,
+                                        )
+                                      : artifactLabel(kind, artifact)}
+                                  </Typography>
+                                  <span className={styles.timelineOpDate}>
+                                    {formatOpDate(artifact.created_at)}
+                                    <VisibilityIcon
                                       className={styles.artifactIcon}
                                     />
-                                  ) : (
-                                    <ExpandMoreIcon
-                                      className={styles.artifactIcon}
-                                    />
-                                  ))}
-                              </span>
-                              {expanded && st.message && (
-                                <div className={styles.timelineOpMessage}>
-                                  <MarkdownText content={st.message} />
+                                  </span>
                                 </div>
-                              )}
-                            </div>
+                              ))}
+                            </Fragment>
                           );
                         })}
-                        {artifacts.length > 0 && (
-                          <div className={styles.timelineOpGroup}>
-                            <Typography
-                              variant="overline"
-                              component="span"
-                              className={styles.timelineOpGroupLabel}
-                            >
-                              Artifacts
-                            </Typography>
-                          </div>
-                        )}
-                        {artifacts.map(({ kind, artifact }) => (
-                          <div
-                            key={`${kind}:${artifact.id}`}
-                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
-                            onClick={() => setArtifactParam({ kind, artifact })}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter")
-                                setArtifactParam({ kind, artifact });
-                            }}
-                          >
-                            <Typography
-                              variant="subtitle2"
-                              component="span"
-                              className={styles.timelineOpName}
-                            >
-                              <InsertDriveFileOutlinedIcon
-                                className={styles.artifactFileIcon}
-                              />
-                              {kind === "change"
-                                ? codeChangeLabel(round, artifact as CodeChangeRef)
-                                : artifactLabel(kind, artifact)}
-                            </Typography>
-                            <span className={styles.timelineOpDate}>
-                              {formatOpDate(artifact.created_at)}
-                              <VisibilityIcon className={styles.artifactIcon} />
-                            </span>
-                          </div>
-                        ))}
                       </div>
                     </div>
                   </div>

@@ -157,35 +157,18 @@
   cursor: default;
 }
 
-/* Sub-headers splitting each round into its status rows (pipeline
-   progress) and its artifact rows (openable outputs). */
-.timelineOpGroup {
-  display: block;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.timelineOpGroupLabel {
-  display: inline-block;
-  color: var(--color-content-muted);
-  letter-spacing: 0.08em;
-  padding: 20px 16px 6px 0;
-  white-space: nowrap;
-}
-
-.timelineOpGroup:first-child .timelineOpGroupLabel {
-  padding-top: 0;
-}
-
 .timelineOpRowClickable {
   cursor: pointer;
 }
 
+/* Artifacts hang off the event that produced them, so they read as the
+   event row's children: indented and on a tinted surface. */
 .timelineOpRowArtifact {
   background: var(--color-surface-subtle);
 }
 
 .timelineOpRowArtifact .timelineOpName {
-  padding-left: 8px;
+  padding-left: 24px;
 }
 
 .timelineOpRowArtifact .timelineOpDate {

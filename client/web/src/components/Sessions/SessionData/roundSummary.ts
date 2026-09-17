@@ -85,24 +85,86 @@ export function roundArtifacts(round: RoundDetail): ArtifactRow[] {
 }
 
 /**
+ * One entry of a round's timeline: a status update, plus whatever artifacts
+ * that status produced. Most statuses produce none.
+ */
+export type TimelineEvent = {
+  status: SessionStatus;
+  message: string | null;
+  created_at: string;
+  artifacts: ArtifactRow[];
+};
+
+/**
+ * A round's statuses and artifacts merged into one chronological sequence.
+ *
+ * Nothing in the payload links an artifact to a status — `code_changes`,
+ * `reports` and `terraform_plans` carry only `round_id` — so the link is
+ * derived from time. That derivation is exact rather than heuristic because
+ * every writer persists the status *before* the artifact and never
+ * interleaves two stages: `generating` is followed by one `store_code_change`
+ * per changed file, `validating` by at most one plan, `report` by one report.
+ * So an artifact belongs to the last status at or before its own instant.
+ *
+ * Two consequences worth knowing:
+ *  - `started`, `filtering`, `apply`, `completed`, `uncompleted` and `failed`
+ *    never carry artifacts. That falls out of the rule; it is not hardcoded.
+ *  - The read model keeps only the *latest* plan and report of a round, so in
+ *    a multi-pass round the earlier passes' plans are absent from the payload
+ *    entirely and their `validating` events are correctly bare.
+ *
+ * A round with no statuses yet (INSERTed, first status still unwritten) has
+ * no events. It cannot own artifacts either, since every writer statuses
+ * first.
+ */
+export function roundEvents(round: RoundDetail): TimelineEvent[] {
+  // Statuses arrive sorted by (created_at, id), so this is already ordered.
+  const events: TimelineEvent[] = round.statuses.map((st) => ({
+    status: st.status,
+    message: st.message,
+    created_at: st.created_at,
+    artifacts: [],
+  }));
+  if (events.length === 0) return events;
+
+  const eventAt = events.map((e) => Date.parse(e.created_at));
+  const ordered = [...roundArtifacts(round)].sort(
+    (a, b) =>
+      Date.parse(a.artifact.created_at) - Date.parse(b.artifact.created_at),
+  );
+
+  for (const row of ordered) {
+    const stamp = Date.parse(row.artifact.created_at);
+    // Scanning backwards takes the *last* status at or before the artifact;
+    // `<=` puts an artifact sharing its status's instant on that status.
+    // Falling through to 0 clamps an artifact older than every status onto
+    // the first event rather than dropping it.
+    let index = 0;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (eventAt[i] <= stamp) {
+        index = i;
+        break;
+      }
+    }
+    events[index].artifacts.push(row);
+  }
+
+  return events;
+}
+
+/**
  * Dot-separated meta parts, zero-valued ones omitted.
  *
- * Files are counted **distinct**: `code_changes` holds one row per write, so
- * a file rewritten on a later validation pass appears twice and a naive row
- * count inflates with every retry. No pass count — counting `generating`
- * statuses would conflate generation passes with the automatic drift
- * reconciliation passes that land in the same round, and the read model
- * cannot currently tell them apart.
+ * The count is of *events* — what the section below it actually lists. File
+ * and artifact counts used to live here, but they double-counted what the
+ * rows already show: artifacts are now nested under the event that produced
+ * them, and `code_changes` holds one row per write, so a file rewritten on a
+ * later validation pass was inflating the total either way.
  */
 export function roundMeta(round: RoundDetail): string[] {
-  const parts: string[] = [];
-  const files = new Set(round.code_changes.map((c) => c.file_name)).size;
-  if (files > 0) parts.push(`${files} FILE${files !== 1 ? "S" : ""}`);
-  const artifacts = roundArtifacts(round).length;
-  if (artifacts > 0) {
-    parts.push(`${artifacts} ARTIFACT${artifacts !== 1 ? "S" : ""}`);
-  }
-  return parts;
+  const events = roundEvents(round).length;
+  if (events === 0) return [];
+  return [`${events} EVENT${events !== 1 ? "S" : ""}`];
 }
 
 /**
