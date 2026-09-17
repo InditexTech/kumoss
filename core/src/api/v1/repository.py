@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from src.api.deps import assert_session_access, require_operation_role
 from src.application.factory import ApplicationFactory
+from src.application.iac_requests import RepoUri
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
@@ -49,7 +50,7 @@ async def complete_pr(
         if await DatabaseService.is_session_blocked(ctx.id):
             raise HTTPException(
                 status_code=409,
-                detail=f"Session {ctx.id} is blocked by a failed compliance check; PR merge is not allowed.",
+                detail=f"Session {ctx.id} is blocked; PR merge is not allowed.",
             )
         pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
@@ -119,9 +120,12 @@ async def create_pr(
 )
 async def parse_repository(
     repo_uri: Annotated[
-        str,
+        RepoUri,
         Body(
-            description="Git-cloneable repository URI to parse for Terraform roots.",
+            description=(
+                "Git-cloneable repository URI to parse for Terraform roots. "
+                "Must not embed credentials."
+            ),
             embed=True,
         ),
     ],

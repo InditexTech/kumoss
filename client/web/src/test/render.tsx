@@ -11,6 +11,7 @@ import { SessionProvider } from "@/contexts/SessionContext";
 import { ModeProvider } from "@/contexts/ModeContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AssistantMsgProvider } from "@/contexts/AssistantMsgContext";
+import { ShellProvider } from "@/contexts/ShellContext";
 
 interface ProviderOptions {
   routerProps?: Omit<MemoryRouterProps, "children">;
@@ -25,6 +26,9 @@ function buildWrapper({ routerProps, withNotifications, withAssistantMsg }: Prov
     if (withNotifications) node = React.createElement(NotificationProvider, null, node);
     node = React.createElement(ModeProvider, null, node);
     node = React.createElement(SessionProvider, null, node);
+    // Unconditional, mirroring App.tsx — anything rendering AssistantAnimation
+    // or MonacoEditor consumes useShell.
+    node = React.createElement(ShellProvider, null, node);
     return React.createElement(
       MemoryRouter,
       { initialEntries: ["/home"], ...routerProps },

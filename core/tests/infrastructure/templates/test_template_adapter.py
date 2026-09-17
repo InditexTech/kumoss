@@ -9,6 +9,7 @@ from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
+from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
     ReportType,
@@ -231,11 +232,19 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         "import": ("FOR IMPORT REPORTS", "generate_terraform_import_report"),
     }
 
-    def _run_report_generator_test(self, report_type: ReportType, branch: str | None):
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def _run_report_generator_test(
+        self,
+        report_type: ReportType,
+        branch: str | None,
+        mock_fetch: AsyncMock,
+    ):
+        mock_fetch.return_value = "- mocked impact rule:\n  - mocked nested rule.\n"
+
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
         )
-        prompt = adapter.render_report_generator(report_type=report_type)
+        prompt = await adapter.render_report_generator(report_type=report_type)
 
         self.assertIsInstance(prompt, str)
         self.assertIn("<report_type>", prompt)
@@ -248,20 +257,40 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn(marker, prompt)
         self.assertNotIn("{{", prompt)
         self.assertNotIn("ReportType", prompt)
+        return prompt, mock_fetch
 
-    def test_render_report_generator_generate(self):
-        self._run_report_generator_test(ReportType.GENERATE, branch="plan")
+    async def test_render_report_generator_generate(self):
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.GENERATE, "plan"
+        )
 
-    def test_render_report_generator_import(self):
-        # IMPORT has its own report: an import creates nothing, so the plan
-        # branch (impact analysis, cost estimation) must not be rendered.
-        self._run_report_generator_test(ReportType.IMPORT, branch="import")
+        self.assertIn(
+            "  4. Analyze Potential Impact:\n"
+            "  - mocked impact rule:\n"
+            "    - mocked nested rule.\n"
+            "\n"
+            "  5. Generate Human-Friendly Explanations:",
+            prompt,
+        )
+        mock_fetch.assert_awaited_once_with(
+            prompt_name="impact",
+            scope="general",
+            type="compliance",
+            tag=system_config.environment,
+        )
 
-    def test_render_report_generator_drift(self):
-        self._run_report_generator_test(ReportType.DRIFT, branch="drift")
+    async def test_render_report_generator_import(self):
+        # IMPORT has no dedicated report workflow: no branch is rendered
+        _, mock_fetch = await self._run_report_generator_test(ReportType.IMPORT, None)
+        mock_fetch.assert_not_awaited()
 
-    def test_render_report_generator_apply(self):
-        self._run_report_generator_test(ReportType.APPLY, branch="apply")
+    async def test_render_report_generator_drift(self):
+        _, mock_fetch = await self._run_report_generator_test(ReportType.DRIFT, "drift")
+        mock_fetch.assert_not_awaited()
+
+    async def test_render_report_generator_apply(self):
+        _, mock_fetch = await self._run_report_generator_test(ReportType.APPLY, "apply")
+        mock_fetch.assert_not_awaited()
 
     async def test_render_target_generator_session(self):
         adapter = TemplateAdapter(
@@ -277,6 +306,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sole source of truth", prompt)
         self.assertNotIn("Impact Analysis", prompt)
         self.assertNotIn("Drift Remediation", prompt)
+        self.assertIn("depends_on", prompt)
 
     def test_target_generation_modes_are_session_and_drift_only(self):
         self.assertEqual(

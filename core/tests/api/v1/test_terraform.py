@@ -241,6 +241,50 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(resp.status_code, 202, resp.text)
 
+    def test_apply_on_a_blocked_session_returns_409(self):
+        import asyncio
+        from uuid import uuid4
+        from src.domains.services.database_service import DatabaseService
+        from src.domains.services.user_service import UserService
+        from src.infrastructure.redis import redis_client
+        from src.shared.constants import OperationType, TerraformProvider
+
+        sid = uuid4()
+
+        async def seed():
+            await db.initialize()
+            await redis_client.initialize()
+            try:
+                user = await UserService.resolve()
+                await DatabaseService.create_session(
+                    session_id=sid,
+                    user_pk=user.id,
+                    operation=OperationType.GENERATE,
+                    repo_uri=_bare_remote(self.tmp),
+                    terraform_prv=TerraformProvider.AZURE,
+                    scope_id="dev",
+                    branch_name="Nebula/apply-blocked",
+                    query="seed",
+                    iac_path="",
+                )
+                self.assertTrue(await DatabaseService.set_lock(sid, True))
+            finally:
+                await redis_client.close()
+                await db.close()
+
+        asyncio.run(seed())
+
+        with TestClient(app) as client:
+            resp = client.post(
+                "/v1/iac/apply",
+                json={"session_id": str(sid)},
+            )
+        self.assertEqual(resp.status_code, 409, resp.text)
+        self.assertEqual(
+            resp.json()["detail"],
+            f"Session {sid} is blocked; apply is not allowed.",
+        )
+
 
 class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

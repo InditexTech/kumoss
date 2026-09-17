@@ -13,12 +13,13 @@ import { useCurrentView } from "@/hooks/useCurrentView";
 import { useWizardNavigation } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
+import { isDriftSession } from "@/utils/session";
 import type { TerraformProvider } from "@/types/api";
 
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 export function useHomeWizard() {
-  const { session, updateSession } = useSession();
+  const { session, updateSession, resetNonce } = useSession();
   const { mode } = useMode();
   const navigate = useNavigate();
 
@@ -170,6 +171,10 @@ export function useHomeWizard() {
 
   const applyAfterPr = useCallback(() => {
     if (!session.uuid) return;
+    // Drift is remediated by merging the PR; applying afterwards would re-run
+    // work the merge just completed. ResultsRoute already declines to call
+    // this, but the callback is reachable through the outlet context.
+    if (isDriftSession(session)) return;
 
     navigate("/home/planning");
 
@@ -181,7 +186,7 @@ export function useHomeWizard() {
       },
       handleOutcome,
     );
-  }, [session.uuid, navigate, terraform, handleOutcome]);
+  }, [session, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
     if (mapper.mapperError) {
@@ -213,6 +218,17 @@ export function useHomeWizard() {
     terraform.reset();
     navigate("/home", { replace: true });
   }, [navigation, mapper, auth, terraform, navigate]);
+
+  // A clear requested from outside the wizard: the header logo calls
+  // `resetSession()`, which bumps `resetNonce`. The ref is seeded with the
+  // mount-time value so a fresh mount — a deep link into
+  // /home/results/:id, say — is not mistaken for a reset request.
+  const seenResetNonce = useRef(resetNonce);
+  useEffect(() => {
+    if (seenResetNonce.current === resetNonce) return;
+    seenResetNonce.current = resetNonce;
+    reset();
+  }, [resetNonce, reset]);
 
   const promptMessage = (): string =>
     navigation.promptMessage(auth.state.status);

@@ -36,8 +36,20 @@ class TerraformDriftService:
         targets: list[str],
         conventions: Conventions,
         max_iterations: int,
+        *,
+        prev_validation: TerraformValidationDTO | None = None,
     ) -> TerraformValidationDTO:
-        validation = TerraformValidationDTO.empty()
+        if prev_validation and not prev_validation.feedback:
+            return prev_validation
+
+        validation = TerraformValidationDTO(
+            validation=False,
+            feedback=prev_validation.feedback if prev_validation else "",
+            terraform_plan=prev_validation.terraform_plan if prev_validation else "",
+            terraform_targets=prev_validation.terraform_targets
+            if prev_validation
+            else [],
+        )
 
         async def validator(history: History) -> TerraformValidationDTO:
             return await self.__terraform_svc.validate(
@@ -48,10 +60,11 @@ class TerraformDriftService:
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
-            validation = await self.__terraform_svc.validate(
-                targets=targets,
-                get_drift=True,
-            )
+            if prev_validation is None:
+                validation = await self.__terraform_svc.validate(
+                    targets=targets,
+                    get_drift=True,
+                )
 
             await self.__upload_artifacts(validation, targets)
 
@@ -81,6 +94,8 @@ class TerraformDriftService:
                     operation_type=OperationType.DRIFT,
                     validator=validator,
                 )
+            prev_validation = None
+
         if validation.validation:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:

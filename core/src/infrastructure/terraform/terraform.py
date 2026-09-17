@@ -21,13 +21,14 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 ``exit_code`` is a terraform-level failure reported through the
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
-at the workspace path, which must be visible to the service.
-
-Every request also carries the session's ``scope_id``: the service
-resolves it per command into the engine's environment (Azure
-``ARM_SUBSCRIPTION_ID``, GCP ``GOOGLE_PROJECT``, an AWS AssumeRole for
-the account) and keeps nothing between jobs, so it must be sent on
-each operation and not just on ``init``.
+at the workspace path, which must be visible to the service. ``init``,
+``plan`` and ``apply`` reach a cloud API, so they carry the session's
+``scope_id`` (subscription / project / account) together with its
+``terraform_provider``: generated provider blocks do not name a scope,
+so the service injects it into the engine's environment for those three
+commands where the provider has a variable that names a scope (Azure
+and GCP). ``validate`` and ``show`` reach no cloud API and are
+submitted unscoped.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ from uuid import UUID
 
 import httpx
 
+from .backend import TerraformBackend
 from .utils import TerraformUtils
 from src.clients.iac.api.apply import apply as apply_op
 from src.clients.iac.api.init import init as init_op
@@ -62,6 +64,9 @@ from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
 from src.clients.iac.models.show_request import ShowRequest
+from src.clients.iac.models.terraform_provider import (
+    TerraformProvider as IacTerraformProvider,
+)
 from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
 from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
@@ -93,9 +98,13 @@ class Terraform(ITerraform):
         self,
         workspace_path: Path,
         scope_id: str,
+        terraform_provider: TerraformProvider,
+        backend: TerraformBackend,
     ):
         self.__workspace_path = workspace_path
         self.__scope_id = scope_id
+        self.__terraform_provider = IacTerraformProvider(terraform_provider.value)
+        self.__backend = backend
         self.__initialized = False
 
     @trace_terraform
@@ -106,13 +115,6 @@ class Terraform(ITerraform):
         get_drift: bool,
     ) -> TerraformValidationDTO:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot validate. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -152,6 +154,7 @@ class Terraform(ITerraform):
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
@@ -161,14 +164,6 @@ class Terraform(ITerraform):
                     return TerraformValidationDTO(
                         validation=False,
                         feedback=plan_res.stderr or "terraform plan failed",
-                        terraform_plan=plan_res.stdout,
-                        terraform_targets=targets,
-                    )
-
-                if not get_drift:
-                    return TerraformValidationDTO(
-                        validation=True,
-                        feedback="",
                         terraform_plan=plan_res.stdout,
                         terraform_targets=targets,
                     )
@@ -204,6 +199,13 @@ class Terraform(ITerraform):
             ) from e
 
         drift = TerraformUtils.plan_to_drift(plan_json=plan_json, reversed=True)
+        if not get_drift:
+            return TerraformValidationDTO(
+                validation=True,
+                feedback=json.dumps(drift) if drift else "",
+                terraform_plan=plan_res.stdout,
+                terraform_targets=targets,
+            )
         return TerraformValidationDTO(
             validation=not drift,
             feedback=json.dumps(drift) if drift else "",
@@ -215,13 +217,6 @@ class Terraform(ITerraform):
     @override
     async def apply(self) -> TerraformValidationDTO:
         cfg = system_config.services.iac
-        if not cfg.enabled or not cfg.endpoint:
-            raise ExceptionHandler(
-                message="IaC service is disabled or has no endpoint; cannot apply. "
-                + "Enable services.iac in the system config.",
-                error_code=500,
-            )
-
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -235,6 +230,7 @@ class Terraform(ITerraform):
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
                         scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -271,12 +267,15 @@ class Terraform(ITerraform):
         """
         if self.__initialized:
             return None
+        if system_config.storage.state_bucket:
+            self.__backend.apply(self.__workspace_path)
         init_res = await self.__run_op(
             client,
             init_op,
             InitRequest(
                 workspace_path=str(self.__workspace_path),
                 scope_id=self.__scope_id,
+                terraform_provider=self.__terraform_provider,
             ),
             cfg,
         )

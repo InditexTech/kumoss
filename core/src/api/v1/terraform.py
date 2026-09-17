@@ -177,7 +177,7 @@ async def drift_detection_remediation(
     status_code=202,
     summary="Start an apply session for prepared infrastructure changes.",
     responses={
-        409: {"description": "Session is blocked by a failed compliance check."},
+        409: {"description": "Session is blocked."},
     },
 )
 async def apply_infrastructure(
@@ -193,7 +193,7 @@ async def apply_infrastructure(
     if await DatabaseService.is_session_blocked(ctx.id):
         raise HTTPException(
             status_code=409,
-            detail=f"Session {ctx.id} is blocked by a failed compliance check; apply is not allowed.",
+            detail=f"Session {ctx.id} is blocked; apply is not allowed.",
         )
 
     async def build(context: SessionContext):

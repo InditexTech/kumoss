@@ -128,24 +128,6 @@ class GitUtils(IGit):
         await self.__provider.complete_pr(self.__uri, pr_id)
 
     @override
-    async def get_remote_url(self) -> str:
-        if not self._handle_return_code(
-            cmd := await self.__cli.execute(
-                [
-                    "git",
-                    "remote",
-                    "get-url",
-                    "origin",
-                ]
-            )
-        ):
-            raise ExceptionHandler(
-                message=self.__error_msg,
-                error_code=502,
-            )
-        return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
-
-    @override
     async def get_default_branch(self, ls_remote: bool = False) -> str:
         if ls_remote:
             cmd = [

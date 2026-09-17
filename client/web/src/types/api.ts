@@ -56,7 +56,7 @@ export interface PaginatedResponse<T> {
 
 // ─── IaC Operations (/api/v1/iac/*) ─────────────────────────
 // URI-driven, session-iterating model: first call provides repo_uri +
-// terraform_providers (+ optional scope_id / iac_path); iteration calls
+// terraform_providers + scope_id (+ optional iac_path); iteration calls
 // provide session_id only.
 
 export interface BaseIacRequest {

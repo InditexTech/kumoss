@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-from typing import Callable, Any
+from typing import Callable, Any, cast
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformPlanReport, TerraformValidationDTO
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform, IWorkspace
@@ -22,6 +22,7 @@ from src.domains.services import (
 )
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.external.notification_service import NotificationServiceClient
+from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
@@ -116,12 +117,16 @@ class TerraformCRUDHandler:
                     targets=validation.terraform_targets,
                     conventions=conventions,
                     max_iterations=2,
+                    prev_validation=validation,
                 )
 
-                _ = await self.__report_svc.generate_report(
-                    ctx=ctx,
-                    type=ReportType.GENERATE,
-                    content=validation.terraform_plan,
+                report: TerraformPlanReport = cast(
+                    TerraformPlanReport,
+                    await self.__report_svc.generate_report(
+                        ctx=ctx,
+                        type=ReportType.GENERATE,
+                        content=validation.terraform_plan,
+                    ),
                 )
 
                 check = await self.__compliance_svc.check(
@@ -129,19 +134,26 @@ class TerraformCRUDHandler:
                     conventions=conventions,
                     plan=validation.terraform_plan,
                 )
-                if not check.passed:
-                    if not await DatabaseService.set_lock(ctx.id, True):
-                        raise SetLockError(
-                            message="Error updating DB session lock.",
-                            error_code=500,
-                        )
-                    await NotificationServiceClient.notify_compliance_failure(
-                        ctx.id, ctx.user_id, check.summary
-                    )
-                elif not await DatabaseService.set_lock(ctx.id, False):
+
+                high_impact = (
+                    system_config.orchestration.block_on_high_impact
+                    and report.potential_impact.banner.level == "high"
+                )
+
+                if not await DatabaseService.set_lock(
+                    ctx.id, not check.passed or high_impact
+                ):
                     raise SetLockError(
                         message="Error updating DB session lock.",
                         error_code=500,
+                    )
+                if not check.passed:
+                    await NotificationServiceClient.notify_compliance_failure(
+                        ctx.id, ctx.user_id, check.summary
+                    )
+                if high_impact:
+                    await NotificationServiceClient.notify_high_impact(
+                        ctx.id, ctx.user_id, report.potential_impact.banner.description
                     )
                 self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:

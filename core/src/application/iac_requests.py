@@ -5,11 +5,32 @@
 """Request models for the URI-driven, session-iterating IaC endpoints."""
 
 from typing import Annotated
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from src.shared.constants import TerraformProvider
+
+
+def _reject_embedded_credentials(repo_uri: str) -> str:
+    """Reject repository URIs that carry credentials in their userinfo."""
+    repo_uri = repo_uri.strip()
+    parsed = urlparse(repo_uri)
+    if parsed.password or (parsed.username and parsed.scheme in ("http", "https")):
+        raise ValueError(
+            "repo_uri must not embed credentials; pass the bare repository URI."
+        )
+    return repo_uri
+
+
+RepoUri = Annotated[str, AfterValidator(_reject_embedded_credentials)]
 
 
 class SessionRequest(BaseModel):
@@ -33,19 +54,22 @@ class BaseIacRequest(BaseModel):
         ),
     ] = None
     repo_uri: Annotated[
-        str | None,
+        RepoUri | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id.",
+            description="Repository URI (first call only). Mutually exclusive with session_id. Must not embed credentials.",
             examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
     scope_id: Annotated[
         str | None,
         Field(
-            description="""Infrastructure scope id:
+            min_length=1,
+            description="""Infrastructure scope id (first call only). Required with repo_uri:
                         - Azure -> subscription id
                         - GCP -> project id
-                        - AWS -> account id"""
+                        - AWS -> account id
+                        - OCI -> compartment OCID
+                        - Kubernetes -> no cloud scope; any stable identifier""",
         ),
     ] = None
     terraform_providers: Annotated[
@@ -85,6 +109,8 @@ class BaseIacRequest(BaseModel):
             )
         if has_uri and (self.terraform_providers is None):
             raise ValueError("First call (repo_uri) requires `terraform_providers`.")
+        if has_uri and (self.scope_id is None):
+            raise ValueError("First call (repo_uri) requires `scope_id`.")
         if has_sid and self.iac_path is not None:
             raise ValueError(
                 "iac_path is set only on the first call; iteration calls inherit it from the session."

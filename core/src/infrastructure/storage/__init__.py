@@ -5,9 +5,11 @@
 from src.infrastructure.storage.factory import (
     ObjectStorageFactory,
     default_object_storage,
+    terraform_state_storage,
 )
 
 __all__ = [
     "ObjectStorageFactory",
     "default_object_storage",
+    "terraform_state_storage",
 ]

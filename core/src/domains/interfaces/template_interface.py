@@ -37,7 +37,7 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_report_generator(self, report_type: ReportType) -> str:
+    async def render_report_generator(self, report_type: ReportType) -> str:
         pass
 
     @abstractmethod

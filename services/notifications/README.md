@@ -20,6 +20,10 @@ etc.) of the same contract.
   attachment (color-coded by severity, with action buttons for any
   links), posts it to `SLACK_WEBHOOK_URL`, returns `202 Accepted` with
   a delivery ID.
+- Slack allows five buttons per attachment, so links past the fifth
+  continue in follow-up attachments. Field values are capped at 1000
+  characters; an audience list over the cap is cut at a recipient
+  boundary and ends with `+N more`.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
   set; otherwise accepts any request (local-dev fallback).
@@ -65,10 +69,9 @@ responses to the caller and as warnings or errors on stdout
 
 ```bash
 cd services/notifications
-uv venv && source .venv/bin/activate
-uv pip install -e '.[dev]'
+uv sync
 SLACK_WEBHOOK_URL=https://hooks.slack.example/... \
-  uvicorn src.main:app --host 0.0.0.0 --port 8080
+  uv run fastapi run src/main.py --port 8080
 ```
 
 Then in another shell:
@@ -81,17 +84,18 @@ curl -X POST http://localhost:8080/v1/notify \
 
 ## Run in docker compose
 
-The service is wired into the repo-root `docker-compose.yml`. Set
-`SLACK_WEBHOOK_URL` and `NEBULA_NOTIFICATIONS_TOKEN` in your
-environment (or a `.env` next to `docker-compose.yml`) and run
-`docker compose up`.
+The service is wired into the repo-root `docker-compose.yml`, which
+loads `services/notifications/.env` (copy `env.sample` to `.env` in
+this directory). Set `SLACK_WEBHOOK_URL` and `NEBULA_NOTIFICATIONS_TOKEN`
+there, enable `services.notifications` in the root `config.yaml`, rebuild
+the core image, and run `docker compose up`.
 
 ## Tests
 
 ```bash
 cd services/notifications
-uv pip install -e '.[dev]'
-pytest
+uv sync --group tooling
+uv run pytest
 ```
 
 ## Verifying conformance

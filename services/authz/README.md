@@ -18,8 +18,9 @@ The OSS default for the Nebula authorization contract:
   caller-supplied `X-User-Id` header, creating a record on first call.
   When the header is absent, returns an anonymous user with no roles.
 - **Role storage** — JSON file at `NEBULA_AUTHZ_ROLE_STORE` (default
-  `/data/roles.json`). The docker-compose stack mounts a named volume
-  here so roles survive container restarts.
+  `/data/roles.json`, a container-local path). Role assignments are lost
+  when the container is recreated; point `NEBULA_AUTHZ_ROLE_STORE` at a
+  mounted path if you need them to survive.
 - **Default root admin** — when `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set,
   the user record with that email is granted the `admin` role on
   startup.
@@ -49,10 +50,9 @@ particular OIDC provider.
 
 ```bash
 cd services/authz
-uv venv && source .venv/bin/activate
-uv pip install -e '.[dev]'
+uv sync
 NEBULA_AUTHZ_ROOT_ADMIN_EMAIL=you@example.com \
-  uvicorn src.main:app --host 0.0.0.0 --port 8083
+  uv run fastapi run src/main.py --port 8083
 ```
 
 ```bash
@@ -65,8 +65,8 @@ curl -X POST http://localhost:8083/v1/check \
 
 ```bash
 cd services/authz
-uv pip install -e '.[dev]'
-pytest
+uv sync --group tooling
+uv run pytest
 ```
 
 ## Verifying conformance

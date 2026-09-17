@@ -285,13 +285,14 @@ describe("useTerraformActions", () => {
     );
   });
 
-  it("high-impact report triggers the browser notification", async () => {
+  it("a blocked session triggers the browser notification", async () => {
     mockResolveOutcome.mockResolvedValue(
       makeResultsOutcome({
-        report: {
-          potential_impact: {
-            banner: { level: "high", title: "Major", description: "Destroys resources" },
-          },
+        detail: {
+          uuid: "sess-abc",
+          operation: "generate",
+          rounds: [{}],
+          is_blocked: true,
         },
       }),
     );
@@ -311,11 +312,39 @@ describe("useTerraformActions", () => {
     await act(async () => {
       await vi.waitFor(() => {
         expect(mockNotifyIfHidden).toHaveBeenCalledWith(
-          "High impact changes detected",
-          expect.objectContaining({ body: "Destroys resources" }),
+          "Session blocked",
+          expect.objectContaining({ tag: "nebula-session-blocked" }),
         );
       });
     });
+  });
+
+  it("an unblocked session does not trigger the blocked notification", async () => {
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(() => useTerraformActions(), { wrapper });
+
+    await act(async () => {
+      result.current.run(defaultParams);
+    });
+
+    await act(async () => {
+      mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+    });
+
+    await act(async () => {
+      await vi.waitFor(() => {
+        expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+          "Pipeline completed",
+          expect.anything(),
+        );
+      });
+    });
+
+    expect(mockNotifyIfHidden).not.toHaveBeenCalledWith(
+      "Session blocked",
+      expect.anything(),
+    );
   });
 
   it("FAILED event transitions to error and hands a failed outcome over", async () => {

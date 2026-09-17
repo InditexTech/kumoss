@@ -109,9 +109,9 @@ class LlmConfig(BaseModel):
     The core uses two model roles per workflow: ``model`` for high-quality
     reasoning and ``small_model`` for cheaper filler work.  Both are
     LiteLLM model-id strings (``provider/model``).  Credentials are
-    resolved from the provider's standard env vars (see the README
-    "LiteLLM Models and Params Reference" tables); the validator fails
-    boot when litellm reports required env vars missing.
+    resolved from the provider's standard env vars (see the provider
+    tables in ``docs/litellm.md``); the validator fails boot when
+    litellm reports required env vars missing.
 
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 
@@ -165,8 +165,8 @@ class LlmConfig(BaseModel):
         return Router(model_list=self._effective_model_list())
 
 
-class ServiceConfig(BaseModel):
-    """Configuration for a single microservice contract.
+class ServiceEndpointConfig(BaseModel):
+    """Outbound HTTP wiring shared by every microservice contract.
 
     ``token_env`` names the environment variable holding the bearer token
     the core sends with every call. Looking the token up indirectly
@@ -178,7 +178,6 @@ class ServiceConfig(BaseModel):
     to cover a single request/response round trip.
     """
 
-    enabled: bool = False
     endpoint: str = ""
     token_env: str = ""
     timeout: float = 30.0
@@ -188,8 +187,23 @@ class ServiceConfig(BaseModel):
         return _env(self.token_env)
 
 
-class IacServiceConfig(ServiceConfig):
+class ServiceConfig(ServiceEndpointConfig):
+    """Configuration for an optional microservice contract.
+
+    ``enabled: false`` skips the service entirely: the core never
+    contacts it and answers those calls locally (or not at all).
+    """
+
+    enabled: bool = False
+
+
+class IacServiceConfig(ServiceEndpointConfig):
     """IaC service wiring plus its async-job polling knobs.
+
+    The IaC service is mandatory — without it the core cannot validate
+    or apply anything — so this config deliberately has no ``enabled``
+    flag: ``endpoint`` and ``token_env`` are always required and the
+    service is always contacted.
 
     The IaC service enqueues one terraform command per job and returns
     a job id immediately; the core then polls ``GET /v1/jobs/{job_id}``
@@ -202,8 +216,19 @@ class IacServiceConfig(ServiceConfig):
     show when drift is requested), each with its own ``job_timeout``.
     """
 
+    endpoint: str = "http://iac:8082"
+    token_env: str = "NEBULA_IAC_TOKEN"
     job_poll_interval: float = 5.0
     job_timeout: float = 3600.0
+
+    @model_validator(mode="after")
+    def _assert_endpoint(self) -> "IacServiceConfig":
+        if not self.endpoint:
+            raise ConfigError(
+                "services.iac.endpoint is empty; the IaC service is mandatory. "
+                + "Point it at an implementation of the iac contract."
+            )
+        return self
 
 
 class ServicesConfig(BaseModel):
@@ -223,6 +248,7 @@ class OrchestrationConfig(BaseModel):
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
     enable_compliance_checker: bool = False
+    block_on_high_impact: bool = False
 
 
 class PathsConfig(BaseModel):
@@ -357,12 +383,21 @@ class StorageConfig(BaseModel):
     host the browser will actually fetch, ``public_endpoint_url``. Azure
     account-key SAS has no such Host binding, so for STORAGE_ACCOUNT the
     URLs only differ in emulator-style split setups.
+
+    ``terraform_state_bucket`` names a second bucket (blob container on
+    STORAGE_ACCOUNT) in the same store, holding the Terraform state of
+    the projects Nebula manages. It is separate from ``bucket`` so that
+    state does not inherit whatever lifecycle or presign policy the
+    artifacts bucket carries. Empty turns managed state off: no backend
+    override is written and each workspace keeps the backend its own
+    configuration declares.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
     # core/src/shared/constants.py::ObjectStorageProvider).
     provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
     bucket: str = "nebula-artifacts"
+    terraform_state_bucket: str = "nebula-terraform-state"
     endpoint_url: str = "http://object-storage:9000"
     public_endpoint_url: str = "http://localhost:9000"
     region: str = "us-east-1"
@@ -398,6 +433,11 @@ class StorageConfig(BaseModel):
     @property
     def account_key(self) -> str:
         return _env(self.account_key_env)
+
+    @property
+    def state_bucket(self) -> str:
+        """The Terraform state bucket, or "" when state is not managed."""
+        return self.terraform_state_bucket.strip()
 
     @property
     def storage_account_name(self) -> str:
@@ -466,22 +506,22 @@ class SystemConfig(BaseModel, frozen=True):
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":
-        """Every enabled service must have a non-empty bearer token resolved.
-
-        The outbound httpx clients always send ``Authorization: Bearer <token>``
-        and httpx rejects an empty bearer as a malformed header. Catching it
-        here turns a per-request 500 into a clear boot-time failure.
-        """
+        """Every service the core will call needs a bearer token resolved."""
         missing: list[str] = []
-        for name in ("notifications", "mapping", "authz", "iac"):
+        if not self.services.iac.token:
+            missing.append(f"services.iac → ${self.services.iac.token_env}")
+        for name in ("notifications", "mapping", "authz"):
             svc: ServiceConfig = getattr(self.services, name)
             if svc.enabled and not svc.token:
                 missing.append(f"services.{name} → ${svc.token_env}")
         if missing:
             raise ConfigError(
-                "Enabled services have no bearer token in the environment: "
+                "Services the core calls have no bearer token in the "
+                + "environment: "
                 + "; ".join(missing)
-                + ". Set the listed env vars or flip the service to enabled: false."
+                + ". Set the listed env vars; the optional sidecars can also "
+                + "be flipped to enabled: false (services.iac cannot — it is "
+                + "mandatory)."
             )
         return self
 

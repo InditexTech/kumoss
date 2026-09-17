@@ -93,8 +93,12 @@ coverage/
 # IDE
 *workspace
 
-# CLAUDE.md
+# CLAUDE AND AGENTS
 CLAUDE.md
+AGENTS.md
 
 # Local Tests
 local_test/
+
+# Unpublished files
+docs-tmp/

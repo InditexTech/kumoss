@@ -4,7 +4,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from src.api.deps import get_current_user
@@ -12,6 +12,7 @@ from src.api.dtos import AuthConfigResponse
 from src.domains.entities import User
 from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.config.system_config import system_config
+from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -59,12 +60,17 @@ async def authorize(
     environment: Annotated[str, Body(description="environment that we are checking")],
     user: Annotated[User, Depends(get_current_user)],
 ):
-    result = await AuthzServiceClient().check(
-        cloud=cloud,
-        project=project_name,
-        environment=environment,
-        user_id=user.email or user.subject,
-    )
+    try:
+        result = await AuthzServiceClient().check(
+            cloud=cloud,
+            project=project_name,
+            environment=environment,
+            user_id=user.email or user.subject,
+        )
+    except ExceptionHandler as e:
+        # Enabled but unreachable / timed-out sidecar: surface the client's
+        # 502/504 instead of an unhandled 500. Never an allow.
+        raise HTTPException(status_code=e.error_code, detail=e.message)
 
     if result.authorized:
         message = result.reason or f"Authorized on {project_name}"
