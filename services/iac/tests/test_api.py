@@ -10,8 +10,9 @@ These cover the contract surface: healthz, auth, request validation
 `apply` and rejected everywhere else), per-provider scope injection
 into the engine environment, the 404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
-{exit_code, stdout, stderr} pass-through for every operation, the 501
-on the unimplemented import endpoints, per-workspace FIFO queueing,
+{exit_code, stdout, stderr} pass-through for every operation, the
+import endpoints' ID listing and their discovery failure planes,
+per-workspace FIFO queueing,
 job expiry, and the backend flags `init` runs with. They do NOT
 exercise an actual engine run against a cloud — that requires network
 and credentials.
@@ -19,6 +20,7 @@ and credentials.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from collections.abc import Generator
@@ -34,6 +36,7 @@ from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
 from src.engine import CommandResult
+from src.discovery import DiscoveryError, ScopeDiscovery
 
 
 SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
@@ -46,17 +49,35 @@ OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
     ("/v1/plan", "src.engine.IacEngine.plan", {"plan_file": "x.plan", **SCOPE}),
     ("/v1/show", "src.engine.IacEngine.show_plan_json", {"plan_file": "x.plan"}),
     ("/v1/apply", "src.engine.IacEngine.apply", {"plan_file": "x.plan", **SCOPE}),
+    (
+        "/v1/import",
+        "src.engine.IacEngine.import_resource",
+        {
+            "address": "azurerm_resource_group.main",
+            "resource_id": "/subscriptions/x/resourceGroups/y",
+            **SCOPE,
+        },
+    ),
 ]
 
 EXTRA: dict[str, dict[str, str]] = {
     endpoint: extra for endpoint, _, extra in OPERATIONS
+} | {
+    "/v1/import/state-resource-ids": {},
+    "/v1/import/scope-resource-ids": {**SCOPE},
 }
 
-SCOPED_ENDPOINTS: list[str] = ["/v1/init", "/v1/plan", "/v1/apply"]
+SCOPED_ENDPOINTS: list[str] = [
+    "/v1/init",
+    "/v1/plan",
+    "/v1/apply",
+    "/v1/import",
+    "/v1/import/scope-resource-ids",
+]
 
 # (endpoint, engine method to stub, extra request fields, expected
-# engine args after the workspace) for the endpoints that reach no
-# cloud API and so take no scope.
+# engine args after the workspace) for the endpoints that take no
+# scope.
 UNSCOPED_OPERATIONS: list[tuple[str, str, dict[str, str], tuple[object, ...]]] = [
     ("/v1/validate", "src.engine.IacEngine.validate", {}, ()),
     (
@@ -65,6 +86,7 @@ UNSCOPED_OPERATIONS: list[tuple[str, str, dict[str, str], tuple[object, ...]]] =
         {"plan_file": "x.plan"},
         ("x.plan",),
     ),
+    ("/v1/import/state-resource-ids", "src.engine.IacEngine.state_pull", {}, ()),
 ]
 
 IMPORT_ENDPOINTS: list[str] = [
@@ -544,8 +566,9 @@ def test_endpoints_accept_their_documented_body(
 @pytest.mark.parametrize("endpoint", SCOPED_ENDPOINTS)
 @pytest.mark.parametrize("missing", ["scope_id", "terraform_provider"])
 def test_scoped_endpoints_require_the_scope(endpoint: str, missing: str) -> None:
-    """init, plan and apply run against a cloud scope, so omitting either
-    half of the pair is a 422."""
+    """init, plan, apply, import and import/scope-resource-ids all run
+    against a cloud scope, so omitting either half of the pair is a
+    422."""
     body: dict[str, object] = {"workspace_path": "/tmp", **EXTRA[endpoint]}
     del body[missing]
 
@@ -590,8 +613,9 @@ def test_scoped_endpoints_reject_a_malformed_scope(
 def test_unscoped_endpoints_reject_a_scope(
     endpoint: str, extra: dict[str, str], field: str
 ) -> None:
-    """validate and show declare no scope, so sending either half of the
-    pair is an unknown field — 422, not silently ignored."""
+    """validate, show and state-resource-ids declare no scope, so sending
+    either half of the pair is an unknown field — 422, not silently
+    ignored."""
     body: dict[str, object] = {
         "workspace_path": "/tmp",
         **extra,
@@ -614,8 +638,8 @@ def test_unscoped_endpoints_run_unscoped(
     tail: tuple[object, ...],
     tmp_path: Path,
 ) -> None:
-    """validate and show reach no cloud API: the engine is called with no
-    environment overlay at all."""
+    """validate, show and state-resource-ids take no scope: the
+    engine is called with no environment overlay at all."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -672,41 +696,310 @@ def test_scope_is_injected_per_provider(
     plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected)
 
 
+STATE_DOCUMENT: str = json.dumps(
+    {
+        "version": 4,
+        "resources": [
+            {
+                "mode": "managed",
+                "type": "azurerm_resource_group",
+                "name": "main",
+                "instances": [
+                    {"attributes": {"id": "/subscriptions/s/resourceGroups/rg"}}
+                ],
+            },
+            {
+                "mode": "data",
+                "type": "azurerm_client_config",
+                "name": "current",
+                "instances": [{"attributes": {"id": "not-a-managed-resource"}}],
+            },
+        ],
+    }
+)
+
+
+class FakeLister:
+    """A scope lister with a canned answer, recording what it was asked."""
+
+    def __init__(
+        self, ids: list[str] | None = None, error: Exception | None = None
+    ) -> None:
+        self._ids: list[str] = [] if ids is None else ids
+        self._error: Exception | None = error
+        self.scopes: list[str] = []
+
+    async def list_resource_ids(self, scope_id: str) -> list[str]:
+        self.scopes.append(scope_id)
+        if self._error is not None:
+            raise self._error
+        return self._ids
+
+
+def submit_and_poll(
+    client: TestClient, endpoint: str, body: dict[str, object]
+) -> dict[str, Any]:
+    response = client.post(endpoint, json=body)
+    assert response.status_code == 202, response.text
+    accepted: dict[str, str] = response.json()
+    return poll_until_terminal(client, accepted["job_id"])
+
+
+def run_state_resource_ids(pulled: CommandResult, workspace: Path) -> dict[str, Any]:
+    with client_with() as client:
+        with patch(
+            "src.engine.IacEngine.state_pull",
+            new_callable=AsyncMock,
+            return_value=pulled,
+        ):
+            return submit_and_poll(
+                client,
+                "/v1/import/state-resource-ids",
+                {"workspace_path": str(workspace)},
+            )
+
+
+def post_scope_resource_ids(
+    client: TestClient, workspace: Path, terraform_provider: str
+) -> dict[str, Any]:
+    return submit_and_poll(
+        client,
+        "/v1/import/scope-resource-ids",
+        {
+            "workspace_path": str(workspace),
+            "scope_id": "sub-1",
+            "terraform_provider": terraform_provider,
+        },
+    )
+
+
+def run_scope_resource_ids(lister: FakeLister, workspace: Path) -> dict[str, Any]:
+    with client_with() as client:
+        with patch.object(ScopeDiscovery, "lister", return_value=lister):
+            return post_scope_resource_ids(client, workspace, "azure")
+
+
 @pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)
-def test_import_endpoints_return_501(endpoint: str, tmp_path: Path) -> None:
-    """Import is not implemented: a well-formed request against a real
-    workspace still gets 501 and a problem document, and no job."""
+def test_import_endpoints_require_token_when_configured(endpoint: str) -> None:
+    """The 501 stubs answered before every submit-time check; the
+    implementations sit behind the same bearer dependency as the rest."""
+    with client_with(token="expected") as client:
+        response = client.post(
+            endpoint,
+            json={"workspace_path": "/tmp/does-not-exist", **EXTRA[endpoint]},
+        )
+    assert response.status_code == 401
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)
+def test_import_endpoints_404_on_a_missing_workspace(endpoint: str) -> None:
+    """All three take a workspace, so a well-formed body against a
+    nonexistent one is a synchronous 404 and no job."""
+    with client_with() as client:
+        response = client.post(
+            endpoint,
+            json={"workspace_path": "/tmp/does-not-exist", **EXTRA[endpoint]},
+        )
+    assert response.status_code == 404
+    assert "location" not in response.headers
+
+
+def test_import_forwards_the_address_resource_id_and_scope(tmp_path: Path) -> None:
+    """`import` is a pass-through like `apply`: argv carries the address
+    and the resource ID, the environment carries the scope overlay."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="Import successful!", stderr="", exit_code=0)
+    with client_with() as client:
+        with patch(
+            "src.engine.IacEngine.import_resource",
+            new_callable=AsyncMock,
+            return_value=ok,
+        ) as mock:
+            body = submit_and_poll(
+                client,
+                "/v1/import",
+                {
+                    "workspace_path": str(workspace),
+                    "address": "google_storage_bucket.assets",
+                    "resource_id": "my-assets",
+                    "scope_id": "proj-1",
+                    "terraform_provider": "gcp",
+                },
+            )
+    assert body["status"] == "succeeded"
+    assert body["result"]["stdout"] == "Import successful!"
+    mock.assert_awaited_once_with(
+        workspace,
+        "google_storage_bucket.assets",
+        "my-assets",
+        {"GOOGLE_PROJECT": "proj-1"},
+    )
+
+
+def test_state_resource_ids_answers_a_json_array_of_managed_ids(
+    tmp_path: Path,
+) -> None:
+    """On exit 0 `stdout` is the JSON array the contract promises, with
+    data sources left out, and whatever the engine wrote to `stderr`
+    still reaches the caller."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    body = run_state_resource_ids(
+        CommandResult(
+            ok=True,
+            stdout=STATE_DOCUMENT,
+            stderr="Acquiring state lock. This may take a few moments...",
+            exit_code=0,
+        ),
+        workspace,
+    )
+
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "state_resource_ids"
+    assert body["result"]["exit_code"] == 0
+    assert json.loads(body["result"]["stdout"]) == [
+        "/subscriptions/s/resourceGroups/rg"
+    ]
+    assert body["result"]["stderr"] == (
+        "Acquiring state lock. This may take a few moments..."
+    )
+
+
+def test_state_resource_ids_reports_an_unparsable_state(tmp_path: Path) -> None:
+    """A successful `state pull` whose output is not a state document is
+    an engine-plane failure, not a silently empty list."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    body = run_state_resource_ids(
+        CommandResult(ok=True, stdout="not a state document", stderr="", exit_code=0),
+        workspace,
+    )
+
+    assert body["status"] == "succeeded"
+    assert body["result"]["exit_code"] == 1
+    assert body["result"]["stdout"] == ""
+    assert "unparsable state document" in body["result"]["stderr"]
+
+
+def test_state_resource_ids_passes_an_engine_failure_through(tmp_path: Path) -> None:
+    """A failed `state pull` keeps its own exit code and stderr, and
+    reports no IDs."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    body = run_state_resource_ids(
+        CommandResult(
+            ok=False,
+            stdout="partial output",
+            stderr="Error: Backend initialization required",
+            exit_code=1,
+        ),
+        workspace,
+    )
+
+    assert body["status"] == "succeeded"
+    assert body["result"]["exit_code"] == 1
+    assert body["result"]["stdout"] == ""
+    assert "Backend initialization required" in body["result"]["stderr"]
+
+
+def test_scope_resource_ids_answers_a_deduplicated_json_array(tmp_path: Path) -> None:
+    """The lister's IDs reach `stdout` as a JSON array, deduplicated in
+    first-seen order, and the request's scope is what it was asked for."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    lister = FakeLister(
+        ["/subscriptions/s/rg/b", "/subscriptions/s/rg/a", "/subscriptions/s/rg/b"]
+    )
+
+    body = run_scope_resource_ids(lister, workspace)
+
+    assert body["status"] == "succeeded"
+    assert body["kind"] == "scope_resource_ids"
+    assert body["result"]["exit_code"] == 0
+    assert json.loads(body["result"]["stdout"]) == [
+        "/subscriptions/s/rg/b",
+        "/subscriptions/s/rg/a",
+    ]
+    assert lister.scopes == ["sub-1"]
+
+
+def test_scope_resource_ids_reports_a_discovery_failure(tmp_path: Path) -> None:
+    """A cloud error is an engine-plane failure: exit 1, the cloud's own
+    message in stderr, no IDs."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    lister = FakeLister(error=DiscoveryError("403 from Resource Graph: denied"))
+
+    body = run_scope_resource_ids(lister, workspace)
+
+    assert body["status"] == "succeeded"
+    assert body["result"]["exit_code"] == 1
+    assert body["result"]["stdout"] == ""
+    assert body["result"]["stderr"] == "403 from Resource Graph: denied"
+
+
+@pytest.mark.parametrize("terraform_provider", ["oci", "kubernetes"])
+def test_scope_resource_ids_reports_a_provider_without_discovery(
+    terraform_provider: str, tmp_path: Path
+) -> None:
+    """oci and kubernetes have no inventory query here. Exit 2 marks the
+    provider as unsupported, which is a different outcome from a cloud
+    call that went wrong. No patching: this is the real dispatch, and it
+    reaches no network."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
     with client_with() as client:
-        response = client.post(
-            endpoint,
-            json={
+        body = post_scope_resource_ids(client, workspace, terraform_provider)
+
+    assert body["status"] == "succeeded"
+    assert body["result"]["exit_code"] == 2
+    assert body["result"]["stdout"] == ""
+    assert f"'{terraform_provider}'" in body["result"]["stderr"]
+
+
+def test_scope_resource_ids_refuses_a_malformed_scope(tmp_path: Path) -> None:
+    """A scope_id that is not the shape its cloud names is refused by the
+    lister itself: exit 1 on a `succeeded` job, never a 500 out of a URL
+    the service built from it. No patching: this is the real dispatch,
+    and it reaches no network."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    with client_with() as client:
+        body = submit_and_poll(
+            client,
+            "/v1/import/scope-resource-ids",
+            {
                 "workspace_path": str(workspace),
-                "scope_id": "sub-1",
-                "terraform_provider": "azure",
-                "address": "azurerm_resource_group.main",
-                "resource_id": "/subscriptions/x/resourceGroups/y",
+                "scope_id": "../organizations/123456",
+                "terraform_provider": "gcp",
             },
         )
-    assert response.status_code == 501
-    assert response.headers["content-type"].startswith("application/problem+json")
-    assert response.json()["status"] == 501
-    assert "location" not in response.headers
+
+    assert body["status"] == "succeeded"
+    assert body["result"]["exit_code"] == 1
+    assert body["result"]["stdout"] == ""
+    assert "is not a GCP project id" in body["result"]["stderr"]
 
 
-@pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)
-def test_import_endpoints_501_regardless_of_request(endpoint: str) -> None:
-    """The 501 precedes every submit-time check: no token, no body and
-    a nonexistent workspace all still answer 501 rather than
-    401/422/404."""
-    with client_with(token="expected") as client:
-        assert client.post(endpoint).status_code == 501
-        assert client.post(endpoint, json={}).status_code == 501
-        assert (
-            client.post(
-                endpoint, json={"workspace_path": "/tmp/does-not-exist"}
-            ).status_code
-            == 501
-        )
+def test_scope_resource_ids_fails_the_job_on_an_unexpected_error(
+    tmp_path: Path,
+) -> None:
+    """Only DiscoveryError is an engine-plane failure. Anything else is a
+    service fault, so the job ends `failed` with a Problem."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    lister = FakeLister(error=RuntimeError("discovery exploded"))
+
+    body = run_scope_resource_ids(lister, workspace)
+
+    assert body["status"] == "failed"
+    assert body["result"] is None
+    assert body["error"]["status"] == 500

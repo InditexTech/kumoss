@@ -17,23 +17,30 @@ through the job.
 ``init``, ``plan`` and ``apply`` run scoped to the request's
 ``scope_id``, injected into the engine's environment under the
 variable its ``terraform_provider`` selects. ``validate`` and ``show``
-reach no cloud API, so their bodies declare no scope and reject one.
+take no scope, so their bodies declare none and reject one.
 
 ``init`` always reconfigures the backend, and passes
 ``IAC_BACKEND_CONFIG`` to ``-backend-config`` when the deployment sets
 one; the backend itself comes from the workspace's own configuration,
 which the caller is free to have written an override for.
 
-The ``/v1/import`` endpoints are unimplemented: they answer 501
-without inspecting the request.
+``import`` is scoped the same way as ``plan`` and ``apply``.
+``/v1/import/state-resource-ids`` runs ``state pull`` and answers a
+JSON array of the resource IDs the state tracks.
+``/v1/import/scope-resource-ids`` is the one endpoint that runs no
+engine command at all: it queries the cloud's own inventory API and
+answers a JSON array of the resource IDs under the request's scope
+whose lifecycle no other control plane owns.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -43,11 +50,13 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config, setup_logging
+from .discovery import DiscoveryError, ScopeDiscovery, unique
 from .engine import CommandResult, IacEngine
-from .jobs import JobRegistry, WorkspaceQueue
+from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
     ApplyRequest,
     Health,
+    ImportRequest,
     InitRequest,
     Job,
     JobAccepted,
@@ -55,10 +64,13 @@ from .models import (
     OperationResult,
     PlanRequest,
     Problem,
+    ScopeResourceIdsRequest,
     ShowRequest,
+    StateResourceIdsRequest,
     ValidateRequest,
     WorkspaceRequest,
 )
+from .state import resource_ids
 
 
 config = Config.from_env()
@@ -166,9 +178,15 @@ def resolve_engine() -> IacEngine:
     return IacEngine(binary=config.iac_binary, backend_config=config.backend_config)
 
 
+def resolve_discovery() -> ScopeDiscovery:
+    """The scope discovery the service's own environment configures."""
+    return ScopeDiscovery(os.environ)
+
+
 Authenticated = Depends(require_bearer_token)
 Workspace = Annotated[Path, Depends(resolve_workspace)]
 Engine = Annotated[IacEngine, Depends(resolve_engine)]
+Discovery = Annotated[ScopeDiscovery, Depends(resolve_discovery)]
 
 
 async def _run_op(command: Awaitable[CommandResult]) -> OperationResult:
@@ -178,6 +196,18 @@ async def _run_op(command: Awaitable[CommandResult]) -> OperationResult:
     )
 
 
+def _submit_pipeline(
+    kind: JobKind,
+    workspace: Path,
+    response: Response,
+    pipeline: Pipeline,
+) -> JobAccepted:
+    """Enqueue one job pipeline and point at its resource."""
+    record = jobs.submit(kind=kind, workspace=workspace, pipeline=pipeline)
+    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
+    return JobAccepted(job_id=record.job_id)
+
+
 def _submit(
     kind: JobKind,
     workspace: Path,
@@ -185,13 +215,38 @@ def _submit(
     command: Callable[[], Awaitable[CommandResult]],
 ) -> JobAccepted:
     """Enqueue one engine command as a job and point at its resource."""
-    record = jobs.submit(
-        kind=kind,
-        workspace=workspace,
-        pipeline=lambda: _run_op(command()),
-    )
-    response.headers["Location"] = f"/v1/jobs/{record.job_id}"
-    return JobAccepted(job_id=record.job_id)
+    return _submit_pipeline(kind, workspace, response, lambda: _run_op(command()))
+
+
+async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationResult:
+    result = await engine.state_pull(workspace)
+    if result.exit_code != 0:
+        return OperationResult(
+            exit_code=result.exit_code, stdout="", stderr=result.stderr
+        )
+    try:
+        ids = resource_ids(result.stdout)
+    except ValueError as exc:
+        return OperationResult(exit_code=1, stdout="", stderr=str(exc))
+    return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
+
+
+async def _scope_resource_ids(
+    discovery: ScopeDiscovery, terraform_provider: str, scope_id: str
+) -> OperationResult:
+    async with discovery.client() as client:
+        try:
+            lister = discovery.lister(terraform_provider, client)
+            if lister is None:
+                return OperationResult(
+                    exit_code=2,
+                    stdout="",
+                    stderr=f"no scope discovery for provider '{terraform_provider}'",
+                )
+            ids = await lister.list_resource_ids(scope_id)
+        except DiscoveryError as exc:
+            return OperationResult(exit_code=1, stdout="", stderr=str(exc))
+    return OperationResult(exit_code=0, stdout=json.dumps(unique(ids)), stderr="")
 
 
 @app.post(
@@ -302,41 +357,68 @@ async def apply(
     )
 
 
-def _import_not_implemented() -> NoReturn:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Import is not implemented by this service.",
+@app.post(
+    "/v1/import",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["import"],
+    dependencies=[Authenticated],
+)
+async def import_resource(
+    body: ImportRequest,
+    workspace: Workspace,
+    engine: Engine,
+    response: Response,
+) -> JobAccepted:
+    env = engine.scope_env(body.terraform_provider, body.scope_id)
+    return _submit(
+        "import",
+        workspace,
+        response,
+        lambda: engine.import_resource(workspace, body.address, body.resource_id, env),
     )
 
 
 @app.post(
-    "/v1/import",
-    response_model=Problem,
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-    tags=["import"],
-)
-async def import_resource() -> Problem:
-    _import_not_implemented()
-
-
-@app.post(
     "/v1/import/state-resource-ids",
-    response_model=Problem,
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
     tags=["import"],
+    dependencies=[Authenticated],
 )
-async def state_resource_ids() -> Problem:
-    _import_not_implemented()
+async def state_resource_ids(
+    body: StateResourceIdsRequest,  # pyright: ignore[reportUnusedParameter]
+    workspace: Workspace,
+    engine: Engine,
+    response: Response,
+) -> JobAccepted:
+    return _submit_pipeline(
+        "state_resource_ids",
+        workspace,
+        response,
+        lambda: _state_resource_ids(engine, workspace),
+    )
 
 
 @app.post(
     "/v1/import/scope-resource-ids",
-    response_model=Problem,
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
     tags=["import"],
+    dependencies=[Authenticated],
 )
-async def scope_resource_ids() -> Problem:
-    _import_not_implemented()
+async def scope_resource_ids(
+    body: ScopeResourceIdsRequest,
+    workspace: Workspace,
+    discovery: Discovery,
+    response: Response,
+) -> JobAccepted:
+    return _submit_pipeline(
+        "scope_resource_ids",
+        workspace,
+        response,
+        lambda: _scope_resource_ids(discovery, body.terraform_provider, body.scope_id),
+    )
 
 
 @app.get(

@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 `ARM_SUBSCRIPTION_ID` is in every row — mandatory in azurerm v4+. OIDC rows omit `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
 
+Import discovery (`/v1/import/scope-resource-ids`) reads the same variables through `azure-identity`, with two exceptions: the `az login` row has no equivalent (discovery needs an SPN, a managed identity or a workload identity), and the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN` or `ARM_OIDC_TOKEN_FILE_PATH` — the `ARM_OIDC_REQUEST_URL` exchange the CI runner performs is not reimplemented here. `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only.
+
 ## AWS — provider minimum
 
 | Scenario | Required |
@@ -34,6 +36,8 @@ SPDX-License-Identifier: Apache-2.0
 
 `AWS_REGION` is the only universal requirement. Never an account ID.
 
+Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it, since boto3's default chain resolves the same credentials the provider does. See "Import discovery" in `README.md`.
+
 ## GCP — provider minimum
 
 | Scenario | Required |
@@ -46,6 +50,8 @@ SPDX-License-Identifier: Apache-2.0
 | Short-lived token | `GOOGLE_OAUTH_ACCESS_TOKEN`, `GOOGLE_PROJECT` |
 
 `GOOGLE_PROJECT` in every row. `GOOGLE_REGION`/`GOOGLE_ZONE` are optional but omitting them forces explicit `region`/`zone` on many resources.
+
+Import discovery reads the same variables through `google-auth`, including `GOOGLE_OAUTH_ACCESS_TOKEN` and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`, and falls back to application-default credentials exactly as the provider does — so the `gcloud auth application-default login` row works for it too. It needs `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com` enabled on the project.
 
 ## OCI — provider minimum
 

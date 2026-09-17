@@ -65,7 +65,7 @@ The sample file lists no cloud variables; add the ones your modules need. [`serv
 | Oracle Cloud (`oci`) | `OCI_*` or `TF_VAR_*` | The provider's documented mechanisms, for example an OCI configuration file mounted into the container, or instance principals. |
 | Kubernetes (`kubernetes`, `helm`) | `KUBE_CONFIG_PATH` | A mounted kubeconfig, or in-cluster service-account credentials. |
 
-The bundled image ships OpenTofu and Terraform only; it no longer includes the `az`, `gcloud`, or `aws` command-line tools, and the sidecar's `/v1/import*` endpoints answer `501 Not Implemented`. See [Operating modes](modes.md) for what the core calls today.
+The bundled image ships OpenTofu and Terraform only; it includes no `az`, `gcloud`, or `aws` command-line tools. The sidecar's `/v1/import*` endpoints work without them — scope discovery calls the clouds' inventory APIs over HTTPS using the same `ARM_*`, `GOOGLE_*` and `AWS_*` variables the providers read, and AWS additionally needs Resource Explorer enabled for the account. See [Operating modes](modes.md) for what the core calls today, and `services/iac/README.md` for the discovery details.
 
 Credential files you mount must be readable by the unprivileged user the image runs as (`nebula`, uid and gid `10001` by default).
 

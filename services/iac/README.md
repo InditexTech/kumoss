@@ -33,10 +33,17 @@ subcommands against that binary instead (e.g. `terraform init`).
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
 - `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
-- `POST /v1/import`, `POST /v1/import/state-resource-ids` and
-  `POST /v1/import/scope-resource-ids` — **not implemented**. They
-  answer `501` with a `Problem` body without inspecting the request
-  (no auth check, no body validation) and never enqueue a job.
+- `POST /v1/import` — enqueues `tofu import <address> <resource_id>`.
+  The resource block for `address` must already exist in the
+  workspace; the engine reports it if not.
+- `POST /v1/import/state-resource-ids` — enqueues `tofu state pull`
+  and, on exit code 0, answers a JSON array of the IDs of every
+  managed resource instance the state tracks. The workspace must
+  already be initialised.
+- `POST /v1/import/scope-resource-ids` — the one endpoint that runs no
+  engine command: it queries the cloud's own inventory API and answers
+  a JSON array of the resource IDs under `scope_id`, minus the ones
+  another control plane owns. See "Import discovery" below.
 - `GET /v1/jobs/{job_id}` — job status (`queued` / `running` /
   `succeeded` / `failed`) plus `result` (succeeded) or `error`
   (failed). Engine-level failures end the job `succeeded` with a
@@ -50,16 +57,17 @@ subcommands against that binary instead (e.g. `terraform init`).
 
 ## Scope injection
 
-`init`, `plan` and `apply` reach a cloud API, so they must carry
-`scope_id` (the cloud scope the command targets) and
-`terraform_provider` (which cloud that is); the contract requires both
-and a missing or empty value is a `422`. `validate` and `show` make no
-cloud API call, so their bodies declare neither field — every request
-schema forbids unknown properties, so sending one is also a `422`.
+`init`, `plan`, `apply`, `import` and `import/scope-resource-ids`
+reach a cloud API, so they must carry `scope_id` (the cloud scope the
+command targets) and `terraform_provider` (which cloud that is); the
+contract requires both and a missing or empty value is a `422`.
+`validate`, `show` and `import/state-resource-ids` take no scope, so
+their bodies declare neither field — every request schema forbids
+unknown properties, so sending one is also a `422`.
 
-Generated provider blocks name no scope, so for `init`, `plan` and
-`apply` the service injects `scope_id` into the engine subprocess's
-environment for that command only — where the cloud has a
+Generated provider blocks name no scope, so for `init`, `plan`,
+`apply` and `import` the service injects `scope_id` into the engine
+subprocess's environment for that command only — where the cloud has a
 provider-level variable that names a scope:
 
 | `terraform_provider` | Environment variable  | Scope it sets |
@@ -84,6 +92,142 @@ explicitly allows.
 Where an overlay is applied it goes on top of the service's own
 environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
 container — ambient provider credentials are otherwise untouched.
+
+`import/scope-resource-ids` is the exception: it launches no
+subprocess, so there is no environment to overlay. Its `scope_id` is
+the argument of the inventory query itself — the subscription,
+project or account whose contents are listed.
+
+## Import discovery
+
+`POST /v1/import/scope-resource-ids` answers the question "what already
+exists here that Terraform does not manage yet?". It talks to each
+cloud's inventory API directly over HTTPS — no `az`, `gcloud` or `aws`
+binary is involved, and none is present in the image. Tokens come from
+the official auth libraries (`azure-identity`, `google-auth`, boto3's
+default chain) reading the same `ARM_*`, `GOOGLE_*` and `AWS_*`
+variables the engine's providers use, so most deployments that can run
+`plan` can run discovery unchanged. Two Azure rows are the exception —
+interactive `az login` and the CI runner's `ARM_OIDC_REQUEST_URL`
+exchange have no discovery equivalent; see `PROVIDERS.md`.
+
+| `terraform_provider` | Source                                                     | Scope is             |
+|----------------------|------------------------------------------------------------|----------------------|
+| `azure`              | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
+| `gcp`                | Cloud Asset Inventory `searchAllResources` + Resource Manager `getIamPolicy` | project ID |
+| `aws`                | Resource Explorer `ListResources`                          | account ID           |
+| `oci`, `kubernetes`  | none                                                       | —                    |
+
+`oci` and `kubernetes` are answered with exit code 2 and
+`no scope discovery for provider '<p>'` in `stderr`. That is a
+deliberate outcome, not a crash: the job still ends `succeeded`, and
+the exit code tells the caller the provider is unsupported rather than
+that a cloud call failed.
+
+### What is left out
+
+Resources whose lifecycle belongs to another control plane are excluded
+at the query, so the caller never sees them. Importing them would put
+Terraform in a fight it loses.
+
+- **Azure**: resource groups with a `managedBy` (Databricks, HDInsight,
+  Batch), AKS node resource groups (`MC_*`), `NetworkWatcherRG`, and
+  everything inside them; App Service smart-detector alert rules; any
+  resource carrying a `hidden-link*` tag.
+- **GCP**: the project asset itself; anything labelled `goog-*`
+  (which covers GKE-created disks and `goog-terraform-provisioned`);
+  resources whose name ends in a `gke-*` segment (node instances,
+  instance groups, templates, firewall rules); Dataproc, Cloud
+  Functions, Cloud Run and Cloud Build staging buckets.
+- **AWS**: every `ec2:network-interface` (ENIs are almost always
+  created by another service — Lambda, RDS, ELB, EKS — and are
+  imported with their owner, not on their own); service-linked and
+  AWS SSO reserved IAM roles; anything tagged `aws:*` (CloudFormation
+  and CDK stacks), `eks:*`, `kubernetes.io/*`, `k8s.io/*`,
+  `alpha.eksctl.io/*` or the AWS Load Balancer Controller's
+  `*.k8s.aws/*` tags; and resources owned by another account that the
+  view can see.
+
+### ID normalization
+
+The service, not the caller, decides the ID shape.
+
+- **Azure** emits full ARM resource IDs, plus resource-group and
+  role-assignment IDs. ARM IDs are case-insensitive in their provider
+  and type segments, so compare them case-insensitively against state.
+- **GCP** emits asset names with the `//service.googleapis.com/`
+  prefix stripped and any `projects/<number>` rewritten to
+  `projects/<project-id>`, because Cloud Asset Inventory reports some
+  services by project number while Terraform IDs use the ID. Project
+  IAM produces one entry per role and member,
+  `<project-id>/<role>/<member>`, matching the `id`
+  `google_project_iam_member` stores in state so the two listings line
+  up. Importing one takes the provider's own space-delimited
+  identifier, `<project-id> <role> <member>`. `deleted:` members and
+  Google's own service agents are dropped; service accounts belonging
+  to the project itself are kept.
+- **AWS** emits ARNs. `POST /v1/import/state-resource-ids` prefers a
+  resource's `arn` attribute over its `id` for the same reason, so the
+  two lists are directly comparable.
+
+### Prerequisites and permissions
+
+- **Azure**: `Reader` on the subscription is enough. Resource Graph
+  needs no separate enablement.
+- **GCP**: enable `cloudasset.googleapis.com` and
+  `cloudresourcemanager.googleapis.com` on the project that owns the
+  credentials — no `x-goog-user-project` header is sent, so quota and
+  API enablement are evaluated there, not on the project being listed.
+  On the listed project the identity needs `roles/cloudasset.viewer`
+  and `roles/viewer`, which grants the
+  `resourcemanager.projects.get` and
+  `resourcemanager.projects.getIamPolicy` the lister calls.
+- **AWS**: **Resource Explorer must be enabled for the account.**
+  Create an *aggregator* index in one region, a local index in every
+  region you want discovered, and a default view in the aggregator
+  region; the console's quick setup creates all of these. A region with
+  no local index contributes nothing to the listing. Then grant the
+  identity `resource-explorer-2:ListIndexes`,
+  `resource-explorer-2:GetDefaultView`,
+  `resource-explorer-2:ListResources`
+  and `sts:GetCallerIdentity`.
+  Without it the job ends with exit code 1 and
+  `AWS Resource Explorer is not enabled for account <id>`.
+  `AWS_REGION` (or `AWS_DEFAULT_REGION`) must be set: it is where the
+  index lookup starts. Only the account the ambient credentials belong
+  to can be listed; a `scope_id` naming another account is refused
+  before any listing call.
+
+### Known gaps
+
+- Azure Resource Graph lists top-level ARM resources only. Child
+  resources — subnets, NSG rules, VM extensions — are not rows and are
+  not emitted; the parent's ID is.
+- A few GCP resource types have a Terraform ID shape that differs from
+  the normalized asset name. `google_project_service` is the known
+  case.
+- GCP conditional IAM bindings are emitted without their condition.
+- An AWS ARN is not the import ID for most resource types
+  (`aws_instance` takes the instance ID, `aws_s3_bucket` the bucket
+  name). Turning an ARN into the argument for `POST /v1/import` is the
+  caller's job.
+- ARM resource IDs are reported exactly as Resource Graph returns
+  them, and providers disagree about the casing of the
+  `resourceGroups` segment. Diffing an Azure listing against state can
+  therefore report a difference that is only a difference in case —
+  something AWS and GCP listings do not do. The service does not
+  normalize the casing: lowercasing an ARM ID can make it unusable as
+  the `resource_id` argument to `POST /v1/import`.
+- GCP discovery accepts modern project ids only. A legacy
+  domain-scoped id (`example.com:my-project`) is rejected before any
+  API call and ends the job with exit code 1.
+- Azure sovereign clouds, and the `az login` and CI-injected OIDC
+  request-URL flows, are not supported for discovery. Provider
+  commands still accept them.
+- Each cloud is paged to a bounded number of requests (100 pages for
+  Azure, 200 for GCP and AWS). A scope large enough to exceed that
+  ends the job with exit code 1 rather than truncating the list
+  silently.
 
 ## State backend
 
