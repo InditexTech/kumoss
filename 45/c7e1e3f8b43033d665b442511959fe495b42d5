@@ -1,0 +1,83 @@
+config.yaml
+  s_80925b41a3405c::t_da9723fa7a5d19 114-120,131,133
+core/env.sample
+  s_80925b41a3405c::t_ea6730bc90129f 16-24
+core/tests/infrastructure/terraform/test_terraform.py
+  s_80925b41a3405c::t_0e9247a006dfe5 8-14,16-18,35,37,40-41,48-50,54-59,93-108,124,134-142,148,162,229-230,238,240,242-250,254-255,258-260,262,264,269,271-273,275,277,279-283,285,289,291,293-295,297,299,301,304,306-309,311,316,319,321-329,341,350,361,364,378,389,392-490,495-547,550-560,562,567,575-576,578-579,582,584,592-593,595-596,607,609-610,625,627,629,641,643,656,658,663-664,671,679,681
+docs/architecture.md
+  s_80925b41a3405c::t_db7526de8db608 88,90,113,179,242,249-250,257-258,264
+docs/configuration.md
+  s_80925b41a3405c::t_0efa03fc143bcd 116-117
+docs/environment-variables.md
+  s_80925b41a3405c::t_208983d1cf17e3 25,42,175
+docs/getting-started-local.md
+  s_80925b41a3405c::t_ed0b27660b2cff 50,60,111,219
+docs/litellm.md
+  s_80925b41a3405c::t_8bb48fe50fb954 164-177
+core/src/application/factory.py
+  s_80925b41a3405c::t_9de8ddb4e4b33e 209-217,220
+core/src/application/services/terraform_drift_service.py
+  s_80925b41a3405c::t_8395d7aebffaa7 5,13,35,40-41,43-57,62-73,75,77,80-85,87,97,99,102,109-114,118,121,123,125,128,133
+core/src/application/use_cases/terraform_apply_handler.py
+  s_80925b41a3405c::t_3e8571107ca145 74,80,84
+core/src/application/use_cases/terraform_crud_handler.py
+  s_80925b41a3405c::t_b07dd9a45bbfcc 12,87,89-90,94,99,102,104,112-113,115,125,132
+core/src/application/use_cases/terraform_drift_handler.py
+  s_80925b41a3405c::t_c5e92bfe31f4ee 81-82,89-93
+core/src/domains/dto.py
+  s_80925b41a3405c::t_a7cbe8497c6f9a 12,85-96,98-135,138-139,141-142,144-145,149-159
+core/src/domains/interfaces/git_interface.py
+  s_80925b41a3405c::t_3fa58beb84e983 87-96
+core/src/domains/interfaces/terraform_interface.py
+  s_80925b41a3405c::t_3b2c89863d220d 7-8,13,15,17-21,24-25,30-37,40-41,45-46,50,55-66,68-89,93,107-109
+core/src/domains/interfaces/tracer_interface.py
+  s_80925b41a3405c::t_dc88db2804c7fb 5,10-28,35-36,43-44
+core/src/domains/services/terraform_validation_service.py
+  s_80925b41a3405c::t_fe774fe9260c8d 17,88-89,95,142-143,147-148,152,156-157
+core/src/domains/services/tracer_service.py
+  s_80925b41a3405c::t_28c64bf4f11286 14-15,38-40,46,51-54
+core/src/domains/value_objects/__init__.py
+  s_80925b41a3405c::t_29ef2040c6a866 9,17
+core/src/domains/value_objects/plan_ref.py
+  s_80925b41a3405c::t_3a98da917536e4 1-30
+core/src/infrastructure/filesystem/git/git_utils.py
+  s_80925b41a3405c::t_d76ad8ae216690 4,199-215
+core/src/infrastructure/telemetry/phoenix/phoenix_tracer.py
+  s_80925b41a3405c::t_c1c16232f68778 33,96-97,104-105,110,117,232-235,242-247
+core/src/infrastructure/terraform/factory.py
+  s_80925b41a3405c::t_60fe2cb497c601 8,22-26,31,37,45
+core/src/infrastructure/terraform/terraform.py
+  s_80925b41a3405c::t_a2e21dc9cce61d 11-24,77-78,81,86,95,100,106,114,125-126,128-130,142-143,145-147,162-198,200-230,237-238,248-250,252-253,264-269,274,300-302,305-307
+core/tests/application/services/test_terraform_drift_service.py
+  s_80925b41a3405c::t_e9d422051f58c1 6,10-11,14-45,56,58,67-72,74,81-120,122,124,126,131-145,147,150,152,165-166,169,171,176-181,184,188-190,192-193,197,199,201,211-257,260,262-264,266-272,274-275,277,279-281,283-300
+core/tests/application/use_cases/test_terraform_apply_handler.py
+  s_80925b41a3405c::t_79f485d0c770b8 22,27-31
+core/tests/application/use_cases/test_terraform_handlers_pinning.py
+  s_80925b41a3405c::t_7d98ad3e701278 24,26,30-42,44-56,126,128,135-136,138,140,263,269,271,282
+core/tests/domains/services/test_tracer_service.py
+  s_80925b41a3405c::t_d554bfac89785a 10-15,110-165
+core/tests/infrastructure/filesystem/test_git_workspace_revision.py
+  s_80925b41a3405c::t_f6b9e2b3cbbb39 1-161
+core/tests/infrastructure/telemetry/test_phoenix_tracer.py
+  s_80925b41a3405c::t_8638440aa9b3da 6,11,17-19,24-28,32-44,146-151,153,163-304
+docs/modes.md
+  s_80925b41a3405c::t_9d9e9dcfaf011e 88,125,163
+docs/monitoring.md
+  s_80925b41a3405c::t_0de477a7821204 97,99-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "45c7e1e3f8b43033d665b442511959fe495b42d5",
+  "prompts": {},
+  "sessions": {
+    "s_80925b41a3405c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c62b8d0-62fd-42e9-a702-3972929b0e26",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
