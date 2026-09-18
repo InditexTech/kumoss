@@ -6,10 +6,8 @@
 
 from __future__ import annotations
 
-from ._base import DiscoveryError
 from .factory import ScopeDiscovery
 
 __all__ = [
-    "DiscoveryError",
     "ScopeDiscovery",
 ]

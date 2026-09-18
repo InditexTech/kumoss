@@ -14,12 +14,12 @@ import pytest
 
 from src.discovery._base import (
     CloudApi,
-    DiscoveryError,
     as_list,
     as_mapping,
     as_text,
     require_mapping,
 )
+from src.exceptions import DiscoveryError
 
 Handler = Callable[[httpx.Request], httpx.Response]
 
