@@ -16,7 +16,7 @@ sequenceDiagram
     U->>UI: Describe infrastructure in natural language (wizard)
     UI->>CT: Validate OIDC bearer JWT (or dev identity) · role ≥ developer
     CT-->>UI: 401 / 403 on failure ⛔
-    UI->>CT: Cloud-project preflight (authz sidecar · disabled and fail-open by default)
+    UI->>CT: Cloud-project preflight (authz sidecar · disabled by default → authorized without a call)
     UI->>EX: git ls-remote on repository
     EX-->>UI: 400 if unreachable ⛔
     UI->>CT: Create / resolve user-owned session · 202 + session id
@@ -47,7 +47,7 @@ sequenceDiagram
       alt engine errors and iterations left
         CT-->>AG: feed errors back to the generator 🔁
       else 5 iterations exhausted
-        CT-->>UI: session FAILED (422) · problem summary 🟥
+        CT-->>UI: session FAILED (422) · system.exception.failure 🟥
       end
     end
   end
@@ -89,7 +89,7 @@ sequenceDiagram
     CT->>CT: 🔒 VERDICT: any ERROR/CRITICAL ⇒ fail (model's own "passed" ignored) · plan pinned either way
     alt fail
       CT->>CT: sessions.is_blocked = true
-      CT-)EX: iac.compliance.check_failed → Slack (fire-and-forget) 🔔
+      CT-)EX: iac.compliance.failed → Slack (fire-and-forget) 🔔
       CT-->>UI: 🟥 apply and PR merge will answer 409 · PR creation still allowed
     else pass
       CT->>CT: sessions.is_blocked = false
@@ -118,8 +118,9 @@ sequenceDiagram
   rect rgb(232,245,233)
     Note over U,EX: PHASE 10 · Human-triggered apply (never automatic)
     U->>UI: POST /iac/apply — explicit human action
-    UI->>CT: 🔒 authenticated · developer role · owner · not blocked · pinned generate plan · guard free
-    CT-->>U: ⛔ 401 / 403 / 409 (locked, or no pinned plan e.g. drift-only session)
+    UI->>CT: 🔒 authenticated · developer role · owner · not blocked → 202 accepted
+    CT-->>U: ⛔ 401 / 403 / 409 if locked (pre-202)
+    CT->>CT: after 202: guard busy ⇒ runner logs and exits · no pinned plan ⇒ session FAILED 🟥
     CT->>EX: IaC sidecar: ONE apply of the pinned plan (no re-plan, no retry)
     alt success
       EX-->>CT: applied
@@ -129,7 +130,7 @@ sequenceDiagram
     else failure
       CT->>AG: Report Generator → apply failure report
       CT-)EX: iac.apply.failure → Slack 🔔
-      CT-->>U: 🟥 session FAILED · no automatic retry · new generate round needed
+      CT-->>U: 🟥 session COMPLETED · apply report Failed · iac.apply.failure · no retry · new generate round needed
     end
     CT->>CT: pinned plan discarded · workspace cleaned · in-flight guard released (finally)
   end

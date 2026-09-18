@@ -87,15 +87,20 @@ container — ambient provider credentials are otherwise untouched.
 
 ## State backend
 
-The service does not choose where state goes. `init` reads the
-backend from the workspace it is handed, which is the caller's to
-prepare: Nebula's core writes a `backend_override.tf` into the
-workspace before calling `init`, pinning state to the object store it
-already holds the credentials for (see the core's
-`storage.terraform_state_bucket`). Terraform merges `*_override.tf`
-over the rest of the configuration, so an override both introduces a
-backend where the workspace declares none and replaces one that it
-does declare — any caller can use the same trick.
+The service does not choose where state goes. `init` reads the backend
+from the workspace it is handed, which is the caller's to prepare. By
+default that is simply the `terraform { backend ... }` block the cloned
+repository carries, and this container must hold the credentials for
+it — Nebula's core ships `storage.terraform_state_bucket` blank and
+writes nothing.
+
+When that setting names a bucket, the core writes a
+`backend_override.tf` into the workspace before calling `init`, pinning
+state to the object store it already holds the credentials for.
+Terraform merges `*_override.tf` over the rest of the configuration, so
+an override both introduces a backend where the workspace declares none
+and replaces one that it does declare — any caller can use the same
+trick.
 
 `IAC_BACKEND_CONFIG` is the escape hatch for a deployment that owns the
 decision instead. Set it to the path (inside this container) of a
@@ -114,6 +119,11 @@ of failing with *"Backend configuration changed"* (which
 target backend is adopted; state held under the previous backend is
 **not** migrated — move it yourself (`terraform state push`, or a
 manual `init -migrate-state`) if it matters.
+
+The operator-facing view of the same feature — the three ownership
+models, the rendered override per storage provider, state keys,
+locking, credentials, and troubleshooting — is
+[docs/terraform-state-backends.md](../../docs/terraform-state-backends.md).
 
 ## Configuration
 

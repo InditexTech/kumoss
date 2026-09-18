@@ -6,13 +6,14 @@
 
 ``src.shared.config.system_config`` builds the ``system_config`` singleton at
 import time and validates the environment while doing so: the default
-``llm.model`` (``anthropic/...``) demands ``ANTHROPIC_API_KEY`` and the
-database section demands ``NEBULA_SQL_DATABASE_URL``. Without them every test
-module that transitively imports ``src`` fails at *collection*.
+``llm.model`` (``anthropic/...``) demands ``ANTHROPIC_API_KEY``, the database
+section demands ``NEBULA_SQL_DATABASE_URL``, and the mandatory iac sidecar
+demands ``NEBULA_IAC_TOKEN``. Without them every test module that transitively
+imports ``src`` fails at *collection*.
 
 This file runs before any test module is imported, so it supplies placeholder
-values for those two variables when they are absent. Real values already in
-the environment always win (``setdefault``), so suites that need a live
+values for those variables when they are absent. Real values already in the
+environment always win (``setdefault``), so suites that need a live
 PostgreSQL or Redis keep working when you point the URLs at your instances.
 """
 
@@ -23,3 +24,4 @@ os.environ.setdefault(
     "NEBULA_SQL_DATABASE_URL",
     "postgresql://nebula:nebula@localhost:5432/nebula_test",
 )
+os.environ.setdefault("NEBULA_IAC_TOKEN", "test-placeholder-iac-token")

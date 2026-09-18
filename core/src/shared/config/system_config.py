@@ -239,7 +239,12 @@ class ServicesConfig(BaseModel):
 
 
 class OrchestrationConfig(BaseModel):
-    """Iteration limits and batch sizes for the core's orchestration loops."""
+    """Iteration limits, batch sizes, and gates for the orchestration loops.
+
+    The two ``bool`` fields are the session-lock gates and default to
+    *off* here while the shipped ``config.yaml`` enables both: a config
+    file that omits them runs generate rounds with no compliance gate.
+    """
 
     max_drift_reports: int = 3
     max_validation_iteration: int = 5
@@ -388,9 +393,11 @@ class StorageConfig(BaseModel):
     STORAGE_ACCOUNT) in the same store, holding the Terraform state of
     the projects Nebula manages. It is separate from ``bucket`` so that
     state does not inherit whatever lifecycle or presign policy the
-    artifacts bucket carries. Empty turns managed state off: no backend
-    override is written and each workspace keeps the backend its own
-    configuration declares.
+    artifacts bucket carries. Empty — or null, i.e. the key present with
+    no value — turns managed state off: no backend override is written
+    and each workspace keeps the backend its own configuration declares.
+    Dropping the key altogether falls back to the default above, which
+    turns managed state *on*.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
@@ -419,6 +426,15 @@ class StorageConfig(BaseModel):
             except KeyError:
                 return ObjectStorageProvider(v)
         return v
+
+    @field_validator("terraform_state_bucket", mode="before")
+    @classmethod
+    def _null_state_bucket_is_off(cls, v: object):
+        # `terraform_state_bucket:` with no value parses as None, which reads
+        # as "no bucket" but would otherwise fail validation and stop the
+        # boot. Treat it like "": managed state off. Removing the key still
+        # falls back to the field default and turns managed state on.
+        return "" if v is None else v
 
     @property
     def access_key(self) -> str:

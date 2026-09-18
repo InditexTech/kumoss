@@ -74,6 +74,10 @@ Short answers for people using the Nebula web application. The longer explanatio
 
 **Does Import Infrastructure import my existing resources?** Not yet. Today it runs the apply of an existing session's reviewed plan. Importing unmanaged resources is a planned capability.
 
+**Where does Terraform state live?** Not in the repository, and not in the working copy Nebula creates. Out of the box it lives in the remote backend your repository's own Terraform files declare, exactly as it would if you ran the engine yourself. Your platform team can also configure Nebula to keep state for you, in a bucket dedicated to state with one state file per project (repository + cloud scope + path). Either way your pull request contains only your infrastructure code — no state file and no backend file — and there is nothing for you to set per session; the details are in [Terraform/OpenTofu state backends](terraform-state-backends.md).
+
+**My plan wants to create resources that already exist. Why?** The session is planning against empty state. The usual causes are that your repository declares no remote backend at all, that the project's identity changed — the root-module path moved, the repository was renamed, or a different cloud scope was selected — or that your platform team changed the state backend, which Nebula never migrates. Report it with the session id; an operator can check the state location.
+
 ## Data and privacy
 
 **What data leaves Nebula when I make a request?** Your request text, the conversation, the repository files the agent reads, the plan, and validation errors are sent to the language model your platform team configured and stored in the tracing system for review. Do not paste secrets into requests or commit them to the repository.

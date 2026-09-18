@@ -27,10 +27,10 @@ Core components are run as shipped and configured through `config.yaml` and the 
 | Component | Purpose |
 |---|---|
 | `core` | FastAPI orchestration API: sessions, agent chains, validation, reports, pull requests, apply, users and roles. |
-| `proxy` (nginx) | React web application,+
+| `proxy` (nginx) | React web application
 | `core-db` (postgres) | Sessions, rounds, artifacts metadata, users and roles. |
 | `redis` | Fail-open cache in front of the database. |
-| `object-storage` (RustFS) | Artifacts: reports, plans, code changes. |
+| `object-storage` (RustFS) | Artifacts: reports, plans, code changes. Can also hold Terraform/OpenTofu state, in a separate bucket, when you opt in to Nebula-managed state. |
 | `phoenix` + `phoenix-db` | Trace collector and UI, and the runtime prompt registry. |
 
 ### Sidecars
@@ -43,7 +43,7 @@ Each implements a contract in [`contracts/openapi/`](contracts/openapi/), and an
 
 | Sidecar | Shipped `config.yaml` | Bundled implementation (local deployment) | Production-ready? |
 |---|---|---|---|
-| `iac` | **enabled** (mandatory) | Reference executor: runs OpenTofu (default) or the bundled Terraform | **Yes** — Harden your image and configure the env vars accordingly. You can also implement based for your requirements. |
+| `iac` | **enabled** (mandatory) | Reference executor: runs OpenTofu (default) or the bundled Terraform | **Yes** — Harden your image and configure the env vars accordingly. You can also implement new contract. |
 | `notifications` | disabled | Slack only: renders a Slack-format message and posts it to one incoming webhook. | **Yes, for Slack only** — For Teams, email, PagerDuty, or any other system, implement the contract. |
 | `mapping` | disabled | Identity passthrough: the repository URL you enter is used as-is. While disabled, the core performs the same mapping itself. | **N/A** — leave disabled, or implement the contract against your catalogue. |
 | `authz` | disabled | Permissive placeholder: answers "authorized" to every cloud-project check. | **No** — never enable it as your access policy; implement the contract against your policy source. |
@@ -58,49 +58,40 @@ Nebula supports **two deployment models**: **Local/non-production** and **Produc
 
 **Decide which one you need before touching any configuration, because they differ in what you must configure, harden, and replace.**
 
-### QuickStart 
+### QuickStart (local)
 
-Quickstart targets the Local/non-production deployment mode. 
+Quickstart targets the Local/non-production deployment mode.
 
-It runs on any system with Docker and Docker Compose and uses the bundled stack as shipped: core, web application, the four sidecars, PostgreSQL databases, Redis, RustFS object storage, Phoenix, and the nginx proxy.
+It runs on any system with Docker and uses the bundled stack as shipped
 
 What you must configure is small and listed here in full:
 
 - `config.yaml` — the two model strings (`llm.model` and `llm.small_model`).
-- `core/.env` — LLM credentials, Git credentials, and the IaC bearer token.
-- `services/iac/.env` — the matching IaC bearer token and the cloud credentials your Terraform providers need.
+- `core/.env` — LLM credentials, Git credentials.
+- `services/iac/.env` — Two separate sets of cloud credentials:
+  - Provider credentials:  `plan` and `apply` use.
+  - State-backend credentials: Read and write the remote state file. See [state backends](docs/terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar) and the minimums in [`services/iac/PROVIDERS.md`](services/iac/PROVIDERS.md).
 - Optionally, to enable notifications: `services.notifications` in `config.yaml`, `services/notifications/.env` with a matching `NEBULA_NOTIFICATIONS_TOKEN`, and `SLACK_WEBHOOK_URL`.
 
 Everything else runs as bundled.
-
-**Authentication may remain disabled only for trusted local development** — with OIDC disabled, every request runs as a privileged built-in identity holding the `devops` operation role and the panel `admin` role, so anyone who can reach the port has that access. Installation ends with a core build and `docker compose up --build`.
-
-This model is **not suitable for shared or production environments**: it ships well-known default credentials, no TLS, an unauthenticated Phoenix console, and a single host with no backups.
 
 **Start here:** [Getting started: local/non-production](docs/getting-started-local.md)
 
 ### Production
 
-Production is **not** the local Compose stack with `environment: production` in `config.yaml`. That setting only changes how traces and prompts are tagged; it enables no security control.
+Production is **not** the local Docker Compose stack with `environment: production` in `config.yaml`. That setting only changes how traces and prompts are tagged; it enables no security control.
 
-In production, all four sidecars are integration boundaries between Nebula and your organization, and each must be reviewed, configured, hardened, or customized as the table above states. Where a bundled implementation is suitable as a starting point, customizing it means secure configuration and integration; where it is not, implement the contract yourself.
+In production, all four sidecars are integration boundaries between Nebula and your organization, and each must be reviewed, configured, hardened, or customized as the table above states.
 
-Beyond the sidecars, production requires you to configure all relevant `config.yaml` sections, the core's secrets, the environment variables or secrets of every enabled sidecar, OIDC, project-level authorization, LLM credentials, Git credentials, cloud credentials, persistence for PostgreSQL, Redis, object storage, and Phoenix, and the surrounding networking, TLS, secret management, backups, upgrades, and observability.
+**Production requires you to configure all relevant `config.yaml`**
 
-Production should run on an appropriate platform such as Kubernetes. **This repository does not include Kubernetes manifests or Helm charts.** The Compose file is the reference topology; the production guide explains what each component needs so that you can express it on your platform.
+Production should run on an appropriate platform such as Kubernetes. **This repository does not include Kubernetes manifests or Helm charts.**
 
 **Start here:** [Getting started: production](docs/getting-started-production.md)
 
 ## Documentation
 
-**Start here**
-
-| Guide | Read it when you need to |
-|---|---|
-| [Getting started: local/non-production](docs/getting-started-local.md) | Install the Compose stack on a workstation and run your first session. |
-| [Getting started: production](docs/getting-started-production.md) | Plan and harden a shared deployment: sidecars, secrets, OIDC, persistence, networking. |
-
-**Use Nebula** (for the people who make requests)
+**Use Nebula** (end users)
 
 | Guide | Read it when you need to |
 |---|---|
@@ -123,6 +114,7 @@ Production should run on an appropriate platform such as Kubernetes. **This repo
 |---|---|
 | [Configuration reference](docs/configuration.md) | Understand every `config.yaml` field, its default, and its validation rules. |
 | [Environment variables and secrets](docs/environment-variables.md) | Fill in `core/.env` and the sidecar `.env` files; handle credentials safely. |
+| [Terraform/OpenTofu state backends](docs/terraform-state-backends.md) | Decide where IaC state lives, configure it per provider, and understand keys, locking, and backend changes. |
 | [LiteLLM providers and models](docs/litellm.md) | Choose LLM providers and models, set their credentials, use router fallbacks. |
 | [Architecture](docs/architecture.md) | See how the pieces fit: components, the core's layering, and the end-to-end flow from a request to an applied plan. |
 | Sidecar OpenAPI contracts | [`contracts/openapi/`](contracts/openapi/) (specs), [`contracts/conformance/`](contracts/conformance/) (Schemathesis suites), and the READMEs of [`services/iac`](services/iac/README.md), [`services/mapping`](services/mapping/README.md), [`services/notifications`](services/notifications/README.md), [`services/authz`](services/authz/README.md). |

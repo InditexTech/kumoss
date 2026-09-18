@@ -24,8 +24,9 @@ Do **not** use it for shared or production environments. As shipped it has no TL
 - Internet access for the build.
 - Credentials for one LLM provider supported by LiteLLM.
 - A personal access token for your Git provider with permission to push branches and open pull requests.
-- Cloud credentials for the cloud your OpenTofu/Terraform code targets.
-
+- Cloud credentials for the cloud your OpenTofu/Terraform code targets, in **two grants**, both given to the IaC sidecar in step 6:
+  - **Provider credentials** — the resources `plan` and `apply` create.
+  - **State-backend credentials** — the remote state file `init` reads and writes. This deployment assumes the default: **the repository you point Nebula at declares its own backend** (`terraform { backend ... }`), so this grant must reach the bucket or container that block names. If you would rather have Nebula keep state for you, or supply the backend some other way, see [state backends](terraform-state-backends.md).
 
 Git and Docker are the only things you install on the host. Everything the first build installs — OpenTofu and Terraform — goes into the `iac` container image, and the web application is compiled inside the `proxy` image.
 
@@ -43,13 +44,13 @@ cp services/iac/env.sample services/iac/.env
 cp services/notifications/env.sample services/notifications/.env
 ```
 
-`core/.env` is **mandatory**: Compose refuses to start the `core` service without it. The sidecar `.env` files are optional for Compose, but the IaC one is needed in practice because the bearer token must match on both sides. Every `.env` file is gitignored; never commit one.
+`core/.env` is **mandatory**: Compose refuses to start the `core` service without it. The sidecar `.env` files are optional for Compose, but the IaC one is needed in practice. Every `.env` file is gitignored; never commit one.
 
 You do not need `services/mapping/.env` or `services/authz/.env` for this deployment model.
 
 ## 4. Configure the mandatory `config.yaml` values
 
-`config.yaml` at the repository root is the single configuration file. It is **baked into the core image at build time**, so every edit needs `docker compose build core` (the first `docker compose up --build` includes the current file). All fields are documented in the [configuration reference](configuration.md). Do not change settings whose Compose defaults already work; the list below is what to review.
+`config.yaml` at the repository root is the single configuration file. It is **baked into the core image at build time**, so every edit needs `docker compose build core`. All fields are documented in the [configuration reference](configuration.md). Do not change default settings; the list below is what to review.
 
 | Setting | Requirement | What to do |
 |---|---|---|
@@ -60,9 +61,10 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 | `services.notifications.enabled` | Optional | Set to `true` only when you complete step 8. |
 | `oidc.issuer_url`, `oidc.client_id` | Optional | Leave blank to keep authentication disabled on a trusted workstation. Fill them to test a real login flow; see [OIDC setup](oidc-setup.md). |
 | `storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins` | Leave as shipped | They already point at the bundled containers (`object-storage:9000`, `phoenix:6006`, `redis:6379`, `core-db`, origin `http://localhost`). Change them only if the defaults are unsuitable, for example when the browser reaches the host under another name (then update `storage.public_endpoint_url` and `http.cors_origins`). |
+| `storage.terraform_state_bucket` | Leave as shipped (blank) | Blank means state lives in the backend your repository declares, which is what this guide assumes. Set a bucket name only if you want Nebula to own state instead — one line on the bundled RustFS, and rebuild the core image afterwards: [state backends](terraform-state-backends.md). |
 | `orchestration.*` | Leave as shipped | Iteration limits and the compliance and high-impact locks. |
 
-A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables.
+A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables. `storage.terraform_state_bucket` is spelled out for the same reason, in the other direction: its code default is a bucket name, so dropping the key would turn Nebula-managed state on.
 
 ```yaml
 environment: "development"
@@ -87,12 +89,15 @@ storage:
   provider: "RUSTFS"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
+  # Blank (as shipped): each repository declares its own backend.
+  # Keep the key — deleting it turns Nebula-managed state on.
+  terraform_state_bucket:
 
 git:
   provider: "GITHUB"
 ```
 
-Note that the three optional sidecars default to `enabled: false`, while `services.iac` has no such flag: it is always called, so its `endpoint` and `token_env` must be present (the code defaults for both are empty). Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
+Note that the three optional sidecars default to `enabled: false`, while `services.iac` has no such flag: it is always called, so its `endpoint` and `token_env` must be present (the code defaults for both are empty). Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file, and `storage.terraform_state_bucket` defaults to `nebula-terraform-state` in code and ships blank.
 
 ## 5. Configure `core/.env`
 
@@ -104,7 +109,7 @@ Every variable is documented in [Environment variables and secrets](environment-
 | `NEBULA_IAC_TOKEN` | **Mandatory, non-empty** | Bearer token the core sends to the IaC sidecar. Must equal the value in `services/iac/.env`. An empty value aborts the boot. |
 | `GIT_USER`, `GIT_TOKEN` | Mandatory for pushes and pull requests | Account and personal access token at the provider in `git.provider`. When either is empty the core boots with a warning and pushes fail later. |
 | `NEBULA_SQL_DATABASE_URL` | Mandatory (keep the sample value) | The sample `postgresql://postgres:postgres@core-db:5432/nebula` matches the bundled `core-db` container. |
-| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Keep the sample values | `rustfsadmin` / `rustfsadmin` match the bundled `object-storage` container. Change both here and in `docker-compose.yml` together, or not at all. |
+| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Keep the sample values | `rustfsadmin` / `rustfsadmin` match the bundled `object-storage` container. They serve the artifacts bucket (and the state bucket too, if you switch state to Nebula). Change both here and in `docker-compose.yml` together, or not at all. |
 | `NEBULA_NOTIFICATIONS_TOKEN` | Only when notifications are enabled | Must equal the value in `services/notifications/.env`. |
 | `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN` | Ignored while those sidecars are disabled | The sample placeholders can stay. |
 
@@ -134,20 +139,56 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 |---|---|---|
 | `NEBULA_IAC_TOKEN` | **Must match `core/.env`** | The sidecar checks the bearer on every `/v1/*` call when this is set; a mismatch returns `401` to the core and every session fails at validation. An empty value disables the check on the sidecar side, which is acceptable only on an isolated workstation. |
 | `IAC_BINARY` | Optional, default `tofu` | `IAC_BINARY=tofu` (the bundled default) runs OpenTofu 1.12.6 (MPL-2.0). `IAC_BINARY=terraform` selects the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed; selecting it makes your use subject to that license. The service refuses to start if the binary cannot be found. |
-| Cloud credentials | Depends on your Terraform providers | Set the variables your providers read: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) lists the minimum set per cloud and authentication method. |
+| `IAC_BACKEND_CONFIG` | Leave unset | Only for deployments that supply the backend's *values* from a file mounted in this container instead of the repository's own block: [state backends](terraform-state-backends.md#model-3--sidecar-supplied-backend-configuration). |
+| **Provider credentials** | Mandatory for `plan` and `apply` | The variables your Terraform providers read: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) lists the minimum set per cloud and authentication method. |
+| **State-backend credentials** | Mandatory for `init` | Access to the state store your repository's `terraform { backend ... }` block names — see *Backend minimums* in [`PROVIDERS.md`](../services/iac/PROVIDERS.md) and [Two sets of credentials on the sidecar](terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar). |
 
-Missing or invalid cloud credentials do **not** stop the container. The engine runs anyway, and its own authentication error appears in the session as a failed `plan` or `apply`.
+Missing or invalid cloud credentials do **not** stop the container.
 
-Fictitious example targeting AWS:
+### Examples
+For more information see [`PROVIDERS.md`](../services/iac/PROVIDERS.md).
+
+#### AWS
 
 ```dotenv
-NEBULA_IAC_TOKEN=local-example-token-not-for-production
-IAC_BINARY=tofu
-
+# The resources the modules create and the S3 bucket the repository's
+# backend block names.
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
 ```
+
+#### AZURE
+
+```dotenv
+# Provider grant: a service principal with a client secret.
+ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000
+ARM_TENANT_ID=11111111-1111-1111-1111-111111111111
+ARM_CLIENT_ID=22222222-2222-2222-2222-222222222222
+ARM_CLIENT_SECRET=example-not-a-real-client-secret
+
+# Access key of the storage account for state backend block
+# Drop it and add ARM_USE_AZUREAD=true instead to let the principal
+# itself authenticate to the state container over Entra ID RBAC.
+ARM_ACCESS_KEY=ZXhhbXBsZS1ub3QtYS1yZWFsLXN0b3JhZ2UtYWNjb3VudC1rZXk=
+```
+
+#### GCP
+
+Targeting Google Cloud, with the state bucket in a second project:
+
+```dotenv
+# Provider grant: a service-account key as inline JSON.
+GOOGLE_PROJECT=demo-platform-project
+GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
+
+# State-backend grant.
+# Omit it and `init` reuses GOOGLE_CREDENTIALS.
+
+GOOGLE_BACKEND_CREDENTIALS={"type":"service_account","project_id":"demo-state-project","private_key":"<state-account-private-key-pem>","client_email":"nebula-state@demo-state-project.iam.gserviceaccount.example.invalid"}
+```
+
+`GOOGLE_CREDENTIALS` and `GOOGLE_BACKEND_CREDENTIALS` take the key JSON;
 
 ## 7. Optionally configure notifications
 
@@ -195,7 +236,7 @@ Expected: `proxy`, `core`, `core-db`, `redis`, `object-storage`, `phoenix`, `pho
 docker compose logs -f core
 ```
 
-Wait for the start-up sequence to finish: database initialisation, Redis, the object-storage bucket, Phoenix prompt seeding (`Prompt seeding complete: N created, M already present`), git credentials, and finally `Application startup complete`. Boot is strict: if any of those steps fails the container exits with the reason in the log.
+Wait for the start-up sequence to finish: database initialisation, Redis, the object-storage artifacts bucket, Phoenix prompt seeding (`Prompt seeding complete: N created, M already present`), git credentials, and finally `Application startup complete`. Boot is strict: if any of those steps fails the container exits with the reason in the log.
 
 ```bash
 curl http://localhost/api/v1/auth/config
@@ -229,7 +270,7 @@ This keeps the named volumes (databases, artifacts, workspaces), so sessions and
 docker compose down -v         # stop and delete all volumes
 ```
 
-**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix**, and any in-progress workspaces. The next start seeds the prompts again from `core/prompts/seed/`. There are no database migrations: after pulling a version that changes the schema, recreate the `core_db_data` volume or migrate it by hand.
+**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix and any in-progress workspaces**,. Terraform state is untouched: it lives in the backend your repository declares.
 
 ## 13. Troubleshooting
 
@@ -246,6 +287,8 @@ docker compose down -v         # stop and delete all volumes
 - **Push or pull-request creation fails.** Check `GIT_USER`, `GIT_TOKEN`, that `git.provider` matches the repository host, and the token's permissions.
 - **A session aborts with `Prompt not found: <name>`.** The prompt is missing in Phoenix or has no version tagged with the `environment` value. See [Phoenix prompt templates](phoenix-prompt-templates.md).
 - **The browser cannot download an artifact.** Port 9000 must be reachable from the browser under the host in `storage.public_endpoint_url` (`http://localhost:9000` by default).
+- **`init` fails on the state backend, or every plan wants to recreate existing resources.** By default the backend is the repository's own: one that declares a backend needs that backend's credentials in `services/iac/.env`, and one that declares none plans against local state that dies with the workspace. Other causes, and the Nebula-managed case, are in [Troubleshooting state backends](terraform-state-backends.md#troubleshooting).
+- **`iac` container exits with `IAC_BACKEND_CONFIG points at ...`.** Unset the variable, or mount the file at that path inside the container and make it readable by uid `10001`.
 
 ## 14. Next steps
 
@@ -253,4 +296,5 @@ docker compose down -v         # stop and delete all volumes
 - Review and adapt the seeded prompts; they encode a generic policy, not yours: [Phoenix prompt templates](phoenix-prompt-templates.md).
 - Try a real login flow with your identity provider: [OIDC setup](oidc-setup.md).
 - Learn the role model and the admin panel: [Admin portal](admin-portal.md).
+- Decide where Terraform state should live before you point Nebula at anything real: [Terraform/OpenTofu state backends](terraform-state-backends.md).
 - Before sharing the instance with anyone, switch to the production model: [Getting started: production](getting-started-production.md).

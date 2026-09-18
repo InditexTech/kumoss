@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nebula System Architecture",
+    "output": "system-architecture.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 4,
+    "cellW": 190,
+    "cellH": 84,
+    "gapX": 140,
+    "gapY": 130,
+    "origin": [
+      40,
+      40
+    ]
+  },
+  "components": [
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser",
+      "sublabel": "React 18 + TypeScript SPA",
+      "row": 0,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "idp",
+      "type": "security",
+      "label": "OIDC provider",
+      "sublabel": "Entra ID, Keycloak, Auth0",
+      "tag": "blank issuer = dev mode",
+      "row": 0,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLM providers",
+      "sublabel": "routed by LiteLLM",
+      "tag": "Vertex AI by default",
+      "row": 0,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "githost",
+      "type": "external",
+      "label": "Git hosting",
+      "sublabel": "GitHub, Azure DevOps, GitLab",
+      "row": 0,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "nginx",
+      "type": "cloud",
+      "label": "Nginx proxy",
+      "sublabel": "builds and serves the SPA",
+      "tag": ":80 and :9000",
+      "row": 1,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "core-api",
+      "type": "backend",
+      "label": "API layer",
+      "sublabel": "/api/v1 routers, SSE",
+      "tag": "auth on every route",
+      "row": 1,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "core-infra",
+      "type": "backend",
+      "label": "Application + adapters",
+      "sublabel": "orchestration, LiteLLM, git",
+      "row": 1,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "sidecars",
+      "type": "backend",
+      "label": "Sidecar services",
+      "sublabel": "authz, mapping, iac, notifications",
+      "tag": "OpenAPI contracts",
+      "row": 1,
+      "col": 3,
+      "size": [
+        232,
+        84
+      ]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "object-storage",
+      "sublabel": "RustFS, S3 API",
+      "tag": "nebula-artifacts",
+      "row": 2,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "coredb",
+      "type": "database",
+      "label": "core-db",
+      "sublabel": "PostgreSQL 17",
+      "tag": "sessions, users, roles",
+      "row": 2,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "phoenix",
+      "type": "backend",
+      "label": "Phoenix :6006",
+      "sublabel": "traces + prompt registry",
+      "tag": "proxied at /monitoring/",
+      "row": 2,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Nebula stack, one Compose network",
+      "wraps": [
+        "nginx",
+        "core-api",
+        "core-infra",
+        "sidecars",
+        "storage",
+        "coredb",
+        "phoenix"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "core container :8000",
+      "wraps": [
+        "core-api",
+        "core-infra"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "spa-traffic",
+      "from": "browser",
+      "to": "nginx",
+      "label": ":80 SPA, REST, SSE",
+      "labelDy": 78
+    },
+    {
+      "id": "browser-login",
+      "from": "browser",
+      "to": "idp",
+      "label": "auth code + PKCE",
+      "variant": "dashed"
+    },
+    {
+      "id": "proxy-api",
+      "from": "nginx",
+      "to": "core-api",
+      "label": "/api + SSE"
+    },
+    {
+      "id": "proxy-artifacts",
+      "from": "nginx",
+      "to": "storage",
+      "label": ":9000 presigned GET"
+    },
+    {
+      "id": "jwks-fetch",
+      "from": "core-api",
+      "to": "idp",
+      "label": "discovery + JWKS",
+      "variant": "dashed",
+      "labelDy": -30
+    },
+    {
+      "id": "api-to-core",
+      "from": "core-api",
+      "to": "core-infra",
+      "label": "ports to adapters"
+    },
+    {
+      "id": "completions",
+      "from": "core-infra",
+      "to": "llm",
+      "label": "HTTPS completions",
+      "labelDy": -68
+    },
+    {
+      "id": "git-push",
+      "from": "core-infra",
+      "to": "githost",
+      "label": "push + PR REST",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "call-sidecars",
+      "from": "core-infra",
+      "to": "sidecars",
+      "label": "REST + bearer"
+    },
+    {
+      "id": "artifacts",
+      "from": "core-infra",
+      "to": "storage",
+      "label": "put + presign"
+    },
+    {
+      "id": "sessions-sql",
+      "from": "core-infra",
+      "to": "coredb",
+      "label": "SQL via asyncpg",
+      "labelDy": 24
+    },
+    {
+      "id": "traces",
+      "from": "core-infra",
+      "to": "phoenix",
+      "label": "OTLP + prompts"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Edge and identity",
+      "items": [
+        "Nginx is the only container publishing host ports, and it builds and serves the SPA",
+        "Every /v1 route except GET /v1/auth/config requires a bearer token",
+        "A blank oidc.issuer_url disables auth and resolves a fixed dev identity"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Core layers and sidecars",
+      "items": [
+        "API to application to domain to adapters, wired by ApplicationFactory",
+        "authz :8083, mapping :8081, iac :8082 and notifications :8080 each own an OpenAPI contract",
+        "core and iac share the workspaces volume, so the engine runs on the core's git clones"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "State and configuration",
+      "items": [
+        "Roles and sessions live in core-db, not in the authz sidecar",
+        "Redis 8 backs the read-through cache in front of core-db",
+        "storage.provider selects RustFS, AWS S3 or an Azure Storage Account",
+        "Dashed edges exist in code but are not exercised by the checked-in config.yaml"
+      ]
+    }
+  ]
+}

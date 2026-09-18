@@ -30,7 +30,7 @@ If you read nothing else, these are the production decisions this guide expands 
 | 4 | Move every secret to a secret store; keep the variable names | [6](#6-secrets-inventory) |
 | 5 | Use managed PostgreSQL, Redis, object storage (S3, Azure, or S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is required at boot | [12](#12-data-services-and-persistence) |
 | 6 | Reproduce the ingress rules: SSE path unbuffered, `/monitoring/` restricted, public object-storage endpoint, CORS origin, IdP redirect URIs | [13](#13-networking-and-tls) |
-| 7 | Give the IaC engine a scoped workload identity and container execution controls; repositories must use a remote state backend | [4](#iac-mandatory), [11](#11-cloud-credentials-for-the-iac-engine) |
+| 7 | Give the IaC engine a scoped workload identity and container execution controls; decide who owns the Terraform state backend | [4](#iac-mandatory), [11](#11-cloud-credentials-for-the-iac-engine), [state backends](terraform-state-backends.md) |
 | 8 | Review the seeded prompts before the first user session; they encode a generic policy | [16](#16-hardening-checklist) |
 | 9 | Plan upgrades by hand: no database migrations, seeds never overwrite prompts, `environment` is a prompt tag | [17](#17-backups-and-upgrades) |
 
@@ -50,7 +50,8 @@ The differences from the [local model](getting-started-local.md), in one table:
 | Authentication | May stay disabled | **OIDC enabled**; nothing else is acceptable because a blank issuer makes every caller a `devops` + panel `admin` user |
 | Sidecars | Bundled IaC, optionally bundled notifications | All four treated as integration boundaries: reviewed, configured, hardened, replaced where needed |
 | Secrets | Gitignored `.env` files | Kubernetes Secrets or an equivalent secret manager, injected as environment variables |
-| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix with local volumes | Managed or operated services with persistence, backups, and access control |
+| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the well-known default credentials the samples ship | Managed or operated services with persistence, backups, access control, and credentials from your secret store |
+| Terraform state | Whatever each repository declares, or Nebula-managed state in the bundled RustFS for a scratch repository with no backend | A deliberate choice of owner: the repositories' own backends, a Nebula-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend file mounted into the sidecar ([state backends](terraform-state-backends.md)) |
 | Networking | Plain HTTP on `localhost` | TLS, a real origin, an ingress that handles server-sent events, a protected Phoenix, a public object-storage endpoint |
 
 ## 2. What the repository does and does not provide
@@ -111,6 +112,7 @@ If you nevertheless start from the bundled image, its **identity and execution e
 - **Egress.** `init` downloads providers from `registry.opentofu.org` (or `registry.terraform.io` when `IAC_BINARY=terraform`), and `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the registry host breaks provider downloads unless the CA is mounted into the container.
 - **Jobs are in memory.** A restart forgets queued and finished jobs; run one instance per shared workspace and do not scale it horizontally.
 - **Engine choice.** `IAC_BINARY=tofu` (default) runs OpenTofu; `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed and makes your use subject to its terms.
+- **State backend.** The sidecar is always the process that *executes* the backend, so it always needs reach to it and credentials for it — whichever model you pick. By default (`storage.terraform_state_bucket` blank, as shipped) the backend is the one each target repository declares, and no Nebula configuration is involved. Set `storage.terraform_state_bucket` to have the core configure it instead: state then goes to that bucket in the same object store as artifacts, keyed per project, and the sidecar needs network reach to `storage.endpoint_url` plus, where the rendered block omits static keys, its own credentials for the bucket. For one central backend defined outside Nebula, mount a file and point `IAC_BACKEND_CONFIG` at it. All three models: [Terraform/OpenTofu state backends](terraform-state-backends.md).
 
 ### Mapping (optional)
 
@@ -149,7 +151,7 @@ Implement the contract in [`contracts/openapi/authz.v1.yaml`](../contracts/opena
 | `database`, `redis` | Variable names only; values are secrets. `redis.default_url` points at the Compose service name, so set `NEBULA_REDIS_URL` when Redis lives elsewhere. |
 | `telemetry.collector_url` | Your Phoenix base URL, ending in `/`. It is used both for OTLP export and for the prompt API. |
 | `http.cors_origins` | Your real origin, for example `https://nebula.example.invalid`. |
-| `storage` | Provider, bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. |
+| `storage` | Provider, artifacts bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. Also `terraform_state_bucket`: blank as shipped, which leaves state to each repository's own backend; set it to a bucket name for Nebula-managed state ([state backends](terraform-state-backends.md)). |
 | `git` | Provider matching your repository host, author identity. |
 
 Changing any of these means rebuilding the core image (or updating the mounted file) and restarting the core.
@@ -168,8 +170,8 @@ Keep the variable names; replace the `.env` files with your platform's secret in
 | Git credentials | Core | `GIT_USER`, `GIT_TOKEN` | One token for every session: a service account with the minimum permissions to push branches and open and merge pull requests on the repositories in scope. |
 | Database URL | Core | `NEBULA_SQL_DATABASE_URL` | Embeds the password. `postgresql://` and `sslmode=` are rewritten for the async driver. |
 | Redis URL | Core | `NEBULA_REDIS_URL` | When Redis needs a password or lives outside the cluster network. |
-| Object-storage credentials | Core | `RUSTFS_ACCESS_KEY` + `RUSTFS_SECRET_KEY` (S3-compatible and static S3 keys), or nothing for the AWS default credential chain, or `STORAGE_ACCOUNT_KEY` (Azure) | Variable names can be changed through `storage.*_env`. |
-| Cloud credentials for the engine | IaC sidecar | `ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files, or workload identity | Read by the providers, not by Nebula. |
+| Object-storage credentials | Core | `RUSTFS_ACCESS_KEY` + `RUSTFS_SECRET_KEY` (S3-compatible and static S3 keys), or nothing for the AWS default credential chain, or `STORAGE_ACCOUNT_KEY` (Azure) | Variable names can be changed through `storage.*_env`. They serve the artifacts bucket and, where Nebula-managed state is enabled, the state bucket — in which case a non-empty value is also embedded into the backend block the IaC sidecar executes. |
+| Cloud credentials for the engine | IaC sidecar | `ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files, or workload identity | Read by the providers, not by Nebula. They must also cover the **state backend** — the repository's own by default, or Nebula's bucket when the rendered backend block carries no static keys. The role must be on the sidecar, not only the core. |
 | Slack webhook URL | Notifications sidecar | `SLACK_WEBHOOK_URL` | Anyone holding it can post to the channel. |
 | Phoenix database URL | Phoenix | `PHOENIX_SQL_DATABASE_URL` | Phoenix's own setting. |
 
@@ -212,6 +214,8 @@ Separate from the LLM and storage credentials. Give the IaC sidecar an identity 
 | AWS | IAM role for the pod or instance | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
 | Oracle Cloud, Kubernetes | The provider's own mechanisms (configuration file, instance principals, mounted kubeconfig) | none in the sample |
 
+That identity covers the **resources**. The **state backend** is a second grant on a different resource and must be satisfied on the same sidecar: `init` authenticates to the state store before any provider is configured, so an identity that can create infrastructure but cannot read state fails at the first command. The two often share variables — an `s3` backend and the `aws` provider both read `AWS_ACCESS_KEY_ID` — but the state store commonly lives in another account, subscription, or project, and some backends read variables the providers ignore (`ARM_ACCESS_KEY`, `ARM_SAS_TOKEN`, `GOOGLE_BACKEND_CREDENTIALS`) precisely so the identities can differ. Minimums for both: [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md); the rationale: [Two sets of credentials on the sidecar](terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar).
+
 The `apply` step runs with `-auto-approve` against the plan a human reviewed; there is no second confirmation inside the engine. The human gates are the pull-request review, the session lock, and the explicit apply action ([Operating modes](modes.md)).
 
 ## 12. Data services and persistence
@@ -220,13 +224,15 @@ The `apply` step runs with `-auto-approve` against the plan a human reviewed; th
 
 **Redis.** A cache; the database remains authoritative and cache operations fail open at runtime. The boot-time connectivity check must succeed, so Redis has to exist, but it needs no persistence.
 
-**Object storage.** Reports, plans, drift output, and code-change artifacts under `sessions/<session>/rounds/<round>/`. Choose `storage.provider`:
+**Object storage.** `storage.bucket` holds reports, plans, drift output, and code-change artifacts under `sessions/<session>/rounds/<round>/`. A second bucket, `storage.terraform_state_bucket`, holds Terraform/OpenTofu state under `<project_id>/terraform.tfstate` — but only if you set it; it ships blank, leaving state to each repository's own backend. Every configured bucket is created at boot if missing, and the core **fails to boot** if the store is unusable. Choose `storage.provider`:
 
-- `S3`: AWS S3 on its regional endpoint, credentials from the default chain or static keys.
-- `STORAGE_ACCOUNT`: an Azure storage account with a shared key.
+- `S3`: AWS S3 on its regional endpoint, credentials from the default chain or static keys. State uses the `s3` backend with `use_lockfile = true`.
+- `STORAGE_ACCOUNT`: an Azure storage account with a shared key. State uses the `azurerm` backend with native blob leases.
 - `RUSTFS`: RustFS or any S3-compatible server with a custom endpoint.
 
 Browsers download artifacts through **presigned URLs** built against `storage.public_endpoint_url`, so that endpoint must be reachable from users' browsers over TLS, and the bucket policy must allow presigned reads. Links are valid for `storage.presign_expiry_seconds` (48 hours by default). Apply lifecycle and retention rules; Nebula never deletes stored artifacts (it only removes an object whose database record failed to be written).
+
+If you do enable Nebula-managed state, treat the **state bucket differently from the artifacts bucket**. It is never browser-facing and needs no presigned reads; it must be reachable from the **IaC sidecar**, not from users; and it should carry versioning and soft delete, be excluded from any artifact expiry rule, and be included in your restore drills — it is the record of what Nebula has built. Nebula never deletes a state object. Details and per-provider IAM minimums: [Terraform/OpenTofu state backends](terraform-state-backends.md#operations).
 
 **Phoenix.** Required at core start-up (prompt seeding retries for about 27 seconds and then aborts the boot) and on every request (prompt fetch). Run it with its own PostgreSQL, back that database up, and put the UI and API behind access control: Phoenix has **no authentication of its own**, and it holds prompts, plans, generated code, repository metadata, and user identifiers. Nebula's exporter sends no authentication headers, so an authenticated Phoenix needs a proxy or collector in front of it that adds them; note that the same `telemetry.collector_url` serves both trace export and the prompt API ([Monitoring](monitoring.md#configuration)).
 
@@ -266,8 +272,8 @@ These are properties of the current implementation, not tuning options:
 - **Run one core replica.** Sessions execute as in-process background tasks of the API process; the only concurrency control is a compare-and-set flag on the session row; the SSE endpoint polls the database of the same process. A second replica would not share in-flight work and would leave sessions half-run when a pod is replaced. Size the single pod for your expected parallel sessions (each holds a repository clone and several model calls).
 - **Run one IaC sidecar per workspace volume.** Jobs and their results are held in memory and serialized per workspace path.
 - **Restarts interrupt runs.** A session that was running when the core restarted keeps its last status; its in-flight flag is released only by the process that set it. Expect to inspect such sessions in the admin portal after a rolling restart.
-- **Start-up is strict** and ordered: database, Redis, object-storage bucket, Phoenix prompt seeding, then git credentials. Readiness should be derived from the API answering `GET /api/v1/auth/config`; the core has no dedicated health route.
-- **Terraform state is yours.** Nebula runs the engine against the backend configured in your repositories; it does not store state. Repositories must therefore use a **remote backend**: the workspace is deleted after each run and the pinned workspace after apply, and the `.gitignore` the core adds to repositories that have none excludes `*.tfstate`, so local state would be lost.
+- **Start-up is strict** and ordered: database, Redis, the object-storage artifacts bucket, the Terraform state bucket (skipped while `storage.terraform_state_bucket` is blank, as it ships), Phoenix prompt seeding, then git credentials. Readiness should be derived from the API answering `GET /api/v1/auth/config`; the core has no dedicated health route.
+- **A remote state backend is mandatory, and by default it is yours to provide.** The workspace is deleted after each run and the pinned workspace after apply, and the seeded `.gitignore` excludes `*.tfstate`, so local state would be lost. `storage.terraform_state_bucket` ships blank, so every repository you onboard must declare its own remote backend and the sidecar must be able to authenticate to it — verify this before the first real session. Setting the key makes the core write a `backend_override.tf` into each workspace instead, pointing at that bucket under a per-project key. Either way, **Nebula never migrates state** between backends — `init` always runs `-reconfigure`. See [Terraform/OpenTofu state backends](terraform-state-backends.md).
 
 ## 16. Hardening checklist
 
@@ -280,13 +286,14 @@ Items the repository leaves to the platform. Apply them; none is optional for a 
 - Mapping, notifications, and authorization containers run as root in the bundled images: apply a restricted pod security profile or rebuild them with a non-root user.
 - Phoenix behind authentication or network isolation; retention policy for traces.
 - TLS everywhere users and browsers connect; managed database and storage endpoints with TLS.
-- Object-storage bucket private except for presigned reads; lifecycle rules.
+- Artifacts bucket private except for presigned reads; lifecycle rules.
+- State bucket private with no public path at all, versioning and soft delete enabled, no lifecycle expiry, access limited to the core (bucket creation) and the IaC sidecar (read/write).
 - Git token scoped to the repositories in scope; LLM provider configured under acceptable data-handling terms.
 - Seeded prompts reviewed and adapted before the first user session; they encode a generic policy, including the compliance rules and forbidden actions ([Phoenix prompt templates](phoenix-prompt-templates.md)).
 
 ## 17. Backups and upgrades
 
-Back up: the core PostgreSQL database, the Phoenix PostgreSQL database (prompts and traces), and the object-storage bucket. The workspace volume needs no backup beyond surviving restarts.
+Back up: the core PostgreSQL database, the Phoenix PostgreSQL database (prompts and traces), the artifacts bucket, and — with the highest priority — wherever **Terraform state** lives, since losing it means losing the record of the infrastructure Nebula manages. That is the state bucket if you enabled Nebula-managed state, and otherwise the backend each repository declares, which is covered by whoever owns it. The workspace volume needs no backup beyond surviving restarts.
 
 Upgrading Nebula:
 
@@ -314,6 +321,7 @@ Then, as the bootstrap administrator:
 
 1. Sign in; confirm the user page shows the Admin section and the admin portal lists users.
 2. Run a generate session against a test repository and a test cloud project; confirm the branch, the pull request, the report, and the traces in Phoenix under `pro-terraform-day2`.
+   Also confirm state landed where you intended: with Nebula-managed state, the core logs `Terraform state: <provider> bucket=<bucket> key=<project_id>/terraform.tfstate` before `init` and that object must exist in the state bucket afterwards; with the shipped default, check the backend the repository declares instead, and confirm `init` did not silently fall back to local state. Either way the pull request must contain **no** `backend_override.tf` and no `*.tfstate`.
 3. Trigger a compliance failure or a high-impact change and confirm the session is locked and the notification arrives.
 4. Apply from a session that passed, and confirm the plan that ran is the one reviewed.
 5. Restart the core and confirm it boots (prompt seeding reports `already present`) and that sessions resume normally.
@@ -328,4 +336,10 @@ Then, as the bootstrap administrator:
 - **Artifact links fail in the browser.** `storage.public_endpoint_url` is not reachable from browsers, or the presigned host differs from the endpoint users reach.
 - **Every plan fails with `permission denied` on state or plan files.** The shared workspace is not writable by uid `10001`, or the two containers run as different users.
 - **`init` fails downloading providers.** Egress to `registry.opentofu.org` (or `registry.terraform.io`) is blocked or TLS-inspected.
+- **Every session plans against empty state and nothing is recorded.** With the shipped blank `storage.terraform_state_bucket`, a repository that declares no backend of its own gets the local one, whose state file dies with the workspace. Add a backend to the repository, or set `storage.terraform_state_bucket` and rebuild the core image.
+- **`init` fails with `InvalidAccessKeyId` after switching `storage.provider` to `S3`.** `RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` are still set to `rustfsadmin`, so those keys were embedded into the state backend block. Blank both and rebuild the core image.
+- **`init` fails on the state backend with `AccessDenied` or a credentials error.** The **IaC sidecar** lacks credentials or permissions for the state bucket, or cannot reach `storage.endpoint_url`. Granting the role to the core alone is not enough. See [Credentials required](terraform-state-backends.md#credentials-required).
+- **Every plan proposes creating resources that already exist.** The project's state key changed, or state was not migrated after a backend change; `init` always uses `-reconfigure` and never migrates. See [Changing backend configuration](terraform-state-backends.md#changing-backend-configuration).
+- **`Error acquiring the state lock`.** Another run holds it, or a crashed run left it stale; clear it deliberately ([Locking](terraform-state-backends.md#locking)).
+- **The IaC sidecar refuses to start with `IAC_BACKEND_CONFIG points at ...`.** The file is not mounted at that path inside the container, or is not readable by uid `10001`.
 - **A run stopped without a failure message.** A prompt was missing in Phoenix for the deployment's `environment` tag; see [Runtime lookup](phoenix-prompt-templates.md#runtime-lookup).

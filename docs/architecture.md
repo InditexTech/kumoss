@@ -22,80 +22,11 @@ Related guides: [getting-started-local.md](getting-started-local.md) and [gettin
 
 ## Architecture Diagram
 
-```mermaid
-flowchart TB
-    subgraph EDGE["Client and Edge"]
-        BROWSER["Browser<br/>React 18 + TypeScript SPA"]
-        NGINX["Nginx reverse proxy<br/>public ports 80 and 9000<br/>serves the built SPA"]
-    end
+![Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network](images/system-architecture.png)
 
-    subgraph CORE["Core FastAPI application (port 8000)"]
-        API["API layer — /api/v1 routers<br/>terraform, events (SSE), session,<br/>repository, auth, users, admin,<br/>mapping, notifications<br/>bearer-JWT dependency on every route"]
-        APP["Application layer<br/>generate / drift / apply handlers,<br/>filter, drift, report, PR services,<br/>ApplicationFactory wiring"]
-        DOM["Domain layer<br/>entities, ports, LLM + tool<br/>orchestration, validation,<br/>compliance check, session"]
-        INFRA["Infrastructure adapters<br/>LiteLLM, git, generated service<br/>clients, storage, SQLAlchemy,<br/>Redis, telemetry"]
-    end
+The image is a static export of an interactive diagram. Open [`diagrams/system-architecture.html`](diagrams/system-architecture.html) in a browser for pan, zoom, search, relationship tracing, a dark theme and truthful SVG/PNG export; its source of truth is the typed specification [`diagrams/system-architecture.architecture.json`](diagrams/system-architecture.architecture.json), which regenerates the HTML.
 
-    subgraph SIDE["Sidecar services (OpenAPI contracts)"]
-        AUTHZ["authz :8083<br/>cloud project access checks<br/>(disabled by default)"]
-        MAPPING["mapping :8081<br/>business identifier → repo"]
-        IAC["iac :8082<br/>async IaC engine (OpenTofu) jobs"]
-        NOTIF["notifications :8080<br/>Slack dispatch"]
-    end
-
-    subgraph DATA["Data and State"]
-        COREDB[("core-db<br/>PostgreSQL 17")]
-        REDIS[("Redis 8<br/>read-through cache")]
-        STORE[("object-storage<br/>RustFS (S3 API)<br/>bucket: nebula-artifacts")]
-        WS[/"workspaces volume<br/>ephemeral git clones"/]
-    end
-
-    subgraph OBS["Observability"]
-        PHOENIX["Phoenix :6006<br/>trace UI + prompt registry"]
-        PHOENIXDB[("phoenix-db<br/>PostgreSQL 17")]
-    end
-
-    subgraph EXT["External systems"]
-        IDP["OIDC identity provider<br/>(Entra ID, Keycloak, Auth0, Okta…)<br/>optional — blank issuer = dev mode"]
-        LLM["LLM providers via LiteLLM<br/>(Vertex AI in default config)"]
-        GITHOST["Git hosting<br/>GitHub / Azure DevOps / GitLab"]
-        SLACK["Slack incoming webhook"]
-        ALTSTORE["AWS S3 / Azure Storage Account<br/>(selectable storage backends)"]
-    end
-
-    BROWSER -->|"HTTP :80 — SPA, REST, SSE<br/>Authorization: Bearer JWT"| NGINX
-    BROWSER -->|"presigned GET :9000"| NGINX
-    BROWSER -.->|"auth code + PKCE login,<br/>silent renew, RP-initiated logout"| IDP
-    INFRA -.->|"discovery + JWKS (cached,<br/>lazy on first request)"| IDP
-    NGINX -->|"/api + SSE location"| API
-    NGINX -->|"/monitoring/"| PHOENIX
-    NGINX -->|"S3 API :9000"| STORE
-    API --> APP
-    APP --> DOM
-    DOM -->|"ports → adapters"| INFRA
-    INFRA -->|"REST + bearer"| AUTHZ
-    INFRA -->|"REST + bearer"| MAPPING
-    INFRA -->|"REST + bearer, job polling"| IAC
-    INFRA -->|"REST + bearer, fire-and-forget"| NOTIF
-    INFRA -->|"SQL / asyncpg"| COREDB
-    INFRA -->|"cache reads/writes"| REDIS
-    INFRA -->|"S3 API + presigning"| STORE
-    INFRA -->|"clone, edit, commit"| WS
-    IAC -->|"IaC engine CLI on shared volume"| WS
-    AUTHZ -->|"JSON file"| AUTHZDATA
-    INFRA -->|"OTLP/HTTP traces, prompt seed + fetch"| PHOENIX
-    PHOENIX -->|"SQL"| PHOENIXDB
-    INFRA -->|"HTTPS completions"| LLM
-    INFRA -->|"git push + provider REST (PRs)"| GITHOST
-    NOTIF -->|"HTTPS webhook"| SLACK
-    STORE -.->|"alternative via storage.provider"| ALTSTORE
-
-    classDef alt stroke-dasharray: 5 5;
-    class ALTSTORE alt;
-    class IDP alt;
-```
-
-Solid edges are active in the default Compose deployment; dashed elements are configurable alternatives or wiring that exists but is not exercised by the checked-in `config.yaml` (the identity provider is only contacted once `oidc.issuer_url` is set).
+Dashed edges are wiring that exists in code but is not exercised by the checked-in `config.yaml`: the identity provider is contacted only once `oidc.issuer_url` is set. The diagram deliberately condenses detail that the rest of this document expands — the four sidecars share one node (`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`), the core appears as its API layer plus a single "application and adapters" node covering the application, domain and infrastructure layers, and Redis 8, the `workspaces` volume, `phoenix-db`, the Slack webhook and the alternative S3 / Azure Storage Account backends are carried in the notes beside it rather than drawn as nodes. Phoenix is reachable through the proxy at `/monitoring/`, artifacts land in the `nebula-artifacts` bucket, and the shipped `config.yaml` routes model calls to Vertex AI through LiteLLM.
 
 ## Component Responsibilities
 
@@ -114,7 +45,7 @@ Solid edges are active in the default Compose deployment; dashed elements are co
 | OpenAPI contracts (`contracts/openapi`) | Source of truth for the four sidecar APIs; generated httpx clients in `core/src/clients`; Schemathesis conformance suites | Contracts → generated clients → sidecars |
 | core-db (PostgreSQL 17) | System of record: users (identity key issuer + subject, operation and panel roles), sessions (owned by a user), workspaces, rounds, statuses, histories, pull requests, artifact metadata | Core via asyncpg |
 | Redis 8 | Fail-open read-through/write-through cache (session facts, last status, finished-session aggregates); no pub/sub, no locks | Core only |
-| object-storage (RustFS, Apache-2.0) | **Default, bundled** artifact store (`nebula-artifacts`): reports, plans, drift JSON, code changes; browser access via presigned URLs. Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob Storage through a storage account (`STORAGE_ACCOUNT`), or any other S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Holds artifacts only, never Terraform state | Core (SDK) and browser (via Nginx :9000) |
+| object-storage (RustFS, Apache-2.0) | **Default, bundled** artifact store (`nebula-artifacts`): reports, plans, drift JSON, code changes; browser access via presigned URLs. Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob Storage through a storage account (`STORAGE_ACCOUNT`), or any other S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Can also hold Terraform/OpenTofu state, in the **separate** bucket named by `storage.terraform_state_bucket` — opt-in, blank as shipped | Core (SDK) and browser (via Nginx :9000) for artifacts; iac sidecar (engine backend) for state |
 | `workspaces` volume | Ephemeral per-run git clones under `/workspaces/<session>/<call>`; deleted after each run | Mounted by core and iac |
 | Phoenix + phoenix-db | OpenTelemetry trace collector/UI and prompt registry; prompts seeded at core boot from `core/prompts/seed` | Core via OTLP/HTTP and Prompts API |
 | OIDC identity provider | Authenticates users and issues the JWT access tokens the core validates; any spec-faithful provider with discovery, JWKS and JWT access tokens (Entra ID, Keycloak, Auth0 and Okta are documented) | Browser (login) and core (discovery + JWKS); configured in `config.yaml` `oidc` |
@@ -308,7 +239,7 @@ Model routing is by prompt type: generation, target calculation, and report writ
 
 ### IaC and mapping sidecars
 
-- The iac sidecar is a deliberately thin executor, shipped as a reference for non-production installation and meant to be re-implemented against the organization's own execution platform in production. Each POST enqueues exactly one engine command (OpenTofu by default) as an asynchronous job and returns a job id; the core polls it (5-second interval, 1-hour budget per job) and sequences `init → validate → plan` (plus `show -json` for drift) itself. Both containers read the same `workspaces` volume.
+- The iac sidecar is a deliberately thin executor, shipped as a reference for non-production installation and meant to be re-implemented against the organization's own execution platform in production. Each POST enqueues exactly one engine command (OpenTofu by default) as an asynchronous job and returns a job id; the core polls it (5-second interval, 1-hour budget per job) and sequences `init → validate → plan` (plus `show -json` for drift) itself. Both containers read the same `workspaces` volume. `init` always runs `-reconfigure`, because the engine runs with `-input=false` and could not answer a "Backend configuration changed" prompt; the consequence is that a changed backend is adopted, never migrated. The sidecar owns no backend decision of its own beyond the optional `IAC_BACKEND_CONFIG` file — the backend the engine uses is whatever the workspace contains — the repository's own block by default, or the `backend_override.tf` the core writes once Nebula-managed state is enabled (see [Terraform/OpenTofu state backends](terraform-state-backends.md)).
 - The mapping sidecar translates a business identifier into a repository reference; the reference implementation is an identity passthrough.
 
 ### Drift detection and remediation
@@ -365,7 +296,7 @@ Every component that runs by default in the checked-in Compose stack is open sou
 |---|---|---|---|
 | Nebula (core, sidecars, SPA, contracts) | The platform | Apache-2.0 | REUSE-compliant SPDX headers |
 | OpenTofu 1.12.6 | Default IaC engine in the iac sidecar | MPL-2.0 (Linux Foundation) | Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and selectable via `IAC_BINARY=terraform`; running it makes your use subject to its licence terms |
-| RustFS | Default, bundled S3-compatible object storage for artifacts | Apache-2.0 | Rust implementation of the S3 API; AWS S3 or Azure Blob Storage selectable via `storage.provider`, or any other S3-compatible endpoint via the `RUSTFS` provider |
+| RustFS | Default, bundled S3-compatible object storage for artifacts (and for Terraform state where that is enabled) | Apache-2.0 | Rust implementation of the S3 API; AWS S3 or Azure Blob Storage selectable via `storage.provider`, or any other S3-compatible endpoint via the `RUSTFS` provider |
 | PostgreSQL 17 | core-db and phoenix-db | PostgreSQL Licence | — |
 | Redis 8 | Fail-open cache | Tri-licensed: AGPLv3 (OSI) / RSALv2 / SSPLv1 | AGPLv3 option restored in Redis 8.0 |
 | nginx | Reverse proxy and SPA host | BSD-2-Clause | — |
@@ -390,9 +321,20 @@ Every component that runs by default in the checked-in Compose stack is open sou
 | `S3` | **AWS S3** on its regional endpoint | Credentials from static keys or the AWS SDK default chain (instance role, workload identity) |
 | `STORAGE_ACCOUNT` | **Azure Blob Storage** in a storage account | Shared-key authentication, SAS-token presigning; the account name is derived from `endpoint_url` and the container from `bucket` |
 
-There is no dedicated Google Cloud Storage adapter for artifacts; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates. Field details are in [configuration.md](configuration.md#storage).
+There is no dedicated Google Cloud Storage adapter; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. (For *state*, a first-class `gcs` backend remains available by letting the repository declare it — see below.) Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates. Field details are in [configuration.md](configuration.md#storage).
 
-**Terraform remote state** is a different concern and is **not stored by Nebula**. The IaC sidecar runs the engine against the backend declared in the repository's own configuration, so state lives wherever that backend points: Azure Blob Storage (`azurerm` backend), AWS S3 (`s3` backend), a Google Cloud Storage bucket (`gcs` backend), or any other backend the engine supports. The credentials for that backend are the cloud credentials given to the IaC sidecar (see [environment-variables.md](environment-variables.md#cloud-credentials-for-the-iac-engine)). A remote backend is required in practice: workspaces are ephemeral, and the `.gitignore` the core adds to repositories without one excludes `*.tfstate`, so a local state file would be lost after the run.
+**Object storage (Terraform/OpenTofu state)** is optional and off as shipped. A remote backend, however, is not optional: workspaces are ephemeral and the `.gitignore` the core seeds excludes `*.tfstate`, so local state would be lost after the run. Because `storage.terraform_state_bucket` ships blank, the default is that **each repository declares its own remote backend** — `azurerm`, `s3`, `gcs`, or anything else the engine supports — authenticated with the cloud credentials given to the IaC sidecar (see [environment-variables.md](environment-variables.md#cloud-credentials-for-the-iac-engine)). A deployment can also hand the sidecar a backend configuration file through `IAC_BACKEND_CONFIG`.
+
+Setting `storage.terraform_state_bucket` to a bucket name switches this to Nebula-managed state: a second bucket in the same store, kept separate from the artifacts bucket so that state never inherits the lifecycle or presign policy applied to reports and plans. While the value is non-empty:
+
+- the core calls `ensure_bucket()` on it at boot, alongside the artifacts bucket, and **fails to boot** if the store is unusable;
+- before every `init` the core writes a `backend_override.tf` into the workspace. Terraform and OpenTofu merge `*_override.tf` over the rest of the configuration, so this both introduces a backend where the repository declares none and replaces one it does declare — without editing the repository's committed HCL;
+- the backend type follows `storage.provider`: `s3` for `RUSTFS` and `S3` (with `use_lockfile = true` for native S3 locking — no DynamoDB table), `azurerm` for `STORAGE_ACCOUNT` (native blob leases);
+- the state key is `<project_id>/terraform.tfstate`, where `project_id` is a SHA-256 digest over the normalized repository URI, the cloud scope, and the root-module path — stable across runs precisely because clone directories are not;
+- the **iac sidecar** executes that backend, so it is the container that must reach `storage.endpoint_url` and hold any credentials the rendered block does not embed;
+- the override survives into the pinned workspace, because pinning *renames* the clone directory rather than copying it. Apply therefore writes to the same state the plan was made against without re-running `init`.
+
+Blanking the value again turns all of that off — no bucket, no override; a key with no value, `""`, and whitespace-only are all blank. Note that *deleting* the key is not equivalent: the field default in `SystemConfig` is `nebula-terraform-state`, so an absent key re-enables managed state. These three ownership models, and what is *not* migrated when you switch between them, are covered in [Terraform/OpenTofu state backends](terraform-state-backends.md).
 
 **Workspaces** (`workspaces` volume) are ephemeral: each run clones the repository into a unique directory shared with the iac container and deletes it in a `finally` block. Durable outputs leave via git pushes and artifact uploads, not the volume.
 
@@ -402,63 +344,13 @@ There is no dedicated Google Cloud Storage adapter for artifacts; a GCS bucket c
 
 ### Infrastructure Diagram
 
-The block diagram below shows the deployment topology: every container in the Compose project, the host ports published by the proxy, the named volumes each container mounts (dashed), and the outbound connections that leave the stack.
+The block diagram below shows the deployment topology: every container in the Compose project, the host ports published by the proxy, and the calls between them. The user's browser sits outside the bridge network on purpose.
 
-```mermaid
-flowchart LR
-    USER["User's browser"]
+![Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network](images/deployment-topology.png)
 
-    subgraph HOST["Docker Compose project 'nebula' — single bridge network"]
-        PROXY["proxy<br/>Nginx + built SPA<br/>publishes :80 and :9000"]
-        CORE["core<br/>FastAPI :8000"]
-        AUTHZ["authz<br/>FastAPI :8083"]
-        IAC["iac<br/>FastAPI + OpenTofu CLI :8082"]
-        MAPPING["mapping<br/>FastAPI :8081"]
-        NOTIF["notifications<br/>FastAPI :8080"]
-        COREDB["core-db<br/>PostgreSQL 17 :5432"]
-        REDIS["redis<br/>Redis 8 :6379"]
-        STORE["object-storage<br/>RustFS :9000"]
-        PHOENIX["phoenix<br/>Phoenix :6006"]
-        PHOENIXDB["phoenix-db<br/>PostgreSQL 17 :5432"]
-    end
+The interactive version is [`diagrams/deployment-topology.html`](diagrams/deployment-topology.html), generated from [`diagrams/deployment-topology.architecture.json`](diagrams/deployment-topology.architecture.json).
 
-    subgraph VOLS["Named volumes"]
-        VWS[/"workspaces"/]
-        VCORE[/"core_db_data"/]
-        VPHX[/"phoenix_db_data"/]
-        VOBJ[/"object_storage_data"/]
-    end
-
-    subgraph EXT["External"]
-        LLMP["LLM provider APIs"]
-        GITHOST["Git hosting APIs"]
-        SLACK["Slack webhook"]
-    end
-
-    USER -->|":80 web + API"| PROXY
-    USER -->|":9000 presigned URLs"| PROXY
-    PROXY -->|"/api"| CORE
-    PROXY -->|"/monitoring/"| PHOENIX
-    PROXY -->|":9000"| STORE
-    CORE -->|"HTTP"| AUTHZ
-    CORE -->|"HTTP"| IAC
-    CORE -->|"HTTP"| MAPPING
-    CORE -->|"HTTP fire-and-forget"| NOTIF
-    CORE --> COREDB
-    CORE --> REDIS
-    CORE --> STORE
-    CORE -->|"traces + prompts"| PHOENIX
-    PHOENIX --> PHOENIXDB
-    CORE -.-> VWS
-    IAC -.-> VWS
-    COREDB -.-> VCORE
-    PHOENIXDB -.-> VPHX
-    STORE -.-> VOBJ
-    AUTHZ -.-> VAUTHZ
-    CORE --> LLMP
-    CORE --> GITHOST
-    NOTIF --> SLACK
-```
+Named volumes are written into each container's subtitle instead of being drawn as separate nodes (`core_db_data`, `phoenix_db_data`, `object_storage_data` and `workspaces`), and `phoenix-db` is folded into the phoenix node, so the eleventh container of the stack is not a box of its own. Two edges are left out because the [system architecture diagram](#architecture-diagram) already carries them — the core's OTLP traces and prompt calls to Phoenix, and the proxy's port 9000 path to object storage — and the connections that leave the stack (LLM and git provider APIs from the core, the Slack webhook from notifications) appear in the notes beside the diagram rather than as external nodes.
 
 Only the proxy publishes host ports; all other containers are reachable solely on the internal network. The `workspaces` volume is the one mount shared by two containers (core and iac), which is what lets the iac service run the IaC engine against the core's git clones. Both containers run as the same unprivileged user (`nebula`, uid/gid 10001, fixed by the `NEBULA_UID`/`NEBULA_GID` build args) so files either one creates are writable by the other. Additional Compose hardening for the iac container (dropping all capabilities, `no-new-privileges`, a read-only root filesystem and CPU/memory/pid limits) was prototyped but is not present in the checked-in `docker-compose.yml`; it remains a recommended deployment hardening because the container executes provider code from generated HCL.
 

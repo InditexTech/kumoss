@@ -29,7 +29,7 @@ The core reads variables through the names configured in `config.yaml`. The tabl
 | `NEBULA_AUTHZ_TOKEN` | Conditional | sample value `dev-authz-token` | Bearer token for the authorization sidecar. | `services.authz.enabled: true` | `NEBULA_AUTHZ_TOKEN` in `services/authz/.env` | At boot when enabled |
 | `GIT_USER` | Optional but needed for pushes | empty | Account username at the Git provider selected by `git.provider`. | `git.provider` (default `GITHUB`) | nothing | At boot the core logs a warning when empty; pushes fail later unless credentials come from elsewhere |
 | `GIT_TOKEN` | Optional but needed for pushes | empty | Personal access token for that account. Written with `GIT_USER` into `~/.git-credentials` inside the core container at boot. | `git.provider` | nothing | Same as `GIT_USER` |
-| `RUSTFS_ACCESS_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS`; empty otherwise | Access key for the S3-compatible artifact store. | `storage.provider: RUSTFS` (or `S3` with static keys) | `RUSTFS_ACCESS_KEY` on the `object-storage` service in `docker-compose.yml` | At boot: the core creates or checks the bucket and aborts if the store is unusable |
+| `RUSTFS_ACCESS_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS`; empty otherwise | Access key for the S3-compatible store, used for the artifacts bucket and — where Nebula-managed state is enabled (`storage.terraform_state_bucket` set; blank as shipped) — for the state bucket too, in which case it is also embedded into the backend block the IaC sidecar executes. | `storage.provider: RUSTFS` (or `S3` with static keys) | `RUSTFS_ACCESS_KEY` on the `object-storage` service in `docker-compose.yml` | At boot: the core creates or checks every configured bucket and aborts if the store is unusable |
 | `RUSTFS_SECRET_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS`; empty otherwise | Secret key for the artifact store. For `S3`, leave both keys unset to use the AWS SDK default credential chain (an instance role or workload identity), or set static keys under these same variable names unless you rename `storage.access_key_env` / `storage.secret_key_env`. | as above | `RUSTFS_SECRET_KEY` on `object-storage` | At boot |
 | `STORAGE_ACCOUNT_KEY` | Conditional | empty | Shared key of the Azure storage account; also signs download URLs. The account name is derived from `storage.endpoint_url`. | `storage.provider: STORAGE_ACCOUNT` | nothing | At boot: configuration validation fails if empty |
 | `NEBULA_SQL_DATABASE_URL` | Mandatory | sample value points at the bundled `core-db` container | Connection URL of Nebula's PostgreSQL database. | `database.nebula_database_url_env` | credentials of the `core-db` service in `docker-compose.yml` | At boot: configuration validation fails if empty, and database initialisation fails if unreachable |
@@ -48,6 +48,7 @@ Two related facts about the sample file:
 |---|---|---|---|---|
 | `NEBULA_IAC_TOKEN` | Recommended; mandatory outside an isolated workstation | empty (accepts any bearer) | Token the sidecar requires on every `/v1/*` call. Must equal the core's `NEBULA_IAC_TOKEN`. | Per request: a mismatch returns `401` to the core |
 | `IAC_BINARY` | Optional | `tofu` | Name or absolute path of the IaC engine CLI. `tofu` runs the bundled OpenTofu; `terraform` runs the bundled HashiCorp Terraform (BUSL-1.1 licensed; your use is subject to its terms). Any Terraform-compatible engine on `PATH` works. | At boot: the service refuses to start if the binary cannot be found |
+| `IAC_BACKEND_CONFIG` | Optional | empty (unset) | Path **inside the sidecar container** to a `.hcl` or `.tfbackend` file of state-backend values, passed to every `init` as `-backend-config=<path>`. Mount the file into the container yourself. It supplies values only — the backend *type* still comes from the workspace's own `terraform { backend "..." }` block — and it has no effect once Nebula-managed state is switched on (`storage.terraform_state_bucket` set), because the core's `backend_override.tf` wins. Blank or whitespace counts as unset. See [Terraform/OpenTofu state backends](terraform-state-backends.md#model-3--sidecar-supplied-backend-configuration). | At boot: the service refuses to start unless the path is a readable file |
 
 The job retention period (how long a finished job stays pollable at `GET /v1/jobs/{job_id}`, one hour) is a constant in `services/iac/src/config.py`, not an environment variable. Jobs live in memory, so a restart also forgets them.
 
@@ -68,6 +69,17 @@ The sample file lists no cloud variables; add the ones your modules need. [`serv
 The bundled image ships OpenTofu and Terraform only; it no longer includes the `az`, `gcloud`, or `aws` command-line tools, and the sidecar's `/v1/import*` endpoints answer `501 Not Implemented`. See [Operating modes](modes.md) for what the core calls today.
 
 Credential files you mount must be readable by the unprivileged user the image runs as (`nebula`, uid and gid `10001` by default).
+
+### Credentials for the state backend
+
+The sidecar is the process that reads and writes Terraform state, so state-backend credentials are always a sidecar concern.
+
+- **By default** (`storage.terraform_state_bucket` blank) the backend comes from the target repository, and the sidecar must hold whatever that backend needs — S3 keys or a role, an Azure identity, a GCS service account. Nothing on the core side helps here.
+- With Nebula-managed state on, and the core's rendered backend block **containing** static keys (`RUSTFS`, or `S3`/`STORAGE_ACCOUNT` with keys set in `core/.env`), the sidecar needs nothing extra for state.
+- With Nebula-managed state on and the block **omitting** them (`provider: S3` with `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` blank), the engine resolves credentials from the sidecar's own environment: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an attached instance role or IRSA token. Granting that role to the **core** container only is the common mistake — the core just creates the bucket at boot.
+- With Nebula-managed state on, the sidecar must also reach `storage.endpoint_url`. In the Compose stack `core` and `iac` share `bridge-network`, so `http://object-storage:9000` resolves; elsewhere, allow that egress.
+
+Where state lives, and how each provider is configured, is covered in [Terraform/OpenTofu state backends](terraform-state-backends.md).
 
 ## Mapping sidecar (`services/mapping/env.sample`)
 
@@ -177,6 +189,15 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
+# Unset: the backend comes from the workspace — the target repository's
+# own block, or the override the core writes when Nebula-managed state
+# is on, which wins over this file (docs/terraform-state-backends.md).
+# Set it only with storage.terraform_state_bucket blank (the shipped
+# value), and mount the file in this container.
+# IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl
+
+# These credentials serve both the providers and, when the rendered
+# backend block omits static keys, the S3 state backend.
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
