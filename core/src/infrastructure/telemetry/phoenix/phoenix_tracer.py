@@ -229,13 +229,22 @@ def _serialize(payload: Any) -> tuple[str, str]:
     """
     Serializes a payload to a JSON string with JSON mime type when possible,
     otherwise to a plain string with text mime type.
+
+    A dataclass field declared ``repr=False`` is left out: a value its own
+    type keeps out of logs (a plan's text, carried along for a later
+    consumer) has no business in a span either.
     """
     if isinstance(payload, str):
         return payload, OpenInferenceMimeTypeValues.TEXT.value
     if isinstance(payload, BaseModel):
         return payload.model_dump_json(), OpenInferenceMimeTypeValues.JSON.value
     if dataclasses.is_dataclass(payload):
-        payload = dataclasses.asdict(payload)
+        hidden = {f.name for f in dataclasses.fields(payload) if not f.repr}
+        payload = {
+            key: value
+            for key, value in dataclasses.asdict(payload).items()
+            if key not in hidden
+        }
     try:
         return (
             json.dumps(payload, ensure_ascii=False, default=str),

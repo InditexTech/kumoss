@@ -11,19 +11,26 @@ own output (the plan file the plan job just wrote, a provider cache that
 keeps growing), or every ref would be stale the moment it was taken; and
 it must move for any change to the code — staged, unstaged, untracked or
 committed — or a stale plan would be read as current.
+
+The engine's output is kept out of it by the ignore rules the workspace
+adapter writes into every clone, so the repo under test gets that same
+shipped file rather than rules of its own.
 """
 
+import inspect
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from src.infrastructure.filesystem import GitUtils
+from src.infrastructure.filesystem import GitUtils, WorkspaceService
 from src.shared.constants import GitProviderName
 
 
 _PROVIDER = GitProviderName.GITHUB
+
+_SHIPPED_IGNORE = Path(inspect.getfile(WorkspaceService)).parent / "terraform.gitignore"
 
 
 def _git(work: Path, *args: str) -> None:
@@ -48,6 +55,9 @@ class TestGetWorkspaceRevision(unittest.IsolatedAsyncioTestCase):
         self.work.mkdir()
         subprocess.check_call(["git", "init", "-b", "main", str(self.work)])
         (self.work / "main.tf").write_text('resource "null_resource" "a" {}\n')
+        _ = (self.work / ".gitignore").write_text(
+            _SHIPPED_IGNORE.read_text(encoding="utf-8"), encoding="utf-8"
+        )
         _git(self.work, "add", ".")
         _git(self.work, "commit", "-m", "init")
         self.git = GitUtils(
@@ -87,9 +97,8 @@ class TestGetWorkspaceRevision(unittest.IsolatedAsyncioTestCase):
         (cache / "nested" / "lock").write_text("")
         after = await self.git.get_workspace_revision()
 
-        # `status` collapses an untracked directory to a single entry, so
-        # whatever init keeps downloading into `.terraform/` after the
-        # directory exists stays invisible to the fingerprint.
+        # `**/.terraform/*` is ignored, so whatever init keeps downloading
+        # there stays invisible however deep it goes.
         self.assertEqual(before, after)
 
     async def test_a_new_untracked_file_moves_it(self):
@@ -100,6 +109,21 @@ class TestGetWorkspaceRevision(unittest.IsolatedAsyncioTestCase):
 
         # Generated code lands untracked: this is the change a plan must
         # not be reused across.
+        self.assertNotEqual(before, after)
+
+    async def test_a_file_added_to_an_untracked_directory_moves_it(self):
+        module = self.work / "modules" / "network"
+        module.mkdir(parents=True)
+        (module / "main.tf").write_text('resource "null_resource" "c" {}\n')
+        before = await self.git.get_workspace_revision()
+
+        (module / "variables.tf").write_text('variable "name" {}\n')
+        after = await self.git.get_workspace_revision()
+
+        # `status` collapses an untracked directory to a single entry by
+        # default, which would hide every file generated into a module
+        # directory after the first one; the digest asks for untracked
+        # paths individually so it cannot.
         self.assertNotEqual(before, after)
 
     async def test_editing_a_tracked_file_moves_it(self):

@@ -203,6 +203,7 @@ class GitUtils(IGit):
             "status",
             "--porcelain=v2",
             "--branch",
+            "--untracked-files=all",
         ]
         logging.debug(cmd)
         if not self._handle_return_code(output := await self.__cli.execute(cmd)):

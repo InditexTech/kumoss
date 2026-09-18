@@ -90,8 +90,7 @@ class IGit(ABC):
 
         Covers both the checked-out commit and any uncommitted or untracked
         change on top of it, so two equal fingerprints mean the tree holds
-        the same code. Engine artifacts (a rewritten plan file, a populated
-        provider cache) do not move it.
+        the same code.
         """
         pass
 

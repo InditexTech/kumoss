@@ -174,10 +174,11 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
             "validator"
         ]
         self.terraform_svc.plan.reset_mock()
+        reads = self.terraform_svc.drift.await_count
         _ = await validator(MagicMock())
         self.terraform_svc.plan.assert_awaited_once_with(targets=self.targets)
         # Reconciliation attempts plan; reading drift is the loop's job.
-        self.terraform_svc.drift.assert_awaited_once()
+        self.assertEqual(self.terraform_svc.drift.await_count, reads)
 
     async def test_all_operations_filtered_stops_without_generating(self):
         self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
@@ -248,6 +249,40 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.terraform_svc.plan.assert_awaited_once_with(targets=self.targets)
         self.assertEqual(self._drift_refs(), [self.round_ref, fresh])
         self.assertTrue(result.in_sync)
+
+    async def test_an_exhausted_budget_reads_what_it_reconciled(self):
+        reconciled = _ref("rev-reconciled", stdout="reconciled plan")
+        self.terraform_svc.drift.side_effect = [
+            _drift("[drift]", self.round_ref),
+            _drift("", reconciled),
+        ]
+        self.split_svc.split_task.return_value = [["op a"]]
+        self.validation_svc.generate_and_validate.return_value = _plan(reconciled)
+
+        result = await self._run(
+            filter_session_changes=False, max_iterations=1, plan=self.round_ref
+        )
+
+        # The last round reconciled with no iteration left to read what it
+        # did, so returning the drift from before those changes would
+        # report a workspace that no longer exists while apply runs the
+        # plan that replaced it.
+        self.assertEqual(self._drift_refs(), [self.round_ref, reconciled])
+        self.assertTrue(result.in_sync)
+        self.assertEqual(result.stdout, "reconciled plan")
+
+    async def test_a_round_that_changed_nothing_is_not_read_twice(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = [["op a"]]
+        self.validation_svc.generate_and_validate.return_value = _plan(self.round_ref)
+
+        await self._run(
+            filter_session_changes=False, max_iterations=1, plan=self.round_ref
+        )
+
+        # Reconciliation that left the workspace on the same fingerprint
+        # has nothing new to show, so the closing read is skipped.
+        self.assertEqual(self._drift_refs(), [self.round_ref])
 
     async def test_only_the_drift_report_is_stored(self):
         self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)

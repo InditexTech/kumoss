@@ -107,6 +107,10 @@ class TerraformDriftService:
                     validator=validator,
                 )
                 plan = result.plan
+
+        if plan is not None and drift.plan is not None and plan != drift.plan:
+            drift = await self.__terraform_svc.drift(plan=plan)
+
         if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:
