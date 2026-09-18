@@ -48,7 +48,10 @@ def trace_terraform[**P, R: TracedTerraformResult](
         start = time.time()
         output = await func(*args, **kwargs)
         span = tracer.trace_terraform(
-            output, start_time=int(start * 1_000_000_000), **kwargs
+            output,
+            operation=func.__name__,
+            start_time=int(start * 1_000_000_000),
+            **kwargs,
         )
         span.set_status(Status(StatusCode.OK))
         span.end()

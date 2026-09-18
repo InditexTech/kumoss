@@ -131,7 +131,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             targets=["azurerm_resource_group.rg"],
             plan=None,
         )
-        span = tracer.trace_terraform(tf_dto)
+        span = tracer.trace_terraform(tf_dto, operation="plan")
         self.assertIs(span, mock_span)
 
         set_calls = {c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list}
@@ -148,6 +148,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
         cases = [
             (
                 "a successful plan traces the plan",
+                "plan",
                 TerraformPlanDTO(
                     ok=True,
                     feedback="",
@@ -160,6 +161,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
             (
                 "a failed plan traces the problem",
+                "plan",
                 TerraformPlanDTO(
                     ok=False,
                     feedback="Error: invalid resource",
@@ -172,6 +174,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
             (
                 "a drifted workspace traces the drift",
+                "drift",
                 TerraformDriftDTO(
                     in_sync=False,
                     drift="[drift]",
@@ -184,6 +187,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
             (
                 "an unreadable drift traces the problem",
+                "drift",
                 TerraformDriftDTO(
                     in_sync=False,
                     drift="",
@@ -196,6 +200,7 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
             (
                 "a synchronized workspace traces the plan",
+                "drift",
                 TerraformDriftDTO(
                     in_sync=True,
                     drift="",
@@ -208,12 +213,14 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
             (
                 "an apply traces its output",
+                "apply",
                 TerraformApplyDTO(ok=True, stdout="apply output", feedback=""),
                 True,
                 "apply output",
             ),
             (
                 "a failed apply traces the problem",
+                "apply",
                 TerraformApplyDTO(
                     ok=False, stdout="partial apply", feedback="Error: state lock"
                 ),
@@ -222,18 +229,18 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             ),
         ]
 
-        for label, dto, expected_ok, expected_output in cases:
+        for label, operation, dto, expected_ok, expected_output in cases:
             with self.subTest(label):
                 mock_span = MagicMock()
                 mock_otel_tracer.start_span.return_value = mock_span
 
-                _ = _make_tracer().trace_terraform(dto)
+                _ = _make_tracer().trace_terraform(dto, operation=operation)
 
-                # One span name across all three verbs: the dashboards
-                # and evaluators built on it keep working.
+                # The verb names the span, so plan, drift and apply are
+                # separable in Phoenix; the outcome boolean stays in it.
                 self.assertEqual(
                     mock_otel_tracer.start_span.call_args.kwargs["name"],
-                    f"Terraform - validation {expected_ok}",
+                    f"Terraform {operation} - {expected_ok}",
                 )
                 set_calls = {
                     c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list

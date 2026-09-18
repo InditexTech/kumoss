@@ -33,6 +33,7 @@ class ITracer(ABC):
     def trace_terraform(
         self,
         terraformDTO: TracedTerraformResult,
+        operation: str,
         start_time: int | None = None,
         **kwargs: Any,
     ) -> Span:
@@ -40,6 +41,7 @@ class ITracer(ABC):
         Creates and configures a span for tracing Terraform operations.
 
         :param terraformDTO: the plan, drift or apply result being traced
+        :param operation: the verb that produced it, for the span name
         :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
