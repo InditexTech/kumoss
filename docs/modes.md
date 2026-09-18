@@ -61,7 +61,7 @@ The web application is stricter than the API in one place: it disables Partial D
 1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
 2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Phoenix prompt templates](phoenix-prompt-templates.md)).
 3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 by default) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. Drift that corresponds to the session's own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes.
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact step 3 left in the workspace rather than planning again. Drift that corresponds to the session's own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes.
 5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
 6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt.
 7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
@@ -98,7 +98,7 @@ The web application is stricter than the API in one place: it disables Partial D
 1. **Filtering.** The request filter runs in drift mode: it accepts requests to resolve or scope drift and declines requests to create or modify infrastructure as an operation mismatch.
 2. **Prompt composition**, as in generate.
 3. **Target selection.** The target generator, in drift mode, derives Terraform targets from the request, the history, the selected resource prompts, and the `general-guidelines-targeting_policies` prompt.
-4. **Detect and remediate loop**, up to `orchestration.max_drift_reports` iterations (3 by default). Each iteration runs `init`, `validate`, `plan` and `show -json` on the targets, derives the drift from the plan, stores the drift report and plan as artifacts, splits the drift into operations in groups of `orchestration.drift_group_operations` (8), and runs a generate and validate cycle per group.
+4. **Detect and remediate loop**, up to `orchestration.max_drift_reports` iterations (3 by default). The first iteration runs `init`, `validate` and `plan -out` on the targets; each later one reads the plan its predecessor's last remediation cycle validated, and only plans for itself if that cycle produced nothing. Every iteration then runs `show -json` on the plan artifact, derives the drift from it, stores the drift report as an artifact, splits the drift into operations in groups of `orchestration.drift_group_operations` (8), and runs a generate and validate cycle per group. `init` is submitted only once per session.
 5. **Report.** A `drift` JSON report with a summary, an outcome (`Succeeded`, `Partial`, `Failed`), the remediated resources, and any drift that could not be reconciled.
 
 **Inspects existing IaC and state.** Yes; drift is computed from the plan against real state.
@@ -136,7 +136,7 @@ The web application is stricter than the API in one place: it disables Partial D
 
 **Fictitious example.** "Reconcile everything in `envs/dev`." Nebula plans the whole root, finds two drifted resources, generates the reconciling changes, and reports `Succeeded`.
 
-**Limitations.** Large roots take longer and consume more model calls; each iteration re-plans the whole configuration.
+**Limitations.** Large roots take longer and consume more model calls; the first detection pass plans the whole configuration, and so does every remediation cycle.
 
 ## Import Infrastructure
 

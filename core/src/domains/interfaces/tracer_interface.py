@@ -2,26 +2,44 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any
+from typing import Any, Protocol
 
 from abc import ABC, abstractmethod
 from opentelemetry.trace import Span
 
-from src.domains.dto import LLMResponseDTO, TerraformValidationDTO
+from src.domains.dto import LLMResponseDTO
+
+
+class TracedTerraformResult(Protocol):
+    """What a terraform result exposes to the tracer, whichever verb produced it.
+
+    Each result type decides its own traced output, so the tracer does not
+    have to encode which field of which DTO means what.
+    """
+
+    @property
+    def ok(self) -> bool:
+        """Whether the operation reached its intended outcome."""
+        ...
+
+    @property
+    def summary(self) -> str:
+        """The text worth tracing: the plan on success, the problem otherwise."""
+        ...
 
 
 class ITracer(ABC):
     @abstractmethod
     def trace_terraform(
         self,
-        terraformDTO: TerraformValidationDTO,
+        terraformDTO: TracedTerraformResult,
         start_time: int | None = None,
         **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
-        :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param terraformDTO: the plan, drift or apply result being traced
         :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """

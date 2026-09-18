@@ -23,7 +23,6 @@ from openinference.semconv.trace import (
 from pydantic import BaseModel
 
 from src.domains.dto import (
-    TerraformValidationDTO,
     ToolResultDTO,
     LLMResponseDTO,
     ToolCallDTO,
@@ -31,7 +30,7 @@ from src.domains.dto import (
     ToolDefinitionDTO,
 )
 from src.domains.entities.history import History
-from src.domains.interfaces.tracer_interface import ITracer
+from src.domains.interfaces.tracer_interface import ITracer, TracedTerraformResult
 from src.infrastructure.telemetry._initializer import get_tracer
 from src.infrastructure.exceptions import TracerRootContextError
 from src.shared.constants import OperationType, TerraformProvider
@@ -94,30 +93,26 @@ class PhoenixTracer(ITracer):
     @override
     def trace_terraform(
         self,
-        terraformDTO: TerraformValidationDTO,
+        terraformDTO: TracedTerraformResult,
         start_time: int | None = None,
         **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
-        :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param terraformDTO: the plan, drift or apply result being traced
         :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
         span = self.__tracer.start_span(
-            name=f"Terraform - validation {terraformDTO.validation}",
+            name=f"Terraform - validation {terraformDTO.ok}",
             start_time=start_time,
         )
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.EVALUATOR),
             *_input_attributes(kwargs),
-            *_output_attributes(
-                terraformDTO.terraform_plan.strip('"').strip("'")
-                if terraformDTO.validation
-                else terraformDTO.feedback.strip('"').strip("'")
-            ),
+            *_output_attributes(terraformDTO.summary.strip('"').strip("'")),
         ):
             span.set_attribute(attribute_key, attribute_value)
         return span

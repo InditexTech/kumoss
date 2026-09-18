@@ -206,8 +206,18 @@ class ApplicationFactory:
         self,
         project_root: Path,
     ) -> ITerraform:
+        """Build a terraform service rooted at ``project_root``.
+
+        The git it fingerprints the workspace with is built here rather
+        than passed in, so the two are rooted at the same tree by
+        construction: the apply handler's shared ``git_utils`` sits at the
+        project root while its terraform sits at the session's pinned
+        workspace, and handing that instance over would compare revisions
+        of different trees.
+        """
         return TerraformFactory(
             project_root=project_root,
+            git=self.get_git_utils(self.__ctx.repo_uri, project_root),
             scope_id=self.__ctx.scope_id,
             terraform_provider=self.__ctx.terraform_prv,
             project_id=TerraformUtils.project_id(

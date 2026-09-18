@@ -118,9 +118,9 @@ orchestration:
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5"
+  model: "azure_ai/claude-sonnet-4-5"
   # Simple tasks model
-  small_model: "vertex_ai/gemini-3.7-flash"
+  small_model: "azure_ai/claude-haiku-4-5"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000

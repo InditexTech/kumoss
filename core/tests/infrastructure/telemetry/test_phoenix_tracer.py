@@ -12,7 +12,9 @@ from openinference.semconv.trace import (
 )
 
 from src.domains.dto import (
-    TerraformValidationDTO,
+    TerraformApplyDTO,
+    TerraformDriftDTO,
+    TerraformPlanDTO,
     ToolResultDTO,
     ToolCallDTO,
     PromptTemplateDTO,
@@ -122,11 +124,12 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
         mock_get_tracer.return_value = mock_otel_tracer
 
         tracer = _make_tracer()
-        tf_dto = TerraformValidationDTO(
-            validation=True,
-            feedback="all good",
-            terraform_plan="plan output",
-            terraform_targets=["azurerm_resource_group.rg"],
+        tf_dto = TerraformPlanDTO(
+            ok=True,
+            feedback="",
+            stdout="plan output",
+            targets=["azurerm_resource_group.rg"],
+            plan=None,
         )
         span = tracer.trace_terraform(tf_dto)
         self.assertIs(span, mock_span)
@@ -137,6 +140,107 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             OpenInferenceSpanKindValues.EVALUATOR.value,
         )
         self.assertIn(SpanAttributes.OUTPUT_VALUE, set_calls)
+
+    def test_every_terraform_result_traces_its_own_summary(self, mock_get_tracer):
+        mock_otel_tracer = MagicMock()
+        mock_get_tracer.return_value = mock_otel_tracer
+
+        cases = [
+            (
+                "a successful plan traces the plan",
+                TerraformPlanDTO(
+                    ok=True,
+                    feedback="",
+                    stdout="plan output",
+                    targets=[],
+                    plan=None,
+                ),
+                True,
+                "plan output",
+            ),
+            (
+                "a failed plan traces the problem",
+                TerraformPlanDTO(
+                    ok=False,
+                    feedback="Error: invalid resource",
+                    stdout="partial plan",
+                    targets=[],
+                    plan=None,
+                ),
+                False,
+                "Error: invalid resource",
+            ),
+            (
+                "a drifted workspace traces the drift",
+                TerraformDriftDTO(
+                    in_sync=False,
+                    drift="[drift]",
+                    feedback="",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                False,
+                "[drift]",
+            ),
+            (
+                "an unreadable drift traces the problem",
+                TerraformDriftDTO(
+                    in_sync=False,
+                    drift="",
+                    feedback="Error: stale plan file",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                False,
+                "Error: stale plan file",
+            ),
+            (
+                "a synchronized workspace traces the plan",
+                TerraformDriftDTO(
+                    in_sync=True,
+                    drift="",
+                    feedback="",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                True,
+                "plan output",
+            ),
+            (
+                "an apply traces its output",
+                TerraformApplyDTO(ok=True, stdout="apply output", feedback=""),
+                True,
+                "apply output",
+            ),
+            (
+                "a failed apply traces the problem",
+                TerraformApplyDTO(
+                    ok=False, stdout="partial apply", feedback="Error: state lock"
+                ),
+                False,
+                "Error: state lock",
+            ),
+        ]
+
+        for label, dto, expected_ok, expected_output in cases:
+            with self.subTest(label):
+                mock_span = MagicMock()
+                mock_otel_tracer.start_span.return_value = mock_span
+
+                _ = _make_tracer().trace_terraform(dto)
+
+                # One span name across all three verbs: the dashboards
+                # and evaluators built on it keep working.
+                self.assertEqual(
+                    mock_otel_tracer.start_span.call_args.kwargs["name"],
+                    f"Terraform - validation {expected_ok}",
+                )
+                set_calls = {
+                    c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list
+                }
+                self.assertEqual(
+                    set_calls[SpanAttributes.OUTPUT_VALUE], expected_output
+                )
 
 
 if __name__ == "__main__":

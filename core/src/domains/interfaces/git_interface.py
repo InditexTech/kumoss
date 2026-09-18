@@ -85,6 +85,17 @@ class IGit(ABC):
         pass
 
     @abstractmethod
+    async def get_workspace_revision(self) -> str:
+        """Return a fingerprint of the working tree's current revision.
+
+        Covers both the checked-out commit and any uncommitted or untracked
+        change on top of it, so two equal fingerprints mean the tree holds
+        the same code. Engine artifacts (a rewritten plan file, a populated
+        provider cache) do not move it.
+        """
+        pass
+
+    @abstractmethod
     async def get_untracked_files(self) -> list[str]:
         """get_untracked_files returns a list of file names that are not tracked by git and
         are not ignored by standard excludes (e.g. .gitignore)."""

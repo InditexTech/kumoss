@@ -11,8 +11,8 @@ from contextvars import ContextVar, Token
 
 from opentelemetry.trace import Status, StatusCode
 
-from src.domains.dto import LLMResponseDTO, TerraformValidationDTO
-from src.domains.interfaces.tracer_interface import ITracer
+from src.domains.dto import LLMResponseDTO
+from src.domains.interfaces.tracer_interface import ITracer, TracedTerraformResult
 
 _tracer_context: ContextVar[ITracer] = ContextVar("tracer")
 
@@ -35,15 +35,15 @@ class TracerService:
         _tracer_context.reset(token)
 
 
-def trace_terraform[**P](
-    func: Callable[P, Awaitable[TerraformValidationDTO]],
-) -> Callable[P, CoroutineType[Any, Any, TerraformValidationDTO]]:
+def trace_terraform[**P, R: TracedTerraformResult](
+    func: Callable[P, Awaitable[R]],
+) -> Callable[P, CoroutineType[Any, Any, R]]:
     """
     Decorator that automatically traces chain function calls with OpenTelemetry spans.
     """
 
     @wraps(func)
-    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> TerraformValidationDTO:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         tracer = TracerService.get_current_tracer()
         start = time.time()
         output = await func(*args, **kwargs)

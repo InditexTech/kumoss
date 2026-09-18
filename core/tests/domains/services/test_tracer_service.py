@@ -7,7 +7,12 @@ from unittest.mock import MagicMock
 
 from opentelemetry.trace import Span
 
-from src.domains.dto import TerraformValidationDTO, ToolResultDTO
+from src.domains.dto import (
+    TerraformApplyDTO,
+    TerraformDriftDTO,
+    TerraformPlanDTO,
+    ToolResultDTO,
+)
 from src.domains.interfaces.tracer_interface import ITracer
 from src.domains.services.tracer_service import (
     TracerService,
@@ -102,34 +107,49 @@ class TestTraceToolDecorator(unittest.IsolatedAsyncioTestCase):
 
 class TestTraceTerraformDecorator(unittest.IsolatedAsyncioTestCase):
     async def test_trace_terraform_calls_tracer_method(self):
-        mock_tracer = MagicMock(spec=ITracer)
-        mock_span = MagicMock(spec=Span)
-        mock_tracer.trace_terraform.return_value = mock_span
+        # One decorator for all three verbs: whatever a terraform method
+        # returns is traced as long as it reports `ok` and a `summary`.
+        results = [
+            TerraformPlanDTO(
+                ok=True,
+                feedback="",
+                stdout="plan output",
+                targets=["azurerm_resource_group.rg"],
+                plan=None,
+            ),
+            TerraformDriftDTO(
+                in_sync=False,
+                drift="[drift]",
+                feedback="",
+                stdout="plan output",
+                plan=None,
+            ),
+            TerraformApplyDTO(ok=True, stdout="apply output", feedback=""),
+        ]
+        for tf_dto in results:
+            with self.subTest(type(tf_dto).__name__):
+                mock_tracer = MagicMock(spec=ITracer)
+                mock_span = MagicMock(spec=Span)
+                mock_tracer.trace_terraform.return_value = mock_span
 
-        token = TracerService.set_current_tracer(mock_tracer)
-        try:
-            tf_dto = TerraformValidationDTO(
-                validation=True,
-                feedback="looks good",
-                terraform_plan="plan output",
-                terraform_targets=["azurerm_resource_group.rg"],
-            )
+                token = TracerService.set_current_tracer(mock_tracer)
+                try:
 
-            @trace_terraform
-            async def dummy_terraform():
-                return tf_dto
+                    @trace_terraform
+                    async def dummy_terraform(dto=tf_dto):
+                        return dto
 
-            result = await dummy_terraform()
-            self.assertIs(result, tf_dto)
-            mock_tracer.trace_terraform.assert_called_once()
-            call_args = mock_tracer.trace_terraform.call_args
-            self.assertIs(call_args[0][0], tf_dto)
-            self.assertIn("start_time", call_args[1])
-            self.assertIsInstance(call_args[1]["start_time"], int)
-            mock_span.set_status.assert_called_once()
-            mock_span.end.assert_called_once()
-        finally:
-            TracerService.reset_current_tracer(token)
+                    result = await dummy_terraform()
+                    self.assertIs(result, tf_dto)
+                    mock_tracer.trace_terraform.assert_called_once()
+                    call_args = mock_tracer.trace_terraform.call_args
+                    self.assertIs(call_args[0][0], tf_dto)
+                    self.assertIn("start_time", call_args[1])
+                    self.assertIsInstance(call_args[1]["start_time"], int)
+                    mock_span.set_status.assert_called_once()
+                    mock_span.end.assert_called_once()
+                finally:
+                    TracerService.reset_current_tracer(token)
 
 
 class TestTraceLlmDecorator(unittest.IsolatedAsyncioTestCase):

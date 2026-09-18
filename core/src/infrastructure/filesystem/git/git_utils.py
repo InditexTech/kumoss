@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 #
 # SPDX-License-Identifier: Apache-2.0
+import hashlib
 import re
 
 import subprocess
@@ -194,6 +195,22 @@ class GitUtils(IGit):
                 error_code=502,
             )
         return cmd.stdout.decode()
+
+    @override
+    async def get_workspace_revision(self) -> str:
+        cmd = [
+            "git",
+            "status",
+            "--porcelain=v2",
+            "--branch",
+        ]
+        logging.debug(cmd)
+        if not self._handle_return_code(output := await self.__cli.execute(cmd)):
+            raise ExceptionHandler(
+                error_code=502,
+                message=f"Git error when reading the workspace revision: {self.__error_msg}",
+            )
+        return hashlib.sha256(output.stdout).hexdigest()
 
     @override
     async def get_untracked_files(self) -> list[str]:

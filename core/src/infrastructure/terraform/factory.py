@@ -5,6 +5,7 @@
 
 from pathlib import Path
 
+from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.infrastructure.terraform import Terraform
 from src.infrastructure.terraform.backend import TerraformBackend
@@ -18,16 +19,22 @@ class TerraformFactory:
     workspace path so the IaC service (which runs in a separate process
     or container) can operate on the same files; the shared volume the
     docker-compose stack mounts into both `api` and `iac` makes
-    the paths line up."""
+    the paths line up.
+
+    ``git`` must be rooted at ``project_root``: it is what fingerprints
+    the workspace a plan was produced against, so a git pointed at
+    another tree would compare unrelated revisions."""
 
     def __init__(
         self,
         project_root: Path,
+        git: IGit,
         scope_id: str,
         terraform_provider: TerraformProvider,
         project_id: str,
     ):
         self.__project_root = project_root
+        self.__git = git
         self.__scope_id = scope_id
         self.__terraform_provider = terraform_provider
         self.__project_id = project_id
@@ -35,6 +42,7 @@ class TerraformFactory:
     def get(self) -> ITerraform:
         return Terraform(
             workspace_path=self.__project_root,
+            git=self.__git,
             scope_id=self.__scope_id,
             terraform_provider=self.__terraform_provider,
             backend=TerraformBackend(project_id=self.__project_id),
