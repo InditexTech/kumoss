@@ -10,7 +10,6 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass
-from pathlib import Path
 from typing import ClassVar
 
 from .exceptions import ConfigError
@@ -31,12 +30,15 @@ class Config:
       Asserted to be resolvable at startup so a misconfigured image
       fails fast instead of on the first request.
     - ``backend_config``: from ``IAC_BACKEND_CONFIG``, the path of a
-      backend configuration file (``.hcl`` / ``.tfbackend``) as visible
-      inside this container. Set means `init` runs with
-      ``-backend-config`` pointing at it; unset means the backend comes
-      from the workspace's own configuration, which the caller may have
-      written an override for. Asserted to be a readable file at
-      startup, for the same reason the engine binary is.
+      backend configuration file (``.hcl`` / ``.tfbackend``): absolute
+      as visible inside this container, or relative to the workspace
+      the command runs in. Set means `init` runs with ``-backend-config``
+      pointing at it; unset means the backend comes from the
+      workspace's own configuration, which the caller may have written
+      an override for. Not checked at startup, unlike the engine
+      binary: the file usually ships in the target repository, so it
+      exists only once that repository has been cloned into a
+      workspace. A wrong path surfaces as an `init` failure on the job.
     - ``job_ttl``: seconds a terminal job record stays pollable at
       `GET /v1/jobs/{job_id}` before it is swept (then 404). Not
       environment-driven: it is a property of the service, changed here.
@@ -57,15 +59,6 @@ class Config:
             msg = (
                 f"IaC engine binary {self.iac_binary!r} not found on PATH. "
                 "Set IAC_BINARY to a binary on PATH or an absolute path."
-            )
-            raise ConfigError(msg)
-        if self.backend_config is not None and not self._readable_file(
-            self.backend_config
-        ):
-            msg = (
-                f"IAC_BACKEND_CONFIG points at {self.backend_config!r}, which is "
-                "not a readable file inside this container. Mount the backend "
-                "configuration file there or unset the variable."
             )
             raise ConfigError(msg)
 
@@ -89,6 +82,3 @@ class Config:
 
     def _engine_available(self, binary: str) -> bool:
         return shutil.which(binary) is not None
-
-    def _readable_file(self, path: str) -> bool:
-        return os.access(path, os.R_OK) and Path(path).is_file()
