@@ -9,7 +9,7 @@ from src.application.exceptions import SetLockError, TerraformValidationFailedEr
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformPlanReport, TerraformValidationDTO
+from src.domains.dto import TerraformPlanDTO, TerraformPlanReport
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform, IWorkspace
@@ -84,25 +84,24 @@ class TerraformCRUDHandler:
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                async def validation_callback(
+                async def plan_callback(
                     local_history: History,
-                ) -> TerraformValidationDTO:
-                    return await self.__terraform_svc.validate(
+                ) -> TerraformPlanDTO:
+                    return await self.__terraform_svc.plan(
                         targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
                     )
 
-                validation = await self.__validation_svc.generate_and_validate(
+                plan_result = await self.__validation_svc.generate_and_validate(
                     q=q,
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
-                    validator=validation_callback,
+                    validator=plan_callback,
                 )
 
-                if not validation.validation:
+                if not plan_result.ok:
                     fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=validation.feedback,
+                        feedback=plan_result.feedback,
                         history=ctx.history,
                     )
                     raise TerraformValidationFailedError(
@@ -110,9 +109,10 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
-                validation = await self.__drift_svc.detect_and_resolve_drift(
+                drift = await self.__drift_svc.detect_and_resolve_drift(
+                    plan=plan_result.plan,
                     filter_session_changes=True,
-                    targets=validation.terraform_targets,
+                    targets=plan_result.targets,
                     conventions=conventions,
                     max_iterations=2,
                 )
@@ -122,14 +122,14 @@ class TerraformCRUDHandler:
                     await self.__report_svc.generate_report(
                         ctx=ctx,
                         type=ReportType.GENERATE,
-                        content=validation.terraform_plan,
+                        content=drift.stdout,
                     ),
                 )
 
                 check = await self.__compliance_svc.check(
                     request=ctx.history.get_first_turn().user,
                     conventions=conventions,
-                    plan=validation.terraform_plan,
+                    plan=drift.stdout,
                 )
 
                 high_impact = (

@@ -3,22 +3,43 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from uuid import uuid4
 
 from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
     OpenInferenceSpanKindValues,
     SpanAttributes,
 )
 
 from src.domains.dto import (
-    TerraformValidationDTO,
+    TerraformApplyDTO,
+    TerraformDriftDTO,
+    TerraformPlanDTO,
     ToolResultDTO,
     ToolCallDTO,
     PromptTemplateDTO,
 )
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.domains.value_objects import PlanRef
+from src.infrastructure.telemetry.phoenix.phoenix_tracer import (
+    PhoenixTracer,
+    _serialize,
+)
 from src.shared.constants import TerraformProvider, PromptsLibrary, OperationType
+
+
+PLAN_TEXT = "the full terraform plan text"
+
+
+def _plan_ref() -> PlanRef:
+    return PlanRef(
+        workspace=Path("/workspaces/demo"),
+        plan_file="session.plan",
+        targets=("module.kvt_001",),
+        commit="a" * 64,
+        stdout=PLAN_TEXT,
+    )
 
 
 def _make_tracer(**overrides) -> PhoenixTracer:
@@ -122,13 +143,14 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
         mock_get_tracer.return_value = mock_otel_tracer
 
         tracer = _make_tracer()
-        tf_dto = TerraformValidationDTO(
-            validation=True,
-            feedback="all good",
-            terraform_plan="plan output",
-            terraform_targets=["azurerm_resource_group.rg"],
+        tf_dto = TerraformPlanDTO(
+            ok=True,
+            feedback="",
+            stdout="plan output",
+            targets=["azurerm_resource_group.rg"],
+            plan=None,
         )
-        span = tracer.trace_terraform(tf_dto)
+        span = tracer.trace_terraform(tf_dto, operation="plan")
         self.assertIs(span, mock_span)
 
         set_calls = {c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list}
@@ -137,6 +159,148 @@ class TestPhoenixTracerTerraform(unittest.TestCase):
             OpenInferenceSpanKindValues.EVALUATOR.value,
         )
         self.assertIn(SpanAttributes.OUTPUT_VALUE, set_calls)
+
+    def test_the_traced_plan_reference_is_an_identity_not_a_plan(self, mock_get_tracer):
+        mock_otel_tracer = MagicMock()
+        mock_span = MagicMock()
+        mock_otel_tracer.start_span.return_value = mock_span
+        mock_get_tracer.return_value = mock_otel_tracer
+
+        ref = _plan_ref()
+        drift = TerraformDriftDTO(
+            in_sync=True, drift="", feedback="", stdout=PLAN_TEXT, plan=ref
+        )
+
+        _ = _make_tracer().trace_terraform(drift, operation="drift", plan=ref)
+
+        set_calls = {c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list}
+        traced_input = set_calls[SpanAttributes.INPUT_VALUE]
+        # A drift read receives nothing but the ref, so the input says
+        # which plan was read; the plan text is the span's output, not
+        # something to duplicate into its input.
+        self.assertIn("session.plan", traced_input)
+        self.assertIn("module.kvt_001", traced_input)
+        self.assertNotIn(PLAN_TEXT, traced_input)
+
+    def test_every_terraform_result_traces_its_own_summary(self, mock_get_tracer):
+        mock_otel_tracer = MagicMock()
+        mock_get_tracer.return_value = mock_otel_tracer
+
+        cases = [
+            (
+                "a successful plan traces the plan",
+                "plan",
+                TerraformPlanDTO(
+                    ok=True,
+                    feedback="",
+                    stdout="plan output",
+                    targets=[],
+                    plan=None,
+                ),
+                True,
+                "plan output",
+            ),
+            (
+                "a failed plan traces the problem",
+                "plan",
+                TerraformPlanDTO(
+                    ok=False,
+                    feedback="Error: invalid resource",
+                    stdout="partial plan",
+                    targets=[],
+                    plan=None,
+                ),
+                False,
+                "Error: invalid resource",
+            ),
+            (
+                "a drifted workspace traces the drift",
+                "drift",
+                TerraformDriftDTO(
+                    in_sync=False,
+                    drift="[drift]",
+                    feedback="",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                False,
+                "[drift]",
+            ),
+            (
+                "an unreadable drift traces the problem",
+                "drift",
+                TerraformDriftDTO(
+                    in_sync=False,
+                    drift="",
+                    feedback="Error: stale plan file",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                False,
+                "Error: stale plan file",
+            ),
+            (
+                "a synchronized workspace traces the plan",
+                "drift",
+                TerraformDriftDTO(
+                    in_sync=True,
+                    drift="",
+                    feedback="",
+                    stdout="plan output",
+                    plan=None,
+                ),
+                True,
+                "plan output",
+            ),
+            (
+                "an apply traces its output",
+                "apply",
+                TerraformApplyDTO(ok=True, stdout="apply output", feedback=""),
+                True,
+                "apply output",
+            ),
+            (
+                "a failed apply traces the problem",
+                "apply",
+                TerraformApplyDTO(
+                    ok=False, stdout="partial apply", feedback="Error: state lock"
+                ),
+                False,
+                "Error: state lock",
+            ),
+        ]
+
+        for label, operation, dto, expected_ok, expected_output in cases:
+            with self.subTest(label):
+                mock_span = MagicMock()
+                mock_otel_tracer.start_span.return_value = mock_span
+
+                _ = _make_tracer().trace_terraform(dto, operation=operation)
+
+                # The verb names the span, so plan, drift and apply are
+                # separable in Phoenix; the outcome boolean stays in it.
+                self.assertEqual(
+                    mock_otel_tracer.start_span.call_args.kwargs["name"],
+                    f"Terraform {operation} - {expected_ok}",
+                )
+                set_calls = {
+                    c[0][0]: c[0][1] for c in mock_span.set_attribute.call_args_list
+                }
+                self.assertEqual(
+                    set_calls[SpanAttributes.OUTPUT_VALUE], expected_output
+                )
+
+
+class TestSerialize(unittest.TestCase):
+    def test_a_field_kept_out_of_a_repr_stays_out_of_a_span(self):
+        value, mime_type = _serialize(_plan_ref())
+
+        # Whatever a dataclass hides from its own repr is hidden from the
+        # trace too: serializing a ref must not be a way around the
+        # decision its type already made.
+        self.assertEqual(mime_type, OpenInferenceMimeTypeValues.JSON.value)
+        self.assertIn("session.plan", value)
+        self.assertNotIn(PLAN_TEXT, value)
 
 
 if __name__ == "__main__":

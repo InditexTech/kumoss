@@ -94,10 +94,10 @@ One chain span is opened per orchestration step (filtering, target generation, c
 
 ### 4. Terraform evaluator spans
 
-- **Name:** `Terraform - validation True` or `Terraform - validation False`.
+- **Name:** `Terraform <operation> - <outcome>`, where the operation is the verb that ran (`plan`, `drift` or `apply`) and the outcome is `True` or `False` — so `Terraform plan - True`, `Terraform drift - False`, `Terraform apply - True`. The operation comes from the name of the traced method, and the outcome is validation for `plan`, being in sync for `drift`, and success for `apply`.
 - **Kind:** `EVALUATOR`.
-- **Input:** the validation arguments (targets and whether drift was requested; empty for apply).
-- **Output:** the Terraform plan text on success, or the validation feedback (engine errors) on failure. Apply runs also produce one of these spans.
+- **Input:** the keyword arguments of the call: the targets for `plan`, the plan reference being read for `drift` (its workspace, plan file, targets and workspace fingerprint — never the plan text), empty for `apply`.
+- **Output:** the Terraform plan text for a successful `plan`, the drift summary for a drifted workspace, the apply output for a successful `apply`; on any failure, the engine's error feedback instead.
 
 ### Common metadata
 

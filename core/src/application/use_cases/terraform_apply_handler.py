@@ -70,17 +70,17 @@ class TerraformApplyHandler:
                         + "run a generate or drift round before applying.",
                         error_code=409,
                     )
-                validation = await self.__terraform_svc.apply()
+                apply_result = await self.__terraform_svc.apply()
                 report: TerraformApplyReport = cast(
                     TerraformApplyReport,
                     await self.__report_svc.generate_report(
                         ctx=ctx,
                         type=ReportType.APPLY,
-                        content=validation.terraform_plan + validation.feedback,
+                        content=apply_result.stdout + apply_result.feedback,
                     ),
                 )
                 ctx.history.append_turn(q, report.execution_summary)
-                if not validation.validation:
+                if not apply_result.ok:
                     await NotificationServiceClient.notify_apply_failure(
                         ctx.id, ctx.user_id, report.execution_summary
                     )

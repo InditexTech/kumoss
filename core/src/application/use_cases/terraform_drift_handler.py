@@ -78,15 +78,19 @@ class TerraformDriftHandler:
                         query=q, history=ctx.history, conventions=conventions
                     )
 
-                validation = await self.__drift_svc.detect_and_resolve_drift(
+                drift = await self.__drift_svc.detect_and_resolve_drift(
+                    plan=None,
                     filter_session_changes=False,
                     targets=targets,
                     conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
                 )
                 content: str = json.dumps(ctx.history.serialize())
-                if not validation.validation:
-                    content += f"\n\nPlease note, this drift couldn't be reconcile: {validation.feedback}"
+                if not drift.in_sync:
+                    content += (
+                        "\n\nPlease note, this drift couldn't be reconcile: "
+                        f"{drift.feedback or drift.drift}"
+                    )
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
