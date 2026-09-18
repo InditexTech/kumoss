@@ -19,17 +19,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.application.exceptions import TerraformValidationFailedError
 from src.application.use_cases.terraform_apply_handler import TerraformApplyHandler
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformApplyDTO
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.constants import ReportType, SessionStatus
 
 
-def _dto(validation: bool, plan: str = "apply output") -> TerraformValidationDTO:
-    return TerraformValidationDTO(
-        validation=validation,
-        feedback="" if validation else "boom",
-        terraform_plan=plan,
-        terraform_targets=[],
+def _dto(ok: bool, stdout: str = "apply output") -> TerraformApplyDTO:
+    return TerraformApplyDTO(
+        ok=ok,
+        stdout=stdout,
+        feedback="" if ok else "boom",
     )
 
 

@@ -161,7 +161,20 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ```
 
-Equivalent example on Google Vertex AI, which the checked-in `config.yaml` uses:
+The checked-in `config.yaml` uses Azure AI Foundry, whose credentials LiteLLM cannot validate at boot (a missing value fails on the first call):
+
+```yaml
+llm:
+  model: "azure_ai/claude-sonnet-4-5"
+  small_model: "azure_ai/claude-haiku-4-5"
+```
+
+```dotenv
+AZURE_AI_API_KEY=example-not-a-real-key
+AZURE_AI_API_BASE=https://demo-platform.services.ai.azure.com
+```
+
+Equivalent example on Google Vertex AI:
 
 ```yaml
 llm:

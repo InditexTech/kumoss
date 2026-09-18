@@ -113,8 +113,8 @@ Model selection through LiteLLM. Details, provider tables, and router examples a
 
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
-| `llm.model` | string (LiteLLM model string, or a `model_name` alias when `model_list` is set) | `anthropic/claude-sonnet-5` | `vertex_ai/claude-sonnet-4-5` | Optional (credentials mandatory) | High-quality model used by the IaC generator, target generator, and report generator chains. |
-| `llm.small_model` | string | `anthropic/claude-haiku-4-5` | `vertex_ai/gemini-3.7-flash` | Optional (credentials mandatory) | Cheaper model used by every other chain and by tool-internal LLM calls. |
+| `llm.model` | string (LiteLLM model string, or a `model_name` alias when `model_list` is set) | `anthropic/claude-sonnet-5` | `azure_ai/claude-sonnet-4-5` | Optional (credentials mandatory) | High-quality model used by the IaC generator, target generator, and report generator chains. |
+| `llm.small_model` | string | `anthropic/claude-haiku-4-5` | `azure_ai/claude-haiku-4-5` | Optional (credentials mandatory) | Cheaper model used by every other chain and by tool-internal LLM calls. |
 | `llm.temperature` | float | `0.1` | `0.1` | Optional | Applied to both roles (forced to `1.0` when a chain requests extended thinking). |
 | `llm.max_output_tokens` | integer | `32000` | `32000` | Optional | Completion cap sent on every call. |
 | `llm.model_list` | list of LiteLLM Router entries | `[]` | not set | Optional | Advanced routing: load balancing across entries that share a `model_name`, per-entry endpoints, and `os.environ/VAR` credential references. Router-level fallbacks between different models are **not** configurable today; the core passes only `model_list` to the Router. When non-empty, `model` and `small_model` must match a `model_name` and boot validation runs against the listed entries. |

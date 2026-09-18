@@ -14,7 +14,7 @@ from src.domains.services import ArtifactStorageService, SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.domains.dto import TerraformValidationDTO, ToolResultDTO
+from src.domains.dto import TerraformPlanDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
 from src.shared.constants import ContentType, PromptsLibrary, SessionStatus, ToolContext
@@ -85,17 +85,16 @@ class TerraformValidationService:
         ctx: SessionContext,
         conventions: Conventions,
         include_forbidden_actions: bool,
-        validator: Callable[[History], Awaitable[TerraformValidationDTO]],
-    ) -> TerraformValidationDTO:
+        validator: Callable[[History], Awaitable[TerraformPlanDTO]],
+    ) -> TerraformPlanDTO:
         """
         Execute the terraform generation and validation cycle using tool calls
 
         :param query: User query
         :param history: task conversation history
-        :return: last validation state ValidationDTO
+        :return: the plan result of the last attempt, which succeeded
         """
         first_q = q
-        validation = TerraformValidationDTO.empty()
         local_history = ctx.history.deepcopy()
         for i in range(system_config.orchestration.max_validation_iteration):
             logging.debug(
@@ -140,22 +139,22 @@ class TerraformValidationService:
                 status=SessionStatus.VALIDATING,
                 history=local_history,
             )
-            validation = await validator(local_history)
-            if validation.terraform_plan:
+            result = await validator(local_history)
+            if result.stdout:
                 _ = await self.__artifact_svc.store_terraform_plan(
                     session_id=ctx.id,
                     round_id=ctx.round_id,
-                    targets=validation.terraform_targets,
-                    content=validation.terraform_plan,
+                    targets=result.targets,
+                    content=result.stdout,
                     content_type=ContentType.TEXT,
                 )
 
-            if validation.validation:
+            if result.ok:
                 ctx.history.append_turn(
                     first_q, local_history.get_last_turn().assistant
                 )
-                return validation
-            q = validation.feedback
+                return result
+            q = result.feedback
 
         raise ValidationLoopExceededError(
             message="Validation loop exceeded.",

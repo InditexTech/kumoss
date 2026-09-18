@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformDriftDTO, TerraformPlanDTO
 from src.domains.entities import History, SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
@@ -10,7 +10,7 @@ from src.domains.services import (
     TerraformValidationService,
     TaskService,
 )
-from src.domains.value_objects import Conventions
+from src.domains.value_objects import Conventions, PlanRef
 from src.shared.constants import ContentType
 from src.shared.logger import logging
 
@@ -32,34 +32,59 @@ class TerraformDriftService:
 
     async def detect_and_resolve_drift(
         self,
+        plan: PlanRef | None,
         filter_session_changes: bool,
         targets: list[str],
         conventions: Conventions,
         max_iterations: int,
-    ) -> TerraformValidationDTO:
-        validation = TerraformValidationDTO.empty()
+    ) -> TerraformDriftDTO:
+        """Read drift out of a plan and reconcile it, bounded by ``max_iterations``.
 
-        async def validator(history: History) -> TerraformValidationDTO:
-            return await self.__terraform_svc.validate(
-                targets=targets,
-                get_drift=False,
-            )
+        A check reads drift out of a plan rather than producing one, so
+        ``plan`` is the plan to start from: a generate round hands over the
+        one it just validated, which is why its pre-check costs no extra
+        plan, and a dedicated drift session passes None because nothing has
+        planned its workspace yet. Every reconciliation group re-plans
+        through ``validator``, and the last of those is what the next
+        iteration reads. An iteration whose split produced no operations
+        leaves nothing behind, so the next one has no ref and plans for
+        itself — which is what keeps every iteration that could have
+        changed reading live state.
+        """
+        drift = TerraformDriftDTO.empty()
+
+        async def validator(history: History) -> TerraformPlanDTO:
+            return await self.__terraform_svc.plan(targets=targets)
 
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
-            validation = await self.__terraform_svc.validate(
-                targets=targets,
-                get_drift=True,
-            )
+            if plan is None:
+                plan_result = await self.__terraform_svc.plan(targets=targets)
+                if plan_result.plan is None:
+                    logging.error(f"Drift check could not plan: {plan_result.feedback}")
+                    return TerraformDriftDTO(
+                        in_sync=False,
+                        drift="",
+                        feedback=plan_result.feedback,
+                        stdout=plan_result.stdout,
+                        plan=None,
+                    )
+                plan = plan_result.plan
 
-            await self.__upload_artifacts(validation, targets)
+            drift = await self.__terraform_svc.drift(plan=plan)
 
-            if validation.validation:
+            if drift.in_sync:
                 break
 
+            await self.__store_drift(drift, targets)
+
+            if drift.feedback:
+                logging.error(f"Drift could not be read: {drift.feedback}")
+                return drift
+
             operations: list[list[str]] = await self.__split_svc.split_task(
-                task=validation.feedback,
+                task=drift.drift,
             )
             if filter_session_changes:
                 operations = await self.__split_svc.filter_reconciliation(
@@ -69,47 +94,43 @@ class TerraformDriftService:
                     logging.warning(
                         "Drift pre-check completed, remaining drift corresponds to session changes"
                     )
-                    return validation
+                    return drift
 
+            plan = None
             for idx, group_ops in enumerate(operations):
                 logging.debug(f"Operation {idx + 1}/{len(operations)}: {group_ops}")
-                _ = await self.__validation_svc.generate_and_validate(
+                result = await self.__validation_svc.generate_and_validate(
                     q=str(group_ops),
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
                     validator=validator,
                 )
-        if validation.validation:
+                plan = result.plan
+
+        if plan is not None and drift.plan is not None and plan != drift.plan:
+            drift = await self.__terraform_svc.drift(plan=plan)
+
+        if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:
             logging.warning(
-                f"Drift resolution completed but issues remain: {validation.feedback}"
+                f"Drift resolution completed but issues remain: {drift.drift}"
             )
 
-        return validation
+        return drift
 
-    async def __upload_artifacts(
+    async def __store_drift(
         self,
-        validation: TerraformValidationDTO,
+        drift: TerraformDriftDTO,
         targets: list[str],
     ) -> None:
-        if validation.feedback:
+        if drift.drift:
             _ = await self.__artifact_svc.store_terraform_plan(
                 session_id=self.__ctx.id,
                 round_id=self.__ctx.round_id,
                 targets=targets,
-                content=validation.feedback,
+                content=drift.drift,
                 content_type=ContentType.TEXT,
                 is_drift=True,
-            )
-
-        if validation.terraform_plan:
-            _ = await self.__artifact_svc.store_terraform_plan(
-                session_id=self.__ctx.id,
-                round_id=self.__ctx.round_id,
-                targets=targets,
-                content=validation.terraform_plan,
-                content_type=ContentType.TEXT,
-                is_drift=False,
             )

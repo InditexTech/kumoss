@@ -47,7 +47,7 @@ cp services/notifications/env.sample services/notifications/.env
 
 `core/.env` is **mandatory**: Compose refuses to start the `core` service without it. The sidecar `.env` files are optional for Compose, but the IaC one is needed in practice. Every `.env` file is gitignored; never commit one.
 
-Copying the sample as-is is not enough to boot: step 5 (LLM credentials) is mandatory before you run `docker compose up`. The shipped `config.yaml` selects Vertex AI models, and `core/env.sample` has no active LLM variable, so a verbatim copy of the samples fails boot with `LLM credentials missing from environment: VERTEXAI_PROJECT; VERTEXAI_LOCATION`.
+Copying the sample as-is is not enough: step 5 (LLM credentials) is mandatory before you run `docker compose up`. The shipped `config.yaml` selects Azure AI Foundry models (`azure_ai/...`), and `core/env.sample` has no active LLM variable. LiteLLM has no boot-time check for that provider, so a verbatim copy of the samples **boots cleanly and then fails on the first request** with an authentication error from the model call; set `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE` first. Providers LiteLLM can validate (`anthropic/`, `vertex_ai/`, `openai/`, `azure/`) fail at boot instead, with `LLM credentials missing from environment: ...`.
 
 You do not need `services/mapping/.env` or `services/authz/.env` for this deployment model.
 
@@ -57,7 +57,7 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 
 | Setting | Requirement | What to do |
 |---|---|---|
-| `llm.model`, `llm.small_model` | **Mandatory review** | LiteLLM model strings (`provider/model-id`). The shipped file selects `vertex_ai/claude-sonnet-4-5` and `vertex_ai/gemini-3.7-flash`. Keep them if you have Vertex AI credentials; otherwise pick another provider and model pair from [LiteLLM providers and models](litellm.md). The provider prefix decides which credential variables step 5 (`core/.env`) needs. |
+| `llm.model`, `llm.small_model` | **Mandatory review** | LiteLLM model strings (`provider/model-id`). The shipped file selects `azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`. Keep them if you have an Azure AI Foundry endpoint; otherwise pick another provider and model pair from [LiteLLM providers and models](litellm.md). The provider prefix decides which credential variables step 5 (`core/.env`) needs. |
 | `git.provider` | Optional (default `GITHUB`) | `GITHUB`, `AZURE_DEVOPS`, or `GITLAB`. It must match the host of the repositories you will use, because it selects the pull-request API and the host written into the git credential store. Only the public SaaS hosts are supported (`github.com`, `gitlab.com` without subgroups, `dev.azure.com`), and repository URLs must be HTTPS. |
 | `services.iac` | **Always on** (no `enabled` flag) | Every mode runs engine commands through the IaC sidecar, so it cannot be disabled. The shipped file points it at `http://iac:8082` with token variable `NEBULA_IAC_TOKEN`. |
 | `services.iac.endpoint`, `services.iac.token_env` | Optional | Change only if you rename the Compose service or the token variable. |
@@ -108,7 +108,7 @@ Every variable is documented in [Environment variables and secrets](environment-
 
 | Variable | Requirement | Notes |
 |---|---|---|
-| LLM provider credentials | **Mandatory** | The variables LiteLLM requires for the provider prefix of `llm.model` and `llm.small_model`, for example `ANTHROPIC_API_KEY`, or `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, and `VERTEXAI_CREDENTIALS`. The core refuses to boot with `LLM credentials missing from environment: ...` when it can detect a missing variable. Names per provider: [LiteLLM providers and models](litellm.md#provider-specific-credential-variables). |
+| LLM provider credentials | **Mandatory** | The variables LiteLLM requires for the provider prefix of `llm.model` and `llm.small_model`, for the shipped `azure_ai/` models `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`; for others, for example `ANTHROPIC_API_KEY`, or `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, and `VERTEXAI_CREDENTIALS`. The core refuses to boot with `LLM credentials missing from environment: ...` when LiteLLM can detect a missing variable; it cannot for `azure_ai/`, which fails on the first call instead. Names per provider: [LiteLLM providers and models](litellm.md#provider-specific-credential-variables). |
 | `NEBULA_IAC_TOKEN` | **Mandatory, non-empty** | Bearer token the core sends to the IaC sidecar. Must equal the value in `services/iac/.env`. An empty value aborts the boot. |
 | `GIT_USER`, `GIT_TOKEN` | Mandatory for pushes and pull requests | Account and personal access token at the provider in `git.provider`. When either is empty the core boots with a warning and pushes fail later. |
 | `NEBULA_SQL_DATABASE_URL` | Mandatory (keep the sample value) | The sample `postgresql://postgres:postgres@core-db:5432/nebula` matches the bundled `core-db` container. |
@@ -216,7 +216,7 @@ Treat the webhook URL as a secret: anyone holding it can post to the channel. No
 
 ## 8. Build and start Nebula
 
-Step 5 (LLM credentials) must be done before this step. If you copy `core/env.sample` verbatim without filling in credentials for the provider selected in `config.yaml`, the core exits during boot with `LLM credentials missing from environment: VERTEXAI_PROJECT; VERTEXAI_LOCATION`.
+Step 5 (LLM credentials) must be done before this step. If you copy `core/env.sample` verbatim without filling in credentials for the provider selected in `config.yaml`, the outcome depends on the provider: with the shipped `azure_ai/` models the core boots and the first request fails with an authentication error; with a provider LiteLLM can validate it exits during boot with `LLM credentials missing from environment: ...`.
 
 ```bash
 docker compose up --build

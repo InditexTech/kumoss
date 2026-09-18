@@ -111,12 +111,13 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars, set in core/.env — for the
-# Vertex AI models below, boot only checks that VERTEXAI_PROJECT and
-# VERTEXAI_LOCATION are set; VERTEXAI_CREDENTIALS is not checked at boot
-# and a missing/invalid credential only fails on the first call. The
-# in-code defaults (anthropic/...) need ANTHROPIC_API_KEY instead — and
-# the core fails boot when litellm reports required env vars missing.
+# from the provider's standard env vars, set in core/.env. The azure_ai
+# models below read AZURE_AI_API_KEY and AZURE_AI_API_BASE; LiteLLM has no
+# boot-time validation mapping for azure_ai, so a missing or invalid
+# credential is only detected on the first LLM call, not at boot. For
+# providers LiteLLM can validate (anthropic/..., vertex_ai/..., openai/...,
+# azure/...) the core fails boot when the required env vars are missing;
+# the in-code defaults (anthropic/...) need ANTHROPIC_API_KEY.
 # Advanced routing (load balancing, custom credential env var names,
 # per-entry endpoints) is available via an optional `model_list` key;
 # there is no router-level fallback support.
@@ -127,9 +128,9 @@ orchestration:
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5"
+  model: "azure_ai/claude-sonnet-4-5"
   # Simple tasks model
-  small_model: "vertex_ai/gemini-3.7-flash"
+  small_model: "azure_ai/claude-haiku-4-5"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000

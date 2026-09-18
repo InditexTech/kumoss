@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.domains.value_objects.plan_ref import PlanRef
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
@@ -81,20 +82,79 @@ class LLMResponseDTO:
 
 
 @dataclass
-class TerraformValidationDTO:
-    validation: bool
+class TerraformPlanDTO:
+    """Result of an ``init`` → ``validate`` → ``plan`` sequence.
+
+    ``feedback`` is terraform's stderr and never drift. ``stdout`` is the
+    plan text and is present even on failure, because a failed plan's
+    output is still worth storing as an artifact; ``plan`` is the
+    reusable artifact and is None exactly when ``ok`` is False.
+    ``targets`` is repeated outside the ref so the failure path, which
+    has no ref, still has it.
+    """
+
+    ok: bool
     feedback: str
-    terraform_plan: str
-    terraform_targets: list[str]
+    stdout: str
+    targets: list[str]
+    plan: "PlanRef | None"
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
+
+
+@dataclass
+class TerraformDriftDTO:
+    """Result of reading drift out of a plan artifact.
+
+    Three states, and consumers must tell them apart:
+
+    - ``in_sync=True`` — no drift; ``drift`` and ``feedback`` both empty.
+    - ``in_sync=False`` with an empty ``feedback`` — genuine drift, in ``drift``.
+    - ``in_sync=False`` with a non-empty ``feedback`` — the read itself
+      failed; ``drift`` is empty and ``plan`` is None.
+
+    Keeping stderr in ``feedback`` and drift in ``drift`` is what stops
+    terraform's error output from reaching the task splitter as though it
+    were drift. ``stdout`` is the plan text the drift was read from.
+    """
+
+    in_sync: bool
+    drift: str
+    feedback: str
+    stdout: str
+    plan: "PlanRef | None"
+
+    @property
+    def ok(self) -> bool:
+        return self.in_sync
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.in_sync else self.feedback or self.drift
 
     @classmethod
-    def empty(cls):
+    def empty(cls) -> "TerraformDriftDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
         return cls(
-            validation=False,
+            in_sync=False,
+            drift="",
             feedback="",
-            terraform_plan="",
-            terraform_targets=[],
+            stdout="",
+            plan=None,
         )
+
+
+@dataclass
+class TerraformApplyDTO:
+    ok: bool
+    stdout: str
+    feedback: str
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
 
 
 @dataclass
