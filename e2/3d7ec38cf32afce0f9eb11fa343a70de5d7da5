@@ -1,0 +1,107 @@
+client/web/src/components/Home/useHomeWizard.test.ts
+  s_80925b41a3405c::t_9499a7f6be55d0 628-680
+client/web/src/components/Home/useHomeWizard.ts
+  s_80925b41a3405c::t_f7ea942a0cab17 22,222-232
+client/web/src/components/ui/SideSheet/SideSheet.tsx
+  s_80925b41a3405c::t_32d740e06bfd28 48-49,51-57
+client/web/src/contexts/SessionContext.test.tsx
+  s_80925b41a3405c::t_e954aba765c191 1-52
+client/web/src/contexts/SessionContext.tsx
+  s_80925b41a3405c::t_3f92bffe4bd96e 17-20,22-27,45,58,62-77
+client/web/src/layouts/Header/Header.test.tsx
+  s_80925b41a3405c::t_7e0b6e3822bf0e 1-64
+client/web/src/layouts/Header/Header.tsx
+  s_80925b41a3405c::t_c010b07ac62ba8 15,26,51
+contracts/openapi/iac.v1.yaml
+  s_80925b41a3405c::t_5885b742871b57 30-35,679-683,773-786,795-800,1210-1213
+core/src/clients/iac/api/import_/scope_resource_ids.py
+  s_80925b41a3405c::t_c16f34ae4e2050 107-120,130-134,172-185,195-199,232-245,255-259,295-308,318-322
+core/src/clients/iac/api/import_/state_resource_ids.py
+  s_80925b41a3405c::t_98dda5e453bfae 102-106,145-149,183-187,224-228
+core/src/clients/iac/models/scope_resource_ids_request.py
+  s_80925b41a3405c::t_e190a7bbeb3f5e 26-29
+docs/architecture.md
+  s_80925b41a3405c::t_47a8a937359d02 42
+docs/environment-variables.md
+  s_80925b41a3405c::t_1404ccebd3cda5 76-77
+docs/modes.md
+  s_80925b41a3405c::t_fc4fd388434968 190-191
+docs/terraform-state-backends.md
+  s_80925b41a3405c::t_0eea676bc6eb4c 433
+services/iac/FULL_PROVIDERS.md
+  s_80925b41a3405c::t_c2b18b86eb281b 39,42-43,47,112,175
+services/iac/PROVIDERS.md
+  s_80925b41a3405c::t_a2ad146bed99e2 33-35,37-40,42-46,62-64,70-71,73-77,79-81,123-124,160-161,185,187,190-191
+services/iac/README.md
+  s_80925b41a3405c::t_b7bc898cb47289 40-56,60-64,68-71,75-85,111-310,382-384,449,456-458,460-463,470
+services/iac/env.sample
+  s_80925b41a3405c::t_3e8ec9918071b9 50-68
+services/iac/pyproject.toml
+  s_80925b41a3405c::t_9d1d669be7fe94 12-15
+services/iac/src/config.py
+  s_80925b41a3405c::t_b4a7372df53a06 14,47-48,80-89
+services/iac/src/discovery/__init__.py
+  s_80925b41a3405c::t_702f5212a8b8bd 1-13
+services/iac/src/discovery/_aws.py
+  s_80925b41a3405c::t_0c471642d07a37 1-208
+services/iac/src/discovery/_azure.py
+  s_80925b41a3405c::t_bdc355d3a7e0d1 1-231
+services/iac/src/discovery/_base.py
+  s_80925b41a3405c::t_6da7cb60bfdfa8 1-104
+services/iac/src/discovery/_gcp.py
+  s_80925b41a3405c::t_a36110139f5a9d 1-260
+services/iac/src/discovery/factory.py
+  s_80925b41a3405c::t_5e37fa8577a287 1-52
+services/iac/src/engine.py
+  s_80925b41a3405c::t_5ae5eb9abdaf82 9-17,21-22,116-125
+services/iac/src/exceptions.py
+  s_80925b41a3405c::t_d1c742c50b35dd 12-19
+services/iac/src/identifiers.py
+  s_80925b41a3405c::t_9ea04e0e7043ff 1-20
+services/iac/src/main.py
+  s_80925b41a3405c::t_6cc5c816f20e42 20,27-33,38-39,43,52-53,55-56,60,68,70,74,78,182-186,190,200-211,219-248,361-362,364,366-378,383-384,386,388-399,404-405,407,409-420
+services/iac/src/models.py
+  s_80925b41a3405c::t_7a7d8d2b24865b 21-22,43,79-93,126-128
+services/iac/src/state.py
+  s_80925b41a3405c::t_afe4880e5028a2 1-72
+services/iac/tests/test_api.py
+  s_80925b41a3405c::t_3330ecaf47a3fa 13-15,23,39-41,54-62,67-69,72-78,81-82,91,571-573,618-620,643-644,701-747,749-750,752-788,791,793,798-927,929-1030
+services/iac/tests/test_discovery.py
+  s_80925b41a3405c::t_aec7e10401469c 1-89
+services/iac/tests/test_discovery_aws.py
+  s_80925b41a3405c::t_f97f6eef323ff1 1-248
+services/iac/tests/test_discovery_azure.py
+  s_80925b41a3405c::t_0d2cf0baccf0c9 1-308
+services/iac/tests/test_discovery_base.py
+  s_80925b41a3405c::t_b48db497fc5bb2 1-141
+services/iac/tests/test_discovery_gcp.py
+  s_80925b41a3405c::t_a8eaf32b2cba0f 1-301
+services/iac/tests/test_engine.py
+  s_80925b41a3405c::t_87140df4efbd38 1-52
+services/iac/tests/test_identifiers.py
+  s_80925b41a3405c::t_97c7b35cc1a581 1-28
+services/iac/tests/test_integration_engine.py
+  s_80925b41a3405c::t_1a0330eaf4e6f3 9-10,83-128
+services/iac/tests/test_models.py
+  s_80925b41a3405c::t_09154cbdd80460 1-86
+services/iac/tests/test_state.py
+  s_80925b41a3405c::t_b2799ef3736f2d 1-137
+services/iac/uv.lock
+  s_80925b41a3405c::t_b1ca9a9232cbff 39-67,80-107,117-304,326-375,522-539,629-637,711-736,742-743,745-746,758-764,808-837,950-963,992-1003,1058-1072,1153-1164,1187-1195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e23d7ec38cf32afce0f9eb11fa343a70de5d7da5",
+  "prompts": {},
+  "sessions": {
+    "s_80925b41a3405c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c62b8d0-62fd-42e9-a702-3972929b0e26",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
