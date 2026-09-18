@@ -20,6 +20,7 @@ import unittest
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,10 +31,11 @@ from src.clients.iac.models.job_status import JobStatus
 from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
 from src.domains.services.tracer_service import TracerService
+from src.infrastructure.terraform import backend as backend_module
 from src.infrastructure.terraform import terraform as tv
 from src.infrastructure.terraform.backend import TerraformBackend
-from src.shared.config.system_config import IacServiceConfig
-from src.shared.constants import TerraformProvider
+from src.shared.config.system_config import IacServiceConfig, StorageConfig
+from src.shared.constants import ObjectStorageProvider, TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -42,6 +44,8 @@ SESSION_PLAN_FILENAME = "session.plan"
 
 SCOPE_ID = "sub-uuid-1234"
 TERRAFORM_PROVIDER = TerraformProvider.AZURE
+
+STATE_BUCKET = "nebula-terraform-state"
 
 
 NO_CHANGES_PLAN_JSON = json.dumps({"format_version": "1.2", "resource_changes": []})
@@ -100,7 +104,6 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(tracer_patcher.stop)
 
         self.backend = MagicMock(spec=TerraformBackend)
-        self.backend.apply.return_value = True
         self.terraform = tv.Terraform(
             workspace_path=Path("/workspaces/demo"),
             scope_id=SCOPE_ID,
@@ -108,7 +111,13 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
             backend=self.backend,
         )
 
-    def _use_config(self, **overrides) -> IacServiceConfig:
+    def _use_config(self, *, state_bucket: str = "", **overrides) -> IacServiceConfig:
+        """Patch the module's system_config for one test.
+
+        ``state_bucket`` defaults to "" — managed state off, so
+        ``__ensure_init`` writes no backend override and the injected
+        backend double is never touched.
+        """
         cfg = IacServiceConfig(
             endpoint="http://iac.test:8082",
             token_env="",
@@ -122,6 +131,7 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 services=SimpleNamespace(iac=cfg),
                 paths=SimpleNamespace(session_plan_filename=SESSION_PLAN_FILENAME),
+                storage=SimpleNamespace(state_bucket=state_bucket),
             ),
         )
         patcher.start()
@@ -188,6 +198,41 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         return submit_mocks, poll_mock
 
 
+class TestManagedState(_TerraformTestCase):
+    async def test_a_state_bucket_writes_the_override_before_init(self):
+        """With managed state on, `init` finds a `backend_override.tf`
+        addressing Nebula's own store in the workspace."""
+        temp = TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        workspace = Path(temp.name)
+        storage = StorageConfig(
+            provider=ObjectStorageProvider.RUSTFS,
+            terraform_state_bucket=STATE_BUCKET,
+            endpoint_url="http://object-storage:9000",
+        )
+        # The backend reads the storage config once, at construction.
+        with patch.object(
+            backend_module, "system_config", SimpleNamespace(storage=storage)
+        ):
+            backend = TerraformBackend("c" * 64)
+        terraform = tv.Terraform(
+            workspace_path=workspace,
+            scope_id=SCOPE_ID,
+            terraform_provider=TERRAFORM_PROVIDER,
+            backend=backend,
+        )
+        self._use_config(state_bucket=STATE_BUCKET)
+        self._patch_ops(init=_ok(), validate=_ok(), plan=_ok(stdout="plan output"))
+
+        dto = await terraform.validate(targets=[], get_drift=False)
+
+        self.assertTrue(dto.validation)
+        override = workspace / TerraformBackend._OVERRIDE_FILENAME
+        rendered = override.read_text(encoding="utf-8")
+        self.assertIn(f'bucket = "{STATE_BUCKET}"', rendered)
+        self.assertIn(f'key    = "{"c" * 64}/terraform.tfstate"', rendered)
+
+
 class TestTerraformValidate(_TerraformTestCase):
     async def test_all_ops_succeed_without_drift(self):
         self._use_config()
@@ -207,8 +252,9 @@ class TestTerraformValidate(_TerraformTestCase):
 
         init_body = submit_mocks["init"].await_args.kwargs["body"]
         self.assertEqual(init_body.workspace_path, "/workspaces/demo")
-        # The state backend lands in the workspace before init reads it.
-        self.backend.apply.assert_called_once_with(Path("/workspaces/demo"))
+        # Managed state is off in the shared stub, so the workspace keeps
+        # the backend its own configuration declares.
+        self.backend.apply.assert_not_called()
         plan_body = submit_mocks["plan"].await_args.kwargs["body"]
         self.assertEqual(plan_body.targets, ["module.db"])
 

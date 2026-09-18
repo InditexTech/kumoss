@@ -16,11 +16,11 @@ Related guides: [Environment variables and secrets](environment-variables.md), [
 
 - The core Dockerfile copies the repository's `config.yaml` to `/etc/nebula/config.yaml` **at image build time**. The file is baked into the image. Editing it on the host does nothing until you run `docker compose build core` and restart the container. `docker compose watch` syncs only `core/`, not the configuration.
 - The `NEBULA_CONFIG` environment variable overrides the path. The path is interpreted **inside the container**, and the file must actually be present there (for example through a bind mount or a mounted secret). If the path is missing, or is a directory (which is what Docker creates when you bind-mount a non-existent host file), the core silently falls back to the built-in defaults.
-- Every field has a default in code, so the core can boot with no configuration file at all. Note that the built-in default disables **every** sidecar, including the IaC sidecar; the shipped `config.yaml` is what enables it.
-- Validation runs once at startup. A validation error aborts the boot with a `ConfigError` message quoted in the tables below.
+- Every field has a default in code, so the core can boot with no configuration file at all. Note that the built-in default disables **every optional** sidecar (`notifications`, `mapping`, `authz`). The IaC sidecar has no `enabled` flag and is always called: its own code defaults are `endpoint: "http://iac:8082"` and `token_env: "NEBULA_IAC_TOKEN"`, independent of whether a `config.yaml` is loaded at all.
+- Validation runs once at startup. A validation error aborts the boot with a message containing the `ConfigError` text quoted in the tables below; only the **first** failing configuration section is reported, so fixing one error can reveal another on the next boot attempt.
 - **Secrets never belong in `config.yaml`.** Fields whose name ends in `_env` hold the *name* of an environment variable; the value is read from the environment at boot or at use time.
 
-Changing any field therefore means: edit `config.yaml`, rebuild the core image, restart. "Requires rebuild" in the tables below always refers to that sequence.
+Changing any field therefore means: edit `config.yaml`, rebuild the core image, restart. "Requires rebuild" in the tables below always refers to that sequence. If you instead mount the file at the path in `NEBULA_CONFIG`, the equivalent is: update the mounted file and restart the core — no image rebuild needed, because the container reads the file from disk at startup rather than from the baked-in copy.
 
 ## Requirement summary
 
@@ -73,8 +73,8 @@ Common fields, available under `services.notifications`, `services.mapping`, `se
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
 | `services.<name>.enabled` (not for `iac`) | boolean | `false` | `false` for `notifications`, `mapping`, `authz` | Optional | Whether the core calls the sidecar. A disabled sidecar is never contacted: mapping is done locally, notifications are dropped, authorization answers "authorized". Compose still starts the container. An `enabled` key under `services.iac` is ignored. |
-| `services.<name>.endpoint` | string (base URL) | `""` | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled; always for `iac`) | Base URL the core calls, resolvable from inside the core container. |
-| `services.<name>.token_env` | string (variable name) | `""` | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional (always for `iac`) | Name of the environment variable holding the bearer token sent on every call. **A sidecar the core will call whose variable resolves to an empty value aborts the boot** with `Services the core calls have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars; the optional sidecars can also be flipped to enabled: false (services.iac cannot — it is mandatory).` |
+| `services.<name>.endpoint` | string (base URL) | `""` for `notifications`, `mapping`, `authz`; **`http://iac:8082`** for `iac` (its own code default, not just the shipped value) | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled; always for `iac`) | Base URL the core calls, resolvable from inside the core container. |
+| `services.<name>.token_env` | string (variable name) | `""` for `notifications`, `mapping`, `authz`; **`NEBULA_IAC_TOKEN`** for `iac` (its own code default) | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional (always for `iac`) | Name of the environment variable holding the bearer token sent on every call. **A sidecar the core will call whose variable resolves to an empty value aborts the boot** with `Services the core calls have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars; the optional sidecars can also be flipped to enabled: false (services.iac cannot — it is mandatory).` |
 | `services.<name>.timeout` | float (seconds) | `30.0` | `30.0` | Optional | Per-request HTTP budget. Every sidecar call returns promptly (long work runs as jobs the core polls), so this covers one round trip only. Honoured by the IaC and notifications clients; the mapping and authorization clients currently use fixed budgets of 10 and 15 seconds and ignore this field. |
 
 Fields specific to the IaC sidecar:
@@ -99,7 +99,7 @@ Iteration limits and behaviour switches for the core's agent loops. Raise the li
 | `orchestration.max_drift_reports` | integer | `3` | `3` | Optional | Maximum detect-and-remediate iterations in a drift session. |
 | `orchestration.max_validation_iteration` | integer | `5` | `5` | Optional | Maximum generate-then-validate attempts per generation task before the round fails with `Validation loop exceeded.` |
 | `orchestration.max_tool_chain_executions` | integer | `70` | `70` | Optional | Maximum tool-call iterations inside one agent chain before it aborts. |
-| `orchestration.max_session_events_iteration` | integer | `2160` | `2160` | Optional | Number of 5-second polls a server-sent-events subscription performs before it closes (2160 is three hours). |
+| `orchestration.max_session_events_iteration` | integer | `2160` | `2160` | Optional | Number of polls a server-sent-events subscription performs before it closes. The loop sleeps 4 or 5 seconds depending on the branch taken, so 2160 iterations run for roughly three hours rather than exactly `2160 × 5s`. |
 | `orchestration.drift_group_operations` | integer | `8` | `8` | Optional | How many drift operations are grouped into one remediation task. |
 | `orchestration.pull_request_readiness_seconds` | integer | `10` | `10` | Optional | How many one-second polls the GitHub provider performs waiting for a pull request to become mergeable before failing with `readiness polling exhausted`. |
 
@@ -197,7 +197,7 @@ Object storage for generated artifacts (reports, plans, code changes) and — on
 | `storage.max_attempts` | integer | `3` | Optional | Retry count (botocore standard mode). |
 | `storage.presign_expiry_seconds` | integer in `[108000, 604800]` | `172800` (48 hours) | Optional | Lifetime of presigned download URLs. **Must stay between 108000 (30 hours) and 604800 (7 days).** The floor keeps URLs valid for longer than the 24-hour cached session detail that embeds them; the ceiling is the SigV4 limit. Boot fails with `storage.presign_expiry_seconds must be between 108000 ... and 604800 ...` otherwise. |
 
-While Nebula-managed state is on, these fields have a second consumer: `endpoint_url`, `region`, and the credential variables are rendered into the backend block that the **IaC sidecar** executes. Two consequences follow. The sidecar container must be able to reach `storage.endpoint_url` (in the Compose stack both containers sit on `bridge-network`, so `http://object-storage:9000` resolves). And when `access_key_env`/`secret_key_env` resolve empty, the backend block omits the credential lines and the engine falls back to the **sidecar's** ambient credentials — an instance profile on the core alone is not enough.
+While Nebula-managed state is on, these fields have a second consumer: `endpoint_url`, `region`, and the credential variables are rendered into the backend block that the **IaC sidecar** executes. Two consequences follow. The sidecar container must be able to reach `storage.endpoint_url` (in the Compose stack both containers sit on `bridge-network`, so `http://object-storage:9000` resolves). And unless **both** `access_key_env` and `secret_key_env` resolve to non-empty values, the backend block omits the credential lines entirely — a single one being set is not enough — and the engine falls back to the **sidecar's** ambient credentials; an instance profile on the core alone is not enough.
 
 Requires rebuild: yes. Related environment variables in `core/.env`: `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `STORAGE_ACCOUNT_KEY`.
 
@@ -230,9 +230,12 @@ oidc:
 
 services:
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
+
+orchestration:
+  enable_compliance_checker: true
+  block_on_high_impact: true
 
 llm:
   model: "anthropic/claude-sonnet-5"
@@ -286,7 +289,6 @@ services:
     endpoint: "https://authz.nebula.example.invalid"
     token_env: "NEBULA_AUTHZ_TOKEN"
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
     job_timeout: 3600.0
@@ -297,8 +299,10 @@ orchestration:
 
 # Credentials stay in core/.env under the provider's default variable
 # names (here AZURE_API_KEY, AZURE_API_BASE, AZURE_API_VERSION); no
-# model_list is needed for that. Use llm.model_list only for fallbacks,
-# load balancing, or custom credential variable names (docs/litellm.md).
+# model_list is needed for that. Use llm.model_list for load balancing
+# across entries that share a model_name, custom credential env var
+# names, or per-entry endpoints (docs/litellm.md) — there is no
+# router-level fallback support.
 llm:
   model: "azure/main-deployment"
   small_model: "azure/small-deployment"

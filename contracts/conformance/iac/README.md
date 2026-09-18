@@ -35,14 +35,25 @@ suite — see that directory's README for how to run it.
 
 ## What this checks
 
-- Every documented status code is reachable with at least one request
-  the contract considers valid.
-- Response bodies match the schemas declared in the OpenAPI spec.
-- Random invalid bodies don't produce undocumented 5xx.
+- Every response the implementation returns conforms to the schema
+  declared for its status code.
+- Response bodies match the schemas declared in the OpenAPI spec,
+  including for randomly generated invalid request bodies.
 
 ## What this does NOT check
 
-- That the terraform commands the jobs run actually produce accurate
+- That 5xx responses are absent. The default `not_a_server_error` check
+  is excluded, because the contract documents 5xx statuses; their
+  bodies are still validated like any other response.
+- That the engine commands the jobs run actually produce accurate
   output for your modules.
 - Cloud-provider authentication semantics.
 - Performance or concurrent-request behavior.
+
+## Known deviation of the bundled reference
+
+The bundled reference implementation answers `501 Not Implemented` on
+the `/v1/import`, `/v1/import/state-resource-ids` and
+`/v1/import/scope-resource-ids` operations. The contract does not list
+`501` for them, so those three operations are **expected to fail this
+suite** when it is run against the bundled image.

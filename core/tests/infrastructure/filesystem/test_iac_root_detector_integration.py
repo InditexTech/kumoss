@@ -16,7 +16,17 @@ from pathlib import Path
 
 from src.infrastructure.filesystem.iac_root_detector import IacRootDetector
 
-_GIT = ["git", "-c", "user.email=test@test", "-c", "user.name=test"]
+# `commit.gpgsign=false` keeps the fixture independent of a
+# contributor's global signing config (no TTY here to sign with).
+_GIT = [
+    "git",
+    "-c",
+    "user.email=test@test",
+    "-c",
+    "user.name=test",
+    "-c",
+    "commit.gpgsign=false",
+]
 
 
 def _init_fixture_repo(tmp: Path) -> str:

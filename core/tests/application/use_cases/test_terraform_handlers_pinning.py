@@ -64,6 +64,11 @@ class _HandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.workspace_svc = MagicMock()
         self.ctx = MagicMock()
         self.ctx.call_dir = Path("/workspaces/sid/call-id")
+        # The drift round json.dumps() the serialized history into the
+        # report content, so this one has to be real data.
+        self.ctx.history.serialize.return_value = [
+            {"user": "check drift", "assistant": "done"}
+        ]
 
 
 class _CrudHandlerTestCase(_HandlerTestCase):

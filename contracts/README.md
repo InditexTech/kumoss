@@ -28,6 +28,8 @@ never imports a service implementation directly.
 - Auth: `Authorization: Bearer <token>`; the token type is documented
   per endpoint in the spec.
 - Versioning: semver on the contract. Two majors may run in parallel
-  during a deprecation window.
+  during a deprecation window. All four contracts are currently at
+  `1.0.0`; a version table will be added here on the first breaking
+  change.
 - CI checks (forthcoming): `spectral lint` on every PR that touches
   `openapi/`; `oasdiff` to detect unintentional breaking changes.

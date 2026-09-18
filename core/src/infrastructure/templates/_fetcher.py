@@ -48,7 +48,9 @@ class _PromptFetcher:
             )
 
 
-# singleton for caching prompts across different sessions
+# module-level singleton: one shared Phoenix client for every session.
+# Prompts themselves are not cached — each fetch hits Phoenix, so a
+# re-tagged prompt takes effect without restarting the core.
 remote_fetcher = _PromptFetcher()
 
 if __name__ == "__main__":

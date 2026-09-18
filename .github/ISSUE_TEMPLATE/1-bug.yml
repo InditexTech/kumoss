@@ -38,7 +38,7 @@ body:
     id: version
     attributes:
       label: Version / Environment
-      placeholder: "e.g. v0.3.2, Node 18, macOS"
+      placeholder: "e.g. commit SHA or image tag, 881a044, macOS"
     validations:
       required: false
 

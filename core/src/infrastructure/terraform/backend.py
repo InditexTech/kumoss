@@ -8,7 +8,7 @@ This renders a ``backend_override.tf`` addressing that same store, into
 the workspace, before `init` runs:
 
 Terraform merges ``*_override.tf`` over the rest of the configuration and
-it is gitirnored.
+it is gitignored.
 
 Static credentials are embedded when the configuration carries them and
 omitted when it does not, leaving the engine to resolve them the way any
@@ -46,10 +46,12 @@ class TerraformBackend:
     def apply(self, workspace_path: Path) -> None:
         """Write the override into ``workspace_path``.
 
-        False when nothing was written — state is unmanaged, or the
-        write failed. A failed write is logged rather than raised: the
-        run then uses the workspace's own backend, which `init` reports
-        on far more legibly than an exception here would.
+        Callers decide whether state is managed at all (an empty
+        ``storage.state_bucket`` means they never get here); this
+        always writes. A failed write raises
+        ``TerraformBackendError``: the run would otherwise silently
+        fall back to the workspace's own backend and put the state
+        somewhere nobody is tracking.
         """
         content = self.__render()
         override = workspace_path / self._OVERRIDE_FILENAME
@@ -63,8 +65,12 @@ class TerraformBackend:
             + f"bucket={self.__storage.state_bucket} key={self.state_key}"
         )
 
-    def __render(self) -> str | None:
-        """The override file's contents, or None when state is unmanaged."""
+    def __render(self) -> str:
+        """The override file's contents for the configured provider.
+
+        Always a rendering: an unsupported provider raises
+        ``NotImplementedError`` rather than returning nothing.
+        """
         cfg = self.__storage
         match cfg.provider:
             case ObjectStorageProvider.RUSTFS:

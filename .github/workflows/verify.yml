@@ -40,6 +40,35 @@ jobs:
       - name: Build
         run: npm run build
 
+  core:
+    name: core
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    env:
+      ANTHROPIC_API_KEY: placeholder
+      NEBULA_SQL_DATABASE_URL: postgresql://u:p@localhost/db
+      NEBULA_IAC_TOKEN: placeholder
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: core/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Tests (DB-free suites)
+        run: >
+          uv run --with pytest --with pytest-asyncio python -m pytest --asyncio-mode=auto
+          tests/shared tests/infrastructure/auth tests/infrastructure/llm
+          tests/infrastructure/telemetry tests/infrastructure/templates
+
   services:
     name: services/${{ matrix.service }}
     runs-on: ubuntu-latest

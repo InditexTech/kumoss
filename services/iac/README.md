@@ -15,10 +15,11 @@ docker-compose shared volume, as **asynchronous jobs**. Every POST enqueues exac
 one command and returns `202 Accepted` with a `job_id` immediately;
 clients poll `GET /v1/jobs/{job_id}` for the raw
 `{exit_code, stdout, stderr}` result. Sequencing commands and
-interpreting their output is the caller's job (the core's
-`TerraformValidator` owns the init → validate → plan → show pipeline
-and drift parsing). Jobs targeting the same workspace run one at a
-time in submission (FIFO) order.
+interpreting their output is the caller's job (the core's `Terraform`
+adapter, `core/src/infrastructure/terraform/terraform.py`, owns the
+init → validate → plan → show pipeline and drift parsing). Jobs
+targeting the same workspace run one at a time in submission (FIFO)
+order.
 
 ## What it does
 
@@ -32,7 +33,10 @@ subcommands against that binary instead (e.g. `terraform init`).
   optional `-target=` filters.
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
-- `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
+- `POST /v1/apply` — enqueues
+  `tofu apply -no-color -input=false -auto-approve <plan_file>`; the
+  plan file is applied non-interactively, so `-auto-approve` is always
+  passed.
 - `POST /v1/import`, `POST /v1/import/state-resource-ids` and
   `POST /v1/import/scope-resource-ids` — **not implemented**. They
   answer `501` with a `Problem` body without inspecting the request
@@ -44,9 +48,12 @@ subcommands against that binary instead (e.g. `terraform init`).
   `failed` with a `Problem` in `error`. Terminal jobs are kept in
   memory for `Config.job_ttl` seconds (1 hour), then poll as 404 (as
   after a restart).
-- `GET /healthz` — liveness probe.
-- Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
-  set.
+- `GET /healthz` — liveness probe (unauthenticated).
+- Bearer-token auth, when `NEBULA_IAC_TOKEN` is set, on the five
+  job-submitting endpoints (`init`, `validate`, `plan`, `show`,
+  `apply`) and on the job-polling endpoint `GET /v1/jobs/{job_id}`.
+  The three `/v1/import*` routes carry no auth dependency and answer
+  `501` before any token is looked at.
 
 ## Scope injection
 
@@ -109,8 +116,12 @@ backend configuration file — `.hcl` or `.tfbackend`, mounted in — and
 still coming from the workspace's own `terraform { backend }` block.
 The service checks at startup that the path is a readable file and
 refuses to boot if it is not, for the same reason the engine binary is
-checked there. Note that a `backend_override.tf` in the workspace wins
-over the values in this file: the two are alternatives, not layers.
+checked there. Note the precedence: the values in this file win over a
+`backend_override.tf` in the workspace, which in turn wins over the
+repository's own `terraform { backend }` block. Keys absent from a
+higher layer fall through, so combining this file with a caller-written
+override merges the two instead of picking one — treat them as
+alternatives.
 
 **Reinitialization.** `init` always runs `-reconfigure`, so a workspace
 whose backend changed between calls is rebound to the new one instead
@@ -132,7 +143,7 @@ locking, credentials, and troubleshooting — is
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `IAC_BACKEND_CONFIG`                          | no       | Path (inside this container) to a backend configuration file `init` passes to `-backend-config`. Unset, the backend comes from the workspace itself. See "State backend". |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
+| Provider creds: `ARM_*` (Azure), `GOOGLE_*` (GCP), `AWS_*` (AWS), `OCI_*` / `TF_VAR_*` (OCI), `KUBE_*` (Kubernetes) | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
 
 Everything else is a property of the service, not of a deployment, and
 lives in [`src/config.py`](src/config.py): `job_ttl` (how long a
@@ -211,22 +222,82 @@ user. Override the two build args together or not at all.
   `GOOGLE_APPLICATION_CREDENTIALS` path points at) must be readable by
   uid `10001`.
 
+## Security notes
+
+The service is deliberately thin, which pushes several properties onto
+the deployment. All of these are true of the bundled reference
+implementation as checked in:
+
+- **The engine subprocess inherits the entire container environment.**
+  `_run` builds the child environment as `{**os.environ, **env}`
+  ([`src/engine.py:130`](src/engine.py)) with no allowlist, so every
+  variable the container holds — including `NEBULA_IAC_TOKEN` — is
+  visible to provider plugins and to any `external` data source or
+  `local-exec` provisioner in the code being executed. Keep only what
+  the engine needs in `services/iac/.env`.
+- **The per-request scope overwrites ambient configuration.**
+  `ARM_SUBSCRIPTION_ID` (Azure) and `GOOGLE_PROJECT` (GCP) set on the
+  container are replaced for the duration of each `init`, `plan` and
+  `apply` with the request's `scope_id`
+  ([`src/engine.py:54-76`](src/engine.py)). The caller, not the
+  deployment, therefore chooses the subscription or project for those
+  two clouds.
+- **There is no engine timeout.** `_run` awaits
+  `proc.communicate()` unconditionally, and the job registry imposes no
+  deadline, so a hung `plan` or `apply` occupies its workspace queue
+  until the process exits or the container is restarted.
+- **`workspace_path` may be any existing directory in the container.**
+  The only validation is "is this an existing directory"
+  ([`src/main.py:147-161`](src/main.py)) — there is no root prefix or
+  traversal check. Anyone who can submit a job can run the engine
+  against any readable path, so the sidecar must be reachable **only**
+  by the core, on a private network, with `NEBULA_IAC_TOKEN` set.
+- **There is no provider plugin cache.** Every `init` downloads the
+  providers it needs into the workspace's `.terraform/`, which costs
+  time and registry egress on every call. Operators who want a shared
+  cache can set `TF_PLUGIN_CACHE_DIR` to a writable directory under the
+  image's `HOME` (`/home/nebula`) and keep it on a volume; nothing in
+  the repository does this today.
+- **The checked-in `docker-compose.yml` applies no container
+  hardening** to this service: no `cap_drop`, no `read_only` root
+  filesystem, no CPU or memory limits. The image's unprivileged user is
+  the only mitigation in the box.
+
+For production expectations see
+[IaC (mandatory)](../../docs/getting-started-production.md#iac-mandatory)
+and the
+[hardening checklist](../../docs/getting-started-production.md#16-hardening-checklist).
+
 ## Run locally
+
+Outside the image you supply the engine yourself: `Config` resolves
+`IAC_BINARY` through `shutil.which` at startup and raises `ConfigError`
+— the service refuses to start — if the binary is not on `PATH` (or not
+an absolute path to one).
 
 ```bash
 cd services/iac
 uv sync
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
+IAC_BINARY=$(command -v tofu || command -v terraform) \
+  uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 ```
 
 ```bash
 job_id=$(curl -s -X POST http://localhost:8082/v1/init \
   -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $NEBULA_IAC_TOKEN" \
   -d '{"workspace_path":"/path/to/your/iac/dir",
        "scope_id":"00000000-0000-0000-0000-000000000000",
        "terraform_provider":"azure"}' | jq -r .job_id)
-curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
+curl -H "Authorization: Bearer $NEBULA_IAC_TOKEN" \
+  http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 ```
+
+The `Authorization` header is only needed when `NEBULA_IAC_TOKEN` is
+set; with it unset the service accepts any (or no) token.
+`workspace_path` is resolved inside the service's own filesystem and
+must already be an existing directory there — otherwise the POST
+answers `404` synchronously and no job is enqueued.
 
 ## Tests
 

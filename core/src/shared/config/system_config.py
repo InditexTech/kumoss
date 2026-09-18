@@ -116,11 +116,14 @@ class LlmConfig(BaseModel):
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
-    format (fallbacks, load balancing, custom credential env var names
-    via ``os.environ/VAR_NAME``).  When non-empty it is passed to the
-    Router verbatim, ``model`` / ``small_model`` must match its
-    ``model_name`` entries, and boot validation runs against the listed
-    entries instead of the two role models.
+    format, for entries the two role strings cannot express: custom
+    credential env var names (``os.environ/VAR_NAME``), a custom
+    ``api_base``, or other per-entry ``litellm_params``.  When
+    non-empty it is handed to ``Router(model_list=...)`` verbatim and
+    nothing else is configured on the router, ``model`` /
+    ``small_model`` must match its ``model_name`` entries, and boot
+    validation runs against the listed entries instead of the two role
+    models.
 
     Refer to https://docs.litellm.ai/docs/providers for provider-specific
     credential keys and to https://models.litellm.ai/ for model IDs.
@@ -210,10 +213,11 @@ class IacServiceConfig(ServiceEndpointConfig):
     every ``job_poll_interval`` seconds until the job is terminal.
     ``job_timeout`` bounds the total wait for one job — it must cover
     both the FIFO queue wait (jobs on the same workspace run one at a
-    time) and the command itself, so keep it above the service's own
-    subprocess budget (2700s in the reference deployment). A validation
-    run submits several jobs in sequence (init, validate, plan, and
-    show when drift is requested), each with its own ``job_timeout``.
+    time) and the command itself. The reference service applies no
+    timeout of its own to the engine subprocess, so ``job_timeout`` is
+    the only bound on a running command. A validation run submits
+    several jobs in sequence (init, validate, plan, and show when
+    drift is requested), each with its own ``job_timeout``.
     """
 
     endpoint: str = "http://iac:8082"

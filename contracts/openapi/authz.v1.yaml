@@ -6,32 +6,37 @@ openapi: 3.1.0
 info:
   title: Nebula Authorization Service
   version: "1.0.0"
-  summary: User identity, role membership, and per-resource access decisions.
+  summary: Per-resource access decisions, with an optional role store.
   description: |
-    The authorization service answers two questions for the rest of Nebula:
+    The authorization service answers one question for Nebula's core:
+    *is this user allowed to operate on this cloud project?*
 
-    1. *Who is this user, and what roles do they have?* Used by the core
-       to gate the admin panel and to attribute actions in audit logs.
-       Identity is asserted by the caller (the core) via `X-User-Id` and
-       optional `X-User-Email` headers — the OIDC-token-validation step
-       lives in the core, not here, so the contract makes no assumption
-       about the upstream identity provider.
+    **What the core actually calls.** Only `POST /v1/check`, and only
+    from its own `POST /v1/auth/authorize` endpoint — the preflight the
+    web wizard runs before a user starts a session against a cloud
+    project. The caller identifies the user with the `user_id` member of
+    the request body; it sends no `X-User-Id` or `X-User-Email` headers.
+    OIDC token validation happens in the core, not here, so the contract
+    makes no assumption about the upstream identity provider.
 
-    2. *Is this user allowed to operate on this cloud resource?* Used by
-       the core when handling generation/drift/import requests, before
-       running terraform against a live project.
+    **Roles are not read from this service.** Nebula's operation roles
+    (`developer`, `devops`) and admin-panel roles (`viewer`, `editor`,
+    `admin`) live in the core's own database and gate its routes there.
+    The `/v1/users` and `/v1/roles` operations in this contract exist for
+    implementations that want to keep their own user and role store
+    alongside the access check; the core does not consult them.
 
     The OSS reference implementation under `services/authz/` is
-    intentionally permissive: `/v1/check` returns true if the service's
-    own cloud Service Principal can resolve the resource (Azure resource
-    group / GCP project), or unconditionally true when no cloud creds
-    are configured. Roles are stored in a JSON file on a volume; a
-    default root admin can be bootstrapped via env var.
+    intentionally permissive: `/v1/check` ignores the request entirely
+    and answers from the `NEBULA_AUTHZ_PERMISSIVE` environment variable
+    — `true` (the default) authorizes everything, anything else denies
+    everything. Neither branch implements a policy. Roles are stored in
+    a JSON file; a default root admin can be bootstrapped via env var.
 
     Enterprise implementations replace the body of `/v1/check` with their
-    real authorization logic (Azure AD groups, internal CMDB-driven
-    policies, etc.) and back the role store with whatever directory
-    service they use.
+    real authorization logic (Entra ID groups, internal CMDB-driven
+    policies, etc.) and back the role store, if they keep one, with
+    whatever directory service they use.
   contact:
     name: Nebula maintainers
     url: https://github.com/InditexTech/nebula
@@ -45,13 +50,21 @@ servers:
 
 tags:
   - name: check
-    description: Per-resource access decisions.
+    description: |
+      Per-resource access decisions. The only operation Nebula's core
+      calls.
   - name: users
-    description: User identity and role queries.
+    description: |
+      User identity and role queries, for implementations that keep
+      their own store. Not consulted by Nebula's core, whose roles live
+      in its own database.
   - name: roles
-    description: Role catalogue and admin role-management endpoints.
+    description: |
+      Role catalogue and admin role-management endpoints, for
+      implementations that keep their own store. Not consulted by
+      Nebula's core.
   - name: ops
-    description: Operational endpoints (liveness, readiness).
+    description: Operational endpoints (liveness, `/healthz`).
 
 paths:
   /v1/check:
@@ -61,9 +74,11 @@ paths:
       summary: Decide whether a user may operate on a resource.
       description: |
         Returns whether the identified user is permitted to operate on
-        the named cloud resource. The OSS reference impl ignores the
-        user dimension and answers based on whether the service's own
-        Service Principal can resolve the resource.
+        the named cloud resource. The bundled reference implementation
+        decides nothing: it returns the value of
+        `NEBULA_AUTHZ_PERMISSIVE` (default `true`) unconditionally. A
+        real implementation should resolve the project against its own
+        policy source.
       security:
         - bearerAuth: []
       requestBody:

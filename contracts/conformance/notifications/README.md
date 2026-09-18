@@ -36,14 +36,16 @@ test suite — see that directory's README for how to run it.
 
 ## What this checks
 
-- Every documented status code is reachable with at least one request
-  the contract considers valid.
-- Response bodies match the schemas declared in the OpenAPI spec.
-- Random invalid bodies don't produce 5xx (i.e., request validation
-  happens before processing).
+- Every response the implementation returns conforms to the schema
+  declared for its status code.
+- Response bodies match the schemas declared in the OpenAPI spec,
+  including for randomly generated invalid request bodies.
 
 ## What this does NOT check
 
+- That 5xx responses are absent. The default `not_a_server_error` check
+  is excluded, because the contract documents 5xx statuses; their
+  bodies are still validated like any other response.
 - Side effects — the suite verifies the contract surface, not that a
   notification was actually delivered.
 - Authorization semantics beyond "bearer token is honored or

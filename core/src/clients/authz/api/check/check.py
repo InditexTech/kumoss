@@ -88,9 +88,11 @@ def sync_detailed(
     """Decide whether a user may operate on a resource.
 
      Returns whether the identified user is permitted to operate on
-    the named cloud resource. The OSS reference impl ignores the
-    user dimension and answers based on whether the service's own
-    Service Principal can resolve the resource.
+    the named cloud resource. The bundled reference implementation
+    decides nothing: it returns the value of
+    `NEBULA_AUTHZ_PERMISSIVE` (default `true`) unconditionally. A
+    real implementation should resolve the project against its own
+    policy source.
 
     Args:
         body (CheckRequest):
@@ -122,9 +124,11 @@ def sync(
     """Decide whether a user may operate on a resource.
 
      Returns whether the identified user is permitted to operate on
-    the named cloud resource. The OSS reference impl ignores the
-    user dimension and answers based on whether the service's own
-    Service Principal can resolve the resource.
+    the named cloud resource. The bundled reference implementation
+    decides nothing: it returns the value of
+    `NEBULA_AUTHZ_PERMISSIVE` (default `true`) unconditionally. A
+    real implementation should resolve the project against its own
+    policy source.
 
     Args:
         body (CheckRequest):
@@ -151,9 +155,11 @@ async def asyncio_detailed(
     """Decide whether a user may operate on a resource.
 
      Returns whether the identified user is permitted to operate on
-    the named cloud resource. The OSS reference impl ignores the
-    user dimension and answers based on whether the service's own
-    Service Principal can resolve the resource.
+    the named cloud resource. The bundled reference implementation
+    decides nothing: it returns the value of
+    `NEBULA_AUTHZ_PERMISSIVE` (default `true`) unconditionally. A
+    real implementation should resolve the project against its own
+    policy source.
 
     Args:
         body (CheckRequest):
@@ -183,9 +189,11 @@ async def asyncio(
     """Decide whether a user may operate on a resource.
 
      Returns whether the identified user is permitted to operate on
-    the named cloud resource. The OSS reference impl ignores the
-    user dimension and answers based on whether the service's own
-    Service Principal can resolve the resource.
+    the named cloud resource. The bundled reference implementation
+    decides nothing: it returns the value of
+    `NEBULA_AUTHZ_PERMISSIVE` (default `true`) unconditionally. A
+    real implementation should resolve the project against its own
+    policy source.
 
     Args:
         body (CheckRequest):

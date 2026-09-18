@@ -34,7 +34,7 @@ from typing import Any
 # Roles available out of the box. Implementations MAY extend this set.
 KNOWN_ROLES: dict[str, str] = {
     "admin": "Full administrative access (manage users and roles, run any operation).",
-    "user": "Standard authenticated user. May invoke generation/drift/import.",
+    "user": "Baseline role in this service's own store; Nebula's IaC permissions are managed by the core.",
 }
 
 _lock = threading.Lock()

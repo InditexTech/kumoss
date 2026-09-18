@@ -32,7 +32,7 @@ core/prompts/seed/<scope>/<type>/<name>.yaml
 - `<type>` is one of `guidelines`, `resources`, `compliance`.
 - `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits, underscores).
 
-The loader rejects any other depth, scope, type, or name at startup with a `PromptSeedLoadError`, for example `Invalid prompt name 'Bad-Name' in ...; must match ^[a-z0-9_]+$`.
+The loader rejects any other depth, scope, type, or name at startup with a `PromptSeedLoadError`, for example `Invalid prompt name 'Bad-Name' in ...; must match ^[a-z0-9_]+$`. That check only applies to files it actually loads: the loader globs `*.yaml` only, so a `.yml` file, or any other extension, is silently skipped rather than rejected — a typo in the extension produces no error at all, just a missing prompt.
 
 ### Qualified name
 
@@ -66,7 +66,7 @@ Each seed is a YAML mapping with two keys:
 | `body` | yes | non-empty string | The prompt text, usually Markdown. Stored as a single user message in Phoenix. |
 | `description` | no | string | Shown in the Phoenix UI next to the prompt. |
 
-Every shipped seed provides both keys and starts with the repository's SPDX comment header.
+Every shipped seed provides both keys and starts with the repository's SPDX comment header. The loader reads `body` and `description` and ignores everything else in the mapping — an extra key is neither rejected nor surfaced anywhere; it is simply dead weight in the file.
 
 ## How seeding works
 
@@ -161,7 +161,7 @@ For a generate or drift round the core builds the conventions in two model passe
 
 The layouts also carry fixed content that is not in Phoenix: the agent's role, the tools it may call, output format rules, and the working directory. Those change only with a core rebuild.
 
-**Discovery depends on `resources_list`.** Nothing enumerates the `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can only pick names that appear in `resources_list`, and every name it picks is then fetched, so a name listed there without a matching resource prompt aborts the run.
+**Discovery depends on `resources_list`.** Nothing enumerates the `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can only pick names that appear in `resources_list`, and every name it picks is then fetched, so a name listed there without a matching resource prompt aborts the run. The reverse is just as important: **a resource prompt that exists but is not named in the cloud's `resources_list` is never selected** — the compositor has no other way to discover it, and the loader does no cross-check between the seed files on disk and the `resources_list` catalogue at startup. Whenever you add a resource seed, add its name to `resources_list` in the same change, for every cloud you edit. The Azure `resources_list` now names all 16 shipped Azure resource seeds; keep it that way as you add more.
 
 ## Examples
 
@@ -189,28 +189,31 @@ body: |
 
 ### A resource (component) seed
 
-File `core/prompts/seed/aws/resources/sqs_queue.yaml`, producing `aws-resources-sqs_queue`:
+File `core/prompts/seed/aws/resources/s3_bucket.yaml` (shipped; body shortened here for space — see the file for the full text), producing `aws-resources-s3_bucket`:
 
 ```yaml
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS SQS queue default configuration (encryption, dead-letter queue, retention).
+description: AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).
 body: |
-  # AWS SQS Queue
+  # AWS S3 Bucket
 
-  For an SQS queue, unless explicitly requested otherwise:
+  For an S3 Bucket, unless explicitly requested otherwise, use the
+  following default configuration:
 
-  - Naming convention: `<project>-<purpose>-<environment>`.
-  - Enable server-side encryption with an AWS-managed KMS key.
-  - Attach a dead-letter queue with `maxReceiveCount` of 5.
-  - Set message retention to 4 days.
+  - Naming convention: `<project>-<purpose>-<environment>`. Bucket
+    names are globally unique, lowercase, 3-63 characters.
+  - Versioning must be enabled.
+  - Server-side encryption must use aws:kms with bucket key enabled.
+  - Block Public Access must be fully enabled unless the request
+    explicitly requires a public bucket.
 ```
 
 ### The matching `resources_list` entry
 
-The compositor can only select `sqs_queue` once it appears in `core/prompts/seed/aws/guidelines/resources_list.yaml` (`aws-guidelines-resources_list`). The shipped file is a bulleted catalogue; add one line in the same style:
+The compositor can only select `s3_bucket` because it appears in `core/prompts/seed/aws/guidelines/resources_list.yaml` (`aws-guidelines-resources_list`). The shipped file is a bulleted catalogue; a new resource prompt needs one more line in the same style, for example a hypothetical `sqs_queue` resource that does not ship today:
 
 ```yaml
 description: Names of aws-resources-* prompts the compositor may select from.
@@ -223,7 +226,9 @@ body: |
   ...
 ```
 
-The name in backticks must equal the `<name>` part of the resource prompt exactly.
+The name in backticks must equal the `<name>` part of the resource prompt exactly, and it must exist on both sides: a resource prompt with no `resources_list` entry is never selected, and a `resources_list` entry with no matching resource prompt aborts the run when picked.
+
+**List style is not uniform across clouds.** AWS, Azure, GCP, and OCI name entries in backticks with a trailing description, as above; the Kubernetes `resources_list` uses plain bullets with no backticks at all (` - namespace`, ` - deployment`, and so on). There is no enforced format — the compositor only needs the bare name to appear somewhere in the body. When you edit a `resources_list`, follow the style already used in that specific file rather than copying another cloud's convention.
 
 ### Adding a new component prompt to a fresh deployment
 

@@ -36,7 +36,8 @@ The seeded `.gitignore` excludes `*.tfstate`, `*.tfstate.*`, and `*_override.tf`
 
 **The shipped `config.yaml` sets `storage.terraform_state_bucket:`, so Nebula configures no backend at all.** The backend is yours to provide: every repository Nebula operates on must declare its own remote backend, and the IaC sidecar must hold the credentials to reach it. A repository with no backend block falls back to local state, which is lost with the workspace.
 
-If you  are starting from empty state and just want somewhere for it to go **set `storage.terraform_state_bucket` to a bucket name** and Nebula takes over: it creates the bucket, writes the backend, and assigns a state key per project. The bucket is created in the provider defined in `storage.provider: "RUSTFS"` with RustFS as default.
+If you are starting from empty state and just want somewhere for it to go, **set `storage.terraform_state_bucket` to a bucket name** and Nebula takes over: it creates the bucket, writes the backend, and assigns a state key per project. When managed state is on, the core creates the bucket or container at boot in the store that `storage.provider` selects (RustFS by default).
+
 ```yaml
 # Opt in to Nebula-managed state. Nothing else to configure on RUSTFS.
 storage:
@@ -314,7 +315,7 @@ Normalization means two spellings of the same project never split into two state
 | `HTTPS://GitHub.com/Acme/Infra.git` |
 | `git@github.com:acme/infra.git` |
 
-An empty `iac_path` is a valid project — the root module is the repository root. Because all three inputs matter, a change to **any** of them is a different project and therefore a different state file.
+An empty `iac_path` is a valid project — the root module is the repository root. The path comes from the root detection described in [Operating modes](modes.md#how-nebula-finds-terraform-roots); note that the web application sends `.` for a repository whose Terraform files are at the top level, while an API call that omits `iac_path` sends an empty value, and the two are hashed as different projects. Because all three inputs matter, a change to **any** of them is a different project and therefore a different state file.
 
 
 ### Locking
@@ -323,8 +324,10 @@ State locking is enabled and is **native to the store** — Nebula provisions no
 
 | Provider | Mechanism | Notes |
 |---|---|---|
-| `RUSTFS`, `S3` | `use_lockfile = true` | The engine's S3-native lock: a `<key>.tflock` object written with a conditional put next to the state. **No DynamoDB table** is used or needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 (the bundled engines are 1.12.6 and 1.16.0) and an S3 implementation that supports conditional writes. |
+| `RUSTFS`, `S3` | `use_lockfile = true` | The engine's S3-native lock: a `<key>.tflock` object written with a conditional put next to the state. **No DynamoDB table** is used or needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 — per those engines' release notes — and an S3 implementation that supports conditional writes (the bundled engines are 1.12.6 and 1.16.0). |
 | `STORAGE_ACCOUNT` | Blob lease | Native to the `azurerm` backend and always on; no flag is rendered. |
+
+Whether RustFS honours the conditional-write semantics `use_lockfile` relies on has not been verified in this repository.
 
 ## Model 3 — sidecar-supplied backend configuration
 
@@ -368,31 +371,32 @@ This is the same fail-fast policy applied to `IAC_BINARY`: a mounting mistake is
 
 ## How core and sidecar configuration interact
 
-The two settings are **alternatives, not layers**.
+The two settings are meant as **alternatives, not layers** — but if you set both, the engine merges them rather than picking one.
 
 ```
 storage.terraform_state_bucket (core)        IAC_BACKEND_CONFIG (iac sidecar)
             │                                            │
             ▼                                            ▼
-  writes backend_override.tf                  adds -backend-config=<path>
+  writes backend_override.tf                  adds -backend-config=<file>
   into the workspace                          to the init command line
             │                                            │
-            └──────────────► Terraform merge ◄───────────┘
+            └──────────────► engine merge ◄──────────────┘
                                    │
-                   *_override.tf wins over both the
-                   repository's HCL and -backend-config values
+                   -backend-config values win over
+                   *_override.tf, which wins over the
+                   repository's own backend block
 ```
 
-Precedence, highest first: **`backend_override.tf`** written by the core (model 2), then **`-backend-config` values** from `IAC_BACKEND_CONFIG` (model 3), then **the repository's own `terraform { backend }` block** (model 1).
+Precedence, highest first: **`-backend-config` values** from `IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init` ([`services/iac/src/engine.py:87-89`](../services/iac/src/engine.py)), then the core-written **`backend_override.tf`** (model 2), then **the repository's own `terraform { backend }` block** (model 1). This was verified empirically by running `tofu init` (and `terraform init`) against a local backend with the same key set in all three layers, and reading back which value the engine bound.
 
-So setting both is a misconfiguration: the mounted file is silently ineffective for any field the override also sets. **Leave `terraform_state_bucket` blank whenever you set `IAC_BACKEND_CONFIG`** — which is what ships, so this only matters if you turned managed state on.
+Keys absent from a higher layer fall through to the next one, so **setting both model 2 and model 3 produces a partial merge, not a clean override**: for every key the mounted file declares (`bucket`, `key`, `region`, credentials) it replaces Nebula's value, and Nebula's remaining keys survive. That is worse than either model alone, because the result is a backend neither side fully describes. The common failure is the mounted file supplying a single `key`: Nebula's per-project `key = <project_id>/terraform.tfstate` is then gone and **every project shares one state object**. **Leave `terraform_state_bucket` blank whenever you set `IAC_BACKEND_CONFIG`** — which is what ships, so this only matters if you turned managed state on.
 
 | `terraform_state_bucket` | `IAC_BACKEND_CONFIG` | Effective model |
 |---|---|---|
 | blank *(shipped)* | unset *(shipped)* | **1** — repository-declared |
 | set | unset | **2** — Nebula-managed |
 | blank | set | **3** — sidecar-supplied |
-| set | set | **2** — the mounted file is overridden; misconfiguration |
+| set | set | mixed — `IAC_BACKEND_CONFIG` keys override the core's `backend_override.tf`; misconfiguration |
 
 ## Changing backend configuration
 
@@ -466,10 +470,10 @@ AWS_DEFAULT_REGION=us-east-1 \
 | `init` fails with a credentials or `AccessDenied` error, and the override contains no `access_key` | The **IaC sidecar** container has no ambient cloud credentials, or they lack access to the state bucket. | Give the sidecar the role/keys, not just the core. See [Credentials required](#credentials-required). |
 | `init` fails to dial the endpoint (`connection refused`, DNS failure) | The sidecar cannot reach `storage.endpoint_url`. | Put the sidecar on the same network as the store, or allow that egress. In Compose both must be on `bridge-network`. |
 | Every plan proposes creating resources that already exist | The project's state key changed, or state was never migrated after a backend change. | Check the logged `key=` against what is in the bucket; migrate the old state. See [Changing backend configuration](#changing-backend-configuration). |
-| `Error acquiring the state lock` | Another run holds the lock, or a crashed run left it stale. | Wait; if stale, `force-unlock` or remove the `.tflock` object / break the blob lease. |
-| Two repositories collide on one state file | Only under model 3, where a shared `-backend-config` file supplies one `key`. | Declare distinct keys per repository, or use model 2. |
+| `Error acquiring the state lock` | Another run holds the lock, or a crashed run left it stale. | Wait; if stale, run `tofu force-unlock <LOCK_ID>` (the id is printed in the lock error) in an equivalent workspace, or remove the `.tflock` object / break the blob lease. |
+| Two repositories collide on one state file | A shared `-backend-config` file supplies one `key` — under model 3, or under the mixed model 2 + model 3 case, where the mounted file's `key` overrides Nebula's per-project one. | Declare distinct keys per repository, or use model 2 alone (leave `IAC_BACKEND_CONFIG` unset). |
 | Sidecar will not start: `IAC_BACKEND_CONFIG points at ... not a readable file` | The path is wrong, the file is not mounted, or it is not readable by uid `10001`. | Fix the mount and ownership, or unset the variable. |
-| A `backend_override.tf` shows up in a pull request | The repository's own `.gitignore` predates Nebula and the merge did not take effect. | Nebula appends its template to an existing `.gitignore`; confirm `*_override.tf` is present in the branch. |
+| A `backend_override.tf` shows up in a pull request | The seeded ignore rules did not reach the workspace's effective `.gitignore`. | Nebula appends its template to an existing `.gitignore`, but the template also ignores `.gitignore` itself ([`core/src/infrastructure/filesystem/terraform.gitignore:51-52`](../core/src/infrastructure/filesystem/terraform.gitignore)), so for a repository that carried no `.gitignore` the seeded file is never committed — it only takes effect in the working copy. Check the `.gitignore` in the workspace (not the branch) and confirm `*_override.tf` is present; if the repository has no `.gitignore`, commit one that carries the rule. |
 | Session fails with a Terraform backend error before `init` runs | The core could not write `backend_override.tf` into the workspace. | Check ownership of the `workspaces` volume: it must be writable by uid/gid `10001`. A volume from a stack that ran as root needs `chown -R 10001:10001`. |
 
 ## Reference
@@ -491,7 +495,7 @@ AWS_DEFAULT_REGION=us-east-1 \
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `IAC_BACKEND_CONFIG` | unset | Path **inside the sidecar container** to a `.hcl`/`.tfbackend` backend configuration file passed to `init` as `-backend-config`. Validated readable at startup. Ineffective while Nebula-managed state is on (model 2). |
+| `IAC_BACKEND_CONFIG` | unset | Path **inside the sidecar container** to a `.hcl`/`.tfbackend` backend configuration file passed to `init` as `-backend-config`. Validated readable at startup. Overrides model 2 values key by key (the file's keys win over the core's `backend_override.tf`, the core's remaining keys survive); do not combine the two. |
 | `IAC_BINARY` | `tofu` | The engine that executes the backend. OpenTofu 1.12.6 or the bundled Terraform 1.16.0; both support `use_lockfile`. |
 
 ### Related documentation

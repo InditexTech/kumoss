@@ -39,7 +39,7 @@ to avoid duplications and unnecessary discussions.
 This will help coordinate efforts and prevent conflicts.
 - It is always advisable to discuss and gather feedback from the community before making significant changes to the
 project's structure or architecture.
-- Ensure a clean and organized commit history. Divide your changes into logical and descriptive commits. Pull requests must use the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`).
+- Ensure a clean and organized commit history. Divide your changes into logical and descriptive commits. Commit subjects must follow the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`) — signing is required by policy and checked in review, not enforced by any CI workflow.
 - Document any new changes or features you add. This will help other contributors and project users understand your work
 and its purpose.
 - Be sure to link the corresponding issue in your pull request to maintain proper tracking of contributions.
@@ -62,13 +62,13 @@ python -m pytest tests/ --asyncio-mode=auto
 
 Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
 
-**Frontend checks** (Node 20+): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
+**Frontend checks** (Node 24): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
 
-**Sidecar tests:** `cd services/<name> && uv venv && source .venv/bin/activate && uv pip install -e '.[dev]' && pytest`.
+**Sidecar tests:** `cd services/<name> && uv sync --group tooling && uv run pytest`.
 
 **Lint and format.** `pre-commit run --all-files` runs Ruff (check and format), the REUSE check, and gitleaks secret scanning; install the hooks with `pre-commit install`.
 
-**CI.** Pull requests run Repolinter, the REUSE check, and the Conventional Commits check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The core's pytest suite is not run in CI yet; run it locally.
+**CI.** Pull requests run Repolinter, the REUSE check, and the Conventional Commits check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The `Verify` workflow also runs the database-free core suites (`tests/shared tests/infrastructure/auth tests/infrastructure/llm tests/infrastructure/telemetry tests/infrastructure/templates`); suites that need PostgreSQL/Redis still run locally against the compose stack.
 
 **Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
 

@@ -3,6 +3,31 @@ SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 
 SPDX-License-Identifier: Apache-2.0
 -->
+# Full provider and backend variable reference
+
+Every environment variable each Terraform/OpenTofu provider and each
+state backend **reads**, grouped by authentication method — the complete
+surface, not the shortest working set. Reach for it when you are
+debugging an unexpected credential resolution, splitting provider from
+backend identity, or auditing what the sidecar's environment exposes. For
+the minimum list per cloud and auth method, use
+[`PROVIDERS.md`](PROVIDERS.md); for how this environment reaches the
+engine (inherited wholesale, with two variables overwritten per request),
+see [`README.md` — Security notes](README.md#security-notes).
+
+Variable names and semantics below are taken from the providers' and
+backends' own documentation; they are the provider's contract, not
+Nebula's. Confirm against the registry docs for your pinned version.
+
+> **CI-injected variables.** Several rows (`ARM_OIDC_REQUEST_URL`,
+> `ARM_OIDC_REQUEST_TOKEN`, `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`,
+> `AWS_WEB_IDENTITY_TOKEN_FILE` in its GitHub Actions form,
+> `OCI_RESOURCE_PRINCIPAL_*`) exist because a CI runner or a serverless
+> runtime writes them into a short-lived job. They are **not applicable
+> to the long-running IaC sidecar**, which has no CI identity — use
+> workload identity, an instance profile or managed identity, or mounted
+> credential files there instead.
+
 ## 1. Provider environment variables
 
 One table per cloud — a single combined table would be ~90% empty cells. Grouped by auth method, since within each cloud the methods are mutually exclusive.
@@ -119,6 +144,29 @@ Unusual quirk: this provider uses `TF_VAR_*` names as its own env-var defaults, 
 | `OCI_RESOURCE_PRINCIPAL_REGION` | Resource principal | Region |
 
 Compartment OCID is a *resource* argument, not an env var — commonly passed as `TF_VAR_compartment_ocid`, which is an ordinary Terraform variable rather than a provider setting.
+
+### Kubernetes (`kubernetes`, `helm`)
+
+Names as documented by the Terraform `kubernetes` provider; the `helm` provider reads the same set for its embedded `kubernetes` block.
+
+| Variable | Group | Purpose |
+|---|---|---|
+| `KUBE_CONFIG_PATH` | Kubeconfig | Path to a single kubeconfig file |
+| `KUBE_CONFIG_PATHS` | Kubeconfig | `:`-separated list of kubeconfigs to merge |
+| `KUBE_CTX` | Kubeconfig | Context to select within the kubeconfig |
+| `KUBE_CTX_CLUSTER` | Kubeconfig | Override the context's cluster |
+| `KUBE_CTX_AUTH_INFO` | Kubeconfig | Override the context's user |
+| `KUBE_HOST` | Direct | API server URL |
+| `KUBE_TOKEN` | Direct | Bearer token (service account or otherwise) |
+| `KUBE_USER` / `KUBE_PASSWORD` | Direct | HTTP basic auth, where the cluster still allows it |
+| `KUBE_CLIENT_CERT_DATA` / `KUBE_CLIENT_KEY_DATA` | Direct | Client certificate auth (PEM contents) |
+| `KUBE_CLUSTER_CA_CERT_DATA` | Direct | Cluster CA certificate (PEM contents) |
+| `KUBE_INSECURE` | Direct | `true` skips TLS verification |
+| `KUBE_TLS_SERVER_NAME` | Direct | Override the TLS server name |
+| `KUBE_PROXY_URL` | Behaviour | Proxy to reach the API server through |
+| *(none)* | In-cluster | With no variables set, the provider falls back to the pod's mounted service-account token and CA |
+
+There is **no scope variable for Kubernetes** — a namespace is a resource argument, so the sidecar injects nothing (see [`README.md` — Scope injection](README.md#scope-injection)).
 
 ## 2. Backend storage environment variables
 

@@ -6,13 +6,16 @@
 
 What this checks:
 
-- Every documented response status is reachable with at least one
-  request the contract considers valid.
-- Responses match the schemas declared in the OpenAPI spec.
-- Random invalid bodies do not produce undocumented 5xx.
+- Every response the implementation returns conforms to the schema
+  declared for its status code, including for randomly generated
+  invalid request bodies.
 
 What this does NOT check:
 
+- That 5xx responses are absent: the default `not_a_server_error` check
+  is excluded because the contract documents 5xx statuses (see the
+  test's own docstring); their bodies are still validated like any
+  other response.
 - Side effects (the suite verifies the contract surface, not that the
   resolver returns something semantically meaningful for any specific
   identifier).

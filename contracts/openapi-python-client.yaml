@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Configuration for openapi-python-client (pinned in core's dev dependency
-# group). Used to regenerate the typed HTTP clients in
+# Configuration for openapi-python-client (pinned in core's `tooling`
+# dependency group). Used to regenerate the typed HTTP clients in
 # `core/src/clients/<service>/` from each `contracts/openapi/<service>.v*.yaml`.
 #
-# Regenerate once per service, from `core/`:
+# Regenerate once per service, from `core/`. The `tooling` group is not a
+# default group, so it has to be requested explicitly:
 #
-#   uv run openapi-python-client generate \
+#   uv run --group tooling openapi-python-client generate \
 #     --path ../contracts/openapi/<service>.v1.yaml \
 #     --config ../contracts/openapi-python-client.yaml \
 #     --meta none \

@@ -17,8 +17,9 @@ class IWorkspace(ABC):
 
     A session additionally owns one pinned slot at
     {base}/{session_id}/pinned/: the workspace of the last successful
-    generate/drift round, promoted (renamed) there at round end so its
+    generate round, promoted (renamed) there at round end so its
     validated plan artifact can be applied by a later apply call.
+    Drift rounds never pin, so they never make a plan appliable.
     """
 
     @abstractmethod

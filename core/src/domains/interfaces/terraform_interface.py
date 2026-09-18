@@ -73,8 +73,9 @@ class ITerraform(ABC):
         Applies the plan artifact saved in this instance's workspace.
 
         The workspace is the session's pinned slot: the already-initialized
-        workspace promoted at the end of the last successful generate/drift
-        round, still holding the plan it produced. A single ``apply`` job
+        workspace promoted at the end of the last successful generate
+        round (drift rounds never pin), still holding the plan it
+        produced. A single ``apply`` job
         executes that plan — no init and no plan run at apply time, so the
         applied changes cannot diverge from the reviewed ones. The plan's
         own target scope is inherited (terraform forbids ``-target`` with a
