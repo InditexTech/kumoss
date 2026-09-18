@@ -187,10 +187,8 @@ If a directory you expect is missing, check that its `.tf` files are committed o
 
 **What is *not* implemented.** Despite the label "Adds existing resources to manage them from the tool", the core has no route that discovers cloud resources, generates `import` blocks or runs the engine's `import` command as part of a browser-facing workflow. Related building blocks exist at a lower level:
 
-- The IaC contract defines `POST /v1/import`, `POST /v1/import/state-resource-ids`, and `POST /v1/import/scope-resource-ids`, but the bundled sidecar answers all three with `501 Not Implemented`; its earlier reference implementation and the bundled cloud CLIs were removed. See `services/iac/README.md`.
-- The core's generated IaC client contains these operations, and the core defines an `import` operation type, `import` report type, and `*-terraform-import` Phoenix projects. **None of these are called or selected by any reachable core code path.**
-
-Treat resource import as a planned capability. This guide will be updated when a core route and a sidecar implementation turn the contract into a complete workflow.
+- The IaC contract defines `POST /v1/import`, `POST /v1/import/state-resource-ids`, and `POST /v1/import/scope-resource-ids`, and the bundled sidecar implements all three: it imports a single address, lists what the workspace's state tracks, and lists what exists in an Azure subscription, GCP project or AWS account through those clouds' inventory APIs. See `services/iac/README.md`.
+- The core's generated IaC client contains these operations, and the core defines an `import` operation type, `import` report type, and `*-terraform-import` Phoenix projects.
 
 **Fictitious example (current behaviour).** After the generate example above is merged, choose Import Infrastructure and submit. Nebula applies the pinned plan, creates the bucket, and shows an `apply` report with `Success`.
 

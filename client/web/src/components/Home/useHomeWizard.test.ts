@@ -625,3 +625,56 @@ describe("useHomeWizard — aggregated isLoading & error", () => {
     expect(result.current.error).toBe("Mapper error");
   });
 });
+
+// The header logo is rendered above the router and cannot reach the wizard's
+// state directly, so it clears through SessionContext's reset nonce.
+describe("useHomeWizard — clear requested from outside", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthState.mockReturnValue({ status: "idle" });
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  it("discards the collected information when the nonce is bumped", async () => {
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      await result.current.wizard.handleInput("deploy a VM");
+    });
+    expect(result.current.wizard.step).toBe("repository_url");
+    expect(result.current.wizard.data.query).toBe("deploy a VM");
+
+    await act(async () => {
+      result.current.session.resetSession();
+    });
+
+    expect(result.current.wizard.step).toBe("query");
+    expect(result.current.wizard.data).toEqual({
+      query: "",
+      repositoryUrl: "",
+      provider: "",
+      cloudScope: "",
+      iacPath: "",
+    });
+    // In-flight authorization / terraform work is aborted, not just hidden.
+    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockAuthReset).toHaveBeenCalled();
+    expect(mockTerraformReset).toHaveBeenCalled();
+  });
+
+  // Mounting is not a clear request: a deep link into /home/results/:id would
+  // otherwise be bounced straight back to the wizard on load.
+  it("does not clear on mount", () => {
+    renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    expect(mockResetMapper).not.toHaveBeenCalled();
+    expect(mockAuthReset).not.toHaveBeenCalled();
+    expect(mockTerraformReset).not.toHaveBeenCalled();
+  });
+});

@@ -9,6 +9,10 @@ description = "Reference implementation of contracts/openapi/iac.v1.yaml — loc
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.116.0",
+    "azure-identity>=1.25",
+    "google-auth[requests]>=2.40",
+    "boto3>=1.40",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]

@@ -49,11 +49,3 @@ suite — see that directory's README for how to run it.
   output for your modules.
 - Cloud-provider authentication semantics.
 - Performance or concurrent-request behavior.
-
-## Known deviation of the bundled reference
-
-The bundled reference implementation answers `501 Not Implemented` on
-the `/v1/import`, `/v1/import/state-resource-ids` and
-`/v1/import/scope-resource-ids` operations. The contract does not list
-`501` for them, so those three operations are **expected to fail this
-suite** when it is run against the bundled image.

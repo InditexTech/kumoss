@@ -430,7 +430,7 @@ State ownership stops at "write the backend and key". Everything below is yours:
 - **No DynamoDB lock table.** Locking uses the S3-native lockfile; there is nothing to provision.
 - **No `gcs` backend adapter.** `ObjectStorageProvider` has exactly three members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). A Google Cloud Storage bucket can only be reached through its S3-compatible interoperability endpoint with `provider: RUSTFS`, which the repository does not test. For a first-class `gcs` backend, use model 1 or 3 — and since model 1 ships as the default, that is simply what you already have.
 - **No state encryption beyond the store's own.** State contains resource attributes and can contain secrets; rely on bucket-level encryption at rest and restrict access accordingly.
-- **No import of existing state.** The `/v1/import*` endpoints of the IaC contract are unimplemented and answer `501`.
+- **No import of existing resources into managed state.** The bundled IaC sidecar implements the contract's `/v1/import*` endpoints (single-address import, state inventory, cloud-scope inventory), but the core never calls them: nothing in a session adopts pre-existing resources into the state Nebula manages. See [Operating modes](modes.md#import-infrastructure).
 
 ## Operations
 
