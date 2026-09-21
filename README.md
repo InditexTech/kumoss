@@ -16,11 +16,9 @@ Its structured review process and agent-based generation make infrastructure del
 
 ## What you deploy
 
-Nebula has two kinds of components.
-
 ![What you deploy: the core platform components (proxy, core, core-db, redis, object-storage, phoenix) run as shipped; the four sidecars (iac, notifications, mapping, authz) each implement an OpenAPI contract and connect Nebula to your organization's LLM providers, Git hosting, cloud accounts, and notification targets](docs/images/readme-components.png)
 
-*The two dashed regions are the split: core platform components you run as shipped, and the four sidecars behind OpenAPI contracts. Everything outside them is either the user's browser or a system in your organization; the `phoenix` box stands for both the Phoenix container and its `phoenix-db` database. The thick arrow to `iac` is the one sidecar call Nebula always makes — the dashed arrows are calls that only happen once you enable that sidecar, which the shipped `config.yaml` does not. Source: [`docs/diagrams/readme-components.architecture.json`](docs/diagrams/readme-components.architecture.json); the detailed view is in [Architecture](docs/architecture.md).*
+*The two dashed regions are the split: core platform components you run as shipped, and the four sidecars behind OpenAPI contracts. Source: [`docs/diagrams/readme-components.architecture.json`](docs/diagrams/readme-components.architecture.json); the detailed view is in [Architecture](docs/architecture.md).*
 
 ### Core platform components
 
