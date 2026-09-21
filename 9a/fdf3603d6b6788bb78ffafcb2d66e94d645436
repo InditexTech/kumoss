@@ -1,0 +1,27 @@
+docs/src/modules/main/nav.adoc
+  s_9ff16071f7d447::t_cef938d3c97ee3 34-37
+docs/src/modules/main/pages/reference-overview.adoc
+  s_9ff16071f7d447::t_8c7b80fa101534 1-59
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_9ff16071f7d447::t_85df40252ffcc2 1-638
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_9ff16071f7d447::t_76e89d251e8769 1-987
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_9ff16071f7d447::t_12396f18d8eb48 1-849
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9afdf3603d6b6788bb78ffafcb2d66e94d645436",
+  "prompts": {},
+  "sessions": {
+    "s_9ff16071f7d447": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ae1470e5f92b3b543",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
