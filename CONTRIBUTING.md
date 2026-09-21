@@ -68,7 +68,7 @@ Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conf
 
 **Lint and format.** `pre-commit run --all-files` runs Ruff (check and format), the REUSE check, and gitleaks secret scanning; install the hooks with `pre-commit install`.
 
-**CI.** Pull requests run Repolinter, the REUSE check, and the Conventional Commits check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The `Verify` workflow also runs the database-free core suites (`tests/shared tests/infrastructure/auth tests/infrastructure/llm tests/infrastructure/telemetry tests/infrastructure/templates`); suites that need PostgreSQL/Redis still run locally against the compose stack.
+**CI.** Pull requests run Repolinter, the REUSE check, the Conventional Commits check, and an offline Markdown link and anchor check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The core suite is not run in CI, so run it locally against the compose stack before opening a pull request.
 
 **Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
 
