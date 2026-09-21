@@ -1,0 +1,33 @@
+docs/src/modules/main/nav.adoc
+  s_835b2a573a1201::t_198b266afbc8d2 27-32
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_835b2a573a1201::t_61f055bda06000 1-503
+docs/src/modules/main/pages/guides/development.adoc
+  s_835b2a573a1201::t_c02d42fec5303f 1-154
+docs/src/modules/main/pages/guides/production/hardening.adoc
+  s_835b2a573a1201::t_a82fc8269553b0 1-93
+docs/src/modules/main/pages/guides/production/networking-and-tls.adoc
+  s_835b2a573a1201::t_376803f08ab7aa 1-99
+docs/src/modules/main/pages/guides/production/operations.adoc
+  s_835b2a573a1201::t_b0af2c519a594b 1-255
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_835b2a573a1201::t_d5b4c5496a8367 1-217
+docs/src/modules/main/pages/prerequisites.adoc
+  s_835b2a573a1201::t_bb9916149ebbe6 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d9f67cf4dd96870b7068676c7289b975bde21351",
+  "prompts": {},
+  "sessions": {
+    "s_835b2a573a1201": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a6965db05905667a2",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
