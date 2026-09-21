@@ -1,0 +1,35 @@
+README.md
+  s_80925b41a3405c::t_38dafce6bb3e73 13,21,23,37
+docs/architecture.md
+  s_80925b41a3405c::t_4c128df2ca7be8 27,29-37,67,75,77-83,87-88,94,96-100,104-106,112,114-115,119-121,127,129-130,136,138-142,169-170,271-278
+docs/diagrams/flow-phase-10.sequence.json
+  s_80925b41a3405c::t_47bd7bd6e8a084 59,66,73,80,87,94,102,109,116,123,130,137
+docs/diagrams/flow-phase-9.sequence.json
+  s_80925b41a3405c::t_6b4c9a834ee053 54,61,68,75,82,89,96,103
+docs/diagrams/flow-phases-1-4.sequence.json
+  s_80925b41a3405c::t_796399ce2e3f24 120,127,134,141,148,155
+docs/diagrams/flow-phases-5-6.sequence.json
+  s_80925b41a3405c::t_61ff024a783268 54,61,68,75,82,89,96,103,110,117,125,132,139
+docs/diagrams/flow-phases-7-8.sequence.json
+  s_80925b41a3405c::t_b1bed77988b69c 59,66,73,80,88,95,102,109,116,123,130
+docs/diagrams/readme-components.architecture.json
+  s_80925b41a3405c::t_611020735c83cd 1-349
+docs/getting-started-local.md
+  s_80925b41a3405c::t_e003d92f8f9464 70,104,263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8af90f83bd213fa92009ffe49f62c903af26a2d9",
+  "prompts": {},
+  "sessions": {
+    "s_80925b41a3405c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c62b8d0-62fd-42e9-a702-3972929b0e26",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
