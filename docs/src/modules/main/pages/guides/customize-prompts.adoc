@@ -12,8 +12,8 @@ to add or change prompts safely.
 Phoenix also collects Nebula's traces. That is a separate function,
 documented in xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
 Phoenix]. Where Phoenix runs and how it is protected in each deployment
-model is covered by xref:main:quickstart.adoc[Getting started:
-local/non-production] and Getting started: production.
+model is covered by xref:main:quickstart.adoc[Quickstart] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 == Three different things, not one
 

@@ -12,8 +12,8 @@ This guide covers tracing only. Phoenix also hosts Nebula's runtime
 prompt registry; that is a separate function described in
 xref:main:guides/customize-prompts.adoc[Phoenix prompt templates]. How
 Phoenix is deployed in each model is covered by
-xref:main:quickstart.adoc[Getting started: local/non-production] and
-Getting started: production.
+xref:main:quickstart.adoc[Quickstart] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 *Data sensitivity.* Phoenix receives, in clear text, the full system
 prompts, the user's requests and conversation history, repository

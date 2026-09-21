@@ -68,7 +68,7 @@ exhaustive variable reference.
 |Live progress stream
 |About 3 hours per connection; reopen the session afterwards
 
-|Roles
+|xref:main:reference/roles-and-permissions.adoc[Roles]
 |`developer`: generate, pull request, apply. `devops`: also drift
 remediation.
 |===

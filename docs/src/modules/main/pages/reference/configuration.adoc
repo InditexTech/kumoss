@@ -8,9 +8,8 @@ and field. The authoritative schema is the Pydantic model in
 disagree, the code wins and this page has a bug.
 
 Which fields you must touch depends on the deployment model: see
-xref:main:quickstart.adoc[Getting started: local/non-production] and
-xref:main:guides/deploy-to-production.adoc[Getting started:
-production].
+xref:main:quickstart.adoc[Quickstart] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 Related guides: xref:main:reference/environment-variables.adoc[Environment
 variables and secrets], xref:main:reference/llm-providers.adoc[LiteLLM

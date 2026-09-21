@@ -16,8 +16,8 @@ authorization sidecar is consulted only by `POST
 decide whether the caller may work against a given cloud project — a
 check that is disabled by default (`services.authz.enabled: false`)
 and has no bearing on operation or panel roles. See
-xref:main:guides/deploy-to-production.adoc[Getting started: production]
-for when to enable it.
+xref:main:guides/deploy-to-production.adoc[Deploy to production] for
+when to enable it.
 
 == Two independent role groups
 

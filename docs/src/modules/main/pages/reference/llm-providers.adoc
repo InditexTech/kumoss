@@ -14,10 +14,9 @@ into `config.yaml` or into documentation.
 Related guides: xref:main:reference/configuration.adoc[Configuration]
 (every `config.yaml` field), xref:main:reference/environment-variables.adoc[Environment
 variables and secrets] (the `.env` files), and the two installation
-guides, xref:main:quickstart.adoc[Getting started: local/non-production]
-and xref:main:guides/deploy-to-production.adoc[Getting started:
-production], which say where the credentials live in each deployment
-model.
+guides, xref:main:quickstart.adoc[Quickstart] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production], which
+say where the credentials live in each deployment model.
 
 == How Nebula uses LiteLLM
 

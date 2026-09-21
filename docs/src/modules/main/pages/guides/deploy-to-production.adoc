@@ -109,8 +109,8 @@ production`. That field only selects the Phoenix project prefix and the
 prompt tag. It enables no authentication, no authorization, and no
 stricter default.
 
-The differences from xref:main:quickstart.adoc[Getting started:
-local/non-production], in one table:
+The differences from xref:main:quickstart.adoc[Quickstart], in one
+table:
 
 [cols="2,4,5",options="header"]
 |===

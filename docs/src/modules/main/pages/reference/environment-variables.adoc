@@ -18,11 +18,11 @@ All example values in this page are fictitious. Never commit a `.env`
 file; they are gitignored.
 
 Which files you need depends on the deployment model:
-xref:main:quickstart.adoc[Getting started: local/non-production] needs
-`core/.env` and `services/iac/.env` (plus the notifications file when
-enabled); xref:main:guides/deploy-to-production.adoc[Getting started:
-production] replaces the files with a secret store but keeps the same
-variable names.
+xref:main:quickstart.adoc[Quickstart] needs `core/.env` and
+`services/iac/.env` (plus the notifications file when enabled);
+xref:main:guides/deploy-to-production.adoc[Deploy to production]
+replaces the files with a secret store but keeps the same variable
+names.
 
 Related guides: xref:main:reference/configuration.adoc[Configuration],
 xref:main:reference/llm-providers.adoc[LiteLLM providers and models],
@@ -328,12 +328,13 @@ APIs must be enabled. The core does not call this endpoint today. See
 "Import discovery" in `services/iac/README.md`.
 
 The sample file lists no cloud variables; add the ones your modules
-need. `services/iac/PROVIDERS.md` gives the minimum set per cloud and
-authentication method (service principal, OIDC federation, managed
-identity, named profile, and so on) plus the state-backend minimums,
-and `services/iac/FULL_PROVIDERS.md` lists every variable each provider
-and backend reads. The table below is a short orientation; the sidecar
-imposes nothing beyond what the provider supports.
+need. xref:main:reference/terraform-providers.adoc[Terraform providers]
+gives the minimum set per cloud and authentication method (service
+principal, OIDC federation, managed identity, named profile, and so
+on) plus the state-backend minimums, and its exhaustive section lists
+every variable each provider and backend reads. The table below is a
+short orientation; the sidecar imposes nothing beyond what the
+provider supports.
 
 [cols="2,3,5",options="header"]
 |===
@@ -374,7 +375,7 @@ file mounted into the container, or instance principals.
 |`KUBE_CONFIG_PATH`
 |A mounted kubeconfig (`KUBE_CONFIG_PATHS` for several), `KUBE_HOST` +
 `KUBE_TOKEN`, or in-cluster service-account credentials. See
-`services/iac/PROVIDERS.md`.
+xref:main:reference/terraform-providers.adoc[Terraform providers].
 |===
 
 These are the *provider* credentials, the ones `plan` and `apply` use
@@ -558,7 +559,8 @@ Two things to keep apart:
 |Consumer |Where |Purpose
 
 |Terraform or OpenTofu providers
-|`services/iac/.env` (see `services/iac/PROVIDERS.md`)
+|`services/iac/.env` (see
+xref:main:reference/terraform-providers.adoc[Terraform providers])
 |`init`, `validate`, `plan`, `show`, `apply` against your cloud
 
 |AWS SDK (boto3) in the core
