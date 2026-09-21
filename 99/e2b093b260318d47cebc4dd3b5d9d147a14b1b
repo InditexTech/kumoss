@@ -1,0 +1,51 @@
+docs/src/modules/main/nav.adoc
+  s_1fe6663611820d::t_3991a024060397 38-40
+docs/src/modules/main/pages/guides-overview.adoc
+  s_1fe6663611820d::t_b90d49114d71cd 29-32
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_1fe6663611820d::t_d53b16bb07c3f8 21-23
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_1fe6663611820d::t_0f8e7bc023bccc 487-488
+docs/src/modules/main/pages/guides/generate-infrastructure.adoc
+  s_1fe6663611820d::t_b0335a037a4a60 13-15
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_1fe6663611820d::t_1b6ef6b813193d 14-16
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_1fe6663611820d::t_04aa81037cc126 41-44
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_1fe6663611820d::t_58aa365cf3d8aa 210-212
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_1fe6663611820d::t_44ebf380418237 13-15
+docs/src/modules/main/pages/guides/state-backends/nebula-managed.adoc
+  s_1fe6663611820d::t_8101f38e3cec3f 279-282,319-320
+docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc
+  s_1fe6663611820d::t_3e488905cfcf56 97-100
+docs/src/modules/main/pages/quickstart.adoc
+  s_1fe6663611820d::t_b56b0485a393c1 265-266,275-277,294-295
+docs/src/modules/main/pages/reference-overview.adoc
+  s_1fe6663611820d::t_70f7f3c2457aed 24-38
+docs/src/modules/main/pages/reference/repository-layout.adoc
+  s_1fe6663611820d::t_31cda68768c54d 1-84
+docs/src/modules/main/pages/reference/roles-and-permissions.adoc
+  s_1fe6663611820d::t_a3ed6494e91610 1-263
+docs/src/modules/main/pages/reference/terraform-providers.adoc
+  s_1fe6663611820d::t_53fd64a133856e 1-752
+docs/src/modules/main/partials/glossary/panel-role.adoc
+  s_1fe6663611820d::t_fea26d2a7222d8 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "99e2b093b260318d47cebc4dd3b5d9d147a14b1b",
+  "prompts": {},
+  "sessions": {
+    "s_1fe6663611820d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af903ed4837c5bc43",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
