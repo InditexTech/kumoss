@@ -29,8 +29,8 @@ on. What blanking it means:
   the workspace, so the next session plans against nothing.
 * The engine resolves that backend with the *IaC sidecar's* credentials —
   a second grant alongside the provider credentials (see
-  xref:main:guides/state-backends/nebula-managed.adoc#two-credential-grants[Two
-  sets of credentials on the sidecar]).
+  <<two-credential-grants,Two sets of credentials on the sidecar>>
+  below).
 
 A typical repository therefore carries its own backend block, which
 Nebula reads and leaves alone:
@@ -51,17 +51,57 @@ Nothing here is Nebula-specific: the same backend serves your CI and your
 engineers' laptops, which is the main reason to prefer this model when
 the repositories already have one.
 
-`services/iac/.env` must then satisfy the two separate credential grants
-described in
-xref:main:guides/state-backends/nebula-managed.adoc#two-credential-grants[Two
-sets of credentials on the sidecar] — a setup that only covers the
-provider credentials fails at `init`, before a single resource is
-planned. Nebula-managed state
-(xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed
-state]) can spare you the second grant: Nebula writes the backend itself,
-and where the rendered block embeds static keys — the `RUSTFS` case, and
-`S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the sidecar needs
-nothing for state. Where it does not embed them, the sidecar still has to
-resolve them; see
+[#two-credential-grants]
+== Two sets of credentials on the sidecar
+
+`services/iac/.env` must satisfy *two different authentications*, and a
+setup that only covers the first fails at `init`, before a single
+resource is planned:
+
+[cols="2,2,4",options="header"]
+|===
+|What |Used by |Grants access to
+
+|Provider credentials
+|`plan`, `apply`
+|The cloud resources your modules create
+
+|State-backend credentials
+|`init`
+|The state store the repository's backend block names
+|===
+
+They are separate because they address separate resources. Often the
+_same_ variables serve both — an `s3` backend and the `aws` provider both
+read `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — but even then the
+identity behind them must be granted access to the state bucket, which
+commonly lives in a different account, subscription, or project. Some
+backends read variables the providers never look at, precisely so the
+two identities can differ:
+
+[cols="1,3",options="header"]
+|===
+|Backend |Backend-only variables
+
+|`azurerm`
+|`ARM_ACCESS_KEY` (storage account key), `ARM_SAS_TOKEN`, `ARM_USE_AZUREAD`
+
+|`gcs`
+|`GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`
+
+|`s3`
+|`AWS_PROFILE` / `AWS_ROLE_ARN` pointing at the state account
+|===
+
+Per-cloud, per-authentication-method minimums for both sets are in
+`services/iac/PROVIDERS.md` (provider minimums, then _Backend
+minimums_); the variable-level view is in the "Cloud credentials for the
+IaC engine" section of the environment variables reference.
+
+Model 2 — what ships — can spare you the second set: Nebula writes the
+backend itself, and where the rendered block embeds static keys — the
+`RUSTFS` case, and `S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the
+sidecar needs nothing for state. Where it does not embed them, the
+sidecar still has to resolve them; see
 xref:main:guides/state-backends/nebula-managed.adoc#credentials-required[Credentials
 required].
