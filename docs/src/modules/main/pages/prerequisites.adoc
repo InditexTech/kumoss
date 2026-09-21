@@ -1,55 +1,64 @@
 = Prerequisites
+:description: What the local Docker Compose deployment is for, what you need before following the quickstart, and what the repository does and does not provide.
 
-Before following xref:main:quickstart.adoc[Quickstart] through to a
-published site, three things need to be true about this repository and its
-GitHub settings. None of them are things `docouture new` can do on your behalf —
-they all require repository-admin access this CLI never has.
+This page lists what the local Docker Compose deployment is for and what
+you need before following xref:main:quickstart.adoc[Quickstart]. It also
+sets expectations about what the repository ships as a reference versus
+what you are expected to build yourself.
 
-== The repository must be public
+== When to use this deployment
 
-GitHub Pages serves a `gh-pages` branch to the public internet on a free
-plan only for a public repository — a private one needs GitHub Enterprise
-(GitHub Pages on a paid plan can be restricted to organisation members, but
-is still not the "publish this to the world" flow `docouture-publish.yml`
-assumes). If this repository is private and is meant to stay that way,
-publishing to GitHub Pages is not the right target — use `docouture build` and
-ship `build/site` some other way instead.
+Use the Compose stack to evaluate Nebula, develop on it, run demos, or test
+changes on a workstation or a throwaway virtual machine that only trusted
+people can reach.
 
-== Enable GitHub Pages, serving from `gh-pages`
+Do *not* use it for shared or production environments. As shipped it has no
+TLS, well-known default credentials for PostgreSQL and RustFS, an
+unauthenticated Phoenix console, and, unless you enable OIDC, *no
+authentication at all*: every request runs as a built-in local identity
+that holds the `devops` operation role and the panel `admin` role.
 
-Settings → Pages → **Build and deployment** → **Source**: "Deploy from a
-branch" → **Branch**: `gh-pages` / `/ (root)`.
+== Requirements
 
-The `gh-pages` branch does not exist yet on a brand-new repository — it is
-created the first time `docouture publish gh-pages` (or the scaffolded
-`.github/workflows/docouture-publish.yml`, which calls it) actually runs. Publish
-once first — either by pushing to `main` and letting that workflow run, or
-manually per xref:main:quickstart.adoc[Quickstart]'s own "Publish
-the docs" section — then come back and point Pages at the branch it created.
-Turning Pages on before that branch exists just leaves the picker with
-nothing to select.
+* Git, and Docker Engine with Docker Compose v2.24 or later (the compose
+  file uses `env_file.required` and `develop.watch`).
+* Internet access for the build.
+* As a rough guideline, the full stack (11 containers, two PostgreSQL
+  instances, Phoenix, and a Node build) is comfortable with at least 8 GB
+  RAM and 10 GB free disk.
+* Credentials for one LLM provider supported by LiteLLM.
+* A personal access token for your Git provider, with permission to push
+  branches and open pull requests.
+* Cloud credentials for the cloud your OpenTofu/Terraform code targets, in
+  two grants, both given to the IaC sidecar:
+** Provider credentials — the resources `plan` and `apply` create.
+** State-backend credentials — the remote state file `init` reads and
+   writes. This deployment assumes the default: Nebula manages state
+   itself in the bundled RustFS store, so this grant is the object-storage
+   credentials you configure alongside the stack. If you instead point
+   `storage.terraform_state_bucket` to `""` so that the repository you
+   target declares its own backend (`terraform { backend ... }`), this
+   grant must reach the bucket or container that block names instead.
 
-== Create the `docs/release` label
+Git and Docker are the only things you install on the host. Everything the
+first build installs — OpenTofu and Terraform — goes into the `iac`
+container image, and the web application is compiled inside the `proxy`
+image.
 
-`.github/workflows/docouture-release.yml` (scaffolded by `docouture new`) can cut a
-release two ways: `workflow_dispatch` (run it by hand from the Actions tab —
-works immediately, nothing to set up), or automatically whenever a pull
-request merges into `main` carrying a `docs/release` label.
+== What the repository does and does not provide
 
-That label is not created automatically — GitHub does not create labels
-referenced by a workflow's `if:` condition, and `docouture new` does not call the
-GitHub API on your behalf. Until the label exists, only the manual
-`workflow_dispatch` path works; a PR merged with what would otherwise be the
-intended label name is a silent no-op, not an error.
+Provided:
 
-Create it once, from this repository:
+* Container images for every Nebula component, built from the Dockerfiles
+  in `core/`, `nginx/`, and `services/*/`.
+* `docker-compose.yml`, which is the *reference topology*: it shows every
+  container, port, volume, and dependency. Use it as the specification of
+  what to deploy, not as the deployment.
+* OpenAPI contracts and Schemathesis conformance suites for the four
+  sidecars, so you can verify your own implementations.
 
-[,console]
-----
-$ gh label create docs/release --description "Merging this PR cuts a release" --color 0E8A16
-----
-
-Or via the GitHub UI: repository → Issues or Pull requests → Labels → New
-label, named exactly `docs/release`. `docouture doctor` warns (without failing)
-if it does not find this label, when the `gh` CLI is available and
-authenticated.
+*Not provided:* Kubernetes manifests, Helm charts, Kustomize overlays,
+Terraform modules for the platform itself, database migrations, or a
+multi-replica execution model. Do not look for a `deploy/` or `charts/`
+directory; there is none. You write the platform definition for your
+environment using the requirements on this page.
