@@ -1,0 +1,25 @@
+docs/src/modules/main/nav.adoc
+  s_f21ac161a8cf50::t_44d7ec451b7972 16-18
+docs/src/modules/main/pages/guides/generate-infrastructure.adoc
+  s_f21ac161a8cf50::t_e1d4b2a012b121 1-104
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_f21ac161a8cf50::t_8300ac469dd547 1-88
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_f21ac161a8cf50::t_b8bc3d53c73448 1-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5917c8f747f76cd5f63d43fdef9491ca60885e5",
+  "prompts": {},
+  "sessions": {
+    "s_f21ac161a8cf50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a30f7bcc73996d12e",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
