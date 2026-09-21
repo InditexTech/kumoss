@@ -31,6 +31,10 @@
 ** xref:main:guides/production/operations.adoc[Operations]
 * xref:main:guides/development.adoc[Development]
 * Reference
+* xref:main:reference-overview.adoc[Overview]
+* xref:main:reference/configuration.adoc[Configuration]
+* xref:main:reference/environment-variables.adoc[Environment variables]
+* xref:main:reference/llm-providers.adoc[LLM providers and models]
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]
 * xref:main:changelog/index.adoc[Changelog]

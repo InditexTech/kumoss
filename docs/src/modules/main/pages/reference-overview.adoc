@@ -1,0 +1,59 @@
+= Reference
+:description: Lookup material for Nebula: every config.yaml field, every environment variable, and the LLM provider tables.
+
+This section is the lookup material for Nebula: every configuration
+field, every environment variable, and the LLM provider and model
+tables, described exhaustively.
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:reference/configuration.adoc[Configuration]
+Every `config.yaml` section and field: type, default, validation rule,
+and effect.
+
+[card]
+.xref:main:reference/environment-variables.adoc[Environment variables and secrets]
+Every variable in `core/env.sample` and the four sidecar `env.sample`
+files, plus the IaC engine and LLM provider variables.
+
+[card]
+.xref:main:reference/llm-providers.adoc[LLM providers and models]
+How Nebula selects LiteLLM models, provider credential tables, and the
+`llm.model_list` router escape hatch.
+====
+
+== Limits at a glance
+
+[cols="2,4",options="header"]
+|===
+|Limit |Value
+
+|Request and follow-up text
+|500 characters
+
+|Cloud scope
+|64 characters, letters, digits, and hyphens
+
+|Support message
+|500 characters
+
+|Generate-and-validate attempts per request
+|5
+
+|Drift check inside a generate round
+|2 passes
+
+|Drift remediation session
+|3 iterations
+
+|One operation per session at a time
+|A second request while one is running is ignored until it finishes
+
+|Live progress stream
+|About 3 hours per connection; reopen the session afterwards
+
+|Roles
+|`developer`: generate, pull request, apply. `devops`: also drift
+remediation.
+|===
