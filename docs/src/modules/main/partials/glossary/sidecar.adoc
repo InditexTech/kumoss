@@ -1,0 +1,4 @@
+An integration point between Nebula and an organization's systems,
+implementing an OpenAPI contract. Any implementation of the contract can
+replace the bundled reference by pointing `services.<name>.endpoint` in
+`config.yaml` at it.

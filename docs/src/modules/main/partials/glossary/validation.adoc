@@ -1,0 +1,3 @@
+The phase where the `iac` sidecar runs `init`, `validate`, and `plan`
+against the shared workspace to check that the generated code is sound and
+preview its effect.

@@ -1,4 +1,5 @@
 * Overview
+* xref:main:about.adoc[About]
 * xref:main:architecture.adoc[Architecture]
 * xref:main:glossary.adoc[Glossary]
 * Getting started

@@ -1,0 +1,2 @@
+The per-session directory, shared with the `iac` sidecar, where Nebula
+clones the repository and the IaC engine runs its commands.

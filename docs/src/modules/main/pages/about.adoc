@@ -1,0 +1,57 @@
+= About Nebula
+:description: What Nebula is, who it is for, and why it exists.
+
+Nebula is an LLM-powered platform that turns natural-language requests into
+compliant, Terraform-compatible infrastructure-as-code (IaC). Platform
+engineers and application developers describe the infrastructure they need,
+and Nebula's agents generate the corresponding code, guided by the
+organization's own standards.
+
+It runs as a layered FastAPI orchestration core alongside four
+contract-first FastAPI sidecars — the IaC engine, repository mapping,
+notifications, and authorization — behind an nginx edge that also serves a
+React single-page application and proxies the API.
+
+Every state change and every blocking decision — the in-flight guard,
+validation, the compliance verdict, the session lock, apply — is computed
+by application code, not by a model, and applying a reviewed plan is always
+a human action.
+
+== What you deploy
+
+image::readme-components.png[Nebula components]
+
+The core platform components — the `core` orchestration API, the `proxy`
+(nginx), `core-db` (PostgreSQL), `redis`, `object-storage`, and the
+`phoenix` observability stack — run as shipped and are configured through
+`config.yaml` and the `.env` files. You never reimplement them; in
+production you replace only the bundled datastores.
+
+Four sidecars are the integration points between Nebula and your
+organization: `iac` (executes the IaC engine; enabled by default),
+`notifications` (posts session outcomes to Slack; disabled by default),
+`mapping` (resolves a repository reference; disabled by default), and
+`authz` (applies cloud-project authorization policy; disabled by default).
+Each implements an OpenAPI contract, so any implementation of that contract
+can replace the bundled reference. A disabled sidecar is never contacted.
+
+The React single-page application is the user-facing portal, served by the
+`proxy`. The whole stack runs from one Docker Compose stack, with nginx as
+the only public entry point.
+
+== Key features
+
+* *Layered orchestration core* — sessions run through filtering,
+  generation, validation, and reporting phases, computed by application
+  code, see xref:main:architecture.adoc[Architecture].
+* *Four replaceable sidecars* — the IaC engine, repository mapping,
+  notifications, and authorization each implement an OpenAPI contract, so
+  an organization can swap in its own implementation.
+* *Human-gated apply* — every blocking decision is computed by code, and
+  applying a reviewed plan is always an explicit human action.
+* *OpenTofu by default* — the bundled `iac` sidecar runs OpenTofu, with
+  HashiCorp Terraform also bundled and selectable via `IAC_BINARY`.
+
+Nebula's runtime components, internal layering, and end-to-end request flow
+are covered in xref:main:architecture.adoc[Architecture]. To run the bundled
+stack locally, see xref:main:quickstart.adoc[Quickstart].
