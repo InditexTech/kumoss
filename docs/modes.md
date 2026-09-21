@@ -28,7 +28,8 @@ Terms used below:
 |---|---|---|
 | `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
 | `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round that the `202` opened ends `failed` |
+| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round that the `202` opened fails and the session ends `failed` |
+| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, right after you enter the repository URL |
 | `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
 | `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
 
@@ -36,9 +37,32 @@ The web application is stricter than the API in one place: it disables Partial D
 
 ## Common workflow elements
 
-**Inputs on the first request of a session.** Repository URL (without embedded credentials), the target cloud (`azure`, `gcp`, `aws`, `oci`, or `kubernetes`), a scope identifier (for example a subscription, project, or account id that appears in reports and authorization checks), an optional path to the Terraform root inside the repository, and the request text. Later requests in the same session send only the session id and the new text.
+**Inputs on the first request of a session.** Repository URL (without embedded credentials), the target cloud (`azure`, `gcp`, `aws`, `oci`, or `kubernetes`), a scope identifier (for example a subscription, project, or account id), an optional path to the Terraform root inside the repository, and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, and `apply`, hashed together with the repository URL and the IaC path into the state project id when Nebula manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text.
 
-**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of five seconds).
+### How Nebula finds Terraform roots
+
+After you enter the repository URL, the wizard calls `POST /api/v1/repository/parse`. The core validates the URL with `git ls-remote`, clones only the repository metadata (`--filter=blob:none --no-checkout`, 60-second limit), lists every file committed on the **default branch** with `git ls-tree -r HEAD --name-only`, and applies these rules to the directory paths. File contents are never read and the temporary clone is deleted afterwards.
+
+1. A directory is a **candidate** when it contains at least one `.tf` file.
+2. A candidate is **dropped** when any segment of its path is `modules`, `examples`, `example`, or `.terraform`.
+3. A candidate is a **root** when it contains a marker file — `main.tf`, `provider.tf`, `providers.tf`, `backend.tf`, `terraform.tf`, `versions.tf` — or any `.tfvars` / `.tfvars.json` file.
+4. A candidate without a marker is still a root when it is the deepest `.tf` directory on its branch of the tree and does not sit under a directory that already qualified. Directories nested under a qualifying root are absorbed into it and are not offered separately.
+5. The result is the sorted list of repository-relative paths. `.tf` files at the repository top level make the repository root itself a root, offered as `.`.
+
+With no result the wizard shows "No IaC paths found in this repository."; with exactly one it skips the "Which IaC path?" step; with several it asks you to pick. The chosen path becomes the session's IaC path: it is fixed on the first request, the engine runs `init`, `validate`, `plan`, and `apply` inside that directory, and it is one of the three inputs that identify the project's state when Nebula manages state (see [State backends](terraform-state-backends.md#state-keys)). The web application offers only detected paths; API callers may pass any repository-relative `iac_path` that contains no `..` segment, and an omitted `iac_path` means the repository root.
+
+| Repository files (default branch) | Offered IaC paths | Why |
+|---|---|---|
+| `envs/dev/main.tf`, `envs/prod/main.tf`, `modules/network/vpc.tf`, `modules/network/examples/basic/main.tf` | `envs/dev`, `envs/prod` | Both `envs/*` directories have a marker; everything under `modules/` is skipped as shared module code. |
+| `platform/main.tf`, `platform/network/subnets.tf`, `platform/storage/buckets.tf` | `platform` | `platform` has a marker, so its two subdirectories are absorbed. The wizard skips the path step. |
+| `lib/iam/policies.tf`, `lib/iam/roles.tf`, `README.md` | `lib/iam` | No marker, but it is the deepest `.tf` directory and nothing above it qualifies. |
+| `main.tf`, `variables.tf`, `modules/net/vpc.tf` | `.` | Top-level `.tf` files make the repository root the only root. |
+
+If a directory you expect is missing, check that its `.tf` files are committed on the default branch and that no parent directory is named `modules`, `examples`, `example`, or `.terraform`. The rules live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
+
+**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
+
+**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4–5 seconds).
 
 **One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session ... already has an operation in flight.` or `Session ... is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
 
@@ -107,7 +131,7 @@ The web application is stricter than the API in one place: it disables Partial D
 
 **Artifacts and reports.** Drift reports and plans per iteration, code-change files, a `drift` JSON report, a pushed branch.
 
-**Plan pinned.** **No.** Drift sessions do not pin a plan, so apply (and therefore the Import Infrastructure mode) on a drift-only session is accepted with `202` but its round ends `failed` with `No reviewed plan is pinned for this session; run a generate or drift round before applying.`
+**Plan pinned.** **No.** Drift sessions do not pin a plan, so apply (and therefore the Import Infrastructure mode) on a drift-only session is accepted with `202`, and then the background round fails with `No reviewed plan is pinned for this session; run a generate or drift round before applying.` Take the "or drift" in that message with a pinch of salt — only a generate round pins a plan, so a drift round will not clear the error. That marks the **session** `FAILED`, not just the round, so it can no longer be continued, applied, or reused — only a new session will do.
 
 **Apply, pull requests, compliance, locks.** You can create a pull request from the branch. Drift rounds run no compliance audit and never set the lock. Apply is unavailable until a generate round pins a plan. In the web application a drift session therefore ends at the pull-request merge: the merge button is labelled for merging only, and no apply is triggered afterwards.
 
@@ -143,8 +167,8 @@ The web application is stricter than the API in one place: it disables Partial D
 **What the UI does today.** Selecting Import Infrastructure and submitting calls `POST /api/v1/iac/apply` with the current session id. No request text or targets are sent. The same apply is what the "Approve PR and Apply" button triggers after a pull request is merged. Apply:
 
 1. Requires `developer` and session ownership and a session that is not locked; these are checked before the `202` answer.
-2. Opens a new round with the text "Terraform apply.", sets the status `apply`, and checks that a pinned plan exists (otherwise the round ends `failed` with `No reviewed plan is pinned for this session`). It then runs a single `apply session.plan` job on the pinned workspace. No `init` or `plan` is re-run, so what executes is exactly the plan that was reviewed.
-3. Produces an `apply` JSON report with an outcome (`Success`, `Partial`, `Failed`), an execution summary, the resource changes, and recommendations. On failure a notification of kind `iac.apply.failure` is sent when notifications are enabled. Any unexpected error in a background run of any mode marks the round `failed` and sends `system.exception.failure`.
+2. Opens a new round with the text "Terraform apply.", sets the status `apply`, and checks that a pinned plan exists. Without one it fails with `No reviewed plan is pinned for this session; run a generate or drift round before applying.`, sends `system.exception.failure`, and leaves the session `FAILED` and unresumable. With one it runs a single `apply session.plan` job on the pinned workspace. No `init` or `plan` is re-run, so what executes is exactly the plan that was reviewed.
+3. Produces an `apply` JSON report with an outcome (`Success`, `Partial`, `Failed`), an execution summary, the resource changes, and recommendations. An engine failure is **not** an exception: the report is written with status `Failed`, a notification of kind `iac.apply.failure` is sent when notifications are enabled, and the session still ends `completed` — there is no retry, and a new generate round is needed to produce a new plan. Any *unexpected* error in a background run of any mode is different: it marks the session `failed` and sends `system.exception.failure`.
 4. Discards the pinned workspace whatever the outcome; a new generate round is needed before another apply.
 
 **Minimum role.** The UI requires `devops` to select the mode; the API requires `developer` plus ownership.

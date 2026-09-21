@@ -6,6 +6,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Security Policy
 
+## Supported versions
+
+There are no tagged releases yet. Security fixes land on `main`; run the latest `main`.
+
 ## Reporting a Vulnerability
 
 We take the security of the project seriously. If you believe you have found a security vulnerability, please report it to us as described below.

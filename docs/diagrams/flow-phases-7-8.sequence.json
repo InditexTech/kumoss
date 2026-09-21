@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nebula request flow · Phases 7-8 — report, artifacts, compliance verdict computed in code",
+    "output": "flow-phases-7-8.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "column_fit": "spread",
+    "viewBox": [
+      1700,
+      710
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Web UI + Core API"
+    },
+    {
+      "id": "ct",
+      "type": "security",
+      "label": "Control gates"
+    },
+    {
+      "id": "ag",
+      "type": "backend",
+      "label": "LLM agents"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "core-db"
+    },
+    {
+      "id": "ex",
+      "type": "cloud",
+      "label": "External"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 286,
+      "label": "PHASE 7 · Report and artifacts"
+    },
+    {
+      "from": 316,
+      "to": 656,
+      "label": "PHASE 8 · Independent compliance audit, verdict computed in code — when the checker is disabled the step yields an empty passing report"
+    }
+  ],
+  "messages": [
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 180,
+      "label": "26 · Report Generator (main model)",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 222,
+      "label": "27 · report, plan, drift JSON, code changes to object storage (metadata in PostgreSQL)",
+      "variant": "default"
+    },
+    {
+      "from": "ex",
+      "to": "ui",
+      "y": 264,
+      "label": "28 · presigned URLs for the UI",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 330,
+      "label": "29 · [checker enabled] Compliance Auditor (small, no repo tools) judges request + raw plan",
+      "variant": "default",
+      "note": "[checker disabled] the step yields an empty passing report instead"
+    },
+    {
+      "from": "ag",
+      "to": "ct",
+      "y": 372,
+      "label": "30 · structured findings via report_compliance_findings (rule id, severity, resource, message, fix)",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "db",
+      "y": 414,
+      "label": "31 · VERDICT: any ERROR or CRITICAL means fail — the model's own \"passed\" is ignored · plan pinned either way",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "db",
+      "y": 456,
+      "label": "32a · [fail] sessions.is_blocked = true",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 498,
+      "label": "33a · [fail] iac.compliance.failed to Slack (fire-and-forget)",
+      "variant": "dashed"
+    },
+    {
+      "from": "ct",
+      "to": "ui",
+      "y": 540,
+      "label": "34a · [fail] apply and PR merge will answer 409 · PR creation still allowed",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "db",
+      "y": 582,
+      "label": "32b · [pass] sessions.is_blocked = false",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "ui",
+      "y": 624,
+      "label": "33b · [pass] generated and validated — awaiting human apply",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "ct",
+      "from": 174,
+      "to": 640,
+      "type": "security"
+    },
+    {
+      "participant": "ag",
+      "from": 174,
+      "to": 380,
+      "type": "backend"
+    }
+  ]
+}

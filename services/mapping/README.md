@@ -33,8 +33,18 @@ browser directly.
 
 - `POST /v1/resolve` — returns `{repo_url: identifier, identifier: identifier,
   terraform_provider: <whatever was sent, or null>, scope_id: null}`.
+  Nothing is truncated.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/resolve` if `NEBULA_MAPPING_TOKEN` is set.
+  Leave it blank in a shared network only for local experimentation —
+  a blank token disables the check entirely, so set one whenever this
+  service is reachable by anyone other than the core.
+
+The contract documents `400`/`403`/`404`/`502` for real catalogue
+backends (bad identifier, no access, unknown identifier, catalogue
+unreachable). This identity-passthrough reference never produces any
+of them — it only ever emits `200`, `401` (bad/missing token), `422`
+(malformed request body), or `500`.
 
 ## Configuration
 

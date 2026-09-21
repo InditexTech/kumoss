@@ -16,6 +16,16 @@ body: |
   - `storage_account` — Storage account (blob, file, queue, table).
   - `key_vault` — Key Vault for secrets, keys, and certificates.
   - `network_security_group` — NSG with inbound and outbound rules.
+  - `virtual_machine` — Virtual machine with managed disks, identity, and networking.
+  - `webapp` — Web App (App Service) with plan, networking, and TLS.
+  - `function` — Function App (Flex Consumption) with networking and monitoring.
+  - `container_app` — Container Apps environment with scaling and ingress.
+  - `postgres_flexible_server` — PostgreSQL Flexible Server with HA, networking, and backups.
+  - `cosmosdb` — Cosmos DB account with consistency, networking, and backup settings.
+  - `redis_managed` — Managed Redis cache with TLS and persistence.
+  - `nat_gateway` — NAT Gateway for private outbound internet access.
+  - `application_insights` — Application Insights (workspace-based) for monitoring and telemetry.
+  - `azure_openai` — Azure OpenAI Service with networking, identity, and deployments.
 
   This list is the source of truth. Adding a new
   `core/prompts/seed/azure/resources/<name>.yaml` requires adding the

@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nebula Compose Deployment Topology",
+    "output": "deployment-topology.html",
+    "quality_profile": "showcase",
+    "locale": "en"
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 4,
+    "cellW": 190,
+    "cellH": 84,
+    "gapX": 140,
+    "gapY": 86,
+    "origin": [
+      40,
+      40
+    ]
+  },
+  "components": [
+    {
+      "id": "authz",
+      "type": "backend",
+      "label": "authz",
+      "sublabel": "FastAPI :8083, no volume",
+      "row": 0,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "mapping",
+      "type": "backend",
+      "label": "mapping",
+      "sublabel": "FastAPI :8081",
+      "row": 0,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "notifications",
+      "type": "backend",
+      "label": "notifications",
+      "sublabel": "FastAPI :8080",
+      "row": 0,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "phoenix",
+      "type": "backend",
+      "label": "phoenix",
+      "sublabel": "Phoenix :6006, phoenix-db",
+      "row": 1,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "iac",
+      "type": "backend",
+      "label": "iac",
+      "sublabel": "OpenTofu :8082, workspaces",
+      "row": 1,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "core",
+      "sublabel": "FastAPI :8000, workspaces",
+      "row": 1,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "objectstorage",
+      "type": "database",
+      "label": "object-storage",
+      "sublabel": "RustFS, object_storage_data",
+      "row": 1,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "proxy",
+      "type": "cloud",
+      "label": "proxy",
+      "sublabel": "Nginx + SPA, :80 and :9000",
+      "row": 2,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "coredb",
+      "type": "database",
+      "label": "core-db",
+      "sublabel": "PostgreSQL 17, core_db_data",
+      "row": 2,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "redis",
+      "sublabel": "Redis 8 :6379",
+      "row": 2,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "user",
+      "type": "frontend",
+      "label": "User's browser",
+      "sublabel": "outside the bridge network",
+      "row": 3,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Compose project nebula, one bridge network",
+      "wraps": [
+        "authz",
+        "mapping",
+        "notifications",
+        "phoenix",
+        "iac",
+        "core",
+        "objectstorage",
+        "proxy",
+        "coredb",
+        "redis"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "user-to-proxy",
+      "from": "user",
+      "to": "proxy",
+      "label": ":80 and :9000"
+    },
+    {
+      "id": "proxy-to-core",
+      "from": "proxy",
+      "to": "core",
+      "label": "/api + SSE"
+    },
+    {
+      "id": "proxy-to-phoenix",
+      "from": "proxy",
+      "to": "phoenix",
+      "label": "/monitoring/"
+    },
+    {
+      "id": "core-to-authz",
+      "from": "core",
+      "to": "authz",
+      "label": "project check",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "core-to-mapping",
+      "from": "core",
+      "to": "mapping",
+      "label": "mappings",
+      "labelDy": -47
+    },
+    {
+      "id": "core-to-notifications",
+      "from": "core",
+      "to": "notifications",
+      "label": "fire-and-forget",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "core-to-iac",
+      "from": "core",
+      "to": "iac",
+      "label": "engine jobs"
+    },
+    {
+      "id": "core-to-storage",
+      "from": "core",
+      "to": "objectstorage",
+      "label": "artifacts"
+    },
+    {
+      "id": "core-to-coredb",
+      "from": "core",
+      "to": "coredb",
+      "label": "asyncpg",
+      "labelDy": 24
+    },
+    {
+      "id": "core-to-redis",
+      "from": "core",
+      "to": "redis",
+      "label": "cache"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Published surface",
+      "items": [
+        "Only proxy publishes host ports: :80 for SPA, API, SSE and /monitoring/, :9000 for presigned URLs",
+        "Every other container is internal-only via expose",
+        "core calls the LLM and git APIs; notifications posts to the Slack webhook"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The shared workspaces volume",
+      "items": [
+        "core and iac mount workspaces read-write, so the engine runs on the core git clones",
+        "Both run as nebula, uid/gid 10001 via NEBULA_UID and NEBULA_GID",
+        "Each run clones into a unique directory and deletes it in a finally block"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Persistence and start-up",
+      "items": [
+        "Named volumes: core_db_data, phoenix_db_data, object_storage_data, workspaces",
+        "The authz JSON role store has no volume and is lost on recreation",
+        "depends_on orders start-up without health checks; the prompt seeder retries phoenix"
+      ]
+    }
+  ]
+}

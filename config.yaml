@@ -77,16 +77,23 @@ services:
     job_poll_interval: 5.0
     job_timeout: 3600.0
 
-# Iteration limits and batch sizes for the core's orchestration loops.
-# Raise carefully — these bound runaway-loop costs.
+# Iteration limits and behaviour switches for the core's orchestration
+# loops. Raise the limits carefully — they bound runaway-loop costs.
 #
-# enable_compliance_checker: When enabled, critical agent chains
-# include a check_compliance tool that validates output
-# against curated rules before allowing completion.
+# The two gates below both default to false in code, so an
+# orchestration block that omits them turns them off.
+#
+# enable_compliance_checker: When enabled, a validated generate round is
+# audited by a second small-model agent against the
+# general-compliance-report rules. A finding of severity "error" or
+# "critical" locks the session; "warning" is only reported.
 #
 # block_on_high_impact: When enabled, a generate round whose report
-# comes back with a "high" impact banner locks the session, blocking
-# apply and PR merge until an editor unlocks it.
+# comes back with a "high" impact banner locks the session too. The
+# banner is produced either way; this only decides whether it gates.
+#
+# A locked session refuses apply and PR merge with 409 until a later
+# clean generate round or a panel editor unlocks it.
 #
 # max_drift_reports: maximum detect-and-remediate iterations in a drift
 # session. Every knob is described in docs/configuration.md.
@@ -104,13 +111,17 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars, set in core/.env — for the
-# Vertex AI models below that is VERTEXAI_PROJECT, VERTEXAI_LOCATION and
-# VERTEXAI_CREDENTIALS; the in-code defaults (anthropic/...) need
-# ANTHROPIC_API_KEY instead — and the core fails boot when litellm
-# reports required env vars missing. Advanced routing
-# (fallbacks, load balancing, custom credential env var names) is
-# available via an optional `model_list` key.
+# from the provider's standard env vars, set in core/.env. The azure_ai
+# models below read AZURE_AI_API_KEY and AZURE_AI_API_BASE; LiteLLM has no
+# boot-time validation mapping for azure_ai, so a missing or invalid
+# credential is only detected on the first LLM call, not at boot. For
+# providers LiteLLM can validate (anthropic/..., vertex_ai/..., openai/...,
+# azure/...) the core fails boot when the required env vars are missing;
+# the in-code defaults (anthropic/...) need ANTHROPIC_API_KEY.
+# Advanced routing (load balancing, custom credential env var names,
+# per-entry endpoints) is available via an optional `model_list` key.
+# The core passes only that list to the Router, so router-level
+# fallbacks between different models are not configurable.
 #
 # Refer to:
 #   - docs/litellm.md                          — Nebula's LiteLLM guide
@@ -124,7 +135,6 @@ llm:
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
- 
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -187,13 +197,20 @@ http:
 # the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
 # ignored).
 #
-# `terraform_state_bucket` is a second bucket (blob container on
-# STORAGE_ACCOUNT) in that same store, holding the Terraform state of
-# the projects Nebula manages: the core creates it at boot and writes a
-# matching backend into every workspace before `init`, keyed by project,
-# so the same store serves artifacts and state. Blank turns managed
-# state off — each workspace then keeps the backend its own Terraform
-# code declares.
+# `terraform_state_bucket` ships SET, so Nebula owns Terraform state out
+# of the box: a second bucket (blob container on STORAGE_ACCOUNT) in the
+# same store as `bucket`, created at boot, with a matching backend
+# written into every workspace before `init`, keyed by project. It is
+# separate from `bucket` so state does not inherit the artifacts
+# bucket's lifecycle or presign policy, and it is what lets a repository
+# that declares no backend of its own work unchanged.
+#
+# Set it to "" to turn managed state off: Nebula then writes no backend
+# override and every repository must declare its own, with the iac
+# sidecar holding that backend's credentials. Use an explicit "" rather
+# than an empty value — the field is a string, and a YAML null fails
+# validation at boot. Deleting the key restores the default, which is
+# this same bucket name. See docs/terraform-state-backends.md.
 #
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
@@ -220,8 +237,8 @@ storage:
 # creation and merge call the provider REST API with GIT_TOKEN over
 # HTTPS, so SSH alone cannot open or merge pull requests).
 #
-# `provider` is required and must be a GitProviderName enum name or
-# value (see core/src/shared/constants.py::GitProviderName): GITHUB,
+# `provider` defaults to GITHUB and must be a GitProviderName enum name
+# or value (see core/src/shared/constants.py::GitProviderName): GITHUB,
 # AZURE_DEVOPS, GITLAB. Full field reference: docs/configuration.md.
 git:
   provider: "GITHUB"

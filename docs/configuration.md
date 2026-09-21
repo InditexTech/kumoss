@@ -16,18 +16,18 @@ Related guides: [Environment variables and secrets](environment-variables.md), [
 
 - The core Dockerfile copies the repository's `config.yaml` to `/etc/nebula/config.yaml` **at image build time**. The file is baked into the image. Editing it on the host does nothing until you run `docker compose build core` and restart the container. `docker compose watch` syncs only `core/`, not the configuration.
 - The `NEBULA_CONFIG` environment variable overrides the path. The path is interpreted **inside the container**, and the file must actually be present there (for example through a bind mount or a mounted secret). If the path is missing, or is a directory (which is what Docker creates when you bind-mount a non-existent host file), the core silently falls back to the built-in defaults.
-- Every field has a default in code, so the core can boot with no configuration file at all. Note that the built-in default disables **every** sidecar, including the IaC sidecar; the shipped `config.yaml` is what enables it.
-- Validation runs once at startup. A validation error aborts the boot with a `ConfigError` message quoted in the tables below.
+- Every field has a default in code, so the core can boot with no configuration file at all. Note that the built-in default disables **every optional** sidecar (`notifications`, `mapping`, `authz`). The IaC sidecar has no `enabled` flag and is always called: its own code defaults are `endpoint: "http://iac:8082"` and `token_env: "NEBULA_IAC_TOKEN"`, independent of whether a `config.yaml` is loaded at all.
+- Validation runs once at startup. A validation error aborts the boot with a message containing the `ConfigError` text quoted in the tables below; only the **first** failing configuration section is reported, so fixing one error can reveal another on the next boot attempt.
 - **Secrets never belong in `config.yaml`.** Fields whose name ends in `_env` hold the *name* of an environment variable; the value is read from the environment at boot or at use time.
 
-Changing any field therefore means: edit `config.yaml`, rebuild the core image, restart. "Requires rebuild" in the tables below always refers to that sequence.
+Changing any field therefore means: edit `config.yaml`, rebuild the core image, restart. "Requires rebuild" in the tables below always refers to that sequence. If you instead mount the file at the path in `NEBULA_CONFIG`, the equivalent is: update the mounted file and restart the core — no image rebuild needed, because the container reads the file from disk at startup rather than from the baked-in copy.
 
 ## Requirement summary
 
 | Category | Fields |
 |---|---|
 | **Mandatory** (the core refuses to boot otherwise) | The environment variable named by `database.nebula_database_url_env` must be set; the variable named by `services.iac.token_env` must be set (the IaC sidecar is always called and has no `enabled` flag); the credentials that LiteLLM requires for `llm.model` and `llm.small_model` must be set for providers LiteLLM can validate. |
-| **Conditionally mandatory** | `oidc.client_id` when `oidc.issuer_url` is set; the `token_env` variable of every other enabled sidecar; the variable named by `storage.account_key_env` when `storage.provider` is `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url` for `STORAGE_ACCOUNT`. |
+| **Conditionally mandatory** | `oidc.client_id` when `oidc.issuer_url` is set; the `token_env` variable of every other enabled sidecar; the variable named by `storage.account_key_env` when `storage.provider` is `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url` for `STORAGE_ACCOUNT`; a remote backend declared by every target repository while `storage.terraform_state_bucket` is blank — which only happens if a deployment explicitly sets it to `""`, since the shipped value enables Nebula-managed state by default. |
 | **Optional with defaults** | Everything else. |
 
 ## `environment`
@@ -73,8 +73,8 @@ Common fields, available under `services.notifications`, `services.mapping`, `se
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
 | `services.<name>.enabled` (not for `iac`) | boolean | `false` | `false` for `notifications`, `mapping`, `authz` | Optional | Whether the core calls the sidecar. A disabled sidecar is never contacted: mapping is done locally, notifications are dropped, authorization answers "authorized". Compose still starts the container. An `enabled` key under `services.iac` is ignored. |
-| `services.<name>.endpoint` | string (base URL) | `""` | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled; always for `iac`) | Base URL the core calls, resolvable from inside the core container. |
-| `services.<name>.token_env` | string (variable name) | `""` | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional (always for `iac`) | Name of the environment variable holding the bearer token sent on every call. **A sidecar the core will call whose variable resolves to an empty value aborts the boot** with `Services the core calls have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars; the optional sidecars can also be flipped to enabled: false (services.iac cannot — it is mandatory).` |
+| `services.<name>.endpoint` | string (base URL) | `""` for `notifications`, `mapping`, `authz`; **`http://iac:8082`** for `iac` (its own code default, not just the shipped value) | `http://notifications:8080`, `http://mapping:8081`, `http://authz:8083`, `http://iac:8082` | Conditional (needed when enabled; always for `iac`) | Base URL the core calls, resolvable from inside the core container. |
+| `services.<name>.token_env` | string (variable name) | `""` for `notifications`, `mapping`, `authz`; **`NEBULA_IAC_TOKEN`** for `iac` (its own code default) | `NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN` | Conditional (always for `iac`) | Name of the environment variable holding the bearer token sent on every call. **A sidecar the core will call whose variable resolves to an empty value aborts the boot** with `Services the core calls have no bearer token in the environment: services.<name> → $<VAR>. Set the listed env vars; the optional sidecars can also be flipped to enabled: false (services.iac cannot — it is mandatory).` |
 | `services.<name>.timeout` | float (seconds) | `30.0` | `30.0` | Optional | Per-request HTTP budget. Every sidecar call returns promptly (long work runs as jobs the core polls), so this covers one round trip only. Honoured by the IaC and notifications clients; the mapping and authorization clients currently use fixed budgets of 10 and 15 seconds and ignore this field. |
 
 Fields specific to the IaC sidecar:
@@ -94,14 +94,16 @@ Iteration limits and behaviour switches for the core's agent loops. Raise the li
 
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
-| `orchestration.enable_compliance_checker` | boolean | `false` | `true` | Optional | After a generate round is validated, an auditing chain checks the plan against the `general-compliance-report` prompt. A failed check locks the session (apply and pull-request merge blocked until a panel editor unlocks it) and sends a notification. When `false`, the check is skipped and reported as empty. |
-| `orchestration.block_on_high_impact` | boolean | `false` | `true` | Optional | When the generate report's impact banner is `high`, lock the session the same way. Uses the `general-compliance-impact` prompt criteria. |
+| `orchestration.enable_compliance_checker` | boolean | `false` | `true` | Optional | Runs the compliance auditor once a generate round has been validated and its report written: a second, independent small-model agent reads the session's first request and the raw plan, and checks them against the rules in the `general-compliance-report` prompt. The session is **locked** if any finding comes back with severity `error` or `critical`; `warning` findings are recorded in the report but do not lock. A lock also sends an `iac.compliance.failed` notification. When `false` the audit is skipped entirely and reported as an empty passing result, so it can never lock. Generate rounds only — drift rounds do not audit, and apply does not re-audit. |
+| `orchestration.block_on_high_impact` | boolean | `false` | `true` | Optional | **Locks** the session when the generate report's impact banner comes back `high`, and sends an `iac.impact.high` notification. The banner itself — `low`, `medium`, or `high`, judged against the `general-compliance-impact` prompt criteria — is part of every report either way; this flag decides only whether it gates. It is evaluated independently of the auditor above: the round ends locked if *either* condition fires. |
 | `orchestration.max_drift_reports` | integer | `3` | `3` | Optional | Maximum detect-and-remediate iterations in a drift session. |
 | `orchestration.max_validation_iteration` | integer | `5` | `5` | Optional | Maximum generate-then-validate attempts per generation task before the round fails with `Validation loop exceeded.` |
 | `orchestration.max_tool_chain_executions` | integer | `70` | `70` | Optional | Maximum tool-call iterations inside one agent chain before it aborts. |
-| `orchestration.max_session_events_iteration` | integer | `2160` | `2160` | Optional | Number of 5-second polls a server-sent-events subscription performs before it closes (2160 is three hours). |
+| `orchestration.max_session_events_iteration` | integer | `2160` | `2160` | Optional | Number of polls a server-sent-events subscription performs before it closes. The loop sleeps 4 or 5 seconds depending on the branch taken, so 2160 iterations run for roughly three hours rather than exactly `2160 × 5s`. |
 | `orchestration.drift_group_operations` | integer | `8` | `8` | Optional | How many drift operations are grouped into one remediation task. |
 | `orchestration.pull_request_readiness_seconds` | integer | `10` | `10` | Optional | How many one-second polls the GitHub provider performs waiting for a pull request to become mergeable before failing with `readiness polling exhausted`. |
+
+**What the two gates lock, and what they do not.** Both switches write the same session flag, so their effect is identical: a locked session answers `409` to `POST /v1/iac/apply` and to `PUT /v1/repository/pr/merge`. *Creating* a pull request is not lock-checked, and the audited code has already been pushed to the working branch by then, so the gate guards the apply boundary rather than the commit. The lock clears when a later generate round passes with a non-`high` banner, or when a panel `editor` toggles it in the [admin portal](admin-portal.md); drift rounds never set or clear it. Because both default to `false` in code and `true` in the shipped file, an `orchestration` block that omits them silently turns both gates off — spell them out in any file you write yourself. The full round-by-round flow is in [Compliance gate](architecture.md#compliance-gate).
 
 Requires rebuild: yes. See [Operating modes](modes.md) for where each limit applies.
 
@@ -111,8 +113,8 @@ Model selection through LiteLLM. Details, provider tables, and router examples a
 
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 |---|---|---|---|---|---|
-| `llm.model` | string (LiteLLM model string, or a `model_name` alias when `model_list` is set) | `anthropic/claude-sonnet-5` | `vertex_ai/claude-sonnet-4-5` | Optional (credentials mandatory) | High-quality model used by the IaC generator, target generator, and report generator chains. |
-| `llm.small_model` | string | `anthropic/claude-haiku-4-5` | `vertex_ai/gemini-3.7-flash` | Optional (credentials mandatory) | Cheaper model used by every other chain and by tool-internal LLM calls. |
+| `llm.model` | string (LiteLLM model string, or a `model_name` alias when `model_list` is set) | `anthropic/claude-sonnet-5` | `azure_ai/claude-sonnet-4-5` | Optional (credentials mandatory) | High-quality model used by the IaC generator, target generator, and report generator chains. |
+| `llm.small_model` | string | `anthropic/claude-haiku-4-5` | `azure_ai/claude-haiku-4-5` | Optional (credentials mandatory) | Cheaper model used by every other chain and by tool-internal LLM calls. |
 | `llm.temperature` | float | `0.1` | `0.1` | Optional | Applied to both roles (forced to `1.0` when a chain requests extended thinking). |
 | `llm.max_output_tokens` | integer | `32000` | `32000` | Optional | Completion cap sent on every call. |
 | `llm.model_list` | list of LiteLLM Router entries | `[]` | not set | Optional | Advanced routing: load balancing across entries that share a `model_name`, per-entry endpoints, and `os.environ/VAR` credential references. Router-level fallbacks between different models are **not** configurable today; the core passes only `model_list` to the Router. When non-empty, `model` and `small_model` must match a `model_name` and boot validation runs against the listed entries. |
@@ -177,12 +179,13 @@ Requires rebuild: yes.
 
 ## `storage`
 
-Object storage for generated artifacts (reports, plans, code changes). The browser downloads artifacts through presigned URLs.
+Object storage for generated artifacts (reports, plans, code changes) and, by default, for Terraform/OpenTofu state. The browser downloads artifacts through presigned URLs. `storage.terraform_state_bucket` ships set to `nebula-terraform-state`, so by default Nebula manages state in a **second bucket** in the same store, sharing the provider and the credentials with artifacts; set it to `""` to opt out and let each repository keep its own backend instead. See [Terraform/OpenTofu state backends](terraform-state-backends.md) for the state side in full.
 
 | YAML path | Type | Default | Requirement | Meaning and effect |
 |---|---|---|---|---|
 | `storage.provider` | one of `RUSTFS`, `S3`, `STORAGE_ACCOUNT` (enum names) or `rustfs`, `s3`, `storage_account` (enum values) | `RUSTFS` | Optional | Backend. `RUSTFS`: the bundled RustFS or any S3-compatible server with a custom endpoint. `S3`: real AWS S3 on its regional endpoint (both URLs below are ignored; the region builds the endpoint). `STORAGE_ACCOUNT`: an Azure storage account using a shared key. |
-| `storage.bucket` | string | `nebula-artifacts` | Optional | Bucket name, or blob container name for `STORAGE_ACCOUNT`. Created at boot if missing. |
+| `storage.bucket` | string | `nebula-artifacts` | Optional | Artifacts bucket name, or blob container name for `STORAGE_ACCOUNT`. Created at boot if missing. |
+| `storage.terraform_state_bucket` | string | `nebula-terraform-state`, both as shipped in `config.yaml` and as the field default if the key is absent | Optional | Bucket (or blob container) holding Terraform/OpenTofu state, separate from `storage.bucket`. **Non-blank — the shipped value — means Nebula manages state**: the bucket is created at boot if missing and the core writes a `backend_override.tf` into every workspace before `init`, addressing it with the key `<project_id>/terraform.tfstate`. Backend type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for `STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value, `""`, and whitespace-only are all blank, and blank means no bucket is created, no override is written, and each repository must declare its own remote backend, whose credentials belong to the IaC sidecar. A bare `terraform_state_bucket:` with nothing after it is **not** the same as `""`: it parses as YAML null and fails boot with a Pydantic validation error. See [Terraform/OpenTofu state backends](terraform-state-backends.md). |
 | `storage.endpoint_url` | string | `http://object-storage:9000` | Conditional | Endpoint the core's SDK calls from inside the compose network. For `STORAGE_ACCOUNT` it must be the account blob endpoint (`https://<account>.blob.core.windows.net`, or the emulator form `http://<host>:<port>/<account>`); the account name is derived from it. Boot fails with `storage.endpoint_url must be an account blob endpoint ...` when it cannot be derived. |
 | `storage.public_endpoint_url` | string | `http://localhost:9000` | Conditional | Host the **browser** reaches. Presigned S3 URLs bind the host header, so this must be the externally visible address of the store (in the compose stack, nginx forwards port 9000 to RustFS). |
 | `storage.region` | string | `us-east-1` | Optional | Region for signing (`RUSTFS`) or for building the endpoint (`S3`). Ignored for `STORAGE_ACCOUNT`. |
@@ -193,6 +196,8 @@ Object storage for generated artifacts (reports, plans, code changes). The brows
 | `storage.read_timeout` | float (seconds) | `10.0` | Optional | Per-request read budget. |
 | `storage.max_attempts` | integer | `3` | Optional | Retry count (botocore standard mode). |
 | `storage.presign_expiry_seconds` | integer in `[108000, 604800]` | `172800` (48 hours) | Optional | Lifetime of presigned download URLs. **Must stay between 108000 (30 hours) and 604800 (7 days).** The floor keeps URLs valid for longer than the 24-hour cached session detail that embeds them; the ceiling is the SigV4 limit. Boot fails with `storage.presign_expiry_seconds must be between 108000 ... and 604800 ...` otherwise. |
+
+While Nebula-managed state is on, these fields have a second consumer: `endpoint_url`, `region`, and the credential variables are rendered into the backend block that the **IaC sidecar** executes. Two consequences follow. The sidecar container must be able to reach `storage.endpoint_url` (in the Compose stack both containers sit on `bridge-network`, so `http://object-storage:9000` resolves). And unless **both** `access_key_env` and `secret_key_env` resolve to non-empty values, the backend block omits the credential lines entirely — a single one being set is not enough — and the engine falls back to the **sidecar's** ambient credentials; an instance profile on the core alone is not enough.
 
 Requires rebuild: yes. Related environment variables in `core/.env`: `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `STORAGE_ACCOUNT_KEY`.
 
@@ -225,9 +230,12 @@ oidc:
 
 services:
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
+
+orchestration:
+  enable_compliance_checker: true
+  block_on_high_impact: true
 
 llm:
   model: "anthropic/claude-sonnet-5"
@@ -240,6 +248,11 @@ storage:
   provider: "RUSTFS"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
+  # Shipped default: Nebula keeps Terraform state in the bundled
+  # RustFS, in its own bucket, so a scratch repository with no backend
+  # of its own works out of the box. Set it to "" to use the backend
+  # each repository declares instead.
+  terraform_state_bucket: "nebula-terraform-state"
 
 git:
   provider: "GITHUB"
@@ -276,7 +289,6 @@ services:
     endpoint: "https://authz.nebula.example.invalid"
     token_env: "NEBULA_AUTHZ_TOKEN"
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
     job_timeout: 3600.0
@@ -287,8 +299,10 @@ orchestration:
 
 # Credentials stay in core/.env under the provider's default variable
 # names (here AZURE_API_KEY, AZURE_API_BASE, AZURE_API_VERSION); no
-# model_list is needed for that. Use llm.model_list only for fallbacks,
-# load balancing, or custom credential variable names (docs/litellm.md).
+# model_list is needed for that. Use llm.model_list for load balancing
+# across entries that share a model_name, custom credential env var
+# names, or per-entry endpoints (docs/litellm.md) — there is no
+# router-level fallback support.
 llm:
   model: "azure/main-deployment"
   small_model: "azure/small-deployment"
@@ -305,6 +319,13 @@ http:
 storage:
   provider: "STORAGE_ACCOUNT"
   bucket: "nebula-artifacts"
+  # Shipped default: Nebula owns state instead of the target
+  # repositories. Blob container separate from the artifacts container
+  # so state escapes any artifact lifecycle policy — enable versioning
+  # and soft delete on it. Set it explicitly to "" — a bare key with no
+  # value fails at boot — when the repositories already declare their
+  # own backends.
+  terraform_state_bucket: "nebula-terraform-state"
   endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"
   public_endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"
   presign_expiry_seconds: 172800
