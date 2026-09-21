@@ -13,6 +13,9 @@
 * xref:main:guides/make-a-request.adoc[Make a request]
 * xref:main:guides/follow-a-session.adoc[Follow a session]
 * xref:main:guides/merge-and-apply.adoc[Merge and apply]
+* xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+* xref:main:guides/remediate-drift.adoc[Remediate drift]
+* xref:main:guides/import-infrastructure.adoc[Import infrastructure]
 * Reference
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]

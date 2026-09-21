@@ -1,0 +1,127 @@
+= Remediate drift
+:description: Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
+
+The Nebula web application offers two drift modes: Partial Drift
+Remediation, for a specific set of resources you describe, and Full Drift
+Remediation, for the whole configuration in the IaC path. They share the
+same prerequisites and workflow shape, and differ only in how targets are
+selected. This guide covers both.
+
+== Prerequisites
+
+* The `devops` operation role, assigned per user and checked by the API
+  on every request. `devops` is above `developer`. See the roles and
+  permissions reference for the complete role matrix.
+* A repository URL, the target cloud, and a scope id, as covered in
+  xref:main:guides/make-a-request.adoc[Make a request]. In the web
+  application, both drift modes are shown disabled below `devops`, with
+  the hint "Requires the devops operation role."
+
+[#partial-drift-remediation]
+== Partial drift remediation
+
+*Use case.* Someone changed resources outside Terraform (a console edit,
+a hotfix) and you want the code and state reconciled for a specific set
+of resources: "resolve the drift on the web security group".
+
+*Required inputs.* Repository URL, cloud, scope id, and a *non-empty*
+request describing which resources to reconcile. The API rejects a
+partial drift request with an empty text.
+
+*Workflow.*
+
+. *Filtering.* The request filter runs in drift mode: it accepts
+  requests to resolve or scope drift and declines requests to create or
+  modify infrastructure as an operation mismatch.
+. *Prompt composition*, as in generate.
+. *Target selection.* The target generator, in drift mode, derives
+  Terraform targets from the request, the history, the selected resource
+  prompts, and the `general-guidelines-targeting_policies` prompt.
+. *Detect and remediate loop*, up to `orchestration.max_drift_reports`
+  iterations (3 by default). The first iteration runs `init`, `validate`
+  and `plan -out` on the targets; each later one reads the plan its
+  predecessor's last remediation cycle validated, and only plans for
+  itself if that cycle produced nothing. Every iteration then runs
+  `show -json` on the plan artifact, derives the drift from it, stores
+  the drift report as an artifact, splits the drift into operations in
+  groups of `orchestration.drift_group_operations` (8), and runs a
+  generate and validate cycle per group. `init` is submitted only once
+  per session.
+. *Report.* A `drift` JSON report with a summary, an outcome
+  (`Succeeded`, `Partial`, `Failed`), the remediated resources, and any
+  drift that could not be reconciled.
+
+*Inspects existing IaC and state.* Yes; drift is computed from the plan
+against real state.
+
+*Targets.* Selected by the target generator from your description.
+
+*Artifacts and reports.* Drift reports and plans per iteration,
+code-change files, a `drift` JSON report, a pushed branch.
+
+*Plan pinned.* *No.* Drift sessions do not pin a plan, so apply (and
+therefore the Import Infrastructure mode) on a drift-only session is
+accepted with `202`, and then the background round fails with `No
+reviewed plan is pinned for this session; run a generate or drift round
+before applying.` Take the "or drift" in that message with a pinch of
+salt — only a generate round pins a plan, so a drift round does not clear
+the error. That marks the *session* `FAILED`, not just the round, so it
+can no longer be continued, applied, or reused — only a new session will
+do.
+
+*Apply, pull requests, compliance, locks.* You can create a pull request
+from the branch. Drift rounds run no compliance audit and never set the
+lock. Apply is unavailable until a generate round pins a plan. In the web
+application a drift session therefore ends at the pull-request merge:
+the merge button is labelled for merging only, and no apply is triggered
+afterwards.
+
+*Example.* "Resolve the drift on security group `sg-web-demo`; someone
+opened port 8080 in the console." Nebula plans with `-target` on that
+security group, detects the extra ingress rule, and generates code that
+restores the declared rules. You review the drift report and open a pull
+request.
+
+*Limitations.*
+
+* No compliance check, no impact banner, no lock, no pinned plan.
+* Remediation is bounded by the iteration and group limits; leftover
+  drift is reported as unreconciled.
+
+== Full drift remediation
+
+*Use case.* Reconcile the whole configuration in the IaC path, for
+example after a period of manual changes.
+
+*Required inputs.* Repository URL, cloud, scope id, and request text. The
+text is required by the API, is recorded as the round's request and is
+given to the prompt compositor, but no filter runs on it and no targets
+are derived from it.
+
+*Workflow.* Identical to <<partial-drift-remediation,partial drift
+remediation>> except that the request filter and the target generator
+are skipped: the plan runs with *no targets*, covering every resource in
+the configuration, and the same detect and remediate loop and `drift`
+report follow.
+
+*Inspects existing IaC and state.* Yes, the entire configuration.
+
+*Targets.* None; whole workspace.
+
+*Artifacts, plan pinning, apply, compliance, locks.* As for partial
+drift: artifacts and a `drift` report, no pinned plan, no compliance
+audit, no lock, apply unavailable until a generate round pins a plan, and
+the web application ends the session at the pull-request merge.
+
+*Example.* "Reconcile everything in `envs/dev`." Nebula plans the whole
+root, finds two drifted resources, generates the reconciling changes, and
+reports `Succeeded`.
+
+*Limitations.* Large roots take longer and consume more model calls; the
+first detection pass plans the whole configuration, and so does every
+remediation cycle.
+
+== Next steps
+
+* xref:main:guides/merge-and-apply.adoc[Merge and apply] to open and
+  merge the pull request; a drift session ends there.
