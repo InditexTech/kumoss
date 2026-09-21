@@ -10,6 +10,7 @@ from .problem import Problem
 from .resolve_request import ResolveRequest
 from .resolve_response import ResolveResponse
 from .resolve_response_400 import ResolveResponse400
+from .terraform_provider import TerraformProvider
 
 __all__ = (
     "Health",
@@ -18,4 +19,5 @@ __all__ = (
     "ResolveRequest",
     "ResolveResponse",
     "ResolveResponse400",
+    "TerraformProvider",
 )

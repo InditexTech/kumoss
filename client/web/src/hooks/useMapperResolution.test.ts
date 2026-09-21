@@ -17,12 +17,12 @@ describe("useMapperResolution", () => {
     expect(result.current.mapperError).toBeNull();
   });
 
-  it("resolveAndScan returns repoUrl, project, and paths on success", async () => {
+  it("resolveAndScan returns repoUrl, identifier, and paths on success", async () => {
     server.use(
       http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({
           repo_url: "https://dev.azure.com/org/project/_git/repo",
-          project: "my-project",
+          identifier: "my-repo-identifier",
         }),
       ),
       http.post("/api/v1/repository/parse", () =>
@@ -42,7 +42,10 @@ describe("useMapperResolution", () => {
     expect(resolved!.repoUrl).toBe(
       "https://dev.azure.com/org/project/_git/repo",
     );
-    expect(resolved!.project).toBe("my-project");
+    expect(resolved!.identifier).toBe("my-repo-identifier");
+    // The mapper answered neither, so the wizard must still ask.
+    expect(resolved!.provider).toBeNull();
+    expect(resolved!.scopeId).toBeNull();
     expect(resolved!.paths).toEqual([
       "environments/dev",
       "environments/pro",
@@ -54,12 +57,40 @@ describe("useMapperResolution", () => {
     expect(result.current.mapperLoading).toBe(false);
   });
 
+  it("resolveAndScan surfaces a provider and scope the mapper answered", async () => {
+    server.use(
+      http.post("/api/v1/mapping/resolve", () =>
+        HttpResponse.json({
+          repo_url: "https://git.example/iac.git",
+          identifier: "my-project",
+          terraform_provider: "oci",
+          // Not validated against the typed-scope pattern: an OCID
+          // contains dots, which that human-typo guard rejects.
+          scope_id: "ocid1.compartment.oc1..aaaaexample",
+        }),
+      ),
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ roots: ["infra"] }),
+      ),
+    );
+
+    const { result } = renderHook(() => useMapperResolution());
+
+    let resolved: Awaited<ReturnType<typeof result.current.resolveAndScan>>;
+    await act(async () => {
+      resolved = await result.current.resolveAndScan("my-project");
+    });
+
+    expect(resolved!.provider).toBe("oci");
+    expect(resolved!.scopeId).toBe("ocid1.compartment.oc1..aaaaexample");
+  });
+
   it("resolveAndScan returns empty paths when repo has no IaC", async () => {
     server.use(
       http.post("/api/v1/mapping/resolve", () =>
         HttpResponse.json({
           repo_url: "https://example.com/repo",
-          project: "empty-project",
+          identifier: "empty-repo",
         }),
       ),
       http.post("/api/v1/repository/parse", () =>
@@ -103,7 +134,7 @@ describe("useMapperResolution", () => {
   it("sets mapperLoading during resolution", async () => {
     server.use(
       http.post("/api/v1/mapping/resolve", () =>
-        HttpResponse.json({ repo_url: "url", project: "p" }),
+        HttpResponse.json({ repo_url: "url", identifier: "i" }),
       ),
       http.post("/api/v1/repository/parse", () =>
         HttpResponse.json({ roots: ["dev"] }),
@@ -136,7 +167,7 @@ describe("useMapperResolution", () => {
   it("resetMapper clears all state", async () => {
     server.use(
       http.post("/api/v1/mapping/resolve", () =>
-        HttpResponse.json({ repo_url: "url", project: "p" }),
+        HttpResponse.json({ repo_url: "url", identifier: "i" }),
       ),
       http.post("/api/v1/repository/parse", () =>
         HttpResponse.json({ roots: ["dev", "pro"] }),

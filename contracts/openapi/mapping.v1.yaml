@@ -10,19 +10,29 @@ info:
   description: |
     The mapping service translates a "business identifier" (project name,
     subscription code, product slug, full repo URL — whatever an
-    organization uses) into a concrete IaC reference: clone URL, default
-    branch, and optional subdirectory within the repo.
+    organization uses) into the repository Nebula should clone, plus
+    whatever else the organization's catalogue already knows about that
+    identifier: the Terraform provider it deploys with and the cloud
+    scope it deploys into.
+
+    Only `repo_url` is guaranteed. `terraform_provider` and `scope_id`
+    are best effort, and **`null` means "I do not know, ask the user"** —
+    never "there is none". Nebula skips the wizard step for any field the
+    mapper answers, so a confident wrong answer is worse than `null`: the
+    user is never prompted and never sees it. Return `null` whenever the
+    catalogue is not authoritative.
 
     The OSS reference implementation under `services/mapping/` is an
-    identity passthrough: the input identifier is treated as the repo URL
-    and a `project` echoing the identifier is returned. It exists so a
-    fresh OSS deploy works end-to-end without anyone needing to write a
-    real mapper.
+    identity passthrough: the input identifier is treated as the repo
+    URL, `terraform_provider` echoes whatever the caller sent, and
+    `scope_id` is always `null`. It deliberately guesses at nothing. It
+    exists so a fresh OSS deploy works end-to-end without anyone needing
+    to write a real mapper.
 
     Enterprise implementations look up the identifier against an internal
     catalogue (CMDB, Backstage, a shared spreadsheet, …) and return the
-    canonical IaC repo for it. The contract makes no assumption about
-    where that data lives.
+    canonical IaC repo for it. The contract carries the result and says
+    nothing about where the lookup data lives.
 
     The mapping service is invoked only by the Nebula core; browser
     callers reach it through the core passthrough at
@@ -51,10 +61,15 @@ paths:
       tags: [resolve]
       summary: Resolve a business identifier into an IaC repository reference.
       description: |
-        Translates `identifier` into the IaC repo, branch, and (optional)
-        sub-path that the rest of Nebula should operate on. Implementations
-        MAY use the optional `cloud` and `environment` hints to disambiguate
-        between repos that share an identifier across deployment dimensions.
+        Translates `identifier` into the repository the rest of Nebula
+        operates on, and optionally into the Terraform provider and cloud
+        scope the caller would otherwise have to ask the user for.
+
+        `repo_url` is required. `terraform_provider` and `scope_id` are
+        best effort: implementations MUST return `null` rather than a
+        guess, because the caller skips its corresponding prompt for any
+        field that comes back non-null. `identifier` MUST echo the
+        request's `identifier` verbatim so callers can correlate.
       security:
         - bearerAuth: []
       requestBody:
@@ -161,6 +176,15 @@ components:
             $ref: "#/components/schemas/Problem"
 
   schemas:
+    TerraformProvider:
+      type: string
+      enum: [azure, gcp, aws, oci, kubernetes]
+      description: |
+        Cloud provider a deployment targets. Values follow the core's
+        provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
+        `kubernetes`), not Terraform registry provider names
+        (`azurerm`, `google`).
+
     ResolveRequest:
       type: object
       required: [identifier]
@@ -176,28 +200,20 @@ components:
           minLength: 1
           maxLength: 1024
           examples: ["my-project", "https://github.com/me/my-iac.git"]
-        cloud:
-          type: [string, "null"]
+        terraform_provider:
           description: |
-            Optional cloud hint (`azure`, `gcp`, `aws`, …). Implementations
-            MAY use this to disambiguate identifiers that span clouds.
-            May be omitted or sent as null.
-          minLength: 1
-          maxLength: 32
-          examples: ["azure", "gcp"]
-        environment:
-          type: [string, "null"]
-          description: |
-            Optional deployment-dimension hint (`dev`, `staging`, `pro`, …).
-            Implementations MAY use this to route to environment-specific
-            mirrors of the same logical repo. May be omitted or sent as null.
-          minLength: 1
-          maxLength: 32
-          examples: ["dev", "pro"]
+            Provider the caller already knows the deployment targets.
+            Implementations MAY use it to disambiguate identifiers that
+            span clouds, and MUST echo it back in the response when it is
+            sent. May be omitted or sent as null, which means the caller
+            does not know either.
+          anyOf:
+            - $ref: "#/components/schemas/TerraformProvider"
+            - type: "null"
 
     ResolveResponse:
       type: object
-      required: [repo_url, project]
+      required: [repo_url, identifier]
       additionalProperties: false
       properties:
         repo_url:
@@ -206,32 +222,42 @@ components:
             URL Nebula should clone. Free-form because git accepts many
             URL shapes (https://, ssh+git://, git@host:path, file://,
             absolute paths). Implementations are responsible for returning
-            something the deployment's git client can clone.
+            something the deployment's git client can clone. When the
+            identifier already is a repository URL, implementations pass
+            it through unchanged.
           minLength: 1
           maxLength: 2048
-        project:
+        identifier:
           type: string
           description: |
-            Canonical project name used for downstream context (cloud
-            resource group naming, tracer attributes, audit logs).
-            Identity reference impl returns the input identifier; smarter
-            implementations return the catalogue's canonical name.
+            The request's `identifier`, echoed verbatim. Normative rather
+            than conventional: callers correlate responses on it.
           minLength: 1
-          maxLength: 128
-        branch:
-          type: [string, "null"]
-          description: |
-            Default branch Nebula should target. Implementations MAY omit
-            this or send null; callers fall back to the resolved repo's
-            default branch.
-          maxLength: 256
-        path:
-          type: [string, "null"]
-          description: |
-            Optional sub-path within the repo where the IaC lives. Useful
-            for monorepos that host multiple IaC projects. May be omitted
-            or sent as null.
           maxLength: 1024
+          examples: ["my-project", "https://github.com/me/my-iac.git"]
+        terraform_provider:
+          description: |
+            Provider the deployment targets. Echoes the request's value
+            when one was sent; otherwise the implementation's best-effort
+            answer, or `null` for "I do not know, ask the user". Never
+            guess — the caller skips its provider prompt when this is
+            non-null, so a wrong value is never seen or corrected.
+          anyOf:
+            - $ref: "#/components/schemas/TerraformProvider"
+            - type: "null"
+        scope_id:
+          type: [string, "null"]
+          description: |
+            Cloud scope the deployment targets — Azure: subscription id,
+            GCP: project id, AWS: account id, OCI: compartment OCID — as
+            a best-effort answer, or `null` for "I do not know, ask the
+            user". Same warning as `terraform_provider`: the caller skips
+            its scope prompt when this is non-null, so a wrong value
+            sends the user into a plan against the wrong scope with
+            nothing to catch it.
+          minLength: 1
+          maxLength: 1024
+          examples: ["0000aaaa-11bb-cccc-dd22-eeeeee333333", "my-gcp-project"]
 
     Health:
       type: object

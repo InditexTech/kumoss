@@ -73,7 +73,7 @@ Credential files you mount must be readable by the unprivileged user the image r
 |---|---|---|---|---|
 | `NEBULA_MAPPING_TOKEN` | Recommended when the sidecar is enabled | empty (accepts any bearer) | Token required on `POST /v1/resolve`. Must equal the core's `NEBULA_MAPPING_TOKEN`. | Per request |
 
-The bundled mapping service is an identity passthrough: it returns the identifier it receives as both repository URL and project name (the project name is truncated to 128 characters). While `services.mapping.enabled` is `false` (the default) the core performs that same mapping itself and never calls the service. Once enabled, a sidecar that times out or is unreachable makes the wizard's resolve step fail with `504` or `502`; there is no silent fallback.
+The bundled mapping service is an identity passthrough: it returns the identifier it receives as both `repo_url` and `identifier`, echoes back any `terraform_provider` it was sent, and always answers `null` for `scope_id` — it knows nothing it was not told, and `null` means "ask the user". While `services.mapping.enabled` is `false` (the default) the core performs that same mapping itself and never calls the service. Once enabled, a sidecar that times out or is unreachable makes the wizard's resolve step fail with `504` or `502`, and so does a response the core cannot parse or one naming a provider outside the contract's enum; there is no silent fallback.
 
 ## Notifications sidecar (`services/notifications/env.sample`)
 
