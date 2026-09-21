@@ -50,8 +50,9 @@ deployment model.
 
 `config.yaml` at the repository root is the single configuration file. It
 is baked into the core image at build time, so every edit needs
-`docker compose build core`. Do not change default settings; the table
-below is what to review.
+`docker compose build core`. All fields are documented in the
+configuration reference. Do not change default settings; the table below
+is what to review.
 
 [cols="2,2,5",options="header"]
 |===
@@ -95,7 +96,7 @@ them to test a real login flow.
 |`storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins`
 |Leave as shipped
 |They already point at the bundled containers (`object-storage:9000`,
-`phoenix:6006`, `redis:6379`, `core-db`, origin `http://localhost`). Change
+`phoenix:6006`, `redis:6379`, `core-db`, origin `\http://localhost`). Change
 them only if the defaults are unsuitable, for example when the browser
 reaches the host under another name (then update
 `storage.public_endpoint_url` and `http.cors_origins`).
@@ -159,7 +160,8 @@ it is always called, and its `endpoint` and `token_env` default in code to
 
 === 3. Configure core/.env
 
-The effective minimum for this deployment:
+Every variable is documented in the environment variables and secrets
+reference. The effective minimum for this deployment:
 
 [cols="2,2,5",options="header"]
 |===
@@ -423,7 +425,7 @@ container that has exited is normal while the integration is disabled.
 docker compose logs -f core
 ----
 
-Wait for the start-up sequence to finish: database initialisation, Redis,
+Wait for the start-up sequence to finish: database initialization, Redis,
 the object-storage artifacts bucket, Phoenix prompt seeding (`Prompt
 seeding complete: N created, M already present`), git credentials, and
 finally `Application startup complete`. Boot is strict: if any of those
@@ -450,7 +452,7 @@ returns a JSON document with an empty `issuer_url`.
 |`http://localhost/monitoring/`
 |Phoenix: traces of every run and the prompt registry
 
-|`http://localhost:9000`
+|`\http://localhost:9000`
 |Presigned artifact downloads opened by the web application, and the
 RustFS console — trusted workstation only
 |===
@@ -478,7 +480,8 @@ This keeps the named volumes (databases, artifacts, workspaces), so
 sessions and prompts survive a restart. The authz sidecar's own JSON role
 store is container-local and is lost when that container is recreated; it
 is unrelated to Nebula's operation and panel roles, which live in
-`core-db`.
+`core-db`. See `services/authz/README.md` in the repository if you need
+the sidecar's roles to persist.
 
 === Delete Nebula volumes
 
@@ -526,7 +529,7 @@ each repository declares its own backend instead.
 * *`notifications` container exits immediately.* Expected while the
   sidecar is disabled. If you enabled it, set `SLACK_WEBHOOK_URL`.
 * *A `config.yaml` change has no effect.* Rebuild the core image with
-  `docker compose build core`; `curl http://localhost/api/v1/auth/config`
+  `docker compose build core`; `curl \http://localhost/api/v1/auth/config`
   shows what the core actually serves.
 * *Plan or apply fails with a provider authentication error.* Cloud
   credentials in `services/iac/.env` are absent or invalid.
@@ -542,7 +545,7 @@ each repository declares its own backend instead.
   value.
 * *The browser cannot download an artifact.* Port 9000 must be reachable
   from the browser under the host in `storage.public_endpoint_url`
-  (`http://localhost:9000` by default).
+  (`\http://localhost:9000` by default).
 * *`init` fails on the state backend, or every plan wants to recreate
   existing resources.* As shipped, Nebula manages state itself, so check
   the `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` credentials first. If you set
@@ -560,6 +563,6 @@ each repository declares its own backend instead.
   no restart policy on `core`, so a startup race leaves it stopped rather
   than retrying. Run `docker compose up -d core` again.
 * *RustFS console.* The bundled object storage exposes a web console on
-  `http://localhost:9000` using the compose credentials (`rustfsadmin` /
+  `\http://localhost:9000` using the compose credentials (`rustfsadmin` /
   `rustfsadmin`). This is fine on a trusted workstation only — never
   expose it beyond one.
