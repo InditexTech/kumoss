@@ -13,12 +13,11 @@ failures, and that the session is saved even on errors.
 
 import json
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from src.application.exceptions import SetLockError, TerraformValidationFailedError
+from src.application.exceptions import TerraformValidationFailedError
 from src.application.use_cases.terraform_import_handler import TerraformImportHandler
 from src.domains.dto import (
-    ComplianceCheckReport,
     TerraformImportAttempt,
     TerraformImportDTO,
     TerraformValidationDTO,
@@ -27,7 +26,7 @@ from src.domains.dto import (
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
 from src.shared.constants import (
-    PromptsLibrary,
+    OperationType,
     ReportType,
     SessionStatus,
     ToolContext,
@@ -75,15 +74,6 @@ def _filter_result(selected: list[str], explanation: str = "matched") -> ToolRes
     )
 
 
-def _generation_result(imports: list[dict]) -> ToolResultDTO:
-    return ToolResultDTO(
-        name="iac_import",
-        tool_call_id="tc_2",
-        success=True,
-        result={"status": True, "summary": "done", "imports": imports},
-    )
-
-
 class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.session_svc = AsyncMock()
@@ -92,10 +82,12 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.template_svc = AsyncMock()
         self.requests_filter_svc = AsyncMock()
         self.import_svc = AsyncMock()
+        self.import_address_svc = AsyncMock()
+        self.import_address_svc.get_import_addresses.return_value = []
+        self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(True)
         self.report_svc = AsyncMock()
-        self.compliance_svc = AsyncMock()
         self.llm_svc = AsyncMock()
         self.tool_svc = MagicMock()
 
@@ -119,9 +111,10 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             template_service=self.template_svc,
             requests_filter_service=self.requests_filter_svc,
             import_service=self.import_svc,
+            import_address_service=self.import_address_svc,
+            target_service=self.target_svc,
             drift_service=self.drift_svc,
             report_service=self.report_svc,
-            compliance_service=self.compliance_svc,
             llm_service=self.llm_svc,
             tool_service=self.tool_svc,
         )
@@ -142,22 +135,26 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
     # --- Step 1: Discovery ---
 
-    async def test_empty_discovery_sets_uncompleted(self):
+    async def test_empty_discovery_reports_nothing_to_import(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = []
 
         task = await self.handler.handle("import everything", is_partial=True)
         await task()
 
-        status_kwargs = self.session_svc.update_status.await_args.kwargs
-        self.assertIs(status_kwargs["status"], SessionStatus.UNCOMPLETED)
-        self.assertIn("No unmanaged resources", status_kwargs["msg"])
+        # An empty scope is a completed round with an empty report, not a
+        # dead end: the runner completes any handler that returns cleanly.
+        report_kwargs = self.report_svc.generate_report.await_args.kwargs
+        self.assertIs(report_kwargs["type"], ReportType.IMPORT)
+        payload = json.loads(report_kwargs["content"])
+        self.assertEqual(payload["selected_resource_ids"], [])
+        self.assertIn("No unmanaged resources", payload["summary"])
         self.llm_svc.generate.assert_not_awaited()
         self.session_svc.save.assert_awaited_once()
 
     # --- Step 2: Selection ---
 
-    async def test_empty_selection_sets_uncompleted_with_explanation(self):
+    async def test_empty_selection_reports_the_filter_explanation(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
         self.llm_svc.generate.return_value = _filter_result(
@@ -167,9 +164,11 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         task = await self.handler.handle("import the database", is_partial=True)
         await task()
 
-        status_kwargs = self.session_svc.update_status.await_args.kwargs
-        self.assertIs(status_kwargs["status"], SessionStatus.UNCOMPLETED)
-        self.assertEqual(status_kwargs["msg"], "none of the resources match the query")
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(payload["summary"], "none of the resources match the query")
+        self.assertEqual(payload["selected_resource_ids"], [])
         self.validation_svc.generate_and_validate.assert_not_awaited()
         self.session_svc.save.assert_awaited_once()
 
@@ -178,16 +177,11 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result([])
+        self.import_address_svc.get_import_addresses.return_value = []
         self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import everything", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         # The task splitter sentinel is passed exactly once, inside `tools`,
         # and never duplicated through a separate `sentinel_tool` kwarg.
@@ -204,71 +198,67 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     async def test_full_round_imports_every_unmanaged_id_unfiltered(self):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import everything", is_partial=False)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         # A full round asks neither the request analyst nor the import_filter
         # agent: the whole scope diff is the selection.
         self.requests_filter_svc.filter.assert_not_awaited()
         self.llm_svc.generate.assert_not_awaited()
-        gen_kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
-        self.assertEqual(
-            gen_kwargs["prompt_kwargs"], {"selected_ids": ["res-1", "res-2"]}
-        )
+        # Every unmanaged id is carried to the generator inside the query.
+        gen_q = self.validation_svc.generate_and_validate.await_args.kwargs["q"]
+        self.assertTrue(gen_q.startswith("import everything"))
+        self.assertIn("- res-1", gen_q)
+        self.assertIn("- res-2", gen_q)
 
-    async def test_full_round_with_empty_discovery_sets_uncompleted(self):
+    async def test_full_round_with_empty_discovery_reports_nothing_to_import(self):
         self.import_svc.get_unmanaged_resources.return_value = []
 
         task = await self.handler.handle("import everything", is_partial=False)
         await task()
 
-        status_kwargs = self.session_svc.update_status.await_args.kwargs
-        self.assertIs(status_kwargs["status"], SessionStatus.UNCOMPLETED)
-        self.assertIn("No unmanaged resources", status_kwargs["msg"])
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertIn("No unmanaged resources", payload["summary"])
         self.requests_filter_svc.filter.assert_not_awaited()
         self.validation_svc.generate_and_validate.assert_not_awaited()
         self.session_svc.save.assert_awaited_once()
 
     # --- Step 3: Config generation ---
 
-    async def test_config_generation_uses_iac_import_prompt_and_sentinel(self):
+    async def test_config_generation_carries_selected_ids_in_the_query(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
         self.terraform_svc.validate.return_value = _validation_dto(True)
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
+        # The selected ids reach the generator through the query, not through
+        # the system prompt: the prompt says how to write Terraform, the query
+        # says which resources to write it for.
         gen_kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
-        self.assertIs(gen_kwargs["prompt_key"], PromptsLibrary.IAC_IMPORT)
-        self.assertIs(gen_kwargs["sentinel_context"], ToolContext.IAC_IMPORT)
-        self.assertEqual(gen_kwargs["prompt_kwargs"], {"selected_ids": ["res-1"]})
+        self.assertIs(gen_kwargs["operation_type"], OperationType.IMPORT)
         self.assertFalse(gen_kwargs["include_forbidden_actions"])
+        self.assertNotIn("selected_ids", gen_kwargs)
+        self.assertTrue(gen_kwargs["q"].startswith("import res-1"))
+        self.assertIn("- res-1", gen_kwargs["q"])
 
     async def test_config_generation_failure_raises(self):
         self.requests_filter_svc.filter.return_value = (True, "")
@@ -292,17 +282,15 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
     # --- Step 4: Import execution ---
 
-    async def test_import_execution_extracts_mapping_from_generation_result(self):
+    async def test_import_execution_uses_the_mapping_agent_addresses(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
         self.llm_svc.generate.return_value = _filter_result(["res-1", "res-2"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [
-                {"address": "azurerm_resource_group.main", "resource_id": "res-1"},
-                {"address": "azurerm_virtual_network.vnet", "resource_id": "res-2"},
-            ]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1"),
+            ("azurerm_virtual_network.vnet", "res-2"),
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[
                 ("azurerm_resource_group.main", "res-1"),
@@ -310,15 +298,15 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             ]
         )
         self.terraform_svc.validate.return_value = _validation_dto(True)
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import all", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
+        # The mapping agent needs the selection to rebuild the ids: a
+        # generated block never carries its own cloud resource id.
+        self.import_address_svc.get_import_addresses.assert_awaited_once_with(
+            self.ctx.history, ["res-1", "res-2"]
+        )
         self.import_svc.import_resources.assert_awaited_once_with(
             [
                 ("azurerm_resource_group.main", "res-1"),
@@ -331,43 +319,31 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
         self.llm_svc.generate.return_value = _filter_result(["res-1", "res-2"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [
-                {"address": "azurerm_resource_group.main", "resource_id": "res-1"},
-                {"address": "azurerm_virtual_network.vnet", "resource_id": "res-2"},
-            ]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1"),
+            ("azurerm_virtual_network.vnet", "res-2"),
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")],
             failed=[("azurerm_virtual_network.vnet", "res-2")],
         )
         self.terraform_svc.validate.return_value = _validation_dto(True)
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import all", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.report_svc.generate_report.assert_awaited_once()
 
-    async def test_no_generation_result_yields_empty_imports(self):
+    async def test_no_mapped_address_yields_empty_imports(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = None
+        self.import_address_svc.get_import_addresses.return_value = []
         self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.import_svc.import_resources.assert_awaited_once_with([])
 
@@ -378,20 +354,15 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.drift_svc.detect_and_resolve_drift.assert_awaited_once()
         drift_kwargs = self.drift_svc.detect_and_resolve_drift.await_args.kwargs
@@ -410,21 +381,16 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
         self.terraform_svc.validate.return_value = _validation_dto(True)
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         # The drift service plans the imported addresses itself, so the
         # handler neither plans nor narrows the round to session changes.
@@ -439,23 +405,18 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.generate_and_validate.return_value = _validation_dto(
             True, plan="generation plan"
         )
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(
             True, plan="convergence plan"
         )
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         report_kwargs = self.report_svc.generate_report.await_args.kwargs
         payload = json.loads(report_kwargs["content"])
@@ -466,21 +427,16 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")]
         )
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(False)
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.report_svc.generate_report.assert_awaited_once()
 
@@ -489,20 +445,15 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
         self.llm_svc.generate.return_value = _filter_result(["res-1"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             failed=[("azurerm_resource_group.main", "res-1")]
         )
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
 
@@ -515,16 +466,11 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.validation_svc.generate_and_validate.return_value = _validation_dto(
             True, plan="the plan"
         )
-        self.validation_svc.last_generation_result = _generation_result([])
+        self.import_address_svc.get_import_addresses.return_value = []
         self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         report_kwargs = self.report_svc.generate_report.await_args.kwargs
         self.assertIs(report_kwargs["type"], ReportType.IMPORT)
@@ -536,12 +482,10 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = ["res-1", "res-2"]
         self.llm_svc.generate.return_value = _filter_result(["res-1", "res-2"])
         self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result(
-            [
-                {"address": "azurerm_resource_group.main", "resource_id": "res-1"},
-                {"address": "azurerm_storage_account.sta", "resource_id": "res-2"},
-            ]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1"),
+            ("azurerm_storage_account.sta", "res-2"),
+        ]
         self.import_svc.import_resources.return_value = _import_outcome(
             imported=[("azurerm_resource_group.main", "res-1")],
             failed=[("azurerm_storage_account.sta", "res-2")],
@@ -549,14 +493,9 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.drift_svc.detect_and_resolve_drift.return_value = _validation_dto(
             True, plan="no changes"
         )
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import res-1 and res-2", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         # A clean plan says nothing on its own, so the import report is fed
         # the outcome of every attempted import, successes and failures alike.
@@ -583,74 +522,6 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                 ],
             },
         )
-        # The compliance gate keeps auditing the plan text, not the payload.
-        self.assertEqual(
-            self.compliance_svc.check.await_args.kwargs["plan"], "no changes"
-        )
-
-    @patch(
-        "src.application.use_cases.terraform_import_handler.NotificationServiceClient"
-    )
-    @patch("src.application.use_cases.terraform_import_handler.DatabaseService")
-    async def test_compliance_failure_locks_and_notifies(self, db_mock, notif_mock):
-        self.requests_filter_svc.filter.return_value = (True, "")
-        self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
-        self.llm_svc.generate.return_value = _filter_result(["res-1"])
-        self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport(
-            passed=False,
-            violations=[],
-            summary="policy violation",
-            checked_rules=["rule-1"],
-        )
-        db_mock.set_lock = AsyncMock(return_value=True)
-        notif_mock.notify_compliance_failure = AsyncMock()
-
-        task = await self.handler.handle("import res-1", is_partial=True)
-        await task()
-
-        db_mock.set_lock.assert_awaited_once_with("session-1", True)
-        notif_mock.notify_compliance_failure.assert_awaited_once()
-
-    @patch("src.application.use_cases.terraform_import_handler.DatabaseService")
-    async def test_compliance_lock_failure_raises_set_lock_error(self, db_mock):
-        self.requests_filter_svc.filter.return_value = (True, "")
-        self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
-        self.llm_svc.generate.return_value = _filter_result(["res-1"])
-        self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport(
-            passed=False,
-            violations=[],
-            summary="violation",
-            checked_rules=[],
-        )
-        db_mock.set_lock = AsyncMock(return_value=False)
-
-        task = await self.handler.handle("import res-1", is_partial=True)
-        with self.assertRaises(SetLockError):
-            await task()
-
-        self.session_svc.save.assert_awaited_once()
-
-    @patch("src.application.use_cases.terraform_import_handler.DatabaseService")
-    async def test_compliance_pass_unlocks(self, db_mock):
-        self.requests_filter_svc.filter.return_value = (True, "")
-        self.import_svc.get_unmanaged_resources.return_value = ["res-1"]
-        self.llm_svc.generate.return_value = _filter_result(["res-1"])
-        self.validation_svc.generate_and_validate.return_value = _validation_dto(True)
-        self.validation_svc.last_generation_result = _generation_result([])
-        self.import_svc.import_resources.return_value = _import_outcome()
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
-        db_mock.set_lock = AsyncMock(return_value=True)
-
-        task = await self.handler.handle("import res-1", is_partial=True)
-        await task()
-
-        db_mock.set_lock.assert_awaited_once_with("session-1", False)
 
     # --- Session always saved ---
 
@@ -708,19 +579,14 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.side_effect = track_discovery
         self.llm_svc.generate.side_effect = track_selection
         self.validation_svc.generate_and_validate.side_effect = track_generation
-        self.validation_svc.last_generation_result = _generation_result(
-            [{"address": "azurerm_resource_group.main", "resource_id": "res-1"}]
-        )
+        self.import_address_svc.get_import_addresses.return_value = [
+            ("azurerm_resource_group.main", "res-1")
+        ]
         self.import_svc.import_resources.side_effect = track_import
         self.drift_svc.detect_and_resolve_drift.side_effect = track_convergence
-        self.compliance_svc.check.return_value = ComplianceCheckReport.empty()
 
         task = await self.handler.handle("import all", is_partial=True)
-        with patch(
-            "src.application.use_cases.terraform_import_handler.DatabaseService"
-        ) as db_mock:
-            db_mock.set_lock = AsyncMock(return_value=True)
-            await task()
+        await task()
 
         self.assertEqual(
             order,

@@ -93,7 +93,6 @@ class TerraformValidationService:
         include_forbidden_actions: bool,
         operation_type: OperationType,
         validator: Callable[[History], Awaitable[TerraformValidationDTO]],
-        selected_ids: list[str] | None = None,
     ) -> TerraformValidationDTO:
         """
         Execute the terraform generation and validation cycle using tool calls
@@ -134,7 +133,6 @@ class TerraformValidationService:
                     resources=conventions.templates,
                     abbreviations=conventions.abbreviations,
                     include_forbidden_actions=include_forbidden_actions,
-                    selected_ids=selected_ids,
                 ),
                 history=local_history,
             )

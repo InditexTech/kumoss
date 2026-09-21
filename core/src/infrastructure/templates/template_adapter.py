@@ -154,7 +154,6 @@ class TemplateAdapter(ITemplate):
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-        selected_ids: list[str] | None = None,
     ) -> str:
         context = await self._compose_conventions_context(
             resources, abbreviations, include_forbidden_actions
@@ -162,8 +161,7 @@ class TemplateAdapter(ITemplate):
         base_template = self._get_template(self._core + "iac_generator.jinja")
         return base_template.render(
             **context,
-            OPERATION_TYPE=operation_type.value,
-            SELECTED_IDS=selected_ids or [],
+            IS_IMPORT=operation_type is OperationType.IMPORT,
         )
 
     @override

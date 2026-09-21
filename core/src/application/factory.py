@@ -493,7 +493,6 @@ class ApplicationFactory:
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
         terraform_prv = self._get_terraform_provider(file_utils.project_root)
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -535,7 +534,6 @@ class ApplicationFactory:
             target_service=target_svc,
             drift_service=drift_svc,
             report_service=report_svc,
-            compliance_service=compliance_svc,
             llm_service=llm_svc,
             tool_service=tool_svc,
         )

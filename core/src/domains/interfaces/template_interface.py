@@ -15,7 +15,6 @@ class ITemplate(ABC):
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
-        selected_ids: list[str] | None = None,
     ) -> str:
         pass
 
