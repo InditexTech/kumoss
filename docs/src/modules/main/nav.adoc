@@ -24,6 +24,12 @@
 ** xref:main:guides/state-backends/repository-declared.adoc[Repository-declared backend]
 ** xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
 ** xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied backend]
+* xref:main:guides/deploy-to-production.adoc[Deploy to production]
+** xref:main:guides/production/secrets-and-credentials.adoc[Secrets and credentials]
+** xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
+** xref:main:guides/production/hardening.adoc[Hardening]
+** xref:main:guides/production/operations.adoc[Operations]
+* xref:main:guides/development.adoc[Development]
 * Reference
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]

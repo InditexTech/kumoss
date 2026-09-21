@@ -1,0 +1,503 @@
+= Deploy to production
+:description: What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
+
+This guide is for teams deploying Nebula for shared organizational use.
+It explains what a production deployment consists of, which decisions
+apply to each component, and which settings and secrets you must
+supply. It does not repeat the field-by-field references; it points at
+them:
+
+* Configuration reference, for every `config.yaml` field.
+* Environment variables and secrets, for every core and sidecar
+  variable.
+* LiteLLM providers and models, for LLM providers and credentials.
+* xref:main:guides/enable-authentication.adoc[] for authentication.
+* xref:main:guides/monitor-with-phoenix.adoc[] for tracing.
+* xref:main:guides/customize-prompts.adoc[] for the prompt registry.
+* `contracts/openapi/` and `contracts/conformance/` for the sidecar
+  contracts and their conformance suites.
+
+Everything in this guide describes the implementation as it exists in
+the repository today. Where a capability is a recommendation rather
+than something the repository provides, it is labelled as such.
+
+This entry page covers what production means, the reference topology,
+the sidecars as integration boundaries, and the `config.yaml`
+checklist. The credentials, networking, hardening, and operational
+detail live on four child pages, each covering one step of the
+deployment sequence.
+
+== At a glance
+
+If you read nothing else, these are the production decisions this
+guide expands on:
+
+[cols="1,5,4",options="header"]
+|===
+|# |Decision |Where
+
+|1
+|Run one core replica, one IaC sidecar per shared workspace volume;
+there is no multi-replica mode
+|xref:main:guides/production/hardening.adoc#runtime-and-scaling-constraints[Runtime
+and scaling constraints]
+
+|2
+|Enable OIDC; a blank issuer makes every caller a fully privileged user
+|xref:main:guides/production/secrets-and-credentials.adoc#authentication-oidc[Authentication
+(OIDC)]
+
+|3
+|Treat the four sidecars as integration boundaries: implement IaC to
+your requirements, replace mapping and authorization or leave them
+disabled, integrate notifications
+|<<sidecars-as-production-integration-boundaries,Sidecars as production
+integration boundaries>>, below
+
+|4
+|Move every secret to a secret store; keep the variable names
+|xref:main:guides/production/secrets-and-credentials.adoc#secrets-inventory[Secrets
+inventory]
+
+|5
+|Use managed PostgreSQL, Redis, object storage (S3, Azure, or
+S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is
+required at boot
+|xref:main:guides/production/operations.adoc#data-and-persistence[Data
+services and persistence]
+
+|6
+|Reproduce the ingress rules: SSE path unbuffered, `/monitoring/`
+restricted, public object-storage endpoint, CORS origin, IdP redirect
+URIs
+|xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
+
+|7
+|Give the IaC engine a scoped workload identity and container execution
+controls; decide who owns the Terraform state backend
+|<<iac-mandatory,IaC (mandatory)>>, below;
+xref:main:guides/production/secrets-and-credentials.adoc#cloud-credentials[Cloud
+credentials for the IaC engine];
+xref:main:guides/configure-state-backends.adoc[]
+
+|8
+|Review the seeded prompts before the first user session; they encode a
+generic policy
+|xref:main:guides/production/hardening.adoc#hardening-checklist[Hardening
+checklist]
+
+|9
+|Plan upgrades by hand: no database migrations, seeds never overwrite
+prompts, `environment` is a prompt tag
+|xref:main:guides/production/operations.adoc#backups-and-upgrades[Backups
+and upgrades]
+|===
+
+The repository ships *no Kubernetes manifests or Helm charts*; the
+Compose file is the reference topology you translate to your platform.
+
+== What production means for Nebula
+
+Nebula plans and applies infrastructure with real cloud credentials,
+pushes to your repositories, and sends every prompt, plan, and
+generated file to a tracing backend. A production deployment therefore
+has to control who can reach it, which cloud identity it acts with,
+where its data lives, and how it is operated.
+
+Production is *not* the local Compose stack with `environment:
+production`. That field only selects the Phoenix project prefix and the
+prompt tag. It enables no authentication, no authorization, and no
+stricter default.
+
+The differences from xref:main:quickstart.adoc[Getting started:
+local/non-production], in one table:
+
+[cols="2,4,5",options="header"]
+|===
+|Area |Local/non-production |Production
+
+|Platform
+|Docker Compose on one host
+|A production platform such as Kubernetes, expressed by you from the
+reference topology below
+
+|Authentication
+|May stay disabled
+|*OIDC enabled*; nothing else is acceptable because a blank issuer
+makes every caller a `devops` + panel `admin` user
+
+|Sidecars
+|Bundled IaC, optionally bundled notifications
+|All four treated as integration boundaries: reviewed, configured,
+hardened, replaced where needed
+
+|Secrets
+|Gitignored `.env` files
+|Kubernetes Secrets or an equivalent secret manager, injected as
+environment variables
+
+|Data services
+|Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the
+well-known default credentials the samples ship
+|Managed or operated services with persistence, backups, access
+control, and credentials from your secret store
+
+|Terraform state
+|Nebula-managed state in the bundled RustFS by default, or each
+repository's own backend if you set `storage.terraform_state_bucket` to
+`""`
+|A deliberate choice of owner: the repositories' own backends, a
+Nebula-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend
+file mounted into the sidecar (xref:main:guides/configure-state-backends.adoc[])
+
+|Networking
+|Plain HTTP on `localhost`
+|TLS, a real origin, an ingress that handles server-sent events, a
+protected Phoenix, a public object-storage endpoint
+|===
+
+The repository does not provide Kubernetes manifests, Helm charts,
+Kustomize overlays, Terraform modules for the platform itself, database
+migrations, or a multi-replica execution model. See
+xref:main:prerequisites.adoc#repo-provides[Prerequisites — What the
+repository does and does not provide] for the full list of what it does
+provide.
+
+== Reference topology
+
+The Compose stack defines eleven services on one network. In production
+each row below is a deployment decision.
+
+[cols="2,4,2,2,5",options="header"]
+|===
+|Component |Reference image |Must be reachable by |Persistence
+|Production decision
+
+|Core API
+|`core/Dockerfile` (Python 3.13, port 8000, user `nebula` 10001)
+|Ingress (`/api`), nothing else
+|Shared workspace volume
+|Run *one replica* (see
+xref:main:guides/production/hardening.adoc#runtime-and-scaling-constraints[Runtime
+and scaling constraints]). Inject `config.yaml` at build time or mount
+it at `NEBULA_CONFIG`.
+
+|Web application and edge
+|`nginx/Dockerfile` builds the React app and serves it; forwards
+`/api`, the SSE path, `/monitoring/`, and port 9000
+|Users
+|none
+|Keep it, or serve the built bundle from your own ingress. Reproduce its
+routing rules (xref:main:guides/production/networking-and-tls.adoc[Networking
+and TLS]).
+
+|PostgreSQL (core)
+|`postgres:17`
+|Core
+|*Required*
+|Managed PostgreSQL recommended. Set `NEBULA_SQL_DATABASE_URL`.
+
+|Redis
+|`redis:8.8`
+|Core
+|Not required (cache)
+|Managed Redis or in-cluster. Must be reachable when the core boots.
+
+|Object storage
+|`rustfs/rustfs:latest`
+|Core (SDK) and *browsers* (presigned URLs)
+|*Required*
+|Prefer AWS S3 or an Azure Storage Account through `storage.provider`;
+RustFS or another S3-compatible store is also supported.
+
+|Phoenix
+|`arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring`
+|Core (traces and prompt API), operators (UI)
+|*Required* (through its PostgreSQL)
+|Operate it with persistence and access control. It is required at core
+start-up.
+
+|PostgreSQL (Phoenix)
+|`postgres:17`
+|Phoenix
+|*Required*
+|Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on
+Phoenix.
+
+|IaC sidecar
+|`services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port
+8082; user `nebula` 10001)
+|Core only
+|Shared workspace volume
+|*Mandatory.* *As a starting point* — harden the image and container,
+or implement the contract yourself to your organization's requirements.
+
+|Mapping sidecar
+|`services/mapping/Dockerfile` (port 8081, user `nebula` 10001)
+|Core only
+|none
+|Replace with an implementation against your catalogue, or leave
+disabled.
+
+|Notifications sidecar
+|`services/notifications/Dockerfile` (port 8080, user `nebula` 10001)
+|Core only
+|none
+|Use the bundled Slack implementation with a production webhook, or
+replace it.
+
+|Authorization sidecar
+|`services/authz/Dockerfile` (port 8083, user `nebula` 10001)
+|Core only
+|none (container-local JSON role file; mount a path via
+`NEBULA_AUTHZ_ROLE_STORE` to keep it)
+|Replace with your policy implementation; the bundled one is permissive.
+|===
+
+All five Nebula-built images (core, iac, mapping, notifications, authz)
+run as the unprivileged `nebula` user, uid/gid 10001. The
+`nginx/Dockerfile` proxy image is the exception: it has no `USER`
+directive and starts as root, dropping privileges only for its worker
+processes; give it a non-root base image or a Kubernetes
+`runAsNonRoot`/`securityContext` treatment if your policy requires the
+master process itself to be non-root.
+
+Two volumes matter beyond databases:
+
+* *The shared workspace* (`/workspaces` in both the core and IaC
+  containers, `paths.upload_folder`). The core clones repositories there
+  and the IaC sidecar runs the engine against the same paths. It must
+  be *one filesystem mounted read-write by both containers at the same
+  path*, owned by uid/gid `10001`. On Kubernetes that means a
+  `ReadWriteMany` volume or the two containers in the same pod sharing a
+  volume, with a matching `fsGroup`/`runAsUser`. Contents are ephemeral
+  (each run's directory is deleted afterwards), but the pinned plan of
+  every session lives there between a generate round and its apply, so
+  the volume must survive pod restarts.
+* *Phoenix's database*, which holds your curated prompts as well as
+  traces. Losing it means re-seeding from the repository defaults and
+  losing every prompt edit.
+
+[#sidecars-as-production-integration-boundaries]
+== Sidecars as production integration boundaries
+
+Each sidecar is an OpenAPI contract. The core calls it with a bearer
+token from the environment variable named by `services.<name>.token_env`,
+and the sidecar validates that token. Any implementation of the
+contract can be used by changing `services.<name>.endpoint`. Use the
+conformance suites in `contracts/conformance/` to verify a replacement.
+
+Common rules for every *enabled* sidecar:
+
+* Set a distinct, random bearer token (for example `openssl rand -hex
+  32`) on *both* sides. The core refuses to boot when the IaC sidecar's
+  or an enabled optional sidecar's token variable is empty. On the
+  sidecar side, an empty token disables the check entirely, which is
+  never acceptable in production.
+* The bundled sidecars compare tokens in constant time, but they remain
+  simple reference services. Keep every sidecar on a private network
+  segment reachable only by the core, and never expose one through the
+  ingress.
+* The `services.<name>.timeout` field is honoured by the IaC and
+  notifications clients; the mapping and authorization clients use fixed
+  budgets of 10 and 15 seconds.
+* Every sidecar exposes `GET /healthz` for liveness probes.
+
+[#iac-mandatory]
+=== IaC (mandatory)
+
+The bundled executor is *a starting point, not production-ready*:
+harden the image and container (the checked-in compose applies no
+hardening), review the credential pass-through, or implement the
+contract yourself. It is functionally complete (it runs every command
+the core needs), but it encodes no organizational policy: it executes
+provider plugins from generated HCL with whatever identity is in its
+environment, on a shared filesystem, with no approval step, no engine
+timeout, and in-memory job state.
+
+For production the recommendation is to *implement the IaC contract
+(`contracts/openapi/iac.v1.yaml`) according to your organization's
+requirements*, not only to harden the bundled image. Typical reasons:
+running the engine on your existing Terraform or OpenTofu execution
+platform, using a workspace and state strategy other than a shared
+volume, enforcing per-project cloud identities, adding policy or
+approval hooks around `plan` and `apply`, auditing every command, or
+supporting clouds and CLIs the bundled image does not include. The
+contract is small (one command per asynchronous job, polled by the
+core), and the conformance suite in `contracts/conformance/iac/`
+verifies a replacement.
+
+If you nevertheless start from the bundled image, its *identity and
+execution environment* are the security decisions you must make:
+
+* *Cloud identity.* The engine reads whatever credentials the provider
+  supports from the container environment (`ARM_*`, `GOOGLE_*`,
+  `AWS_*`, mounted files). Use a workload identity (Kubernetes service
+  account federation, pod identity, instance roles) scoped to the
+  projects Nebula may change, rather than static keys. Missing
+  credentials do not stop the container; the engine fails at `plan` or
+  `apply` with its own error.
+* *Execution controls.* The image already runs as an unprivileged user.
+  The checked-in Compose file applies nothing else. For production, run
+  the container with all Linux capabilities dropped, `no-new-privileges`,
+  a read-only root filesystem with writable `/tmp` and `/home/nebula`,
+  and CPU, memory, and process limits. These were validated on a feature
+  branch of this repository but are *not* part of the checked-in Compose
+  file; treat them as a requirement you implement on your platform.
+* *No engine timeout.* The sidecar does not bound the engine process
+  itself; `services.iac.job_timeout` in the core (default one hour per
+  job) is the only bound. Set it deliberately.
+* *Egress.* `init` downloads providers from `registry.opentofu.org` (or
+  `registry.terraform.io` when `IAC_BINARY=terraform`), and
+  `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the
+  registry host breaks provider downloads unless the CA is mounted into
+  the container.
+* *Jobs are in memory.* A restart forgets queued and finished jobs; run
+  one instance per shared workspace and do not scale it horizontally.
+* *Engine choice.* `IAC_BINARY=tofu` (default) runs OpenTofu;
+  `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is
+  BUSL-1.1 licensed and makes your use subject to its terms.
+* *State backend.* The sidecar is always the process that _executes_
+  the backend, so it always needs reach to it and credentials for it —
+  whichever model you pick. By default (`storage.terraform_state_bucket`
+  set to `nebula-terraform-state`, as shipped) the core configures it:
+  state goes to that bucket in the same object store as artifacts, keyed
+  per project, and the sidecar needs network reach to
+  `storage.endpoint_url` plus, where the rendered block omits static
+  keys, its own credentials for the bucket. Set
+  `storage.terraform_state_bucket` to `""` to leave the backend to each
+  target repository instead, with no Nebula configuration involved. For
+  one central backend defined outside Nebula, mount a file and point
+  `IAC_BACKEND_CONFIG` at it. All three models:
+  xref:main:guides/configure-state-backends.adoc[].
+* *Blast radius of the sidecar's environment.* `NEBULA_IAC_TOKEN` and
+  every other variable in the IaC sidecar's environment are reachable by
+  the provider plugins the generated HCL invokes, and by any
+  `local-exec` provisioner in that HCL — generated code runs with the
+  same privileges as the sidecar process. The job's `workspace_path` is
+  not restricted to `/workspaces` by the sidecar itself. Treat the
+  sidecar as reachable only from the core and give it nothing more than
+  the cloud identity it needs.
+
+=== Mapping (optional)
+
+The bundled implementation is a *direct passthrough*: the identifier the
+user types is returned as the repository URL and project name. It adds
+nothing over leaving the integration disabled, in which case the core
+performs the same mapping itself. Enable it only with an implementation
+that resolves your business identifiers (CMDB, Backstage, a catalogue)
+against the canonical IaC repository. Once enabled, a slow or
+unreachable sidecar makes the wizard's resolve step fail with
+`504`/`502`.
+
+=== Notifications (optional, recommended)
+
+The bundled implementation posts to one Slack incoming webhook and is
+suitable for production once the webhook and token come from your
+secret store. The core emits `iac.compliance.failed`,
+`iac.impact.high`, `iac.apply.failure`, and `system.exception.failure`,
+plus user-originated support requests from the web application; the
+audience is the session owner (or caller) plus every user with panel
+role `editor` or higher. If your operational channel is not Slack
+(Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in
+`contracts/openapi/notifications.v1.yaml`. Delivery is best-effort: a
+failure is logged and never fails a session.
+
+[#authorization-optional]
+=== Authorization (optional, must be replaced if enabled)
+
+The bundled implementation answers `authorized: true` to every
+cloud-project check (`NEBULA_AUTHZ_PERMISSIVE=true`) or `authorized:
+false` to every check (any other value). Neither is a policy. *Do not
+enable the bundled authorization sidecar as your production
+access-control policy.*
+
+Understand what this integration is and is not:
+
+* It is consulted only by the wizard's preflight `POST
+  /api/v1/auth/authorize`, which sends the cloud, project name,
+  environment, and the caller's e-mail (or OIDC subject) to `POST
+  /v1/check`. It answers whether that user may work on that cloud
+  project.
+* It is *not* Nebula's own access control. Who can log in, which
+  operations a user may run, and who can see or act on a session are
+  decided by OIDC plus the operation and panel roles stored in the core
+  database (xref:main:guides/administer-users-and-locks.adoc[]).
+* While disabled, the core answers "authorized" without calling
+  anything. Once enabled, an unreachable sidecar produces a `502`/`504`
+  error in the wizard, not an allow.
+
+Implement the contract in `contracts/openapi/authz.v1.yaml` against
+your entitlement source and enable it.
+
+== Configuration checklist (`config.yaml`)
+
+`config.yaml` is baked into the core image at build time, or mounted at
+the path in `NEBULA_CONFIG`. It contains no secrets and can live in
+version control. Review every section; the configuration reference has
+the fields and a production-shaped example.
+
+[cols="2,6",options="header"]
+|===
+|Section |Production requirement
+
+|`environment`
+|`production` (or `staging`). Decide before the first boot: it is the
+tag every prompt fetch uses, and changing it later requires re-tagging
+every prompt in Phoenix.
+
+|`oidc`
+|`issuer_url` and `client_id` set; `audience` for Auth0 and Okta;
+`scope` when the default does not fit.
+
+|`admin`
+|`default_root_email` for identity providers that emit
+`email_verified`; otherwise plan the one-off SQL grant
+(xref:main:guides/enable-authentication.adoc#bootstrap-admin[]).
+
+|`services.iac`
+|Endpoint of your IaC sidecar, token variable name, `job_timeout`
+chosen for your largest plans. There is no `enabled` flag; the sidecar
+is always called.
+
+|`services.notifications`, `services.mapping`, `services.authz`
+|Enabled only with a production-grade implementation behind `endpoint`;
+each with its own token variable.
+
+|`orchestration`
+|Keep `enable_compliance_checker: true` and `block_on_high_impact: true`
+unless you have another approval gate; the code defaults are `false`.
+Review the iteration limits, which bound the cost of a runaway session.
+
+|`llm`
+|Two model strings (or `model_list` aliases) for the provider you
+contract with; `max_output_tokens` within the provider's limits.
+
+|`paths`
+|`upload_folder` identical in the core and IaC containers.
+
+|`database`, `redis`
+|Variable names only; values are secrets. `redis.default_url` points at
+the Compose service name, so set `NEBULA_REDIS_URL` when Redis lives
+elsewhere.
+
+|`telemetry.collector_url`
+|Your Phoenix base URL, ending in `/`. It is used both for OTLP export
+and for the prompt API.
+
+|`http.cors_origins`
+|Your real origin, for example `\https://nebula.example.invalid`.
+
+|`storage`
+|Provider, artifacts bucket or container, the endpoint the core calls,
+and the *public* endpoint browsers reach. Also `terraform_state_bucket`:
+set to `nebula-terraform-state` as shipped, which puts Nebula in charge
+of state; set it to `""` to leave state to each repository's own
+backend instead (xref:main:guides/configure-state-backends.adoc[]).
+
+|`git`
+|Provider matching your repository host, author identity.
+|===
+
+Changing any of these means rebuilding the core image (or updating the
+mounted file) and restarting the core.

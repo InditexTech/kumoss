@@ -1,0 +1,154 @@
+= Development
+:description: Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
+
+This guide covers contributing to Nebula itself — running the repository's
+own test suites, checks, and tooling. It does not cover deploying or
+operating Nebula; for that, see xref:main:quickstart.adoc[] and
+xref:main:guides/deploy-to-production.adoc[].
+
+== Prerequisites
+
+Before contributing code, sign the Contributor License Agreement (CLA).
+Instructions are at
+https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md[InditexTech/foss].
+All contributors are expected to follow the
+https://github.com/InditexTech/nebula/blob/main/CODE_OF_CONDUCT.md[code
+of conduct].
+
+Open an issue to discuss and gather feedback on a feature or fix before
+starting work, and check existing
+https://github.com/InditexTech/nebula/issues[issues] and
+https://github.com/InditexTech/nebula/pulls[pull requests] first to
+avoid duplication. If you take on an existing issue, comment on it so
+other contributors know it is in progress.
+
+== Repository layout
+
+The repository is a monorepo: the FastAPI core in `core/`, four sidecar
+services in `services/`, the React web application in `client/web/`,
+and the sidecar OpenAPI contracts in `contracts/`. See
+xref:main:architecture.adoc[] for how they fit together.
+
+== Running the stack for development
+
+Copy each `env.sample` to a `.env` next to it (`core/.env` is
+required), set the two model strings in `config.yaml`, and run `docker
+compose up --build`. xref:main:quickstart.adoc[] is the step-by-step
+guide.
+
+`docker compose up --watch` hot-reloads the core: compose watch syncs
+`core/` into the running container so changes take effect without a
+rebuild.
+
+== Core tests
+
+Python 3.13, `uv`. `pytest` is *not* declared in `core/pyproject.toml`
+(its `tooling` dependency group holds `basedpyright`, `debugpy`, and
+`openapi-python-client`, not `pytest`), so install it explicitly before
+running the suite:
+
+[source,bash]
+----
+cd core
+uv pip install --system --prerelease=allow -r pyproject.toml
+uv pip install --system pytest pytest-asyncio
+python -m pytest tests/ --asyncio-mode=auto
+----
+
+Async tests are unmarked, so `--asyncio-mode=auto` is required.
+`core/tests/conftest.py` supplies placeholder values for the LLM
+credential and database URL that the configuration module validates at
+import; suites that talk to PostgreSQL or Redis need the compose stack
+(or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own
+instances).
+
+== Type checking
+
+[source,bash]
+----
+cd core
+basedpyright
+----
+
+`basedpyright` is a dev dependency, and `pyrightconfig.json` only
+includes `src/` — tests are not type-checked.
+
+== Frontend checks
+
+Node 24:
+
+[source,bash]
+----
+cd client/web
+npm ci
+npm run lint
+npm run test:ci
+npm run build
+----
+
+== Sidecar tests
+
+Each sidecar service has its own `tooling` dependency group (`pytest`,
+`pytest-asyncio`, `httpx`):
+
+[source,bash]
+----
+cd services/<name>
+uv sync --group tooling
+uv run pytest
+----
+
+== Linting and formatting
+
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`),
+the REUSE check, and gitleaks secret scanning. Install the hooks once
+with `pre-commit install`.
+
+== Continuous integration
+
+Pull requests run Repolinter, the REUSE compliance check, the
+Conventional Commits check, and an offline Markdown link and anchor
+check, plus a Verify workflow: frontend type check, tests, and
+production build, and the pytest suite of each sidecar service. *The
+core suite is not run in CI*, so run it locally against the compose
+stack before opening a pull request.
+
+== Regenerating sidecar clients
+
+Changing a sidecar's behavior means updating its spec in
+`contracts/openapi/`, its conformance suite in `contracts/conformance/`,
+and regenerating the core's client for that service. From `core/`, once
+per service:
+
+[source,bash]
+----
+uv run openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+----
+
+Regeneration drops the SPDX headers from the generated files; re-add
+them afterwards. Do not hand-edit anything under
+`core/src/clients/{authz,iac,mapping,notifications}/`.
+
+== Pull requests
+
+Fill in the pull-request template
+(https://github.com/InditexTech/nebula/blob/main/.github/PULL_REQUEST_TEMPLATE.md[.github/PULL_REQUEST_TEMPLATE.md])
+and link the issue it addresses. Include UI screenshots for visible
+changes.
+
+Commit subjects must follow the
+https://www.conventionalcommits.org/en/v1.0.0/[Conventional Commits
+Specification] (for example `fix(core): release session lock`); CI
+rejects other subjects. Sign your commits (`git commit -S`) — signing
+is required by policy and checked in review, not enforced by any CI
+workflow.
+
+Every new file starts with an SPDX header following the
+https://reuse.software/spec-3.3/#licensing-information[REUSE
+Specification] (`SPDX-FileCopyrightText` and
+`SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check.

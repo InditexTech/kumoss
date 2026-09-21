@@ -45,6 +45,7 @@ first build installs — OpenTofu and Terraform — goes into the `iac`
 container image, and the web application is compiled inside the `proxy`
 image.
 
+[#repo-provides]
 == What the repository does and does not provide
 
 Provided:
