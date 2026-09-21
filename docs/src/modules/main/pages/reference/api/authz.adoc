@@ -88,14 +88,20 @@ already absent. Caller must hold `admin`.
 
 === Asserted identity
 
-The five administrative endpoints take identity from two *headers*,
-not from a token this service validates:
+The administrative endpoints take identity from *headers*, not from a
+token this service validates. The two are declared unevenly:
 
-* `X-User-Id` — caller-asserted user identifier. Optional. The
-  contract advertises no maximum length, deliberately, so that a
-  boundary caller does not get a hard `4xx`; an implementation may
-  clamp it instead.
-* `X-User-Email` — caller-asserted email. Optional.
+* `X-User-Id` — caller-asserted user identifier. Optional. Declared on
+  four operations: `GET /v1/users/me`, `GET /v1/users`,
+  `POST /v1/users/\{user_id}/roles`, and
+  `DELETE /v1/users/\{user_id}/roles/\{role}`. The contract advertises
+  no maximum length, deliberately, so that a boundary caller does not
+  get a hard `4xx`; an implementation may clamp it instead.
+* `X-User-Email` — caller-asserted email. Optional. Declared on
+  `GET /v1/users/me` alone.
+
+`GET /v1/roles` declares no parameters at all and therefore takes
+neither header.
 
 OIDC token validation lives entirely in the core, so this service
 makes no assumption about the upstream identity provider and does not
@@ -147,10 +153,14 @@ The response:
 ----
 {
   "authorized": true,
-  "portal_url": "https://portal.azure.com/#@/resource/...",
-  "reason": "Service principal resolved the resource group."
+  "portal_url": null,
+  "reason": "Permissive OSS reference impl: all checks return true. Replace this implementation with real authorization logic (e.g., cloud SPN access check) for production."
 }
 ----
+
+That is the bundled implementation's actual answer. A policy-backed
+implementation puts its own explanation in `reason` and a console deep
+link in `portal_url`; the bundled one always leaves `portal_url` null.
 
 [cols="2,4",options="header"]
 |===
@@ -201,6 +211,19 @@ challenge.
 works end to end, and it is the reason the service ships disabled — an
 enabled permissive authorizer is worse than none, because it looks
 like a control.
+
+[NOTE]
+====
+*The contract's description of this implementation is stale.* Both the
+document summary and the `POST /v1/check` description say the
+reference implementation answers "based on whether the service's own
+Service Principal can resolve the resource". It does not: the handler
+makes no cloud call, resolves no credentials, and has no Service
+Principal. It branches on `NEBULA_AUTHZ_PERMISSIVE` alone — true
+returns `authorized: true`, false returns `authorized: false` with a
+`reason` naming the cloud and project. This page describes the code's
+actual behaviour.
+====
 
 `NEBULA_AUTHZ_PERMISSIVE` is the only knob Nebula's own flow
 exercises. Setting it to `false` flips the default to `authorized:

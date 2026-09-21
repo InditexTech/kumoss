@@ -204,6 +204,21 @@ Faults that only surface once the job runs end the job as `failed`
 instead.
 |===
 
+[NOTE]
+====
+*The bundled implementation never emits that `503`.* The contract
+defines the response, but the reference service reaches the two
+prerequisite failures by other routes. A missing or unresolvable
+engine binary is asserted at startup, so the process exits with a
+configuration error and is never running to answer anything. A missing
+or wrong `IAC_BACKEND_CONFIG` path is not checked at all and surfaces
+on `init`, in that job's `stderr`. Its only `503` is a job-level one —
+`Service shut down before the job finished.` in the job's `error` — so
+it appears on `GET /v1/jobs/\{job_id}`, never on a POST. Another
+implementation of the same contract may use the submission-time `503`,
+so a caller must still handle it.
+====
+
 [#job-model]
 == The job model
 
@@ -432,11 +447,20 @@ can run `plan` can run discovery unchanged.
 |—
 |===
 
-`oci` and `kubernetes` are answered with exit code 2 and `no scope
-discovery for provider` in `stderr`. That is a deliberate outcome, not
-a crash: the job still ends `succeeded`, and the exit code tells the
-caller the provider is unsupported rather than that a cloud call
-failed.
+`oci` and `kubernetes` are answered with exit code 2 and
+`no scope discovery for provider '<provider>'` in `stderr`, with the
+provider name quoted. That is a deliberate outcome, not a crash: the
+job still ends `succeeded`, and the exit code tells the caller the
+provider is unsupported rather than that a cloud call failed.
+
+The contract's own description of this endpoint's `scope_id` field
+enumerates only Azure, GCP, and AWS, omitting both `oci` and
+`kubernetes` even though the `TerraformProvider` enum accepts them.
+The omission is consequential here, unlike in the generic `scope_id`
+description: these are exactly the two providers that produce the exit
+code 2 above, so the field description reads as though they cannot be
+sent at all, when in fact they are accepted and answered with a
+negative result.
 
 *The core does not call this endpoint today.* The generated client
 contains both operations, and the core defines the `import` operation

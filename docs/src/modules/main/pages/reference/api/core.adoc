@@ -204,8 +204,11 @@ iteration calls inherit it from the session.
 it; `iac_path` in particular is rejected.
 
 |`is_partial`
-|omit
-|`drift` only. Defaults to `false`.
+|optional
+|`drift` only, and not gated on which call it is — a first call
+carrying `repo_uri` may set it. Defaults to `false`. When true, `q`
+must be non-empty: a blank query is rejected with
+pass:[<code>Partial drift detection requires a non-empty `q`.</code>]
 |===
 
 `apply` takes only `session_id`, which is required.
