@@ -325,7 +325,8 @@ requirements apply to it only: on AWS `AWS_REGION` must be set and
 Resource Explorer must be enabled for the account; on GCP the
 `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com`
 APIs must be enabled. The core does not call this endpoint today. See
-"Import discovery" in `services/iac/README.md`.
+xref:main:reference/api/iac.adoc#import-discovery[Import discovery] in
+the IaC sidecar reference.
 
 The sample file lists no cloud variables; add the ones your modules
 need. xref:main:reference/terraform-providers.adoc[Terraform providers]

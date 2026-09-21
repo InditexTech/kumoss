@@ -70,7 +70,8 @@ browser-facing workflow. Related building blocks exist at a lower level:
   implements all three: it imports a single address, lists what the
   workspace's state tracks, and lists what exists in an Azure
   subscription, GCP project, or AWS account through those clouds'
-  inventory APIs. See `services/iac/README.md`.
+  inventory APIs. See
+  xref:main:reference/api/iac.adoc[IaC sidecar API].
 * The core's generated IaC client contains these operations, and the
   core defines an `import` operation type, `import` report type, and
   `*-terraform-import` Phoenix projects.

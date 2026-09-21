@@ -2,8 +2,8 @@
 :description: Lookup material for Nebula: every config.yaml field, every environment variable, and the LLM provider tables.
 
 This section is the lookup material for Nebula: every configuration
-field, every environment variable, and the LLM provider and model
-tables, described exhaustively.
+field, every environment variable, the LLM provider and model tables,
+and the HTTP APIs, described exhaustively.
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -36,6 +36,11 @@ and the wizard's zero/one/many behavior.
 .xref:main:reference/terraform-providers.adoc[Terraform providers]
 Minimum environment variables per cloud and state backend, plus the
 exhaustive variable reference.
+
+[card]
+.xref:main:reference/api/index.adoc[HTTP APIs]
+Every route the core exposes under `/api/v1`, and the four sidecar
+OpenAPI contracts it consumes as a client.
 ====
 
 == Limits at a glance

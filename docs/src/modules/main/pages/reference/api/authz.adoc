@@ -1,0 +1,289 @@
+= Authorization sidecar API
+:description: The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
+
+The authorization service answers *may this user operate on this
+cloud resource?* — a question about a subscription, a project, or an
+account, asked before Nebula runs anything against a live environment.
+
+Contract: `contracts/openapi/authz.v1.yaml`. Default endpoint:
+`\http://authz:8083`. Bearer token: the value of the variable named by
+`services.authz.token_env`, `NEBULA_AUTHZ_TOKEN` by default. The
+service is *optional* and ships disabled (`services.authz.enabled:
+false`).
+
+[IMPORTANT]
+====
+*Nebula's own roles do not live here.* The operation roles (`developer`
+< `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide
+what a signed-in user can do are rows in the core database, managed
+from the admin panel. This service has a role store of its own, and it
+has no effect on any of that. See
+xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+====
+
+== What the core actually calls
+
+The contract describes seven paths. *The core calls one of them.*
+
+`POST /api/v1/auth/authorize` — and nothing else in the core — forwards
+to `POST /v1/check`. The other five `/v1` paths exist for callers of
+this service directly, or for an organization building on the bundled
+implementation, to administer that service's own user and role store.
+The generated client contains methods for them; nothing in the core
+invokes them.
+
+When `services.authz.enabled` is `false`, the shipped default, the
+core does not call out at all and answers authorized. When it is
+enabled, the core *never* fails open:
+
+[cols="2,4",options="header"]
+|===
+|Situation |What the core answers
+
+|Sidecar unreachable, or the call times out
+|`502` or `504`
+
+|Sidecar returns a `4xx` or `5xx`
+|`502`
+
+|Sidecar returns `200`
+|The decision it computed, passed through
+|===
+
+A `422` from the sidecar is therefore visible at the browser as a
+`502`, which matters for one specific shape of request — see
+<<the-bundled-implementation>>.
+
+== Endpoints
+
+[cols="3,4",options="header"]
+|===
+|Endpoint |What it does
+
+|`POST /v1/check`
+|Decides whether a user may operate on a named cloud resource. *The
+only endpoint Nebula uses.*
+
+|`GET /v1/users/me`
+|Returns the calling user's record and roles, creating an empty record
+if none exists.
+
+|`GET /v1/roles`
+|Lists the role names the service knows.
+
+|`GET /v1/users`
+|Lists all known users. Caller must hold the `admin` role.
+
+|`POST /v1/users/\{user_id}/roles`
+|Assigns a role. `204` on success, `404` if the role is not in the
+catalogue. Caller must hold `admin`.
+
+|`DELETE /v1/users/\{user_id}/roles/\{role}`
+|Revokes a role. `204` on success, and also `204` if the role was
+already absent. Caller must hold `admin`.
+
+|`GET /healthz`
+|Liveness probe, answers `{"status":"ok"}`.
+|===
+
+=== Asserted identity
+
+The five administrative endpoints take identity from two *headers*,
+not from a token this service validates:
+
+* `X-User-Id` — caller-asserted user identifier. Optional. The
+  contract advertises no maximum length, deliberately, so that a
+  boundary caller does not get a hard `4xx`; an implementation may
+  clamp it instead.
+* `X-User-Email` — caller-asserted email. Optional.
+
+OIDC token validation lives entirely in the core, so this service
+makes no assumption about the upstream identity provider and does not
+verify the assertion. That is only safe because the service is
+reachable from the core alone. *The core sends neither header on any
+live path* — they matter only if you call these endpoints yourself.
+
+== POST /v1/check
+
+[source,json]
+----
+{
+  "user_id": "someone@example.com",
+  "cloud": "azure",
+  "project": "my-project",
+  "environment": "dev"
+}
+----
+
+`cloud` and `project` are required; `user_id` and `environment` are
+nullable. `additionalProperties` is `false`.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`user_id`
+|1-1024 chars, nullable
+|The user to check. Null for an anonymous flow. The core sends the
+caller's email, falling back to the token subject when there is no
+email.
+
+|`cloud`
+|1-32 chars, required
+|`azure`, `gcp`, and so on.
+
+|`project`
+|1-256 chars, required
+|The resource being checked.
+
+|`environment`
+|1-32 chars, nullable
+|Deployment dimension — `dev`, `pro`.
+|===
+
+The response:
+
+[source,json]
+----
+{
+  "authorized": true,
+  "portal_url": "https://portal.azure.com/#@/resource/...",
+  "reason": "Service principal resolved the resource group."
+}
+----
+
+[cols="2,4",options="header"]
+|===
+|Field |Meaning
+
+|`authorized`
+|Required boolean. The decision.
+
+|`portal_url`
+|Nullable, ≤2048 chars. A link to the cloud console for the resource.
+Null when the implementation has no portal-URL convention. The core
+passes it through as `portalUrl`.
+
+|`reason`
+|Nullable, ≤1024 chars. Human-readable explanation, useful in the UI
+and in debugging.
+|===
+
+A denial is still `200`: the decision was computed, and it was "no".
+The error statuses are for cases where no decision could be reached.
+
+[cols="1,5",options="header"]
+|===
+|Status |Meaning
+
+|`200`
+|A decision was computed, granted or denied.
+
+|`400`
+|The body could not be parsed at the transport layer.
+
+|`401`
+|Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
+challenge.
+
+|`422`
+|Well-formed JSON that failed schema validation.
+
+|`502`
+|The downstream identity or cloud backend returned an error.
+|===
+
+[#the-bundled-implementation]
+== The bundled implementation
+
+`services/authz/` is *permissive by default*: `POST /v1/check` returns
+`authorized: true` unconditionally. It exists so a fresh deployment
+works end to end, and it is the reason the service ships disabled — an
+enabled permissive authorizer is worse than none, because it looks
+like a control.
+
+`NEBULA_AUTHZ_PERMISSIVE` is the only knob Nebula's own flow
+exercises. Setting it to `false` flips the default to `authorized:
+false`, which makes a misconfiguration visible instead of silently
+allowing everything. A production deployment replaces the body of
+`/v1/check` with real logic — directory groups, a CMDB-driven policy,
+a cloud IAM query — rather than tuning this flag.
+
+The other endpoints are backed by a JSON file at
+`NEBULA_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a
+container-local path, so role assignments are lost when the container
+is recreated. Point it at a mounted path if they need to survive. When
+`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set, the record with that email is
+granted the `admin` role at startup, and that email is also the
+record's key and `id`. Again: this store governs only this service's
+own administrative endpoints.
+
+[WARNING]
+====
+*A long IaC path produces a `502`.* The web application sends the
+repository URL as `project` and the IaC path as `environment`. The
+contract caps `environment` at 32 characters, so a longer path fails
+schema validation with `422` — which the core, refusing to fail open,
+surfaces as `502`. This only bites when `services.authz.enabled` is
+`true`.
+====
+
+=== Configuration
+
+[cols="2,1,4",options="header"]
+|===
+|Variable |Required |Meaning
+
+|`NEBULA_AUTHZ_TOKEN`
+|no
+|Bearer token clients must present. Blank accepts every request.
+
+|`NEBULA_AUTHZ_PERMISSIVE`
+|no
+|Default `true` — `/v1/check` answers true unconditionally. Set
+`false` for an explicit-deny default.
+
+|`NEBULA_AUTHZ_ROLE_STORE`
+|no
+|Path to the roles JSON file, default `/data/roles.json`. Configures
+this service's own store only; Nebula never reads it.
+
+|`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`
+|no
+|Email granted the `admin` role at startup, in this service's own
+store.
+|===
+
+[#conformance]
+== Conformance
+
+The implementation-agnostic Schemathesis suite at
+`contracts/conformance/authz/` runs against any implementation of this
+contract:
+
+[source,bash]
+----
+cd contracts/conformance/authz
+uv sync
+uv run pytest \
+  --service-url=https://authz.your.example \
+  --service-token=$YOUR_TOKEN
+----
+
+`--service-token` is needed only if the implementation enforces
+authentication.
+
+The suite checks schema conformance of the responses and that invalid
+bodies do not produce undocumented `5xx` answers. It cannot check that
+the decisions are *correct* — a permissive implementation that grants
+everything passes it. Correctness of the policy is your own test
+suite's job.
+
+== Next steps
+
+* xref:main:reference/roles-and-permissions.adoc[Roles and
+  permissions] for the roles that actually gate Nebula.
+* xref:main:reference/api/core.adoc[Core API] for the one core route
+  that consults this service.
+* xref:main:reference/configuration.adoc#config-services[the `services`
+  section] of the configuration reference for enabling the sidecar.

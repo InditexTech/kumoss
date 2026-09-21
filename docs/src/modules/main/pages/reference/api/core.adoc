@@ -1,0 +1,587 @@
+= Core API
+:description: Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
+
+The core exposes 19 routes across nine routers in
+`core/src/api/v1/`. This page is derived from those routers, which are
+the only source of truth: the core has no hand-written specification.
+
+Every router is mounted under `/v1` on an application created with
+`root_path="/api"`, so the reverse proxy publishes the routes as
+`/api/v1/...`. Paths below are written with that prefix.
+
+[#authentication-rule]
+== The authentication rule
+
+*Authentication is a per-route dependency, not middleware.* Every
+route under `/v1` except `GET /v1/auth/config` declares
+`Depends(get_current_user)`, or one of the two role wrappers
+`require_operation_role(...)` and `require_panel_role(...)`, all from
+`core/src/api/deps.py`. A router added without one of these is public.
+
+The dependency behaves in one of two ways:
+
+* *Blank `oidc.issuer_url`* (the checked-in default) — authentication
+  is disabled. Every request resolves to a fixed local development
+  identity, provisioned as a real row in the users table with the top
+  role of both groups.
+* *`oidc.issuer_url` set* — the dependency requires an
+  `Authorization: Bearer <jwt>`, validates it against the issuer's
+  JWKS, and maps the `(issuer, subject)` pair to a users row, creating
+  it on first sight. A missing or invalid token is `401` with a
+  `WWW-Authenticate: Bearer` challenge.
+
+Two independent role groups gate the routes, and both live in the core
+database:
+
+* `OperationRole` (`developer` < `devops`) gates Infrastructure as
+  Code work. Falling short is `403 Requires operation role '<role>' or
+  higher`.
+* `PanelRole` (`viewer` < `editor` < `admin`, nullable) gates
+  `/v1/admin/*`. Falling short is `403 Requires admin-panel role
+  '<role>' or higher`.
+
+Beyond the role check, `assert_session_access(user, session_id,
+write=...)` decides per-session access: the owner may always read and
+write; a non-owner with any panel role may read only; everyone else
+receives `403 Not the session owner`. See
+xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+for the full matrix.
+
+The whole surface is summarized here and then described router by
+router.
+
+[cols="3,2,2",options="header"]
+|===
+|Route |Requires |Returns
+
+|`GET /api/v1/auth/config`
+|nothing (public)
+|`200` OIDC settings
+
+|`POST /api/v1/auth/authorize`
+|any signed-in user
+|`200` decision
+
+|`GET /api/v1/users/me`
+|any signed-in user
+|`200` identity and roles
+
+|`POST /api/v1/iac/generate`
+|operation `developer`
+|`202` session id
+
+|`POST /api/v1/iac/drift`
+|operation `devops`
+|`202` session id
+
+|`POST /api/v1/iac/apply`
+|operation `developer`
+|`202` session id
+
+|`GET /api/v1/events/subscribe/\{session_id}`
+|read access to the session
+|`200` event stream
+
+|`PUT /api/v1/repository/pr`
+|operation `developer`, owner
+|`201` pull request
+
+|`PUT /api/v1/repository/pr/merge`
+|operation `developer`, owner
+|`204` no content
+
+|`POST /api/v1/repository/parse`
+|operation `developer`
+|`200` Terraform roots
+
+|`GET /api/v1/sessions`
+|any signed-in user
+|`200` page of summaries
+
+|`GET /api/v1/sessions/\{session_id}`
+|read access to the session
+|`200` session aggregate
+
+|`GET /api/v1/admin/sessions`
+|panel `viewer`
+|`200` page of summaries
+
+|`GET /api/v1/admin/sessions/\{session_id}`
+|panel `viewer`
+|`200` session aggregate
+
+|`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock`
+|panel `editor`
+|`200` lock state
+
+|`GET /api/v1/admin/users`
+|panel `admin`
+|`200` page of users
+
+|`PUT /api/v1/admin/users/\{user_id}/roles`
+|panel `admin`
+|`200` updated user
+
+|`POST /api/v1/mapping/resolve`
+|any signed-in user
+|`200` repository reference
+
+|`POST /api/v1/notifications`
+|any signed-in user
+|`202` delivery id
+|===
+
+== Infrastructure as Code
+
+Router: `terraform.py`, prefix `/v1/iac`. Three routes, one per
+operation. All three are *asynchronous*: they validate the request,
+resolve or create the session, schedule the pipeline as a background
+task, and answer `202 Accepted` with nothing but the session id.
+Progress arrives over the event stream.
+
+[source,json]
+----
+{"session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"}
+----
+
+[cols="2,1,4",options="header"]
+|===
+|Route |Minimum role |Notes
+
+|`POST /api/v1/iac/generate`
+|`developer`
+|Generates, validates, and prepares IaC from a natural-language query.
+
+|`POST /api/v1/iac/drift`
+|`devops`
+|Detects and remediates drift. `is_partial: true` scopes the round to
+the resources named in the query.
+
+|`POST /api/v1/iac/apply`
+|`developer`
+|Applies the plan pinned by the session's last successful generate or
+drift round. No re-plan happens at apply time.
+|===
+
+`generate` and `drift` share a request body. Exactly one of `repo_uri`
+(a first call, which opens a session) or `session_id` (an iteration
+call on an existing session) must be present; supplying both or
+neither is a validation error.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |First call |Meaning
+
+|`q`
+|required
+|The user's query for this call. At least one character.
+
+|`repo_uri`
+|required
+|Git-cloneable repository URI. Must not embed credentials — a
+password, or a username on an `http`/`https` URI, is rejected.
+
+|`scope_id`
+|required
+|Cloud scope: Azure subscription id, GCP project id, AWS account id,
+OCI compartment OCID. Kubernetes has no cloud scope, so any stable
+identifier does.
+
+|`terraform_providers`
+|required
+|Which cloud the operation targets.
+
+|`iac_path`
+|optional
+|Repository-relative path to the IaC root, for example
+`environments/dev`. Defaults to the repository root. An absolute path
+or one containing a `..` segment is rejected. First call only —
+iteration calls inherit it from the session.
+
+|`session_id`
+|omit
+|On an iteration call, the session to continue. Only `q` may accompany
+it; `iac_path` in particular is rejected.
+
+|`is_partial`
+|omit
+|`drift` only. Defaults to `false`.
+|===
+
+`apply` takes only `session_id`, which is required.
+
+Failures on these three routes:
+
+* `400` — the repository URI was rejected as unreachable or not
+  allowed.
+* `403` — the operation role is too low, or the caller is not the
+  owner of the session named by `session_id`.
+* `404` — an iteration call referenced an unknown session.
+* `409` — `apply` only, and only when the session's plan is locked:
+  `Session <id> is blocked; apply is not allowed.`
+* `422` — the body failed the validation rules above.
+
+A `202` is a promise that a round was scheduled, not that it
+succeeded. If the session is already running, or already finished, the
+background runner cannot take the session lock and exits without
+starting — the `202` has already been sent. Everything after the `202`
+is visible only on the event stream and in the session detail.
+
+== Events
+
+Router: `events.py`, prefix `/v1/events`. One route.
+
+`GET /api/v1/events/subscribe/\{session_id}` streams a session's
+progress as Server-Sent Events. It requires a signed-in caller with
+read access to the session — the owner, or any user with a panel role.
+
+The response is `text/event-stream` with `Cache-Control: no-cache`,
+`Connection: keep-alive`, and `X-Accel-Buffering: no`, the last of
+which stops the reverse proxy from buffering the stream. The first
+line is a `: keepalive` comment; every subsequent event is one JSON
+object:
+
+[source,text]
+----
+data: {"status_msg": "GENERATING", "detail": {"message": "..."}}
+----
+
+`status_msg` is the session's current status name. The message is
+sanitized by removing double quotes before it is embedded. The server
+polls the session's status every five seconds and closes the stream
+when the status becomes `COMPLETED`, `UNCOMPLETED` (a rejected round),
+or `FAILED`, or when the configured iteration ceiling
+(`orchestration.max_session_events_iteration`) is reached. Reaching
+the ceiling closes the connection but preserves the session, so a
+client may reconnect.
+
+Both the token and session access are checked once, at connect time.
+An unknown session is `404`; no read access is `403`.
+
+The web application consumes this with `fetch` and a
+`ReadableStream` rather than `EventSource`, because `EventSource`
+cannot send an `Authorization` header. See
+xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== Repository operations
+
+Router: `repository.py`, prefix `/v1/repository`. Three routes, all
+requiring operation role `developer`.
+
+`PUT /api/v1/repository/pr` creates a pull request from the session's
+working branch. The body is `{"session_id": "<uuid>"}`. The caller
+must own the session. On success the answer is `201` with the pull
+request:
+
+[source,json]
+----
+{"id": 42, "url": "https://.../pull/42", "status": "active"}
+----
+
+`PUT /api/v1/repository/pr/merge` merges the session's *most recently
+opened* pull request into the default branch at the git provider. The
+body is the same `{"session_id": "<uuid>"}`. The caller must own the
+session. Success is `204` with no content. A locked session is `409
+Session <id> is blocked; PR merge is not allowed.`, an unknown session
+or a session with no pull requests is `404`.
+
+`POST /api/v1/repository/parse` clones a repository and returns the
+Terraform root-module directories it found, as POSIX paths relative to
+the repository root. The body is `{"repo_uri": "<uri>"}` and the same
+no-embedded-credentials rule applies. This route takes no session, so
+there is no ownership check — the wizard calls it as soon as a
+repository URL is entered.
+
+[source,json]
+----
+{"roots": [".", "environments/dev", "environments/prod"]}
+----
+
+A rejected URI is `400` and a failed clone or scan is `502`. The
+detection rules behind the answer are in
+xref:main:reference/repository-layout.adoc[Repository layout].
+
+== Authentication
+
+Router: `auth.py`, prefix `/v1/auth`. Two routes.
+
+`GET /api/v1/auth/config` is *the only public route in the whole API*,
+deliberately so: the single-page application has to read it before it
+can log in at all. It returns the four non-secret OIDC settings, taken
+straight from `config.yaml`:
+
+[source,json]
+----
+{
+  "issuer_url": "",
+  "client_id": "",
+  "audience": "",
+  "scope": "openid profile email"
+}
+----
+
+A blank `issuer_url` tells the browser that authentication is disabled
+and it should use the local development identity. See
+xref:main:guides/enable-authentication.adoc[Enable authentication].
+
+`POST /api/v1/auth/authorize` asks whether the caller may operate on a
+cloud project. It requires a signed-in user and takes `cloud`,
+`project_name`, and `environment` in the body. It is the *only* place
+the core consults the authorization sidecar, forwarding the three
+values plus the caller's e-mail (falling back to the token subject) to
+the sidecar's `POST /v1/check`.
+
+[source,json]
+----
+{
+  "result": true,
+  "message": "Authorized",
+  "portalUrl": "https://portal.azure.com/..."
+}
+----
+
+`result` is the sidecar's `authorized` flag, `message` is its `reason`
+or a generated sentence, and `portalUrl` renames the sidecar's
+`portal_url`. When the sidecar is disabled — the shipped default — the
+core answers authorized without calling anything. When it is enabled
+and unreachable the answer is `502` or `504`, and when it answers with
+a `4xx` or `5xx` the answer is `502`. It is never an allow. See
+xref:main:reference/api/authz.adoc[Authorization sidecar API].
+
+== Users
+
+Router: `users.py`, prefix `/v1/users`. One route.
+
+`GET /api/v1/users/me` returns the authenticated caller's identity and
+roles, and is what the browser calls to learn what to render:
+
+[source,json]
+----
+{
+  "id": 1,
+  "email": "dev@nebula.local",
+  "display_name": "dev",
+  "operation_role": "devops",
+  "panel_role": "admin"
+}
+----
+
+`id` is the database primary key, not the token subject. `email` and
+`display_name` may be null. `panel_role` is null for a user with no
+admin-panel access.
+
+== Sessions
+
+Router: `session.py`, prefix `/v1/sessions`. Two routes, both open to
+any signed-in user.
+
+`GET /api/v1/sessions` returns a page of session summaries. The list
+is *always* scoped to the caller's own sessions — there is no
+parameter that widens it.
+
+[cols="2,1,4",options="header"]
+|===
+|Parameter |Default |Meaning
+
+|`page`
+|`1`
+|One-based page number, minimum 1.
+
+|`page_size`
+|`20`
+|Items per page, 1 to 100.
+
+|`operation`
+|none
+|Filter by operation type.
+
+|`status`
+|none
+|Filter by the session's *most recent* status.
+
+|`search`
+|none
+|Partial match on the first query, the workspace URI, or the session
+id. Up to 200 characters.
+|===
+
+The envelope carries `items`, `total`, `page`, `page_size`, and
+`total_pages`. Each item resolves server-side everything the list view
+renders: `uuid`, `operation`, `provider`, `first_query`,
+`workspace_uri`, `current_status`, the `in_flight` and `is_blocked`
+flags, and the timestamps.
+
+`GET /api/v1/sessions/\{session_id}` returns the full session
+aggregate: the session facts, its `workspace` (URI, branch, root
+path), its `scope_id`, the complete `statuses` timeline, and one entry
+in `rounds` per generation round. Each round carries its own statuses,
+its `report`, `plan`, and `code_changes` artifacts as
+client-fetchable URLs, and its `pull_requests`.
+
+Pass `include_history=true` to also populate `history` with the
+session's conversation turns. That variant always reads fresh from the
+database, so status polling should stay on the default. The caller
+must be the owner or hold a panel role; an unknown session is `404`.
+
+== Admin
+
+Router: `admin.py`, prefix `/v1/admin`. Five routes. The whole router
+carries a `require_panel_role(PanelRole.VIEWER)` dependency, so panel
+`viewer` is the floor for every route in it; three routes raise the
+floor further.
+
+[cols="3,1,3",options="header"]
+|===
+|Route |Panel role |Returns
+
+|`GET /api/v1/admin/sessions`
+|`viewer`
+|A page of session summaries across all users.
+
+|`GET /api/v1/admin/sessions/\{session_id}`
+|`viewer`
+|Any session's full aggregate.
+
+|`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock`
+|`editor`
+|The session's new lock state.
+
+|`GET /api/v1/admin/users`
+|`admin`
+|A page of users with their roles.
+
+|`PUT /api/v1/admin/users/\{user_id}/roles`
+|`admin`
+|The updated user.
+|===
+
+`GET /api/v1/admin/sessions` takes the same `page`, `page_size`,
+`operation`, `status`, and `search` parameters as the caller-scoped
+list, plus `user_email`, which partial-matches the owning user's
+e-mail and accepts up to 254 characters. The response envelope is
+identical.
+
+`GET /api/v1/admin/sessions/\{session_id}` is the unrestricted
+counterpart of the session detail route: same `include_history`
+parameter, same response, but no ownership check beyond the panel
+role. An unknown session is `404`.
+
+`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock` takes
+`{"locked": true}` or `{"locked": false}` and answers with the
+resulting state. `true` blocks both apply and pull-request merge on
+that session; `false` releases them. An unknown session is `404`.
+
+[source,json]
+----
+{"uuid": "917d0485-a0a2-4c34-8f33-a89d28aba9b0", "is_blocked": true}
+----
+
+`GET /api/v1/admin/users` takes `page`, `page_size`, and a `search`
+that partial-matches e-mail or display name, up to 254 characters.
+Each item extends the `/users/me` shape with the `issuer`, the
+`subject`, and `created_at`.
+
+`PUT /api/v1/admin/users/\{user_id}/roles` is a *full-state*
+assignment, not a patch: the body is
+`{"operation_role": "devops", "panel_role": "editor"}` and whatever it
+omits is cleared. `panel_role` is optional and setting it to null
+removes all admin-panel access. `user_id` is the database primary key.
+An unknown user is `404`. One case is refused outright: a panel admin
+removing their own `admin` role is `409 A panel admin cannot remove
+their own admin role.`
+
+Note what is *not* here. There is no route to delete a user or a
+session, and a panel role never grants the right to act on another
+user's session — continuing it, opening or merging its pull request,
+and applying it all remain owner-only.
+
+== Mapping
+
+Router: `mapping.py`, prefix `/v1/mapping`. One route, open to any
+signed-in user.
+
+`POST /api/v1/mapping/resolve` is a passthrough to the mapping
+sidecar. It takes `identifier` (required) plus the optional `cloud` and
+`environment` hints, and returns the resolved repository reference:
+
+[source,json]
+----
+{
+  "repo_url": "https://github.com/me/my-iac.git",
+  "project": "my-iac",
+  "branch": null,
+  "path": null
+}
+----
+
+The sidecar is not reachable from the browser; this route is how the
+web application gets at it. When mapping is disabled in the system
+configuration the core's client answers with an identity passthrough,
+so a default deployment works without a configured mapper. See
+xref:main:reference/api/mapping.adoc[Mapping sidecar API].
+
+== Notifications
+
+Router: `notifications.py`, prefix `/v1/notifications`. One route,
+open to any signed-in user.
+
+`POST /api/v1/notifications` submits a user-originated notification —
+today, the support request typed into the web application's header —
+and the core relays it to the notifications sidecar. The body mirrors
+the sidecar contract's `NotificationRequest` with one deliberate
+difference: it has *no* `audience` field. The core derives the
+audience server-side from the caller and the users store, so the
+browser cannot choose recipients. Unknown fields are rejected.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Required |Constraint
+
+|`kind`
+|yes
+|Event category, dotted lowercase, for example
+`support.user_question`. 1 to 128 characters.
+
+|`severity`
+|yes
+|One of `info`, `warning`, `error`, `critical`.
+
+|`subject`
+|yes
+|1 to 256 characters.
+
+|`body`
+|yes
+|1 to 16384 characters.
+
+|`links`
+|no
+|Up to 32 objects, each `{"label": ..., "url": ...}` with a label of 1
+to 128 characters and an absolute HTTP URL of up to 2048 characters.
+
+|`context`
+|no
+|Free-form object.
+|===
+
+Success is `202` with the sidecar's delivery id:
+
+[source,json]
+----
+{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
+----
+
+Unlike the pipeline's own best-effort notifications, this route tells
+the caller when nothing was delivered: `502 Notification was not
+delivered.` if the sidecar did not accept it, and `503 Notifications
+are disabled.` if the sidecar is switched off in the configuration.
+
+== Next steps
+
+* xref:main:reference/roles-and-permissions.adoc[Roles and
+  permissions] for the complete permission matrix behind the role
+  columns above.
+* xref:main:reference/api/index.adoc[HTTP APIs] for the sidecar
+  contracts the core calls.
+* xref:main:guides/make-a-request.adoc[Make a request] for the same
+  flow from the web application.

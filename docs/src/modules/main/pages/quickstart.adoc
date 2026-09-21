@@ -483,8 +483,10 @@ This keeps the named volumes (databases, artifacts, workspaces), so
 sessions and prompts survive a restart. The authz sidecar's own JSON role
 store is container-local and is lost when that container is recreated; it
 is unrelated to Nebula's operation and panel roles, which live in
-`core-db`. See `services/authz/README.md` in the repository if you need
-the sidecar's roles to persist.
+`core-db`. See
+xref:main:reference/api/authz.adoc#the-bundled-implementation[the
+bundled implementation] in the authorization sidecar reference if you
+need the sidecar's roles to persist.
 
 === Delete Nebula volumes
 

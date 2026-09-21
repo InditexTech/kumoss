@@ -1,0 +1,216 @@
+= Mapping sidecar API
+:description: The contract that turns a business identifier into a clone URL, branch, and sub-path. The bundled implementation is an identity passthrough.
+
+The mapping service answers one question: *given what my organization
+calls this thing, which repository holds its IaC?* The identifier can
+be a project name, a subscription code, a product slug, or a full git
+URL — whatever the organization already uses. The service returns a
+clone URL, a branch, and an optional sub-path.
+
+Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint:
+`\http://mapping:8081`. Bearer token: the value of the variable named
+by `services.mapping.token_env`, `NEBULA_MAPPING_TOKEN` by default.
+The service is *optional* and ships disabled
+(`services.mapping.enabled: false`).
+
+It is internal-only. The browser never reaches it: the core forwards
+requests through `POST /api/v1/mapping/resolve`.
+
+== Endpoints
+
+Two paths.
+
+[cols="2,4",options="header"]
+|===
+|Endpoint |What it does
+
+|`POST /v1/resolve`
+|Translates `identifier` into the repository, branch, and sub-path the
+rest of Nebula should operate on.
+
+|`GET /healthz`
+|Liveness probe, answers `{"status":"ok"}`.
+|===
+
+== Request
+
+[source,json]
+----
+{"identifier": "my-project", "cloud": "azure", "environment": "dev"}
+----
+
+Only `identifier` is required. `additionalProperties` is `false`.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`identifier`
+|1-1024 chars
+|The business identifier to resolve. Free-form by design.
+
+|`cloud`
+|1-32 chars, nullable
+|Optional hint — `azure`, `gcp`, `aws`. An implementation may use it
+to disambiguate an identifier that spans clouds. May be omitted or
+sent as null.
+
+|`environment`
+|1-32 chars, nullable
+|Optional deployment-dimension hint — `dev`, `staging`, `pro`. An
+implementation may use it to route to an environment-specific mirror
+of the same logical repository. May be omitted or sent as null.
+|===
+
+Both hints are *hints*. Nothing in the contract obliges an
+implementation to read them, and a caller cannot tell from the
+response whether they were used.
+
+== Response
+
+[source,json]
+----
+{
+  "repo_url": "https://github.com/me/my-iac.git",
+  "project": "my-project",
+  "branch": "main",
+  "path": "environments/dev"
+}
+----
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`repo_url`
+|1-2048 chars, required
+|The URL Nebula clones. Free-form because git accepts many URL shapes
+— `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute
+path. Returning something the deployment's git client can actually
+clone is the implementation's responsibility.
+
+|`project`
+|1-128 chars, required
+|Canonical project name, used downstream for cloud resource naming,
+tracer attributes, and audit logs. A catalogue-backed implementation
+returns the catalogue's canonical name rather than what the caller
+sent.
+
+|`branch`
+|≤256 chars, nullable
+|Branch to target. Omitted or null means the caller falls back to the
+repository's own default branch.
+
+|`path`
+|≤1024 chars, nullable
+|Sub-path within the repository where the IaC lives. For a monorepo
+hosting several IaC projects.
+|===
+
+`additionalProperties` is `false` on the response too, so a client can
+rely on these four keys being the whole of it.
+
+=== Status codes
+
+[cols="1,5",options="header"]
+|===
+|Status |Meaning
+
+|`200`
+|Resolved.
+
+|`400`
+|The body could not be parsed at the transport layer — malformed JSON,
+non-UTF-8 bytes, no `Content-Type`. May be a problem document or a
+framework-default body.
+
+|`401`
+|Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
+challenge.
+
+|`403`
+|The token is valid but not authorized for this endpoint.
+
+|`404`
+|The identifier is not in the catalogue. The contract reserves this
+for a clean negative answer, *distinct* from a transient backend
+failure, which is a `5xx`.
+
+|`422`
+|Well-formed JSON that failed schema validation.
+
+|`502`
+|The downstream catalogue or CMDB returned an error.
+|===
+
+The `404`-versus-`502` split is the one design decision a catalogue
+implementation should get right: it is what lets the core tell a user
+"no such project" instead of "try again later".
+
+== The bundled implementation
+
+`services/mapping/` is an *identity passthrough*. Whatever
+`identifier` arrives comes back as both `repo_url` and `project`,
+with `project` truncated to 128 characters to satisfy the schema and
+`repo_url` left untouched. It exists so a fresh deployment works end
+to end without anyone writing a real mapper, and it is exactly right
+for users who pass real git URLs already.
+
+A catalogue-backed implementation replaces it: look the identifier up
+in a CMDB, Backstage, or a shared spreadsheet and return the canonical
+IaC repository. The contract makes no assumption about where that data
+lives.
+
+=== Responses it never produces
+
+The contract documents `400`, `403`, `404`, and `502` for real
+catalogue backends. The passthrough emits none of them — it has no
+catalogue to miss in and no authorization concept beyond the bearer
+token. It only ever answers `200`, `401`, `422`, or `500`. A caller
+must still handle the full set, because a catalogue implementation
+will use it.
+
+=== Configuration
+
+[cols="2,1,4",options="header"]
+|===
+|Variable |Required |Meaning
+
+|`NEBULA_MAPPING_TOKEN`
+|no
+|Bearer token clients must present. Blank disables the check entirely
+and accepts every request.
+|===
+
+[#conformance]
+== Conformance
+
+The implementation-agnostic Schemathesis suite at
+`contracts/conformance/mapping/` runs against any implementation of
+this contract:
+
+[source,bash]
+----
+cd contracts/conformance/mapping
+uv sync
+uv run pytest \
+  --service-url=https://mapping.your.example \
+  --service-token=$YOUR_TOKEN
+----
+
+`--service-token` is needed only if the implementation enforces
+authentication.
+
+The suite generates requests from the OpenAPI document and checks
+schema conformance of the responses. It cannot check that the
+identifiers your catalogue resolves are the *right* repositories —
+that is what the implementation's own tests are for.
+
+== Next steps
+
+* xref:main:reference/api/core.adoc[Core API] for the core route that
+  wraps this one.
+* xref:main:reference/configuration.adoc#config-services[the `services`
+  section] of the configuration reference for enabling the sidecar.
+* xref:main:reference/repository-layout.adoc[Repository layout] for
+  what Nebula expects to find at the resolved `path`.

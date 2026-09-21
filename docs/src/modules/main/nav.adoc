@@ -38,6 +38,12 @@
 * xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
 * xref:main:reference/repository-layout.adoc[Repository layout]
 * xref:main:reference/terraform-providers.adoc[Terraform providers]
+* xref:main:reference/api/index.adoc[HTTP APIs]
+** xref:main:reference/api/core.adoc[Core API]
+** xref:main:reference/api/iac.adoc[IaC sidecar API]
+** xref:main:reference/api/notifications.adoc[Notifications sidecar API]
+** xref:main:reference/api/mapping.adoc[Mapping sidecar API]
+** xref:main:reference/api/authz.adoc[Authorization sidecar API]
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]
 * xref:main:changelog/index.adoc[Changelog]

@@ -14,8 +14,9 @@ them:
 * xref:main:guides/enable-authentication.adoc[] for authentication.
 * xref:main:guides/monitor-with-phoenix.adoc[] for tracing.
 * xref:main:guides/customize-prompts.adoc[] for the prompt registry.
-* `contracts/openapi/` and `contracts/conformance/` for the sidecar
-  contracts and their conformance suites.
+* xref:main:reference/api/index.adoc[HTTP APIs] for the sidecar
+  contracts in `contracts/openapi/` and their conformance suites in
+  `contracts/conformance/`.
 
 Everything in this guide describes the implementation as it exists in
 the repository today. Where a capability is a recommendation rather
@@ -285,7 +286,9 @@ Each sidecar is an OpenAPI contract. The core calls it with a bearer
 token from the environment variable named by `services.<name>.token_env`,
 and the sidecar validates that token. Any implementation of the
 contract can be used by changing `services.<name>.endpoint`. Use the
-conformance suites in `contracts/conformance/` to verify a replacement.
+conformance suites in `contracts/conformance/` to verify a
+replacement; every page under xref:main:reference/api/index.adoc[HTTP
+APIs] carries the command for its own sidecar.
 
 Common rules for every *enabled* sidecar:
 
@@ -316,7 +319,8 @@ environment, on a shared filesystem, with no approval step, no engine
 timeout, and in-memory job state.
 
 For production the recommendation is to *implement the IaC contract
-(`contracts/openapi/iac.v1.yaml`) according to your organization's
+(xref:main:reference/api/iac.adoc[`contracts/openapi/iac.v1.yaml`])
+according to your organization's
 requirements*, not only to harden the bundled image. Typical reasons:
 running the engine on your existing Terraform or OpenTofu execution
 platform, using a workspace and state strategy other than a shared
@@ -324,8 +328,9 @@ volume, enforcing per-project cloud identities, adding policy or
 approval hooks around `plan` and `apply`, auditing every command, or
 supporting clouds and CLIs the bundled image does not include. The
 contract is small (one command per asynchronous job, polled by the
-core), and the conformance suite in `contracts/conformance/iac/`
-verifies a replacement.
+core), and the
+xref:main:reference/api/iac.adoc#conformance[conformance suite] in
+`contracts/conformance/iac/` verifies a replacement.
 
 If you nevertheless start from the bundled image, its *identity and
 execution environment* are the security decisions you must make:
@@ -400,7 +405,8 @@ plus user-originated support requests from the web application; the
 audience is the session owner (or caller) plus every user with panel
 role `editor` or higher. If your operational channel is not Slack
 (Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in
-`contracts/openapi/notifications.v1.yaml`. Delivery is best-effort: a
+xref:main:reference/api/notifications.adoc[`contracts/openapi/notifications.v1.yaml`].
+Delivery is best-effort: a
 failure is logged and never fails a session.
 
 [#authorization-optional]
@@ -427,8 +433,9 @@ Understand what this integration is and is not:
   anything. Once enabled, an unreachable sidecar produces a `502`/`504`
   error in the wizard, not an allow.
 
-Implement the contract in `contracts/openapi/authz.v1.yaml` against
-your entitlement source and enable it.
+Implement the contract in
+xref:main:reference/api/authz.adoc[`contracts/openapi/authz.v1.yaml`]
+against your entitlement source and enable it.
 
 == Configuration checklist (`config.yaml`)
 

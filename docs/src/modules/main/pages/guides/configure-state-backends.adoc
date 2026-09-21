@@ -483,7 +483,8 @@ Terraform 1.16.0; both support `use_lockfile`.
   default, and validation rule.
 * The environment variables reference — `core/.env` and the sidecar
   `.env` files.
-* `services/iac/README.md`, "State backend" — the contract-level view.
+* xref:main:reference/api/iac.adoc#state-backend[IaC sidecar API —
+  State backend] — the contract-level view.
 * xref:main:reference/terraform-providers.adoc[Terraform providers] —
   per-cloud backend credential minimums.
 * xref:main:architecture/data-and-state.adoc#terraform-state[Architecture

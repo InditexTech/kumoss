@@ -1,0 +1,119 @@
+= HTTP APIs
+:description: The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
+
+A Nebula deployment has two kinds of HTTP surface, and they are
+documented from two different sources.
+
+The *core API* is the browser-facing orchestration API. It is a FastAPI
+application whose routers live in `core/src/api/v1/`. There is no
+hand-written specification for it: the routers are the source of
+truth, and FastAPI derives the OpenAPI document from them at runtime.
+xref:main:reference/api/core.adoc[Core API] documents every route it
+exposes.
+
+The *sidecar contracts* are four hand-written OpenAPI 3.1 documents in
+`contracts/openapi/`. They define what the core expects of the
+authorization, IaC, mapping, and notifications services. Here the
+specification is the source of truth and the services under
+`services/` are reference implementations of it — the core calls them
+through a generated client and never imports an implementation
+directly. Each sidecar page below documents its contract and folds in
+the behaviour of the bundled reference implementation.
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:reference/api/core.adoc[Core API]
+Every route under `/api/v1`, grouped by router, with the role each one
+requires and the shape it returns.
+
+[card]
+.xref:main:reference/api/iac.adoc[IaC sidecar API]
+The mandatory sidecar: one IaC engine command per asynchronous job,
+polled by the core. Scope injection, import discovery, and state
+backends.
+
+[card]
+.xref:main:reference/api/notifications.adoc[Notifications sidecar API]
+Channel-agnostic notification dispatch. The bundled implementation
+posts to a Slack incoming webhook.
+
+[card]
+.xref:main:reference/api/mapping.adoc[Mapping sidecar API]
+Resolves a business identifier into a repository URL, branch, and
+sub-path. The bundled implementation is an identity passthrough.
+
+[card]
+.xref:main:reference/api/authz.adoc[Authorization sidecar API]
+Per-resource cloud access decisions. Consulted from exactly one core
+route, and disabled by default.
+====
+
+== Where the core API lives
+
+The core mounts every router under `/v1` and runs with
+`root_path="/api"`, so the reverse proxy publishes the routes as
+`/api/v1/...`. Every path in this reference is written with that
+prefix, because it is the path a browser or an external client uses.
+Inside the container the same route answers at `/v1/...`.
+
+FastAPI's own interactive documentation is generated from the same
+routers and is reachable at `/api/docs` on a running deployment, with
+the raw OpenAPI document at `/api/openapi.json`.
+
+== Where the sidecar contracts live
+
+`contracts/` is the source of truth for what every Nebula service —
+including third-party and enterprise implementations — must satisfy:
+
+* `contracts/openapi/<service>.v1.yaml` — one hand-written OpenAPI 3.1
+  document per service. The major version is in the file name and in
+  the URL path (`/v1/...`); a breaking change requires a new major and
+  a new file.
+* `contracts/conformance/<service>/` — a Schemathesis test pack that
+  any implementation must pass to claim conformance. Every sidecar
+  page has a Conformance section with the command.
+
+Three conventions hold across all four contracts:
+
+* *Errors* are RFC 7807 problem documents
+  (`application/problem+json`) on every endpoint.
+* *Authentication* is a per-service bearer token
+  (`Authorization: Bearer <token>`). The core reads the value from the
+  environment variable named by `services.<name>.token_env`; the
+  sidecar reads it from its own variable. The two must match. Every
+  reference implementation treats a blank token as "accept every
+  request", which is acceptable only on an isolated workstation.
+* *Liveness* is `GET /healthz`, which answers `200` with
+  `{"status":"ok"}` on every service and is the only endpoint outside
+  `/v1` and the only one that needs no token.
+
+Each service is addressed through `services.<name>.endpoint`. The
+checked-in defaults are the compose-network names:
+`\http://iac:8082`, `\http://notifications:8080`,
+`\http://mapping:8081`, and `\http://authz:8083`. Only the IaC
+service is mandatory; the other three default to `enabled: false`. See
+xref:main:reference/configuration.adoc#config-services[the `services`
+section] of the configuration reference.
+
+[#generated-clients]
+== The generated clients
+
+`core/src/clients/{authz,iac,mapping,notifications}/` is *generated
+code*, produced from the contracts with `openapi-python-client`. Do not
+hand-edit it.
+
+After changing a contract, regenerate the client for that service or
+the core keeps speaking the old shape. The command, the reason the
+generator drops the SPDX headers, and how to put them back are in
+"Regenerating sidecar clients" in
+xref:main:guides/development.adoc[Development].
+
+== Next steps
+
+* xref:main:reference/api/core.adoc[Core API] for the routes a client
+  of Nebula calls.
+* xref:main:guides/deploy-to-production.adoc[Deploy to production] for
+  which sidecars to enable, replace, or leave off.
+* xref:main:reference/configuration.adoc[Configuration] for the
+  `services` block that wires all four.
