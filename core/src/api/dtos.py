@@ -129,14 +129,24 @@ class MappingResolveResponse(BaseModel):
     whichever of them comes back non-null.
     """
 
-    repo_url: str = Field(description="URL to clone.")
-    identifier: str = Field(description="The request's identifier, echoed verbatim.")
+    repo_url: str = Field(
+        min_length=1,
+        max_length=2048,
+        description="URL to clone.",
+    )
+    identifier: str = Field(
+        min_length=1,
+        max_length=1024,
+        description="The request's identifier, echoed verbatim.",
+    )
     terraform_provider: TerraformProvider | None = Field(
         default=None,
         description="Provider the deployment targets, or null if unknown.",
     )
     scope_id: str | None = Field(
         default=None,
+        min_length=1,
+        max_length=1024,
         description=(
             "Cloud scope the deployment targets — Azure subscription id, "
             "GCP project id, AWS account id, OCI compartment OCID — or "
