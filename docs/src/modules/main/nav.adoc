@@ -9,6 +9,10 @@
 * xref:main:prerequisites.adoc[Prerequisites]
 * xref:main:quickstart.adoc[Quickstart]
 * Guides
+* xref:main:guides-overview.adoc[Overview]
+* xref:main:guides/make-a-request.adoc[Make a request]
+* xref:main:guides/follow-a-session.adoc[Follow a session]
+* xref:main:guides/merge-and-apply.adoc[Merge and apply]
 * Reference
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]

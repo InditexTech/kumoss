@@ -1,0 +1,151 @@
+= Make a request
+:description: Open a Nebula session and phrase a request that the filter accepts.
+
+This guide walks through opening a session in the Nebula web application:
+choosing a mode, pointing Nebula at a repository, and phrasing the request
+so the filter accepts it as a change.
+
+== Prerequisites
+
+* *An account.* Your administrator gives you access through your
+  organization's identity provider. On first login you have the
+  `developer` role, which lets you generate infrastructure, open and merge
+  pull requests, and apply your own sessions. Drift remediation needs the
+  `devops` role; ask your administrator (Admin portal).
+* *A repository URL* that holds Terraform-compatible code and that
+  Nebula's service account can clone and push to. Enter the plain URL;
+  URLs with a user name or token embedded are rejected.
+* *The cloud scope* your change targets: the Azure subscription id, Google
+  Cloud project id, AWS account id, or OCI compartment OCID. Kubernetes has
+  no cloud scope of its own — the API asks for "any stable identifier", so
+  use whatever your team agreed on (a cluster or namespace name works).
+
+Nebula never asks you for cloud or Git credentials. It uses the identity
+your platform team configured.
+
+== Steps
+
+. *Choose the mode* in the header drop-down. Most work uses *Generate
+  Infrastructure*. The drift modes and *Import Infrastructure* are shown
+  greyed out with the hint "Requires the devops operation role." if you do
+  not hold that role.
+. *"What do you need?"* Type your request (up to 500 characters) and press
+  Enter. The rotating hints under the field show the expected level of
+  detail, for example "Deploy a PostgreSQL database on Azure" or "Create a
+  virtual network with three subnets".
+. *"What is the repository URL?"* Paste the repository URL. Nebula
+  resolves it, clones only its metadata, and looks for Terraform roots
+  among the files committed on the default branch: directories that hold
+  `.tf` files, skipping `modules`, `examples`, and `.terraform` folders,
+  and keeping those with a `main.tf`-style marker or a `.tfvars` file (the
+  exact rules and examples are in Operating modes). This is the step that
+  takes a few seconds ("Resolving repository...").
+. *"Which IaC path?"* If the repository has more than one Terraform root,
+  pick the directory to work in. With exactly one root this step is
+  skipped. If none is found you see "No IaC paths found in this
+  repository. Please check the repository and try again." — usually
+  because the `.tf` files are not committed on the default branch or live
+  under a `modules` or `examples` directory. Top-level `.tf` files are
+  offered as the path `.`.
+. *"Which cloud provider?"* Pick Microsoft Azure, Google Cloud, Amazon Web
+  Services, Oracle Cloud Infrastructure, or Kubernetes.
+. *Cloud scope.* Enter the subscription id, project id, account id, or
+  compartment OCID — for Kubernetes, any stable identifier your team uses.
+  Only letters, digits, and hyphens are accepted (up to 64 characters); the
+  field does not advance until the value is valid.
+. *Permissions check.* Nebula asks your organization's authorization
+  service whether you may work there, sending the cloud, the repository
+  URL, and the IaC path — not the scope you just typed ("Checking
+  permissions on ..."). If the answer is no, the reason is shown with two
+  buttons: *Try again* (back to the scope) and *Start over*. In a
+  deployment that has not connected such a service, which is the shipped
+  default, the answer is always yes and the step passes straight through.
+
+The session then starts and you are taken to the progress screen.
+
+*Errors at this stage.* The wizard always shows the fixed message "Could
+not resolve repository. Please try again." when the reachability check
+fails, whatever the underlying cause. It runs before the session is
+created — Nebula answers an error and nothing is started. The more
+specific reason — the Git client's own text, or "Cannot reach repository:
+<url>" when the client said nothing — is the API response's `detail`
+field: visible to direct API callers, and to the wizard itself only if a
+later request (for example the first generate step) fails with a 400, in
+which case the UI falls back to showing that `detail`. Check that the URL
+is reachable and that Nebula's service account has access. A repository
+that becomes unreachable later, when the session clones it for real, is a
+different failure: the round ends with "git clone failed: ..." and the
+session is failed and cannot be resumed.
+
+== Writing a request that gets accepted
+
+Every request is first read by a filter that decides whether it is an
+infrastructure change Nebula can make. The rules are set by your
+organization in the prompt registry; the defaults are these.
+
+*Accepted: change requests.* Creating, modifying, or deleting cloud
+infrastructure managed with Terraform, and questions that resolve directly
+into such a change. Missing parameters never block a request: naming
+conventions supply names, resource templates supply settings, and the
+existing workspace supplies placement (resource group, region,
+environment). "Create a new storage account", with nothing else, is
+accepted, and the response states the defaults and assumptions applied.
+
+*Answered, not executed: informational questions.* "Which resources exist
+in this repository?", "How could this be improved?", "What is the impact
+of changing X?". Nebula answers in the chat and the round ends without
+changes. You can follow up with a change request in the same session.
+
+*Declined*, with the reason shown to you:
+
+[cols="2,3,3",options="header"]
+|===
+|Reason |Example |How to fix it
+
+|Out of scope
+|"Restart the web server", "What's the difference between blob and file
+storage?"
+|Ask for a Terraform-managed change, or accept that it is a question.
+
+|Prohibited
+|Opening a security group to the world on port 22, granting `*` on `*`,
+disabling encryption, deleting a database without protection
+|Your organization's forbidden-actions list applies regardless of how the
+request is phrased. Ask for the compliant alternative.
+
+|Ambiguous target
+|"Rename the subnet" when the workspace has five subnets
+|Name the resource: "rename subnet `app-subnet-01` to `app-subnet-web`".
+
+|Missing referent
+|"Add a rule to the web firewall" when no firewall exists in the workspace
+|Create it first, or point at the right repository or path.
+|===
+
+Practical rules:
+
+* *One intent per request.* "Add a private storage account for
+  application logs" is better than a list of six unrelated changes. Use
+  follow-ups for the next step.
+* *Name existing resources exactly* when you modify or delete them.
+* *Say what matters to you, not how to write HCL.* Size, tier, region,
+  exposure, retention, and naming intent are useful. Nebula applies your
+  organization's conventions for the rest.
+* *Do not paste secrets.* Request text, the files the agent reads, and the
+  plan are sent to the configured language model and stored in the tracing
+  system. Reference secrets by name or vault path.
+* *Prefer additive changes.* Standalone deletions are flagged by the
+  default compliance rules and lock the session, see
+  xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
+  locked].
+
+Examples that work well: "Create a private S3 bucket named
+`demo-platform-logs` with versioning and default encryption for
+application logs." "Open port 443 from the load balancer subnet to the web
+security group." "Upgrade the PostgreSQL flexible server in `envs/dev` to
+16."
+
+== Next steps
+
+* xref:main:guides/follow-a-session.adoc[Follow a session] once the
+  session starts.

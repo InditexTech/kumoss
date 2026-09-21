@@ -1,0 +1,135 @@
+= Follow a session
+:description: Track a Nebula session's progress and read the results it produces.
+
+After you submit a request, Nebula takes you to the progress screen. This
+guide covers what happens while a session runs, what a declined or
+answered round looks like, how to read the results, and how to come back
+to a session later.
+
+== Prerequisites
+
+* A session opened by following xref:main:guides/make-a-request.adoc[Make
+  a request].
+
+== Progress stages
+
+The progress screen shows an assistant animation, a progress bar, and one
+short first-person status sentence at a time, such as what is being
+generated or which validation error is being fixed. Progress moves through
+these stages:
+
+[cols="1,3,1",options="header"]
+|===
+|Stage |What Nebula is doing |Typical duration
+
+|Filtering
+|Reading and classifying your request
+|Seconds
+
+|Generating
+|Writing or editing Terraform files and pushing them to the session branch
+|Minutes
+
+|Validating
+|Running `init`, `validate`, and `plan` in the engine; feeding errors back
+to the generator (up to five attempts)
+|Minutes; longer for large roots
+
+|Report
+|Checking for drift on the touched resources and writing the report
+|Minutes
+|===
+
+A session is bounded: five generate-and-validate attempts, then a drift
+check of at most two passes, then the report. Browser notifications
+("Pipeline completed", "Request rejected", "Session blocked", "Pipeline
+failed") can be enabled from the *Configuration* icon in the header.
+
+You can close the tab. The session continues on the server; reopen it from
+the *Sessions* panel in the footer or from your user page.
+
+*If it fails.* The round is marked failed with a reason: most often
+"Validation loop exceeded." when the engine kept rejecting the code after
+five attempts, or an engine or repository error. A failed session cannot
+be resumed ("This session failed and can't be resumed"); start a new one,
+usually with a more specific request. Long inactivity shows "Connection
+timed out — no response from server"; reload the page and open the session
+from the footer.
+
+*If your login expires* you see "Your session has expired. Please sign in
+again." The Nebula session keeps running; sign in and reopen it.
+
+== When the request is declined or answered
+
+You are taken to the results screen with the chat on the left. The
+filter's explanation, or the answer to your question, is the last
+assistant message. Nothing was changed and no branch was pushed for that
+round. Type a new request in "Ask a follow-up question..." to continue in
+the same session; earlier rounds' results stay visible on the right.
+
+== Reading the results
+
+The results screen has the chat on the left and a panel with three tabs on
+the right.
+
+*Plan tab.* The engine's plan text as produced by `plan`. This is the
+authoritative description of what would change.
+
+*Code tab.* The files Nebula created or modified in this round, as diffs.
+
+*Report tab.* Nebula's summary of the plan:
+
+* *Execution Summary.* A paragraph describing the change.
+* *Potential Impact.* One of *Low Impact*, *Medium Impact*, or *High
+  Impact*, with a description. With the default criteria, high means
+  destructive actions, restarts, downtime, or critical networking changes;
+  medium means significant configuration updates that change behaviour
+  without guaranteed downtime; low means isolated new resources or
+  non-disruptive updates such as tags or locks. Click the card for the
+  status, description, and detail bullets.
+* *Estimated Cost.* A monthly figure (and the derived hourly figure) for
+  resources with a *fixed* price. Usage-based and free resources are
+  listed in the breakdown as "Usage-based" or "Free" and are not included
+  in the total. Treat the figure as an approximation for comparison, not
+  as a quote; prices come from public pricing pages at generation time.
+* *Changes table.* Filter by *All*, *Created*, *Updated*, *Deleted*,
+  *Recreated*. Each row names the resource with a short note; click it for
+  the description and the raw plan detail.
+
+For drift sessions the report shows a *Drift Summary*, an outcome
+(Succeeded, Partial, Failed), and a *Remediated Resources* list with the
+file, the change, and the reason for each.
+
+*What you do not see.* The compliance audit that runs after the report
+produces rule-level findings, but they are not displayed in the
+application. If the audit fails you see its consequence, the lock, and the
+reviewers who receive the notification see the summary. Ask your reviewer
+or platform team for the details.
+
+*Reading order that works.* Impact level first, then the Deleted and
+Recreated filters, then the plan for anything you do not expect, then the
+cost.
+
+== Return to a session later
+
+* *Footer.* On the start screen, the *Sessions* panel lists your most
+  recent sessions with date, request, and project. *View all* opens the
+  full list.
+* *User page* (the user icon in the header). *Profile* (name, e-mail, *Log
+  out*), *Session History* with *View all sessions*, and, for reviewers,
+  *Admin Panel*.
+* *Your sessions list.* Search by project, request text, or session id;
+  filter by type and status. Open a row for the timeline of rounds, the
+  statuses, the artifacts (report, plan, changed files, viewed inline),
+  the session id, path, scope, repository link, and pull request links.
+  *Reload Session* reopens it in the wizard so you can create the pull
+  request, apply, or continue the conversation. Failed sessions cannot be
+  reloaded.
+
+Only you and reviewers with a panel role can see your sessions. Nobody
+else can act on them.
+
+== Next steps
+
+* xref:main:guides/merge-and-apply.adoc[Merge and apply] once you are
+  ready to act on the results.
