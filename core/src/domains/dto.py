@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -118,6 +118,11 @@ class TerraformDriftDTO:
     Keeping stderr in ``feedback`` and drift in ``drift`` is what stops
     terraform's error output from reaching the task splitter as though it
     were drift. ``stdout`` is the plan text the drift was read from.
+
+    ``excluded`` is what the drift exception rules kept out of
+    remediation, one note per iteration that excluded something. It is
+    defaulted so the terraform adapter's construction sites need not know
+    about it: only the drift loop fills it in.
     """
 
     in_sync: bool
@@ -125,6 +130,7 @@ class TerraformDriftDTO:
     feedback: str
     stdout: str
     plan: "PlanRef | None"
+    excluded: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -155,6 +161,22 @@ class TerraformApplyDTO:
     @property
     def summary(self) -> str:
         return self.stdout if self.ok else self.feedback
+
+
+@dataclass
+class FilteredOperationsDTO:
+    """What a drift exception filter pass kept and what it removed.
+
+    ``excluded`` is the flattened input minus the flattened survivors,
+    matched exactly, so an operation the agent trimmed appears on both
+    sides: the original here, its remainder in ``kept``. ``explanation``
+    is the agent's own account of what it removed and why, and is the
+    better source for anything a user reads.
+    """
+
+    kept: list[list[str]]
+    excluded: list[str]
+    explanation: str
 
 
 @dataclass

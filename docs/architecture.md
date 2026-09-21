@@ -185,6 +185,7 @@ Every message into the agents lane is one of the agents below. Each is an `LLMOr
 | Status Message Agent | small | none | plain text | Every status change; its text is what the SSE stream carries |
 | Drift Task Splitter | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search` | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions |
 | Reconciliation Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it **must** call `diff_history`) | `report_decomposed_task_operations` | Phase 6 only (generate rounds) |
+| Drift Exception Filter Agent | small | none besides its sentinel; rendered with the cloud's `drift_exceptions` prompt | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions, after the reconciliation filter |
 | Compliance Auditor Agent | small | none besides its sentinel (input: the first request and the raw plan output) | `report_compliance_findings` | Phase 8, generate rounds only, when `orchestration.enable_compliance_checker` is `true` |
 | PR Title & Description Agent | small | none | `generate_pull_request` | Phase 9 |
 

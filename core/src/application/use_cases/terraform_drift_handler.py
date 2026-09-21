@@ -91,6 +91,12 @@ class TerraformDriftHandler:
                         "\n\nPlease note, this drift couldn't be reconcile: "
                         f"{drift.feedback or drift.drift}"
                     )
+                if drift.excluded:
+                    content += (
+                        "\n\nPlease note, this drift was left unreconciled on "
+                        "purpose, covered by the drift exception rules:\n"
+                        + "\n".join(drift.excluded)
+                    )
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,

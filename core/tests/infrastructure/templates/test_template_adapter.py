@@ -328,6 +328,30 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("{{", prompt)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_filter_drift_exceptions(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_drift_exceptions"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AWS, cwd="/test/project"
+        )
+
+        prompt = await adapter.render_filter_drift_exceptions()
+
+        mock_fetch.assert_awaited_once_with(
+            prompt_name="drift_exceptions",
+            scope="aws",
+            type="guidelines",
+            tag=system_config.environment,
+        )
+        self.assertIn("mocked_drift_exceptions", prompt)
+        self.assertIn("<exception_rules>", prompt)
+        self.assertIn("report_decomposed_task_operations", prompt)
+        self.assertIn("Trim it", prompt)
+        # Text-only agent: no workspace tools, no working directory.
+        self.assertNotIn("diff_history", prompt)
+        self.assertNotIn("/test/project", prompt)
+        self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):
         mock_fetch.return_value = "mocked_drift_guidelines"
         adapter = TemplateAdapter(
