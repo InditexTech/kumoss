@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
-import type { ReportRef } from "@/types/api";
+import type { PlanType, ReportRef, TerraformPlanRef } from "@/types/api";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
@@ -33,6 +33,15 @@ function reportRef(id: number, path: string): ReportRef {
   return { ...artifactRef(id, path), type: "generate" };
 }
 
+function planRef(
+  id: number,
+  path: string,
+  targets: string[],
+  type: PlanType = "plan",
+): TerraformPlanRef {
+  return { ...artifactRef(id, path), type, targets };
+}
+
 beforeEach(() => {
   mockState.clear();
 });
@@ -46,7 +55,7 @@ describe("resolveSessionOutcome", () => {
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
             reports: [reportRef(1, "report.json")],
-            plans: [{ ...artifactRef(2, "plan.txt"), targets: ["a.b"] }],
+            plans: [planRef(2, "plan.txt", ["a.b"])],
             code_changes: [
               { ...artifactRef(3, "main.tf"), file_name: "main.tf" },
               { ...artifactRef(4, "vars.tf"), file_name: "vars.tf" },
@@ -67,7 +76,6 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.kind).toBe("results");
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.report).toEqual(report);
-    expect(outcome.targets).toEqual(["a.b"]);
     expect(outcome.code).toContain("<Terraform_Plan>\nplan output\n</Terraform_Plan>");
     expect(outcome.code).toContain("<main.tf>\nresource {}\n</main.tf>");
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
@@ -83,8 +91,8 @@ describe("resolveSessionOutcome", () => {
             statuses: [makeStatus("started"), makeStatus("completed")],
             reports: [reportRef(10, "report.json")],
             plans: [
-              { ...artifactRef(11, "drift.txt"), targets: ["a.b"] },
-              { ...artifactRef(12, "final.txt"), targets: ["c.d"] },
+              planRef(11, "drift.txt", ["a.b"], "drift"),
+              planRef(12, "final.txt", ["c.d"]),
             ],
           }),
         ],
@@ -104,7 +112,6 @@ describe("resolveSessionOutcome", () => {
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.code).toContain("final plan");
     expect(outcome.code).not.toContain("drift diff");
-    expect(outcome.targets).toEqual(["c.d"]);
   });
 
   it("merges code changes across rounds, with later rounds winning", async () => {
@@ -121,7 +128,7 @@ describe("resolveSessionOutcome", () => {
           makeRound({
             number: 2,
             statuses: [makeStatus("started"), makeStatus("completed")],
-            plans: [{ ...artifactRef(5, "plan.txt"), targets: [] }],
+            plans: [planRef(5, "plan.txt", [])],
             code_changes: [
               { ...artifactRef(6, "outputs-r2.tf"), file_name: "outputs.tf" },
               { ...artifactRef(7, "vault.tf"), file_name: "vault.tf" },
@@ -465,7 +472,6 @@ describe("buildSessionPatch", () => {
       round: detail.rounds[0],
       report: null,
       code: "<main.tf>\nx\n</main.tf>",
-      targets: ["a.b"],
     });
 
     expect(patch).toMatchObject({
@@ -483,7 +489,6 @@ describe("buildSessionPatch", () => {
       current_status: "completed",
       code: "<main.tf>\nx\n</main.tf>",
     });
-    expect(patch).not.toHaveProperty("terraform_targets");
     expect(patch.history).toEqual([
       { role: "user", content: "deploy a VM" },
       { role: "assistant", content: "Here is your VM" },
@@ -504,7 +509,6 @@ describe("buildSessionPatch", () => {
       prior: {
         report: { status: "ok" },
         code: "<main.tf>\nx\n</main.tf>",
-        targets: ["a.b"],
       },
     });
 
@@ -548,7 +552,6 @@ describe("buildAssistantMessage", () => {
         round: detail.rounds[0],
         report: { potential_impact: { summary: "Adds one VM" } },
         code: "",
-        targets: undefined,
       }),
     ).toBe("Adds one VM");
   });
@@ -561,7 +564,6 @@ describe("buildAssistantMessage", () => {
         round: detail.rounds[0],
         report: { summary: { create: 2, update: 1, delete: 0, recreate: 0 } },
         code: "",
-        targets: undefined,
       }),
     ).toContain("2 to create");
   });
@@ -574,7 +576,6 @@ describe("buildAssistantMessage", () => {
         round: detail.rounds[0],
         report: { summary: "One resource drifted" },
         code: "",
-        targets: undefined,
       }),
     ).toBe("One resource drifted");
   });

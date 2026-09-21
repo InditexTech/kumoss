@@ -22,9 +22,8 @@ function isBefore(a: Element, b: Element): boolean {
 
 /**
  * A round mid-report: two artifact-bearing stages already behind it, so the
- * timeline has to interleave. Left non-terminal on purpose — a `completed`
- * round would render "Completed" both as its own event and as the session's
- * terminal entry.
+ * timeline has to interleave. Deliberately non-terminal, to keep this
+ * fixture about ordering; the terminal case has its own describe below.
  */
 function interleavedSession() {
   return makeSessionDetail({
@@ -52,6 +51,7 @@ function interleavedSession() {
         plans: [
           {
             id: 2,
+            type: "plan",
             targets: [],
             url: "https://storage.example.com/plan",
             content_type: "text/plain",
@@ -124,8 +124,11 @@ describe("SessionData timeline", () => {
           plans: [
             {
               id: 7,
+              // The remediation plan a reconciling pass produces, not
+              // the drift diff that opened the round.
+              type: "plan",
               targets: [],
-              url: "https://storage.example.com/drift",
+              url: "https://storage.example.com/plan",
               content_type: "text/plain",
               file_size_bytes: 10,
               created_at: at(25),
@@ -140,6 +143,118 @@ describe("SessionData timeline", () => {
     const plan = screen.getByText("Terraform Plan");
     expect(phase).toBeInTheDocument();
     expect(isBefore(phase, plan)).toBe(true);
+  });
+});
+
+/** A finished session: the last round records the resting state itself. */
+function settledSession(status: "completed" | "failed" | "uncompleted") {
+  return makeSessionDetail({
+    current_status: status,
+    in_flight: false,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        statuses: [
+          makeStatus("generating", null, at(0)),
+          makeStatus(status, null, at(20)),
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData terminal state", () => {
+  it("renders the resting state once, not once per timeline level", () => {
+    // The round records the status and the session repeats it; rendering
+    // both put "Completed" on the timeline twice for every finished
+    // session — the default view of this feature.
+    renderWithProviders(<SessionData session={settledSession("completed")} />);
+
+    expect(screen.getAllByText("Completed")).toHaveLength(1);
+  });
+
+  it("renders a failed resting state once", () => {
+    renderWithProviders(<SessionData session={settledSession("failed")} />);
+
+    expect(screen.getAllByText("Failed")).toHaveLength(1);
+  });
+
+  it("closes the timeline on the last round rather than a trailing entry", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={settledSession("completed")} />,
+    );
+
+    // The connector line stops at the last entry, and that entry is now
+    // the round itself — nothing renders after it.
+    const last = container.querySelectorAll('[class*="timelineEntryLast"]');
+    expect(last).toHaveLength(1);
+    expect(last[0].textContent).toContain("Generating");
+  });
+});
+
+/** A round with one expandable status and one artifact under it. */
+function keyboardSession() {
+  return makeSessionDetail({
+    current_status: "generating",
+    in_flight: true,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        statuses: [makeStatus("generating", "see the [docs](/docs)", at(0))],
+        code_changes: [
+          {
+            id: 1,
+            file_name: "main.tf",
+            url: "https://storage.example.com/main.tf",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(5),
+          },
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData timeline accessibility", () => {
+  it("toggles a status row with Space as well as Enter", async () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+    const row = screen.getByRole("button", { name: /Generating/ });
+
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText("docs")).toBeInTheDocument();
+
+    // `role="button"` promises Space too; without it the row stayed open
+    // and the page scrolled instead.
+    await userEvent.keyboard(" ");
+    expect(screen.queryByText("docs")).toBeNull();
+
+    await userEvent.keyboard(" ");
+    expect(screen.getByText("docs")).toBeInTheDocument();
+  });
+
+  it("keeps an expanded message out of the row's button", async () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+    const row = screen.getByRole("button", { name: /Generating/ });
+
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+
+    // A link inside `role="button"` is invalid and fires both actions;
+    // the message is a sibling of the row, so the link stands alone.
+    const link = screen.getByRole("link", { name: "docs" });
+    expect(row.contains(link)).toBe(false);
+  });
+
+  it("names each artifact row with what activating it does", () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+
+    // The row's visible text is just the file name; a screen reader
+    // needs the verb the eye icon conveys visually.
+    expect(
+      screen.getByRole("button", { name: "View main.tf" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -159,6 +274,7 @@ function targetedSession(targets: string[]) {
         plans: [
           {
             id: 11,
+            type: "plan",
             targets,
             url: "https://storage.example.com/plans/plan-abc.txt",
             content_type: "text/plain",
@@ -227,5 +343,36 @@ describe("SessionData apply lock", () => {
     expect(button).toHaveAttribute("title", "Unlock apply");
     await userEvent.click(button);
     expect(onToggleLock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SessionData duration", () => {
+  /**
+   * A finished session whose row was written to long after the work ended
+   * — what an apply-lock toggle leaves behind. `updated_at` is ten minutes
+   * past the last status, so the two candidate end points disagree loudly.
+   */
+  function relockedSession() {
+    return makeSessionDetail({
+      current_status: "completed",
+      in_flight: false,
+      created_at: at(0),
+      updated_at: at(600),
+      rounds: [
+        makeRound({
+          statuses: [
+            makeStatus("generating", null, at(5)),
+            makeStatus("completed", null, at(30)),
+          ],
+        }),
+      ],
+    });
+  }
+
+  it("measures up to the last status, not the row's last write", () => {
+    renderWithProviders(<SessionData session={relockedSession()} />);
+
+    expect(screen.getByText("30s")).toBeInTheDocument();
+    expect(screen.queryByText("10m 0s")).not.toBeInTheDocument();
   });
 });

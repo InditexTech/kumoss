@@ -26,17 +26,29 @@ function timePart(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * `null` for anything `Date` cannot parse, so callers reach the placeholder.
+ *
+ * An absent timestamp and an unparseable one are the same thing to a reader,
+ * but only the first was caught: `new Date("garbage")` is an Invalid Date
+ * whose getters all return `NaN`, which rendered as `NaN.NaN.NaN`.
+ */
+function parse(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** `dd.mm.yyyy` — for places that show a day but no clock time. */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return PLACEHOLDER;
-  return datePart(new Date(iso));
+  const d = parse(iso);
+  return d ? datePart(d) : PLACEHOLDER;
 }
 
 /** `dd.mm.yyyy, hh:mm` — the default wherever the time of day matters. */
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return PLACEHOLDER;
-  const d = new Date(iso);
-  return `${datePart(d)}, ${timePart(d)}`;
+  const d = parse(iso);
+  return d ? `${datePart(d)}, ${timePart(d)}` : PLACEHOLDER;
 }
 
 /**
@@ -50,8 +62,8 @@ export function formatDateParts(iso: string | null | undefined): {
   date: string;
   time: string;
 } {
-  if (!iso) return { date: PLACEHOLDER, time: "" };
-  const d = new Date(iso);
+  const d = parse(iso);
+  if (!d) return { date: PLACEHOLDER, time: "" };
   const yy = String(d.getFullYear()).slice(-2);
   return {
     date: `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${yy}`,
@@ -59,9 +71,16 @@ export function formatDateParts(iso: string | null | undefined): {
   };
 }
 
-/** Elapsed time as `45s` or `5m 59s`; `-` when the range runs backwards. */
+/**
+ * Elapsed time as `45s` or `5m 59s`; `-` when the range runs backwards or
+ * either end is unparseable — `NaN < 0` is false, so an Invalid Date would
+ * otherwise slip past the backwards check and render `NaNm NaNs`.
+ */
 export function formatDuration(startIso: string, endIso: string): string {
-  const millis = new Date(endIso).getTime() - new Date(startIso).getTime();
+  const start = parse(startIso);
+  const end = parse(endIso);
+  if (!start || !end) return PLACEHOLDER;
+  const millis = end.getTime() - start.getTime();
   if (millis < 0) return PLACEHOLDER;
   // Round to whole seconds *first*: splitting an unrounded value lets the
   // remainder round up to 60 while the minute count stays floored, which is

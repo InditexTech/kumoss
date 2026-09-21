@@ -39,7 +39,6 @@ function makeResultsOutcome(
     round: detail.rounds[0],
     report: null,
     code: "<Terraform_Plan>\nplan output\n</Terraform_Plan>\n<main.tf>\nresource {}\n</main.tf>",
-    targets: ["azurerm_resource_group.main"],
     ...overrides,
   };
 }

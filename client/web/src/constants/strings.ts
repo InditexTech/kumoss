@@ -185,7 +185,6 @@ export const STRINGS = {
       drift: "Drift Analysis",
       import: "Import",
       apply: "Terraform Apply",
-      plan: "Terraform Plan",
     },
     /**
      * Appended to a round heading for non-success resting states; success
@@ -200,6 +199,24 @@ export const STRINGS = {
     roundPartialSuffix: " (partial)",
     /** Prefixes the resource list on a plan artifact's secondary line. */
     artifactTargets: "Targets",
+    /**
+     * Verb prefixing an artifact row's `aria-label`. The row is a button
+     * whose only text is the artifact's name, so the label has to say
+     * what activating it does — sighted users get that from the eye icon.
+     */
+    artifactOpen: "View",
+    /**
+     * Labels for an artifact row. Apply and drift reports announce
+     * themselves; generate and import ones fall back to the generic
+     * `report`, so there is deliberately no key for those two.
+     */
+    artifactLabels: {
+      report: "Report",
+      applyReport: "Apply Report",
+      driftReport: "Drift Report",
+      terraformPlan: "Terraform Plan",
+      driftOperation: "Drift Operation",
+    },
   },
 
   admin: {

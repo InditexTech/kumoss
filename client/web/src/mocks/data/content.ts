@@ -344,8 +344,8 @@ Terraform will perform the following actions:
 
   # azurerm_storage_account.etl_exports will be destroyed
   - resource "azurerm_storage_account" "etl_exports" {
-      - id                       = "/subscriptions/a1b2c3d4/resourceGroups/rg-contoso-analytics-pro/providers/Microsoft.Storage/storageAccounts/stetlexportspro" -> null
-      - name                     = "stetlexportspro" -> null
+      - id                       = "/subscriptions/a1b2c3d4/resourceGroups/rg-contoso-analytics-pro/providers/Microsoft.Storage/storageAccounts/stcontosoexportspro" -> null
+      - name                     = "stcontosoexportspro" -> null
       - account_tier             = "Standard" -> null
       - account_replication_type = "GRS" -> null
       - location                 = "westeurope" -> null
@@ -361,7 +361,7 @@ Terraform will perform the following actions:
 Plan: 0 to add, 0 to change, 3 to destroy.
 
 Changes to Outputs:
-  - etl_exports_endpoint  = "https://stetlexportspro.blob.core.windows.net/" -> null
+  - etl_exports_endpoint  = "https://stcontosoexportspro.blob.core.windows.net/" -> null
   - legacy_etl_factory_id = "/subscriptions/a1b2c3d4/.../factories/adf-legacy-etl-pro" -> null
 </Terraform_Plan>`;
 
@@ -1652,7 +1652,7 @@ const HISTORY: Record<MockContentType, ConversationPair> = {
   remove_resource: {
     user: "Remove the legacy ETL data factory and its export storage account from the pro environment",
     assistant:
-      "I've removed the legacy ETL stack from the configuration: the Data Factory 'adf-legacy-etl-pro', the GRS export storage account 'stetlexportspro' and the 'etl-connection' Key Vault secret. Nothing is created or replaced — the plan destroys 3 resources and drops the two outputs that referenced them. The data lake storage account and its resource group are untouched. Because this deletes data permanently, applying it needs an operator to unblock the session first.",
+      "I've removed the legacy ETL stack from the configuration: the Data Factory 'adf-legacy-etl-pro', the GRS export storage account 'stcontosoexportspro' and the 'etl-connection' Key Vault secret. Nothing is created or replaced — the plan destroys 3 resources and drops the two outputs that referenced them. The data lake storage account and its resource group are untouched. Because this deletes data permanently, applying it needs an operator to unblock the session first.",
   },
   drift: {
     user: "Detect and remediate drift in my Azure networking configuration",
@@ -1928,10 +1928,10 @@ function createRemoveResourceReport(): TerraformReport {
         action: "delete",
         name: "ETL Export Storage Account",
         summary:
-          "Permanently destroys the storage account 'stetlexportspro' (Standard GRS) and every blob it holds. It currently stores ~1.4 TB of nightly CSV exports. Azure has no undelete for a destroyed storage account, so anything still needed must be copied to the data lake before applying.",
+          "Permanently destroys the storage account 'stcontosoexportspro' (Standard GRS) and every blob it holds. It currently stores ~1.4 TB of nightly CSV exports. Azure has no undelete for a destroyed storage account, so anything still needed must be copied to the data lake before applying.",
         notes: "Destroys 1 resource. ~1.4 TB of exported data is deleted irreversibly.",
         details:
-          '# azurerm_storage_account.etl_exports will be destroyed\n- resource "azurerm_storage_account" "etl_exports" {\n    - id                       = "/subscriptions/a1b2c3d4/resourceGroups/rg-contoso-analytics-pro/providers/Microsoft.Storage/storageAccounts/stetlexportspro" -> null\n    - name                     = "stetlexportspro" -> null\n    - account_tier             = "Standard" -> null\n    - account_replication_type = "GRS" -> null\n    - location                 = "westeurope" -> null\n  }',
+          '# azurerm_storage_account.etl_exports will be destroyed\n- resource "azurerm_storage_account" "etl_exports" {\n    - id                       = "/subscriptions/a1b2c3d4/resourceGroups/rg-contoso-analytics-pro/providers/Microsoft.Storage/storageAccounts/stcontosoexportspro" -> null\n    - name                     = "stcontosoexportspro" -> null\n    - account_tier             = "Standard" -> null\n    - account_replication_type = "GRS" -> null\n    - location                 = "westeurope" -> null\n  }',
       },
       {
         action: "delete",
@@ -1956,7 +1956,7 @@ function createRemoveResourceReport(): TerraformReport {
         {
           title: "Irreversible Data Loss",
           description:
-            "Destroying 'stetlexportspro' deletes roughly 1.4 TB of nightly CSV exports. The account has no soft delete configured, and GRS replication does not protect against an intentional delete — the secondary region copy goes with it.",
+            "Destroying 'stcontosoexportspro' deletes roughly 1.4 TB of nightly CSV exports. The account has no soft delete configured, and GRS replication does not protect against an intentional delete — the secondary region copy goes with it.",
         },
         {
           title: "No Replacement Resources",
@@ -2002,7 +2002,7 @@ function createRemoveResourceReport(): TerraformReport {
       ],
     },
     recommendations: [
-      "Copy any export still required from 'stetlexportspro' into the data lake account before applying — the storage account has no soft delete and the data cannot be recovered afterwards.",
+      "Copy any export still required from 'stcontosoexportspro' into the data lake account before applying — the storage account has no soft delete and the data cannot be recovered afterwards.",
       "Confirm the streaming ingestion job has produced complete daily partitions for at least one full cycle before removing its predecessor.",
       "Search other Terraform workspaces for remote state references to 'etl_exports_endpoint' and 'legacy_etl_factory_id' and update them first.",
       "Ask an operator to unblock apply on this session once the checks above are done; the plan is destroy-only and is locked by default.",

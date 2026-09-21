@@ -13,7 +13,15 @@ import type {
   StatusEntry,
   TerraformPlanRef,
 } from "@/types/api";
-import { roundEvents, roundMeta, roundTitle } from "./roundSummary";
+import {
+  codeChangeLabel,
+  isBootstrapRound,
+  lastStatusAt,
+  roundEvents,
+  roundKind,
+  roundMeta,
+  roundTitle,
+} from "./roundSummary";
 
 // Seconds past a fixed epoch, so a test reads as a sequence of moments.
 function at(second: number): string {
@@ -39,7 +47,13 @@ function change(id: number, file_name: string, second: number): CodeChangeRef {
 }
 
 function plan(id: number, second: number): TerraformPlanRef {
-  return { ...artifactBase, id, targets: [], created_at: at(second) };
+  return {
+    ...artifactBase,
+    id,
+    type: "plan",
+    targets: [],
+    created_at: at(second),
+  };
 }
 
 function report(id: number, type: ReportType, second: number): ReportRef {
@@ -176,28 +190,30 @@ describe("roundEvents", () => {
 describe("roundMeta", () => {
   it("counts the round's events, not its files and artifacts", () => {
     const meta = roundMeta(
-      round({
-        statuses: [
-          status("generating", 10),
-          status("validating", 30),
-          status("completed", 50),
-        ],
-        code_changes: [change(1, "main.tf", 15), change(2, "vars.tf", 20)],
-        plans: [plan(3, 35)],
-      }),
+      roundEvents(
+        round({
+          statuses: [
+            status("generating", 10),
+            status("validating", 30),
+            status("completed", 50),
+          ],
+          code_changes: [change(1, "main.tf", 15), change(2, "vars.tf", 20)],
+          plans: [plan(3, 35)],
+        }),
+      ),
     );
 
     expect(meta).toEqual(["3 EVENTS"]);
   });
 
   it("keeps the count singular for a one-event round", () => {
-    expect(roundMeta(round({ statuses: [status("filtering", 0)] }))).toEqual([
-      "1 EVENT",
-    ]);
+    expect(
+      roundMeta(roundEvents(round({ statuses: [status("filtering", 0)] }))),
+    ).toEqual(["1 EVENT"]);
   });
 
   it("omits the count for a round with no events", () => {
-    expect(roundMeta(round({ statuses: [] }))).toEqual([]);
+    expect(roundMeta(roundEvents(round({ statuses: [] })))).toEqual([]);
   });
 });
 
@@ -292,5 +308,148 @@ describe("roundTitle partial drift", () => {
     );
 
     expect(title).toBe("Drift Analysis");
+  });
+});
+
+describe("isBootstrapRound", () => {
+  it("identifies the empty shell round create_session opens", () => {
+    expect(isBootstrapRound(round({ statuses: [status("started", 0)] }))).toBe(
+      true,
+    );
+  });
+
+  it("keeps a statusless round visible", () => {
+    // `[].every()` is true, so without the length guard a round that has
+    // been INSERTed but whose first status has not landed yet would be
+    // filtered out of the timeline and the user would see nothing at all.
+    expect(isBootstrapRound(round({ statuses: [] }))).toBe(false);
+  });
+
+  it("keeps a round that produced an artifact", () => {
+    expect(
+      isBootstrapRound(
+        round({
+          statuses: [status("started", 0)],
+          code_changes: [change(1, "main.tf", 5)],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it("keeps a working round", () => {
+    expect(
+      isBootstrapRound(
+        round({ statuses: [status("started", 0), status("filtering", 5)] }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("codeChangeLabel", () => {
+  it("returns the bare file name when it appears once", () => {
+    const c = change(1, "main.tf", 0);
+    expect(codeChangeLabel(round({ code_changes: [c] }), c)).toBe("main.tf");
+  });
+
+  it("numbers repeated file names in write order", () => {
+    const first = change(1, "main.tf", 0);
+    const second = change(2, "main.tf", 10);
+    const other = change(3, "variables.tf", 20);
+    const r = round({ code_changes: [first, second, other] });
+
+    expect(codeChangeLabel(r, first)).toBe("main.tf (rev 1)");
+    expect(codeChangeLabel(r, second)).toBe("main.tf (rev 2)");
+    // A name that does not repeat stays bare alongside ones that do.
+    expect(codeChangeLabel(r, other)).toBe("variables.tf");
+  });
+});
+
+describe("roundKind", () => {
+  it("prefers the newest report's type", () => {
+    const kind = roundKind(
+      round({ reports: [report(1, "generate", 10), report(2, "drift", 20)] }),
+      driftSession(),
+    );
+    expect(kind).toBe("drift");
+  });
+
+  it("falls back to apply when the round applied but wrote no report", () => {
+    expect(
+      roundKind(round({ statuses: [status("apply", 10)] }), driftSession()),
+    ).toBe("apply");
+  });
+
+  it("falls back to the session operation as a last resort", () => {
+    // A round that failed before producing a report has neither signal.
+    expect(
+      roundKind(round({ statuses: [status("failed", 10)] }), driftSession()),
+    ).toBe("drift");
+  });
+});
+
+describe("roundTitle outcome suffixes", () => {
+  it("marks a failed round", () => {
+    const title = roundTitle(
+      round({
+        statuses: [status("generating", 0), status("failed", 10)],
+        reports: [report(1, "generate", 5)],
+      }),
+      driftSession(),
+    );
+    expect(title).toBe("Code Generation — Failed");
+  });
+
+  it("marks an uncompleted round", () => {
+    // `uncompleted` is a resting terminal state — no `completed` follows it.
+    const title = roundTitle(
+      round({
+        statuses: [status("generating", 0), status("uncompleted", 10)],
+        reports: [report(1, "generate", 5)],
+      }),
+      driftSession(),
+    );
+    expect(title).toBe("Code Generation — Incomplete");
+  });
+
+  it("leaves a successful round unsuffixed", () => {
+    const title = roundTitle(
+      round({
+        statuses: [status("completed", 10)],
+        reports: [report(1, "generate", 5)],
+      }),
+      driftSession(),
+    );
+    expect(title).toBe("Code Generation");
+  });
+});
+
+describe("lastStatusAt", () => {
+  it("returns the newest status timestamp across every round", () => {
+    const session = {
+      ...driftSession(),
+      rounds: [
+        round({ id: 1, statuses: [status("started", 0)] }),
+        round({
+          id: 2,
+          statuses: [status("generating", 10), status("completed", 30)],
+        }),
+      ],
+    };
+    expect(lastStatusAt(session)).toBe(at(30));
+  });
+
+  it("ignores updated_at, which a lock toggle moves", () => {
+    // `driftSession()` has `updated_at` at second 60 — later than any of
+    // its statuses, exactly as an apply-lock release leaves it.
+    const session = {
+      ...driftSession(),
+      rounds: [round({ statuses: [status("completed", 30)] })],
+    };
+    expect(lastStatusAt(session)).toBe(at(30));
+    expect(lastStatusAt(session)).not.toBe(session.updated_at);
+  });
+
+  it("returns null when no round has a status", () => {
+    expect(lastStatusAt({ ...driftSession(), rounds: [round({})] })).toBeNull();
   });
 });

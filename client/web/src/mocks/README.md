@@ -11,7 +11,7 @@ SPDX-License-Identifier: Apache-2.0
 | Consumer | Entry | Store | Unhandled request |
 |---|---|---|---|
 | Vitest | `server.ts` (via `src/test/setup.ts`) | **empty** — each test adds what it needs | fails the test |
-| Dev browser | `browser.ts` (via `main.tsx`, `VITE_MOCK_API=true`) | seeded with 17 sessions | warns |
+| Dev browser | `browser.ts` (via `main.tsx`, `VITE_MOCK_API=true`) | seeded with 19 sessions | warns |
 
 ```bash
 npm run dev:mock     # Vite on :5173, mocks on, no backend needed
@@ -138,7 +138,7 @@ An apply round has no query of its own, so its log is inferred from the session'
 
 ## Seed sessions (browser only)
 
-18 sessions across 3 users, covering every state the UI renders — completed, failed, in-flight, filter-rejected, multi-round, and generate→apply chains:
+19 sessions across 3 users, covering every state the UI renders — completed, failed, in-flight, filter-rejected, multi-round, and generate→apply chains:
 
 | # | Operation | Provider | Status | Notes |
 |---|---|---|---|---|
@@ -248,5 +248,3 @@ Override a single endpoint with `server.use(...)`; seed the full browser fixture
 **MSW warns about an unhandled request** — an `/api/` path with no handler. With no backend behind Vite it will simply fail to connect, so add the handler.
 
 **Mocks not intercepting** — `npm run dev` does not enable them; use `npm run dev:mock`. In tests, check `src/test/setup.ts` is in the Vitest `setupFiles`.
-
-**Everything 404s / `[MSW] Cannot bypass a request when using the "error" strategy`** — a bare `import { handlers } from "./handlers"` resolves to the superseded `handlers.ts` file, not this directory's `index.ts`: file resolution beats directory resolution. That loads only the 4 original routes and every other request dies on `onUnhandledRequest: "error"`. `browser.ts` and `server.ts` therefore import `./handlers/index` explicitly; delete `handlers.ts` and the suffix can go.

@@ -38,7 +38,6 @@ export type SessionOutcome =
       round: RoundDetail;
       report: TerraformReport | null;
       code: string;
-      targets: string[] | undefined;
     }
   | {
       kind: "apply-results";
@@ -117,7 +116,6 @@ export async function waitForNewRound(
 export interface RoundArtifacts {
   report: TerraformReport | null;
   code: string;
-  targets: string[] | undefined;
 }
 
 /**
@@ -184,7 +182,13 @@ async function fetchRoundArtifacts(
     parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
   });
 
-  return { report, code: parts.join("\n"), targets: planRef?.targets };
+  // No `targets` here. The newest plan's targets were carried for a while,
+  // but nothing ever read them, and they were the wrong ones to expose: the
+  // validation loop appends plans with empty `terraform_targets`, masking
+  // the handler's partial-drift set. `isPartialDrift` in `roundSummary.ts`
+  // scans every plan for exactly that reason — that is the rule to copy if
+  // a consumer ever needs them.
+  return { report, code: parts.join("\n") };
 }
 
 /**

@@ -14,8 +14,10 @@ import type {
   ReportRef,
   ReportType,
   RoundDetail,
+  TerraformPlanRef,
 } from "@/types/api";
 import type { TerraformReport } from "@/types";
+import { STRINGS } from "@/constants/strings";
 import {
   ChangesTable,
   ChangeDetail,
@@ -44,50 +46,28 @@ interface ArtifactContentProps {
   operation: OperationType;
 }
 
-// Apply and drift reports announce themselves; generate/import ones are
-// just "Report".
-const REPORT_LABELS: Partial<Record<ReportType, string>> = {
-  apply: "Apply Report",
-  drift: "Drift Report",
-};
+const LABELS = STRINGS.sessions.artifactLabels;
 
-/**
- * Whether a plan artifact is a drift diff or a plain terraform plan.
- *
- * A drift round stores *two* plans — the drift diff and the plan it
- * produced — but `TerraformPlanRef` carries only `targets`, so the payload
- * itself cannot tell them apart. The flavour does survive in the object
- * key: `store_terraform_plan` writes `plans/{plan|drift}-{token}.txt`, and
- * presigning keeps the key in the URL path (S3 as `/{bucket}/{key}`, Azure
- * as `/{container}/{key}`). So the URL is the one place the client can
- * still read it.
- *
- * Only the key's file name is inspected — a substring search over the whole
- * URL would trip on a path segment or on the signature in the query string.
- * Anything unrecognized (pre-`is_drift` rows, a future key format) falls
- * back to "plan": a generic label beats a wrong one.
- */
-function planFlavour(artifact: ArtifactRef): "plan" | "drift" {
-  let fileName: string;
-  try {
-    fileName =
-      new URL(artifact.url, window.location.origin).pathname.split("/").pop() ??
-      "";
-  } catch {
-    return "plan";
-  }
-  return fileName.startsWith("drift-") ? "drift" : "plan";
-}
+// Apply and drift reports announce themselves; generate/import ones are
+// just "Report", so the map is deliberately partial.
+const REPORT_LABELS: Partial<Record<ReportType, string>> = {
+  apply: LABELS.applyReport,
+  drift: LABELS.driftReport,
+};
 
 export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string {
   switch (kind) {
     case "report":
-      return REPORT_LABELS[(artifact as ReportRef).type] ?? "Report";
+      return REPORT_LABELS[(artifact as ReportRef).type] ?? LABELS.report;
     case "plan":
-      return planFlavour(artifact) === "drift"
-        ? "Drift Operation"
-        : "Terraform Plan";
+      // A drift round stores two plans — the diff and the plan it
+      // produced — and `type` is what tells them apart. It used to be
+      // read back out of the object key embedded in the signed URL.
+      return (artifact as TerraformPlanRef).type === "drift"
+        ? LABELS.driftOperation
+        : LABELS.terraformPlan;
     case "change":
+      // A file name, not copy: nothing to translate.
       return (artifact as CodeChangeRef).file_name;
   }
 }

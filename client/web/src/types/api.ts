@@ -159,13 +159,17 @@ export interface ArtifactRef {
 }
 
 /** The stored report flavour; same value as the artifact's filename prefix. */
-export type ReportType = "generate" | "drift" | "import" | "apply" | "plan";
+export type ReportType = "generate" | "drift" | "import" | "apply";
 
 export interface ReportRef extends ArtifactRef {
   type: ReportType;
 }
 
+/** The stored plan flavour: a drift diff, or the plan it produced. */
+export type PlanType = "plan" | "drift";
+
 export interface TerraformPlanRef extends ArtifactRef {
+  type: PlanType;
   targets: string[];
 }
 
@@ -189,9 +193,7 @@ export interface PullRequestRef {
  * Every artifact list is ordered oldest to newest. A round can hold
  * several reports and several plans — a drift pass stores the drift
  * diff and the plan it produced, plus one plan per validation
- * iteration — and order is the only thing telling them apart. Drift
- * plans are not labelled: drift-ness lives in the storage key, which
- * the read model does not expose.
+ * iteration — so each plan carries its own `type` to tell them apart.
  */
 export interface RoundDetail {
   id: number;

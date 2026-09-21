@@ -8,6 +8,9 @@ import type {
   SessionStatus,
   StatusEntry,
 } from "@/types/api";
+// Straight from the module, not the `./data` barrel: that barrel pulls in
+// `content.ts`, and every test imports this file.
+import { clearArtifacts } from "./data/artifacts";
 
 const NOW = "2026-01-01T00:00:00Z";
 
@@ -89,6 +92,10 @@ const sessions = new Map<string, SessionDetail>();
 export const mockState = {
   clear() {
     sessions.clear();
+    // The artifact store is keyed by object key and holds every body the
+    // seeds registered; dropping the sessions that referenced them would
+    // otherwise leave it growing across a suite.
+    clearArtifacts();
   },
   addSession(detail: SessionDetail): SessionDetail {
     sessions.set(detail.uuid, detail);

@@ -87,13 +87,12 @@ export function makeReportRef(
 }
 
 /**
- * `isDrift` drives the key's file-name prefix, exactly as
- * `store_terraform_plan` does on the backend: a drift round's diff lands
- * under `plans/drift-*`, a plain plan under `plans/plan-*`. The flavour is
- * nowhere in `TerraformPlanRef`, so that prefix is the only thing
- * `artifactLabel` can read it from — a fixture that dropped it would label
- * drift rounds "Terraform Plan" while production labels them
- * "Drift Operation".
+ * `isDrift` drives both the payload's `type` and the key's file-name
+ * prefix, exactly as `store_terraform_plan` does on the backend: a drift
+ * round's diff lands under `plans/drift-*`, a plain plan under
+ * `plans/plan-*`. Only `type` is read by the app — `artifactLabel` uses it
+ * to say "Drift Operation" rather than "Terraform Plan" — but the key keeps
+ * mirroring production so the fixtures stay a faithful stand-in.
  */
 export function makePlanRef(
   sessionId: string,
@@ -105,7 +104,11 @@ export function makePlanRef(
 ): TerraformPlanRef {
   const flavour = isDrift ? "drift" : "plan";
   const key = keyFor(sessionId, round, `plans/${flavour}-terraform_plan.txt`);
-  return { ...register(key, plan, "text/plain", createdAt), targets };
+  return {
+    ...register(key, plan, "text/plain", createdAt),
+    type: flavour,
+    targets,
+  };
 }
 
 export function makeCodeChangeRef(

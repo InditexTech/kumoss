@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { setupServer } from "msw/node";
-// "./handlers" resolves to the superseded `handlers.ts`, not this
-// directory's `index.ts` — the same trap `browser.ts` documents.
-import { handlers } from "./handlers/index";
+import { handlers } from "./handlers";
 
 export const server = setupServer(...handlers);

@@ -179,6 +179,23 @@
   background: var(--color-content-hover-bg);
 }
 
+/* The session's resting state is rendered in place, on the event row that
+   already recorded it — a separate closing entry below the timeline said
+   the same thing a second time. These give that row the weight the
+   standalone entry used to carry. */
+.timelineOpRowTerminal .timelineOpName {
+  font-weight: 500;
+  color: var(--color-content-primary);
+}
+
+.timelineOpRowTerminal {
+  border-bottom: none;
+}
+
+.timelineOpRowFailed .timelineOpName {
+  color: var(--color-delete);
+}
+
 .artifactFileIcon {
   font-size: 15px !important;
   color: var(--color-content-secondary);
@@ -187,9 +204,13 @@
 }
 
 /* Expanded status message (chevron toggle on rows that carry one);
-   padded surface box mirroring the artifact rows' treatment. */
+   padded surface box mirroring the artifact rows' treatment.
+
+   A sibling of its row rather than a child, because a message can contain
+   links and the row is a `role="button"`. That makes it a row of
+   `.timelineOps`'s table in its own right, so it spans the full width
+   without needing the `grid-column: 1 / -1` it used to carry. */
 .timelineOpMessage {
-  grid-column: 1 / -1;
   white-space: normal;
   font-size: 13px;
   font-weight: 300;

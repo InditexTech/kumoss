@@ -36,6 +36,7 @@ import {
 import {
   codeChangeLabel,
   isBootstrapRound,
+  lastStatusAt,
   roundArtifacts,
   roundEvents,
   roundMeta,
@@ -142,8 +143,25 @@ export default function SessionData({
     [session.rounds],
   );
 
+  // `roundEvents` parses and sorts every status and artifact of a round,
+  // and both the heading's count and the rows below it need the result.
+  // Derived here rather than in the render body because `expandedStatuses`
+  // is component state: every expand/collapse re-runs that body.
+  const roundViews = useMemo(
+    () =>
+      timelineRounds.map((round) => {
+        const events = roundEvents(round);
+        return { round, events, meta: roundMeta(events) };
+      }),
+    [timelineRounds],
+  );
+
   const started = formatDateParts(session.created_at);
-  const completed = formatDateParts(session.updated_at);
+  // Not `updated_at`: that column has `onupdate`, so releasing the apply
+  // lock on a session that finished hours ago would stretch its duration.
+  // Falls back to it only for a session with no status at all, which the
+  // `isTerminal` guard on the duration row already rules out.
+  const finishedAt = lastStatusAt(session) ?? session.updated_at;
   const hasTimeline = session.rounds.length > 0;
   const lockIcon = session.is_blocked ? (
     <LockOutlinedIcon className={styles.btnIcon} />
@@ -231,7 +249,7 @@ export default function SessionData({
             component="span"
             className={styles.fieldValue}
           >
-            {formatDuration(session.created_at, session.updated_at)}
+            {formatDuration(session.created_at, finishedAt)}
           </Typography>
         </div>
       )}
@@ -266,11 +284,18 @@ export default function SessionData({
               </div>
 
               {/* Rounds */}
-              {timelineRounds.map((round) => {
-                const events = roundEvents(round);
-                const meta = roundMeta(round);
+              {roundViews.map(({ round, events, meta }, roundIndex) => {
+                // The session's resting state lives on the event row that
+                // recorded it, so the last round closes the timeline: it
+                // terminates the connector line and carries the failure
+                // colour that a separate trailing entry used to.
+                const closing =
+                  isTerminal && roundIndex === roundViews.length - 1;
                 return (
-                  <div key={round.id} className={styles.timelineEntry}>
+                  <div
+                    key={round.id}
+                    className={`${styles.timelineEntry}${closing ? ` ${styles.timelineEntryLast}` : ""}${closing && hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
+                  >
                     <div className={styles.timelineDot} />
                     <div className={styles.timelineContent}>
                       <span className={styles.timelinePhase}>
@@ -295,10 +320,24 @@ export default function SessionData({
                           const statusKey = `${round.id}:${i}`;
                           const expandable = !!event.message;
                           const expanded = expandedStatuses.has(statusKey);
+                          // Only the final event of the closing round can
+                          // hold the session's resting state.
+                          const isClosing =
+                            closing &&
+                            i === events.length - 1 &&
+                            TERMINAL_STATUSES.includes(event.status);
+                          const rowClass = [
+                            styles.timelineOpRow,
+                            expandable && styles.timelineOpRowClickable,
+                            isClosing && styles.timelineOpRowTerminal,
+                            isClosing && hasFailure && styles.timelineOpRowFailed,
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
                           return (
                             <Fragment key={statusKey}>
                               <div
-                                className={`${styles.timelineOpRow}${expandable ? ` ${styles.timelineOpRowClickable}` : ""}`}
+                                className={rowClass}
                                 onClick={
                                   expandable
                                     ? () => toggleStatus(statusKey)
@@ -309,8 +348,16 @@ export default function SessionData({
                                 onKeyDown={
                                   expandable
                                     ? (e) => {
-                                        if (e.key === "Enter")
+                                        // `role="button"` promises both
+                                        // keys; Space scrolls the page
+                                        // unless it is claimed here.
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
+                                          e.preventDefault();
                                           toggleStatus(statusKey);
+                                        }
                                       }
                                     : undefined
                                 }
@@ -338,12 +385,17 @@ export default function SessionData({
                                       />
                                     ))}
                                 </span>
-                                {expanded && event.message && (
-                                  <div className={styles.timelineOpMessage}>
-                                    <MarkdownText content={event.message} />
-                                  </div>
-                                )}
                               </div>
+                              {/* Outside the row: a status message can
+                                  contain links, and interactive content
+                                  nested in `role="button"` is invalid —
+                                  clicking such a link both navigated and
+                                  toggled the row. */}
+                              {expanded && event.message && (
+                                <div className={styles.timelineOpMessage}>
+                                  <MarkdownText content={event.message} />
+                                </div>
+                              )}
                               {event.artifacts.map(({ kind, artifact }) => {
                                 // `roundArtifacts` widens every row to
                                 // `ArtifactRef`, so `kind` is the discriminant
@@ -355,6 +407,16 @@ export default function SessionData({
                                   kind === "plan"
                                     ? (artifact as TerraformPlanRef).targets
                                     : [];
+                                // The row's only text is this label, and a
+                                // screen reader would announce it without
+                                // saying what activating the row does.
+                                const label =
+                                  kind === "change"
+                                    ? codeChangeLabel(
+                                        round,
+                                        artifact as CodeChangeRef,
+                                      )
+                                    : artifactLabel(kind, artifact);
                                 return (
                                   <div
                                     key={`${kind}:${artifact.id}`}
@@ -364,9 +426,15 @@ export default function SessionData({
                                     }
                                     role="button"
                                     tabIndex={0}
+                                    aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter")
+                                      if (
+                                        e.key === "Enter" ||
+                                        e.key === " "
+                                      ) {
+                                        e.preventDefault();
                                         setArtifactParam({ kind, artifact });
+                                      }
                                     }}
                                   >
                                     <Typography
@@ -377,12 +445,7 @@ export default function SessionData({
                                       <InsertDriveFileOutlinedIcon
                                         className={styles.artifactFileIcon}
                                       />
-                                      {kind === "change"
-                                        ? codeChangeLabel(
-                                            round,
-                                            artifact as CodeChangeRef,
-                                          )
-                                        : artifactLabel(kind, artifact)}
+                                      {label}
                                       {targets.length > 0 && (
                                         <span
                                           className={styles.timelineOpTargets}
@@ -410,25 +473,6 @@ export default function SessionData({
                 );
               })}
 
-              {/* Terminal state */}
-              {isTerminal && (
-                <div
-                  className={`${styles.timelineEntry} ${styles.timelineEntryLast}${hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
-                >
-                  <div className={styles.timelineDot} />
-                  <div className={styles.timelineContent}>
-                    <span className={styles.timelinePhase}>
-                      {capitalize(session.current_status)}
-                    </span>
-                    <span className={styles.timelineDate}>
-                      {completed.date}
-                    </span>
-                    <span className={styles.timelineDate}>
-                      {completed.time}
-                    </span>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>

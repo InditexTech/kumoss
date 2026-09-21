@@ -117,7 +117,6 @@ describe("seeded sessions", () => {
 
     expect(outcome.report?.status).toBeTruthy();
     expect(outcome.code).toContain("<Terraform_Plan>");
-    expect(outcome.targets?.length).toBeGreaterThan(0);
   });
 
   it("keeps the prior round's artifacts when an iteration is rejected", async () => {
@@ -365,9 +364,9 @@ describe("other endpoints", () => {
 // ─── Reproduction fixtures ────────────────────────────────────
 // These pin the *shapes* the session-recovery findings need, not the
 // buggy behaviour they currently produce, so the assertions stay green
-// once the findings are fixed. The one behavioural claim asserted here
-// — that the resolver answers "in-progress" — is correct behaviour; the
-// findings live downstream of it, in settleOutcome/handleOutcome.
+// once the findings are fixed. Shapes only: `SessionOutcome` has no
+// "in-progress" kind, so there is no resolver verdict to pin for a
+// session whose last round is still live.
 describe("reproduction fixtures", () => {
   beforeEach(() => {
     seedReproData();
@@ -417,10 +416,8 @@ describe("reproduction fixtures", () => {
     expect(lastRound.statuses).toHaveLength(0);
     expect(lastRound.code_changes).toHaveLength(0);
 
-    // The stream therefore replays a terminal frame for a live round...
+    // The stream therefore replays a terminal frame for a live round.
     expect(await drainStream(REPRO_IDS.flap)).toEqual(["COMPLETED"]);
-    // ...while the resolver correctly reports the round as unfinished.
-    expect((await resolveSessionOutcome(REPRO_IDS.flap)).kind).toBe("in-progress");
   });
 
   it("REPRO-2: an orphaned run holds the lock over a non-terminal status", async () => {
@@ -437,7 +434,6 @@ describe("reproduction fixtures", () => {
     const frames = await drainNonTerminal(REPRO_IDS.orphanLocked);
     expect(frames.length).toBeGreaterThan(1);
     expect(new Set(frames)).toEqual(new Set(["GENERATING"]));
-    expect((await resolveSessionOutcome(REPRO_IDS.orphanLocked)).kind).toBe("in-progress");
   });
 
   it("REPRO-2b: the control case differs only in the lock", async () => {
@@ -446,14 +442,6 @@ describe("reproduction fixtures", () => {
 
     expect(unlocked.in_flight).toBe(false);
     expect(unlocked.current_status).toBe(locked.current_status);
-    // Same resolver verdict despite the opposite lock — which is why an
-    // `in_flight` gate cannot distinguish the two.
-    expect((await resolveSessionOutcome(REPRO_IDS.orphanUnlocked)).kind).toBe("in-progress");
-  });
-
-  it("REPRO-3: the latch pair resolves to opposite kinds", async () => {
-    expect((await resolveSessionOutcome(REPRO_IDS.latchFrom)).kind).toBe("in-progress");
-    expect((await resolveSessionOutcome(REPRO_IDS.latchTo)).kind).toBe("results");
   });
 
   it("keeps the fixtures out of the default seed", async () => {

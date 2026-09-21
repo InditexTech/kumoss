@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { setupWorker } from "msw/browser";
-// See the note in `server.ts`: "./handlers" resolves to the superseded
-// `handlers.ts`, not this directory's `index.ts`.
-import { handlers } from "./handlers/index";
+import { handlers } from "./handlers";
 import { seedMockData, seedReproData } from "./seed";
 
 export const worker = setupWorker(...handlers);

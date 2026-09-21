@@ -20,14 +20,14 @@ import type { ArtifactKind } from "./ArtifactContent";
  * the generate/validate loop, which runs *inside* a round. So the ordinal
  * the timeline used to show conveyed nothing the user thinks in.
  */
-export type RoundKind = "generate" | "drift" | "import" | "apply" | "plan";
+export type RoundKind = "generate" | "drift" | "import" | "apply";
 
 export type ArtifactRow = { kind: ArtifactKind; artifact: ArtifactRef };
 
 /**
  * Copy lives in `STRINGS`; the annotations stay here. `Record<RoundKind, _>`
- * is total, so adding a member to `RoundKind` fails this assignment until the
- * label exists — which is what caught the missing "plan" entry.
+ * is total, so adding a member to `RoundKind` fails this assignment until
+ * the label exists.
  */
 const KIND_LABELS: Record<RoundKind, string> = STRINGS.sessions.roundKinds;
 
@@ -175,11 +175,14 @@ export function roundEvents(round: RoundDetail): TimelineEvent[] {
  * rows already show: artifacts are now nested under the event that produced
  * them, and `code_changes` holds one row per write, so a file rewritten on a
  * later validation pass was inflating the total either way.
+ *
+ * Takes the events rather than the round so the caller derives them once:
+ * `roundEvents` parses and sorts every status and artifact, and the render
+ * path needs that same list to draw the rows.
  */
-export function roundMeta(round: RoundDetail): string[] {
-  const events = roundEvents(round).length;
-  if (events === 0) return [];
-  return [`${events} EVENT${events !== 1 ? "S" : ""}`];
+export function roundMeta(events: TimelineEvent[]): string[] {
+  if (events.length === 0) return [];
+  return [`${events.length} EVENT${events.length !== 1 ? "S" : ""}`];
 }
 
 /**
@@ -224,4 +227,30 @@ export function codeChangeLabel(
   if (sameName.length < 2) return change.file_name;
   const rev = sameName.findIndex((c) => c.id === change.id) + 1;
   return `${change.file_name} (rev ${rev})`;
+}
+
+/**
+ * When the session actually last did something, or `null` if nothing has
+ * been recorded yet.
+ *
+ * `updated_at` is a last-modified column carrying `onupdate` (see
+ * `core/src/infrastructure/database/models.py`), so *any* write to the row
+ * moves it — `set_lock`, the `in_flight` release. Toggling the apply lock on
+ * a session that finished hours earlier would inflate its duration and drag
+ * its "Completed" timestamp forward. The newest status is the real one.
+ *
+ * Takes the last status of each round rather than flattening every status:
+ * a round's statuses are already chronological. The comparison is a plain
+ * string compare because these are ISO-8601 UTC instants, which sort
+ * lexicographically — the timeline's own ordering relies on the same thing.
+ */
+export function lastStatusAt(session: SessionDetail): string | null {
+  let newest: string | null = null;
+  for (const round of session.rounds) {
+    const last = round.statuses[round.statuses.length - 1];
+    if (last && (!newest || last.created_at > newest)) {
+      newest = last.created_at;
+    }
+  }
+  return newest;
 }
