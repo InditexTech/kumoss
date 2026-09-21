@@ -1,0 +1,21 @@
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_9ff16071f7d447::t_77f87c0f747d50 195
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_9ff16071f7d447::t_77b35eddd28bc5 114,398,408,492
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e94411dd3415332cd90671721f34bdbd49797ba4",
+  "prompts": {},
+  "sessions": {
+    "s_9ff16071f7d447": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ae1470e5f92b3b543",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
