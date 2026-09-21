@@ -18,7 +18,14 @@ import {
 } from "@/services/core/sessions";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
-import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
+import type {
+  HistoryEntry,
+  CodeChangeRef,
+  ReportRef,
+  RoundDetail,
+  SessionDetail,
+  TerraformPlanRef,
+} from "@/types/api";
 import type { TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
@@ -143,11 +150,15 @@ async function fetchRoundArtifacts(
   rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
   const codeChanges = collectCodeChanges(rounds);
+  // The outcome panel wants the round's final plan, not the drift diff a
+  // drift round stores first. Oldest-first, so the newest is last.
+  const reportRef: ReportRef | null =
+    round.reports[round.reports.length - 1] ?? null;
+  const planRef: TerraformPlanRef | null =
+    round.plans[round.plans.length - 1] ?? null;
   const [reportContent, planContent, ...fileContents] = await Promise.all([
-    round.report
-      ? fetchArtifactContent(round.report.url)
-      : Promise.resolve(null),
-    round.plan ? fetchArtifactContent(round.plan.url) : Promise.resolve(null),
+    reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
+    planRef ? fetchArtifactContent(planRef.url) : Promise.resolve(null),
     ...codeChanges.map(async ([fileName, changes]) => {
       const contents = await Promise.all(
         changes.map((c) => fetchArtifactContent(c.url)),
@@ -173,7 +184,7 @@ async function fetchRoundArtifacts(
     parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
   });
 
-  return { report, code: parts.join("\n"), targets: round.plan?.targets };
+  return { report, code: parts.join("\n"), targets: planRef?.targets };
 }
 
 /**
@@ -213,7 +224,12 @@ export async function resolveSessionOutcome(
     const priorRound = detail.rounds
       .slice(0, -1)
       .reverse()
-      .find((r) => r.report || r.plan || r.code_changes.length > 0);
+      .find(
+        (r) =>
+          r.reports.length > 0 ||
+          r.plans.length > 0 ||
+          r.code_changes.length > 0,
+      );
     if (!priorRound) {
       return { kind: "rejected", detail, rationale };
     }

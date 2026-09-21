@@ -9,8 +9,12 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { makeRound } from "@/mocks/state";
 import { renderWithProviders } from "@/test/render";
-import type { OperationType, ReportRef } from "@/types/api";
-import ArtifactContent from "./ArtifactContent";
+import type {
+  OperationType,
+  ReportRef,
+  TerraformPlanRef,
+} from "@/types/api";
+import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 
 const STORAGE = "https://storage.test";
 
@@ -59,7 +63,7 @@ function renderReport(
     <ArtifactContent
       kind="report"
       artifact={ref}
-      round={makeRound({ report: ref })}
+      round={makeRound({ reports: [ref] })}
       operation={operation}
     />,
   );
@@ -123,5 +127,54 @@ describe("ArtifactContent apply reports", () => {
 
     expect(await screen.findByText("Drift Summary")).toBeInTheDocument();
     expect(screen.getByText("azurerm_vm.drifted")).toBeInTheDocument();
+  });
+});
+
+describe("artifactLabel for plans", () => {
+  const SIG = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123";
+
+  function planRef(url: string): TerraformPlanRef {
+    return {
+      id: 7,
+      url,
+      content_type: "text/plain",
+      file_size_bytes: 8633,
+      created_at: "2026-01-01T00:00:00Z",
+      targets: [],
+    };
+  }
+
+  it("labels a drift-keyed plan as a drift operation", () => {
+    const ref = planRef(
+      `${STORAGE}/nebula-artifacts/sessions/s1/rounds/8/plans/drift-ee05fba7.txt?${SIG}`,
+    );
+
+    expect(artifactLabel("plan", ref)).toBe("Drift Operation");
+  });
+
+  it("labels a plan-keyed plan as a terraform plan", () => {
+    const ref = planRef(
+      `${STORAGE}/nebula-artifacts/sessions/s1/rounds/8/plans/plan-ee05fba7.txt?${SIG}`,
+    );
+
+    expect(artifactLabel("plan", ref)).toBe("Terraform Plan");
+  });
+
+  it("falls back to terraform plan for an unrecognized key", () => {
+    // Pre-`is_drift` rows, or a future key format: the label degrades to
+    // the generic one rather than mislabelling the artifact.
+    const ref = planRef(`${STORAGE}/legacy/terraform_plan.txt?${SIG}`);
+
+    expect(artifactLabel("plan", ref)).toBe("Terraform Plan");
+  });
+
+  it("ignores 'drift' appearing outside the key's file name", () => {
+    // A substring search over the whole URL would trip on the signature
+    // or on a path segment; only the file name carries the flavour.
+    const ref = planRef(
+      `${STORAGE}/nebula-artifacts/sessions/drift/rounds/8/plans/plan-ee05fba7.txt?${SIG}&x=drift`,
+    );
+
+    expect(artifactLabel("plan", ref)).toBe("Terraform Plan");
   });
 });

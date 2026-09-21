@@ -19,6 +19,7 @@ import type {
   HistoryEntry,
   RoundDetail,
   SessionDetail,
+  TerraformPlanRef,
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
@@ -27,6 +28,11 @@ import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
+import {
+  formatDateParts,
+  formatDateTime,
+  formatDuration,
+} from "@/utils/datetime";
 import {
   codeChangeLabel,
   isBootstrapRound,
@@ -48,42 +54,6 @@ interface SelectedArtifact {
   kind: ArtifactKind;
   artifact: ArtifactRef;
   round: RoundDetail;
-}
-
-function formatShortDate(iso: string | undefined | null): {
-  date: string;
-  time: string;
-} {
-  if (!iso) return { date: "-", time: "" };
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return { date: `${dd}.${mm}.${yy}`, time: `${hh}:${min}` };
-}
-
-function formatOpDate(iso: string | undefined | null): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}.${mm}.${yyyy}, ${hh}:${min}`;
-}
-
-function formatDuration(startIso: string, endIso: string): string {
-  const millis = new Date(endIso).getTime() - new Date(startIso).getTime();
-  if (millis < 0) return "-";
-  // Round to whole seconds *first*: splitting an unrounded value lets the
-  // remainder round up to 60 while the minute count stays floored, which is
-  // how 359.771 s rendered as "5m 60s".
-  const total = Math.round(millis / 1000);
-  if (total < 60) return `${total}s`;
-  return `${Math.floor(total / 60)}m ${total % 60}s`;
 }
 
 function capitalize(value: string): string {
@@ -153,11 +123,12 @@ export default function SessionData({
     session.current_status === "uncompleted";
   const failureMessage = useMemo(() => {
     if (!hasFailure) return null;
-    const failed = [...session.statuses]
+    const failed = session.rounds
+      .flatMap((r) => r.statuses)
       .reverse()
       .find((s) => s.status === "failed" || s.status === "uncompleted");
     return failed?.message || null;
-  }, [hasFailure, session.statuses]);
+  }, [hasFailure, session.rounds]);
 
   // `create_session` opens an empty shell round with the same query the
   // working round gets, so rendering it would duplicate the user's action.
@@ -171,9 +142,9 @@ export default function SessionData({
     [session.rounds],
   );
 
-  const started = formatShortDate(session.created_at);
-  const completed = formatShortDate(session.updated_at);
-  const hasTimeline = session.rounds.length > 0 || session.statuses.length > 0;
+  const started = formatDateParts(session.created_at);
+  const completed = formatDateParts(session.updated_at);
+  const hasTimeline = session.rounds.length > 0;
   const lockIcon = session.is_blocked ? (
     <LockOutlinedIcon className={styles.btnIcon} />
   ) : (
@@ -355,7 +326,7 @@ export default function SessionData({
                                   {capitalize(event.status)}
                                 </Typography>
                                 <span className={styles.timelineOpDate}>
-                                  {formatOpDate(event.created_at)}
+                                  {formatDateTime(event.created_at)}
                                   {expandable &&
                                     (expanded ? (
                                       <ExpandLessIcon
@@ -373,43 +344,63 @@ export default function SessionData({
                                   </div>
                                 )}
                               </div>
-                              {event.artifacts.map(({ kind, artifact }) => (
-                                <div
-                                  key={`${kind}:${artifact.id}`}
-                                  className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
-                                  onClick={() =>
-                                    setArtifactParam({ kind, artifact })
-                                  }
-                                  role="button"
-                                  tabIndex={0}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter")
-                                      setArtifactParam({ kind, artifact });
-                                  }}
-                                >
-                                  <Typography
-                                    variant="subtitle2"
-                                    component="span"
-                                    className={styles.timelineOpName}
+                              {event.artifacts.map(({ kind, artifact }) => {
+                                // `roundArtifacts` widens every row to
+                                // `ArtifactRef`, so `kind` is the discriminant
+                                // that narrows it back — same as the
+                                // `CodeChangeRef` cast below. Only plans carry
+                                // targets, and usually only partial-drift ones:
+                                // a validation-loop plan's are typically empty.
+                                const targets =
+                                  kind === "plan"
+                                    ? (artifact as TerraformPlanRef).targets
+                                    : [];
+                                return (
+                                  <div
+                                    key={`${kind}:${artifact.id}`}
+                                    className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
+                                    onClick={() =>
+                                      setArtifactParam({ kind, artifact })
+                                    }
+                                    role="button"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter")
+                                        setArtifactParam({ kind, artifact });
+                                    }}
                                   >
-                                    <InsertDriveFileOutlinedIcon
-                                      className={styles.artifactFileIcon}
-                                    />
-                                    {kind === "change"
-                                      ? codeChangeLabel(
-                                          round,
-                                          artifact as CodeChangeRef,
-                                        )
-                                      : artifactLabel(kind, artifact)}
-                                  </Typography>
-                                  <span className={styles.timelineOpDate}>
-                                    {formatOpDate(artifact.created_at)}
-                                    <VisibilityIcon
-                                      className={styles.artifactIcon}
-                                    />
-                                  </span>
-                                </div>
-                              ))}
+                                    <Typography
+                                      variant="subtitle2"
+                                      component="div"
+                                      className={styles.timelineOpName}
+                                    >
+                                      <InsertDriveFileOutlinedIcon
+                                        className={styles.artifactFileIcon}
+                                      />
+                                      {kind === "change"
+                                        ? codeChangeLabel(
+                                            round,
+                                            artifact as CodeChangeRef,
+                                          )
+                                        : artifactLabel(kind, artifact)}
+                                      {targets.length > 0 && (
+                                        <span
+                                          className={styles.timelineOpTargets}
+                                          title={targets.join(", ")}
+                                        >
+                                          {`${STRINGS.sessions.artifactTargets}: ${targets.join(", ")}`}
+                                        </span>
+                                      )}
+                                    </Typography>
+                                    <span className={styles.timelineOpDate}>
+                                      {formatDateTime(artifact.created_at)}
+                                      <VisibilityIcon
+                                        className={styles.artifactIcon}
+                                      />
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </Fragment>
                           );
                         })}

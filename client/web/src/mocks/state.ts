@@ -16,8 +16,28 @@ let nextRoundId = 1;
 export function makeStatus(
   status: SessionStatus,
   message: string | null = null,
+  createdAt: string = NOW,
 ): StatusEntry {
-  return { status, message, created_at: NOW };
+  return { status, message, created_at: createdAt };
+}
+
+/**
+ * The session's last status, across every round.
+ *
+ * Mirrors `core`'s `DatabaseService.get_last_status(session_id)`, which
+ * `api/v1/events.py` polls — deliberately *not* the last round's last
+ * status, which is what `resolveSessionOutcome` reads. The two disagree
+ * in the windows the REPRO fixtures model, and collapsing them would
+ * stop those fixtures reproducing anything.
+ *
+ * Byte-identical to the removed `SessionDetail.statuses` tail: rounds are
+ * ordered and a statusless round contributes nothing to the flatten.
+ */
+export function lastSessionStatus(
+  detail: SessionDetail,
+): StatusEntry | undefined {
+  const statuses = detail.rounds.flatMap((r) => r.statuses);
+  return statuses[statuses.length - 1];
 }
 
 export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
@@ -26,8 +46,8 @@ export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
     number: 1,
     query: "deploy a VM",
     statuses: [makeStatus("started"), makeStatus("completed")],
-    report: null,
-    plan: null,
+    reports: [],
+    plans: [],
     code_changes: [],
     pull_requests: [],
     created_at: NOW,
@@ -56,7 +76,6 @@ export function makeSessionDetail(
       root_path: "environments/dev",
     },
     scope_id: "sub-123",
-    statuses: [makeStatus("started"), makeStatus("completed")],
     rounds: [makeRound()],
     history: [{ user: "deploy a VM", assistant: "Here is your VM" }],
     ...overrides,
@@ -81,13 +100,44 @@ export const mockState = {
   listSessions(): SessionDetail[] {
     return [...sessions.values()];
   },
-  updateStatus(uuid: string, status: SessionStatus, message?: string) {
+  updateStatus(
+    uuid: string,
+    status: SessionStatus,
+    message?: string,
+    createdAt?: string,
+  ) {
     const detail = sessions.get(uuid);
     if (!detail) return;
-    const entry = makeStatus(status, message ?? null);
+    const entry = makeStatus(status, message ?? null, createdAt);
     detail.current_status = status;
-    detail.statuses = [...detail.statuses, entry];
     const round = detail.rounds[detail.rounds.length - 1];
     if (round) round.statuses = [...round.statuses, entry];
+  },
+  /**
+   * Open the round an IaC call is about to run. The round starts silent
+   * — no statuses, no artifacts — because the backend writes neither
+   * synchronously; the SSE run fills it in as it streams.
+   */
+  appendRound(
+    uuid: string,
+    overrides: Partial<RoundDetail> = {},
+  ): RoundDetail | undefined {
+    const detail = sessions.get(uuid);
+    if (!detail) return undefined;
+    const round = makeRound({
+      number: detail.rounds.length + 1,
+      statuses: [],
+      ...overrides,
+    });
+    detail.rounds = [...detail.rounds, round];
+    return round;
+  },
+  /** Attach the artifacts a finished round produced. */
+  patchRound(uuid: string, roundId: number, patch: Partial<RoundDetail>) {
+    const detail = sessions.get(uuid);
+    if (!detail) return;
+    detail.rounds = detail.rounds.map((round) =>
+      round.id === roundId ? { ...round, ...patch } : round,
+    );
   },
 };

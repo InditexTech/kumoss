@@ -8,11 +8,12 @@ import type {
   ReportRef,
   ReportType,
   RoundDetail,
+  SessionDetail,
   SessionStatus,
   StatusEntry,
   TerraformPlanRef,
 } from "@/types/api";
-import { roundEvents, roundMeta } from "./roundSummary";
+import { roundEvents, roundMeta, roundTitle } from "./roundSummary";
 
 // Seconds past a fixed epoch, so a test reads as a sequence of moments.
 function at(second: number): string {
@@ -51,8 +52,8 @@ function round(overrides: Partial<RoundDetail> = {}): RoundDetail {
     number: 1,
     query: "Create a storage account",
     statuses: [],
-    report: null,
-    plan: null,
+    reports: [],
+    plans: [],
     code_changes: [],
     pull_requests: [],
     created_at: at(0),
@@ -130,8 +131,8 @@ describe("roundEvents", () => {
           status("report", 30),
           status("completed", 50),
         ],
-        plan: plan(7, 20),
-        report: report(9, "generate", 40),
+        plans: [plan(7, 20)],
+        reports: [report(9, "generate", 40)],
       }),
     );
 
@@ -182,7 +183,7 @@ describe("roundMeta", () => {
           status("completed", 50),
         ],
         code_changes: [change(1, "main.tf", 15), change(2, "vars.tf", 20)],
-        plan: plan(3, 35),
+        plans: [plan(3, 35)],
       }),
     );
 
@@ -197,5 +198,99 @@ describe("roundMeta", () => {
 
   it("omits the count for a round with no events", () => {
     expect(roundMeta(round({ statuses: [] }))).toEqual([]);
+  });
+});
+
+describe("roundEvents with multiple plans", () => {
+  it("gives each validation pass the plan it produced", () => {
+    const events = roundEvents(
+      round({
+        statuses: [
+          status("validating", 10),
+          status("reconciling", 30),
+          status("validating", 50),
+        ],
+        plans: [plan(1, 15), plan(2, 35), plan(3, 55)],
+      }),
+    );
+
+    expect(events[0].artifacts.map((a) => a.artifact.id)).toEqual([1]);
+    expect(events[1].artifacts.map((a) => a.artifact.id)).toEqual([2]);
+    expect(events[2].artifacts.map((a) => a.artifact.id)).toEqual([3]);
+  });
+
+  it("keeps several plans on one status in chronological order", () => {
+    const events = roundEvents(
+      round({
+        statuses: [status("validating", 10), status("report", 60)],
+        plans: [plan(2, 30), plan(1, 20)],
+      }),
+    );
+
+    expect(events[0].artifacts.map((a) => a.artifact.id)).toEqual([1, 2]);
+  });
+});
+
+function driftSession(): SessionDetail {
+  return {
+    uuid: "sess-1",
+    username: "user@test.com",
+    operation: "drift",
+    provider: "azure",
+    first_query: "check for drift",
+    workspace_uri: "https://github.com/contoso/infra",
+    current_status: "completed",
+    in_flight: false,
+    is_blocked: false,
+    created_at: at(0),
+    updated_at: at(60),
+    workspace: {
+      uri: "https://github.com/contoso/infra",
+      branch: "nebula/sess-1",
+      root_path: null,
+    },
+    scope_id: "sub-123",
+    rounds: [],
+    history: [],
+  };
+}
+
+function targetedPlan(id: number, second: number, targets: string[]) {
+  return { ...plan(id, second), targets };
+}
+
+describe("roundTitle partial drift", () => {
+  it("marks a drift round partial when any plan carries targets", () => {
+    // The handler writes the drift diff and its plan with the partial
+    // targets, then the nested validation service appends plans whose
+    // targets come from the LLM validator and are usually empty. Reading
+    // only the newest plan loses the suffix.
+    const title = roundTitle(
+      round({
+        statuses: [status("validating", 10)],
+        reports: [report(1, "drift", 20)],
+        plans: [
+          targetedPlan(1, 12, ["azurerm_virtual_machine.a"]),
+          targetedPlan(2, 14, ["azurerm_virtual_machine.a"]),
+          targetedPlan(3, 16, []),
+        ],
+      }),
+      driftSession(),
+    );
+
+    expect(title).toBe("Drift Analysis (partial)");
+  });
+
+  it("leaves a full drift round unmarked", () => {
+    const title = roundTitle(
+      round({
+        statuses: [status("validating", 10)],
+        reports: [report(1, "drift", 20)],
+        plans: [targetedPlan(1, 12, [])],
+      }),
+      driftSession(),
+    );
+
+    expect(title).toBe("Drift Analysis");
   });
 });

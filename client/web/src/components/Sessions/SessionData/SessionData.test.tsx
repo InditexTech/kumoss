@@ -31,7 +31,6 @@ function interleavedSession() {
     current_status: "report",
     in_flight: true,
     operation: "drift",
-    statuses: [makeStatus("filtering", null, at(0))],
     rounds: [
       makeRound({
         statuses: [
@@ -50,22 +49,26 @@ function interleavedSession() {
             created_at: at(15),
           },
         ],
-        plan: {
-          id: 2,
-          targets: [],
-          url: "https://storage.example.com/plan",
-          content_type: "text/plain",
-          file_size_bytes: 10,
-          created_at: at(35),
-        },
-        report: {
-          id: 3,
-          type: "drift",
-          url: "https://storage.example.com/report",
-          content_type: "application/json",
-          file_size_bytes: 10,
-          created_at: at(55),
-        },
+        plans: [
+          {
+            id: 2,
+            targets: [],
+            url: "https://storage.example.com/plan",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(35),
+          },
+        ],
+        reports: [
+          {
+            id: 3,
+            type: "drift",
+            url: "https://storage.example.com/report",
+            content_type: "application/json",
+            file_size_bytes: 10,
+            created_at: at(55),
+          },
+        ],
       }),
     ],
   });
@@ -105,6 +108,99 @@ describe("SessionData timeline", () => {
 
     expect(screen.queryByText("Statuses")).toBeNull();
     expect(screen.queryByText("Artifacts")).toBeNull();
+  });
+
+  it("renders a reconciling pass with its plan", () => {
+    const session = makeSessionDetail({
+      current_status: "reconciling",
+      in_flight: true,
+      operation: "drift",
+      rounds: [
+        makeRound({
+          statuses: [
+            makeStatus("validating", null, at(0)),
+            makeStatus("reconciling", null, at(20)),
+          ],
+          plans: [
+            {
+              id: 7,
+              targets: [],
+              url: "https://storage.example.com/drift",
+              content_type: "text/plain",
+              file_size_bytes: 10,
+              created_at: at(25),
+            },
+          ],
+        }),
+      ],
+    });
+    renderWithProviders(<SessionData session={session} />);
+
+    const phase = screen.getByText("Reconciling");
+    const plan = screen.getByText("Terraform Plan");
+    expect(phase).toBeInTheDocument();
+    expect(isBefore(phase, plan)).toBe(true);
+  });
+});
+
+/**
+ * A drift round whose plan is scoped to named resources. Partial drift is
+ * the flow that actually populates `targets`; a validation-loop plan
+ * carries the validator's `terraform_targets`, which are usually empty.
+ */
+function targetedSession(targets: string[]) {
+  return makeSessionDetail({
+    current_status: "validating",
+    in_flight: true,
+    operation: "drift",
+    rounds: [
+      makeRound({
+        statuses: [makeStatus("validating", null, at(0))],
+        plans: [
+          {
+            id: 11,
+            targets,
+            url: "https://storage.example.com/plans/plan-abc.txt",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(5),
+          },
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData plan targets", () => {
+  it("lists a plan's targets beneath its label", () => {
+    const session = targetedSession([
+      "azurerm_storage_account.main",
+      "azurerm_resource_group.rg",
+    ]);
+    renderWithProviders(<SessionData session={session} />);
+
+    const label = screen.getByText("Terraform Plan");
+    const targets = screen.getByText(
+      "Targets: azurerm_storage_account.main, azurerm_resource_group.rg",
+    );
+    expect(isBefore(label, targets)).toBe(true);
+  });
+
+  it("keeps the full list reachable when the line is clamped", () => {
+    const session = targetedSession(["a.one", "b.two"]);
+    renderWithProviders(<SessionData session={session} />);
+
+    expect(screen.getByText("Targets: a.one, b.two")).toHaveAttribute(
+      "title",
+      "a.one, b.two",
+    );
+  });
+
+  it("renders no targets line for a plan that carries none", () => {
+    renderWithProviders(<SessionData session={interleavedSession()} />);
+
+    expect(screen.getByText("Terraform Plan")).toBeInTheDocument();
+    expect(screen.queryByText(/^Targets:/)).toBeNull();
   });
 });
 

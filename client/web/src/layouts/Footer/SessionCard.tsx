@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { extractProjectName } from "@/utils/workspace";
+import { formatDate } from "@/utils/datetime";
 import Typography from "@mui/material/Typography";
 import type { SessionSummary } from "@/types/api";
 import styles from "./SessionCard.module.css";
@@ -10,13 +11,6 @@ import styles from "./SessionCard.module.css";
 interface SessionCardProps {
   session: SessionSummary;
   onClick?: (session: SessionSummary) => void;
-}
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${day}.${month}.${d.getFullYear()}`;
 }
 
 export default function SessionCard({ session, onClick }: SessionCardProps) {

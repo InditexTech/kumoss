@@ -215,6 +215,27 @@
   white-space: nowrap;
 }
 
+/* Secondary line under a plan artifact: the resource targets the plan is
+   scoped to. Smaller and muted so it annotates the label above it rather
+   than reading as a row of its own. Living inside .timelineOpName keeps
+   the row's baseline alignment pinning the date to the first line, but
+   also inherits its `nowrap` — hence the explicit `normal`. A plan can
+   carry a dozen targets, so clamp like .timelineQuery does; the full
+   list stays available through the element's `title`. */
+.timelineOpTargets {
+  display: -webkit-box;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 300;
+  line-height: 16px;
+  color: var(--color-content-muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .timelineOpDate {
   font-size: 13px;
   font-weight: 300;

@@ -123,6 +123,7 @@ export type SessionStatus =
   | "filtering"
   | "generating"
   | "validating"
+  | "reconciling"
   | "apply"
   | "report"
   | "completed"
@@ -158,7 +159,7 @@ export interface ArtifactRef {
 }
 
 /** The stored report flavour; same value as the artifact's filename prefix. */
-export type ReportType = "generate" | "drift" | "import" | "apply";
+export type ReportType = "generate" | "drift" | "import" | "apply" | "plan";
 
 export interface ReportRef extends ArtifactRef {
   type: ReportType;
@@ -182,14 +183,23 @@ export interface PullRequestRef {
   number: number;
 }
 
-/** One generation iteration with its statuses and artifacts. */
+/**
+ * One generation round with its statuses and artifacts.
+ *
+ * Every artifact list is ordered oldest to newest. A round can hold
+ * several reports and several plans — a drift pass stores the drift
+ * diff and the plan it produced, plus one plan per validation
+ * iteration — and order is the only thing telling them apart. Drift
+ * plans are not labelled: drift-ness lives in the storage key, which
+ * the read model does not expose.
+ */
 export interface RoundDetail {
   id: number;
   number: number;
   query: string;
   statuses: StatusEntry[];
-  report: ReportRef | null;
-  plan: TerraformPlanRef | null;
+  reports: ReportRef[];
+  plans: TerraformPlanRef[];
   code_changes: CodeChangeRef[];
   pull_requests: PullRequestRef[];
   created_at: string;
@@ -216,15 +226,17 @@ export interface SessionSummary {
 }
 
 /**
- * Full session aggregate. `statuses` holds the session's full status
- * timeline; round-level statuses also live inside their round. Pull
- * requests live inside their round. `history` is populated only when
- * requested via `?include_history=true`.
+ * Full session aggregate. Statuses, pull requests and artifacts all
+ * live inside their round; every status row belongs to a round, so the
+ * session's flat timeline is `rounds.flatMap((r) => r.statuses)` —
+ * `rounds` is ordered by `(number, id)` and each round's statuses by
+ * `(created_at, id)`, so that concatenation is chronological.
+ * `current_status` is the cheap latest-status field for polling.
+ * `history` is populated only when requested via `?include_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
   workspace: WorkspaceRef;
   scope_id: string;
-  statuses: StatusEntry[];
   rounds: RoundDetail[];
   history?: RawHistoryTurn[] | null;
 }

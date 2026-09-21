@@ -5,11 +5,13 @@
 import type {
   ArtifactRef,
   CodeChangeRef,
+  ReportRef,
   RoundDetail,
   SessionDetail,
   SessionStatus,
 } from "@/types/api";
 import { isApplyRound } from "@/services/workflows/session_outcome";
+import { STRINGS } from "@/constants/strings";
 import type { ArtifactKind } from "./ArtifactContent";
 
 /**
@@ -18,22 +20,20 @@ import type { ArtifactKind } from "./ArtifactContent";
  * the generate/validate loop, which runs *inside* a round. So the ordinal
  * the timeline used to show conveyed nothing the user thinks in.
  */
-export type RoundKind = "generate" | "drift" | "import" | "apply";
+export type RoundKind = "generate" | "drift" | "import" | "apply" | "plan";
 
 export type ArtifactRow = { kind: ArtifactKind; artifact: ArtifactRef };
 
-const KIND_LABELS: Record<RoundKind, string> = {
-  generate: "Code Generation",
-  drift: "Drift Analysis",
-  import: "Import",
-  apply: "Terraform Apply",
-};
+/**
+ * Copy lives in `STRINGS`; the annotations stay here. `Record<RoundKind, _>`
+ * is total, so adding a member to `RoundKind` fails this assignment until the
+ * label exists — which is what caught the missing "plan" entry.
+ */
+const KIND_LABELS: Record<RoundKind, string> = STRINGS.sessions.roundKinds;
 
 /** Only non-success resting states earn a suffix; success needs no words. */
-const OUTCOME_SUFFIXES: Partial<Record<SessionStatus, string>> = {
-  failed: " — Failed",
-  uncompleted: " — Incomplete",
-};
+const OUTCOME_SUFFIXES: Partial<Record<SessionStatus, string>> =
+  STRINGS.sessions.roundOutcomeSuffixes;
 
 /**
  * The report type is the most authoritative signal, but a failed round never
@@ -45,7 +45,9 @@ export function roundKind(
   round: RoundDetail,
   session: SessionDetail,
 ): RoundKind {
-  if (round.report) return round.report.type;
+  // Oldest-first, so the round's own kind is the newest report's.
+  const report: ReportRef | undefined = round.reports[round.reports.length - 1];
+  if (report) return report.type;
   if (isApplyRound(round)) return "apply";
   return session.operation;
 }
@@ -55,9 +57,16 @@ export function roundKind(
  * sets `targets = []` and fills it only under `if is_partial`. Generation
  * plans carry targets too, so this is meaningful only once the kind is known
  * to be drift.
+ *
+ * Checked across every plan, not just the newest. A remediating drift round
+ * writes the drift diff and its plan with the handler's targets
+ * (`terraform_drift_service.__upload_artifacts`), then the nested validation
+ * service appends one plan per iteration carrying the validator's
+ * `terraform_targets`, which are usually empty. The newest plan is therefore
+ * the wrong one to ask.
  */
 function isPartialDrift(round: RoundDetail, kind: RoundKind): boolean {
-  return kind === "drift" && (round.plan?.targets.length ?? 0) > 0;
+  return kind === "drift" && round.plans.some((p) => p.targets.length > 0);
 }
 
 /** Statuses arrive sorted by (created_at, id), so the last one is current. */
@@ -67,7 +76,9 @@ function lastStatus(round: RoundDetail): SessionStatus | undefined {
 
 export function roundTitle(round: RoundDetail, session: SessionDetail): string {
   const kind = roundKind(round, session);
-  const partial = isPartialDrift(round, kind) ? " (partial)" : "";
+  const partial = isPartialDrift(round, kind)
+    ? STRINGS.sessions.roundPartialSuffix
+    : "";
   const last = lastStatus(round);
   const suffix = last ? (OUTCOME_SUFFIXES[last] ?? "") : "";
   return `${KIND_LABELS[kind]}${partial}${suffix}`;
@@ -76,8 +87,10 @@ export function roundTitle(round: RoundDetail, session: SessionDetail): string {
 /** Every artifact of a round, flattened into openable rows. */
 export function roundArtifacts(round: RoundDetail): ArtifactRow[] {
   const rows: ArtifactRow[] = [];
-  if (round.report) rows.push({ kind: "report", artifact: round.report });
-  if (round.plan) rows.push({ kind: "plan", artifact: round.plan });
+  for (const report of round.reports) {
+    rows.push({ kind: "report", artifact: report });
+  }
+  for (const plan of round.plans) rows.push({ kind: "plan", artifact: plan });
   for (const change of round.code_changes) {
     rows.push({ kind: "change", artifact: change });
   }
@@ -109,9 +122,11 @@ export type TimelineEvent = {
  * Two consequences worth knowing:
  *  - `started`, `filtering`, `apply`, `completed`, `uncompleted` and `failed`
  *    never carry artifacts. That falls out of the rule; it is not hardcoded.
- *  - The read model keeps only the *latest* plan and report of a round, so in
- *    a multi-pass round the earlier passes' plans are absent from the payload
- *    entirely and their `validating` events are correctly bare.
+ *  - The read model returns *every* plan and report of a round, oldest
+ *    first, so each `validating` / `reconciling` pass carries the plan it
+ *    actually produced. Under the old latest-wins read model the earlier
+ *    passes were bare, and a drift diff could never be shown next to the
+ *    plan it produced.
  *
  * A round with no statuses yet (INSERTed, first status still unwritten) has
  * no events. It cannot own artifacts either, since every writer statuses
@@ -181,8 +196,8 @@ export function roundMeta(round: RoundDetail): string[] {
  */
 export function isBootstrapRound(round: RoundDetail): boolean {
   return (
-    !round.report &&
-    !round.plan &&
+    round.reports.length === 0 &&
+    round.plans.length === 0 &&
     round.code_changes.length === 0 &&
     round.pull_requests.length === 0 &&
     round.statuses.length > 0 &&

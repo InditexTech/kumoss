@@ -43,9 +43,9 @@ import {
   StatusBadge,
   SideSheet,
   SessionsTable,
-  formatDate,
   truncate,
 } from "@/components/ui";
+import { formatDateTime } from "@/utils/datetime";
 import type { ColumnDef, FilterConfig, FetchParams } from "@/components/ui";
 import type { SearchFieldConfig } from "@/components/ui";
 import { extractProjectName } from "./types";
@@ -116,7 +116,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     header: "Created",
     width: "14%",
     className: styles.secondaryCell,
-    render: (s) => formatDate(s.created_at),
+    render: (s) => formatDateTime(s.created_at),
   },
 ];
 
@@ -184,7 +184,7 @@ function buildAdminColumns(
       header: "Created",
       width: "13%",
       className: styles.secondaryCell,
-      render: (s) => formatDate(s.created_at),
+      render: (s) => formatDateTime(s.created_at),
     },
   ];
 }

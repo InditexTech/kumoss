@@ -178,6 +178,28 @@ export const STRINGS = {
     pageTitle: "Sessions",
     searchPlaceholder: "Search User or Project",
     noSessions: "No sessions found",
+
+    /** Timeline heading per round kind. Keys are `RoundKind`. */
+    roundKinds: {
+      generate: "Code Generation",
+      drift: "Drift Analysis",
+      import: "Import",
+      apply: "Terraform Apply",
+      plan: "Terraform Plan",
+    },
+    /**
+     * Appended to a round heading for non-success resting states; success
+     * needs no words. Keys are `SessionStatus`, and the set is deliberately
+     * partial — any status absent here renders no suffix.
+     */
+    roundOutcomeSuffixes: {
+      failed: " — Failed",
+      uncompleted: " — Incomplete",
+    },
+    /** Marks a drift round that targeted named resources. */
+    roundPartialSuffix: " (partial)",
+    /** Prefixes the resource list on a plan artifact's secondary line. */
+    artifactTargets: "Targets",
   },
 
   admin: {

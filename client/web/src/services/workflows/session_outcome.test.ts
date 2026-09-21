@@ -45,8 +45,8 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
-            plan: { ...artifactRef(2, "plan.txt"), targets: ["a.b"] },
+            reports: [reportRef(1, "report.json")],
+            plans: [{ ...artifactRef(2, "plan.txt"), targets: ["a.b"] }],
             code_changes: [
               { ...artifactRef(3, "main.tf"), file_name: "main.tf" },
               { ...artifactRef(4, "vars.tf"), file_name: "vars.tf" },
@@ -73,6 +73,40 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
   });
 
+  it("uses the newest plan when a drift round stored several", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-multi",
+        operation: "drift",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            reports: [reportRef(10, "report.json")],
+            plans: [
+              { ...artifactRef(11, "drift.txt"), targets: ["a.b"] },
+              { ...artifactRef(12, "final.txt"), targets: ["c.d"] },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report.json`, () =>
+        HttpResponse.json({ status: "ok" }),
+      ),
+      http.get(`${STORAGE}/drift.txt`, () => HttpResponse.text("drift diff")),
+      http.get(`${STORAGE}/final.txt`, () => HttpResponse.text("final plan")),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-multi");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("final plan");
+    expect(outcome.code).not.toContain("drift diff");
+    expect(outcome.targets).toEqual(["c.d"]);
+  });
+
   it("merges code changes across rounds, with later rounds winning", async () => {
     mockState.addSession(
       makeSessionDetail({
@@ -87,7 +121,7 @@ describe("resolveSessionOutcome", () => {
           makeRound({
             number: 2,
             statuses: [makeStatus("started"), makeStatus("completed")],
-            plan: { ...artifactRef(5, "plan.txt"), targets: [] },
+            plans: [{ ...artifactRef(5, "plan.txt"), targets: [] }],
             code_changes: [
               { ...artifactRef(6, "outputs-r2.tf"), file_name: "outputs.tf" },
               { ...artifactRef(7, "vault.tf"), file_name: "vault.tf" },
@@ -215,7 +249,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -252,7 +286,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
           }),
           makeRound({
             statuses: [makeStatus("uncompleted", "Query is off-topic")],
@@ -284,7 +318,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -352,7 +386,7 @@ describe("resolveSessionOutcome", () => {
               makeStatus("apply"),
               makeStatus("completed"),
             ],
-            report: reportRef(9, "apply-report.json"),
+            reports: [reportRef(9, "apply-report.json")],
           }),
         ],
       }),
@@ -377,7 +411,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
           }),
         ],
       }),
