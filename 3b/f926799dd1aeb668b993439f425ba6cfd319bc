@@ -1,0 +1,29 @@
+docs/src/modules/main/nav.adoc
+  s_9709cc6e0002b7::t_517d708b6f4b99 19-22
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_9709cc6e0002b7::t_c34a6c7e21c653 1-224
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_9709cc6e0002b7::t_2d7f90fb3b64b8 1-563
+docs/src/modules/main/pages/guides/enable-authentication.adoc
+  s_9709cc6e0002b7::t_460357205bca93 1-255
+docs/src/modules/main/pages/guides/merge-and-apply.adoc
+  s_9709cc6e0002b7::t_131c484113808c 28-32
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_9709cc6e0002b7::t_f2308d0d1fe543 1-325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3bf926799dd1aeb668b993439f425ba6cfd319bc",
+  "prompts": {},
+  "sessions": {
+    "s_9709cc6e0002b7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-adac6feff6559076e",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
