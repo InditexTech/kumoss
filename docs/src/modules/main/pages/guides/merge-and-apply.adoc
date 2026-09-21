@@ -25,9 +25,11 @@ review your request. Two buttons: *Back to Report* and *Contact Team*.
 While locked you can still read everything, continue the conversation, and
 create the pull request so reviewers can read the diff. You cannot merge
 it or apply: the server answers that the session is blocked. A reviewer
-with the appropriate panel role unlocks the session from the admin portal,
-or you send a new request whose result passes cleanly, which clears the
-lock. Your own sessions list shows the lock state in the *Apply* column.
+with the appropriate panel role unlocks the
+xref:main:guides/administer-users-and-locks.adoc#session-locks[session
+lock], or you send a new request whose result passes cleanly, which
+clears the lock. Your own sessions list shows the lock state in the
+*Apply* column.
 
 == Steps
 

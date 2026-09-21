@@ -16,6 +16,10 @@
 * xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
 * xref:main:guides/remediate-drift.adoc[Remediate drift]
 * xref:main:guides/import-infrastructure.adoc[Import infrastructure]
+* xref:main:guides/enable-authentication.adoc[Enable authentication]
+* xref:main:guides/administer-users-and-locks.adoc[Administer users and locks]
+* xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
+* xref:main:guides/customize-prompts.adoc[Customize prompts]
 * Reference
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]
