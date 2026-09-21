@@ -1,0 +1,27 @@
+docs/src/modules/main/nav.adoc
+  s_889989e266a47f::t_84e47a0c36307b 4-6
+docs/src/modules/main/pages/architecture.adoc
+  s_889989e266a47f::t_b2df769cd1042e 2,4-202
+docs/src/modules/main/pages/architecture/data-and-state.adoc
+  s_889989e266a47f::t_d582abf18c6ee8 1-135
+docs/src/modules/main/pages/architecture/deployment-view.adoc
+  s_889989e266a47f::t_31969dfa87436b 1-162
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_889989e266a47f::t_f37f28df064295 1-902
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb3e394f59fc969d4669c4659ecd1d7b32aa2f81",
+  "prompts": {},
+  "sessions": {
+    "s_889989e266a47f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a97caccea1c320125",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
