@@ -1,0 +1,398 @@
+[#nebula-managed-state]
+= Nebula-managed state
+:description: The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
+
+With the state bucket set to a name — the shipped configuration — Nebula
+owns state:
+
+[source,yaml]
+----
+storage:
+  provider: "RUSTFS"
+  bucket: "nebula-artifacts"
+  terraform_state_bucket: "nebula-terraform-state"
+  endpoint_url: "http://object-storage:9000"
+  public_endpoint_url: "http://localhost:9000"
+  region: "us-east-1"
+----
+
+This is why it ships on: it is the quickest way to get a working remote
+backend when there is none yet, on `RUSTFS` the bucket name is the only
+value involved, and the repositories need no backend block at all.
+
+State goes to the *same object-storage provider as artifacts*, in a
+*separate bucket* (a blob container on `STORAGE_ACCOUNT`). The separation
+is deliberate: state must not inherit the lifecycle, expiry, or presign
+policy you apply to generated reports and plans.
+
+[#two-credential-grants]
+== Two sets of credentials on the sidecar
+
+`services/iac/.env` must satisfy *two different authentications*, and a
+setup that only covers the first fails at `init`, before a single
+resource is planned:
+
+[cols="2,2,4",options="header"]
+|===
+|What |Used by |Grants access to
+
+|Provider credentials
+|`plan`, `apply`
+|The cloud resources your modules create
+
+|State-backend credentials
+|`init`
+|The state store the repository's backend block names
+|===
+
+They are separate because they address separate resources. Often the
+_same_ variables serve both — an `s3` backend and the `aws` provider both
+read `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — but even then the
+identity behind them must be granted access to the state bucket, which
+commonly lives in a different account, subscription, or project. Some
+backends read variables the providers never look at, precisely so the
+two identities can differ:
+
+[cols="1,3",options="header"]
+|===
+|Backend |Backend-only variables
+
+|`azurerm`
+|`ARM_ACCESS_KEY` (storage account key), `ARM_SAS_TOKEN`, `ARM_USE_AZUREAD`
+
+|`gcs`
+|`GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`
+
+|`s3`
+|`AWS_PROFILE` / `AWS_ROLE_ARN` pointing at the state account
+|===
+
+Per-cloud, per-authentication-method minimums for both sets are in
+`services/iac/PROVIDERS.md` (provider minimums, then _Backend
+minimums_);
+the variable-level view is in the "Cloud credentials for the IaC
+engine" section of the environment variables reference.
+
+This model can spare you the second grant: Nebula writes the backend
+itself, and where the rendered block embeds static keys — the `RUSTFS`
+case, and `S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the sidecar
+needs nothing for state. Where it does not embed them, the sidecar still
+has to resolve them; see <<credentials-required,Credentials required>>
+below.
+
+== What Nebula manages automatically
+
+[cols="2,4",options="header"]
+|===
+|When |What happens
+
+|Core start-up
+|The state bucket (or container) is *created if missing*, with the same
+credentials used for artifacts. If the store is unusable the core *fails
+to boot*, alongside the database, Redis, and artifact-bucket checks.
+
+|Before every `init`
+|The core writes a `backend_override.tf` into the workspace, addressing
+the state bucket with a key derived from the project.
+
+|Per project
+|The state key is assigned from a digest of the repository, cloud scope,
+and root-module path — no configuration, no per-repository setup.
+
+|On apply
+|The pinned workspace is _moved_, not copied, so the override and the
+initialized `.terraform/` travel with it: the apply writes to the same
+state the plan was made against, without re-running `init`.
+
+|On every run
+|`backend_override.tf` is excluded by the seeded `.gitignore`, so it
+never reaches a commit or a pull request.
+|===
+
+The override wins over whatever the repository declares: Terraform and
+OpenTofu merge `*_override.tf` *over* the rest of the configuration, so
+one file both _introduces_ a backend where the repository declares none
+and _replaces_ one it does declare. Nebula never edits the repository's
+committed HCL. The core logs the target on every `init`:
+
+[source]
+----
+Terraform state: rustfs bucket=nebula-terraform-state key=<project_id>/terraform.tfstate
+----
+
+== Per-provider configuration
+
+The backend type follows `storage.provider`. There is no separate
+setting for it, and no combination in which state and artifacts live in
+different stores.
+
+[tabs]
+--
+[tab,label="RUSTFS"]
+****
+The bundled store, or any S3-compatible server — the default
+`storage.provider`, and the least work: in the Compose stack the bucket
+name is the only value to add.
+
+[source,yaml]
+----
+storage:
+  provider: "RUSTFS"
+  terraform_state_bucket: "nebula-terraform-state"
+  endpoint_url: "http://object-storage:9000"
+  region: "us-east-1"
+----
+
+Rendered into each workspace as `backend_override.tf`:
+
+[source,hcl]
+----
+terraform {
+  backend "s3" {
+    bucket = "nebula-terraform-state"
+    key    = "<project_id>/terraform.tfstate"
+    region = "us-east-1"
+
+    access_key = "rustfsadmin"
+    secret_key = "rustfsadmin"
+
+    endpoints = {
+      s3 = "http://object-storage:9000"
+    }
+
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_metadata_api_check     = true
+    skip_s3_checksum            = true
+    use_lockfile                = true
+  }
+}
+----
+
+The `skip_*` flags exist because a non-AWS S3 implementation has no
+account-id endpoint, no EC2 instance-metadata service, and no region
+validation; the checksum skip accommodates servers without S3 trailing
+checksums. `use_path_style` addresses buckets as `<endpoint>/<bucket>`
+rather than as a virtual host.
+****
+
+[tab,label="S3"]
+****
+AWS S3.
+
+[source,yaml]
+----
+storage:
+  provider: "S3"
+  bucket: "acme-nebula-artifacts"
+  terraform_state_bucket: "acme-nebula-tfstate"
+  region: "eu-west-1"
+----
+
+`endpoint_url` and `public_endpoint_url` are ignored: Terraform and the
+AWS SDK both build the regional endpoint from `region`. With static keys
+configured:
+
+[source,hcl]
+----
+terraform {
+  backend "s3" {
+    bucket = "acme-nebula-tfstate"
+    key    = "<project_id>/terraform.tfstate"
+    region = "eu-west-1"
+
+    access_key = "AKIAEXAMPLE"
+    secret_key = "examplesecret"
+
+    use_lockfile = true
+  }
+}
+----
+
+With *no* static keys — the recommended production shape — the
+credential lines are omitted entirely and the engine resolves
+credentials as any AWS SDK client does, from an instance profile, IRSA,
+or a workload identity on the *IaC sidecar's* container:
+
+[source,hcl]
+----
+terraform {
+  backend "s3" {
+    bucket = "acme-nebula-tfstate"
+    key    = "<project_id>/terraform.tfstate"
+    region = "eu-west-1"
+
+    use_lockfile = true
+  }
+}
+----
+
+*Blank the RustFS keys when you switch to `S3`.* `storage.access_key_env`
+and `storage.secret_key_env` still name `RUSTFS_ACCESS_KEY` and
+`RUSTFS_SECRET_KEY` by default, and `core/env.sample` ships them set to
+`rustfsadmin`. A non-empty value always wins, so leaving them set embeds
+`rustfsadmin` into the backend block and every `init` fails against AWS.
+****
+
+[tab,label="STORAGE_ACCOUNT"]
+****
+Azure Blob Storage.
+
+[source,yaml]
+----
+storage:
+  provider: "STORAGE_ACCOUNT"
+  bucket: "nebula-artifacts"
+  terraform_state_bucket: "nebula-terraform-state"
+  endpoint_url: "https://acmenebula.blob.core.windows.net"
+  public_endpoint_url: "https://acmenebula.blob.core.windows.net"
+----
+
+`terraform_state_bucket` names a *blob container*, not a bucket. The
+account name is derived from `endpoint_url`; `region` is ignored.
+
+[source,hcl]
+----
+terraform {
+  backend "azurerm" {
+    storage_account_name = "acmenebula"
+    container_name       = "nebula-terraform-state"
+    key                  = "<project_id>/terraform.tfstate"
+    access_key           = "azure-shared-key"
+  }
+}
+----
+
+*The shared key is mandatory and is always embedded.* The core refuses
+to boot with `provider: STORAGE_ACCOUNT` and an empty
+`STORAGE_ACCOUNT_KEY` (`storage.provider STORAGE_ACCOUNT requires env
+var STORAGE_ACCOUNT_KEY.`), because the artifact adapter needs that key
+to sign SAS download URLs. The renderer contains an Entra ID branch
+(`use_azuread_auth = true`) for a keyless account, but *no supported
+configuration reaches it* in this release. Treat managed identity for
+Azure _state_ as unavailable today; if you need it, use
+xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
+backend].
+****
+--
+
+[#credentials-required]
+== Credentials required
+
+Two different components touch the state store, and they authenticate
+separately.
+
+[cols="2,3,4",options="header"]
+|===
+|Component |What it does |Credentials it uses
+
+|Core
+|Creates/checks the state bucket at boot
+|`storage.*_env` variables in `core/.env` — `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`,
+the AWS default chain, or `STORAGE_ACCOUNT_KEY`
+
+|IaC sidecar
+|Reads and writes state on every `init`, `plan`, and `apply`
+|The static keys embedded in `backend_override.tf` when present;
+otherwise the sidecar container's own ambient credentials (`AWS_*`,
+IRSA, instance profile)
+|===
+
+This split is easy to get wrong: with `provider: S3` and no static keys,
+giving the *core* an instance role is not enough — the engine runs in
+the *IaC sidecar*, so that container needs the role too. The sidecar
+must also be able to *reach* `storage.endpoint_url`; in the Compose
+stack both `core` and `iac` are on `bridge-network`, so
+`\http://object-storage:9000` resolves, but on another platform allow
+that egress explicitly.
+
+Minimum permissions on the state bucket, in practice:
+
+[cols="1,4",options="header"]
+|===
+|Provider |Permissions
+
+|AWS S3
+|`s3:ListBucket` on the bucket; `s3:GetObject`, `s3:PutObject`,
+`s3:DeleteObject` on `<bucket>/*` (this covers the `.tflock` object). Add
+`s3:CreateBucket` only if you want the core to create the bucket at boot
+rather than pre-creating it.
+
+|Azure Blob Storage
+|The account shared key, which conveys full container access.
+
+|RustFS / other S3-compatible
+|The access/secret key pair configured for the store.
+|===
+
+`services/iac/PROVIDERS.md` lists the per-cloud backend minimums in more
+detail, including the variables to set when state lives in a different
+account or project from the resources.
+
+[#state-keys]
+== State keys
+
+State is keyed by *project*, not by session or directory:
+
+[source]
+----
+<state_bucket>/<project_id>/terraform.tfstate
+----
+
+`project_id` is the SHA-256 hex digest of three newline-joined values:
+
+. the *normalized repository URI*, as `host/path`
+. the *cloud scope* (`scope_id` — subscription, project, or account),
+  trimmed and lowercased
+. the *normalized root-module path* within the repository (`iac_path`)
+
+Normalization means two spellings of the same project never split into
+two states: the repository URI is lowercased, loses a `.git` suffix,
+loses embedded push credentials, and accepts SCP-style SSH form; the
+module path is trimmed of surrounding and duplicate slashes.
+
+[cols="1",options="header"]
+|===
+|These all resolve to one project
+
+|`\https://github.com/acme/infra.git`
+|`\https://github.com/acme/infra`
+|`\https://x-access-token:ghp_secret@github.com/acme/infra.git`
+|`HTTPS://GitHub.com/Acme/Infra.git`
+|`git@github.com:acme/infra.git`
+|===
+
+An empty `iac_path` is a valid project — the root module is the
+repository root. The path comes from the root detection described in
+Operating modes; note that the web application sends `.` for a
+repository whose Terraform files are at the top level, while an API call
+that omits `iac_path` sends an empty value, and the two are hashed as
+different projects. Because all three inputs matter, a change to *any*
+of them is a different project and therefore a different state file.
+
+== Locking
+
+State locking is enabled and is *native to the store* — Nebula
+provisions no extra infrastructure for it.
+
+[cols="1,2,4",options="header"]
+|===
+|Provider |Mechanism |Notes
+
+|`RUSTFS`, `S3`
+|`use_lockfile = true`
+|The engine's S3-native lock: a `<key>.tflock` object written with a
+conditional put next to the state. *No DynamoDB table* is used or
+needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 — per those
+engines' release notes — and an S3 implementation that supports
+conditional writes (the bundled engines are 1.12.6 and 1.16.0).
+
+|`STORAGE_ACCOUNT`
+|Blob lease
+|Native to the `azurerm` backend and always on; no flag is rendered.
+|===
+
+Whether RustFS honours the conditional-write semantics `use_lockfile`
+relies on has not been verified in this repository.

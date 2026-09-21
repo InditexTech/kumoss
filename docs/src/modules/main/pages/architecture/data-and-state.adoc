@@ -111,6 +111,10 @@ error — and *deleting* the key entirely also leaves managed state on,
 since the `SystemConfig` field default is the same
 `nebula-terraform-state` value.
 
+See xref:main:guides/configure-state-backends.adoc[Configure state
+backends] for the full decision between the three ownership models and
+how core and sidecar configuration interact.
+
 == Workspaces volume
 
 The `workspaces` volume is per-run: each run clones the repository into

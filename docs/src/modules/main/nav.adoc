@@ -20,6 +20,10 @@
 * xref:main:guides/administer-users-and-locks.adoc[Administer users and locks]
 * xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
 * xref:main:guides/customize-prompts.adoc[Customize prompts]
+* xref:main:guides/configure-state-backends.adoc[Configure state backends]
+** xref:main:guides/state-backends/repository-declared.adoc[Repository-declared backend]
+** xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
+** xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied backend]
 * Reference
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]

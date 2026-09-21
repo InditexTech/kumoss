@@ -1,0 +1,67 @@
+[#repository-declared-backend]
+= Repository-declared backend
+:description: Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.
+
+Blank the state bucket with an explicit empty string and Nebula steps out
+of the way:
+
+[source,yaml]
+----
+storage:
+  provider: "RUSTFS"
+  bucket: "nebula-artifacts"
+  terraform_state_bucket: ""
+----
+
+`""` and whitespace-only (`"   "`) are equally blank. A key with no value
+after it is not blank but null, and fails validation at boot; deleting the
+key is not blank either, because its default in code is
+`nebula-terraform-state`, which leaves
+xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
+on. What blanking it means:
+
+* No state bucket or container is created at boot.
+* *No `backend_override.tf` is written.* Each workspace keeps the backend
+  its own committed configuration declares.
+* *Every repository Nebula operates on must declare a working remote
+  backend* — `azurerm`, `s3`, `gcs`, or any other the engine supports.
+  With *no* backend block the engine falls back to local state, lost with
+  the workspace, so the next session plans against nothing.
+* The engine resolves that backend with the *IaC sidecar's* credentials —
+  a second grant alongside the provider credentials (see
+  xref:main:guides/state-backends/nebula-managed.adoc#two-credential-grants[Two
+  sets of credentials on the sidecar]).
+
+A typical repository therefore carries its own backend block, which
+Nebula reads and leaves alone:
+
+[source,hcl]
+----
+terraform {
+  backend "s3" {
+    bucket       = "acme-team-tfstate"
+    key          = "envs/prod/terraform.tfstate"
+    region       = "eu-west-1"
+    use_lockfile = true
+  }
+}
+----
+
+Nothing here is Nebula-specific: the same backend serves your CI and your
+engineers' laptops, which is the main reason to prefer this model when
+the repositories already have one.
+
+`services/iac/.env` must then satisfy the two separate credential grants
+described in
+xref:main:guides/state-backends/nebula-managed.adoc#two-credential-grants[Two
+sets of credentials on the sidecar] — a setup that only covers the
+provider credentials fails at `init`, before a single resource is
+planned. Nebula-managed state
+(xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed
+state]) can spare you the second grant: Nebula writes the backend itself,
+and where the rendered block embeds static keys — the `RUSTFS` case, and
+`S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the sidecar needs
+nothing for state. Where it does not embed them, the sidecar still has to
+resolve them; see
+xref:main:guides/state-backends/nebula-managed.adoc#credentials-required[Credentials
+required].
