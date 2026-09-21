@@ -24,7 +24,6 @@ path = [
     "**/*.webm",
     "**/*.ico",
     "**/*.webmanifest",
-    "docs/diagrams/*.html",
     "**/mockServiceWorker.js",
 ]
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"

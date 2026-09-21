@@ -26,10 +26,9 @@ from src.shared.constants import (
 class TerraformApplyHandler:
     """Apply the session's pinned plan — nothing more.
 
-    The plan was validated and reviewed by the generate round that
+    The plan was validated and reviewed by the generate/drift round that
     pinned its workspace; this handler executes exactly that artifact.
-    Only a new generate round can produce the next appliable plan —
-    drift rounds never pin one.
+    Only a new generate/drift round can produce the next appliable plan.
     """
 
     def __init__(
@@ -68,7 +67,7 @@ class TerraformApplyHandler:
                 if self.__workspace_svc.pinned_plan_path(ctx.id) is None:
                     raise TerraformValidationFailedError(
                         message="No reviewed plan is pinned for this session; "
-                        + "run a generate round before applying.",
+                        + "run a generate or drift round before applying.",
                         error_code=409,
                     )
                 apply_result = await self.__terraform_svc.apply()

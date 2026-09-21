@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nebula request flow · Phases 1-4 — request, identity, session, filter, compose",
+    "output": "flow-phases-1-4.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "column_fit": "spread",
+    "viewBox": [
+      1700,
+      812
+    ]
+  },
+  "participants": [
+    {
+      "id": "u",
+      "type": "external",
+      "label": "User / reviewer"
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Web UI + Core API"
+    },
+    {
+      "id": "ct",
+      "type": "security",
+      "label": "Control gates"
+    },
+    {
+      "id": "ag",
+      "type": "backend",
+      "label": "LLM agents"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "core-db"
+    },
+    {
+      "id": "ex",
+      "type": "cloud",
+      "label": "External"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 580,
+      "label": "PHASE 1-2 · Request, identity, session"
+    },
+    {
+      "from": 592,
+      "to": 760,
+      "label": "PHASE 3-4 · Filter and compose (small model)"
+    }
+  ],
+  "messages": [
+    {
+      "from": "u",
+      "to": "ui",
+      "y": 180,
+      "label": "1 · Describe infrastructure in natural language (wizard)",
+      "variant": "default"
+    },
+    {
+      "from": "ui",
+      "to": "ct",
+      "y": 222,
+      "label": "2 · Validate OIDC bearer JWT (or dev identity) · role at least developer",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "ui",
+      "y": 264,
+      "label": "3 · 401 / 403 on failure — request stops",
+      "variant": "return"
+    },
+    {
+      "from": "ui",
+      "to": "ct",
+      "y": 306,
+      "label": "4 · Cloud-project preflight (authz sidecar, disabled by default, so authorized without a call)",
+      "variant": "security"
+    },
+    {
+      "from": "ui",
+      "to": "ex",
+      "y": 348,
+      "label": "5 · git ls-remote on repository",
+      "variant": "default"
+    },
+    {
+      "from": "ex",
+      "to": "ui",
+      "y": 390,
+      "label": "6 · 400 if unreachable — request stops",
+      "variant": "return"
+    },
+    {
+      "from": "ui",
+      "to": "ct",
+      "y": 432,
+      "label": "7 · Create / resolve user-owned session · 202 + session id",
+      "variant": "default"
+    },
+    {
+      "from": "ui",
+      "to": "u",
+      "y": 474,
+      "label": "8 · SSE progress stream starts",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "db",
+      "y": 516,
+      "label": "9a · Acquire in-flight guard (PostgreSQL CAS)",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 558,
+      "label": "9b · Clone repo into ephemeral workspace · start tracing",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 600,
+      "label": "10 · Request Filter Agent — is the request acceptable? (status FILTERING)",
+      "variant": "default"
+    },
+    {
+      "from": "ag",
+      "to": "ui",
+      "y": 642,
+      "label": "11a · [not acceptable] rationale, session UNCOMPLETED",
+      "variant": "return"
+    },
+    {
+      "from": "ui",
+      "to": "u",
+      "y": 684,
+      "label": "12a · [not acceptable] reformulate the request",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 726,
+      "label": "11b · [acceptable] Prompt Compositor — pick relevant templates, conventions, guidelines (Phoenix)",
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "ct",
+      "from": 216,
+      "to": 742,
+      "type": "security"
+    },
+    {
+      "participant": "ag",
+      "from": 594,
+      "to": 742,
+      "type": "backend"
+    }
+  ]
+}

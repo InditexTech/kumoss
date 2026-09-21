@@ -27,7 +27,7 @@ Do **not** use it for shared or production environments. As shipped it has no TL
 - A personal access token for your Git provider with permission to push branches and open pull requests.
 - Cloud credentials for the cloud your OpenTofu/Terraform code targets, in **two grants**, both given to the IaC sidecar in step 6:
   - **Provider credentials** — the resources `plan` and `apply` create.
-  - **State-backend credentials** — the remote state file `init` reads and writes. This deployment assumes the default: **the repository you point Nebula at declares its own backend** (`terraform { backend ... }`), so this grant must reach the bucket or container that block names. If you would rather have Nebula keep state for you, or supply the backend some other way, see [state backends](terraform-state-backends.md).
+  - **State-backend credentials** — the remote state file `init` reads and writes. This deployment assumes the default: **Nebula manages state itself** in the bundled RustFS store, so this grant is the object-storage credentials already set up in step 5. If you instead point `storage.terraform_state_bucket` to `""` so that the repository you point Nebula at declares its own backend (`terraform { backend ... }`), this grant must reach the bucket or container that block names. See [state backends](terraform-state-backends.md).
 
 Git and Docker are the only things you install on the host. Everything the first build installs — OpenTofu and Terraform — goes into the `iac` container image, and the web application is compiled inside the `proxy` image.
 
@@ -64,10 +64,10 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 | `services.notifications.enabled` | Optional | Set to `true` only when you complete step 7. |
 | `oidc.issuer_url`, `oidc.client_id` | Optional | Leave blank to keep authentication disabled on a trusted workstation. Fill them to test a real login flow; see [OIDC setup](oidc-setup.md). |
 | `storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins` | Leave as shipped | They already point at the bundled containers (`object-storage:9000`, `phoenix:6006`, `redis:6379`, `core-db`, origin `http://localhost`). Change them only if the defaults are unsuitable, for example when the browser reaches the host under another name (then update `storage.public_endpoint_url` and `http.cors_origins`). |
-| `storage.terraform_state_bucket` | Leave as shipped (blank) | Blank means state lives in the backend your repository declares, which is what this guide assumes. Set a bucket name only if you want Nebula to own state instead — one line on the bundled RustFS, and rebuild the core image afterwards: [state backends](terraform-state-backends.md). |
+| `storage.terraform_state_bucket` | Leave as shipped (`nebula-terraform-state`) | As shipped, Nebula owns state on the bundled RustFS, which is what this guide assumes. Set it to `""` only if you want each repository to declare its own backend instead, and rebuild the core image afterwards: [state backends](terraform-state-backends.md). |
 | `orchestration.*` | Leave as shipped | Iteration limits and the compliance and high-impact locks. |
 
-A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables. `storage.terraform_state_bucket` is spelled out for the same reason, in the other direction: its code default is a bucket name, so dropping the key would turn Nebula-managed state on.
+A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables. `storage.terraform_state_bucket` is spelled out for the same reason: both the shipped value and the code default are the bucket name `nebula-terraform-state`, so Nebula-managed state stays on whether the key is present or dropped — set it to `""` explicitly if you want it off.
 
 ```yaml
 environment: "development"
@@ -92,15 +92,16 @@ storage:
   provider: "RUSTFS"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
-  # Blank (as shipped): each repository declares its own backend.
-  # Keep the key — deleting it turns Nebula-managed state on.
-  terraform_state_bucket:
+  # As shipped: Nebula manages state itself. Set to "" (not a bare
+  # key, which fails at boot) to have each repository declare its
+  # own backend instead.
+  terraform_state_bucket: "nebula-terraform-state"
 
 git:
   provider: "GITHUB"
 ```
 
-Note that the three optional sidecars default to `enabled: false`, `endpoint: ""`, and `token_env: ""`, while `services.iac` has no such flag: it is always called, and its `endpoint` and `token_env` default in code to `http://iac:8082` and `NEBULA_IAC_TOKEN`. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file, and `storage.terraform_state_bucket` defaults to `nebula-terraform-state` in code and ships blank.
+Note that the three optional sidecars default to `enabled: false`, `endpoint: ""`, and `token_env: ""`, while `services.iac` has no such flag: it is always called, and its `endpoint` and `token_env` default in code to `http://iac:8082` and `NEBULA_IAC_TOKEN`. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file, and `storage.terraform_state_bucket` defaults to `nebula-terraform-state` in code and ships set to that same value.
 
 ## 5. Configure `core/.env`
 
@@ -112,7 +113,7 @@ Every variable is documented in [Environment variables and secrets](environment-
 | `NEBULA_IAC_TOKEN` | **Mandatory, non-empty** | Bearer token the core sends to the IaC sidecar. Must equal the value in `services/iac/.env`. An empty value aborts the boot. |
 | `GIT_USER`, `GIT_TOKEN` | Mandatory for pushes and pull requests | Account and personal access token at the provider in `git.provider`. When either is empty the core boots with a warning and pushes fail later. |
 | `NEBULA_SQL_DATABASE_URL` | Mandatory (keep the sample value) | The sample `postgresql://postgres:postgres@core-db:5432/nebula` matches the bundled `core-db` container. |
-| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Keep the sample values | `rustfsadmin` / `rustfsadmin` match the bundled `object-storage` container. They serve the artifacts bucket (and the state bucket too, if you switch state to Nebula). Change both here and in `docker-compose.yml` together, or not at all. |
+| `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY` | Keep the sample values | `rustfsadmin` / `rustfsadmin` match the bundled `object-storage` container. They serve the artifacts bucket and, as shipped, the Nebula-managed state bucket too. Change both here and in `docker-compose.yml` together, or not at all. |
 | `NEBULA_NOTIFICATIONS_TOKEN` | Only when notifications are enabled | Must equal the value in `services/notifications/.env`. |
 | `NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN` | Ignored while those sidecars are disabled | The sample placeholders can stay. |
 
@@ -142,9 +143,9 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 |---|---|---|
 | `NEBULA_IAC_TOKEN` | **Must match `core/.env`** | The sidecar checks the bearer on every `/v1/*` call when this is set; a mismatch returns `401` to the core and every session fails at validation. See the note on blank values below. |
 | `IAC_BINARY` | Optional, default `tofu` | `IAC_BINARY=tofu` (the bundled default) runs OpenTofu 1.12.6 (MPL-2.0). `IAC_BINARY=terraform` selects the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed; selecting it makes your use subject to that license. The service refuses to start if the binary cannot be found. |
-| `IAC_BACKEND_CONFIG` | Leave unset | Only for deployments that supply the backend's *values* from a file mounted in this container instead of the repository's own block: [state backends](terraform-state-backends.md#model-3--sidecar-supplied-backend-configuration). |
+| `IAC_BACKEND_CONFIG` | Leave unset | Only for deployments that supply the backend's *values* from a file, either mounted in this container or carried by the target repository, instead of the repository's own backend block: [state backends](terraform-state-backends.md#model-3--sidecar-supplied-backend-configuration). |
 | **Provider credentials** | Mandatory for `plan` and `apply` | The variables your Terraform providers read: `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) lists the minimum set per cloud and authentication method. |
-| **State-backend credentials** | Mandatory for `init` | Access to the state store your repository's `terraform { backend ... }` block names — see *Backend minimums* in [`PROVIDERS.md`](../services/iac/PROVIDERS.md) and [Two sets of credentials on the sidecar](terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar). |
+| **State-backend credentials** | Mandatory for `init` | As shipped, Nebula manages state itself, so this is the `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` already set in step 5 — nothing extra to add here. If you set `storage.terraform_state_bucket` to `""` so the repository declares its own backend instead, this becomes access to the state store that repository's `terraform { backend ... }` block names — see *Backend minimums* in [`PROVIDERS.md`](../services/iac/PROVIDERS.md) and [Two sets of credentials on the sidecar](terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar). |
 
 Missing or invalid cloud credentials do **not** stop the container. The engine runs anyway, and its own authentication error appears in the session as a failed `init` (state backend) or `plan`/`apply` (providers).
 
@@ -279,7 +280,7 @@ This keeps the named volumes (databases, artifacts, workspaces), so sessions and
 docker compose down -v         # stop and delete all volumes
 ```
 
-**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix and any in-progress workspaces**. Terraform state is untouched: it lives in the backend your repository declares.
+**Deleting the volumes removes the session database, the artifacts, the Phoenix traces and the prompts you edited in Phoenix and any in-progress workspaces** — and, as shipped, the Terraform state too, since Nebula manages it in that same object-storage volume by default. State is untouched only if you set `storage.terraform_state_bucket` to `""` so that each repository declares its own backend instead.
 
 ## 12. Troubleshooting
 
@@ -296,8 +297,8 @@ docker compose down -v         # stop and delete all volumes
 - **Push or pull-request creation fails.** Check `GIT_USER`, `GIT_TOKEN`, that `git.provider` matches the repository host, and the token's permissions.
 - **A session aborts with `Prompt not found: <name>`.** The prompt is missing in Phoenix or has no version tagged with the `environment` value. See [Phoenix prompt templates](phoenix-prompt-templates.md).
 - **The browser cannot download an artifact.** Port 9000 must be reachable from the browser under the host in `storage.public_endpoint_url` (`http://localhost:9000` by default).
-- **`init` fails on the state backend, or every plan wants to recreate existing resources.** By default the backend is the repository's own: one that declares a backend needs that backend's credentials in `services/iac/.env`, and one that declares none plans against local state that dies with the workspace. Other causes, and the Nebula-managed case, are in [Troubleshooting state backends](terraform-state-backends.md#troubleshooting).
-- **`iac` container exits with `IAC_BACKEND_CONFIG points at ...`.** Unset the variable, or mount the file at that path inside the container and make it readable by uid `10001`.
+- **`init` fails on the state backend, or every plan wants to recreate existing resources.** As shipped, Nebula manages state itself, so check the `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` credentials first. If you set `storage.terraform_state_bucket` to `""`, the backend is the repository's own instead: one that declares a backend needs that backend's credentials in `services/iac/.env`, and one that declares none plans against local state that dies with the workspace. Other causes are in [Troubleshooting state backends](terraform-state-backends.md#troubleshooting).
+- **`init` fails on a missing backend configuration file.** `IAC_BACKEND_CONFIG` is not checked at startup, so the sidecar boots normally and a wrong path only appears in the failing job's stderr. Mount the file at that path inside the container and make it readable by uid `10001`, or unset the variable.
 - **`core` exited on first boot before `core-db`, `redis`, or `object-storage` were ready.** The compose file has no healthchecks and no restart policy on `core`, so a startup race leaves it stopped rather than retrying. Run `docker compose up -d core` again.
 - **RustFS console.** The bundled object storage exposes a web console on <http://localhost:9000> using the compose credentials (`rustfsadmin` / `rustfsadmin`). This is fine on a trusted workstation only — never expose it beyond one.
 

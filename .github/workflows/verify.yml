@@ -65,7 +65,7 @@ jobs:
 
       - name: Tests (DB-free suites)
         run: >
-          uv run --with pytest --with pytest-asyncio python -m pytest --asyncio-mode=auto
+          uv run --frozen --with pytest --with pytest-asyncio python -m pytest --asyncio-mode=auto
           tests/shared tests/infrastructure/auth tests/infrastructure/llm
           tests/infrastructure/telemetry tests/infrastructure/templates
 

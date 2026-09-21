@@ -9,9 +9,8 @@ info:
   version: "1.0.0"
   summary: Run individual terraform operations as asynchronous jobs against a checked-out workspace.
   description: |
-    The IaC service is a raw executor for a Terraform-compatible engine
-    CLI. Each POST endpoint enqueues a **job** that runs exactly one
-    engine command
+    The IaC service is a raw executor for the Terraform CLI. Each POST
+    endpoint enqueues a **job** that runs exactly one terraform command
     (`init`, `validate`, `plan`, `show`, `apply`, or `import`) against
     the workspace at `workspace_path` and returns `202 Accepted` with a
     job id immediately. Clients fetch progress and results by polling
@@ -100,30 +99,23 @@ info:
       verbatim — including provider authentication errors. Failures
       of the underlying cloud query in a discovery job ride this same
       plane.
-    * **Service-level faults** (unexpected errors, shutdown, and — in
-      an implementation that enforces one — a subprocess timeout) end
-      the job as `failed` with a `Problem` document in `error`; the
-      embedded `status` is the HTTP status code an equivalent
-      synchronous API would have returned. An implementation MAY bound
-      how long one engine command may run; the reference
-      implementation has no engine timeout, so a hung command occupies
-      its workspace queue until the process exits.
+    * **Service-level faults** (subprocess timeout, unexpected errors,
+      shutdown) end the job as `failed` with a `Problem` document in
+      `error`; the embedded `status` is the HTTP status code an
+      equivalent synchronous API would have returned.
 
     Errors detectable at submission time (missing/invalid token,
-    malformed body, missing workspace, missing engine binary) are
+    malformed body, missing workspace, missing terraform binary) are
     still reported synchronously on the POST.
 
     Polling an expired or unknown job returns 404. The OSS reference impl keeps jobs in
     memory, so a restart also loses them — clients MUST treat an
     unexpected 404 as job loss and resubmit if needed.
 
-    The OSS reference implementation under `services/iac/` runs the
-    configured engine binary (`IAC_BINARY`, OpenTofu by default)
-    directly via subprocess and operates on a docker-compose shared
-    volume mounted into both the core and the IaC service. It bundles no
-    cloud CLIs — an implementation MAY shell out to `az`, `gcloud` or
-    `aws` to serve the discovery operations, but the reference one does
-    not. Enterprise implementations may instead run the commands through
+    The OSS reference implementation under `services/iac/` runs
+    `terraform` directly via subprocess and operates on a docker-compose
+    shared volume mounted into both the core and the IaC service.
+    Enterprise implementations may instead run the commands through
     internal pipelines, against centrally-managed state backends, or with
     stricter cost / policy gates — same contract, different mechanics.
 
@@ -160,12 +152,11 @@ tags:
     description: |
       Import existing cloud resources into Terraform state, and
       discover importable resource IDs (from the state or from a cloud
-      scope). The bundled reference implementation answers 501 Not
-      Implemented on the three `/v1/import*` operations.
+      scope).
   - name: jobs
     description: Poll asynchronous job status and results.
   - name: ops
-    description: Operational endpoints (liveness, `/healthz`).
+    description: Operational endpoints (liveness, readiness).
 
 paths:
   /v1/init:
@@ -1339,10 +1330,10 @@ components:
           description: |
             Non-null iff `status` is `failed`. The embedded `status`
             member is the HTTP status code an equivalent synchronous
+
             API would have returned (e.g. 500 unexpected execution
-            failure, 504 engine timeout if the implementation enforces
-            one — the reference implementation has no engine timeout —
-            503 shut down before completion).
+            failure, 504 subprocess timeout, 503 shut down before
+            completion).
           oneOf:
             - $ref: "#/components/schemas/Problem"
             - type: "null"

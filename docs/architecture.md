@@ -24,9 +24,9 @@ Related guides: [getting-started-local.md](getting-started-local.md) and [gettin
 
 ![Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network](images/system-architecture.png)
 
-The image is a static export of an interactive diagram. Open [`diagrams/system-architecture.html`](diagrams/system-architecture.html) in a browser (GitHub shows the HTML source; download the file or open it from a clone) for pan, zoom, search, relationship tracing, a dark theme and truthful SVG/PNG export; its source of truth is the typed specification [`diagrams/system-architecture.architecture.json`](diagrams/system-architecture.architecture.json), which regenerates the HTML.
+The image is a static export. Its source of truth is the typed specification [`diagrams/system-architecture.architecture.json`](diagrams/system-architecture.architecture.json).
 
-Dashed edges are wiring that exists in code but is not exercised by the checked-in `config.yaml`: the identity provider is contacted only once `oidc.issuer_url` is set. The diagram deliberately condenses detail that the rest of this document expands — the four sidecars share one node (`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`), the core appears as its API layer plus a single "application and adapters" node covering the application, domain and infrastructure layers, and Redis 8, the `workspaces` volume, `phoenix-db`, the Slack webhook and the alternative S3 / Azure Storage Account backends are carried in the notes beside it rather than drawn as nodes. Phoenix is reachable through the proxy at `/monitoring/`, artifacts land in the `nebula-artifacts` bucket, and the shipped `config.yaml` routes model calls to Vertex AI through LiteLLM.
+Dashed edges are wiring that exists in code but is not exercised by the checked-in `config.yaml`: the identity provider is contacted only once `oidc.issuer_url` is set. The diagram deliberately condenses detail that the rest of this document expands — the four sidecars share one node (`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`), the core appears as its API layer plus a single "application and adapters" node covering the application, domain and infrastructure layers, and Redis 8, the `workspaces` volume, `phoenix-db`, notification webhook and object storage backends are carried in the notes beside it rather than drawn as nodes. Phoenix is reachable through the proxy at `/monitoring/`, artifacts land in the `nebula-artifacts` bucket, and the shipped `config.yaml` routes model calls through LiteLLM.
 
 ## Component Responsibilities
 
@@ -45,7 +45,7 @@ Dashed edges are wiring that exists in code but is not exercised by the checked-
 | OpenAPI contracts (`contracts/openapi`) | Source of truth for the four sidecar APIs; generated httpx clients in `core/src/clients`; Schemathesis conformance suites | Contracts → generated clients → sidecars |
 | core-db (PostgreSQL 17) | System of record, twelve tables (`core/src/infrastructure/database/models.py:57-297`): `users`, `sessions`, `workspaces`, `terraform_providers`, `pull_requests`, `histories`, `statuses`, `rounds`, `artifacts`, `terraform_plans`, `reports`, `code_changes` | Core via asyncpg |
 | Redis 8 | Fail-open read-through/write-through cache (session facts, last status, finished-session aggregates); no pub/sub, no locks | Core only |
-| object-storage (RustFS, Apache-2.0) | **Default, bundled** artifact store (`nebula-artifacts`): reports, plans, drift JSON, code changes; browser access via presigned URLs. Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob Storage through a storage account (`STORAGE_ACCOUNT`), or any other S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Can also hold Terraform/OpenTofu state, in the **separate** bucket named by `storage.terraform_state_bucket` — opt-in, blank as shipped | Core (SDK) and browser (via Nginx :9000) for artifacts; iac sidecar (engine backend) for state |
+| object-storage (RustFS, Apache-2.0) | **Default, bundled** artifact store (`nebula-artifacts`): reports, plans, drift JSON, code changes; browser access via presigned URLs. Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob Storage through a storage account (`STORAGE_ACCOUNT`), or any other S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Also holds Terraform/OpenTofu state, in the **separate** bucket named by `storage.terraform_state_bucket` — on by default as shipped | Core (SDK) and browser (via Nginx :9000) for artifacts; iac sidecar (engine backend) for state |
 | `workspaces` volume | Per-run git clones under `/workspaces/<session>/<call>`. A failed or uncompleted run's directory is removed in a `finally` block, but a successful generate round *renames* its directory to `/workspaces/<session>/pinned`, which persists on the volume until apply discards it or the next generate round replaces it | Mounted by core and iac |
 | Phoenix + phoenix-db | OpenTelemetry trace collector/UI and prompt registry; prompts seeded at core boot from `core/prompts/seed` | Core via OTLP/HTTP and Prompts API |
 | OIDC identity provider | Authenticates users and issues the JWT access tokens the core validates; any spec-faithful provider with discovery, JWKS and JWT access tokens (Entra ID, Keycloak, Auth0 and Okta are documented) | Browser (login) and core (discovery + JWKS); configured in `config.yaml` `oidc` |
@@ -54,13 +54,17 @@ Dashed edges are wiring that exists in code but is not exercised by the checked-
 
 ## End-to-End Flow: From Request to Applied Infrastructure
 
-The sequence below follows one generate session from the moment a user types a request until the reviewed plan is applied. It is a swimlane view with five lanes, left to right: the **user or human reviewer**, the **Nebula web UI and core API**, the **Nebula LLM agents** (each a prompt-driven agent loop), the **deterministic services and control gates** (database, guards, validators, locks: code, not models), and the **external systems** (Git hosting, the IaC engine in the iac sidecar, object storage, Slack, the cloud). Every step that changes state or blocks progress sits in the deterministic lane on purpose: models propose, code decides.
+The sequence below follows one generate session from the moment a user types a request until the reviewed plan is applied. It is split into five sequence diagrams, one per group of phases, placed against the subsections that explain them. All five draw on the same cast of participants, left to right: the **user or human reviewer**, the **Nebula web UI and core API**, the **control gates** (guards, validators, locks, the compliance verdict: code, not models), the **Nebula LLM agents** (each a prompt-driven agent loop), **core-db** (the PostgreSQL rows the gates read and write), and the **external systems** (Git hosting, the IaC engine in the iac sidecar, object storage, Slack, the cloud). Each diagram shows only the participants its own phases use. Every step that changes state or blocks progress belongs to the control gates on purpose: models propose, code decides.
 
-![Swimlane sequence of a Nebula session, from request to applied infrastructure](images/swimlane-sequence.png)
+Messages are numbered **1 to 48 continuously across the five diagrams**, so the numbering never restarts; the phase numbering matches the subsections below, which explain each phase with the implementation details behind the arrows. Operating modes other than generate are described in [modes.md](modes.md).
 
-The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-sequence.mmd). The phases are numbered as in the diagram; the paragraphs below explain each one with the implementation details behind the arrows. Operating modes other than generate are described in [modes.md](modes.md).
+The editable sources are the Archify sequence specifications in [`diagrams/`](diagrams/) (`flow-phases-1-4`, `flow-phases-5-6`, `flow-phases-7-8`, `flow-phase-9`, `flow-phase-10`, each a `*.sequence.json`). Each renders to a self-contained interactive HTML page — not committed, it is a build output — which is exported to the PNG embedded below. The PNG is what this page shows, so changing a specification means re-exporting its PNG too.
 
 ### Phases 1 and 2: request, identity, session
+
+![Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose](images/flow-phases-1-4.png)
+
+*Messages 1 to 12. This diagram also covers phases 3 and 4, in the next subsection.*
 
 1. **The user describes the infrastructure** in the wizard: repository URL, target cloud, scope id, optional IaC path, and the request text. The IaC path is chosen from the Terraform roots that `POST /api/v1/repository/parse` detected from a metadata-only clone (`IacRootDetector`, a `git ls-tree` heuristic over `.tf` directories; rules in [Operating modes](modes.md#how-nebula-finds-terraform-roots)). The UI calls `POST /api/v1/iac/generate` with a bearer token.
 2. **Identity and role check.** The `get_current_user` dependency validates the OIDC JWT against the issuer's JWKS, or resolves the fixed local-developer identity when `oidc.issuer_url` is blank. `require_operation_role(developer)` then checks the operation role. A missing or invalid token answers `401`; an insufficient role answers `403`. Nothing else runs until this passes.
@@ -77,11 +81,15 @@ The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-
 
 ### Phase 5: generate, validate, correct (at most 5 iterations)
 
+![Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check](images/flow-phases-5-6.png)
+
+*Messages 13 to 24. This diagram also covers phase 6, in the next subsection.*
+
 10. **Infrastructure Generation Agent** (status `generating`). The main model edits Terraform files in the workspace through the tool registry (read, write, list, ripgrep search, web search), bounded by `orchestration.max_tool_chain_executions` (70) tool calls and terminated by the sentinel `task_complete` tool.
 11. **Persist and push.** Every changed or new file is uploaded as a code-change artifact and committed and pushed to the session branch, so the work is durable before validation starts.
 12. **Session Target Generator.** The main model derives the `-target` list for this round from the branch's diff history, so the plan covers what the round changed rather than the whole root module.
 13. **Validation** (status `validating`). The core submits `init` (cached: run once per `Terraform` instance, so once per round, and re-run only when the engine's own output asks for `terraform init` — `core/src/infrastructure/terraform/terraform.py:245-302`), `validate`, and `plan -out session.plan -target ...` as asynchronous jobs to the iac sidecar, polling each every `services.iac.job_poll_interval` seconds within `services.iac.job_timeout`. The engine (OpenTofu by default) runs against the shared workspace with the cloud credentials of `services/iac/.env`.
-14. **Correct or fail.** Engine errors are fed back to the generation agent as the next query, and steps 10 to 13 repeat. After `orchestration.max_validation_iteration` (5) failures `generate_and_validate` raises `ValidationLoopExceededError` (`422`, `core/src/domains/services/terraform_validation_service.py:160-163`); the runner catches it, marks the session `FAILED` with `runner failed: Validation loop exceeded.` and fires a `system.exception.failure` notification (`core/src/api/v1/terraform.py:112-118`). No LLM problem summary is produced — the `summarize_problem` path in `terraform_crud_handler.py` is unreachable. The branch keeps the last pushed attempt, and because `FAILED` is terminal for the **session**, not just the round, that session can never be resumed: `acquire_in_flight` refuses any session whose latest status is `FAILED` (`database_service.py:105-108,952-958`). Only a new session can carry the work forward.
+14. **Correct or fail.** Engine errors are fed back to the generation agent as the next query, and steps 10 to 13 repeat. After `orchestration.max_validation_iteration` (5) failures `generate_and_validate` raises `ValidationLoopExceededError` (`422`, `core/src/domains/services/terraform_validation_service.py:159-162`); the runner catches it, marks the session `FAILED` with `runner failed: Validation loop exceeded.` and fires a `system.exception.failure` notification (`core/src/api/v1/terraform.py:112-118`). No LLM problem summary is produced — the `summarize_problem` path in `terraform_crud_handler.py` is unreachable. The branch keeps the last pushed attempt, and because `FAILED` is terminal for the **session**, not just the round, that session can never be resumed: `acquire_in_flight` refuses any session whose latest status is `FAILED` (`database_service.py:105-108,952-958`). Only a new session can carry the work forward.
 
 ### Phase 6: implicit drift pre-check on the validated targets (at most 2 rounds)
 
@@ -90,6 +98,10 @@ The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-
 17. **Decide.** If genuine drift remains, it re-enters the generation loop in batches of `orchestration.drift_group_operations` (8) with the forbidden-actions block omitted, and the pre-check runs once more — on the ref the last reconciliation round produced, again without planning twice. If only the session's own changes remain, or the plan is clean, the pre-check stops and the last plan is final.
 
 ### Phase 7: report and artifacts
+
+![Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit](images/flow-phases-7-8.png)
+
+*Messages 25 to 33. This diagram also covers phase 8, in the next subsection.*
 
 18. **Report Generator** (status `report`). The main model turns the final plan into a JSON report: create, update, delete, and recreate counts, detailed changes, an impact banner (`low`, `medium`, `high`) assigned with the `general-compliance-impact` criteria, and cost estimates.
 19. **Artifacts.** Report, plans, drift JSON, and code changes are stored in object storage under `sessions/<session>/rounds/<round>/`, where `<round>` is the round's **database primary key**, not its ordinal in the session. The three key patterns are `reports/<report type>-<token>.json`, `plans/{plan|drift}-<token>.txt`, and `changes/<token>-<sanitized file name>` (`core/src/domains/services/artifact_storage_service.py:73-76,113-116,153-156`). Metadata is written to PostgreSQL, and the UI receives presigned URLs signed against the public port-9000 endpoint.
@@ -102,10 +114,18 @@ The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-
 
 ### Phase 9: optional pull request and human review
 
+![Nebula request flow, phase 9: optional pull request and human review](images/flow-phase-9.png)
+
+*Messages 34 to 39.*
+
 23. **Pull request on demand.** `PUT /api/v1/repository/pr` (owner, `developer`) has the PR Title and Description Agent (small model) draft the text, then the Git provider adapter (GitHub, Azure DevOps, or GitLab REST API) opens the pull request from the session branch. Reviewers see the code, the plan, the drift and compliance reports, the cost estimate, and their own CI.
 24. **Review outcomes.** Requested changes become a new request in the same session (back to phase 3, a new round on the same branch) — possible while the session is `COMPLETED` or `UNCOMPLETED`, never after a `FAILED` round, which closes the session for good. Approval leads to `PUT /api/v1/repository/pr/merge`, which merges into the default branch unless the session is locked (`409`). A rejected or closed pull request simply ends delivery; the session history and artifacts are kept.
 
 ### Phase 10: human-triggered apply (never automatic)
+
+![Nebula request flow, phase 10: human-triggered apply, never automatic](images/flow-phase-10.png)
+
+*Messages 40 to 48.*
 
 25. **Explicit human action.** `POST /api/v1/iac/apply` with the session id. Nothing in the pipeline applies on its own; in the UI this is the "Approve PR and Apply" button after a merge or the Import Infrastructure mode on an existing session.
 26. **Gates.** Before answering, the route requires a valid identity, the `developer` role, session ownership, and a session that is not locked (`409 Session ... is blocked`); it then answers `202`. That `409` is the only one a client sees. In the background the runner needs a free in-flight guard (otherwise it logs and exits without changing the session), and the handler needs a pinned plan: without one it raises `No reviewed plan is pinned for this session; run a generate round before applying.`, so the runner marks the session `FAILED`, sends `system.exception.failure`, and the session — being `FAILED` — can no longer be resumed. A drift-only session is exactly that case, because drift rounds never pin.
@@ -113,33 +133,34 @@ The editable Mermaid source is [`images/swimlane-sequence.mmd`](images/swimlane-
 28. **Outcome.** On success the Report Generator writes an `apply` report and the session completes; the cloud is in the requested state. A non-zero exit from the engine is **not** an exception: `Terraform.apply()` returns a `TerraformApplyDTO` with `ok=False` (`core/src/infrastructure/terraform/terraform.py`), the handler still writes an `apply` report, sends the `iac.apply.failure` notification and returns normally (`core/src/application/use_cases/terraform_apply_handler.py:73-86`), so the runner marks the session `COMPLETED` — the session completes with an apply report whose status is `Failed`. There is no retry; a new generate round is needed to produce a new plan.
 29. **Cleanup** (always). The pinned plan is discarded, the run directory is removed from the volume, and the in-flight guard is released in a `finally` block.
 
-### Reading the swimlane: legend
+### Reading the diagrams: legend
 
-The diagram is a Mermaid sequence diagram rendered from [`images/swimlane-sequence.mmd`](images/swimlane-sequence.mmd). Its conventions:
+Each diagram is an Archify sequence diagram: participants across the top, time running downwards, one arrow per message. Its conventions:
+
+**Participants** (the boxes at the top; each diagram shows only the ones its phases use)
+
+| Participant | Meaning |
+|---|---|
+| **User / reviewer** (grey) | Human actor. Only a human starts a request, creates or merges a pull request, or applies. |
+| **Web UI + Core API** (blue) | The React application and the FastAPI routers: authentication dependency, `202` answers, SSE stream, presigned URLs. |
+| **Control gates** (red) | Application code with no model judgment: session and lock handling, the in-flight guard, git operations, drift calculation, the compliance verdict, artifact storage. Every state change and every blocking decision happens here. |
+| **LLM agents** (green) | Prompt-driven agent loops. Each message into this participant names the agent and its model role (`main` = `llm.model`, `small` = `llm.small_model`); see the [agent catalogue](#agent-catalogue). |
+| **core-db** (purple) | The PostgreSQL rows the gates read and write: the session, its status, the in-flight guard, `is_blocked`, artifact metadata. Drawn as its own participant so that every state change is a visible message rather than an invisible side effect. |
+| **External** (amber) | Systems outside the core: Git hosting, the IaC engine in the iac sidecar, object storage, Slack through the notifications sidecar, and the cloud platform. |
+
+**Arrows and bands**
 
 | Element | Meaning |
 |---|---|
-| 👤 **User / Human Reviewer** (leftmost lane) | Human actor. Only humans start a request, create or merge a pull request, or apply. |
-| 🖥️ **Nebula Web UI + Core API** lane | The React application and the FastAPI routers: authentication dependency, `202` answers, SSE stream, presigned URLs. |
-| 🤖 **Nebula LLM Agents** lane | Prompt-driven agent loops. Each message into this lane names the agent and its model role (`main` = `llm.model`, `small` = `llm.small_model`); see the [agent catalogue](#agent-catalogue). |
-| ⚙️🔒 **Deterministic Services + Control Gates** lane | Application code with no model judgment: session and lock handling, in-flight guard, git operations, drift calculation, compliance verdict, artifact storage. Every state change and every blocking decision happens here. |
-| 🌐 **External** lane | Systems outside the core: Git hosting, the IaC engine in the iac sidecar, object storage, Slack through the notifications sidecar, and the cloud platform. |
-| Coloured band with a `PHASE n` note | One phase of the flow; the numbering matches the subsections above. Blue: request and session; purple: small-model filtering and composition; green: generation, report, and apply; amber: drift pre-check and compliance audit; grey: optional pull request. |
-| Solid arrow `→` | A call or hand-over in the direction of the arrow (a request, a command submitted, files handed to the next step). |
-| Dashed arrow `-->` | A result or answer flowing back: engine output, structured findings, an HTTP status, a message shown to the user. |
-| Open-headed arrow to the External lane (`-)`) | A **fire-and-forget** notification to the notifications sidecar. It never fails the pipeline. |
-| Self-arrow on a lane | Work that stays inside that lane, for example the compliance verdict computed in code or the final cleanup. |
-| `loop`, `alt`, `opt` frames | A bounded loop with its configured ceiling in the label, a branch with its conditions, or an optional part of the flow. |
-| Sequence numbers | Message order within the diagram. They do not correspond one-to-one with the numbered steps in the subsections above, which group several messages per step. |
-| ⛔ | A refusal before any work starts (`401`, `403`, `400`, `409`). |
-| 🔒 | A control gate whose outcome is computed by code and can block progress (the compliance verdict, the apply preconditions). |
-| 🔁 | Re-entry into an earlier step, always bounded by a configured maximum. |
-| 🔔 | Notification to Slack when the notifications sidecar is enabled. |
-| 🟩 | Successful end state. |
-| 🟥 | Rejection, blocked, or failure end state. |
-| 🟧 | State that waits for the human to reformulate, or a bounded loop that stopped without converging. |
-| 🟨 | State that waits for a human review. |
-| ☁️ | The cloud platform reaching the requested state. |
+| Solid grey arrow (`default message`) | A call or hand-over in the direction of the arrow: a request, a command submitted, files handed to the next step. |
+| Dashed grey arrow (`return`) | A result or answer flowing back: engine output, structured findings, an HTTP status, a message shown to the user. |
+| Dashed crimson arrow (`security`) | A gate or a state change with authority over the flow: identity and role checks, refusals, the compliance verdict, the lock flag, the in-flight guard, cleanup. |
+| Dashed purple arrow (`async trace`) | A **fire-and-forget** notification to the notifications sidecar. It never fails the pipeline. |
+| Vertical bar on a participant's lifeline | An activation: that participant is busy for the span the bar covers. |
+| Dashed band labelled `PHASE n · …` | One phase of the flow; the numbering matches the subsections above. The band label also carries the facts that have no arrow of their own, such as the conditions under which a bounded loop stops. |
+| Message numbers | Numbered **1 to 48 continuously across the five diagrams**. They do not correspond one-to-one with the numbered steps in the subsections above, which group several messages per step. |
+| A number with an `a` / `b` / `c` suffix | **Mutually exclusive** arms of the same decision: `31a` and `31b` are the two outcomes of the compliance verdict, and only one of them happens. Each arm's messages also start with its condition in square brackets, for example `[fail]`, `[pass]`, `[approved]`. Because a sequence diagram draws messages in one column, the arms of a branch appear one after another; the shared number and the bracketed condition are what mark them as alternatives rather than consecutive steps. |
+| `[at most n …]` in a label or band | A bounded loop with its configured ceiling: 70 tool calls per generation agent, 5 validation iterations, 2 drift pre-check rounds, 8 operations per drift batch. |
 
 ### Agent catalogue
 
@@ -165,7 +186,7 @@ Nebula orchestrates these specialised agents through application code. Agents do
 
 ### Terminal states
 
-Where a generate session can end, what the database records, and where the diagram shows it.
+Where a generate session can end, what the database records, and which phase diagram shows it. In the last column 🟩 is a successful end state, 🟥 a rejection, block, or failure, 🟨 a state waiting on a human review, and 🟧 a state waiting on the human to reformulate, or a bounded loop that stopped without converging.
 
 | End state | Reached when | Session status and side effects | In the diagram |
 |---|---|---|---|
@@ -239,7 +260,7 @@ Model routing is by prompt type: generation, target calculation, and report writ
 
 ### IaC and mapping sidecars
 
-- The iac sidecar is a deliberately thin executor, shipped as a reference for non-production installation and meant to be re-implemented against the organization's own execution platform in production. Each POST enqueues exactly one engine command (OpenTofu by default) as an asynchronous job and returns a job id; the core polls it (5-second interval, 1-hour budget per job) and does all the sequencing itself, as three verbs over the plan artifact: `plan` runs `init → validate → plan -out` and returns a `PlanRef` naming what it wrote, `drift` runs `show -json` on such a ref, and `apply` runs the artifact already in the workspace. `init` is cached per `Terraform` instance, so the retry loops that plan the same workspace repeatedly initialize it once. Both containers read the same `workspaces` volume. `init` always runs `-reconfigure`, because the engine runs with `-input=false` and could not answer a "Backend configuration changed" prompt; the consequence is that a changed backend is adopted, never migrated. The sidecar owns no backend decision of its own beyond the optional `IAC_BACKEND_CONFIG` file — the backend the engine uses is whatever the workspace contains — the repository's own block by default, or the `backend_override.tf` the core writes once Nebula-managed state is enabled (see [Terraform/OpenTofu state backends](terraform-state-backends.md)).
+- The iac sidecar is a deliberately thin executor, shipped as a reference for non-production installation and meant to be re-implemented against the organization's own execution platform in production. Each POST enqueues exactly one engine command (OpenTofu by default) as an asynchronous job and returns a job id; the core polls it (5-second interval, 1-hour budget per job) and does all the sequencing itself, as three verbs over the plan artifact: `plan` runs `init → validate → plan -out` and returns a `PlanRef` naming what it wrote, `drift` runs `show -json` on such a ref, and `apply` runs the artifact already in the workspace. `init` is cached per `Terraform` instance, so the retry loops that plan the same workspace repeatedly initialize it once. Both containers read the same `workspaces` volume. `init` always runs `-reconfigure`, because the engine runs with `-input=false` and could not answer a "Backend configuration changed" prompt; the consequence is that a changed backend is adopted, never migrated. The sidecar owns no backend decision of its own beyond the optional `IAC_BACKEND_CONFIG` file — the backend the engine uses is whatever the workspace contains — the `backend_override.tf` the core writes by default, since Nebula-managed state is on as shipped, or the repository's own block if that is turned off (see [Terraform/OpenTofu state backends](terraform-state-backends.md)).
 - The mapping sidecar translates a business identifier into a repository reference; the reference implementation is an identity passthrough.
 
 ### Drift detection and remediation
@@ -323,13 +344,13 @@ Every component that runs by default in the checked-in Compose stack is open sou
 
 There is no dedicated Google Cloud Storage adapter; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. (For *state*, a first-class `gcs` backend remains available by letting the repository declare it — see below.) Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates. Field details are in [configuration.md](configuration.md#storage).
 
-**Object storage (Terraform/OpenTofu state)** is optional and off as shipped. A remote backend, however, is not optional: workspaces are ephemeral and the `.gitignore` the core seeds excludes `*.tfstate`, so local state would be lost after the run. Because `storage.terraform_state_bucket` ships blank, the default is that **each repository declares its own remote backend** — `azurerm`, `s3`, `gcs`, or anything else the engine supports — authenticated with the cloud credentials given to the IaC sidecar (see [environment-variables.md](environment-variables.md#cloud-credentials-for-the-iac-engine)). A deployment can also hand the sidecar a backend configuration file through `IAC_BACKEND_CONFIG`.
+**Object storage (Terraform/OpenTofu state)** is on by default as shipped. A remote backend, however, is not optional regardless of that setting: workspaces are ephemeral and the `.gitignore` the core seeds excludes `*.tfstate`, so local state would be lost after the run. Because `storage.terraform_state_bucket` ships set to `nebula-terraform-state`, the default is that **Nebula manages state itself**, in a second bucket in the same store kept separate from the artifacts bucket. A deployment can instead set the value to `""` so that **each repository declares its own remote backend** — `azurerm`, `s3`, `gcs`, or anything else the engine supports — authenticated with the cloud credentials given to the IaC sidecar (see [environment-variables.md](environment-variables.md#cloud-credentials-for-the-iac-engine)), or hand the sidecar a backend configuration file through `IAC_BACKEND_CONFIG` instead.
 
-Setting `storage.terraform_state_bucket` to a bucket name switches this to Nebula-managed state: a second bucket in the same store, kept separate from the artifacts bucket, which the core creates at boot and whose backend it renders into a `backend_override.tf` in the workspace before every `init` — so a repository's own backend block is overridden without editing its committed HCL, and the iac sidecar is the container that must reach the store. Blanking the value turns all of it off, but *deleting* the key does not: the `SystemConfig` default is `nebula-terraform-state`, so an absent key re-enables managed state.
+As shipped, the core creates that second bucket at boot and renders its backend into a `backend_override.tf` in the workspace before every `init` — so a repository's own backend block is overridden without editing its committed HCL, and the iac sidecar is the container that must reach the store. Setting the value to `""` turns all of that off: no bucket is created, no override is written, and the workspace falls back to whatever backend the repository's own Terraform files declare. A bare `terraform_state_bucket:` key with no value is **not** the same as `""` — it parses as YAML null and fails boot with a Pydantic validation error — and *deleting* the key entirely also leaves managed state on, since the `SystemConfig` field default is the same `nebula-terraform-state` value.
 
-The mechanics — backend type per provider, the `<project_id>/terraform.tfstate` key, locking, which credentials go where, and what is *not* migrated when you switch models — are the subject of [Terraform/OpenTofu state backends](terraform-state-backends.md#model-2--nebula-managed-state-opt-in) and are not repeated here.
+The mechanics — backend type per provider, the `<project_id>/terraform.tfstate` key, locking, which credentials go where, and what is *not* migrated when you switch models — are the subject of [Terraform/OpenTofu state backends](terraform-state-backends.md#model-2--nebula-managed-state-shipped-default) and are not repeated here.
 
-**Workspaces** (`workspaces` volume) are per-run: each run clones the repository into a unique directory shared with the iac container, and the runner removes it in a `finally` block. A *successful generate round* is the exception — it renames its directory to `/workspaces/<session>/pinned` before the cleanup runs (`core/src/infrastructure/filesystem/workspace.py:100-115`, `core/src/application/use_cases/terraform_crud_handler.py:155`), so that directory survives on the volume until apply's `discard_pinned` or the next generate round replaces it. That pinned directory keeps the initialised backend and the plan file, which is why apply executes the reviewed plan without re-running `init` ([Nebula-managed state](terraform-state-backends.md#model-2--nebula-managed-state-opt-in)). Durable outputs otherwise leave via git pushes and artifact uploads, not the volume.
+**Workspaces** (`workspaces` volume) are per-run: each run clones the repository into a unique directory shared with the iac container, and the runner removes it in a `finally` block. A *successful generate round* is the exception — it renames its directory to `/workspaces/<session>/pinned` before the cleanup runs (`core/src/infrastructure/filesystem/workspace.py:100-115`, `core/src/application/use_cases/terraform_crud_handler.py:155`), so that directory survives on the volume until apply's `discard_pinned` or the next generate round replaces it. That pinned directory keeps the initialised backend and the plan file, which is why apply executes the reviewed plan without re-running `init` ([Nebula-managed state](terraform-state-backends.md#model-2--nebula-managed-state-shipped-default)). Durable outputs otherwise leave via git pushes and artifact uploads, not the volume.
 
 **authz persistence** is a JSON file (`/data/roles.json`, container-local in the shipped Compose file; set `NEBULA_AUTHZ_ROLE_STORE` to a mounted path to keep it), rewritten atomically under a process lock. It backs the sidecar's own user/role endpoints, which the core does not call; Nebula's roles live in core-db.
 
@@ -341,7 +362,7 @@ The block diagram below shows the deployment topology: every container in the Co
 
 ![Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network](images/deployment-topology.png)
 
-The interactive version is [`diagrams/deployment-topology.html`](diagrams/deployment-topology.html) (GitHub shows the HTML source; download the file or open it from a clone), generated from [`diagrams/deployment-topology.architecture.json`](diagrams/deployment-topology.architecture.json).
+Both this image and an interactive HTML view are generated from the typed specification [`diagrams/deployment-topology.architecture.json`](diagrams/deployment-topology.architecture.json). As with the diagram above, the HTML export is not checked in.
 
 Named volumes are written into each container's subtitle instead of being drawn as separate nodes (`core_db_data`, `phoenix_db_data`, `object_storage_data` and `workspaces`), and `phoenix-db` is folded into the phoenix node, so the eleventh container of the stack is not a box of its own. Two edges are left out because the [system architecture diagram](#architecture-diagram) already carries them — the core's OTLP traces and prompt calls to Phoenix, and the proxy's port 9000 path to object storage — and the connections that leave the stack (LLM and git provider APIs from the core, the Slack webhook from notifications) appear in the notes beside the diagram rather than as external nodes.
 
@@ -371,8 +392,8 @@ The stack is designed as one core process. These are the consequences to plan fo
 - **Runs are in-process background tasks.** A core crash or restart mid-run leaves `sessions.in_flight = true` with no lease and no expiry, and the compare-and-set will refuse the session for ever (`core/src/domains/services/database_service.py:917-978`); recovery is a manual `UPDATE sessions SET in_flight = false`.
 - **The `workspaces` volume must be shared and persistent across replicas.** A pinned plan lives on disk at `/workspaces/<session>/pinned`, so an apply routed to a replica that did not run the generate round finds no pinned plan and fails the session.
 - **Only the PostgreSQL compare-and-set is replica-safe.** Redis holds no locks; its single-flight registry is an in-process `asyncio.Lock` per key (`core/src/infrastructure/redis/client.py`), so it de-duplicates cache misses within one process only.
-- **Static storage credentials are rendered in plaintext** into `backend_override.tf` on the shared volume when Nebula-managed state is used with access/secret keys or an Azure account key (`core/src/infrastructure/terraform/backend.py:91-95` for the S3 access and secret keys, `:122-123` for the Azure account key). Prefer credential chains or workload identity where the provider allows it.
-- **One Git identity for every user.** All pushes and pull requests use the single PAT in `GIT_TOKEN`, and commits are authored, by default, as `Nebula <nebula@noreply.invalid>` (`git.author_name` / `git.author_email`, `core/src/shared/config/system_config.py:312-313`, applied in `core/src/infrastructure/filesystem/git/git_credentials.py`), so repository history attributes nothing to the requesting user — the session record in core-db is the audit trail.
+- **Static storage credentials are rendered in plaintext** into `backend_override.tf` on the shared volume when Nebula-managed state is used with access/secret keys or an Azure account key (`core/src/infrastructure/terraform/backend.py:85-89` for the S3 access and secret keys, `:116-117` for the Azure account key). Prefer credential chains or workload identity where the provider allows it.
+- **One Git identity for every user.** All pushes and pull requests use the single PAT in `GIT_TOKEN`, and commits are authored, by default, as `Nebula <nebula@noreply.invalid>` (`git.author_name` / `git.author_email`, `core/src/shared/config/system_config.py:303-304`, applied in `core/src/infrastructure/filesystem/git/git_credentials.py`), so repository history attributes nothing to the requesting user — the session record in core-db is the audit trail.
 - **The artifact proxy on port 9000 answers `Access-Control-Allow-Origin: *`** (`nginx/nginx.conf:90`). Presigned URLs are the only access control on that port.
 
 ## Architectural Characteristics
@@ -380,7 +401,7 @@ The stack is designed as one core process. These are the consequences to plan fo
 - **Ports and adapters.** Domain services depend on interfaces, infrastructure adapters implement them, and a per-session `ApplicationFactory` wires the graph explicitly, so LLM providers, git hosts, Terraform execution, and storage backends are replaceable through configuration alone.
 - **Contract-first sidecars.** OpenAPI specifications are the authoritative boundary, with generated clients on one side and intentionally minimal reference implementations on the other, inviting substitution in enterprise deployments.
 - **Deliberately direct execution.** Pipelines run as in-process background tasks with a database compare-and-set as the only concurrency control; sidecar calls are synchronous HTTP with job polling rather than event-driven messaging; SSE progress derives from status polling. These are visible trade-offs, not accidents.
-- **Deep, centralised telemetry.** Model calls, tool executions, and engine runs are traced to Phoenix, which doubles as the runtime prompt registry, making prompt management an operational concern rather than a code change. No tracing decorator exports anything when the wrapped call raises: most of them build the span only *after* the call returns (`core/src/domains/services/tracer_service.py:46-56`), and the chain decorator, which does create its span first, never ends it on an exception (`tracer_service.py:71`). Failures are therefore visible in the logs and the session status, not as error spans, and the sidecars are not instrumented at all.
+- **Deep, centralised telemetry.** Model calls, tool executions, and engine runs are traced to Phoenix, which doubles as the runtime prompt registry, making prompt management an operational concern rather than a code change. No tracing decorator exports anything when the wrapped call raises: most of them build the span only *after* the call returns (`core/src/domains/services/tracer_service.py:46-56`), and the chain decorator, which does create its span first, never ends it on an exception (`tracer_service.py:74-78`). Failures are therefore visible in the logs and the session status, not as error spans, and the sidecars are not instrumented at all.
 - **LLM audits LLM, code decides.** The compliance auditor is a separate agent loop with no repository access at all — its only tool is the sentinel `report_compliance_findings` (`core/src/domains/services/compliance_check_service.py:41-51`); the pass/fail verdict is computed deterministically from the structured violations it reports, and the resulting database lock is what actually stops a non-compliant plan from being applied.
 - **Stateless, local identity.** The core trusts only a signed JWT from the single configured issuer, validates it on every request without an introspection round-trip, and keeps users, roles, and session ownership in its own database, so federation, MFA, and session policy stay the identity provider's concern.
 

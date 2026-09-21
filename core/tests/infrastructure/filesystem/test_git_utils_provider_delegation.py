@@ -6,12 +6,9 @@
 IGitProvider with the correct arguments, and that create_pr resolves
 ``base`` from the local clone's default branch.
 
-GitUtils points at a file:// bare remote so the ``git ls-remote
---symref`` that ``create_pr`` uses to resolve ``base`` needs no network
-access; ``repository_url`` is a separate argument and stays the
-GitHub-shaped URL the provider would be called with. The provider
-itself is replaced with an AsyncMock so we can assert on the call
-arguments.
+A file:// bare remote is used so ``get_default_branch`` resolves
+without network access. The provider itself is replaced with an
+AsyncMock so we can assert on the call arguments.
 """
 
 import shutil
@@ -28,8 +25,7 @@ from src.shared.constants import GitProviderName
 _REPO_URL = "https://github.com/octo/widgets"
 
 
-def _init_clone(tmp: Path, default_branch: str = "main") -> tuple[Path, str]:
-    """Return (clone dir, file:// URI of its bare origin)."""
+def _init_clone(tmp: Path, default_branch: str = "main") -> Path:
     bare = tmp / "remote.git"
     subprocess.check_call(["git", "init", "--bare", "-b", default_branch, str(bare)])
     work = tmp / "work"
@@ -45,8 +41,6 @@ def _init_clone(tmp: Path, default_branch: str = "main") -> tuple[Path, str]:
             "user.email=t@t",
             "-c",
             "user.name=t",
-            "-c",
-            "commit.gpgsign=false",
             "commit",
             "-m",
             "init",
@@ -61,15 +55,15 @@ def _init_clone(tmp: Path, default_branch: str = "main") -> tuple[Path, str]:
 
     clone = tmp / "clone"
     subprocess.check_call(["git", "clone", str(bare), str(clone)])
-    return clone, f"file://{bare}"
+    return clone
 
 
 class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.clone, self.uri = _init_clone(self.tmp, default_branch="main")
+        self.clone = _init_clone(self.tmp, default_branch="main")
         self.git = GitUtils(
-            uri=self.uri,
+            uri=_REPO_URL,
             git_provider=GitProviderName.GITHUB,
             cwd=self.clone,
         )
@@ -104,7 +98,7 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
     async def test_complete_pr_forwards_args(self):
         self.fake_provider.complete_pr.return_value = None
         await self.git.complete_pr(pr_id=42)
-        self.fake_provider.complete_pr.assert_awaited_once_with(self.uri, 42)
+        self.fake_provider.complete_pr.assert_awaited_once_with(_REPO_URL, 42)
 
 
 class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCase):
@@ -113,9 +107,9 @@ class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCa
 
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.clone, self.uri = _init_clone(self.tmp, default_branch="master")
+        self.clone = _init_clone(self.tmp, default_branch="master")
         self.git = GitUtils(
-            uri=self.uri,
+            uri=_REPO_URL,
             git_provider=GitProviderName.GITHUB,
             cwd=self.clone,
         )

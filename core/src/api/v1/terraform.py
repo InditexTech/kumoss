@@ -184,10 +184,8 @@ async def apply_infrastructure(
     request: ApplyRequest,
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
 ) -> dict[str, str]:
-    """Applies the plan pinned by the session's last successful generate
-    round — exactly the reviewed changes, with no re-plan at apply time.
-    Drift rounds never pin a plan, so a session that has only run drift
-    has nothing to apply.
+    """Applies the plan pinned by the session's last successful generate or
+    drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
     ctx = await _resolve_or_raise(request, user)

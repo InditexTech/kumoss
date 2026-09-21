@@ -116,14 +116,11 @@ class LlmConfig(BaseModel):
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
-    format, for entries the two role strings cannot express: custom
-    credential env var names (``os.environ/VAR_NAME``), a custom
-    ``api_base``, or other per-entry ``litellm_params``.  When
-    non-empty it is handed to ``Router(model_list=...)`` verbatim and
-    nothing else is configured on the router, ``model`` /
-    ``small_model`` must match its ``model_name`` entries, and boot
-    validation runs against the listed entries instead of the two role
-    models.
+    format (fallbacks, load balancing, custom credential env var names
+    via ``os.environ/VAR_NAME``).  When non-empty it is passed to the
+    Router verbatim, ``model`` / ``small_model`` must match its
+    ``model_name`` entries, and boot validation runs against the listed
+    entries instead of the two role models.
 
     Refer to https://docs.litellm.ai/docs/providers for provider-specific
     credential keys and to https://models.litellm.ai/ for model IDs.
@@ -213,11 +210,10 @@ class IacServiceConfig(ServiceEndpointConfig):
     every ``job_poll_interval`` seconds until the job is terminal.
     ``job_timeout`` bounds the total wait for one job — it must cover
     both the FIFO queue wait (jobs on the same workspace run one at a
-    time) and the command itself. The reference service applies no
-    timeout of its own to the engine subprocess, so ``job_timeout`` is
-    the only bound on a running command. A validation run submits
-    several jobs in sequence (init, validate, plan, and show when
-    drift is requested), each with its own ``job_timeout``.
+    time) and the command itself, so keep it above the service's own
+    subprocess budget (2700s in the reference deployment). A validation
+    run submits several jobs in sequence (init, validate, plan, and
+    show when drift is requested), each with its own ``job_timeout``.
     """
 
     endpoint: str = "http://iac:8082"
@@ -243,12 +239,7 @@ class ServicesConfig(BaseModel):
 
 
 class OrchestrationConfig(BaseModel):
-    """Iteration limits, batch sizes, and gates for the orchestration loops.
-
-    The two ``bool`` fields are the session-lock gates and default to
-    *off* here while the shipped ``config.yaml`` enables both: a config
-    file that omits them runs generate rounds with no compliance gate.
-    """
+    """Iteration limits and batch sizes for the core's orchestration loops."""
 
     max_drift_reports: int = 3
     max_validation_iteration: int = 5
@@ -397,11 +388,9 @@ class StorageConfig(BaseModel):
     STORAGE_ACCOUNT) in the same store, holding the Terraform state of
     the projects Nebula manages. It is separate from ``bucket`` so that
     state does not inherit whatever lifecycle or presign policy the
-    artifacts bucket carries. Empty — or null, i.e. the key present with
-    no value — turns managed state off: no backend override is written
-    and each workspace keeps the backend its own configuration declares.
-    Dropping the key altogether falls back to the default above, which
-    turns managed state *on*.
+    artifacts bucket carries. Empty turns managed state off: no backend
+    override is written and each workspace keeps the backend its own
+    configuration declares.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
@@ -430,15 +419,6 @@ class StorageConfig(BaseModel):
             except KeyError:
                 return ObjectStorageProvider(v)
         return v
-
-    @field_validator("terraform_state_bucket", mode="before")
-    @classmethod
-    def _null_state_bucket_is_off(cls, v: object):
-        # `terraform_state_bucket:` with no value parses as None, which reads
-        # as "no bucket" but would otherwise fail validation and stop the
-        # boot. Treat it like "": managed state off. Removing the key still
-        # falls back to the field default and turns managed state on.
-        return "" if v is None else v
 
     @property
     def access_key(self) -> str:

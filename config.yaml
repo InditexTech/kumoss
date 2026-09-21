@@ -119,8 +119,9 @@ orchestration:
 # azure/...) the core fails boot when the required env vars are missing;
 # the in-code defaults (anthropic/...) need ANTHROPIC_API_KEY.
 # Advanced routing (load balancing, custom credential env var names,
-# per-entry endpoints) is available via an optional `model_list` key;
-# there is no router-level fallback support.
+# per-entry endpoints) is available via an optional `model_list` key.
+# The core passes only that list to the Router, so router-level
+# fallbacks between different models are not configurable.
 #
 # Refer to:
 #   - docs/litellm.md                          — Nebula's LiteLLM guide
@@ -196,19 +197,20 @@ http:
 # the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
 # ignored).
 #
-# `terraform_state_bucket` is OPT-IN and ships BLANK: Nebula writes no
-# backend, so every repository must declare its own remote backend (and
-# the iac sidecar must hold that backend's credentials). Blank is either
-# no value (as below) or "". NOTE the field default is
-# "nebula-terraform-state", so deleting the key entirely turns managed
-# state back ON — keep the key, leave it empty.
+# `terraform_state_bucket` ships SET, so Nebula owns Terraform state out
+# of the box: a second bucket (blob container on STORAGE_ACCOUNT) in the
+# same store as `bucket`, created at boot, with a matching backend
+# written into every workspace before `init`, keyed by project. It is
+# separate from `bucket` so state does not inherit the artifacts
+# bucket's lifecycle or presign policy, and it is what lets a repository
+# that declares no backend of its own work unchanged.
 #
-# Set it to a bucket name (blob container on STORAGE_ACCOUNT) to let
-# Nebula own state instead: a second bucket in the same store as
-# `bucket`, created at boot, with a matching backend written into every
-# workspace before `init`, keyed by project. Useful for starting from
-# empty state with no backend to configure — the bundled RUSTFS
-# provider needs nothing else. See docs/terraform-state-backends.md.
+# Set it to "" to turn managed state off: Nebula then writes no backend
+# override and every repository must declare its own, with the iac
+# sidecar holding that backend's credentials. Use an explicit "" rather
+# than an empty value — the field is a string, and a YAML null fails
+# validation at boot. Deleting the key restores the default, which is
+# this same bucket name. See docs/terraform-state-backends.md.
 #
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
@@ -219,7 +221,7 @@ http:
 storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
-  terraform_state_bucket:
+  terraform_state_bucket: "nebula-terraform-state"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"

@@ -26,7 +26,7 @@ After changing a spec, regenerate the matching client from `core/`
 identical across services):
 
 ```bash
-uv run --group tooling openapi-python-client generate \
+uv run openapi-python-client generate \
   --path ../contracts/openapi/<service>.v1.yaml \
   --config ../contracts/openapi-python-client.yaml \
   --meta none \

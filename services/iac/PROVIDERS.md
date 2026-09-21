@@ -3,37 +3,14 @@ SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 
 SPDX-License-Identifier: Apache-2.0
 -->
-# Provider and backend minimums
-
-The **minimum variable set** per cloud and per authentication method: the
-shortest list of environment variables that makes the Terraform/OpenTofu
-provider authenticate, plus the same for each state backend. Use it to
-decide what to put in `services/iac/.env`. It is a cheat sheet, not an
-exhaustive list — for every variable a provider or backend *reads*, see
-[`FULL_PROVIDERS.md`](FULL_PROVIDERS.md). How the sidecar treats that
-environment (it is inherited wholesale by the engine, and the per-request
-scope overwrites two of these variables) is in
-[`README.md` — Security notes](README.md#security-notes).
-
-Variable names are taken from the providers' own documentation and are
-the provider's contract, not Nebula's; confirm them against the registry
-docs for your pinned provider version.
-
-> **CI-only rows.** Rows marked *CI-only* below, and the whole
-> "Copy-paste: typical CI setups" section, describe variables that a CI
-> runner injects into a short-lived job. They are **not applicable to
-> this long-running sidecar**, which has no CI identity: prefer workload
-> identity (AKS/GKE/EKS), an instance profile or managed identity, or
-> credential files mounted into the container.
-
 ## Azure — provider minimum
 
 | Scenario | Required |
 |---|---|
 | SPN + secret | `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` |
 | SPN + certificate | `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_CERTIFICATE_PATH`, `ARM_CLIENT_CERTIFICATE_PASSWORD` |
-| OIDC (GitHub Actions) — *CI-only* | `ARM_USE_OIDC=true`, `ARM_TENANT_ID`, `ARM_CLIENT_ID` |
-| OIDC (Azure DevOps) — *CI-only* | above + `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` |
+| OIDC (GitHub Actions) | `ARM_USE_OIDC=true`, `ARM_TENANT_ID`, `ARM_CLIENT_ID` |
+| OIDC (Azure DevOps) | above + `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` |
 | Managed identity (system-assigned) | `ARM_USE_MSI=true` |
 | Managed identity (user-assigned) | `ARM_USE_MSI=true`, `ARM_CLIENT_ID` |
 | AKS workload identity | `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_CLIENT_ID`, `ARM_TENANT_ID` |
@@ -41,7 +18,7 @@ docs for your pinned provider version.
 
 No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it mandatory: `init`, `plan`, `apply` and `import` carry a `scope_id`, and the service injects it as `ARM_SUBSCRIPTION_ID` into the engine subprocess for that one command, overriding whatever the container has. Set the credential variables in each row and leave the subscription to the request. See "Scope injection" in `README.md`.
 
-OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them; that is also why those rows do not transfer to a long-running sidecar container — use a managed identity, workload identity, or a service principal there.
+OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
 
 Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variables through `azure-identity` — the subscription it lists comes from the request's `scope_id`, never from the environment. Three exceptions: the `az login` row has no equivalent (discovery needs an SPN, a managed identity or a workload identity); the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN` or `ARM_OIDC_TOKEN_FILE_PATH`, because the `ARM_OIDC_REQUEST_URL` exchange the CI runner performs is not reimplemented here; and only the direct `ARM_CLIENT_ID`/`ARM_CLIENT_SECRET` forms are read, not the `ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH` ones the provider also accepts (`FULL_PROVIDERS.md`) — a deployment using those runs every command fine and fails discovery with `no Azure credentials configured`. `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only, and `ARM_ENVIRONMENT` is ignored: discovery talks to the public cloud only.
 
@@ -52,7 +29,7 @@ Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variab
 | Static keys | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
 | Temporary / STS creds | above + `AWS_SESSION_TOKEN` |
 | Named profile | `AWS_PROFILE`, `AWS_REGION` |
-| OIDC (GitHub Actions) — *CI-only* | `AWS_REGION` only — the action writes the rest |
+| OIDC (GitHub Actions) | `AWS_REGION` only — the action writes the rest |
 | OIDC (manual) | `AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_REGION` |
 | EKS IRSA | `AWS_REGION` only — injected by the webhook |
 | EC2 instance role | `AWS_REGION` only |
@@ -92,19 +69,6 @@ Import discovery reads the *credential* variables through `google-auth`, includi
 
 Add `TF_VAR_compartment_ocid` in practice — not a provider setting, but nearly every resource needs it.
 
-## Kubernetes — provider minimum
-
-Variable names as documented by the Terraform `kubernetes` provider (the `helm` provider accepts the same ones under its `kubernetes` block).
-
-| Scenario | Required |
-|---|---|
-| Single kubeconfig | `KUBE_CONFIG_PATH` — path to a kubeconfig readable inside the container |
-| Several kubeconfigs merged | `KUBE_CONFIG_PATHS` — `:`-separated list of paths |
-| Explicit API server + token | `KUBE_HOST`, `KUBE_TOKEN` (plus `KUBE_CLUSTER_CA_CERT_DATA`, or `KUBE_INSECURE=true` for an untrusted certificate) |
-| In-cluster service account | none — the provider reads the pod's mounted service-account token |
-
-`KUBE_CONFIG_PATH` is the `kubernetes` provider's own environment variable, not a `kubectl` one. There is **no scope variable for Kubernetes**: a namespace is a resource argument, so the sidecar injects nothing and the command runs against whatever context the kubeconfig or service account selects — make that agree with the session's scope yourself. Mounted kubeconfigs must be readable by uid `10001` (`nebula`).
-
 ## Backend minimums
 
 ### azurerm
@@ -118,7 +82,7 @@ Variable names as documented by the Terraform `kubernetes` provider (the `helm` 
 | Managed identity | `ARM_USE_MSI=true`, `ARM_USE_AZUREAD=true`, `ARM_SUBSCRIPTION_ID` |
 | Local dev (`az login`) | none — plus `ARM_USE_AZUREAD=true` for RBAC-only accounts |
 
-Non-env HCL always needed: `storage_account_name`, `container_name`, `key`. `resource_group_name` is needed only when the backend has to look the storage account up through the Azure management plane; it is not required for direct data-plane access with a storage account key, a SAS token, or Entra ID. Nebula's rendered `backend_override.tf` omits it (`core/src/infrastructure/terraform/backend.py`, `__azurerm_override`).
+Non-env HCL always needed: `resource_group_name`, `storage_account_name`, `container_name`, `key`.
 
 Add `subscription_id` too when the state storage account lives in a different subscription than the resources being managed. The backend resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs with that variable overlaid from the request's `scope_id` — so a backend that does not name its subscription explicitly looks for the storage account in the *workload's* subscription and fails. Pin it in the backend block or in the file `IAC_BACKEND_CONFIG` points at. The `ARM_ACCESS_KEY` and `ARM_SAS_TOKEN` rows are unaffected: they address the account directly rather than resolving it through a subscription.
 
@@ -144,18 +108,7 @@ Region comes from the backend block's `region`, not `AWS_REGION` — so a minima
 
 No project or region needed — bucket names are globally unique. Non-env HCL: `bucket`, `prefix`.
 
-## Copy-paste: typical CI setups (not applicable to the sidecar)
-
-These three snippets assume a CI runner that injects the remaining
-credentials into a short-lived job — `ARM_OIDC_REQUEST_URL`/`_TOKEN` from
-GitHub Actions or Azure DevOps, the AWS web-identity token from
-`aws-actions/configure-aws-credentials`, the WIF config file from
-`google-github-actions/auth`. **Do not copy them into
-`services/iac/.env`**: the sidecar is a long-running container with no CI
-identity, so the missing half never arrives. Use workload identity, an
-instance profile or managed identity, or mounted credential files
-instead. They are kept here because Nebula's generated code is often run
-from CI as well.
+## Copy-paste: typical CI setups
 
 These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive with each request's `scope_id`. Add them only when you run the engine yourself.
 

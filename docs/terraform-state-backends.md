@@ -13,8 +13,8 @@ The authoritative reference for **where Nebula keeps Terraform/OpenTofu state**:
 - [Why remote state matters here](#why-remote-state-matters-here)
 - [What ships by default](#what-ships-by-default)
 - [The three ownership models](#the-three-ownership-models)
-- [Model 1 — repository-declared backend (shipped default)](#model-1--repository-declared-backend-shipped-default)
-- [Model 2 — Nebula-managed state (opt-in)](#model-2--nebula-managed-state-opt-in)
+- [Model 1 — repository-declared backend (opt-in)](#model-1--repository-declared-backend-opt-in)
+- [Model 2 — Nebula-managed state (shipped default)](#model-2--nebula-managed-state-shipped-default)
 - [Model 3 — sidecar-supplied backend configuration](#model-3--sidecar-supplied-backend-configuration)
 - [How core and sidecar configuration interact](#how-core-and-sidecar-configuration-interact)
 - [Changing backend configuration](#changing-backend-configuration)
@@ -34,18 +34,19 @@ The seeded `.gitignore` excludes `*.tfstate`, `*.tfstate.*`, and `*_override.tf`
 
 ## What ships by default
 
-**The shipped `config.yaml` sets `storage.terraform_state_bucket:`, so Nebula configures no backend at all.** The backend is yours to provide: every repository Nebula operates on must declare its own remote backend, and the IaC sidecar must hold the credentials to reach it. A repository with no backend block falls back to local state, which is lost with the workspace.
+**The shipped `config.yaml` sets `storage.terraform_state_bucket: "nebula-terraform-state"`, so Nebula manages state itself.** It takes over the backend entirely: it creates the bucket or container at boot in the store that `storage.provider` selects (RustFS by default), writes the backend into every workspace, and assigns a state key per project. The repositories Nebula operates on need no backend block of their own, and there is nothing to set up in a cloud account first.
 
-If you are starting from empty state and just want somewhere for it to go, **set `storage.terraform_state_bucket` to a bucket name** and Nebula takes over: it creates the bucket, writes the backend, and assigns a state key per project. When managed state is on, the core creates the bucket or container at boot in the store that `storage.provider` selects (RustFS by default).
+If your repositories already declare their own backends and must keep them, **set `storage.terraform_state_bucket` to the empty string** and Nebula configures no backend at all. The backend is then yours to provide: every repository must declare its own remote backend, and the IaC sidecar must hold the credentials to reach it. A repository with no backend block falls back to local state, which is lost with the workspace.
 
 ```yaml
-# Opt in to Nebula-managed state. Nothing else to configure on RUSTFS.
+# As shipped: Nebula-managed state. Nothing else to configure on RUSTFS.
 storage:
   provider: "RUSTFS"
+  bucket: "nebula-artifacts"
   terraform_state_bucket: "nebula-terraform-state"
 ```
 
-> **Keep the key, even when it is empty.** Blank means either no value — the shipped spelling — or `""`; both leave state to the repository. Deleting the key does not: the field's default in code is `nebula-terraform-state`, so a `config.yaml` without `terraform_state_bucket` turns Nebula-managed state back **on**.
+> **Only an explicit empty string turns managed state off.** Write `terraform_state_bucket: ""`; whitespace-only counts too. Deleting the key does not: the field's default in code is `nebula-terraform-state`, so a `config.yaml` without `terraform_state_bucket` still manages state. Nor does writing the key with **no value after it** — YAML reads that as null, the field is typed `str`, and the core dies at boot with `storage.terraform_state_bucket / Input should be a valid string [type=string_type, input_value=None]`.
 
 ## The three ownership models
 
@@ -53,32 +54,32 @@ Exactly one party decides where state goes. Pick deliberately.
 
 | # | Model | Who decides | Selected by |
 |---|---|---|---|
-| **1** | **Repository-declared backend** — *shipped default* | Each **repository's own HCL** | `terraform_state_bucket` blank and `IAC_BACKEND_CONFIG` unset |
-| **2** | **Nebula-managed state** — *opt-in* | The **core**, from `storage.*` | `terraform_state_bucket` set to a bucket name |
-| **3** | **Sidecar-supplied backend configuration** — *opt-in* | The **deployment**, via a mounted file | `terraform_state_bucket` blank and `IAC_BACKEND_CONFIG` set |
+| **1** | **Repository-declared backend** — *opt-in* | Each **repository's own HCL** | `terraform_state_bucket: ""` and `IAC_BACKEND_CONFIG` unset |
+| **2** | **Nebula-managed state** — *shipped default* | The **core**, from `storage.*` | `terraform_state_bucket` set to a bucket name — as shipped, `nebula-terraform-state` |
+| **3** | **Sidecar-supplied backend configuration** — *opt-in* | The **deployment**, via a mounted file | `terraform_state_bucket: ""` and `IAC_BACKEND_CONFIG` set |
 
 Which one is appropriate:
 
 | Deployment | Recommended model | Why |
 |---|---|---|
-| Local / non-production, no backend set up yet | **2** with `RUSTFS` | One line of configuration, no cloud account, no credentials; state survives restarts in the bundled store. |
-| Local / non-production against a real cloud project | **1**, as shipped | Reuses the backend your repositories already declare, so local runs and CI plan against the same state. |
-| Production, repositories already have backends you must not change | **1**, as shipped | Nebula writes nothing; each repository keeps the backend its team declared. |
+| Local / non-production, no backend set up yet | **2** with `RUSTFS`, as shipped | No configuration at all, no cloud account, no credentials; state survives restarts in the bundled store. |
+| Local / non-production against a real cloud project | **1**, by blanking the state bucket | Reuses the backend your repositories already declare, so local runs and CI plan against the same state. |
+| Production, repositories already have backends you must not change | **1**, by blanking the state bucket | Nebula writes nothing; each repository keeps the backend its team declared. |
 | Production, Nebula owns the projects it generates | **2** with `S3` or `STORAGE_ACCOUNT` | One managed store, one credential set, one lifecycle policy, state keys assigned automatically. |
 | Production, one central backend for every project, defined outside Nebula | **3** | Backend values live in a file your platform mounts and rotates. |
 
-## Model 1 — repository-declared backend (shipped default)
+## Model 1 — repository-declared backend (opt-in)
 
-The shipped `config.yaml` leaves the state bucket blank:
+Blank the state bucket with an explicit empty string and Nebula steps out of the way:
 
 ```yaml
 storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
-  terraform_state_bucket:
+  terraform_state_bucket: ""
 ```
 
-A key with no value, `""`, and whitespace-only (`"   "`) are all equally blank; deleting the key is not, because its default in code is `nebula-terraform-state`, which would turn model 2 on. What this means:
+`""` and whitespace-only (`"   "`) are equally blank. A key with no value after it is not blank but null, and fails validation at boot; deleting the key is not blank either, because its default in code is `nebula-terraform-state`, which leaves model 2 on. What blanking it means:
 
 - No state bucket or container is created at boot.
 - **No `backend_override.tf` is written.** Each workspace keeps the backend its own committed configuration declares.
@@ -119,11 +120,11 @@ They are separate because they address separate resources. Often the *same* vari
 
 Per-cloud, per-authentication-method minimums for both sets are in [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) (provider minimums, then *Backend minimums*); the variable-level view is in [Cloud credentials for the IaC engine](environment-variables.md#cloud-credentials-for-the-iac-engine).
 
-Model 2 can spare you the second set: Nebula writes the backend itself, and where the rendered block embeds static keys — the `RUSTFS` case, and `S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the sidecar needs nothing for state. Where it does not embed them, the sidecar still has to resolve them; see [Credentials required](#credentials-required).
+Model 2 — what ships — can spare you the second set: Nebula writes the backend itself, and where the rendered block embeds static keys — the `RUSTFS` case, and `S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the sidecar needs nothing for state. Where it does not embed them, the sidecar still has to resolve them; see [Credentials required](#credentials-required).
 
-## Model 2 — Nebula-managed state (opt-in)
+## Model 2 — Nebula-managed state (shipped default)
 
-Set the state bucket to a name and Nebula owns state instead:
+With the state bucket set to a name — the shipped configuration — Nebula owns state:
 
 ```yaml
 storage:
@@ -135,7 +136,7 @@ storage:
   region: "us-east-1"
 ```
 
-This is the quickest way to get a working remote backend when there is none yet: on `RUSTFS` the bucket name is the only value you supply, and the repositories need no backend block at all.
+This is why it ships on: it is the quickest way to get a working remote backend when there is none yet, on `RUSTFS` the bucket name is the only value involved, and the repositories need no backend block at all.
 
 State goes to the **same object-storage provider as artifacts**, in a **separate bucket** (a blob container on `STORAGE_ACCOUNT`). The separation is deliberate: state must not inherit the lifecycle, expiry, or presign policy you apply to generated reports and plans.
 
@@ -331,7 +332,7 @@ Whether RustFS honours the conditional-write semantics `use_lockfile` relies on 
 
 ## Model 3 — sidecar-supplied backend configuration
 
-For a deployment that owns the backend decision centrally, the IaC sidecar accepts a backend configuration file. The path is resolved **inside the sidecar container**, so mount the file there:
+For a deployment that owns the backend decision centrally, the IaC sidecar accepts a backend configuration file. An absolute path is resolved **inside the sidecar container**, so mount the file there; a relative path is resolved against the workspace, which is how a file carried by the target repository is reached:
 
 ```dotenv
 # services/iac/.env
@@ -359,15 +360,7 @@ Three constraints follow from how `-backend-config` works:
 2. **You are responsible for state keys.** Terraform's `key` is a single value, so if every project reads the same file, every project shares one state file unless the repositories declare distinct keys themselves. Per-project keying is a feature of model 2 only.
 3. **Blank means unset.** An empty or whitespace-only `IAC_BACKEND_CONFIG` is treated as not set.
 
-The sidecar **verifies at startup** that the path is a readable file and refuses to boot otherwise:
-
-```
-IAC_BACKEND_CONFIG points at '/etc/nebula/backend.hcl', which is not a readable
-file inside this container. Mount the backend configuration file there or unset
-the variable.
-```
-
-This is the same fail-fast policy applied to `IAC_BINARY`: a mounting mistake is caught once at boot rather than on every request. The file must be readable by uid `10001` (`nebula`), the unprivileged user the image runs as.
+The sidecar does **not** check this path at startup, unlike `IAC_BINARY`. A workspace-relative file exists only once the target repository has been cloned, so there is nothing to verify at boot. A wrong path therefore surfaces as an `init` failure on the first job that uses it, in that job's stderr rather than in the container's startup log. A file you mount must be readable by uid `10001` (`nebula`), the unprivileged user the image runs as.
 
 ## How core and sidecar configuration interact
 
@@ -387,15 +380,15 @@ storage.terraform_state_bucket (core)        IAC_BACKEND_CONFIG (iac sidecar)
                    repository's own backend block
 ```
 
-Precedence, highest first: **`-backend-config` values** from `IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init` ([`services/iac/src/engine.py:87-89`](../services/iac/src/engine.py)), then the core-written **`backend_override.tf`** (model 2), then **the repository's own `terraform { backend }` block** (model 1). This was verified empirically by running `tofu init` (and `terraform init`) against a local backend with the same key set in all three layers, and reading back which value the engine bound.
+Precedence, highest first: **`-backend-config` values** from `IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init` ([`services/iac/src/engine.py:88-90`](../services/iac/src/engine.py)), then the core-written **`backend_override.tf`** (model 2), then **the repository's own `terraform { backend }` block** (model 1). This was verified empirically by running `tofu init` (and `terraform init`) against a local backend with the same key set in all three layers, and reading back which value the engine bound.
 
-Keys absent from a higher layer fall through to the next one, so **setting both model 2 and model 3 produces a partial merge, not a clean override**: for every key the mounted file declares (`bucket`, `key`, `region`, credentials) it replaces Nebula's value, and Nebula's remaining keys survive. That is worse than either model alone, because the result is a backend neither side fully describes. The common failure is the mounted file supplying a single `key`: Nebula's per-project `key = <project_id>/terraform.tfstate` is then gone and **every project shares one state object**. **Leave `terraform_state_bucket` blank whenever you set `IAC_BACKEND_CONFIG`** — which is what ships, so this only matters if you turned managed state on.
+Keys absent from a higher layer fall through to the next one, so **setting both model 2 and model 3 produces a partial merge, not a clean override**: for every key the mounted file declares (`bucket`, `key`, `region`, credentials) it replaces Nebula's value, and Nebula's remaining keys survive. That is worse than either model alone, because the result is a backend neither side fully describes. The common failure is the mounted file supplying a single `key`: Nebula's per-project `key = <project_id>/terraform.tfstate` is then gone and **every project shares one state object**. **Set `terraform_state_bucket: ""` whenever you set `IAC_BACKEND_CONFIG`** — managed state is on as shipped, so blanking it is a step you have to take, not a default you inherit.
 
 | `terraform_state_bucket` | `IAC_BACKEND_CONFIG` | Effective model |
 |---|---|---|
-| blank *(shipped)* | unset *(shipped)* | **1** — repository-declared |
-| set | unset | **2** — Nebula-managed |
-| blank | set | **3** — sidecar-supplied |
+| `""` | unset *(shipped)* | **1** — repository-declared |
+| set *(shipped)* | unset *(shipped)* | **2** — Nebula-managed |
+| `""` | set | **3** — sidecar-supplied |
 | set | set | mixed — `IAC_BACKEND_CONFIG` keys override the core's `backend_override.tf`; misconfiguration |
 
 ## Changing backend configuration
@@ -428,13 +421,13 @@ State ownership stops at "write the backend and key". Everything below is yours:
 - **No versioning or backups.** Nebula does not enable bucket versioning, object lock, soft delete, or point-in-time restore on the state bucket. Turn them on yourself — for state this matters far more than for artifacts.
 - **No lifecycle or retention policy**, and no deletion: Nebula never removes a state object, so state for a decommissioned project persists until you delete it.
 - **No DynamoDB lock table.** Locking uses the S3-native lockfile; there is nothing to provision.
-- **No `gcs` backend adapter.** `ObjectStorageProvider` has exactly three members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). A Google Cloud Storage bucket can only be reached through its S3-compatible interoperability endpoint with `provider: RUSTFS`, which the repository does not test. For a first-class `gcs` backend, use model 1 or 3 — and since model 1 ships as the default, that is simply what you already have.
+- **No `gcs` backend adapter.** `ObjectStorageProvider` has exactly three members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). A Google Cloud Storage bucket can only be reached through its S3-compatible interoperability endpoint with `provider: RUSTFS`, which the repository does not test. For a first-class `gcs` backend, use model 1 or 3: set `terraform_state_bucket: ""` and let the repository's own block, or a mounted backend file, declare `gcs` itself.
 - **No state encryption beyond the store's own.** State contains resource attributes and can contain secrets; rely on bucket-level encryption at rest and restrict access accordingly.
 - **No import of existing resources into managed state.** The bundled IaC sidecar implements the contract's `/v1/import*` endpoints (single-address import, state inventory, cloud-scope inventory), but the core never calls them: nothing in a session adopts pre-existing resources into the state Nebula manages. See [Operating modes](modes.md#import-infrastructure).
 
 ## Operations
 
-This section assumes model 2. Under the shipped default the state bucket is not Nebula's, so its operation — versioning, access, backups — belongs to whoever owns the backend each repository declares.
+This section assumes model 2, which is what ships. If you turned it off with `terraform_state_bucket: ""`, the state bucket is not Nebula's, so its operation — versioning, access, backups — belongs to whoever owns the backend each repository declares.
 
 **Find a project's state.** The core logs the target before every `init`:
 
@@ -464,15 +457,15 @@ AWS_DEFAULT_REGION=us-east-1 \
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Every session plans against empty state, and nothing is ever recorded | Model 1 (the shipped default) with a repository that declares no backend: `init` succeeds against the *local* backend, and the state file dies with the throwaway clone. | Add a `terraform { backend ... }` block to the repository, or turn on model 2 by setting `storage.terraform_state_bucket`. |
-| Core fails at boot: `Failed to initialize object storage` | Only with model 2 on: the state bucket cannot be created or reached — wrong credentials, missing `CreateBucket` permission, or an unreachable endpoint. | Pre-create the bucket, or grant creation rights. The artifact bucket and the state bucket are checked in the same step, so verify both. |
+| Every session plans against empty state, and nothing is ever recorded | A deployment that blanked `storage.terraform_state_bucket` (model 1) but whose repositories declare no backend: `init` succeeds against the *local* backend, and the state file dies with the throwaway clone. | Add a `terraform { backend ... }` block to the repository, or go back to the shipped model 2 by setting `storage.terraform_state_bucket` to a bucket name. |
+| Core fails at boot: `Failed to initialize object storage` | Model 2, which is on as shipped: the state bucket cannot be created or reached — wrong credentials, missing `CreateBucket` permission, or an unreachable endpoint. | Pre-create the bucket, or grant creation rights. The artifact bucket and the state bucket are checked in the same step, so verify both. |
 | `init` fails with `InvalidAccessKeyId` after switching to `provider: S3` | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still set to `rustfsadmin` in `core/.env` and got embedded into the backend block. | Blank both variables, rebuild the core image, and let the AWS default chain resolve credentials — on the **IaC sidecar**. |
 | `init` fails with a credentials or `AccessDenied` error, and the override contains no `access_key` | The **IaC sidecar** container has no ambient cloud credentials, or they lack access to the state bucket. | Give the sidecar the role/keys, not just the core. See [Credentials required](#credentials-required). |
 | `init` fails to dial the endpoint (`connection refused`, DNS failure) | The sidecar cannot reach `storage.endpoint_url`. | Put the sidecar on the same network as the store, or allow that egress. In Compose both must be on `bridge-network`. |
 | Every plan proposes creating resources that already exist | The project's state key changed, or state was never migrated after a backend change. | Check the logged `key=` against what is in the bucket; migrate the old state. See [Changing backend configuration](#changing-backend-configuration). |
 | `Error acquiring the state lock` | Another run holds the lock, or a crashed run left it stale. | Wait; if stale, run `tofu force-unlock <LOCK_ID>` (the id is printed in the lock error) in an equivalent workspace, or remove the `.tflock` object / break the blob lease. |
 | Two repositories collide on one state file | A shared `-backend-config` file supplies one `key` — under model 3, or under the mixed model 2 + model 3 case, where the mounted file's `key` overrides Nebula's per-project one. | Declare distinct keys per repository, or use model 2 alone (leave `IAC_BACKEND_CONFIG` unset). |
-| Sidecar will not start: `IAC_BACKEND_CONFIG points at ... not a readable file` | The path is wrong, the file is not mounted, or it is not readable by uid `10001`. | Fix the mount and ownership, or unset the variable. |
+| `init` fails on the backend configuration file | `IAC_BACKEND_CONFIG` is not checked at startup, so the sidecar starts and the error lands in the failing job's stderr. The path is wrong, the file is not mounted, or it is not readable by uid `10001`. | Fix the mount and ownership, or unset the variable. |
 | A `backend_override.tf` shows up in a pull request | The seeded ignore rules did not reach the workspace's effective `.gitignore`. | Nebula appends its template to an existing `.gitignore`, but the template also ignores `.gitignore` itself ([`core/src/infrastructure/filesystem/terraform.gitignore:51-52`](../core/src/infrastructure/filesystem/terraform.gitignore)), so for a repository that carried no `.gitignore` the seeded file is never committed — it only takes effect in the working copy. Check the `.gitignore` in the workspace (not the branch) and confirm `*_override.tf` is present; if the repository has no `.gitignore`, commit one that carries the rule. |
 | Session fails with a Terraform backend error before `init` runs | The core could not write `backend_override.tf` into the workspace. | Check ownership of the `workspaces` volume: it must be writable by uid/gid `10001`. A volume from a stack that ran as root needs `chown -R 10001:10001`. |
 
@@ -483,7 +476,7 @@ AWS_DEFAULT_REGION=us-east-1 \
 | Key | Default | Meaning |
 |---|---|---|
 | `storage.provider` | `RUSTFS` | Selects the backend type for state as well as artifacts: `RUSTFS`/`S3` → `s3`, `STORAGE_ACCOUNT` → `azurerm`. |
-| `storage.terraform_state_bucket` | blank *(shipped)* — field default `nebula-terraform-state` | Blank is the shipped value and leaves state to the repository: no value (the shipped spelling), `""`, and whitespace-only all count. Set a bucket name (blob container on `STORAGE_ACCOUNT`) to turn Nebula-managed state on; it is created at boot if missing. **Deleting the key falls back to the field default and turns managed state on.** |
+| `storage.terraform_state_bucket` | `nebula-terraform-state` *(shipped, and the field default)* | Names the bucket (blob container on `STORAGE_ACCOUNT`) that holds Nebula-managed state; it is created at boot if missing. Set it to `""` to leave state to the repository instead — `""` and whitespace-only both count as blank. **Deleting the key falls back to the same field default and keeps managed state on**, and a key written with no value is null, not blank: the core fails validation at boot. |
 | `storage.endpoint_url` | `http://object-storage:9000` | Rendered into the `endpoints.s3` block for `RUSTFS`; supplies the account name for `STORAGE_ACCOUNT`; ignored for `S3`. Must be reachable **from the IaC sidecar**. |
 | `storage.region` | `us-east-1` | Rendered as the backend `region` for `RUSTFS` and `S3`. Ignored for `STORAGE_ACCOUNT`. |
 | `storage.access_key_env` / `storage.secret_key_env` | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | When **both** resolve non-empty, the keys are embedded in the backend block; otherwise the credential lines are omitted. |

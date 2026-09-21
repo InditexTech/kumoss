@@ -7,10 +7,10 @@
 All collaborators are mocked: these cover the background task's
 sequencing (next_round → status update → apply → report), the pinned
 plan lifecycle (no pin → fail before any apply; the slot is always
-discarded when the round ends), the failed-apply path (report written,
-apply-failure notification sent with its summary, and no exception —
-the round ends reported rather than raised, and nothing retries it),
-and that the session is saved either way.
+discarded when the round ends), the hard-fail path (apply-failure
+notification sent, TerraformValidationFailedError raised with the report
+summary, no regeneration collaborators exist to retry with), and that the
+session is saved either way.
 """
 
 import unittest
@@ -91,23 +91,22 @@ class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)
         self.session_svc.save.assert_awaited_once()
 
-    async def test_failure_notifies_with_summary_and_consumes_pin(self):
-        """A failed apply is reported, not raised: the round completes,
-        the user is notified with the report summary, and the pin is
-        still spent."""
+    async def test_failure_notifies_raises_with_summary_and_consumes_pin(self):
         self.terraform_svc.apply.return_value = _dto(False)
         self.report_svc.generate_report.return_value = MagicMock(
             execution_summary="apply failed: boom"
         )
 
         task = await self.handler.handle()
-        await task()
+        with self.assertRaises(TerraformValidationFailedError) as raised:
+            await task()
 
         self.report_svc.generate_report.assert_awaited_once()
+        self.assertEqual(raised.exception.message, "apply failed: boom")
         self.notify.assert_awaited_once_with(
             self.ctx.id, self.ctx.user_id, "apply failed: boom"
         )
-        # Exactly one apply attempt, and the pin is spent.
+        # Hard fail: exactly one apply attempt, and the pin is spent.
         self.terraform_svc.apply.assert_awaited_once_with()
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)
         self.session_svc.save.assert_awaited_once()

@@ -27,7 +27,7 @@ Changing any field therefore means: edit `config.yaml`, rebuild the core image, 
 | Category | Fields |
 |---|---|
 | **Mandatory** (the core refuses to boot otherwise) | The environment variable named by `database.nebula_database_url_env` must be set; the variable named by `services.iac.token_env` must be set (the IaC sidecar is always called and has no `enabled` flag); the credentials that LiteLLM requires for `llm.model` and `llm.small_model` must be set for providers LiteLLM can validate. |
-| **Conditionally mandatory** | `oidc.client_id` when `oidc.issuer_url` is set; the `token_env` variable of every other enabled sidecar; the variable named by `storage.account_key_env` when `storage.provider` is `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url` for `STORAGE_ACCOUNT`; a remote backend declared by every target repository while `storage.terraform_state_bucket` is blank — which is how it ships, so this applies unless you opt in to Nebula-managed state. |
+| **Conditionally mandatory** | `oidc.client_id` when `oidc.issuer_url` is set; the `token_env` variable of every other enabled sidecar; the variable named by `storage.account_key_env` when `storage.provider` is `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url` for `STORAGE_ACCOUNT`; a remote backend declared by every target repository while `storage.terraform_state_bucket` is blank — which only happens if a deployment explicitly sets it to `""`, since the shipped value enables Nebula-managed state by default. |
 | **Optional with defaults** | Everything else. |
 
 ## `environment`
@@ -179,13 +179,13 @@ Requires rebuild: yes.
 
 ## `storage`
 
-Object storage for generated artifacts (reports, plans, code changes) and — only if you opt in — for Terraform/OpenTofu state. The browser downloads artifacts through presigned URLs. `storage.terraform_state_bucket` ships blank, so by default Nebula configures no backend and each repository keeps its own; set it to a bucket name and state moves into a **second bucket** in the same store, sharing the provider and the credentials with artifacts. See [Terraform/OpenTofu state backends](terraform-state-backends.md) for the state side in full.
+Object storage for generated artifacts (reports, plans, code changes) and, by default, for Terraform/OpenTofu state. The browser downloads artifacts through presigned URLs. `storage.terraform_state_bucket` ships set to `nebula-terraform-state`, so by default Nebula manages state in a **second bucket** in the same store, sharing the provider and the credentials with artifacts; set it to `""` to opt out and let each repository keep its own backend instead. See [Terraform/OpenTofu state backends](terraform-state-backends.md) for the state side in full.
 
 | YAML path | Type | Default | Requirement | Meaning and effect |
 |---|---|---|---|---|
 | `storage.provider` | one of `RUSTFS`, `S3`, `STORAGE_ACCOUNT` (enum names) or `rustfs`, `s3`, `storage_account` (enum values) | `RUSTFS` | Optional | Backend. `RUSTFS`: the bundled RustFS or any S3-compatible server with a custom endpoint. `S3`: real AWS S3 on its regional endpoint (both URLs below are ignored; the region builds the endpoint). `STORAGE_ACCOUNT`: an Azure storage account using a shared key. |
 | `storage.bucket` | string | `nebula-artifacts` | Optional | Artifacts bucket name, or blob container name for `STORAGE_ACCOUNT`. Created at boot if missing. |
-| `storage.terraform_state_bucket` | string | blank as shipped in `config.yaml` (the key carries no value); `nebula-terraform-state` if the key is absent | Optional | Bucket (or blob container) holding Terraform/OpenTofu state, separate from `storage.bucket`. **Blank — the shipped value — means Nebula manages no state**, and no value, `""`, and whitespace-only are all blank: no bucket is created, no override is written, and each repository must declare its own remote backend, whose credentials belong to the IaC sidecar. Set it to a bucket name to opt in: the bucket is created at boot if missing and the core writes a `backend_override.tf` into every workspace before `init`, addressing it with the key `<project_id>/terraform.tfstate`. Backend type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for `STORAGE_ACCOUNT`). Note that **deleting the key** is not the same as blanking it: the field default turns managed state back on. See [Terraform/OpenTofu state backends](terraform-state-backends.md). |
+| `storage.terraform_state_bucket` | string | `nebula-terraform-state`, both as shipped in `config.yaml` and as the field default if the key is absent | Optional | Bucket (or blob container) holding Terraform/OpenTofu state, separate from `storage.bucket`. **Non-blank — the shipped value — means Nebula manages state**: the bucket is created at boot if missing and the core writes a `backend_override.tf` into every workspace before `init`, addressing it with the key `<project_id>/terraform.tfstate`. Backend type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for `STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value, `""`, and whitespace-only are all blank, and blank means no bucket is created, no override is written, and each repository must declare its own remote backend, whose credentials belong to the IaC sidecar. A bare `terraform_state_bucket:` with nothing after it is **not** the same as `""`: it parses as YAML null and fails boot with a Pydantic validation error. See [Terraform/OpenTofu state backends](terraform-state-backends.md). |
 | `storage.endpoint_url` | string | `http://object-storage:9000` | Conditional | Endpoint the core's SDK calls from inside the compose network. For `STORAGE_ACCOUNT` it must be the account blob endpoint (`https://<account>.blob.core.windows.net`, or the emulator form `http://<host>:<port>/<account>`); the account name is derived from it. Boot fails with `storage.endpoint_url must be an account blob endpoint ...` when it cannot be derived. |
 | `storage.public_endpoint_url` | string | `http://localhost:9000` | Conditional | Host the **browser** reaches. Presigned S3 URLs bind the host header, so this must be the externally visible address of the store (in the compose stack, nginx forwards port 9000 to RustFS). |
 | `storage.region` | string | `us-east-1` | Optional | Region for signing (`RUSTFS`) or for building the endpoint (`S3`). Ignored for `STORAGE_ACCOUNT`. |
@@ -248,10 +248,10 @@ storage:
   provider: "RUSTFS"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
-  # Opt-in (ships blank): lets Nebula keep Terraform state in the
-  # bundled RustFS, in its own bucket, so a scratch repository with no
-  # backend of its own works out of the box. Leave it blank to use the
-  # backend each repository declares.
+  # Shipped default: Nebula keeps Terraform state in the bundled
+  # RustFS, in its own bucket, so a scratch repository with no backend
+  # of its own works out of the box. Set it to "" to use the backend
+  # each repository declares instead.
   terraform_state_bucket: "nebula-terraform-state"
 
 git:
@@ -319,12 +319,12 @@ http:
 storage:
   provider: "STORAGE_ACCOUNT"
   bucket: "nebula-artifacts"
-  # Opt-in (ships blank): Nebula owns state instead of the target
+  # Shipped default: Nebula owns state instead of the target
   # repositories. Blob container separate from the artifacts container
   # so state escapes any artifact lifecycle policy — enable versioning
-  # and soft delete on it. Blank it again — no value, or "" — when the
-  # repositories already declare their own backends; never delete the
-  # key, because the field default would re-enable it.
+  # and soft delete on it. Set it explicitly to "" — a bare key with no
+  # value fails at boot — when the repositories already declare their
+  # own backends.
   terraform_state_bucket: "nebula-terraform-state"
   endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"
   public_endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"

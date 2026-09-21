@@ -39,8 +39,6 @@ def _init_bare_remote(tmp: Path, files: dict[str, str] | None = None) -> str:
             "user.email=t@t",
             "-c",
             "user.name=t",
-            "-c",
-            "commit.gpgsign=false",
             "commit",
             "-m",
             "init",
@@ -89,8 +87,6 @@ def _commit_file(path: Path, name: str) -> None:
             "user.email=t@t",
             "-c",
             "user.name=t",
-            "-c",
-            "commit.gpgsign=false",
             "commit",
             "-m",
             name,
@@ -105,10 +101,6 @@ class _WorkspaceBase(unittest.IsolatedAsyncioTestCase):
         self.workspaces = self.tmp / "workspaces"
         self.workspaces.mkdir()
         self.svc = WorkspaceService(base_path=self.workspaces)
-        # WorkspaceService commits through GitUtils, which runs a plain
-        # `git commit`: the identity comes from the environment and the
-        # user's global config is ignored, so a contributor with
-        # commit.gpgsign=true does not break the fixture.
         identity = patch.dict(
             os.environ,
             {
@@ -116,8 +108,6 @@ class _WorkspaceBase(unittest.IsolatedAsyncioTestCase):
                 "GIT_AUTHOR_EMAIL": "t@t",
                 "GIT_COMMITTER_NAME": "t",
                 "GIT_COMMITTER_EMAIL": "t@t",
-                "GIT_CONFIG_GLOBAL": os.devnull,
-                "GIT_CONFIG_NOSYSTEM": "1",
             },
         )
         identity.start()
@@ -240,9 +230,7 @@ class TestPinnedWorkspace(unittest.TestCase):
 
     def test_pinned_plan_path_none_when_plan_file_missing(self):
         clone = self._make_clone()
-        # `_make_clone` puts the artifact at the call dir's root, which is
-        # where `pinned_plan_path` looks for it.
-        (clone / SESSION_PLAN_FILENAME).unlink()
+        (clone / "iac" / SESSION_PLAN_FILENAME).unlink()
         self.svc.pin_workspace(self.sid, clone)
 
         self.assertIsNone(self.svc.pinned_plan_path(self.sid))

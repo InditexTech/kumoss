@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Nebula request flow · Phases 5-6 — generate, validate, correct, drift pre-check",
+    "output": "flow-phases-5-6.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "column_fit": "spread",
+    "viewBox": [
+      1700,
+      795
+    ]
+  },
+  "participants": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Web UI + Core API"
+    },
+    {
+      "id": "ct",
+      "type": "security",
+      "label": "Control gates"
+    },
+    {
+      "id": "ag",
+      "type": "backend",
+      "label": "LLM agents"
+    },
+    {
+      "id": "ex",
+      "type": "cloud",
+      "label": "External"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 496,
+      "label": "PHASE 5 · Generate, validate, correct — at most 5 iterations"
+    },
+    {
+      "from": 500,
+      "to": 740,
+      "label": "PHASE 6 · Implicit drift pre-check on the validated targets, at most 2 rounds — the loop stops on a clean plan (resources in sync) or when only the session’s own changes remain (plan is final)"
+    }
+  ],
+  "messages": [
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 180,
+      "label": "13 · Infrastructure Generation Agent (main model, at most 70 tool calls, ends via task_complete)",
+      "variant": "default"
+    },
+    {
+      "from": "ag",
+      "to": "ct",
+      "y": 222,
+      "label": "14 · files edited in workspace",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 264,
+      "label": "15 · store per-file changes · commit + push session branch",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 306,
+      "label": "16 · Session Target Generator (main model), produces the -target list",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 348,
+      "label": "17 · IaC sidecar: init, validate, plan -target (async jobs, polled)",
+      "variant": "default"
+    },
+    {
+      "from": "ex",
+      "to": "ct",
+      "y": 390,
+      "label": "18 · plan result or engine errors",
+      "variant": "return"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 432,
+      "label": "19a · [engine errors and iterations left] feed errors back to the generator, loop repeats",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ui",
+      "y": 474,
+      "label": "19b · [5 iterations exhausted] session FAILED (422) · system.exception.failure",
+      "variant": "security"
+    },
+    {
+      "from": "ct",
+      "to": "ex",
+      "y": 540,
+      "label": "20 · plan + show -json on the session's targets",
+      "variant": "default"
+    },
+    {
+      "from": "ex",
+      "to": "ct",
+      "y": 582,
+      "label": "21 · plan JSON, DeepDiff, inverted drift operations · artifacts stored",
+      "variant": "return",
+      "note": "[clean plan] loop stops here — resources in sync"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 624,
+      "label": "22 · [plan shows differences] Drift Task Splitter (small), plain-language operations",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 666,
+      "label": "23 · Reconciliation Filter (small) — reads diff_history, drops ops that undo the session's own changes",
+      "variant": "default"
+    },
+    {
+      "from": "ct",
+      "to": "ag",
+      "y": 708,
+      "label": "24 · [genuine drift remains] batches of at most 8 ops re-enter the generation loop",
+      "variant": "default",
+      "note": "[only the session's own changes] loop stops here — plan is final"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "ct",
+      "from": 174,
+      "to": 724,
+      "type": "security"
+    },
+    {
+      "participant": "ag",
+      "from": 174,
+      "to": 724,
+      "type": "backend"
+    }
+  ]
+}

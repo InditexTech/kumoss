@@ -5,7 +5,15 @@
     "title": "Nebula System Architecture",
     "output": "system-architecture.html",
     "quality_profile": "showcase",
-    "locale": "en"
+    "locale": "en",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "cloud": {
+          "label": "Reverse proxy"
+        }
+      }
+    }
   },
   "layout": {
     "mode": "grid",

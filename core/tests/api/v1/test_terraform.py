@@ -56,8 +56,6 @@ def _bare_remote(tmp: Path) -> str:
             "user.email=t@t",
             "-c",
             "user.name=t",
-            "-c",
-            "commit.gpgsign=false",
             "commit",
             "-m",
             "init",
