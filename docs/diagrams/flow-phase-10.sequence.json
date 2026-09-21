@@ -56,42 +56,42 @@
       "from": "u",
       "to": "ui",
       "y": 180,
-      "label": "40 · POST /iac/apply — explicit human action",
+      "label": "41 · POST /iac/apply — explicit human action",
       "variant": "default"
     },
     {
       "from": "ui",
       "to": "ct",
       "y": 222,
-      "label": "41 · authenticated · developer role · owner · not blocked, so 202 accepted",
+      "label": "42 · authenticated · developer role · owner · not blocked, so 202 accepted",
       "variant": "security"
     },
     {
       "from": "ct",
       "to": "u",
       "y": 264,
-      "label": "42 · 401 / 403 / 409 if locked — answered before the 202",
+      "label": "43 · 401 / 403 / 409 if locked — answered before the 202",
       "variant": "return"
     },
     {
       "from": "ct",
       "to": "db",
       "y": 306,
-      "label": "43 · after 202: guard busy means the runner logs and exits · no pinned plan means session FAILED",
+      "label": "44 · after 202: guard busy means the runner logs and exits · no pinned plan means session FAILED",
       "variant": "security"
     },
     {
       "from": "ct",
       "to": "ex",
       "y": 348,
-      "label": "44 · IaC sidecar runs ONE apply of the pinned plan (no re-plan, no retry)",
+      "label": "45 · IaC sidecar runs ONE apply of the pinned plan (no re-plan, no retry)",
       "variant": "default"
     },
     {
       "from": "ex",
       "to": "ct",
       "y": 390,
-      "label": "45a · [success] applied",
+      "label": "46a · [success] applied",
       "variant": "return",
       "note": "the cloud reaches the requested state"
     },
@@ -99,42 +99,42 @@
       "from": "ct",
       "to": "ag",
       "y": 432,
-      "label": "46a · [success] Report Generator produces the apply report",
+      "label": "47a · [success] Report Generator produces the apply report",
       "variant": "default"
     },
     {
       "from": "ct",
       "to": "u",
       "y": 474,
-      "label": "47a · [success] Infrastructure applied · session COMPLETED · the cloud reaches the requested state",
+      "label": "48a · [success] Infrastructure applied · session COMPLETED · the cloud reaches the requested state",
       "variant": "return"
     },
     {
       "from": "ct",
       "to": "ag",
       "y": 516,
-      "label": "45b · [failure] Report Generator produces the apply failure report",
+      "label": "46b · [failure] Report Generator produces the apply failure report",
       "variant": "default"
     },
     {
       "from": "ct",
       "to": "ex",
       "y": 558,
-      "label": "46b · [failure] iac.apply.failure to Slack",
+      "label": "47b · [failure] iac.apply.failure to Slack",
       "variant": "dashed"
     },
     {
       "from": "ct",
       "to": "u",
       "y": 600,
-      "label": "47b · [failure] session COMPLETED, apply report Failed · no retry · a new generate round is needed",
+      "label": "48b · [failure] session COMPLETED, apply report Failed · no retry · a new generate round is needed",
       "variant": "return"
     },
     {
       "from": "ct",
       "to": "db",
       "y": 642,
-      "label": "48 · pinned plan discarded · workspace cleaned · in-flight guard released (finally)",
+      "label": "49 · pinned plan discarded · workspace cleaned · in-flight guard released (finally)",
       "variant": "security"
     }
   ],

@@ -67,7 +67,7 @@ You do not need `services/mapping/.env` or `services/authz/.env` for this deploy
 | `storage.terraform_state_bucket` | Leave as shipped (`nebula-terraform-state`) | As shipped, Nebula owns state on the bundled RustFS, which is what this guide assumes. Set it to `""` only if you want each repository to declare its own backend instead, and rebuild the core image afterwards: [state backends](terraform-state-backends.md). |
 | `orchestration.*` | Leave as shipped | Iteration limits and the compliance and high-impact locks. |
 
-A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables. `storage.terraform_state_bucket` is spelled out for the same reason: both the shipped value and the code default are the bucket name `nebula-terraform-state`, so Nebula-managed state stays on whether the key is present or dropped — set it to `""` explicitly if you want it off.
+A minimal local file that keeps everything else at its default. It repeats the two `orchestration` flags on purpose: their code defaults are `false`, so a file that omits them silently turns off the compliance lock and the high-impact lock that the shipped `config.yaml` enables.
 
 ```yaml
 environment: "development"
@@ -101,7 +101,7 @@ git:
   provider: "GITHUB"
 ```
 
-Note that the three optional sidecars default to `enabled: false`, `endpoint: ""`, and `token_env: ""`, while `services.iac` has no such flag: it is always called, and its `endpoint` and `token_env` default in code to `http://iac:8082` and `NEBULA_IAC_TOKEN`. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file, and `storage.terraform_state_bucket` defaults to `nebula-terraform-state` in code and ships set to that same value.
+Note that the three optional sidecars default to `enabled: false`, `endpoint: ""`, and `token_env: ""`, while `services.iac` has no such flag: it is always called, and its `endpoint` and `token_env` default in code to `http://iac:8082` and `NEBULA_IAC_TOKEN`. Likewise, `orchestration.enable_compliance_checker` and `orchestration.block_on_high_impact` default to `false` in code and to `true` in the shipped file.
 
 ## 5. Configure `core/.env`
 
@@ -260,7 +260,7 @@ This is the only unauthenticated `/v1` route; `/api/docs` and `/api/openapi.json
 |---|---|
 | <http://localhost> | Nebula web application and the API under `/api/v1/...` |
 | <http://localhost/monitoring/> | Phoenix: traces of every run and the prompt registry |
-| `http://localhost:9000` | Presigned artifact downloads opened by the web application; not a page to visit |
+| `http://localhost:9000` | Presigned artifact downloads opened by the web application, and the RustFS console (step 12) — trusted workstation only |
 
 Open <http://localhost>. With authentication disabled you land directly in the wizard as the local developer. Enter a repository your Git token can push to, choose the cloud and scope, describe the infrastructure you need, and follow the session. What each mode does is explained in [Operating modes](modes.md); your sessions and the admin panel are described in [Admin portal](admin-portal.md).
 

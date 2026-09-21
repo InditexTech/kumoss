@@ -117,42 +117,42 @@
       "from": "ct",
       "to": "db",
       "y": 516,
-      "label": "9a · Acquire in-flight guard (PostgreSQL CAS)",
+      "label": "9 · Acquire in-flight guard (PostgreSQL CAS)",
       "variant": "security"
     },
     {
       "from": "ct",
       "to": "ex",
       "y": 558,
-      "label": "9b · Clone repo into ephemeral workspace · start tracing",
+      "label": "10 · Clone repo into ephemeral workspace · start tracing",
       "variant": "default"
     },
     {
       "from": "ct",
       "to": "ag",
       "y": 600,
-      "label": "10 · Request Filter Agent — is the request acceptable? (status FILTERING)",
+      "label": "11 · Request Filter Agent — is the request acceptable? (status FILTERING)",
       "variant": "default"
     },
     {
       "from": "ag",
       "to": "ui",
       "y": 642,
-      "label": "11a · [not acceptable] rationale, session UNCOMPLETED",
+      "label": "12a · [not acceptable] rationale, session UNCOMPLETED",
       "variant": "return"
     },
     {
       "from": "ui",
       "to": "u",
       "y": 684,
-      "label": "12a · [not acceptable] reformulate the request",
+      "label": "13a · [not acceptable] reformulate the request",
       "variant": "return"
     },
     {
       "from": "ct",
       "to": "ag",
       "y": 726,
-      "label": "11b · [acceptable] Prompt Compositor — pick relevant templates, conventions, guidelines (Phoenix)",
+      "label": "12b · [acceptable] Prompt Compositor — pick relevant templates, conventions, guidelines (Phoenix)",
       "variant": "default"
     }
   ],

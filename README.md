@@ -8,11 +8,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Nebula
 
-**Status:** pre-1.0. There are no tagged releases yet; `main` is the supported line and breaking changes are announced in pull requests.
-
 Nebula turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, while Nebula’s agents generate Terraform-compatible HCL directly in the appropriate repository, guided by the organization’s architecture, security, and networking standards.
 
-Its structured review process and agent-based generation make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, audits them with an LLM compliance auditor whose findings (and, optionally, a high-impact verdict) lock the session until a panel editor unlocks it, opens a pull request, and applies the reviewed plan only after an explicit apply request from a `developer` (the requester may apply their own plan; there is no separate approver step).
+Its structured review process and agent-based generation make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, then audits them with an LLM compliance auditor. Failing findings — and, optionally, a high-impact verdict — lock the session until a panel editor unlocks it. Nebula then opens a pull request and applies the reviewed plan only after an explicit apply request from a `developer`; the requester may apply their own plan, and there is no separate approver step.
 
 > Nebula is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services that implement OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization. Prompts live in Phoenix, an LLM observability tool that also stores Nebula's traces.
 
@@ -20,9 +18,9 @@ Its structured review process and agent-based generation make infrastructure del
 
 Nebula has two kinds of components.
 
-![What you deploy: the core platform components (proxy, core, core-db, redis, object-storage, phoenix) run as shipped; the four sidecars (iac, notifications, mapping, authz) each implement an OpenAPI contract and connect Nebula to your organization's LLM providers, Git hosting, cloud accounts, and Slack](docs/images/readme-components.png)
+![What you deploy: the core platform components (proxy, core, core-db, redis, object-storage, phoenix) run as shipped; the four sidecars (iac, notifications, mapping, authz) each implement an OpenAPI contract and connect Nebula to your organization's LLM providers, Git hosting, cloud accounts, and notification targets](docs/images/readme-components.png)
 
-*Green: core platform components you run as shipped. Orange: sidecars behind OpenAPI contracts — solid for the mandatory `iac` sidecar, dashed for the three that are disabled by default. Grey: systems in your organization. Source: [`docs/images/readme-components.mmd`](docs/images/readme-components.mmd); the detailed view is in [Architecture](docs/architecture.md).*
+*The two dashed regions are the split: core platform components you run as shipped, and the four sidecars behind OpenAPI contracts. Everything outside them is either the user's browser or a system in your organization; the `phoenix` box stands for both the Phoenix container and its `phoenix-db` database. The thick arrow to `iac` is the one sidecar call Nebula always makes — the dashed arrows are calls that only happen once you enable that sidecar, which the shipped `config.yaml` does not. Source: [`docs/diagrams/readme-components.architecture.json`](docs/diagrams/readme-components.architecture.json); the detailed view is in [Architecture](docs/architecture.md).*
 
 ### Core platform components
 
@@ -36,7 +34,7 @@ Core components are run as shipped and configured through `config.yaml` and the 
 | `proxy` (nginx) | Serves the React web application, publishes the API and Monitoring endpoints and the internal object storage. |
 | `core-db` | Postgres 17 storing sessions, rounds, artifact metadata, users and roles. |
 | `redis` | Cache for core-db. |
-| `object-storage` | Artifacts: reports, plans, code changes. Also holds Terraform/OpenTofu state, in a separate bucket, when Nebula-managed state is enabled. |
+| `object-storage` | Artifacts: reports, plans, code changes. Also holds Terraform/OpenTofu state in a separate bucket — on by default, switched off with `storage.terraform_state_bucket: ""`. |
 | `phoenix` + `phoenix-db` | AI Observability stack. Also used as prompt registry. |
 
 ### Sidecars

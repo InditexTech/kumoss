@@ -51,56 +51,56 @@
       "from": "u",
       "to": "ui",
       "y": 180,
-      "label": "34 · PUT /repository/pr — the user asks for a pull request",
+      "label": "35 · PUT /repository/pr — the user asks for a pull request",
       "variant": "default"
     },
     {
       "from": "ct",
       "to": "ag",
       "y": 222,
-      "label": "35 · PR Title and Description Agent (small model)",
+      "label": "36 · PR Title and Description Agent (small model)",
       "variant": "default"
     },
     {
       "from": "ct",
       "to": "ex",
       "y": 264,
-      "label": "36 · Git provider adapter creates the PR (GitHub, Azure DevOps, GitLab)",
+      "label": "37 · Git provider adapter creates the PR (GitHub, Azure DevOps, GitLab)",
       "variant": "default"
     },
     {
       "from": "ex",
       "to": "u",
       "y": 306,
-      "label": "37 · awaiting review — code, plan, drift, compliance report, cost, CI",
+      "label": "38 · awaiting review — code, plan, drift, compliance report, cost, CI",
       "variant": "return"
     },
     {
       "from": "u",
       "to": "ui",
       "y": 348,
-      "label": "38a · [changes requested / conflict / CI failure] new round in the same session (back to phase 3)",
+      "label": "39a · [changes requested / conflict / CI failure] new round in the same session (back to phase 3)",
       "variant": "default"
     },
     {
       "from": "u",
       "to": "ui",
       "y": 390,
-      "label": "38b · [approved] PUT /repository/pr/merge — answers 409 if is_blocked",
+      "label": "39b · [approved] PUT /repository/pr/merge — answers 409 if is_blocked",
       "variant": "security"
     },
     {
       "from": "ui",
       "to": "ex",
       "y": 432,
-      "label": "39b · [approved] merge into default branch",
+      "label": "40b · [approved] merge into default branch",
       "variant": "default"
     },
     {
       "from": "u",
       "to": "ui",
       "y": 474,
-      "label": "38c · [rejected or closed] delivery stops · history kept",
+      "label": "39c · [rejected or closed] delivery stops · history kept",
       "variant": "return"
     }
   ],
