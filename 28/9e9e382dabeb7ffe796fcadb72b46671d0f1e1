@@ -1,0 +1,19 @@
+docs/src/antora.yml
+  s_80925b41a3405c::t_8e2187a51e5e9f 57,84,86-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "289e9e382dabeb7ffe796fcadb72b46671d0f1e1",
+  "prompts": {},
+  "sessions": {
+    "s_80925b41a3405c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c62b8d0-62fd-42e9-a702-3972929b0e26",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
