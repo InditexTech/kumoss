@@ -1,6 +1,9 @@
 * Overview
 * xref:main:about.adoc[About]
 * xref:main:architecture.adoc[Architecture]
+** xref:main:architecture/end-to-end-flow.adoc[End-to-end flow]
+** xref:main:architecture/data-and-state.adoc[Data and state]
+** xref:main:architecture/deployment-view.adoc[Deployment view]
 * xref:main:glossary.adoc[Glossary]
 * Getting started
 * xref:main:prerequisites.adoc[Prerequisites]
