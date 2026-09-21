@@ -1,0 +1,33 @@
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_707b1ca4b8c65a::t_50de0dd7891680 1-135
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_707b1ca4b8c65a::t_210219889abc9f 1-151
+docs/src/modules/main/pages/guides/merge-and-apply.adoc
+  s_707b1ca4b8c65a::t_82e25c8d6ae2cf 1-69
+docs/src/modules/main/nav.adoc
+  s_2dfdaf9096a7ff::t_e09ab847ccf5ee 12-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dac07e7e269c6f44096dacb77756d9ee6178d5cd",
+  "prompts": {},
+  "sessions": {
+    "s_2dfdaf9096a7ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a569bf3408f8bf883",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_707b1ca4b8c65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "341f8f5d-74e6-450a-9c0f-f6a602fa82c8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
