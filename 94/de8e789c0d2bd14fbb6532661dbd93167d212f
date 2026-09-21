@@ -1,0 +1,35 @@
+docs/src/modules/main/pages/guides-overview.adoc
+  s_1fe6663611820d::t_cac99b405af818 30-35
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_1fe6663611820d::t_a8b710aa7b2cb1 15-16
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_1fe6663611820d::t_1b3e01ab3066ec 112-113
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_1fe6663611820d::t_2cfb093eacf9bd 15-16
+docs/src/modules/main/pages/reference-overview.adoc
+  s_1fe6663611820d::t_76a563109c6052 71
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_1fe6663611820d::t_513d2c24ff286d 11-12
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_1fe6663611820d::t_105521375472b3 21-25,331-337,378,562-563
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_1fe6663611820d::t_a08fe17b1d2778 17-19
+docs/src/modules/main/pages/reference/roles-and-permissions.adoc
+  s_1fe6663611820d::t_b7b40fe46ffd3e 19-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "94de8e789c0d2bd14fbb6532661dbd93167d212f",
+  "prompts": {},
+  "sessions": {
+    "s_1fe6663611820d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af903ed4837c5bc43",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
