@@ -1,0 +1,27 @@
+docs/src/modules/main/nav.adoc
+  s_de9e69fd9b4043::t_46fabc8e04621f 23-26
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_de9e69fd9b4043::t_cce72abe5fa7d8 1-490
+docs/src/modules/main/pages/guides/state-backends/nebula-managed.adoc
+  s_de9e69fd9b4043::t_9b365a687af9b6 1-398
+docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc
+  s_de9e69fd9b4043::t_4bf58dae75ba7d 1-67
+docs/src/modules/main/pages/guides/state-backends/sidecar-supplied.adoc
+  s_de9e69fd9b4043::t_a2c503a84171a7 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85af53cf11774f8a594cd57296f88062e1637933",
+  "prompts": {},
+  "sessions": {
+    "s_de9e69fd9b4043": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-ab6d233e4191b00ac",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
