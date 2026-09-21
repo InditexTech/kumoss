@@ -28,7 +28,9 @@ class TerraformImportAddressService:
         self.__llm_svc = llm_service
         self.__template_svc = template_service
 
-    async def get_import_addresses(self, history: History) -> list[tuple[str, str]]:
+    async def get_import_addresses(
+        self, history: History, selected_ids: list[str]
+    ) -> list[tuple[str, str]]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[ToolContext.WORKSPACE_INSPECTION]
         )
@@ -36,7 +38,9 @@ class TerraformImportAddressService:
             query="Map the generated Terraform blocks to their cloud resource ids.",
             tools=tools_definition,
             sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.IAC_IMPORT),
-            prompt=await self.__template_svc.render(PromptsLibrary.IMPORT_ADDRESSES),
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.IMPORT_ADDRESSES, selected_ids=selected_ids
+            ),
             history=history,
         )
         return [

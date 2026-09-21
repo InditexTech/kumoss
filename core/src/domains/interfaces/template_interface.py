@@ -72,7 +72,7 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_import_addresses(self) -> str:
+    def render_import_addresses(self, selected_ids: list[str]) -> str:
         pass
 
     @abstractmethod

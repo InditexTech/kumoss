@@ -202,9 +202,10 @@ class TerraformImportHandler:
 
                 # Step 4 — Import execution. The generated blocks are already
                 # committed, so the branch diff is the source of truth for which
-                # addresses exist and what each one must be imported from.
+                # addresses exist; the selected ids say what each is imported
+                # from, since a block never carries its own cloud resource id.
                 imports = await self.__import_address_svc.get_import_addresses(
-                    ctx.history
+                    ctx.history, selected_ids
                 )
                 if not imports:
                     logging.warning(

@@ -22,6 +22,15 @@ All file paths are relative to this directory.
 - Each mapping you report is executed verbatim as `terraform import <address> <resource_id>`, so a wrong or invented entry corrupts the Terraform state.
 </context>
 
+{% if selected_ids %}
+<selected_resource_ids>
+This round was asked to import exactly these cloud resource ids. The list is authoritative: pair every block you find in the diff with its id from here.
+{% for id in selected_ids %}
+- {{ id }}
+{% endfor %}
+</selected_resource_ids>
+{% endif %}
+
 <objective>
 Report every Terraform resource block added on this branch together with the native cloud resource ID it must be imported from.
 </objective>
@@ -33,15 +42,15 @@ Report every Terraform resource block added on this branch together with the nat
    - top level: `<type>.<name>` (e.g. `azurerm_storage_account.sta_001`)
    - inside a module: `module.<module_name>.<type>.<name>`
    - with `for_each` or `count`: one address per instance, `<type>.<name>["<key>"]` or `<type>.<name>[<index>]`
-4. Determine the cloud resource ID for each address. Take it from the comments, the conversation above, or the block's own arguments. Use `read_file`, `list_dir` and `bulk_grep_search` only when the diff hunk alone does not let you resolve the address or its ID.
+4. Determine the cloud resource ID for each address. Take it from `<selected_resource_ids>`, matching on the identifying arguments of the block (its name and the group, project or account containing it); fall back to the comments or the conversation above. Use `read_file`, `list_dir` and `bulk_grep_search` only when the diff hunk alone does not let you resolve the address or its ID.
 5. Final reporting: call `iac_import` with `status`, a `summary` of what you found, and the `imports` list.
 </instructions>
 
 <constraints>
 - You MUST call `diff_history` before reporting.
-- The diff is authoritative even when conversation context suggests otherwise.
+- The diff is authoritative for which blocks exist, even when conversation context suggests otherwise. `<selected_resource_ids>` is authoritative for the id each block maps to.
 - An address MUST NOT be reported unless its resource block is present in the diff.
-- Never invent, guess or reconstruct a cloud resource ID. Omit the entry and explain the omission in `summary` when the ID cannot be established.
+- Never assemble a cloud resource ID out of its parts. An id listed in `<selected_resource_ids>` is established, not guessed, so report it as given. Omit the entry and explain the omission in `summary` only when no listed id matches the block.
 - Report `status` as `false` when the diff contains no added resource block, with an empty `imports` list.
 - Do NOT modify Terraform files, run Terraform, or apply infrastructure changes.
 - Maximum of 10 workspace inspection tool calls before reporting.
