@@ -1,0 +1,23 @@
+docs/src/modules/main/pages/reference/api/authz.adoc
+  s_80b2f12840ab3d::t_ee8018b10866b2 91-92,94-104,156-157,161-164,215-227
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_80b2f12840ab3d::t_40a9f40ac01748 207-211
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_80b2f12840ab3d::t_374c318e26fc52 207-221,450-463
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a635382b634007412deae6dc8986bea2d94b8c66",
+  "prompts": {},
+  "sessions": {
+    "s_80b2f12840ab3d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0d86145c1493ed93",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
