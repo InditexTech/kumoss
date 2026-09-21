@@ -192,7 +192,7 @@ the field never demotes anyone. Identity providers that never emit
 `email_verified` (Entra ID, Auth0, Okta) cannot use this; grant the
 first admin in the database instead, as described in
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Bootstrap
-admin].
+admin]. Ignored while authentication is disabled.
 |===
 
 Requires rebuild: yes. This is the core's mechanism and is unrelated to

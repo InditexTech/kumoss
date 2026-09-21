@@ -111,7 +111,7 @@ credentials come from elsewhere
 unset*; empty otherwise
 |Access key for the S3-compatible store, used for the artifacts bucket
 and — where Nebula-managed state is enabled
-(`storage.terraform_state_bucket` non-blank; that's the shipped
+(`storage.terraform_state_bucket` non-blank; that is the shipped
 default) — for the state bucket too, in which case it is also embedded
 into the backend block the IaC sidecar executes.
 |`storage.provider: RUSTFS` (or `S3` with static keys)
@@ -395,7 +395,7 @@ the image runs as (`nebula`, uid and gid `10001` by default).
 The sidecar is the process that reads and writes Terraform state, so
 state-backend credentials are always a sidecar concern.
 
-* *By default* (`storage.terraform_state_bucket` non-blank — that's the
+* *By default* (`storage.terraform_state_bucket` non-blank — that is the
   shipped value), Nebula manages state. When the core's rendered
   backend block *contains* static keys (`RUSTFS`, or
   `S3`/`STORAGE_ACCOUNT` with keys set in `core/.env`), the sidecar
@@ -405,7 +405,7 @@ state-backend credentials are always a sidecar concern.
   the engine resolves credentials from the sidecar's own environment:
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an
   attached instance role or IRSA token. Granting that role to the
-  *core* container only is the common mistake — the core just creates
+  *core* container only is the common mistake — the core creates
   the bucket at boot.
 * With Nebula-managed state on, the sidecar must also reach
   `storage.endpoint_url`. In the Compose stack `core` and `iac` share
@@ -489,7 +489,7 @@ Because Compose starts every sidecar regardless of `config.yaml`, a
 notifications container that exits immediately is expected and harmless
 while `services.notifications.enabled` is `false`. No restart policy is
 set for it (only `proxy` carries `restart: on-failure`,
-`docker-compose.yml:12`), so it exits once and then simply shows as
+`docker-compose.yml:12`), so it exits once and then shows as
 `Exited` in `docker compose ps` — it is not restarted in a loop. Remove
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
