@@ -36,6 +36,22 @@ jobs:
       - name: REUSE Compliance Check
         uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
 
+  links:
+    name: Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Link Checker
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --offline --include-fragments 'README.md' 'CONTRIBUTING.md' 'SECURITY.md' 'docs/**/*.md' 'services/**/*.md' 'contracts/**/*.md' 'client/web/README.md'
+          fail: true
+
   conventional-commits:
     name: Conventional Commits
     runs-on: ubuntu-latest

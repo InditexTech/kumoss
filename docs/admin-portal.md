@@ -81,8 +81,7 @@ The detail panel shows everything the owner sees plus the conversation **History
 
 ### Users tab (panel `admin` only)
 
-The table lists users (display name with the e-mail underneath, or the e-mail alone when there is no display name), **Operation role** (`Developer`, `DevOps`), **Panel role** (`No access`, `Viewer`, `Editor`, `Admin`), and creation time, newest first, in pages of up to
-100. A search box matches e-mail or display name.
+The table lists users (display name with the e-mail underneath, or the e-mail alone when there is no display name), **Operation role** (`Developer`, `DevOps`), **Panel role** (`No access`, `Viewer`, `Editor`, `Admin`), and creation time, newest first. The page-size selector offers 10, 15, 25, and 50 rows (15 by default, remembered in the browser); the API itself accepts any `page_size` from 1 to 100. A search box matches e-mail or display name.
 
 Changing a drop-down saves immediately by sending the user's complete role state to `PUT /admin/users/{user_id}/roles`. Rules enforced by the API:
 
@@ -141,7 +140,7 @@ The chat-bubble icon in the application header ("Support") and the "Contact team
 
 After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and rebuild first if you really need to demote them.
 
-With authentication disabled, the "Log out" action on the user page does nothing: there is no session to end.
+With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing *Sign In* re-fetches `GET /api/v1/users/me` and puts you straight back in as the dev identity.
 
 Do not confuse this with the authorization sidecar. Its `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin` role inside the sidecar's JSON role store. The core never reads that store; the sidecar is consulted only for cloud-project authorization checks when `services.authz.enabled` is `true`.
 

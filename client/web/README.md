@@ -10,6 +10,8 @@ React frontend for the Nebula IaC generation platform.
 
 ## Quick Start
 
+Prerequisites: Node 24 (as in `nginx/Dockerfile`, which builds this client for the Docker stack).
+
 ```bash
 cd client/web
 npm install
@@ -39,7 +41,7 @@ changing frontend code, rebuild the proxy to see the changes:
 docker compose build proxy && docker compose up -d proxy
 ```
 
-`docker compose watch` hot-reloads the core backend only, not this client.
+`docker compose watch` syncs `core/` into the container; restart the core (`docker compose restart core`) to pick up changes. It does not touch this client at all.
 
 ## Commands
 
@@ -62,4 +64,5 @@ docker compose build proxy && docker compose up -d proxy
 - Vite 6.4
 - MUI 7 (Material UI)
 - React Router 7
+- `oidc-client-ts` 3.5 + `react-oidc-context` 3.3 (OIDC login; inert in dev mode)
 - Vitest + React Testing Library + MSW

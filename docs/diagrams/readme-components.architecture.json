@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "What you deploy",
+    "output": "readme-components.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "cloud": {
+          "label": "Reverse proxy"
+        },
+        "external": {
+          "label": "Your organization"
+        }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 5,
+    "cellW": 190,
+    "cellH": 84,
+    "gapX": 90,
+    "gapY": 120,
+    "origin": [
+      40,
+      40
+    ]
+  },
+  "components": [
+    {
+      "id": "phoenix",
+      "type": "backend",
+      "label": "phoenix",
+      "sublabel": "observability + prompts",
+      "tag": "with phoenix-db",
+      "row": 0,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "redis",
+      "sublabel": "read-through cache",
+      "row": 0,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "objstore",
+      "type": "database",
+      "label": "object-storage",
+      "sublabel": "artifacts + state (RustFS)",
+      "row": 0,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLM providers",
+      "sublabel": "routed by LiteLLM",
+      "row": 0,
+      "col": 4,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "browser",
+      "type": "frontend",
+      "label": "Browser",
+      "sublabel": "React SPA",
+      "row": 1,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "proxy",
+      "type": "cloud",
+      "label": "proxy",
+      "sublabel": "web app, API, monitoring",
+      "row": 1,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "core",
+      "sublabel": "FastAPI orchestration API",
+      "row": 1,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "coredb",
+      "type": "database",
+      "label": "core-db",
+      "sublabel": "sessions, users, roles",
+      "row": 1,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "iac",
+      "type": "backend",
+      "label": "iac",
+      "sublabel": "mandatory · OpenTofu/Terraform",
+      "row": 2,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "notifications",
+      "type": "backend",
+      "label": "notifications",
+      "sublabel": "disabled · Slack webhook",
+      "row": 2,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "mapping",
+      "type": "backend",
+      "label": "mapping",
+      "sublabel": "disabled · repository routing",
+      "row": 2,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "authz",
+      "type": "backend",
+      "label": "authz",
+      "sublabel": "disabled · access policy",
+      "row": 2,
+      "col": 3,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "githost",
+      "type": "external",
+      "label": "Git hosting",
+      "sublabel": "GitHub, Azure DevOps, GitLab",
+      "row": 2,
+      "col": 4,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "cloudacct",
+      "type": "external",
+      "label": "Cloud accounts",
+      "sublabel": "target infrastructure",
+      "row": 3,
+      "col": 0,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "notifytarget",
+      "type": "external",
+      "label": "Notification target",
+      "sublabel": "Slack, Teams, email, PagerDuty",
+      "row": 3,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Core platform components — run as shipped",
+      "wraps": [
+        "phoenix",
+        "redis",
+        "objstore",
+        "proxy",
+        "core",
+        "coredb"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Sidecars — OpenAPI contracts, replaceable",
+      "wraps": [
+        "iac",
+        "notifications",
+        "mapping",
+        "authz"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "browse",
+      "from": "browser",
+      "to": "proxy",
+      "label": "SPA, REST, SSE"
+    },
+    {
+      "id": "serve-api",
+      "from": "proxy",
+      "to": "core",
+      "label": "/api + SSE",
+      "labelDy": 16
+    },
+    {
+      "id": "monitoring",
+      "from": "proxy",
+      "to": "phoenix",
+      "label": "/monitoring/"
+    },
+    {
+      "id": "traces",
+      "from": "core",
+      "to": "phoenix",
+      "label": "OTLP + prompts"
+    },
+    {
+      "id": "cache",
+      "from": "core",
+      "to": "redis"
+    },
+    {
+      "id": "artifacts",
+      "from": "core",
+      "to": "objstore",
+      "label": "S3 API"
+    },
+    {
+      "id": "sessions",
+      "from": "core",
+      "to": "coredb",
+      "label": "SQL",
+      "labelDy": 14
+    },
+    {
+      "id": "completions",
+      "from": "core",
+      "to": "llm",
+      "label": "completions",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "run-iac",
+      "from": "core",
+      "to": "iac",
+      "label": "plan, drift, apply",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "notify",
+      "from": "core",
+      "to": "notifications",
+      "label": "events",
+      "variant": "dashed",
+      "labelDy": 35
+    },
+    {
+      "id": "map-repo",
+      "from": "core",
+      "to": "mapping",
+      "label": "repository lookup",
+      "variant": "dashed",
+      "labelDy": 90
+    },
+    {
+      "id": "check-access",
+      "from": "core",
+      "to": "authz",
+      "label": "project check",
+      "variant": "dashed",
+      "labelDy": 40
+    },
+    {
+      "id": "git",
+      "from": "core",
+      "to": "githost",
+      "label": "push + PR",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "provision",
+      "from": "iac",
+      "to": "cloudacct",
+      "label": "provider credentials",
+      "labelDy": 24
+    },
+    {
+      "id": "deliver",
+      "from": "notifications",
+      "to": "notifytarget",
+      "label": "message delivery",
+      "variant": "dashed",
+      "labelDy": 24
+    }
+  ]
+}
