@@ -217,7 +217,7 @@ Messages 35 to 40.
   `FAILED` round, which closes the session for good. Approval leads to
   `PUT /api/v1/repository/pr/merge`, which merges into the default
   branch unless the session is locked (`409`): a pull-request merge is
-  always lock-checked. A rejected or closed pull request simply ends
+  always lock-checked. A rejected or closed pull request ends
   delivery; the session history and artifacts are kept.
 
 == Phase 10: human-triggered apply (never automatic)
@@ -237,7 +237,7 @@ Messages 41 to 49.
   needs a free in-flight guard (otherwise it logs and exits without
   changing the session), and the handler needs a pinned plan: without
   one it raises
-  `No reviewed plan is pinned for this session; run a generate round before applying.`,
+  `No reviewed plan is pinned for this session; run a generate or drift round before applying.`,
   so the runner marks the session `FAILED`, sends
   `system.exception.failure`, and the session — being `FAILED` — can no
   longer be resumed. A drift-only session is exactly that case, because
@@ -331,7 +331,7 @@ never fails the pipeline.
 |Vertical bar on a participant's lifeline
 |An activation: that participant is busy for the span the bar covers.
 
-|Dashed band labelled `PHASE n · …`
+|Dashed band labeled `PHASE n · …`
 |One phase of the flow; the numbering matches the sections above. The
 band label also carries the facts that have no arrow of their own,
 such as the conditions under which a bounded loop stops.
@@ -597,7 +597,7 @@ OIDC `issuer_url`, `client_id`, optional `audience`, and the resolved
 `scope` from `config.yaml`.
 
 *Auth disabled* (blank `issuer_url`, the checked-in default). The SPA
-mounts a dev provider that just calls `/users/me`; the core resolves
+mounts a dev provider that calls `/users/me`; the core resolves
 every request to a fixed local-developer identity (`urn:nebula:dev` /
 `dev`), provisioned as a real `users` row with the top role of both
 groups.
