@@ -1,9 +1,9 @@
 = Release notes
+:description: Notable changes to Nebula, per release.
 
 Summarize what changed for users in each release here, newest first — in
 contrast to xref:main:changelog/index.adoc[Changelog], which is the
 unabridged commit-level record.
 
-== v0.1.0
-
-Placeholder entry. Replace with the real first release's notes.
+Nebula has not published a tagged release yet. This page lists notable
+changes from the first release onward.

@@ -504,15 +504,22 @@ each repository declares its own backend instead.
 
 == Next steps
 
-* Hand the user guide and FAQ to the people who will make requests.
+* Hand the xref:main:guides/make-a-request.adoc[user guide] and
+  xref:main:faq.adoc[FAQ] to the people who will make requests.
 * Review and adapt the seeded prompts; they encode a generic policy, not
-  yours.
-* Try a real login flow with your identity provider.
-* Learn the role model and the admin panel.
+  yours: xref:main:guides/customize-prompts.adoc[Phoenix prompt
+  templates].
+* Try a real login flow with your identity provider:
+  xref:main:guides/enable-authentication.adoc[OIDC setup].
+* Learn the role model and the admin panel:
+  xref:main:guides/administer-users-and-locks.adoc[Admin portal].
 * Decide where Terraform state should live before you point Nebula at
-  anything real.
+  anything real:
+  xref:main:guides/configure-state-backends.adoc[Terraform/OpenTofu
+  state backends].
 * Before sharing the instance with anyone, switch to the production
-  deployment model.
+  deployment model: xref:main:guides/deploy-to-production.adoc[Deploy
+  to production].
 
 == Troubleshooting
 

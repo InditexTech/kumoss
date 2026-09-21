@@ -8,19 +8,9 @@ xref:main:guides/deploy-to-production.adoc[].
 
 == Prerequisites
 
-Before contributing code, sign the Contributor License Agreement (CLA).
-Instructions are at
-https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md[InditexTech/foss].
-All contributors are expected to follow the
-https://github.com/InditexTech/nebula/blob/main/CODE_OF_CONDUCT.md[code
-of conduct].
-
-Open an issue to discuss and gather feedback on a feature or fix before
-starting work, and check existing
-https://github.com/InditexTech/nebula/issues[issues] and
-https://github.com/InditexTech/nebula/pulls[pull requests] first to
-avoid duplication. If you take on an existing issue, comment on it so
-other contributors know it is in progress.
+Before contributing, read xref:main:contributing.adoc[] for the
+Contributor License Agreement, the code of conduct, and the process for
+proposing a change.
 
 == Repository layout
 
@@ -113,6 +103,7 @@ production build, and the pytest suite of each sidecar service. *The
 core suite is not run in CI*, so run it locally against the compose
 stack before opening a pull request.
 
+[#regenerating-clients]
 == Regenerating sidecar clients
 
 Changing a sidecar's behavior means updating its spec in
@@ -134,21 +125,5 @@ Regeneration drops the SPDX headers from the generated files; re-add
 them afterwards. Do not hand-edit anything under
 `core/src/clients/{authz,iac,mapping,notifications}/`.
 
-== Pull requests
-
-Fill in the pull-request template
-(https://github.com/InditexTech/nebula/blob/main/.github/PULL_REQUEST_TEMPLATE.md[.github/PULL_REQUEST_TEMPLATE.md])
-and link the issue it addresses. Include UI screenshots for visible
-changes.
-
-Commit subjects must follow the
-https://www.conventionalcommits.org/en/v1.0.0/[Conventional Commits
-Specification] (for example `fix(core): release session lock`); CI
-rejects other subjects. Sign your commits (`git commit -S`) — signing
-is required by policy and checked in review, not enforced by any CI
-workflow.
-
-Every new file starts with an SPDX header following the
-https://reuse.software/spec-3.3/#licensing-information[REUSE
-Specification] (`SPDX-FileCopyrightText` and
-`SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check.
+Once your change is ready, xref:main:contributing.adoc[] covers the
+pull-request process and the checks it must pass.

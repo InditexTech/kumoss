@@ -1,0 +1,137 @@
+= Additional information
+:description: Nebula's licensing, support channels, and how to report a security vulnerability.
+
+This page gathers what does not fit under Guides or Reference:
+licensing of the default stack, how to reach the people behind a
+Nebula deployment, and where the FAQ, release notes, and changelog
+live.
+
+== Licensing of the default stack
+
+Every component that runs by default in the checked-in Compose stack
+is open source, with one source-available exception that is disclosed
+rather than hidden (the bundled but inactive Terraform binary is a
+second, opt-in exception). Identity has no licensing footprint at all:
+Nebula speaks standard OpenID Connect and trusts any spec-faithful
+issuer, so a fully open-source deployment can pair it with Keycloak
+(Apache-2.0, CNCF Incubating) while an enterprise can point it at Entra
+ID, Auth0, or Okta without changing a line of code.
+
+[cols="2,3,2,4",options="header"]
+|===
+|Component |Role |Licence |Notes
+
+|Nebula (core, sidecars, SPA, contracts)
+|The platform
+|Apache-2.0
+|REUSE-compliant SPDX headers
+
+|OpenTofu 1.12.6
+|Default IaC engine in the iac sidecar
+|MPL-2.0 (Linux Foundation)
+|Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0
+(BUSL-1.1, not OSI), downloaded and checksum-verified at build time and
+selectable via `IAC_BINARY=terraform`; running it makes your use
+subject to its licence terms
+
+|RustFS
+|Default, bundled S3-compatible object storage for artifacts (and for
+Terraform state where that is enabled)
+|Apache-2.0
+|Rust implementation of the S3 API; AWS S3 or Azure Blob Storage
+selectable via `storage.provider`, or any other S3-compatible endpoint
+via the `RUSTFS` provider
+
+|PostgreSQL 17
+|core-db and phoenix-db
+|PostgreSQL Licence
+|—
+
+|Redis 8
+|Fail-open cache
+|Tri-licensed: AGPLv3 (OSI) / RSALv2 / SSPLv1
+|AGPLv3 option restored in Redis 8.0
+
+|nginx
+|Reverse proxy and SPA host
+|BSD-2-Clause
+|—
+
+|FastAPI, LiteLLM, React, oidc-client-ts
+|Framework, model router, portal, OIDC client
+|MIT
+|—
+
+|OpenTelemetry / OpenInference
+|Tracing standard and semantic conventions
+|Apache-2.0
+|OpenTelemetry is CNCF Graduated (2026-05-21)
+
+|Arize Phoenix
+|Trace UI and runtime prompt registry
+|*Elastic License 2.0 (source-available, not OSI-approved)*
+|The only non-OSI component; disclosed in all public material
+
+|OpenID Connect
+|Authentication protocol
+|Open standard (OpenID Foundation)
+|No component shipped; any compliant IdP
+|===
+
+[#support-requests]
+== Support requests
+
+Any signed-in user can send a support request from inside the web
+application, and it reaches Nebula's own reviewers rather than a
+generic mailbox.
+
+From the browser, the chat-bubble *Support* icon in the header opens a
+form for up to 500 characters, plain text only — HTML and code
+formatting are rejected. The message carries your e-mail, the session
+id, the repository, branch, request, status, and a link to the session
+automatically, so you do not need to copy those in yourself. *Contact
+Team* (on a locked session) and *Request Review* (on the apply
+confirmation) send the same kind of message, pre-filled for that
+session, and flagged as a warning when the plan deletes or recreates
+resources. "Your question has been sent successfully" confirms
+delivery; "Your question could not be sent. Notifications are
+disabled." means your deployment has not connected a notification
+channel — use your organization's usual support route and quote the
+session id.
+
+The form calls `POST /api/v1/notifications`. The core forwards the
+request to the notifications sidecar with an audience made of the
+caller's e-mail plus every user holding a panel role of `editor` or
+higher, and the bundled sidecar posts it to Slack. When
+`services.notifications.enabled` is `false` the route answers `503
+Notifications are disabled.`; when delivery fails it answers `502
+Notification was not delivered.`
+
+== Reporting a security vulnerability
+
+Report a security vulnerability through the
+https://vdp.inditex.com[disclosure submission program], in English —
+never through a public GitHub issue. The security team acknowledges a
+report within 48 hours, investigates its severity, and develops,
+tests, and publishes a fix and an advisory. See the
+https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
+policy] for the full process and the safe-harbor terms covering
+researchers who report in good faith.
+
+== Sections
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:faq.adoc[FAQ]
+Answers to common questions about roles, requests, sessions, locks,
+and getting help.
+
+[card]
+.xref:main:release-notes/index.adoc[Release notes]
+The curated highlights of each release.
+
+[card]
+.xref:main:changelog/index.adoc[Changelog]
+The complete, commit-level record of every change.
+====

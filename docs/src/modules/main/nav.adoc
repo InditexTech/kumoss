@@ -45,6 +45,8 @@
 ** xref:main:reference/api/mapping.adoc[Mapping sidecar API]
 ** xref:main:reference/api/authz.adoc[Authorization sidecar API]
 * Additional information
+* xref:main:additional-information.adoc[Overview]
+* xref:main:faq.adoc[FAQ]
 * xref:main:release-notes/index.adoc[Release notes]
 * xref:main:changelog/index.adoc[Changelog]
 * Contributing

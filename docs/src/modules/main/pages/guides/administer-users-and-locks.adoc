@@ -223,3 +223,6 @@ to infrastructure; adjust the operation role separately if needed.
 
 * xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] to
   inspect the traces behind any session.
+* xref:main:additional-information.adoc#support-requests[Support
+  requests] for who receives the support requests users send from the
+  application header.
