@@ -35,7 +35,7 @@ lock. Your own sessions list shows the lock state in the *Apply* column.
   title and description and opens the pull request from the session
   branch on your Git provider. Creating it can take a minute.
 . *Review.* "Here is your Pull Request." Use *View Pull Request* to open
-  it (the button appears when the link points at a recognised host;
+  it (the button appears when the link points at a recognized host;
   otherwise copy the link from the session details). Your team's normal
   review and CI apply. If reviewers ask for changes, type them as a
   follow-up request; the new round pushes to the same branch and updates
@@ -61,7 +61,8 @@ After an apply the reviewed plan is consumed. To change something else,
 send a new request; a fresh plan is produced and reviewed before the next
 apply. *Import Infrastructure* in the mode drop-down currently performs
 this same apply step on an existing session; it does not yet import
-unmanaged resources, see xref:main:guides-overview.adoc[Guides].
+unmanaged resources, see
+xref:main:guides-overview.adoc#compare-modes[Comparing the operating modes].
 
 == Next steps
 

@@ -83,7 +83,7 @@ authoritative description of what would change.
 * *Potential Impact.* One of *Low Impact*, *Medium Impact*, or *High
   Impact*, with a description. With the default criteria, high means
   destructive actions, restarts, downtime, or critical networking changes;
-  medium means significant configuration updates that change behaviour
+  medium means significant configuration updates that change behavior
   without guaranteed downtime; low means isolated new resources or
   non-disruptive updates such as tags or locks. Click the card for the
   status, description, and detail bullets.
@@ -102,9 +102,10 @@ file, the change, and the reason for each.
 
 *What you do not see.* The compliance audit that runs after the report
 produces rule-level findings, but they are not displayed in the
-application. If the audit fails you see its consequence, the lock, and the
-reviewers who receive the notification see the summary. Ask your reviewer
-or platform team for the details.
+application. If the audit fails you see its consequence, the lock (see
+xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
+locked]), and the reviewers who receive the notification see the summary.
+Ask your reviewer or platform team for the details.
 
 *Reading order that works.* Impact level first, then the Deleted and
 Recreated filters, then the plan for anything you do not expect, then the

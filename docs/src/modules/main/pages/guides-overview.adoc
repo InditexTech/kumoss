@@ -75,6 +75,7 @@ session branch using the `GIT_TOKEN` credentials. Merging it from the web
 application calls the merge route, which is blocked while the session is
 locked.
 
+[#compare-modes]
 == Comparing the operating modes
 
 [cols="2,3,3,3,3",options="header"]
