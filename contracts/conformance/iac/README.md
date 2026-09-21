@@ -20,9 +20,8 @@ Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/iac
-uv venv && source .venv/bin/activate
-uv pip install -e .
-pytest \
+uv sync
+uv run pytest \
   --service-url=https://iac.your.example \
   --service-token=$YOUR_TOKEN
 ```

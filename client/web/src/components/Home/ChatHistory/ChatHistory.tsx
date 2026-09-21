@@ -25,7 +25,7 @@ export default function ChatHistory({ onIterate, onResetToReport, disabled, isAp
   // The backend refuses to resume failed sessions (the lock is never
   // acquired after the 202), so a follow-up would silently never start.
   const iterateDisabled = disabled || session.current_status === "failed";
-  const messages = (session.full_history ?? []).filter(e => e.role !== "validation");
+  const messages = (session.history ?? []).filter(e => e.role !== "validation");
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [hasText, setHasText] = useState(false);

@@ -22,9 +22,6 @@ from src.domains.interfaces import IObjectStorage
 from src.shared.logger import logging
 from src.shared.utils.decorators import execute_pool
 
-_NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NoSuchBucket"})
-_ALREADY_OWNED_CODES = frozenset({"BucketAlreadyOwnedByYou", "BucketAlreadyExists"})
-
 
 def _error_code(e: ClientError) -> str:
     return str(e.response.get("Error", {}).get("Code", ""))
@@ -44,6 +41,9 @@ class S3ObjectStorage(IObjectStorage):
     touches the network). With no custom endpoints (AWS) a single client
     on the regional default serves both roles.
     """
+
+    _NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NoSuchBucket"})
+    _ALREADY_OWNED_CODES = frozenset({"BucketAlreadyOwnedByYou", "BucketAlreadyExists"})
 
     def __init__(
         self,
@@ -126,7 +126,7 @@ class S3ObjectStorage(IObjectStorage):
                 message=f"Object store unreachable during {op} on '{target}'.",
                 error_code=503,
             ) from e
-        if isinstance(e, ClientError) and _error_code(e) in _NOT_FOUND_CODES:
+        if isinstance(e, ClientError) and _error_code(e) in self._NOT_FOUND_CODES:
             raise ObjectNotFound(
                 message=f"Object '{target}' not found.",
                 error_code=404,
@@ -145,7 +145,7 @@ class S3ObjectStorage(IObjectStorage):
             self.__client.head_bucket(Bucket=self.__bucket)
             return
         except ClientError as e:
-            if _error_code(e) not in _NOT_FOUND_CODES:
+            if _error_code(e) not in self._NOT_FOUND_CODES:
                 raise
         params: dict[str, Any] = {"Bucket": self.__bucket}
         if self.__endpoint_url is None and self.__region != "us-east-1":
@@ -155,7 +155,7 @@ class S3ObjectStorage(IObjectStorage):
             self.__client.create_bucket(**params)
         except ClientError as e:
             # Two replicas racing the same boot is not an error.
-            if _error_code(e) not in _ALREADY_OWNED_CODES:
+            if _error_code(e) not in self._ALREADY_OWNED_CODES:
                 raise
 
     @execute_pool
@@ -182,7 +182,7 @@ class S3ObjectStorage(IObjectStorage):
             self.__client.head_object(Bucket=self.__bucket, Key=key)
             return True
         except ClientError as e:
-            if _error_code(e) in _NOT_FOUND_CODES:
+            if _error_code(e) in self._NOT_FOUND_CODES:
                 return False
             raise
 

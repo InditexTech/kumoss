@@ -13,9 +13,10 @@ configured mapper.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from src.api.deps import get_current_user
 from src.infrastructure.external.mapping_service import MappingServiceClient
 from src.shared.exceptions import ExceptionHandler
 
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/mapping", tags=["Mapping"])
 
 @router.post(
     path="/resolve",
+    dependencies=[Depends(get_current_user)],
     summary="Resolve a business identifier into an IaC repository reference.",
     responses={
         200: {

@@ -4,7 +4,13 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import type { TerraformReport } from "./index";
-import type { HistoryEntry, SessionStatus } from "./api";
+import type {
+  HistoryEntry,
+  OperationType,
+  SessionStatus,
+  TerraformProvider,
+  WorkspaceRef,
+} from "./api";
 
 export type StateSetter<T> = Dispatch<SetStateAction<T>>;
 
@@ -29,7 +35,7 @@ export interface ApplyResultsData {
   applyReport?: TerraformReport | null;
 }
 
-export type PrApprovalStep = "initial" | "confirming" | "high_impact_warning";
+export type PrApprovalStep = "initial" | "confirming";
 
 // ─── Pipeline Phases ────────────────────────────────────────
 
@@ -70,40 +76,33 @@ export interface AssistantMsgState {
 
 // ─── Session ────────────────────────────────────────────────
 
-export interface SessionFilter {
-  project?: string;
-  cloud?: string;
-  environment?: string;
-  user_email?: string;
-  unique_repository_name?: string;
-  [key: string]: unknown;
-}
-
 export interface Session {
-  session_id?: string;
-  cloud?: string;
-  project?: string;
-  environment?: string;
-  repositoryUrl?: string;
-  uniqueRepositoryName?: string;
-  branchName?: string;
-  firstQuery?: string;
-  userQueries: string[];
-  validatorProvider?: string;
-  terraform_targets?: string[];
-  terraform_report?: TerraformReport;
-  full_history?: HistoryEntry[];
-  apply_allowed?: boolean;
+  uuid?: string;
+  operation?: OperationType;
+  provider?: TerraformProvider;
+  scope_id?: string;
+  first_query?: string;
+  workspace?: Partial<WorkspaceRef>;
   /** Failed sessions can't be resumed server-side; gates the follow-up input. */
   current_status?: SessionStatus;
+  is_blocked?: boolean;
+  history?: HistoryEntry[];
+  terraform_report?: TerraformReport;
   code?: string;
   applyResults?: ApplyResultsData;
 }
 
 export interface PrDetails {
-  prUrl?: string;
-  id?: number;
+  url?: string;
+  number?: number;
   lastPrStep?: PrApprovalStep;
+  /**
+   * Session-local: set once this PR has been merged, so the report view stops
+   * offering the merge again. Cannot survive a refresh — the rehydration path
+   * rebuilds PR state from `PullRequestRef`, which carries no status.
+   * See `useSessionLoader`.
+   */
+  merged?: boolean;
 }
 
 // ─── Mode ───────────────────────────────────────────────────

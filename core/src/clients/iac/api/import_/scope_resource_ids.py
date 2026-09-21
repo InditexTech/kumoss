@@ -104,24 +104,34 @@ def sync_detailed(
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: resource and resource-container IDs whose id
-      contains `scope_id` (Azure Resource Graph);
-    * `gcp`: asset names of the project's resources plus the IAM
-      role names bound in the project (Cloud Asset Inventory);
-    * `aws`: resource ARNs across the account's enabled regions
-      (Resource Groups Tagging API).
+    * `azure`: ARM resource, resource-group and role-assignment
+      IDs in the subscription `scope_id` (Azure Resource Graph).
+      ARM IDs compare case-insensitively.
+    * `gcp`: normalized asset names of the project's resources,
+      plus one `<project>/<role>/<member>` entry per project-level
+      IAM binding (Cloud Asset Inventory and Resource Manager).
+    * `aws`: resource ARNs across the account's indexed regions
+      (Resource Explorer, which the account must have enabled).
+
+    Implementations are expected to leave out resources managed by
+    another control plane — managed resource groups, Kubernetes
+    node pools and their disks and network interfaces, service
+    staging buckets, service-linked roles — since importing those
+    into Terraform cannot work.
 
     Failures of the underlying cloud query are normal outcomes:
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl calls each cloud's inventory API over
+    HTTPS with the service's ambient credentials, using no
+    command-line tools. A provider with no inventory query is a
+    normal outcome too: the job ends `succeeded` with a non-zero
+    `exit_code`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -159,24 +169,34 @@ def sync(
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: resource and resource-container IDs whose id
-      contains `scope_id` (Azure Resource Graph);
-    * `gcp`: asset names of the project's resources plus the IAM
-      role names bound in the project (Cloud Asset Inventory);
-    * `aws`: resource ARNs across the account's enabled regions
-      (Resource Groups Tagging API).
+    * `azure`: ARM resource, resource-group and role-assignment
+      IDs in the subscription `scope_id` (Azure Resource Graph).
+      ARM IDs compare case-insensitively.
+    * `gcp`: normalized asset names of the project's resources,
+      plus one `<project>/<role>/<member>` entry per project-level
+      IAM binding (Cloud Asset Inventory and Resource Manager).
+    * `aws`: resource ARNs across the account's indexed regions
+      (Resource Explorer, which the account must have enabled).
+
+    Implementations are expected to leave out resources managed by
+    another control plane — managed resource groups, Kubernetes
+    node pools and their disks and network interfaces, service
+    staging buckets, service-linked roles — since importing those
+    into Terraform cannot work.
 
     Failures of the underlying cloud query are normal outcomes:
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl calls each cloud's inventory API over
+    HTTPS with the service's ambient credentials, using no
+    command-line tools. A provider with no inventory query is a
+    normal outcome too: the job ends `succeeded` with a non-zero
+    `exit_code`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -209,24 +229,34 @@ async def asyncio_detailed(
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: resource and resource-container IDs whose id
-      contains `scope_id` (Azure Resource Graph);
-    * `gcp`: asset names of the project's resources plus the IAM
-      role names bound in the project (Cloud Asset Inventory);
-    * `aws`: resource ARNs across the account's enabled regions
-      (Resource Groups Tagging API).
+    * `azure`: ARM resource, resource-group and role-assignment
+      IDs in the subscription `scope_id` (Azure Resource Graph).
+      ARM IDs compare case-insensitively.
+    * `gcp`: normalized asset names of the project's resources,
+      plus one `<project>/<role>/<member>` entry per project-level
+      IAM binding (Cloud Asset Inventory and Resource Manager).
+    * `aws`: resource ARNs across the account's indexed regions
+      (Resource Explorer, which the account must have enabled).
+
+    Implementations are expected to leave out resources managed by
+    another control plane — managed resource groups, Kubernetes
+    node pools and their disks and network interfaces, service
+    staging buckets, service-linked roles — since importing those
+    into Terraform cannot work.
 
     Failures of the underlying cloud query are normal outcomes:
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl calls each cloud's inventory API over
+    HTTPS with the service's ambient credentials, using no
+    command-line tools. A provider with no inventory query is a
+    normal outcome too: the job ends `succeeded` with a non-zero
+    `exit_code`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -262,24 +292,34 @@ async def asyncio(
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: resource and resource-container IDs whose id
-      contains `scope_id` (Azure Resource Graph);
-    * `gcp`: asset names of the project's resources plus the IAM
-      role names bound in the project (Cloud Asset Inventory);
-    * `aws`: resource ARNs across the account's enabled regions
-      (Resource Groups Tagging API).
+    * `azure`: ARM resource, resource-group and role-assignment
+      IDs in the subscription `scope_id` (Azure Resource Graph).
+      ARM IDs compare case-insensitively.
+    * `gcp`: normalized asset names of the project's resources,
+      plus one `<project>/<role>/<member>` entry per project-level
+      IAM binding (Cloud Asset Inventory and Resource Manager).
+    * `aws`: resource ARNs across the account's indexed regions
+      (Resource Explorer, which the account must have enabled).
+
+    Implementations are expected to leave out resources managed by
+    another control plane — managed resource groups, Kubernetes
+    node pools and their disks and network interfaces, service
+    staging buckets, service-linked roles — since importing those
+    into Terraform cannot work.
 
     Failures of the underlying cloud query are normal outcomes:
     the job ends `succeeded` with a non-zero `exit_code` and
     diagnostics in `stderr`.
 
-    Unlike the other endpoints, `scope_id` is required here — it
-    names the scope being listed rather than acting as a
-    credential fallback — and `terraform_provider` selects which
-    provider is queried. The workspace is used to resolve provider
-    credentials; the OSS reference impl shells out to the
-    corresponding cloud CLI (`az`, `gcloud`, `aws`) with the
-    service's ambient credentials.
+    Here `scope_id` names the scope being listed (rather than the
+    scope a command runs against, as on `plan`, `apply` and
+    `import`) and `terraform_provider` selects which provider is
+    queried. The workspace is used to resolve provider credentials;
+    the OSS reference impl calls each cloud's inventory API over
+    HTTPS with the service's ambient credentials, using no
+    command-line tools. A provider with no inventory query is a
+    normal outcome too: the job ends `succeeded` with a non-zero
+    `exit_code`.
 
     Args:
         body (ScopeResourceIdsRequest):

@@ -137,30 +137,6 @@
   color: light-dark(var(--text-color-light), var(--text-color-dark));
 }
 
-.dangerBtn {
-  padding: 14px 36px;
-  font-weight: 300;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border: none;
-  background: light-dark(#b91c1c, #dc2626);
-  color: #fff;
-  cursor: pointer;
-  transition:
-    background 150ms ease,
-    opacity 150ms ease;
-}
-
-.dangerBtn:hover {
-  background: light-dark(#991b1b, #b91c1c);
-}
-
-.dangerBtn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
 @media screen and (max-width: 768px) {
   .buttonRow {
     flex-direction: column;

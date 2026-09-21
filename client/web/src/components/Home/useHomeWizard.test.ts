@@ -28,15 +28,6 @@ const mockMapperErrorValue = vi.fn<() => string | null>(() => null);
 const mockSetMapperError = vi.fn();
 const mockResetMapper = vi.fn();
 
-vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    user: { username: "test@example.com", name: "Test User" } as never,
-    isAuthenticated: true,
-    login: vi.fn(),
-    logout: vi.fn(),
-  }),
-}));
-
 const mockHandleOutcome = vi.fn();
 vi.mock("@/hooks/useWizardTerraform", () => ({
   useWizardTerraform: () => ({
@@ -120,7 +111,7 @@ describe("useHomeWizard orchestrator", () => {
 
     expect(result.current.wizard.step).toBe("repository_url");
     expect(result.current.wizard.data.query).toBe("deploy a VM");
-    expect(result.current.session.session.firstQuery).toBe("deploy a VM");
+    expect(result.current.session.session.first_query).toBe("deploy a VM");
   });
 
   it("handleInput rejects empty query", async () => {
@@ -163,7 +154,7 @@ describe("useHomeWizard orchestrator", () => {
 
     expect(result.current.wizard.step).toBe("provider");
     expect(result.current.wizard.data.iacPath).toBe("environments/dev");
-    expect(result.current.session.session.environment).toBe(
+    expect(result.current.session.session.workspace?.root_path).toBe(
       "environments/dev",
     );
   });
@@ -183,7 +174,7 @@ describe("useHomeWizard orchestrator", () => {
 
     expect(result.current.wizard.step).toBe("cloud_scope");
     expect(result.current.wizard.data.provider).toBe("azure");
-    expect(result.current.session.session.cloud).toBe("azure");
+    expect(result.current.session.session.provider).toBe("azure");
   });
 
   it("reset restores wizard state to initial", async () => {
@@ -271,7 +262,10 @@ describe("useHomeWizard — repository resolution", () => {
     expect(result.current.wizard.step).toBe("provider");
     expect(result.current.wizard.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
     expect(result.current.wizard.data.iacPath).toBe("environments/dev");
-    expect(result.current.session.session.repositoryUrl).toBe("https://dev.azure.com/org/repo");
+    expect(result.current.session.session.workspace).toEqual({
+      uri: "https://dev.azure.com/org/repo",
+      root_path: "environments/dev",
+    });
   });
 
   it("multiple IaC paths go to iac_path step", async () => {
@@ -326,24 +320,27 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
     mockMapperErrorValue.mockReturnValue(null);
   });
 
-  it("cloud_scope input calls auth.run with correct params", async () => {
+  it("cloud_scope input stores the scope and calls auth.run with correct params", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       project: "myproj",
       paths: ["environments/dev"],
     });
 
-    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
 
-    await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-    act(() => { result.current.handleProvider("azure"); });
-    await act(async () => { await result.current.handleInput("sub-123"); });
+    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
+    act(() => { result.current.wizard.handleProvider("azure"); });
+    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
 
+    expect(result.current.session.session.scope_id).toBe("sub-123");
     expect(mockAuthRun).toHaveBeenCalledWith({
       repositoryUrl: "https://dev.azure.com/org/repo",
       query: "deploy a VM",
-      userEmail: "test@example.com",
       cloud: "azure",
       environment: "environments/dev",
     });
@@ -373,7 +370,6 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
       terraformProviders: "azure",
       scopeId: "sub-123",
       iacPath: "environments/dev",
-      userId: "test@example.com",
       mode: "generate",
     });
   });
@@ -427,7 +423,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     mockMapperErrorValue.mockReturnValue(null);
   });
 
-  it("iterate does nothing without session_id", () => {
+  it("iterate does nothing without a session uuid", () => {
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     act(() => { result.current.iterate("add a database"); });
@@ -435,14 +431,14 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     expect(mockTerraformRun).not.toHaveBeenCalled();
   });
 
-  it("iterate calls terraform.run with session_id", async () => {
+  it("iterate calls terraform.run with the session uuid", async () => {
     const { result } = renderHook(
       () => ({ wizard: useHomeWizard(), session: useSession() }),
       { wrapper: Wrapper },
     );
 
     act(() => {
-      result.current.session.updateSession({ session_id: "abc-123" });
+      result.current.session.updateSession({ uuid: "abc-123" });
     });
 
     mockResolveAndScan.mockResolvedValueOnce({
@@ -465,7 +461,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     });
   });
 
-  it("applyAfterPr does nothing without session_id", () => {
+  it("applyAfterPr does nothing without a session uuid", () => {
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     act(() => { result.current.applyAfterPr(); });
@@ -481,8 +477,8 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
 
     act(() => {
       result.current.session.updateSession({
-        session_id: "abc-123",
-        firstQuery: "deploy a VM",
+        uuid: "abc-123",
+        first_query: "deploy a VM",
       });
     });
 
@@ -504,6 +500,27 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       sessionId: "abc-123",
       mode: "import",
     });
+  });
+
+  // Defence in depth: the route already declines to call this for a drift
+  // session, but applyAfterPr is exposed through the outlet context and any
+  // future route could reach it.
+  it("applyAfterPr refuses to apply a drift session", () => {
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.session.updateSession({
+        uuid: "abc-123",
+        operation: "drift",
+      });
+    });
+
+    act(() => { result.current.wizard.applyAfterPr(); });
+
+    expect(mockTerraformRun).not.toHaveBeenCalled();
   });
 });
 
@@ -606,5 +623,58 @@ describe("useHomeWizard — aggregated isLoading & error", () => {
     mockAuthState.mockReturnValue({ status: "error", message: "Auth error" });
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     expect(result.current.error).toBe("Mapper error");
+  });
+});
+
+// The header logo is rendered above the router and cannot reach the wizard's
+// state directly, so it clears through SessionContext's reset nonce.
+describe("useHomeWizard — clear requested from outside", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthState.mockReturnValue({ status: "idle" });
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  it("discards the collected information when the nonce is bumped", async () => {
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      await result.current.wizard.handleInput("deploy a VM");
+    });
+    expect(result.current.wizard.step).toBe("repository_url");
+    expect(result.current.wizard.data.query).toBe("deploy a VM");
+
+    await act(async () => {
+      result.current.session.resetSession();
+    });
+
+    expect(result.current.wizard.step).toBe("query");
+    expect(result.current.wizard.data).toEqual({
+      query: "",
+      repositoryUrl: "",
+      provider: "",
+      cloudScope: "",
+      iacPath: "",
+    });
+    // In-flight authorization / terraform work is aborted, not just hidden.
+    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockAuthReset).toHaveBeenCalled();
+    expect(mockTerraformReset).toHaveBeenCalled();
+  });
+
+  // Mounting is not a clear request: a deep link into /home/results/:id would
+  // otherwise be bounced straight back to the wizard on load.
+  it("does not clear on mount", () => {
+    renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    expect(mockResetMapper).not.toHaveBeenCalled();
+    expect(mockAuthReset).not.toHaveBeenCalled();
+    expect(mockTerraformReset).not.toHaveBeenCalled();
   });
 });

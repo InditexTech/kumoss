@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-from typing import Callable, Any
+from typing import Callable, Any, cast
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformPlanDTO, TerraformPlanReport
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform, IWorkspace
@@ -22,6 +22,7 @@ from src.domains.services import (
 )
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.external.notification_service import NotificationServiceClient
+from src.shared.config import system_config
 from src.shared.constants import (
     PromptsLibrary,
     ReportType,
@@ -83,39 +84,24 @@ class TerraformCRUDHandler:
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                predictive_targets = await self.__target_svc.generate_predictive(
-                    query=q,
-                    history=ctx.history,
-                    conventions=conventions,
-                )
-
-                async def validation_callback(
+                async def plan_callback(
                     local_history: History,
-                ) -> TerraformValidationDTO:
-                    return await self.__terraform_svc.validate(
+                ) -> TerraformPlanDTO:
+                    return await self.__terraform_svc.plan(
                         targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
                     )
 
-                if predictive_targets:
-                    _ = await self.__drift_svc.detect_and_resolve_drift(
-                        targets=predictive_targets,
-                        conventions=conventions,
-                        max_iterations=2,
-                        validator=validation_callback,
-                    )
-
-                validation = await self.__validation_svc.generate_and_validate(
+                plan_result = await self.__validation_svc.generate_and_validate(
                     q=q,
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
-                    validator=validation_callback,
+                    validator=plan_callback,
                 )
 
-                if not validation.validation:
+                if not plan_result.ok:
                     fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=validation.feedback,
+                        feedback=plan_result.feedback,
                         history=ctx.history,
                     )
                     raise TerraformValidationFailedError(
@@ -123,30 +109,48 @@ class TerraformCRUDHandler:
                         error_code=500,
                     )
 
-                report = await self.__report_svc.generate_report(
-                    ctx=ctx,
-                    type=ReportType.GENERATE,
-                    content=validation.terraform_plan,
-                )
-                check = await self.__compliance_svc.check(
-                    history=ctx.history,
+                drift = await self.__drift_svc.detect_and_resolve_drift(
+                    plan=plan_result.plan,
+                    filter_session_changes=True,
+                    targets=plan_result.targets,
                     conventions=conventions,
-                    report=report,
+                    max_iterations=2,
                 )
-                if not check.passed:
-                    if not await DatabaseService.set_lock(ctx.id, True):
-                        raise SetLockError(
-                            message="Error updating DB session lock.",
-                            error_code=500,
-                        )
-                    await NotificationServiceClient.notify_compliance_failure(
-                        session_id=ctx.id,
-                        summary=check.summary,
-                    )
-                elif not await DatabaseService.set_lock(ctx.id, False):
+
+                report: TerraformPlanReport = cast(
+                    TerraformPlanReport,
+                    await self.__report_svc.generate_report(
+                        ctx=ctx,
+                        type=ReportType.GENERATE,
+                        content=drift.stdout,
+                    ),
+                )
+
+                check = await self.__compliance_svc.check(
+                    request=ctx.history.get_first_turn().user,
+                    conventions=conventions,
+                    plan=drift.stdout,
+                )
+
+                high_impact = (
+                    system_config.orchestration.block_on_high_impact
+                    and report.potential_impact.banner.level == "high"
+                )
+
+                if not await DatabaseService.set_lock(
+                    ctx.id, not check.passed or high_impact
+                ):
                     raise SetLockError(
                         message="Error updating DB session lock.",
                         error_code=500,
+                    )
+                if not check.passed:
+                    await NotificationServiceClient.notify_compliance_failure(
+                        ctx.id, ctx.user_id, check.summary
+                    )
+                if high_impact:
+                    await NotificationServiceClient.notify_high_impact(
+                        ctx.id, ctx.user_id, report.potential_impact.banner.description
                     )
                 self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:

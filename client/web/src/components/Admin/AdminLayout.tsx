@@ -2,21 +2,56 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import { ButtonBase } from "@mui/material";
 import { useAuth } from "@/contexts/AuthContext";
 import SessionsPage from "@/components/Sessions/SessionsPage";
+import UsersPanel from "./UsersPanel";
 import styles from "./AdminLayout.module.css";
 
-function AdminLayout() {
-  const { isAdmin } = useAuth();
+type AdminTab = "sessions" | "users";
 
-  if (!isAdmin) return <Navigate to="/" replace />;
+function AdminLayout() {
+  const { hasPanelAccess, isPanelAdmin } = useAuth();
+  const [tab, setTab] = useState<AdminTab>("sessions");
+
+  if (!hasPanelAccess) return <Navigate to="/" replace />;
+
+  const activeTab = tab === "users" && !isPanelAdmin ? "sessions" : tab;
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>Sessions</h1>
+      <div className={styles.tabs}>
+        <ButtonBase
+          className={
+            activeTab === "sessions"
+              ? `${styles.tab} ${styles.tabActive}`
+              : styles.tab
+          }
+          onClick={() => setTab("sessions")}
+        >
+          Sessions
+        </ButtonBase>
+        {isPanelAdmin && (
+          <ButtonBase
+            className={
+              activeTab === "users"
+                ? `${styles.tab} ${styles.tabActive}`
+                : styles.tab
+            }
+            onClick={() => setTab("users")}
+          >
+            Users
+          </ButtonBase>
+        )}
+      </div>
       <main className={styles.content}>
-        <SessionsPage variant="admin" />
+        {activeTab === "sessions" ? (
+          <SessionsPage variant="admin" />
+        ) : (
+          <UsersPanel />
+        )}
       </main>
     </div>
   );

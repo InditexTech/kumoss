@@ -23,7 +23,6 @@ from openinference.semconv.trace import (
 from pydantic import BaseModel
 
 from src.domains.dto import (
-    TerraformValidationDTO,
     ToolResultDTO,
     LLMResponseDTO,
     ToolCallDTO,
@@ -31,7 +30,7 @@ from src.domains.dto import (
     ToolDefinitionDTO,
 )
 from src.domains.entities.history import History
-from src.domains.interfaces.tracer_interface import ITracer
+from src.domains.interfaces.tracer_interface import ITracer, TracedTerraformResult
 from src.infrastructure.telemetry._initializer import get_tracer
 from src.infrastructure.exceptions import TracerRootContextError
 from src.shared.constants import OperationType, TerraformProvider
@@ -94,30 +93,28 @@ class PhoenixTracer(ITracer):
     @override
     def trace_terraform(
         self,
-        terraformDTO: TerraformValidationDTO,
+        terraformDTO: TracedTerraformResult,
+        operation: str,
         start_time: int | None = None,
         **kwargs: Any,
     ) -> Span:
         """
         Creates and configures a span for tracing Terraform operations.
 
-        :param terraformDTO: TerraformValidationDTO with all the goodies
+        :param terraformDTO: the plan, drift or apply result being traced
+        :param operation: the verb that produced it, for the span name
         :param start_time: Start time of the validation in nanoseconds since epoch
         :return OpenTelemetry Span configured with evaluator-specific attirbutes
         """
         span = self.__tracer.start_span(
-            name=f"Terraform - validation {terraformDTO.validation}",
+            name=f"Terraform {operation} - {terraformDTO.ok}",
             start_time=start_time,
         )
         for attribute_key, attribute_value in (
             *self.__metadata_attributes(),
             *_span_kind_attributes(OpenInferenceSpanKindValues.EVALUATOR),
             *_input_attributes(kwargs),
-            *_output_attributes(
-                terraformDTO.terraform_plan.strip('"').strip("'")
-                if terraformDTO.validation
-                else terraformDTO.feedback.strip('"').strip("'")
-            ),
+            *_output_attributes(terraformDTO.summary.strip('"').strip("'")),
         ):
             span.set_attribute(attribute_key, attribute_value)
         return span
@@ -232,13 +229,22 @@ def _serialize(payload: Any) -> tuple[str, str]:
     """
     Serializes a payload to a JSON string with JSON mime type when possible,
     otherwise to a plain string with text mime type.
+
+    A dataclass field declared ``repr=False`` is left out: a value its own
+    type keeps out of logs (a plan's text, carried along for a later
+    consumer) has no business in a span either.
     """
     if isinstance(payload, str):
         return payload, OpenInferenceMimeTypeValues.TEXT.value
     if isinstance(payload, BaseModel):
         return payload.model_dump_json(), OpenInferenceMimeTypeValues.JSON.value
     if dataclasses.is_dataclass(payload):
-        payload = dataclasses.asdict(payload)
+        hidden = {f.name for f in dataclasses.fields(payload) if not f.repr}
+        payload = {
+            key: value
+            for key, value in dataclasses.asdict(payload).items()
+            if key not in hidden
+        }
     try:
         return (
             json.dumps(payload, ensure_ascii=False, default=str),

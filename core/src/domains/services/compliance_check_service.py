@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import ComplianceCheckReport, Reports, ToolResultDTO
-from src.domains.entities import History
+from src.domains.dto import ComplianceCheckReport, ToolResultDTO
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -25,33 +24,30 @@ class ComplianceCheckService:
 
     async def check(
         self,
-        history: History,
+        request: str,
         conventions: Conventions,
-        report: Reports,
+        plan: str,
     ) -> ComplianceCheckReport:
         if not system_config.orchestration.enable_compliance_checker:
             return ComplianceCheckReport.empty()
 
-        query = (
-            "Audit the generated report below and report your findings via "
-            "`report_compliance_findings`.\n\n"
-            f"The generated report to audit:\n{report.model_dump_json()}"
+        query: str = (
+            "The user request:\n"
+            f"{request}\n\n"
+            "The Terraform plan to audit:\n"
+            f"{plan}"
         )
 
         result: ToolResultDTO = await self.__llm_svc.generate(
             query=query,
             tools=self.__tool_svc.get_available_tools(
-                contexts=[ToolContext.WORKSPACE_INSPECTION]
-            ),
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(
-                ToolContext.COMPLIANCE_CHECK
+                contexts=[ToolContext.COMPLIANCE_CHECK]
             ),
             prompt=await self.__template_svc.render(
                 PromptsLibrary.COMPLIANCE_CHECKER,
                 resources=conventions.templates,
                 abbreviations=conventions.abbreviations,
             ),
-            history=history,
         )
 
         return result.result

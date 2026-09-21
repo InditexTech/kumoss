@@ -81,11 +81,17 @@ class IGit(ABC):
         pass
 
     @abstractmethod
-    async def get_remote_url(self) -> str:
+    async def get_default_branch(self) -> str:
         pass
 
     @abstractmethod
-    async def get_default_branch(self) -> str:
+    async def get_workspace_revision(self) -> str:
+        """Return a fingerprint of the working tree's current revision.
+
+        Covers both the checked-out commit and any uncommitted or untracked
+        change on top of it, so two equal fingerprints mean the tree holds
+        the same code.
+        """
         pass
 
     @abstractmethod

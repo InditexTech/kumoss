@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from uuid import uuid4
 
 from src.infrastructure.filesystem import (
@@ -18,13 +20,15 @@ from src.shared.config import system_config
 SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
 
 
-def _init_bare_remote(tmp: Path) -> str:
+def _init_bare_remote(tmp: Path, files: dict[str, str] | None = None) -> str:
     """Create a bare repo, push one commit into it, return file:// URI."""
     bare = tmp / "remote.git"
     subprocess.check_call(["git", "init", "--bare", "-b", "main", str(bare)])
     work = tmp / "work"
     subprocess.check_call(["git", "init", "-b", "main", str(work)])
     (work / "README.md").write_text("hi\n")
+    for name, content in (files or {}).items():
+        (work / name).write_text(content)
     subprocess.check_call(["git", "-C", str(work), "add", "."])
     subprocess.check_call(
         [
@@ -63,133 +67,122 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
             await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
 
 
-class TestSetupCallDir(unittest.IsolatedAsyncioTestCase):
+def _current_branch(path: Path) -> str:
+    return (
+        subprocess.check_output(["git", "-C", str(path), "branch", "--show-current"])
+        .decode()
+        .strip()
+    )
+
+
+def _commit_file(path: Path, name: str) -> None:
+    (path / name).write_text("x\n")
+    subprocess.check_call(["git", "-C", str(path), "add", "."])
+    subprocess.check_call(
+        [
+            "git",
+            "-C",
+            str(path),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-m",
+            name,
+        ]
+    )
+
+
+class _WorkspaceBase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.uri = _init_bare_remote(self.tmp)
         self.workspaces = self.tmp / "workspaces"
         self.workspaces.mkdir()
         self.svc = WorkspaceService(base_path=self.workspaces)
+        identity = patch.dict(
+            os.environ,
+            {
+                "GIT_AUTHOR_NAME": "t",
+                "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t",
+                "GIT_COMMITTER_EMAIL": "t@t",
+            },
+        )
+        identity.start()
+        self.addCleanup(identity.stop)
 
     async def asyncTearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    async def test_first_call_clones_default_branch(self):
+
+class TestSetupCallDir(_WorkspaceBase):
+    async def test_first_call_clones_and_pushes_the_branch(self):
         sid = uuid4()
-        cid = uuid4()
         path = await self.svc.setup_call_dir(
-            session_id=sid, call_id=cid, repo_uri=self.uri, branch=None
+            session_id=sid, repo_uri=self.uri, branch="Nebula/feat-x"
         )
         self.assertTrue(path.is_dir())
         self.assertTrue((path / ".git").is_dir())
         self.assertTrue((path / "README.md").is_file())
-        self.assertEqual(
-            path,
-            self.workspaces / "sessions" / str(sid) / str(cid),
-        )
-
-    async def test_first_call_creates_local_branch(self):
-        sid = uuid4()
-        cid = uuid4()
-        path = await self.svc.setup_call_dir(
-            session_id=sid,
-            call_id=cid,
-            repo_uri=self.uri,
-            branch="Nebula/feat-x",
-            create_branch=True,
-        )
-        current = (
-            subprocess.check_output(
-                ["git", "-C", str(path), "branch", "--show-current"]
-            )
-            .decode()
-            .strip()
-        )
-        self.assertEqual(current, "Nebula/feat-x")
+        self.assertEqual(path.parent, self.workspaces / str(sid))
+        self.assertEqual(_current_branch(path), "Nebula/feat-x")
+        out = subprocess.check_output(
+            ["git", "ls-remote", "--heads", self.uri, "Nebula/feat-x"]
+        ).decode()
+        self.assertIn("Nebula/feat-x", out)
 
     async def test_iteration_call_clones_existing_branch(self):
         sid = uuid4()
-        cid_first = uuid4()
         first = await self.svc.setup_call_dir(
-            session_id=sid,
-            call_id=cid_first,
-            repo_uri=self.uri,
-            branch="Nebula/iter-x",
-            create_branch=True,
+            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
         )
+        _commit_file(first, "new.txt")
         subprocess.check_call(
             ["git", "-C", str(first), "push", "origin", "Nebula/iter-x"]
         )
-        cid_second = uuid4()
+
         second = await self.svc.setup_call_dir(
-            session_id=sid,
-            call_id=cid_second,
-            repo_uri=self.uri,
-            branch="Nebula/iter-x",
-            create_branch=False,
+            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
         )
-        current = (
-            subprocess.check_output(
-                ["git", "-C", str(second), "branch", "--show-current"]
-            )
-            .decode()
-            .strip()
+        self.assertNotEqual(first, second)
+        self.assertEqual(_current_branch(second), "Nebula/iter-x")
+        self.assertTrue((second / "new.txt").is_file())
+
+
+class TestTerraformGitignore(_WorkspaceBase):
+    """Every workspace must carry the terraform ignores, and a project
+    that ships its own .gitignore must keep the rules it had."""
+
+    async def _clone_with(self, files: dict[str, str] | None = None) -> Path:
+        remote = self.tmp / uuid4().hex
+        remote.mkdir()
+        return await self.svc.setup_call_dir(
+            session_id=uuid4(),
+            repo_uri=_init_bare_remote(remote, files),
+            branch="Nebula/ignores",
         )
-        self.assertEqual(current, "Nebula/iter-x")
+
+    async def test_writes_the_template_when_the_repo_has_none(self):
+        path = await self._clone_with()
+
+        content = (path / ".gitignore").read_text()
+        self.assertIn("INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)", content)
+        self.assertIn("*_override.tf", content)
+
+    async def test_appends_to_a_gitignore_the_project_owns(self):
+        path = await self._clone_with({".gitignore": "node_modules/\n"})
+
+        content = (path / ".gitignore").read_text()
+        self.assertTrue(content.startswith("node_modules/\n"))
+        self.assertIn("*_override.tf", content)
 
 
-class TestPushAndCleanup(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-        self.uri = _init_bare_remote(self.tmp)
-        self.workspaces = self.tmp / "workspaces"
-        self.workspaces.mkdir()
-        self.svc = WorkspaceService(base_path=self.workspaces)
-
-    async def asyncTearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    async def test_push_then_cleanup_removes_dir(self):
-        sid = uuid4()
-        cid = uuid4()
-        path = await self.svc.setup_call_dir(
-            session_id=sid,
-            call_id=cid,
-            repo_uri=self.uri,
-            branch="Nebula/push-test",
-            create_branch=True,
-        )
-        (path / "new.txt").write_text("x")
-        subprocess.check_call(["git", "-C", str(path), "add", "."])
-        subprocess.check_call(
-            [
-                "git",
-                "-C",
-                str(path),
-                "-c",
-                "user.email=t@t",
-                "-c",
-                "user.name=t",
-                "commit",
-                "-m",
-                "x",
-            ]
-        )
-        await self.svc.push_and_cleanup(call_dir=path, branch="Nebula/push-test")
-        self.assertFalse(path.exists())
-        out = subprocess.check_output(
-            ["git", "ls-remote", "--heads", self.uri, "Nebula/push-test"]
-        ).decode()
-        self.assertIn("Nebula/push-test", out)
-
+class TestCleanup(_WorkspaceBase):
     async def test_cleanup_removes_dir(self):
-        sid = uuid4()
-        cid = uuid4()
         path = await self.svc.setup_call_dir(
-            session_id=sid,
-            call_id=cid,
-            repo_uri=self.uri,
-            branch=None,
+            session_id=uuid4(), repo_uri=self.uri, branch="Nebula/cleanup"
         )
         self.svc.cleanup(path)
         self.assertFalse(path.exists())
@@ -208,10 +201,10 @@ class TestPinnedWorkspace(unittest.TestCase):
         self.sid = uuid4()
 
     def _make_clone(self, marker: str = "plan-bytes") -> Path:
-        """Fake call dir with an iac subdir holding the plan artifact."""
+        """Fake call dir holding the plan artifact at its root."""
         clone = self.tmp / str(self.sid) / str(uuid4())
-        (clone / "iac").mkdir(parents=True)
-        (clone / "iac" / SESSION_PLAN_FILENAME).write_text(marker)
+        clone.mkdir(parents=True)
+        (clone / SESSION_PLAN_FILENAME).write_text(marker)
         return clone
 
     def test_pin_renames_clone_into_pinned_slot(self):
@@ -222,7 +215,7 @@ class TestPinnedWorkspace(unittest.TestCase):
         self.assertFalse(clone.exists())
         pinned = self.svc.pinned_dir(self.sid)
         self.assertEqual(pinned, self.tmp / str(self.sid) / "pinned")
-        self.assertTrue((pinned / "iac" / SESSION_PLAN_FILENAME).is_file())
+        self.assertTrue((pinned / SESSION_PLAN_FILENAME).is_file())
 
     def test_pin_replaces_previous_slot(self):
         self.svc.pin_workspace(self.sid, self._make_clone(marker="old"))

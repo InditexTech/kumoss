@@ -2,9 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from "react";
-import type { FormEvent } from "react";
-import { ButtonBase, TextField } from "@mui/material";
+import { ButtonBase } from "@mui/material";
 import Fade from "@mui/material/Fade";
 import BuildOutlinedIcon from "@mui/icons-material/BuildOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
@@ -32,53 +30,29 @@ const USE_CASES = [
 ];
 
 function LoginPage() {
-  const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (email.trim() && password.trim()) {
-      login(email.trim(), password.trim());
-    }
-  };
+  const { login, sessionExpired, authError } = useAuth();
 
   return (
     <div className={styles.loginContainer}>
       <div className={styles.loginContent}>
         <Fade in timeout={800}>
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <TextField
-              className={styles.field}
-              label={STRINGS.login.emailLabel}
-              type="email"
-              name="email"
-              autoComplete="email"
-              variant="standard"
-              required
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <TextField
-              className={styles.field}
-              label={STRINGS.login.passwordLabel}
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              variant="standard"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+          <div className={styles.form}>
+            {sessionExpired && (
+              <p className={styles.notice}>{STRINGS.login.sessionExpired}</p>
+            )}
+            {authError && !sessionExpired && (
+              <p className={styles.notice}>{authError}</p>
+            )}
             <ButtonBase
               className={styles.submitButton}
-              type="submit"
               component="button"
+              onClick={() => {
+                void login();
+              }}
             >
               {STRINGS.login.signIn}
             </ButtonBase>
-          </form>
+          </div>
         </Fade>
       </div>
 

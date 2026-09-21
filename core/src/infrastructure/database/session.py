@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
@@ -87,6 +88,9 @@ class SessionManager:
         async with self._sessionmaker() as session:
             try:
                 yield session
+            except (ExceptionHandler, IntegrityError):
+                await session.rollback()
+                raise
             except Exception as e:
                 await session.rollback()
                 logging.error(f"Session error: {e}")

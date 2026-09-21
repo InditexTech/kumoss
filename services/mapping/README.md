@@ -38,9 +38,8 @@ browser directly.
 
 ```bash
 cd services/mapping
-uv venv && source .venv/bin/activate
-uv pip install -e '.[dev]'
-uvicorn src.main:app --host 0.0.0.0 --port 8081
+uv sync
+uv run fastapi run src/main.py --port 8081
 ```
 
 ```bash
@@ -53,8 +52,8 @@ curl -X POST http://localhost:8081/v1/resolve \
 
 ```bash
 cd services/mapping
-uv pip install -e '.[dev]'
-pytest
+uv sync --group tooling
+uv run pytest
 ```
 
 ## Verifying conformance

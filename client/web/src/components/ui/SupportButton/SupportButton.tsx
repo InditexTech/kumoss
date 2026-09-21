@@ -10,6 +10,15 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { checkApplyAllowed } from "@/services/core/sessions";
 import { getSessionItem, setSessionItem } from "@/services";
+import { getApiErrorMessage } from "@/services/api";
+import { sendNotification } from "@/services/notifications/notification";
+import {
+  buildSupportContext,
+  buildSupportLinks,
+  buildSupportSubject,
+} from "@/services/notifications/support";
+import { NotificationSeverity } from "@/types/api_notifications";
+import { extractProjectName } from "@/utils/workspace";
 import { STRINGS } from "@/constants/strings";
 import styles from "./SupportButton.module.css";
 
@@ -23,6 +32,9 @@ interface SupportContext {
   [key: string]: unknown;
 }
 
+/** Whether the request came from the auto-trigger effect or a click. */
+type SupportTrigger = "automatic" | "manual";
+
 interface Props {
   message?: string;
   buttonText?: string;
@@ -32,8 +44,18 @@ interface Props {
   variant?: "text" | "icon";
 }
 
+/**
+ * "Contact team" entry point used from the results and PR views.
+ *
+ * Sends a `support.contact_team` notification through the core to the
+ * notifications service, carrying the session metadata (session id,
+ * request text, cloud/project/environment, PR link, whether the plan has
+ * deletes or recreates) so the person answering in Slack can act
+ * without asking the user for details. Recipients are chosen by the
+ * core from the signed-in user, not by this component.
+ */
 function SupportButton({
-  message: _message,
+  message,
   buttonText = STRINGS.support.buttonText,
   context = {},
   onSupportRequest,
@@ -46,12 +68,11 @@ function SupportButton({
   const [isLoading, setIsLoading] = useState(false);
   const hasAutoTriggered = useRef(false);
 
-  const handleSupportRequest = useCallback(async () => {
+  const handleSupportRequest = useCallback(async (trigger: SupportTrigger) => {
     setIsLoading(true);
-    console.log("Opening Nebula AI Support");
 
     const userInfo = user
-      ? { name: user.name || "", email: user.username }
+      ? { name: user.displayName ?? "", email: user.email ?? "" }
       : null;
 
     if (!userInfo?.email) {
@@ -62,15 +83,15 @@ function SupportButton({
 
     const supportContext: SupportContext = {
       user: userInfo,
-      cloud: session.cloud,
-      project: session.project,
-      environment: session.environment,
-      query: session.firstQuery,
+      cloud: session.provider,
+      project: session.workspace?.uri
+        ? extractProjectName(session.workspace.uri)
+        : undefined,
+      environment: session.workspace?.root_path ?? undefined,
+      query: session.first_query,
       ...context,
       timestamp: new Date().toISOString(),
     };
-
-    console.log("Support Context:", supportContext);
 
     if (onSupportRequest) {
       onSupportRequest(supportContext);
@@ -79,57 +100,66 @@ function SupportButton({
     }
 
     try {
-      let hasDeletesOrRecreates = false;
-      if (session.session_id) {
+      let hasDeletesOrRecreates: boolean | null = null;
+      if (session.uuid) {
         try {
-          const allowed = await checkApplyAllowed(session.session_id);
-          hasDeletesOrRecreates = !allowed;
+          hasDeletesOrRecreates = !(await checkApplyAllowed(session.uuid));
         } catch {
-          // ignore — default to false
+          // Unknown; the field is dropped by the renderer when null.
         }
       }
 
-      const payload: Record<string, unknown> = {
-        user_mail: userInfo.email,
-        user_name: userInfo.name,
-        cloud_provider: session.cloud || "N/A",
-        dcap_project: session.project || "N/A",
-        environment: session.environment || "N/A",
-        session_id: session.session_id || null,
-        first_query: session.firstQuery || "No query provided",
-        has_deletes_or_recreates: hasDeletesOrRecreates,
-      };
+      const body =
+        message ??
+        (hasDeletesOrRecreates
+          ? "The user asked for help with a plan that deletes or recreates resources."
+          : "The user asked for help with this session.");
 
-      if (prDetails.prUrl) {
-        payload.pull_request_link = prDetails.prUrl;
-      }
+      await sendNotification({
+        kind: "support.contact_team",
+        severity: hasDeletesOrRecreates
+          ? NotificationSeverity.WARNING
+          : NotificationSeverity.INFO,
+        subject: buildSupportSubject("Support request", user, session),
+        body,
+        links: buildSupportLinks(session, prDetails),
+        context: buildSupportContext({
+          user,
+          session,
+          prDetails,
+          extra: {
+            ...context,
+            has_deletes_or_recreates: hasDeletesOrRecreates,
+            trigger,
+          },
+        }),
+      });
 
       showNotification("success", STRINGS.support.groupCreated);
     } catch (error) {
-      console.error("Error sending Teams support request:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      showNotification("failure", `Failed to create Teams support group. ${errorMessage}` );
+      showNotification(
+        "failure",
+        `${STRINGS.support.sendFailed} ${getApiErrorMessage(error)}`,
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [user, session, prDetails, context, onSupportRequest, showNotification]);
+  }, [user, session, prDetails, context, message, onSupportRequest, showNotification]);
 
   useEffect(() => {
-    const notificationKey = `nebulaai_notification_sent_${session.session_id}_${prDetails.prUrl || "no_pr"}`;
+    const notificationKey = `nebulaai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
     const alreadySent = getSessionItem(notificationKey) === "true";
 
     if (autoTrigger && !hasAutoTriggered.current && !alreadySent && user) {
       hasAutoTriggered.current = true;
       setSessionItem(notificationKey, "true");
-      console.log("Auto-triggering Nebula AI support notification...");
-      handleSupportRequest();
+      handleSupportRequest("automatic");
     }
   }, [
     autoTrigger,
     user,
-    session.session_id,
-    prDetails.prUrl,
+    session.uuid,
+    prDetails.url,
     handleSupportRequest,
   ]);
 
@@ -145,10 +175,10 @@ function SupportButton({
       >
         <span style={{ display: "inline-flex" }}>
           <ButtonBase
-            onClick={handleSupportRequest}
+            onClick={() => handleSupportRequest("manual")}
             disabled={isLoading}
             className={styles.iconVariant}
-            aria-label="Send Teams notification"
+            aria-label="Contact support"
           >
             <ChatBubbleOutlineIcon className={styles.iconVariantIcon} />
           </ButtonBase>
@@ -170,7 +200,7 @@ function SupportButton({
         <span style={{ display: "inline-flex" }}>
           <button
             className={styles.supportButton}
-            onClick={handleSupportRequest}
+            onClick={() => handleSupportRequest("manual")}
             disabled={isLoading}
           >
             <span className={styles.text}>

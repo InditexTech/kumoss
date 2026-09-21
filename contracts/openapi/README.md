@@ -6,13 +6,35 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenAPI specs
 
-One YAML per service, named `<service>.v<major>.yaml`.
+One hand-written OpenAPI 3.1 document per sidecar service, named
+`<service>.v<major>.yaml`. These files are the source of truth for
+every implementation of a Nebula sidecar, bundled or third-party, and
+the core's HTTP clients under `core/src/clients/` are generated from
+them.
 
-Forthcoming, in extraction order:
+| Spec | Service | Bundled reference implementation | Conformance suite |
+|---|---|---|---|
+| [`iac.v1.yaml`](iac.v1.yaml) | IaC engine executor: runs OpenTofu or Terraform commands as asynchronous jobs on a shared workspace | [`services/iac`](../../services/iac/README.md) | [`../conformance/iac/`](../conformance/iac/) |
+| [`mapping.v1.yaml`](mapping.v1.yaml) | Resolves a business identifier to a repository URL and project name | [`services/mapping`](../../services/mapping/README.md) | [`../conformance/mapping/`](../conformance/mapping/) |
+| [`notifications.v1.yaml`](notifications.v1.yaml) | Delivers notifications (compliance failures, high-impact detections, apply failures, user support requests) to a channel | [`services/notifications`](../../services/notifications/README.md) | [`../conformance/notifications/`](../conformance/notifications/) |
+| [`authz.v1.yaml`](authz.v1.yaml) | Cloud-project authorization checks | [`services/authz`](../../services/authz/README.md) | [`../conformance/authz/`](../conformance/authz/) |
 
-1. `notifications.v1.yaml`
-2. `mapping.v1.yaml`
-3. `iac.v1.yaml`
-4. `authz.v1.yaml`
+## Regenerating the core clients
 
-See `../README.md` for conventions.
+After changing a spec, regenerate the matching client from `core/`
+(the config forces a common package name so generated imports are
+identical across services):
+
+```bash
+uv run openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+```
+
+Do not hand-edit the generated clients.
+
+See [`../README.md`](../README.md) for error, authentication, and
+versioning conventions.

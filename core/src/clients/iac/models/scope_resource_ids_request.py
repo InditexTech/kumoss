@@ -23,14 +23,15 @@ class ScopeResourceIdsRequest:
             this is a path on the shared volume mounted into both the
             core and the IaC service. Used to resolve the provider
             credentials the scope query runs with.
-        scope_id (str): Cloud provider scope to list — Azure: subscription id (or
-            any value matched as a substring of resource IDs), GCP:
-            project id, AWS: account id. Required here, unlike on the
-            other endpoints: it names the scope being listed rather
-            than acting as a credential fallback.
-        terraform_provider (TerraformProvider): Cloud provider a scope query targets. Values follow the core's
-            provider vocabulary (`azure`, `gcp`, `aws`), not Terraform
-            registry provider names (`azurerm`, `google`).
+        scope_id (str): Cloud provider scope to list — Azure: subscription id, GCP:
+            project id, AWS: account id. Each is validated for its
+            cloud's shape, and a scope the credentials do not own ends
+            the job with exit code 1. Names the scope being listed
+            rather than the scope a command runs against.
+        terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
+            provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
+            `kubernetes`), not Terraform registry provider names
+            (`azurerm`, `google`).
     """
 
     workspace_path: str

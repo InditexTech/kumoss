@@ -11,9 +11,8 @@ export const STRINGS = {
   },
 
   login: {
-    emailLabel: "Email",
-    passwordLabel: "Password",
     signIn: "Sign In",
+    sessionExpired: "Your session has expired. Please sign in again.",
     generateTitle: "Generate Infrastructure",
     generateDescription:
       "Describe what you need in plain language and get production-ready Terraform code.",
@@ -42,11 +41,8 @@ export const STRINGS = {
     viewPr: "View Pull Request",
     approvePrAndApply: "Approve PR and Apply",
     backToReport: "Back to Report",
-    deletionDetectedTitle: "Resource Deletion Detected",
     deletionDetectedMessage:
       "The plan includes resources that will be deleted. The support team has been notified for review.",
-    blockedApplyMessage:
-      "The execution of your plan has been blocked. The proposed changes include one or more changes that could compromise service stability. For security reasons, the deployment has been blocked and our support team has been notified. A specialist will review your request and contact you shortly.",
     contactTeam: "Contact Team",
   },
 
@@ -63,11 +59,17 @@ export const STRINGS = {
     showCode: "Show Code",
     confirmApply: "Confirm and Apply",
     requestReview: "Request Review",
+    // Drift wording: merging the PR *is* the remediation, so nothing is
+    // applied afterwards and the labels must not promise it.
+    mergePrompt: "",
+    approveAndMerge: "Approve and Merge PR",
+    confirmMerge: "Confirm and Merge",
+    merging: "Merging…",
+    mergeSuccess:
+      "Pull Request merged. Your infrastructure is being updated to its declared state.",
     highImpactTitle: "High Impact Deployment",
     highImpactMessage:
-      "This deployment involves high-impact changes that could significantly affect your infrastructure. Please confirm you understand the risks before proceeding.",
-    highImpactConfirm: "I understand, Apply",
-    highImpactCancel: "Cancel",
+      "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",
   },
 
   applyResults: {
@@ -83,14 +85,15 @@ export const STRINGS = {
   },
 
   support: {
-    buttonText: "LIVE CHAT SUPPORT",
-    creatingNotification: "Creating Teams notification...",
-    creatingButton: "CREATING TEAMS NOTIFICATION",
-    groupCreated: "Nebula AI support group created successfully",
+    buttonText: "CONTACT SUPPORT",
+    creatingNotification: "Sending support request...",
+    creatingButton: "SENDING SUPPORT REQUEST",
+    groupCreated: "Support request sent. The team has been notified.",
+    sendFailed: "Support request could not be sent.",
     openLink: "Click here to open Nebula AI",
     noEmailError: "Error: No user email found. Please login again.",
     tooltip:
-      "Nebula AI support - Will help you to: \
+      "Contact the Nebula team - they will help you to: \
 - See the terraform plan \
 - Analyze the terraform report \
 - Help you to deploy your infraestructure",
@@ -106,6 +109,7 @@ export const STRINGS = {
     maxLengthError: "Question must be 500 characters or less",
     htmlError: "Please remove any HTML or code formatting",
     success: "Your question has been sent successfully",
+    failure: "Your question could not be sent.",
   },
 
   wizard: {

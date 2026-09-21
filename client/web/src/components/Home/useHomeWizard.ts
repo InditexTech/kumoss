@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useInitialInformation } from "@/hooks/use_initial_information";
 import { useTerraformActions } from "@/hooks/use_terraform_actions";
-import { useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { STRINGS } from "@/constants/strings";
@@ -14,13 +13,13 @@ import { useCurrentView } from "@/hooks/useCurrentView";
 import { useWizardNavigation } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
+import { isDriftSession } from "@/utils/session";
 import type { TerraformProvider } from "@/types/api";
 
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 export function useHomeWizard() {
-  const { user } = useAuth();
-  const { session, updateSession } = useSession();
+  const { session, updateSession, resetNonce } = useSession();
   const { mode } = useMode();
   const navigate = useNavigate();
 
@@ -48,14 +47,13 @@ export function useHomeWizard() {
           query: navigation.data.query,
           terraformProviders: navigation.data.provider as TerraformProvider,
           scopeId: navigation.data.cloudScope,
-          userId: user?.username ?? "",
           mode,
           iacPath: navigation.data.iacPath,
         },
         handleOutcome,
       );
     }
-  }, [auth.state.status, navigation.data, user, mode, terraform, navigate, handleOutcome]);
+  }, [auth.state.status, navigation.data, mode, terraform, navigate, handleOutcome]);
 
   useEffect(() => {
     if (terraform.state.status === "error" && homeView === "planning") {
@@ -69,10 +67,7 @@ export function useHomeWizard() {
         case "query": {
           if (!value.trim() || value.length > 500) return;
           navigation.setData((prev) => ({ ...prev, query: value.trim() }));
-          updateSession({
-            firstQuery: value.trim(),
-            userQueries: [value.trim()],
-          });
+          updateSession({ first_query: value.trim() });
           navigation.setStep("repository_url");
           break;
         }
@@ -85,17 +80,16 @@ export function useHomeWizard() {
               ...prev,
               repositoryUrl: result.repoUrl,
             }));
-            updateSession({
-              repositoryUrl: result.repoUrl,
-              ...(result.project ? { project: result.project } : {}),
-            });
+            updateSession({ workspace: { uri: result.repoUrl } });
 
             if (result.paths.length === 0) {
               mapper.setMapperError(STRINGS.wizard.noIacPaths);
             } else if (result.paths.length === 1) {
               const path = result.paths[0];
               navigation.setData((prev) => ({ ...prev, iacPath: path }));
-              updateSession({ environment: path });
+              updateSession({
+                workspace: { uri: result.repoUrl, root_path: path },
+              });
               navigation.setStep("provider");
             } else {
               navigation.setStep("iac_path");
@@ -111,11 +105,11 @@ export function useHomeWizard() {
           const scope = value.trim().toLowerCase();
           if (!scope || !CLOUD_SCOPE_PATTERN.test(scope)) return;
           navigation.setData((prev) => ({ ...prev, cloudScope: scope }));
+          updateSession({ scope_id: scope });
 
           auth.run({
             repositoryUrl: navigation.data.repositoryUrl,
             query: navigation.data.query,
-            userEmail: user?.username ?? "",
             cloud: navigation.data.provider,
             environment: navigation.data.iacPath,
           });
@@ -126,22 +120,22 @@ export function useHomeWizard() {
           break;
       }
     },
-    [navigation, mapper, updateSession, auth, user],
+    [navigation, mapper, updateSession, auth],
   );
 
   const handlePath = useCallback(
     (path: string) => {
       navigation.setData((prev) => ({ ...prev, iacPath: path }));
-      updateSession({ environment: path });
+      updateSession({ workspace: { ...session.workspace, root_path: path } });
       navigation.setStep("provider");
     },
-    [navigation, updateSession],
+    [navigation, updateSession, session.workspace],
   );
 
   const handleProvider = useCallback(
     (provider: TerraformProvider) => {
       navigation.setData((prev) => ({ ...prev, provider }));
-      updateSession({ cloud: provider });
+      updateSession({ provider });
       navigation.setStep("cloud_scope");
     },
     [navigation, updateSession],
@@ -159,42 +153,40 @@ export function useHomeWizard() {
 
   const iterate = useCallback(
     (query: string) => {
-      if (!session.session_id) return;
-
-      updateSession({
-        userQueries: [...session.userQueries, query],
-      });
+      if (!session.uuid) return;
 
       navigate("/home/planning");
 
       terraform.run(
         {
-          sessionId: session.session_id,
+          sessionId: session.uuid,
           query,
-          userId: user?.username ?? "",
           mode,
         },
         handleOutcome,
       );
     },
-    [session, updateSession, navigate, terraform, user, mode, handleOutcome],
+    [session.uuid, navigate, terraform, mode, handleOutcome],
   );
 
   const applyAfterPr = useCallback(() => {
-    if (!session.session_id) return;
+    if (!session.uuid) return;
+    // Drift is remediated by merging the PR; applying afterwards would re-run
+    // work the merge just completed. ResultsRoute already declines to call
+    // this, but the callback is reachable through the outlet context.
+    if (isDriftSession(session)) return;
 
     navigate("/home/planning");
 
     terraform.run(
       {
-        sessionId: session.session_id,
+        sessionId: session.uuid,
         query: "",
-        userId: user?.username ?? "",
         mode: "import" as const,
       },
       handleOutcome,
     );
-  }, [session, user, navigate, terraform, handleOutcome]);
+  }, [session, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
     if (mapper.mapperError) {
@@ -226,6 +218,17 @@ export function useHomeWizard() {
     terraform.reset();
     navigate("/home", { replace: true });
   }, [navigation, mapper, auth, terraform, navigate]);
+
+  // A clear requested from outside the wizard: the header logo calls
+  // `resetSession()`, which bumps `resetNonce`. The ref is seeded with the
+  // mount-time value so a fresh mount — a deep link into
+  // /home/results/:id, say — is not mistaken for a reset request.
+  const seenResetNonce = useRef(resetNonce);
+  useEffect(() => {
+    if (seenResetNonce.current === resetNonce) return;
+    seenResetNonce.current = resetNonce;
+    reset();
+  }, [resetNonce, reset]);
 
   const promptMessage = (): string =>
     navigation.promptMessage(auth.state.status);

@@ -1,33 +1,48 @@
 # Default Nebula system config bundled with the docker-compose stack.
 #
-# This file is read by the core when NEBULA_CONFIG points at it (the
-# docker-compose `api` service sets that env var and mounts this file
-# read-only at /etc/nebula/config.yaml). It carries deployment-tunable
-# knobs — no secrets.
+# This file is baked into the nebula-core image at build time (the
+# Dockerfile copies it to /etc/nebula/config.yaml, the path the core
+# reads by default; set NEBULA_CONFIG to load a different file). Edits
+# here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
+# so rebuild after changing it: `docker compose build core`. It carries
+# deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
-# names (AWS_ACCESS_KEY_ID, GOOGLE_APPLICATION_CREDENTIALS, GIT_TOKEN,
+# names (GIT_USER, GIT_TOKEN, NEBULA_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
 # NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
-# repeated here. Override only if you need a different env var name —
-# see core/src/shared/config/system_config.py for the `*_env` fields.
+# repeated here. LLM provider credentials use LiteLLM's own variable
+# names (docs/litellm.md). Override only if you need a different env var
+# name — see core/src/shared/config/system_config.py for the `*_env` fields.
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
 # true and point it at a self-hosted mapper) or override per-environment
 # via a docker-compose.override.yml / your own NEBULA_CONFIG path.
 
-# development | staging | production. Surface only — used in telemetry/log
-# tagging; no behavior gates are keyed on it today.
+# development | staging | production. Selects the Phoenix tracing project
+# prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
+# Phoenix prompts (docs/monitoring.md, docs/phoenix-prompt-templates.md).
+# No security gates are keyed on it.
 environment: "development"
 
-# OIDC issuer settings used by the React frontend when it logs in to the
-# core. Leave blank to disable OIDC auth (dev default).
+# OIDC login + bearer-token validation. Blank issuer_url disables auth
+# entirely (dev default: every request acts as a local developer with
+# top roles). Optional overrides (`audience`, `scope`), per-IdP setup
+# and quirks (Entra ID, Keycloak, Auth0): docs/oidc-setup.md.
+# clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
   client_id: ""
-  audience: ""
+  clock_skew_seconds: 60
 
-# Bootstrap administrator. The address listed here is granted the
-# root-admin role on first run. Leave blank to skip the bootstrap.
+# Bootstrap administrator. The user whose access token carries an `email`
+# claim matching this address together with `email_verified: true` is
+# elevated to the top role of both role groups (operation devops + panel
+# admin) when they log in — on first login for new users, on the next
+# login for existing ones. IdPs that never emit `email_verified` (Entra
+# ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
+# table instead (docs/oidc-setup.md, "Bootstrap admin"). Elevation is
+# one-way: clearing this field later never demotes anyone. Leave blank
+# to skip.
 admin:
   default_root_email: ""
 
@@ -36,17 +51,17 @@ admin:
 # the core sends on every request. `timeout` is the per-request HTTP
 # budget in seconds — every call returns promptly (long work runs as
 # asynchronous jobs the core polls), so it only needs to cover one
-# request/response round trip. Any enabled service whose token_env
-# resolves to an empty value will refuse the core's boot — flip
-# `enabled: false` to skip a service entirely.
+# request/response round trip. Any service the core calls whose
+# token_env resolves to an empty value will refuse the core's boot —
+# flip `enabled: false` to skip an optional service entirely.
 services:
   notifications:
-    enabled: true
+    enabled: false
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
     timeout: 30.0
   mapping:
-    enabled: true
+    enabled: false
     endpoint: "http://mapping:8081"
     token_env: "NEBULA_MAPPING_TOKEN"
     timeout: 30.0
@@ -56,7 +71,6 @@ services:
     token_env: "NEBULA_AUTHZ_TOKEN"
     timeout: 30.0
   iac:
-    enabled: true
     endpoint: "http://iac:8082"
     token_env: "NEBULA_IAC_TOKEN"
     timeout: 30.0
@@ -70,9 +84,15 @@ services:
 # include a check_compliance tool that validates output
 # against curated rules before allowing completion.
 #
-# max_drift_reports: TODO
+# block_on_high_impact: When enabled, a generate round whose report
+# comes back with a "high" impact banner locks the session, blocking
+# apply and PR merge until an editor unlocks it.
+#
+# max_drift_reports: maximum detect-and-remediate iterations in a drift
+# session. Every knob is described in docs/configuration.md.
 orchestration:
   enable_compliance_checker: true
+  block_on_high_impact: true
   max_drift_reports: 3
   max_validation_iteration: 5
   max_tool_chain_executions: 70
@@ -84,26 +104,27 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars — ANTHROPIC_API_KEY for the
-# Anthropic defaults below, set in core/.env — and the core fails boot
-# when litellm reports required env vars missing. Advanced routing
+# from the provider's standard env vars, set in core/.env — for the
+# Vertex AI models below that is VERTEXAI_PROJECT, VERTEXAI_LOCATION and
+# VERTEXAI_CREDENTIALS; the in-code defaults (anthropic/...) need
+# ANTHROPIC_API_KEY instead — and the core fails boot when litellm
+# reports required env vars missing. Advanced routing
 # (fallbacks, load balancing, custom credential env var names) is
 # available via an optional `model_list` key.
 #
 # Refer to:
-#   - Readme # LiteLLM models and params reference
-#   or
+#   - docs/litellm.md                          — Nebula's LiteLLM guide
 #   - https://models.litellm.ai/              — model IDs
 #   - https://docs.litellm.ai/docs/providers  — provider credential keys
-
 llm:
   # Complex tasks model
-  model: "anthropic/claude-sonnet-5"
+  model: "azure_ai/claude-sonnet-4-5"
   # Simple tasks model
-  small_model: "anthropic/claude-haiku-4-5"
+  small_model: "azure_ai/claude-haiku-4-5"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
+ 
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -166,6 +187,14 @@ http:
 # the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
 # ignored).
 #
+# `terraform_state_bucket` is a second bucket (blob container on
+# STORAGE_ACCOUNT) in that same store, holding the Terraform state of
+# the projects Nebula manages: the core creates it at boot and writes a
+# matching backend into every workspace before `init`, keyed by project,
+# so the same store serves artifacts and state. Blank turns managed
+# state off — each workspace then keeps the backend its own Terraform
+# code declares.
+#
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
 # (108000) or over the SigV4 7-day limit (604800).
@@ -175,6 +204,7 @@ http:
 storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
+  terraform_state_bucket: "nebula-terraform-state"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
@@ -184,13 +214,15 @@ storage:
   presign_expiry_seconds: 172800
 
 # Git push provider + author. Credentials (username + PAT) are read from
-# env at use time (default GIT_USER / GIT_TOKEN). Leave `provider` blank to
-# disable push-credential setup (push will then need mounted
-# ~/.git-credentials, SSH keys, or PAT-embedded repo_uri).
+# env at boot (default GIT_USER / GIT_TOKEN). When either is empty the
+# core logs a warning and skips the credential setup (push will then
+# need a mounted ~/.git-credentials or SSH keys; note that pull-request
+# creation and merge call the provider REST API with GIT_TOKEN over
+# HTTPS, so SSH alone cannot open or merge pull requests).
 #
-# `provider` is GitProviderName enum names (see
-# core/src/shared/constants.py::GitProviderName). Examples: GITHUB,
-# AZURE_DEVOPS, GITLAB.
+# `provider` is required and must be a GitProviderName enum name or
+# value (see core/src/shared/constants.py::GitProviderName): GITHUB,
+# AZURE_DEVOPS, GITLAB. Full field reference: docs/configuration.md.
 git:
   provider: "GITHUB"
   author_name: "Nebula"

@@ -21,7 +21,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.shared.constants import (
     GitProviderName,
+    OperationRole,
     OperationType,
+    PanelRole,
     ReportType,
     SessionStatus,
     TerraformProvider as TP,
@@ -53,17 +55,30 @@ class Base(DeclarativeBase):
 
 @final
 class User(Base):
-    """Users table for storing user related information."""
+    """Internal users resolved from OIDC identities.
+
+    Identity key is (issuer, subject); email is display/bootstrap data and
+    may collide across issuers. A NULL panel_role means no admin-panel
+    access.
+    """
 
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("issuer", "subject"),)
 
-    username: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    issuer: Mapped[str] = mapped_column(String(512))
+    subject: Mapped[str] = mapped_column(String(254))
+    email: Mapped[str | None] = mapped_column(String(254), index=True)
+    display_name: Mapped[str | None] = mapped_column(String(254))
+    operation_role: Mapped[OperationRole] = mapped_column(
+        default=OperationRole.DEVELOPER
+    )
+    panel_role: Mapped[PanelRole | None] = mapped_column(nullable=True)
     # relations
     sessions: Mapped[list["Session"]] = relationship("Session", cascade="all, delete")
 
     @override
     def __repr__(self) -> str:
-        return f"<Users(id={self.id}, username='{self.username}')>"
+        return f"<User(id={self.id}, issuer='{self.issuer}', subject='{self.subject}')>"
 
 
 @final

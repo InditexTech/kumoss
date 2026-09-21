@@ -11,12 +11,14 @@ from src.shared.config import system_config
 from src.shared.constants import ObjectStorageProvider
 
 
-# Lazily initialized singletons.
+# Lazily initialized singletons, one per (provider, bucket) pair: the
+# Terraform state bucket is the same store as the artifacts bucket,
+# reached with the same credentials, so it differs only in the name.
 @cache
-def _rustfs() -> S3ObjectStorage:
+def _rustfs(bucket: str) -> S3ObjectStorage:
     cfg = system_config.storage
     return S3ObjectStorage(
-        bucket=cfg.bucket,
+        bucket=bucket,
         region=cfg.region,
         endpoint_url=cfg.endpoint_url,
         public_endpoint_url=cfg.public_endpoint_url,
@@ -31,10 +33,10 @@ def _rustfs() -> S3ObjectStorage:
 
 
 @cache
-def _s3() -> S3ObjectStorage:
+def _s3(bucket: str) -> S3ObjectStorage:
     cfg = system_config.storage
     return S3ObjectStorage(
-        bucket=cfg.bucket,
+        bucket=bucket,
         region=cfg.region,
         endpoint_url=None,
         public_endpoint_url=None,
@@ -49,10 +51,10 @@ def _s3() -> S3ObjectStorage:
 
 
 @cache
-def _storage_account() -> StorageAccountObjectStorage:
+def _storage_account(container: str) -> StorageAccountObjectStorage:
     cfg = system_config.storage
     return StorageAccountObjectStorage(
-        container=cfg.bucket,
+        container=container,
         account=cfg.storage_account_name,
         endpoint_url=cfg.endpoint_url,
         public_endpoint_url=cfg.public_endpoint_url,
@@ -65,24 +67,39 @@ def _storage_account() -> StorageAccountObjectStorage:
 
 
 class ObjectStorageFactory:
-    def __init__(self, provider: ObjectStorageProvider):
+    def __init__(self, provider: ObjectStorageProvider, bucket: str):
         self.__provider = provider
+        self.__bucket = bucket
 
     def get(self) -> IObjectStorage:
         match self.__provider:
             case ObjectStorageProvider.RUSTFS:
-                return _rustfs()
+                return _rustfs(self.__bucket)
             case ObjectStorageProvider.S3:
-                return _s3()
+                return _s3(self.__bucket)
             case ObjectStorageProvider.STORAGE_ACCOUNT:
-                return _storage_account()
+                return _storage_account(self.__bucket)
             case _:
                 raise NotImplementedError()
 
 
 def default_object_storage() -> IObjectStorage:
-    """The config-selected adapter singleton.
+    """The config-selected adapter singleton for the artifacts bucket.
 
     Cheap enough for sync call sites (cached construction, no IO).
     """
-    return ObjectStorageFactory(system_config.storage.provider).get()
+    cfg = system_config.storage
+    return ObjectStorageFactory(cfg.provider, cfg.bucket).get()
+
+
+def terraform_state_storage() -> IObjectStorage | None:
+    """The same store, bound to the Terraform state bucket.
+
+    None when ``storage.terraform_state_bucket`` is empty, which turns
+    managed state off: no backend override is written and each
+    workspace keeps the backend its own configuration declares.
+    """
+    cfg = system_config.storage
+    if not cfg.state_bucket:
+        return None
+    return ObjectStorageFactory(cfg.provider, cfg.state_bucket).get()

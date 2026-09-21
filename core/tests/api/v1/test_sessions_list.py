@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.main import app
 from src.domains.services.database_service import DatabaseService
+from src.domains.services.user_service import UserService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
 from src.infrastructure.redis import redis_client
@@ -29,13 +30,14 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         async with db.session_manager.engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
-        # Unique username per run so stale Redis mappings never leak in.
-        # Usernames are full emails, matching what the client sends.
-        self.username = f"user-{uuid4().hex[:8]}@example.com"
+        # Auth is disabled in the test config, so every request acts as
+        # the dev identity; the listed sessions must belong to it.
+        self.user = await UserService.resolve()
+        self.username = self.user.email
         self.sid = uuid4()
         _ = await DatabaseService.create_session(
             session_id=self.sid,
-            user_id=self.username,
+            user_pk=self.user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
@@ -54,7 +56,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await db.close()
 
     async def test_list_matches_contract(self):
-        resp = await self.client.get("/v1/sessions", params={"username": self.username})
+        resp = await self.client.get("/v1/sessions")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 1)
@@ -67,16 +69,11 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["provider"], "azure")
         self.assertEqual(item["first_query"], "create a resource group")
         self.assertEqual(item["workspace_uri"], "https://example.com/foo.git")
-        # No status rows yet: summaries fall back to STARTED.
         self.assertEqual(item["current_status"], "started")
         self.assertFalse(item["in_flight"])
         self.assertFalse(item["is_blocked"])
 
     async def test_detail_aggregates_rounds_and_artifacts(self):
-        # Attaches to round 1, opened by create_session.
-        await DatabaseService.mark_session_status(
-            self.sid, SessionStatus.STARTED, "kick-off"
-        )
         round_id = await DatabaseService.create_round(self.sid, "add a vnet")
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "round 2", round_id=round_id
@@ -180,9 +177,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async def fetch(**params: str) -> int:
-            resp = await self.client.get(
-                "/v1/sessions", params={"username": self.username, **params}
-            )
+            resp = await self.client.get("/v1/sessions", params=params)
             self.assertEqual(resp.status_code, 200, resp.text)
             return resp.json()["total"]
 
@@ -192,4 +187,6 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await fetch(status="failed"), 0)
         self.assertEqual(await fetch(search="resource group"), 1)
         self.assertEqual(await fetch(search="foo.git"), 1)
+        self.assertEqual(await fetch(search=str(self.sid)), 1)
+        self.assertEqual(await fetch(search=str(self.sid)[:8]), 1)
         self.assertEqual(await fetch(search="no-match-xyz"), 0)

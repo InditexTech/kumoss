@@ -64,33 +64,51 @@ describe("PrApprovalView", () => {
   });
 
   it("renders initial step with PR ready message", () => {
-    renderPr("initial", { prPatch: { id: 42, prUrl: "https://dev.azure.com/pr/42" } });
+    renderPr("initial", { prPatch: { number: 42, url: "https://dev.azure.com/pr/42" } });
 
     expect(screen.getByText("Here is your Pull Request.")).toBeInTheDocument();
     expect(screen.getByText("Approve PR and Apply")).toBeInTheDocument();
   });
 
-  it("shows View PR link when prUrl is set and allowed", () => {
-    renderPr("initial", { prPatch: { id: 42, prUrl: "https://dev.azure.com/pr/42" } });
+  it("shows View PR link when url is set and allowed", () => {
+    renderPr("initial", { prPatch: { number: 42, url: "https://dev.azure.com/pr/42" } });
     expect(screen.getByText("View Pull Request")).toBeInTheDocument();
   });
 
-  it("renders blocked state when apply_allowed is false", () => {
+  it("renders blocked state when is_blocked is true", () => {
     renderPr("initial", {
-      sessionPatch: { apply_allowed: false },
-      prPatch: { id: 42 },
+      sessionPatch: { is_blocked: true },
+      prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("Resource Deletion Detected")).toBeInTheDocument();
+    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
     expect(screen.getByText("Back to Report")).toBeInTheDocument();
     expect(screen.getByText("Contact Team")).toBeInTheDocument();
+    expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("blocked state shows the report's impact banner description", () => {
+    renderPr("confirming", {
+      sessionPatch: {
+        is_blocked: true,
+        terraform_report: {
+          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
   });
 
   it("calls onBackToReport when Back to Report clicked in blocked state", async () => {
     const user = userEvent.setup();
     const { props } = renderPr("initial", {
-      sessionPatch: { apply_allowed: false },
-      prPatch: { id: 42 },
+      sessionPatch: { is_blocked: true },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Back to Report"));
@@ -99,41 +117,32 @@ describe("PrApprovalView", () => {
 
   it("clicking Approve PR and Apply advances to confirming step", async () => {
     const user = userEvent.setup();
-    const { props } = renderPr("initial", { prPatch: { id: 42 } });
+    const { props } = renderPr("initial", { prPatch: { number: 42 } });
 
     await user.click(screen.getByText("Approve PR and Apply"));
     expect(props.onStepChange).toHaveBeenCalledWith("confirming");
   });
 
   it("renders confirming step with confirm and request review buttons", () => {
-    renderPr("confirming", { prPatch: { id: 42 } });
+    renderPr("confirming", { prPatch: { number: 42 } });
 
     expect(screen.getByText("Confirmation")).toBeInTheDocument();
     expect(screen.getByText("Confirm and Apply")).toBeInTheDocument();
     expect(screen.getByText("Request Review")).toBeInTheDocument();
   });
 
-  it("confirm in confirming step with high impact shows warning", async () => {
+  it("confirm in confirming step with an unblocked high impact report still merges", async () => {
     const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
     const { props } = renderPr("confirming", {
       sessionPatch: {
+        uuid: "sess-1",
+        is_blocked: false,
         terraform_report: {
           potential_impact: { banner: { level: "high", title: "Major", description: "Destroys resources" } },
         },
       },
-      prPatch: { id: 42 },
-    });
-
-    await user.click(screen.getByText("Confirm and Apply"));
-    expect(props.onStepChange).toHaveBeenCalledWith("high_impact_warning");
-  });
-
-  it("confirm in confirming step without high impact calls mergePullRequest", async () => {
-    const user = userEvent.setup();
-    mockMergePr.mockResolvedValue(undefined);
-    const { props } = renderPr("confirming", {
-      sessionPatch: { session_id: "sess-1" },
-      prPatch: { id: 42 },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
@@ -141,27 +150,25 @@ describe("PrApprovalView", () => {
     expect(props.onApprove).toHaveBeenCalled();
   });
 
-  it("renders high_impact_warning step with warning banner", () => {
-    renderPr("high_impact_warning", {
-      sessionPatch: {
-        terraform_report: {
-          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
-        },
-      },
-      prPatch: { id: 42 },
+  it("confirm in confirming step without high impact calls mergePullRequest", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
+    const { props } = renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1" },
+      prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
-    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
-    expect(screen.getByText("I understand, Apply")).toBeInTheDocument();
+    await user.click(screen.getByText("Confirm and Apply"));
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
+    expect(props.onApprove).toHaveBeenCalled();
   });
 
   it("API error shows notification and resets to initial", async () => {
     const user = userEvent.setup();
     mockMergePr.mockRejectedValue(new Error("Server error"));
     const { props } = renderPr("confirming", {
-      sessionPatch: { session_id: "sess-1" },
-      prPatch: { id: 42 },
+      sessionPatch: { uuid: "sess-1" },
+      prPatch: { number: 42 },
     });
 
     await user.click(screen.getByText("Confirm and Apply"));
@@ -169,16 +176,51 @@ describe("PrApprovalView", () => {
     expect(props.onStepChange).toHaveBeenCalledWith("initial");
   });
 
-  it("Approve button is disabled without prDetails.id", () => {
+  it("Approve button is disabled without prDetails.number", () => {
     renderPr("initial");
     expect(screen.getByText("Approve PR and Apply")).toBeDisabled();
   });
 
   it("Request Review calls onContactTeam", async () => {
     const user = userEvent.setup();
-    const { props } = renderPr("confirming", { prPatch: { id: 42 } });
+    const { props } = renderPr("confirming", { prPatch: { number: 42 } });
 
     await user.click(screen.getByText("Request Review"));
     expect(props.onContactTeam).toHaveBeenCalled();
+  });
+
+  // For a drift session the merge IS the deliverable — no apply follows it — so
+  // the wording must not promise one. Gated on session.operation, not useMode().
+  it("labels the initial step for merging in a drift session", () => {
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Approve and Merge PR")).toBeInTheDocument();
+    expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
+  });
+
+  it("labels the confirming step for merging in a drift session", () => {
+    renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Confirm and Merge")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("still merges and notifies the caller in a drift session", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockResolvedValue(undefined);
+    const { props } = renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", operation: "drift" },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Confirm and Merge"));
+    expect(mockMergePr).toHaveBeenCalledWith({ session_id: "sess-1" });
+    expect(props.onApprove).toHaveBeenCalled();
   });
 });

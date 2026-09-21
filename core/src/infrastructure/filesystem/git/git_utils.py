@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 #
 # SPDX-License-Identifier: Apache-2.0
+import hashlib
 import re
 
 import subprocess
@@ -128,24 +129,6 @@ class GitUtils(IGit):
         await self.__provider.complete_pr(self.__uri, pr_id)
 
     @override
-    async def get_remote_url(self) -> str:
-        if not self._handle_return_code(
-            cmd := await self.__cli.execute(
-                [
-                    "git",
-                    "remote",
-                    "get-url",
-                    "origin",
-                ]
-            )
-        ):
-            raise ExceptionHandler(
-                message=self.__error_msg,
-                error_code=502,
-            )
-        return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
-
-    @override
     async def get_default_branch(self, ls_remote: bool = False) -> str:
         if ls_remote:
             cmd = [
@@ -212,6 +195,23 @@ class GitUtils(IGit):
                 error_code=502,
             )
         return cmd.stdout.decode()
+
+    @override
+    async def get_workspace_revision(self) -> str:
+        cmd = [
+            "git",
+            "status",
+            "--porcelain=v2",
+            "--branch",
+            "--untracked-files=all",
+        ]
+        logging.debug(cmd)
+        if not self._handle_return_code(output := await self.__cli.execute(cmd)):
+            raise ExceptionHandler(
+                error_code=502,
+                message=f"Git error when reading the workspace revision: {self.__error_msg}",
+            )
+        return hashlib.sha256(output.stdout).hexdigest()
 
     @override
     async def get_untracked_files(self) -> list[str]:

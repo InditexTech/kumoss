@@ -6,15 +6,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
+from typing import Annotated
 from uuid import uuid4
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials
 
-from .auth import verify_bearer_token
+from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .models import Health, NotificationAccepted, NotificationRequest, Problem
 from .slack import deliver
@@ -40,7 +43,12 @@ app = FastAPI(
 )
 
 
-def _problem(status_code: int, title: str, detail: str | None = None) -> JSONResponse:
+def _problem(
+    status_code: int,
+    title: str,
+    detail: str | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> JSONResponse:
     payload = Problem(
         type="about:blank", title=title, status=status_code, detail=detail
     ).model_dump(exclude_none=True)
@@ -48,12 +56,13 @@ def _problem(status_code: int, title: str, detail: str | None = None) -> JSONRes
         status_code=status_code,
         content=payload,
         media_type="application/problem+json",
+        headers=headers,
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    return _problem(exc.status_code, exc.detail or "HTTP error")
+    return _problem(exc.status_code, exc.detail or "HTTP error", headers=exc.headers)
 
 
 @app.exception_handler(RequestValidationError)
@@ -65,9 +74,29 @@ async def validation_exception_handler(
     return _problem(422, "Request validation failed", str(exc))
 
 
+@app.exception_handler(httpx.HTTPError)
+async def downstream_error_handler(
+    request: Request, exc: httpx.HTTPError
+) -> JSONResponse:
+    # Slack answered non-2xx or could not be reached: the contract's 502.
+    # No detail on purpose: httpx embeds the request URL in every error
+    # message and the webhook URL is the Slack credential.
+    return _problem(status.HTTP_502_BAD_GATEWAY, "Downstream channel error")
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     return _problem(500, "Internal server error", str(exc))
+
+
+async def require_bearer_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> None:
+    """Reject the request unless it carries the configured bearer token."""
+    verify_bearer_token(config, credentials)
+
+
+Authenticated = Depends(require_bearer_token)
 
 
 @app.get("/healthz", response_model=Health, tags=["ops"])
@@ -80,26 +109,11 @@ async def healthz() -> Health:
     response_model=NotificationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
     tags=["notify"],
+    dependencies=[Authenticated],
 )
 async def notify(
     request: Request,
     body: NotificationRequest,
-    authorization: str | None = Header(default=None),
 ) -> NotificationAccepted:
-    verify_bearer_token(config, authorization)
-
-    if not config.slack_webhook_url:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Notifications service is running but no SLACK_WEBHOOK_URL is configured.",
-        )
-
-    try:
-        await deliver(body, config.slack_webhook_url, request.app.state.http)
-    except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Slack delivery failed: {exc}",
-        ) from exc
-
+    await deliver(body, config.slack_webhook_url, request.app.state.http)
     return NotificationAccepted(delivery_id=uuid4())

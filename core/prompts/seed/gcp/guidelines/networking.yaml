@@ -1,0 +1,81 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP networking conventions (VPC networks, subnetworks, firewall rules, Cloud NAT, private access).
+body: |
+  # GCP Networking Guidelines
+
+  ## Topology
+  - Default to one custom-mode VPC network per environment (`dev`,
+    `staging`, `prod`). Never use auto-mode networks or the `default`
+    network.
+  - For multi-project deployments, prefer a Shared VPC: the host
+    project owns the network and subnetworks, service projects attach
+    workloads to them.
+  - Connect environments or on-premises networks through VPC Network
+    Peering, Cloud VPN, or Cloud Interconnect; do not chain peerings
+    (peering is not transitive).
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs or
+    other networks that will be peered.
+  - Allocate a `/16` per VPC network by default and carve regional
+    `/20` subnetworks within it; use `/24` where a tier is small.
+  - Reserve secondary ranges for GKE pods and services on the
+    subnetworks that host clusters.
+
+  ## Subnetworks
+  - Subnetworks are regional; create one per tier per region:
+    `web`, `app`, `data`, `mgmt`.
+  - Enable `private_ip_google_access = true` on every subnetwork so
+    workloads reach Google APIs without external IPs.
+  - Enable VPC Flow Logs (`log_config`) on every subnetwork; a
+    sampling rate of 0.5 is acceptable outside production.
+  - Name subnetworks `snet-<environment>-<tier>-<region>`.
+
+  ## Firewall rules
+  - Default-deny: rely on the implied deny-ingress rule and add
+    explicit, narrow allow rules.
+  - Name rules `fw-<network>-<ingress|egress>-<purpose>`.
+  - Target rules with service accounts (`target_service_accounts`)
+    rather than network tags where possible; use tags only for
+    resources that cannot run as a dedicated service account.
+  - Allow administrative SSH and RDP only from the Identity-Aware
+    Proxy range `35.235.240.0/20`.
+  - Allow health checks from the Google load-balancer ranges
+    `130.211.0.0/22` and `35.191.0.0/16` only on the health-check
+    port.
+  - Prefer hierarchical firewall policies at folder level for rules
+    that apply to every project.
+
+  ## Cloud Router and Cloud NAT
+  - One Cloud Router per VPC network per region.
+  - Provide outbound internet access for private workloads through
+    Cloud NAT attached to that router; do not assign external IPs
+    to instances for egress.
+  - Log Cloud NAT errors only (`filter = "ERRORS_ONLY"`) unless the
+    request asks for full logging.
+
+  ## Private connectivity
+  - Use Private Service Connect or private services access
+    (`google_service_networking_connection`) for Cloud SQL,
+    Memorystore, and other managed services; never their public IPs.
+  - Deploy GKE clusters as private clusters with authorized networks
+    for the control plane.
+  - Access Cloud Run, Cloud Functions, and other serverless products
+    from the VPC through Direct VPC egress or a Serverless VPC Access
+    connector, and restrict their ingress to internal traffic when
+    they are not public.
+
+  ## Load balancing
+  - Use the global external Application Load Balancer for public
+    HTTP(S) entry points, with a Cloud Armor security policy attached
+    to every backend service.
+  - Use internal Application or Network Load Balancers for traffic
+    between tiers inside the VPC.
+  - Terminate TLS at the load balancer with Google-managed
+    certificates unless the request requires otherwise.
+
+  Replace this body with your organization's authoritative networking
+  standards.

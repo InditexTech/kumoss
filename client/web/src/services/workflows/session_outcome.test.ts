@@ -14,7 +14,6 @@ import {
   buildApplyResults,
   appendAssistantMessage,
   isApplyRound,
-  extractProjectName,
   waitForNewRound,
 } from "./session_outcome";
 
@@ -414,19 +413,12 @@ describe("waitForNewRound", () => {
   });
 });
 
-describe("isApplyRound / extractProjectName", () => {
+describe("isApplyRound", () => {
   it("isApplyRound is false for plain generate rounds", () => {
     expect(isApplyRound(makeRound())).toBe(false);
     expect(
       isApplyRound(makeRound({ statuses: [makeStatus("apply")] })),
     ).toBe(true);
-  });
-
-  it("extractProjectName takes the last URI segment", () => {
-    expect(
-      extractProjectName("https://dev.azure.com/org/project/_git/repo"),
-    ).toBe("repo");
-    expect(extractProjectName("https://host/repo/")).toBe("repo");
   });
 });
 
@@ -443,18 +435,22 @@ describe("buildSessionPatch", () => {
     });
 
     expect(patch).toMatchObject({
-      session_id: "sess-1",
-      cloud: "azure",
-      project: "repo",
-      environment: "environments/dev",
-      branchName: "nebula/sess-1",
-      firstQuery: "deploy a VM",
-      apply_allowed: false,
+      uuid: "sess-1",
+      operation: "generate",
+      provider: "azure",
+      scope_id: "sub-123",
+      first_query: "deploy a VM",
+      workspace: {
+        uri: "https://dev.azure.com/org/project/_git/repo",
+        branch: "nebula/sess-1",
+        root_path: "environments/dev",
+      },
+      is_blocked: true,
       current_status: "completed",
       code: "<main.tf>\nx\n</main.tf>",
-      terraform_targets: ["a.b"],
     });
-    expect(patch.full_history).toEqual([
+    expect(patch).not.toHaveProperty("terraform_targets");
+    expect(patch.history).toEqual([
       { role: "user", content: "deploy a VM" },
       { role: "assistant", content: "Here is your VM" },
     ]);
@@ -481,7 +477,6 @@ describe("buildSessionPatch", () => {
     expect(patch).toMatchObject({
       current_status: "uncompleted",
       code: "<main.tf>\nx\n</main.tf>",
-      terraform_targets: ["a.b"],
       terraform_report: { status: "ok" },
     });
   });

@@ -12,11 +12,11 @@ import styles from "./UserPage.module.css";
 
 export default function UserPage() {
   const navigate = useNavigate();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, hasPanelAccess } = useAuth();
 
   const displayName =
-    user?.name || (user?.username ? user.username.split("@")[0] : "User");
-  const email = user?.username || "";
+    user?.displayName || (user?.email ? user.email.split("@")[0] : "User");
+  const email = user?.email || "";
 
   return (
     <div className={styles.container}>
@@ -48,8 +48,7 @@ export default function UserPage() {
               <ButtonBase
                 className={styles.logoutButton}
                 onClick={() => {
-                  logout();
-                  navigate("/");
+                  void logout();
                 }}
               >
                 <LogoutIcon className={styles.logoutIcon} />
@@ -72,7 +71,7 @@ export default function UserPage() {
           </ButtonBase>
         </section>
 
-        {isAdmin && (
+        {hasPanelAccess && (
           <>
             <Divider />
 
@@ -82,7 +81,7 @@ export default function UserPage() {
                 className={styles.backButton}
                 onClick={() => navigate("/admin")}
               >
-                <span className={styles.backButtonText}>Admin Sessions</span>
+                <span className={styles.backButtonText}>Admin Panel</span>
                 <ArrowForwardIcon className={styles.backButtonIcon} />
               </ButtonBase>
             </section>

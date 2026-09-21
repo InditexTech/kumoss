@@ -26,7 +26,7 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_report_generator(self, report_type: ReportType) -> str:
+    async def render_report_generator(self, report_type: ReportType) -> str:
         pass
 
     @abstractmethod
@@ -54,6 +54,10 @@ class ITemplate(ABC):
 
     @abstractmethod
     def render_task_splitter(self) -> str:
+        pass
+
+    @abstractmethod
+    def render_filter_reconciliation(self) -> str:
         pass
 
     @abstractmethod

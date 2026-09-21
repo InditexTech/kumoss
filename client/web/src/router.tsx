@@ -7,6 +7,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import HomeLayout from "@/components/Home/HomeLayout";
 import AdminPage from "@/pages/AdminPage";
 import SessionsPage from "@/pages/SessionsPage";
+import AuthCallback from "@/components/auth/AuthCallback";
 
 const WizardRoute = lazy(() => import("@/components/Home/routes/WizardRoute"));
 const PlanningRoute = lazy(
@@ -29,6 +30,7 @@ export default function AppRouter() {
         <Route path="results/:sessionId" element={<ResultsRoute />} />
         <Route path="apply-results/:sessionId" element={<ApplyResultsRoute />} />
       </Route>
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/admin/*" element={<AdminPage />} />
       <Route path="/user" element={<UserPage />} />
       <Route path="/user/sessions" element={<SessionsPage />} />

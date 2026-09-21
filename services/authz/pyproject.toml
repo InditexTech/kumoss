@@ -9,20 +9,10 @@ description = "Reference implementation of contracts/openapi/authz.v1.yaml — h
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.116.0",
-    "pydantic>=2.0",
-    "uvicorn[standard]>=0.30.0",
 ]
 
-[project.optional-dependencies]
-dev = [
+[dependency-groups]
+tooling = [
     "pytest>=8.0",
-    "pytest-asyncio>=0.24",
     "httpx>=0.28",
 ]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src"]

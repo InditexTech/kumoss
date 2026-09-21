@@ -4,169 +4,139 @@ SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 SPDX-License-Identifier: Apache-2.0
 -->
 
-<!-- Add relevant badges here -->
-![GitHub License](https://img.shields.io/github/license/InditexTech/base-archetype)
+![GitHub License](https://img.shields.io/github/license/InditexTech/nebula)
 
-# base-archetype
+# Nebula
 
-Short description of what this project does and why it exists.
+Nebula turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, while Nebula’s agents generate Terraform-compatible HCL directly in the appropriate repository, guided by the organization’s architecture, security, and networking standards.
 
-> One or two sentences that explain its purpose in a clear, accessible way.
+Its governed delivery rail and agent harness make infrastructure delivery safe to extend beyond specialist platform teams. Nebula validates and plans both requested infrastructure changes and automatically generated drift remediations using the existing OpenTofu or Terraform toolchain and the target runtime environment. Nebula reports the proposed changes and their impact, evaluates them against deterministic compliance rules, opens a pull request, and applies the reviewed plan only after human authorization.
 
-<!-- Add video/image/demo here -->
+> Nebula is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services that implement OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization. Prompts live in Phoenix, an LLM observability tool that also stores Nebula's traces.
 
-## LiteLLM Models and Params Reference
+## What you deploy
 
-To configure the LLMs, set `llm.model` and `llm.small_model` in `config.yaml`
-to `provider/model-id` strings (the **Model String Format** column below) and
-export that provider's **Default LiteLLM Env Vars** (middle column) in
-`core/.env`. The core fails boot when litellm reports required env vars
-missing; note that some providers (e.g. `azure_ai`) have no litellm
-validation mapping, so missing credentials surface on the first LLM call
-instead. For advanced routing — fallbacks, load balancing, or custom
-credential env var names — use the optional `llm.model_list` key (see
-[Advanced: `llm.model_list`](#advanced-llmmodel_list) below); the
-**Standard `litellm_params` Keys** column applies only there.
+Nebula has two kinds of components.
 
-### 1. Major Cloud Platforms (Hyperscalers)
+### Core platform components
 
+Core components are run as shipped and configured through `config.yaml` and the `.env` files.
 
-| Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Azure AI Foundry** (Claude, Llama, etc.) | `azure_ai/<model-name>` | `AZURE_AI_API_KEY`<br>`AZURE_AI_API_BASE` | `api_key`<br>`api_base` | `https://<resource>.services.ai.azure.com/anthropic` (or `/models`) |
-| **Azure OpenAI** | `azure/<deployment-name>` | `AZURE_API_KEY`<br>`AZURE_API_BASE`<br>`AZURE_API_VERSION` | `api_key`<br>`api_base`<br>`api_version` | `https://<resource>.openai.azure.com` |
-| **Google Vertex AI** | `vertex_ai/<model-name>` | `VERTEXAI_PROJECT`<br>`VERTEXAI_LOCATION`<br>`VERTEXAI_CREDENTIALS` | `vertex_project`<br>`vertex_location`<br>`vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account JSON — a file path or the raw JSON content. Alternatively omit it and use ADC (`GOOGLE_APPLICATION_CREDENTIALS` file path, workload identity, …). |
-| **Google AI Studio (Gemini API)** | `gemini/<model-name>` | `GEMINI_API_KEY` | `api_key` | Direct Google AI Studio API key. |
-| **AWS Bedrock** | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`<br>`AWS_SECRET_ACCESS_KEY`<br>`AWS_REGION_NAME` | `aws_access_key_id`<br>`aws_secret_access_key`<br>`aws_region_name` | Model IDs like `anthropic.claude-3-5-sonnet-20241022-v2:0`. |
-| **AWS SageMaker** | `sagemaker/<endpoint-name>` | `AWS_ACCESS_KEY_ID`<br>`AWS_SECRET_ACCESS_KEY`<br>`AWS_REGION_NAME` | `aws_access_key_id`<br>`aws_secret_access_key`<br>`aws_region_name` | Targeted SageMaker deployed endpoint. |
-| **Cloudflare Workers AI** | `cloudflare/<model-name>` | `CLOUDFLARE_API_KEY`<br>`CLOUDFLARE_ACCOUNT_ID` | `api_key`<br>`api_base` | Direct access to serverless models on Cloudflare. |
+**You never reimplement them**; in production you just replace the bundled datastores.
 
----
+| Component | Purpose |
+|---|---|
+| `core` | FastAPI orchestration API: sessions, agent chains, validation, reports, pull requests, apply, users and roles. |
+| `proxy` (nginx) | React web application,+
+| `core-db` (postgres) | Sessions, rounds, artifacts metadata, users and roles. |
+| `redis` | Fail-open cache in front of the database. |
+| `object-storage` (RustFS) | Artifacts: reports, plans, code changes. |
+| `phoenix` + `phoenix-db` | Trace collector and UI, and the runtime prompt registry. |
 
-### 2. Frontier Model Labs (Direct API)
+### Sidecars
 
-| Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Anthropic** | `anthropic/<model-name>` | `ANTHROPIC_API_KEY` | `api_key` | e.g., `anthropic/claude-3-5-sonnet-20241022` |
-| **OpenAI** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | `api_base` defaults to `https://api.openai.com/v1`. |
-| **xAI (Grok)** | `xai/<model-name>` | `XAI_API_KEY` | `api_key` | e.g., `xai/grok-beta` |
-| **Mistral AI** | `mistral/<model-name>` | `MISTRAL_API_KEY` | `api_key` | e.g., `mistral/mistral-large-latest` |
-| **Cohere** | `cohere/<model-name>` or `cohere_chat/<model-name>` | `COHERE_API_KEY` | `api_key` | e.g., `cohere/command-r-plus` |
+Sidecars are integration points between Nebula and your organization.
 
----
+Each implements a contract in [`contracts/openapi/`](contracts/openapi/), and any implementation of the contract can replace the bundled one by pointing `services.<name>.endpoint` in `config.yaml` at it.
 
-### 3. Hosted Inference & Fast Token Providers
+**The bundled implementations exist so the stack runs end to end out of the box** — they are references, not organizational policy.
 
-| Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Groq** | `groq/<model-name>` | `GROQ_API_KEY` | `api_key` | e.g., `groq/llama-3.3-70b-versatile` |
-| **DeepSeek** | `deepseek/<model-name>` | `DEEPSEEK_API_KEY` | `api_key` | e.g., `deepseek/deepseek-chat`, `deepseek/deepseek-reasoner` |
-| **Together AI** | `together_ai/<model-name>` | `TOGETHERAI_API_KEY` | `api_key` | e.g., `together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-| **Fireworks AI** | `fireworks_ai/<model-name>` | `FIREWORKS_AI_API_KEY` | `api_key` | e.g., `fireworks_ai/accounts/fireworks/models/llama-v3p3-70b-instruct` |
-| **OpenRouter** | `openrouter/<model-name>` | `OPENROUTER_API_KEY` | `api_key` | e.g., `openrouter/anthropic/claude-3.5-sonnet` |
-| **Perplexity AI** | `perplexity/<model-name>` | `PERPLEXITYAI_API_KEY` | `api_key` | e.g., `perplexity/sonar-pro` |
-| **Cerebras** | `cerebras/<model-name>` | `CEREBRAS_API_KEY` | `api_key` | e.g., `cerebras/llama3.3-70b` |
-| **SambaNova** | `sambanova/<model-name>` | `SAMBANOVA_API_KEY` | `api_key` | e.g., `sambanova/Meta-Llama-3.3-70B-Instruct` |
-| **DeepInfra** | `deepinfra/<model-name>` | `DEEPINFRA_API_KEY` | `api_key` | e.g., `deepinfra/meta-llama/Meta-Llama-3.1-70B-Instruct` |
-| **Anyscale** | `anyscale/<model-name>` | `ANYSCALE_API_KEY` | `api_key` | e.g., `anyscale/meta-llama/Llama-3-70b-chat-hf` |
-| **Replicate** | `replicate/<model-name>` | `REPLICATE_API_KEY` (or `REPLICATE_API_TOKEN`) | `api_key` | e.g., `replicate/meta/meta-llama-3-70b-instruct` |
-| **Voyage AI** (Embeddings) | `voyage/<model-name>` | `VOYAGE_API_KEY` | `api_key` | e.g., `voyage/voyage-3` |
-| **AI21** | `ai21/<model-name>` | `AI21_API_KEY` | `api_key` | e.g., `ai21/jamba-1.5-large` |
+| Sidecar | Shipped `config.yaml` | Bundled implementation (local deployment) | Production-ready? |
+|---|---|---|---|
+| `iac` | **enabled** (mandatory) | Reference executor: runs OpenTofu (default) or the bundled Terraform | **Yes** — Harden your image and configure the env vars accordingly. You can also implement based for your requirements. |
+| `notifications` | disabled | Slack only: renders a Slack-format message and posts it to one incoming webhook. | **Yes, for Slack only** — For Teams, email, PagerDuty, or any other system, implement the contract. |
+| `mapping` | disabled | Identity passthrough: the repository URL you enter is used as-is. While disabled, the core performs the same mapping itself. | **N/A** — leave disabled, or implement the contract against your catalogue. |
+| `authz` | disabled | Permissive placeholder: answers "authorized" to every cloud-project check. | **No** — never enable it as your access policy; implement the contract against your policy source. |
 
+A disabled sidecar is never contacted.
 
----
+The end-to-end flow, the core's layering, and the data model are described in [Architecture](docs/architecture.md).
 
-### 4. Enterprise Data Platforms
+## Choose your deployment model
 
+Nebula supports **two deployment models**: **Local/non-production** and **Production**.
 
-| Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Databricks** | `databricks/<endpoint-name>` | `DATABRICKS_API_KEY`<br>`DATABRICKS_API_BASE` | `api_key`<br>`api_base` | `api_base` format: `https://<workspace>.cloud.databricks.com/serving-endpoints` |
-| **IBM WatsonX** | `watsonx/<model-id>` | `WATSONX_APIKEY`<br>`WATSONX_URL`<br>`WATSONX_PROJECT_ID` | `api_key`<br>`api_base`<br>`watsonx_project_id` | `api_base` is the regional URL (e.g., `https://us-south.ml.cloud.ibm.com`). |
-| **Snowflake Cortex** | `snowflake/<model-name>` | `SNOWFLAKE_ACCOUNT_ID`<br>`SNOWFLAKE_USER`<br>`SNOWFLAKE_PASSWORD` | `snowflake_account_id`<br>`snowflake_user`<br>`snowflake_password` | Supports Llama, Mistral hosted in Snowflake. |
+**Decide which one you need before touching any configuration, because they differ in what you must configure, harden, and replace.**
 
----
+### QuickStart 
 
+Quickstart targets the Local/non-production deployment mode. 
 
-### 5. Self-Hosted, Local, and OpenAI-Compatible Engines
+It runs on any system with Docker and Docker Compose and uses the bundled stack as shipped: core, web application, the four sidecars, PostgreSQL databases, Redis, RustFS object storage, Phoenix, and the nginx proxy.
 
-| Provider | Model String Format (`model:`) | Default LiteLLM Env Vars | Standard `litellm_params` Keys | Base URL / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Ollama** | `ollama/<model-name>` | `OLLAMA_API_BASE` | `api_base` | Default base: `http://localhost:11434`. (No API key needed). |
-| **vLLM** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Point `api_base` to `http://<host>:<port>/v1`. Use dummy `api_key: "none"`. |
-| **TGI (HuggingFace Text Gen)** | `huggingface/<model-name>` or `tgi/<endpoint>` | `HUGGINGFACE_API_KEY` | `api_key`<br>`api_base` | Endpoint URL from HF Dedicated Endpoints or local TGI. |
-| **Hugging Face Serverless** | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` (or `HF_TOKEN`) | `api_key` | Standard Hugging Face inference tokens. |
-| **Generic OpenAI-Compatible** | `openai/<model-name>` | `OPENAI_API_KEY`<br>`OPENAI_API_BASE` | `api_key`<br>`api_base` | Works with LocalAI, LM Studio, FastChat, TabbyAPI, etc. |
+What you must configure is small and listed here in full:
 
-### Advanced: `llm.model_list`
+- `config.yaml` — the two model strings (`llm.model` and `llm.small_model`).
+- `core/.env` — LLM credentials, Git credentials, and the IaC bearer token.
+- `services/iac/.env` — the matching IaC bearer token and the cloud credentials your Terraform providers need.
+- Optionally, to enable notifications: `services.notifications` in `config.yaml`, `services/notifications/.env` with a matching `NEBULA_NOTIFICATIONS_TOKEN`, and `SLACK_WEBHOOK_URL`.
 
-`llm.model_list` follows the [LiteLLM Router
-format](https://docs.litellm.ai/docs/routing) and is only needed for
-fallbacks, load balancing, or credential env var names that differ from the
-provider defaults. When set, `llm.model` and `llm.small_model` must match a
-`model_name` entry, and credential values use the `os.environ/VAR_NAME`
-syntax so secrets stay in env vars. Each provider's keys are listed in the
-**Standard `litellm_params` Keys** column of the tables above (full
-reference: <https://docs.litellm.ai/docs/providers>):
+Everything else runs as bundled.
 
-```yaml
-llm:
-  model: "anthropic/claude-sonnet-5"
-  small_model: "anthropic/claude-sonnet-5"
-  model_list:
-    - model_name: "anthropic/claude-sonnet-5"
-      litellm_params:
-        model: "anthropic/claude-sonnet-5"
-        api_key: "os.environ/MY_ANTHROPIC_KEY_VAR"
-```
+**Authentication may remain disabled only for trusted local development** — with OIDC disabled, every request runs as a privileged built-in identity holding the `devops` operation role and the panel `admin` role, so anyone who can reach the port has that access. Installation ends with a core build and `docker compose up --build`.
 
-Note: boot validation checks the provider's *default* env var names even for
-`model_list` entries (a litellm limitation), so when using custom-named vars
-the default-named ones must also be set for the core to boot.
+This model is **not suitable for shared or production environments**: it ships well-known default credentials, no TLS, an unauthenticated Phoenix console, and a single host with no backups.
 
-## Features
+**Start here:** [Getting started: local/non-production](docs/getting-started-local.md)
 
-- 🔧 Key functionality or tools
-- 📦 What problem it solves
-- 🚀 Target audience or use case
+### Production
 
-## Getting Started
+Production is **not** the local Compose stack with `environment: production` in `config.yaml`. That setting only changes how traces and prompts are tagged; it enables no security control.
 
-### Installation
+In production, all four sidecars are integration boundaries between Nebula and your organization, and each must be reviewed, configured, hardened, or customized as the table above states. Where a bundled implementation is suitable as a starting point, customizing it means secure configuration and integration; where it is not, implement the contract yourself.
 
-Explain how to install or run the project.
+Beyond the sidecars, production requires you to configure all relevant `config.yaml` sections, the core's secrets, the environment variables or secrets of every enabled sidecar, OIDC, project-level authorization, LLM credentials, Git credentials, cloud credentials, persistence for PostgreSQL, Redis, object storage, and Phoenix, and the surrounding networking, TLS, secret management, backups, upgrades, and observability.
 
-```bash
-# Example for a CLI tool
-npm install -g @inditextech/your-tool
-```
+Production should run on an appropriate platform such as Kubernetes. **This repository does not include Kubernetes manifests or Helm charts.** The Compose file is the reference topology; the production guide explains what each component needs so that you can express it on your platform.
 
-### Usage
+**Start here:** [Getting started: production](docs/getting-started-production.md)
 
-Show basic usage or link to examples.
+## Documentation
 
-```bash
-your-tool init
-```
+**Start here**
+
+| Guide | Read it when you need to |
+|---|---|
+| [Getting started: local/non-production](docs/getting-started-local.md) | Install the Compose stack on a workstation and run your first session. |
+| [Getting started: production](docs/getting-started-production.md) | Plan and harden a shared deployment: sidecars, secrets, OIDC, persistence, networking. |
+
+**Use Nebula** (for the people who make requests)
+
+| Guide | Read it when you need to |
+|---|---|
+| [User guide](docs/user-guide.md) | Make a request, write it so it is accepted, follow the session, read the report, handle a lock, open and merge the pull request, apply, and get support. |
+| [FAQ](docs/faq.md) | Quick answers to the questions users ask most. |
+| [Operating modes](docs/modes.md) | Learn precisely what Generate, Partial Drift, Full Drift, and Import Infrastructure do today. |
+
+**Operate Nebula**
+
+| Guide | Read it when you need to |
+|---|---|
+| [Admin portal](docs/admin-portal.md) | Review your own sessions, and as a panel user review any user's sessions, lock or unlock applies, and manage roles. |
+| [OIDC setup](docs/oidc-setup.md) | Enable login with Entra ID, Keycloak, Auth0, or Okta and bootstrap the first admin. |
+| [Monitoring with Phoenix](docs/monitoring.md) | Read traces, configure the collector, understand what data is exported. |
+| [Phoenix prompt templates](docs/phoenix-prompt-templates.md) | Customise the prompts that encode your conventions and compliance rules. |
+
+**Reference**
+
+| Guide | Read it when you need to |
+|---|---|
+| [Configuration reference](docs/configuration.md) | Understand every `config.yaml` field, its default, and its validation rules. |
+| [Environment variables and secrets](docs/environment-variables.md) | Fill in `core/.env` and the sidecar `.env` files; handle credentials safely. |
+| [LiteLLM providers and models](docs/litellm.md) | Choose LLM providers and models, set their credentials, use router fallbacks. |
+| [Architecture](docs/architecture.md) | See how the pieces fit: components, the core's layering, and the end-to-end flow from a request to an applied plan. |
+| Sidecar OpenAPI contracts | [`contracts/openapi/`](contracts/openapi/) (specs), [`contracts/conformance/`](contracts/conformance/) (Schemathesis suites), and the READMEs of [`services/iac`](services/iac/README.md), [`services/mapping`](services/mapping/README.md), [`services/notifications`](services/notifications/README.md), [`services/authz`](services/authz/README.md). |
 
 ## Contributing
 
-We welcome contributions!
-
-Please read our [CONTRIBUTING.md](./CONTRIBUTING.md) and follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
-
-## Roadmap
-
-See [ROADMAP.md](./ROADMAP.md) for planned features and development goals.
-
-<!-- or -->
+We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [Code of Conduct](CODE_OF_CONDUCT.md). Security issues are handled as described in [SECURITY.md](SECURITY.md). Planned work is tracked in the repository's issues.
 
 ## Acknowledgments
 
-<!-- Mention any projects used as inspiration, key dependencies... -->
+Nebula builds on [LiteLLM](https://docs.litellm.ai/) for model access, [Arize Phoenix](https://docs.arize.com/phoenix) for tracing and prompt management, [OpenTofu](https://opentofu.org/) as the default IaC engine, and [FastAPI](https://fastapi.tiangolo.com/) and [React](https://react.dev/) for the core and the web application.
 
 ## License
 
-This project is licensed under the [Apache-2.0 License](./LICENSE).
+This project is licensed under the [Apache-2.0 License](LICENSE).
 
 © 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)

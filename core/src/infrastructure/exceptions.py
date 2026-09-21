@@ -5,32 +5,6 @@
 from src.shared.exceptions import ExceptionHandler
 
 
-class JinjaTemplateNotFound(ExceptionHandler):
-    pass
-
-
-class RemoteTemplateFetcherError(ExceptionHandler):
-    """Raised when a remote template could not be fetched"""
-
-    pass
-
-
-class PipelineStatusError(ExceptionHandler):
-    pass
-
-
-class PipelineArtifactListError(ExceptionHandler):
-    pass
-
-
-class PipelineArtifactDownloadError(ExceptionHandler):
-    pass
-
-
-class PipelineTriggerError(ExceptionHandler):
-    pass
-
-
 class ToolDefinitionContextNotFound(ExceptionHandler):
     """Raised when a tool definition is not found given a Context"""
 
@@ -157,7 +131,13 @@ class GitError(ExceptionHandler):
     pass
 
 
+class TokenValidationError(ExceptionHandler):
+    """Raised when a bearer token fails OIDC validation (HTTP 401)."""
+
+
+class TerraformBackendError(ExceptionHandler):
+    """Raised when Terraform backend override found an error."""
+
+
 class CustomFileNotFoundError(ExceptionHandler):
     """FileNotFoundError custom exception"""
-
-    pass
