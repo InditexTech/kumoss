@@ -11,8 +11,9 @@ resource-import workflow would still need.
 
 * The web application requires the `devops` operation role to select the
   mode; the API itself requires only `developer` plus ownership of the
-  session. See the roles and permissions reference for the complete role
-  matrix.
+  session. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
 * An existing session with a pinned plan from a completed generate round.
   Submitting the mode from a fresh wizard with no session sends an empty
   session id, which the API rejects with `422`.

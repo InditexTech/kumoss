@@ -276,9 +276,10 @@ rather than pre-creating it.
 |The access/secret key pair configured for the store.
 |===
 
-`services/iac/PROVIDERS.md` lists the per-cloud backend minimums in more
-detail, including the variables to set when state lives in a different
-account or project from the resources.
+xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+minimums] lists the per-cloud backend minimums in more detail,
+including the variables to set when state lives in a different account
+or project from the resources.
 
 [#state-keys]
 == State keys
@@ -315,7 +316,8 @@ module path is trimmed of surrounding and duplicate slashes.
 
 An empty `iac_path` is a valid project — the root module is the
 repository root. The path comes from the root detection described in
-Operating modes; note that the web application sends `.` for a
+xref:main:reference/repository-layout.adoc#terraform-roots[Repository
+layout]; note that the web application sends `.` for a
 repository whose Terraform files are at the top level, while an API call
 that omits `iac_path` sends an empty value, and the two are hashed as
 different projects. Because all three inputs matter, a change to *any*

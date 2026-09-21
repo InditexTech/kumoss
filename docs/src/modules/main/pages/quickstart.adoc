@@ -262,8 +262,8 @@ instead of the repository's own backend block.
 `ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or
 `GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus
 `AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS.
-`services/iac/PROVIDERS.md` lists the minimum set per cloud and
-authentication method.
+xref:main:reference/terraform-providers.adoc[Terraform providers] lists
+the minimum set per cloud and authentication method.
 
 |*State-backend credentials*
 |Mandatory for `init`
@@ -272,7 +272,9 @@ authentication method.
 nothing extra to add here. If you set `storage.terraform_state_bucket` to
 `""` so the repository declares its own backend instead, this becomes
 access to the state store that repository's `terraform { backend ... }`
-block names — see *Backend minimums* in `services/iac/PROVIDERS.md`.
+block names — see
+xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+minimums].
 |===
 
 Missing or invalid cloud credentials do *not* stop the container. The
@@ -289,7 +291,8 @@ more than you, set the same non-empty value in both files.
 
 Each tab below shows both grants, using the simplest authentication method
 for that cloud. For OIDC, managed identity, named profiles, or workload
-identity federation, see `services/iac/PROVIDERS.md`.
+identity federation, see
+xref:main:reference/terraform-providers.adoc[Terraform providers].
 
 [tabs]
 --

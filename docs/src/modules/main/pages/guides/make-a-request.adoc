@@ -38,8 +38,10 @@ your platform team configured.
   among the files committed on the default branch: directories that hold
   `.tf` files, skipping `modules`, `examples`, and `.terraform` folders,
   and keeping those with a `main.tf`-style marker or a `.tfvars` file (the
-  exact rules and examples are in Operating modes). This is the step that
-  takes a few seconds ("Resolving repository...").
+  exact rules and examples are in
+  xref:main:reference/repository-layout.adoc#terraform-roots[Repository
+  layout]). This is the step that takes a few seconds ("Resolving
+  repository...").
 . *"Which IaC path?"* If the repository has more than one Terraform root,
   pick the directory to work in. With exactly one root this step is
   skipped. If none is found you see "No IaC paths found in this

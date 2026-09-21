@@ -94,8 +94,10 @@ two identities can differ:
 |===
 
 Per-cloud, per-authentication-method minimums for both sets are in
-`services/iac/PROVIDERS.md` (provider minimums, then _Backend
-minimums_); the variable-level view is in the "Cloud credentials for the
+xref:main:reference/terraform-providers.adoc[Terraform providers]
+(provider minimums, then
+xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+minimums]); the variable-level view is in the "Cloud credentials for the
 IaC engine" section of the environment variables reference.
 
 Model 2 — what ships — can spare you the second set: Nebula writes the

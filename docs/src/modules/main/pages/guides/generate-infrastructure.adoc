@@ -10,8 +10,9 @@ limits.
 == Prerequisites
 
 * The `developer` operation role, assigned per user and checked by the API
-  on every request. See the roles and permissions reference for the
-  complete role matrix.
+  on every request. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
 * A repository URL, the target cloud, a scope id, and request text, as
   covered in xref:main:guides/make-a-request.adoc[Make a request]. The IaC
   path is optional.

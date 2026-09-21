@@ -35,6 +35,9 @@
 * xref:main:reference/configuration.adoc[Configuration]
 * xref:main:reference/environment-variables.adoc[Environment variables]
 * xref:main:reference/llm-providers.adoc[LLM providers and models]
+* xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+* xref:main:reference/repository-layout.adoc[Repository layout]
+* xref:main:reference/terraform-providers.adoc[Terraform providers]
 * Additional information
 * xref:main:release-notes/index.adoc[Release notes]
 * xref:main:changelog/index.adoc[Changelog]

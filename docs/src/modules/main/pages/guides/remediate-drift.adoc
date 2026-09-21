@@ -10,8 +10,9 @@ selected. This guide covers both.
 == Prerequisites
 
 * The `devops` operation role, assigned per user and checked by the API
-  on every request. `devops` is above `developer`. See the roles and
-  permissions reference for the complete role matrix.
+  on every request. `devops` is above `developer`. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
 * A repository URL, the target cloud, and a scope id, as covered in
   xref:main:guides/make-a-request.adoc[Make a request]. In the web
   application, both drift modes are shown disabled below `devops`, with

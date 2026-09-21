@@ -21,6 +21,21 @@ files, plus the IaC engine and LLM provider variables.
 .xref:main:reference/llm-providers.adoc[LLM providers and models]
 How Nebula selects LiteLLM models, provider credential tables, and the
 `llm.model_list` router escape hatch.
+
+[card]
+.xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+The two independent role groups, the complete permission matrix, and
+who gets which role by default.
+
+[card]
+.xref:main:reference/repository-layout.adoc[Repository layout]
+How Nebula finds Terraform roots in a repository: the detection rules
+and the wizard's zero/one/many behavior.
+
+[card]
+.xref:main:reference/terraform-providers.adoc[Terraform providers]
+Minimum environment variables per cloud and state backend, plus the
+exhaustive variable reference.
 ====
 
 == Limits at a glance

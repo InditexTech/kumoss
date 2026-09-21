@@ -18,8 +18,9 @@ described.
 
 * An admin-panel role (`viewer`, `editor`, or `admin`) to reach the admin
   panel; a session owner with no panel role only sees their own
-  sessions. See the roles and permissions reference for the complete
-  role matrix.
+  sessions. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
 * An account, reached through your identity provider or, with
   authentication disabled (the checked-in default), the built-in local
   developer identity.

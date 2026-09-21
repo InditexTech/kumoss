@@ -484,7 +484,8 @@ Terraform 1.16.0; both support `use_lockfile`.
 * The environment variables reference — `core/.env` and the sidecar
   `.env` files.
 * `services/iac/README.md`, "State backend" — the contract-level view.
-* `services/iac/PROVIDERS.md` — per-cloud backend credential minimums.
+* xref:main:reference/terraform-providers.adoc[Terraform providers] —
+  per-cloud backend credential minimums.
 * xref:main:architecture/data-and-state.adoc#terraform-state[Architecture
   — Data and state] — where state sits among Nebula's stores.
 * The production deployment guide — persistence expectations.

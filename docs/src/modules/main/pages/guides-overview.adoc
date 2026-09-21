@@ -26,8 +26,10 @@ Handle a session lock, then open, merge, and apply the pull request.
 The first request of a session provides the repository URL (without
 embedded credentials), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
 `kubernetes`), a scope identifier (for example a subscription, project, or
-account id), an optional path to the Terraform root inside the repository,
-and the request text. The scope is stored with the session, sent to the
+account id), an optional path to the Terraform root inside the repository
+(see
+xref:main:reference/repository-layout.adoc#terraform-roots[How Nebula
+finds Terraform roots]), and the request text. The scope is stored with the session, sent to the
 iac sidecar on every `init`, `plan`, and `apply`, hashed together with the
 repository URL and the IaC path into the state project id when Nebula
 manages state, and shown in the session detail view. Later requests in the
