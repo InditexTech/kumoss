@@ -1,0 +1,49 @@
+docs/src/modules/main/nav.adoc
+  s_80b2f12840ab3d::t_f8da3f30d3798c 41-46
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_80b2f12840ab3d::t_b173069cb0674c 486-487
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_80b2f12840ab3d::t_f36c491d5dc275 17-19,289-291,322-323,331-333,408-409,436-438
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_80b2f12840ab3d::t_1f3bae2559a99e 73-74
+docs/src/modules/main/pages/quickstart.adoc
+  s_80b2f12840ab3d::t_0c82a3962072e6 486-489
+docs/src/modules/main/pages/reference-overview.adoc
+  s_80b2f12840ab3d::t_9d0d19a6e2a409 5-6,39-43
+docs/src/modules/main/pages/reference/api/authz.adoc
+  s_80b2f12840ab3d::t_70e3d9ad723807 1-289
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_80b2f12840ab3d::t_273b21880c26a0 1-587
+docs/src/modules/main/pages/reference/api/index.adoc
+  s_707b1ca4b8c65a::t_c6ce1b304aea5a 1-119
+docs/src/modules/main/pages/reference/api/mapping.adoc
+  s_80b2f12840ab3d::t_ff9dc6a56dbcfe 1-216
+docs/src/modules/main/pages/reference/api/notifications.adoc
+  s_80b2f12840ab3d::t_26a002cf5c3b63 1-267
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_80b2f12840ab3d::t_4274e211f3b61a 328-329
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd2ba72c79648e34ec577fbc0403c683c32449fb",
+  "prompts": {},
+  "sessions": {
+    "s_707b1ca4b8c65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "341f8f5d-74e6-450a-9c0f-f6a602fa82c8",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_80b2f12840ab3d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a0d86145c1493ed93",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
