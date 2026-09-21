@@ -7,24 +7,38 @@ from src.domains.entities import History, SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
+    SessionService,
+    TemplateOrchestrationService,
     TerraformValidationService,
     TaskService,
 )
 from src.domains.value_objects import Conventions, PlanRef
-from src.shared.constants import ContentType
+from src.shared.constants import ContentType, PromptsLibrary, SessionStatus
 from src.shared.logger import logging
+
+# Status copy. Only the third embeds raw terraform output, so only it is
+# paraphrased by the model before the UI renders it verbatim.
+_ASSESSING = "Assessing drift on the targeted infrastructure."
+_IN_SYNC = "No drift found; the targeted infrastructure is synchronized."
+_SESSION_CHANGES = (
+    "Drift check completed; the remaining differences are this session's own changes."
+)
 
 
 class TerraformDriftService:
     def __init__(
         self,
         session_context: SessionContext,
+        session_service: SessionService,
+        template_service: TemplateOrchestrationService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ):
         self.__ctx = session_context
+        self.__session_svc = session_service
+        self.__template_svc = template_service
         self.__validation_svc = validation_service
         self.__terraform_svc = terraform_service
         self.__split_svc = split_service
@@ -58,6 +72,18 @@ class TerraformDriftService:
 
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
+
+            # Above the plan on purpose. A dedicated drift session plans
+            # its own workspace below and that plan is part of the
+            # assessment; the drift diff stored below only renders under
+            # this entry if the status precedes it (the read model links
+            # artifacts to statuses by time); and an in-sync round breaks
+            # out without storing anything, so this is the only record
+            # that the check ran at all.
+            _ = await self.__session_svc.update_status(
+                msg=_ASSESSING,
+                status=SessionStatus.RECONCILING,
+            )
 
             if plan is None:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
@@ -94,6 +120,7 @@ class TerraformDriftService:
                     logging.warning(
                         "Drift pre-check completed, remaining drift corresponds to session changes"
                     )
+                    await self.__announce(_SESSION_CHANGES)
                     return drift
 
             plan = None
@@ -113,10 +140,11 @@ class TerraformDriftService:
 
         if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
+            await self.__announce(_IN_SYNC)
         else:
-            logging.warning(
-                f"Drift resolution completed but issues remain: {drift.drift}"
-            )
+            remaining = f"Drift resolution completed but issues remain: {drift.drift}"
+            logging.warning(remaining)
+            await self.__announce(remaining, rewrite=True)
 
         return drift
 
@@ -134,3 +162,21 @@ class TerraformDriftService:
                 content_type=ContentType.TEXT,
                 is_drift=True,
             )
+
+    async def __announce(self, msg: str, rewrite: bool = False) -> None:
+        """Persist the phase's conclusion as a status entry.
+
+        ``rewrite`` routes the message through the small model, which is
+        needed only when it embeds raw terraform output: the UI renders
+        status messages verbatim. The literals are already prose, and the
+        pre-check runs on every generate round, so paraphrasing them
+        would cost an LLM call per round for nothing.
+        """
+        _ = await self.__session_svc.update_status(
+            msg=msg,
+            prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE)
+            if rewrite
+            else None,
+            status=SessionStatus.RECONCILING,
+            history=self.__ctx.history if rewrite else None,
+        )

@@ -408,14 +408,21 @@ class PullRequestRef(BaseModel):
 
 
 class RoundDetail(BaseModel):
-    """Read model: one generation round with its statuses and artifacts."""
+    """Read model: one generation round with its statuses and artifacts.
+
+    ``reports`` and ``plans`` hold *every* artifact of the round, oldest
+    first by ``(created_at, id)``. A drift pass stores its diff and the
+    plan that resolved it, and each validation iteration adds another, so
+    a round routinely holds several of both. Drift plans carry no label:
+    clients tell them apart by order.
+    """
 
     id: int
     number: int
     query: str
     statuses: list[StatusEntry]
-    report: ReportRef | None
-    plan: TerraformPlanRef | None
+    reports: list[ReportRef]
+    plans: list[TerraformPlanRef]
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]
     created_at: datetime
@@ -448,15 +455,17 @@ class SessionSummary(BaseModel):
 class SessionDetail(SessionSummary):
     """Read model: the full session aggregate for the detail endpoint.
 
-    ``statuses`` is the session's full status timeline across all rounds;
-    the same entries also appear inside their round. Pull requests live
+    The status timeline lives inside the rounds and nowhere else: every
+    status row is ``NOT NULL`` on ``round_id``, so ``rounds[*].statuses``
+    concatenated in round order *is* the session timeline.
+    ``current_status`` (inherited) is the cheap latest-status field the
+    list view and the client's status polling rely on. Pull requests live
     inside their round. ``history`` is populated only when requested via
     ``include_history``.
     """
 
     workspace: WorkspaceRef
     scope_id: str
-    statuses: list[StatusEntry]
     rounds: list[RoundDetail]
     history: list[dict[str, str]] | None = None
 

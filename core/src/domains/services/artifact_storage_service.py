@@ -25,9 +25,10 @@ def _safe_name(file_name: str) -> str:
 
 
 def _token() -> str:
-    # Rounds may legitimately store twice (the read model picks "latest
-    # wins"); a random token keeps every write at a fresh key so an old
-    # DB row can never alias new bytes.
+    # A round stores several plans and reports — a drift pass writes its
+    # diff and its plan, and every validation iteration adds another —
+    # and the read model returns them all. A random token keeps each
+    # write at a fresh key so an old DB row can never alias new bytes.
     return uuid4().hex[:8]
 
 
@@ -108,17 +109,25 @@ class ArtifactStorageService:
             content: Plan body; str is stored utf-8 encoded.
             content_type: MIME type served on reads (max 20 chars).
             metadata: Metadata attached to the object.
+            is_drift: Whether ``content`` is a drift diff rather than a
+                plan. Recorded in the object key prefix (``drift-`` vs
+                ``plan-``) and under the object's ``type`` metadata key;
+                the read model still returns a round's plans unlabelled,
+                in order.
         """
         data = self.__encode(content)
+        kind = "drift" if is_drift else "plan"
         key = (
             f"sessions/{session_id}/rounds/{round_id}"
-            + f"/plans/{'drift' if is_drift else 'plan'}-{_token()}.txt"
+            + f"/plans/{kind}-{_token()}.txt"
         )
         return await self.__store(
             key=key,
             data=data,
             content_type=content_type.value,
-            metadata=metadata if metadata else {},
+            # Copied, never mutated in place: the caller may reuse its
+            # dict across the several plans one round stores.
+            metadata={**metadata, "type": kind} if metadata else {"type": kind},
             context=f"session {session_id} round {round_id}",
             db_write=lambda: DatabaseService.add_terraform_plan(
                 round_id=round_id,

@@ -66,10 +66,11 @@ async def session_detail(
 ) -> SessionDetail:
     """The complete read model for the session detail view.
 
-    Returns the session facts (workspace, provider, first query), the
-    session's full status timeline, and one entry per generation round
-    containing its statuses, pull requests, and artifacts (report, plan,
-    code changes) with client-fetchable URLs.
+    Returns the session facts (workspace, provider, first query) and one
+    entry per generation round containing its statuses, pull requests,
+    and artifacts (reports, plans, code changes) with client-fetchable
+    URLs. The session's timeline is the rounds' statuses concatenated in
+    round order; ``current_status`` carries the latest one.
 
     Pass ``include_history=true`` to also populate ``history`` with the
     session's conversation turns (``[{"user": ..., "assistant": ...}]``);

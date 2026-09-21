@@ -116,10 +116,9 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("pull_request", body)
         self.assertNotIn("pull_requests", body)
         self.assertEqual(body["current_status"], "generating")
-        # Session-level timeline spans all rounds.
-        self.assertEqual(
-            [s["status"] for s in body["statuses"]], ["started", "generating"]
-        )
+        # The timeline is the rounds' statuses concatenated in round
+        # order; the payload no longer ships a second, flat copy.
+        self.assertNotIn("statuses", body)
         # History is opt-in via ?include_history=true; null by default.
         self.assertIsNone(body["history"])
 
@@ -133,8 +132,8 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([s["status"] for s in rnd["statuses"]], ["generating"])
         # URLs are presigned by the object-storage singleton; the stored
         # key must be embedded in the signed URL.
-        self.assertIn("report.json", rnd["report"]["url"])
-        self.assertEqual(rnd["plan"]["targets"], ["azurerm_resource_group.main"])
+        self.assertIn("report.json", rnd["reports"][0]["url"])
+        self.assertEqual(rnd["plans"][0]["targets"], ["azurerm_resource_group.main"])
         self.assertEqual(rnd["code_changes"][0]["file_name"], "main.tf")
         self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
         self.assertEqual(
