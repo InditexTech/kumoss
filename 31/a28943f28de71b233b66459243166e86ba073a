@@ -1,0 +1,35 @@
+docs/src/modules/main/nav.adoc
+  s_4cd8299a20c8ca::t_19b59dadbfdf06 48-49
+docs/src/modules/main/pages/additional-information.adoc
+  s_4cd8299a20c8ca::t_eda0cd92938041 1-137
+docs/src/modules/main/pages/changelog/index.adoc
+  s_4cd8299a20c8ca::t_6a52c0bbc8e94c 2,8-9
+docs/src/modules/main/pages/contributing.adoc
+  s_4cd8299a20c8ca::t_7cb81725e51ec5 2,4-71
+docs/src/modules/main/pages/faq.adoc
+  s_4cd8299a20c8ca::t_a6034bbdf620b2 1-380
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_4cd8299a20c8ca::t_aa9e99f69b386d 226-228
+docs/src/modules/main/pages/guides/development.adoc
+  s_4cd8299a20c8ca::t_07f9fe3e5ccff7 11-13,106,128-129
+docs/src/modules/main/pages/quickstart.adoc
+  s_4cd8299a20c8ca::t_b3f6b398bef162 507-508,510-515,517-519,521-522
+docs/src/modules/main/pages/release-notes/index.adoc
+  s_4cd8299a20c8ca::t_6f093b33868f1c 2,8-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "31a28943f28de71b233b66459243166e86ba073a",
+  "prompts": {},
+  "sessions": {
+    "s_4cd8299a20c8ca": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afae349f2b2c28edc",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
