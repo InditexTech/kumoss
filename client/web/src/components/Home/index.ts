@@ -14,6 +14,7 @@ export {
 } from "./ResultPanel/EstimatedCosts/EstimatedCosts";
 export {
   DriftChangesList,
+  DriftLeftovers,
   DriftResourceDetail,
 } from "./ResultPanel/DriftReport/DriftReport";
 export {

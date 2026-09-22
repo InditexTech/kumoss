@@ -8,7 +8,7 @@
 
 import Typography from "@mui/material/Typography";
 import { PageOverlay } from "@/components/ui";
-import type { DriftResource } from "@/types";
+import type { DriftException, DriftResource, DriftUnreconciled } from "@/types";
 import styles from "./DriftReport.module.css";
 
 export function DriftChangesList({
@@ -52,6 +52,76 @@ export function DriftChangesList({
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+// The drift the round left in place. Unreconciled drift is a shortfall;
+// a whitelisted exception is the intended outcome of a rule, so the two
+// are never merged into one list.
+export function DriftLeftovers({
+  unreconciled = [],
+  exceptions = [],
+}: {
+  unreconciled?: DriftUnreconciled[];
+  exceptions?: DriftException[];
+}) {
+  if (unreconciled.length === 0 && exceptions.length === 0) return null;
+  return (
+    <>
+      {unreconciled.length > 0 && (
+        <div className={styles.leftoverSection}>
+          <Typography variant="h5" component="h3" className={styles.leftoverTitle}>
+            Drift Not Reconciled
+          </Typography>
+          {unreconciled.map((entry, i) => (
+            <div key={i} className={styles.leftoverEntry}>
+              {entry.resource_address && (
+                <Typography variant="subtitleSemiBold" className={styles.resourceAddress}>
+                  {entry.resource_address}
+                </Typography>
+              )}
+              <Typography variant="bodyText" className={styles.detailText}>
+                {entry.reason}
+              </Typography>
+              {entry.details && entry.details.length > 0 && (
+                <ul className={styles.detailBullets}>
+                  {entry.details.map((detail, j) => (
+                    <li key={j}>
+                      <Typography variant="body2" className={styles.detailText}>
+                        {detail}
+                      </Typography>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {exceptions.length > 0 && (
+        <div className={styles.leftoverSection}>
+          <Typography variant="h5" component="h3" className={styles.leftoverTitle}>
+            Left Alone by Exception Rules
+          </Typography>
+          {exceptions.map((entry, i) => (
+            <div key={i} className={styles.leftoverEntry}>
+              {entry.resource_address && (
+                <Typography variant="subtitleSemiBold" className={styles.resourceAddress}>
+                  {entry.resource_address}
+                </Typography>
+              )}
+              <Typography variant="bodyText" className={styles.detailText}>
+                {entry.change}
+              </Typography>
+              <Typography variant="body2" className={styles.leftoverRule}>
+                {entry.rule}
+              </Typography>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

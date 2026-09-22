@@ -110,7 +110,10 @@ The results screen has the chat on the left and a panel with three tabs on the r
 - **Estimated Cost.** A monthly figure (and the derived hourly figure) for resources with a **fixed** price. Usage-based and free resources are listed in the breakdown as "Usage-based" or "Free" and are not included in the total. Treat the figure as an approximation for comparison, not as a quote; prices come from public pricing pages at generation time.
 - **Changes table.** Filter by *All*, *Created*, *Updated*, *Deleted*, *Recreated*. Each row names the resource with a short note; click it for the description and the raw plan detail.
 
-For drift sessions the report shows a *Drift Summary*, an outcome (Succeeded, Partial, Failed), and a *Remediated Resources* list with the file, the change, and the reason for each.
+For drift sessions the report shows a *Drift Summary*, an outcome (Succeeded, Partial, Failed), and a *Remediated Resources* list with the file, the change, and the reason for each. Two further sections appear only when the round left drift behind, and they mean different things:
+
+- **Drift Not Reconciled.** Drift Nebula could *not* fix — the remediation ran out of iterations, or the drift could not be read at all. Each entry gives the reason and what still differs. This is what makes an outcome *Partial*; act on it.
+- **Left Alone by Exception Rules.** Drift Nebula deliberately did not touch, because one of your platform's drift exception rules covers it. Each entry names the change and quotes the rule. This is the intended behaviour and does not lower the outcome, so a report can say *Succeeded* and still list entries here.
 
 **What you do not see.** The compliance audit that runs after the report produces rule-level findings, but they are not displayed in the application. If the audit fails you see its consequence, the lock (next section), and the reviewers who receive the notification see the summary. Ask your reviewer or platform team for the details.
 

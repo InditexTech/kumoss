@@ -66,6 +66,31 @@
   color: var(--color-text-body);
 }
 
+/* ─── Drift left in place (unreconciled, or covered by a rule) ─── */
+
+.leftoverSection {
+  margin-top: 24px;
+}
+
+.leftoverTitle {
+  color: var(--color-heading);
+  margin: 0 0 8px;
+}
+
+.leftoverEntry {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.leftoverEntry:last-child {
+  border-bottom: none;
+}
+
+.leftoverRule {
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
 /* ─── Detail overlay ─── */
 
 .changeSection {

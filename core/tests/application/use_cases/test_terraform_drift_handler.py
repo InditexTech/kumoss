@@ -4,10 +4,11 @@
 
 """What the drift handler puts in the report content.
 
-The report generator reads this content as the round's story, so
-everything a user must know about the outcome has to be in it: the drift
-that could not be reconciled, and the drift that was left alone on
-purpose because an exception rule covers it.
+The report generator reads the remediation itself out of `diff_history`,
+so the content carries only what that diff cannot show: the drift that
+could not be reconciled, and the drift that was left alone on purpose
+because an exception rule covers it. A round that left nothing behind
+must not claim otherwise.
 """
 
 import unittest
@@ -41,7 +42,6 @@ class TestDriftHandlerReportContent(unittest.IsolatedAsyncioTestCase):
         self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()
         self.ctx = MagicMock()
-        self.ctx.history.serialize.return_value = [{"user": "check drift"}]
 
     def _handler(self) -> TerraformDriftHandler:
         return TerraformDriftHandler(
@@ -78,16 +78,20 @@ class TestDriftHandlerReportContent(unittest.IsolatedAsyncioTestCase):
     async def test_exclusions_sit_beside_the_unreconciled_note(self):
         content = await self._content(_drift_dto(False, excluded=["rule 1"]))
 
-        self.assertIn("this drift couldn't be reconcile", content)
+        self.assertIn("Unreconciled drift", content)
         self.assertIn("[drift]", content)
+        self.assertIn("Whitelisted exceptions", content)
         self.assertIn("rule 1", content)
 
-    async def test_nothing_is_appended_when_nothing_was_excluded(self):
+    async def test_nothing_is_appended_when_the_round_left_nothing_behind(self):
         content = await self._content(_drift_dto(True))
 
-        # A round with no exclusions must not claim there were any.
-        self.assertNotIn("exception rules", content)
-        self.assertEqual(content, '[{"user": "check drift"}]')
+        # A clean round must claim neither leftover nor exclusions, and the
+        # history no longer travels with the content: `diff_history` does.
+        self.assertNotIn("Unreconciled drift", content)
+        self.assertNotIn("Whitelisted exceptions", content)
+        self.assertNotIn("check drift", content)
+        self.assertTrue(content.strip())
 
 
 if __name__ == "__main__":

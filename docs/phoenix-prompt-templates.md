@@ -155,7 +155,7 @@ Also note that the loader's name pattern permits a leading underscore while Phoe
 
 ## Drift exception rules
 
-`<cloud>-guidelines-drift_exceptions` is the list of things drift remediation must never touch. It is read by a dedicated **drift exception filter**: after the task splitter turns a drift report into operations, and after the reconciliation filter has removed the session's own changes, this agent receives the remaining operations together with the rules and returns the ones no rule covers. Only those are remediated. Whatever it removes is logged as a warning and stated in the drift report's unreconciled section.
+`<cloud>-guidelines-drift_exceptions` is the list of things drift remediation must never touch. It is read by a dedicated **drift exception filter**: after the task splitter turns a drift report into operations, and after the reconciliation filter has removed the session's own changes, this agent receives the remaining operations together with the rules and returns the ones no rule covers. Only those are remediated. Whatever it removes is logged as a warning and reported in the drift report's `whitelisted_exceptions` block, one entry per excluded change, naming the change and the rule that covers it. That block is kept apart from `unreconciled_drift`, which is for drift the round genuinely failed to fix, and it does not lower the report's outcome: leaving an excluded change alone is the intended result.
 
 The filter runs on **every** drift round, full or partial, and on the drift pre-check inside every generate round, so a generate round cannot silently "fix" an excluded resource either. That also makes the prompt mandatory for every cloud scope: a missing one aborts the round with `Prompt not found`.
 
@@ -189,7 +189,7 @@ The agent may also *trim* an operation: when one instruction bundles an excluded
     group; the platform team owns them.
 ```
 
-With those rules in place, a drift round that found "Delete resource `azurerm_storage_account.sta_shared_001` in `rg-shared-platform`" remediates nothing, stops rather than re-planning, and reports the resource as left alone, quoting the carve-out.
+With those rules in place, a drift round that found "Delete resource `azurerm_storage_account.sta_shared_001` in `rg-shared-platform`" remediates nothing, stops rather than re-planning, and lists the resource under `whitelisted_exceptions` in the report, quoting the carve-out — with the outcome still `Succeeded`, because nothing was left unreconciled involuntarily.
 
 ## How prompts are composed into a system prompt
 

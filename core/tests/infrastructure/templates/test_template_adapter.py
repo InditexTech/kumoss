@@ -277,6 +277,8 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             type="compliance",
             tag=system_config.environment,
         )
+        # The plan report reasons about a plan it is given, not the branch.
+        self.assertNotIn("diff_history", prompt)
 
     async def test_render_report_generator_import(self):
         # IMPORT has no dedicated report workflow: no branch is rendered
@@ -284,12 +286,24 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         mock_fetch.assert_not_awaited()
 
     async def test_render_report_generator_drift(self):
-        _, mock_fetch = await self._run_report_generator_test(ReportType.DRIFT, "drift")
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.DRIFT, "drift"
+        )
         mock_fetch.assert_not_awaited()
 
+        self.assertIn("REQUIRED FIRST STEP", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("sole source of truth", prompt)
+        self.assertIn("unreconciled_drift", prompt)
+        self.assertIn("whitelisted_exceptions", prompt)
+
     async def test_render_report_generator_apply(self):
-        _, mock_fetch = await self._run_report_generator_test(ReportType.APPLY, "apply")
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.APPLY, "apply"
+        )
         mock_fetch.assert_not_awaited()
+
+        self.assertNotIn("diff_history", prompt)
 
     async def test_render_target_generator_session(self):
         adapter = TemplateAdapter(

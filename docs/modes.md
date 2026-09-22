@@ -123,7 +123,7 @@ If a directory you expect is missing, check that its `.tf` files are committed o
 2. **Prompt composition**, as in generate.
 3. **Target selection.** The target generator, in drift mode, derives Terraform targets from the request, the history, the selected resource prompts, and the `general-guidelines-targeting_policies` prompt.
 4. **Detect and remediate loop**, up to `orchestration.max_drift_reports` iterations (3 by default). The first iteration runs `init`, `validate` and `plan -out` on the targets; each later one reads the plan its predecessor's last remediation cycle validated, and only plans for itself if that cycle produced nothing. Every iteration then runs `show -json` on the plan artifact, derives the drift from it, stores the drift report as an artifact, splits the drift into operations, drops the operations covered by the cloud's `<cloud>-guidelines-drift_exceptions` rules, groups the survivors in batches of `orchestration.drift_group_operations` (8), and runs a generate and validate cycle per group. When every operation is excluded the loop stops there: re-planning would only rediscover the same drift. `init` is submitted only once per session.
-5. **Report.** A `drift` JSON report with a summary, an outcome (`Succeeded`, `Partial`, `Failed`), the remediated resources, and any drift that could not be reconciled.
+5. **Report.** A `drift` JSON report with a summary, an outcome (`Succeeded`, `Partial`, `Failed`) and the remediated resources, plus two blocks that appear only when they apply: `unreconciled_drift` for drift the round could not fix and `whitelisted_exceptions` for drift left alone on purpose under the exception rules. The report generator derives the remediated resources from the branch's own changes — it must call `diff_history` before reporting anything, and the diff is the only source it may name a remediated resource from. The two leftover blocks come from the round instead, not from the diff. Whitelisted exceptions do not lower the outcome: leaving them alone is the intended result, so a round that reconciled everything else still reports `Succeeded`.
 
 **Inspects existing IaC and state.** Yes; drift is computed from the plan against real state.
 
@@ -140,8 +140,8 @@ If a directory you expect is missing, check that its `.tf` files are committed o
 **Limitations.**
 
 - No compliance check, no impact banner, no lock, no pinned plan.
-- Remediation is bounded by the iteration and group limits; leftover drift is reported as unreconciled.
-- Drift covered by the cloud's `drift_exceptions` rules is never remediated; it is reported as unreconciled, with the rule that covers it.
+- Remediation is bounded by the iteration and group limits; leftover drift is reported in the report's `unreconciled_drift` block and pulls the outcome down to `Partial`.
+- Drift covered by the cloud's `drift_exceptions` rules is never remediated; it is reported separately in `whitelisted_exceptions`, with the rule that covers it, and does not lower the outcome.
 
 ## Full Drift Remediation
 
@@ -164,7 +164,8 @@ If a directory you expect is missing, check that its `.tf` files are committed o
 **Limitations.**
 
 - Large roots take longer and consume more model calls; the first detection pass plans the whole configuration, and so does every remediation cycle.
-- Drift covered by the cloud's `drift_exceptions` rules is never remediated; it is reported as unreconciled, with the rule that covers it.
+- Drift covered by the cloud's `drift_exceptions` rules is never remediated; it is reported separately in the report's `whitelisted_exceptions` block, with the rule that covers it, and does not lower the outcome.
+- The report is written from the whole branch diff, so a session that runs several drift rounds sees each report attribute every change on the branch, including the ones an earlier round made.
 
 ## Import Infrastructure
 

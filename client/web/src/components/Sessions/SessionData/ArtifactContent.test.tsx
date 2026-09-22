@@ -123,5 +123,41 @@ describe("ArtifactContent apply reports", () => {
 
     expect(await screen.findByText("Drift Summary")).toBeInTheDocument();
     expect(screen.getByText("azurerm_vm.drifted")).toBeInTheDocument();
+    expect(screen.queryByText("Drift Not Reconciled")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Left Alone by Exception Rules"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("reports the drift a round left in place, unreconciled or whitelisted", async () => {
+    renderReport(
+      {
+        summary: "one resource remediated, one left alone",
+        status: "Partial",
+        remediated_resources: [],
+        unreconciled_drift: [
+          { reason: "The plan could not be read." },
+        ],
+        whitelisted_exceptions: [
+          {
+            resource_address: "azurerm_storage_account.shared",
+            change: "The resource is missing from the code.",
+            rule: "The platform team manages it outside Terraform.",
+          },
+        ],
+      },
+      { ...applyRef, type: "drift" },
+      "drift",
+    );
+
+    expect(await screen.findByText("Drift Not Reconciled")).toBeInTheDocument();
+    expect(screen.getByText("The plan could not be read.")).toBeInTheDocument();
+    expect(screen.getByText("Left Alone by Exception Rules")).toBeInTheDocument();
+    expect(
+      screen.getByText("azurerm_storage_account.shared"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The platform team manages it outside Terraform."),
+    ).toBeInTheDocument();
   });
 });

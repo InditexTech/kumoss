@@ -56,6 +56,22 @@ export interface DriftResource {
   changes?: DriftChange[];
 }
 
+// Both blocks are drift the round left in place, and both are absent
+// from a report whose round left nothing behind. `resource_address` is
+// best-effort: a failed drift read names no resource, and an exception
+// rule can cover a type or a naming pattern rather than one address.
+export interface DriftUnreconciled {
+  resource_address?: string;
+  reason: string;
+  details?: string[];
+}
+
+export interface DriftException {
+  resource_address?: string;
+  change: string;
+  rule: string;
+}
+
 export interface ApplyResourceChange {
   resource_type: string;
   resource_name: string;
@@ -96,6 +112,8 @@ export interface TerraformReport {
   };
   detailed_changes?: TerraformChange[];
   remediated_resources?: DriftResource[];
+  unreconciled_drift?: DriftUnreconciled[];
+  whitelisted_exceptions?: DriftException[];
   execution_summary?: string;
   resource_details?: ImportResourceDetail[];
   recommendations?: string[];

@@ -283,15 +283,46 @@ class TerraformDriftResource(BaseModel):
     changes: list[TerraformDriftChange]
 
 
+class TerraformDriftUnreconciled(BaseModel):
+    """Drift the round could not reconcile, left in place involuntarily.
+
+    ``resource_address`` is best-effort: a failed drift read names no
+    resource, and the reason is the whole of what can be reported.
+    """
+
+    resource_address: str = ""
+    reason: str
+    details: list[str] = []
+
+
+class TerraformDriftException(BaseModel):
+    """Drift left unreconciled on purpose, covered by a drift exception rule.
+
+    ``rule`` is the rule that covers the change, quoted back from the
+    exception filter's own account of what it removed.
+    """
+
+    resource_address: str = ""
+    change: str
+    rule: str
+
+
 class TerraformDriftReport(BaseModel):
     """
     Structured report summarizing actions taken to remediate Terraform configuration drift.
     Details which files and resources were changed, specific changes made, and remediation reasons.
+
+    The two trailing blocks are optional and empty unless the round left
+    drift behind: ``unreconciled_drift`` for what could not be
+    reconciled, ``whitelisted_exceptions`` for what the cloud's drift
+    exception rules keep out of remediation.
     """
 
     summary: str
     status: Literal["Succeeded", "Partial", "Failed"]
     remediated_resources: list[TerraformDriftResource]
+    unreconciled_drift: list[TerraformDriftUnreconciled] = []
+    whitelisted_exceptions: list[TerraformDriftException] = []
 
 
 class TerraformApplyChange(BaseModel):

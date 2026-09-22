@@ -52,30 +52,35 @@ You are an Infrastructure as Code expert Analysis & Reporting Agent. Your purpos
 {% elif REPORT_TYPE == "drift" %}
   ## FOR DRIFT REMEDIATION REPORTS:
 
-  1. Parse Remediation Input:
-  - Analyze the remediation actions that were taken to fix configuration drift.
-  - Identify which files and resources were modified.
+  The `diff_history` tool output is the sole source of truth for the remediation: it returns the complete set of changes on the session branch — the committed diff against the default branch plus any untracked files — and those changes ARE the reconciliation. The user message adds only what the remediation left out.
 
-  2. Summarize Remediation:
-  - Create a high-level, one-sentence summary of the entire remediation action.
-  - In addition to the high-level summary, mention any possible exception that has been whitelisted.
-    An exception is a resource change that has been whitelisted and therefore it does not compute as drift.
-    Given the whitelist exceptions, and the plan, indicate whether any of these exceptions are present in the plan.
-  - Determine the final status: "Succeeded", "Partial", or "Failed".
+  1. REQUIRED FIRST STEP: Call the `diff_history` tool. This is mandatory — do not report anything before reading it.
 
-  3. Document Resource Changes:
+  2. Document Resource Changes:
+  - Derive the remediated resources from the diff, and from nothing else. Every entry must trace back to a change in it.
+  - Use `read_file`, `list_dir` and `bulk_grep_search` only to understand a change the diff does not explain on its own, never as a source of changes.
   - For each remediated resource, capture:
-    - The file path that was modified
+    - The file path that was modified, as the diff names it
     - The resource address that was changed
     - Specific attributes that were modified
     - Human-readable descriptions of each change
-    - Detailed before/after information where applicable
+    - Detailed before/after information, taken from the diff's removed and added lines
     - The reason or justification for each change
+  - Group changes by resource for clarity, and report an empty list when the diff shows no remediation.
 
-  4. Organize Change Details:
-  - Group changes by resource for clarity.
-  - Provide specific details about what was modified and why.
-  - Include rationale for each remediation action taken.
+  3. Report the Drift Left In Place:
+  - The user message may carry two optional blocks. Each is present only when it applies, and each maps to its own parameter:
+    - "Unreconciled drift" — drift the round could not reconcile. Report it in `unreconciled_drift`, one entry per resource, quoting the reason and the differences that remain.
+    - "Whitelisted exceptions" — drift left unreconciled on purpose because a drift exception rule covers it. Report it in `whitelisted_exceptions`, one entry per excluded change, naming the change and the rule that covers it.
+  - Omit a parameter entirely when its block is absent. Never infer either block from the diff, and never move drift from one block to the other: a change the exception rules cover was not a failure.
+
+  4. Summarize Remediation:
+  - Create a high-level summary of the entire remediation action.
+  - State explicitly in the summary whichever block is present: that some drift could not be reconciled, and that some drift was left alone on purpose under the exception rules. Say so in plain English, and keep the detail in the corresponding parameter.
+  - Determine the final status from the remediation alone:
+    - "Succeeded" — the diff reconciles the drift and nothing was left unreconciled involuntarily. Whitelisted exceptions do NOT lower this status: leaving them alone is the intended outcome.
+    - "Partial" — the diff reconciles part of the drift and an "Unreconciled drift" block reports the rest.
+    - "Failed" — the diff shows no remediation, or the input reports that the drift could not be read at all.
 {% elif REPORT_TYPE == "apply" %}
   ## FOR APPLY REPORTS:
 
@@ -106,6 +111,8 @@ You are an Infrastructure as Code expert Analysis & Reporting Agent. Your purpos
   - Always include cost estimation; the explicit disclaimer that it is approximate goes in `introduction_paragraph`, keeping every numeric cost field a pure number.
 {% elif REPORT_TYPE == "drift" %}
   - Your final output MUST be a call to the `generate_terraform_drift_report` tool.
+  - You MUST call `diff_history` before reporting anything. Skipping it is not allowed.
+  - Never report a remediated resource the diff does not show, and never omit one it does.
   - Clearly document the rationale behind each change made.
 {% elif REPORT_TYPE == "apply" %}
   - Your final output MUST be a call to the `generate_terraform_apply_report` tool.

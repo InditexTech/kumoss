@@ -24,6 +24,7 @@ import ChangesTable from "./ChangesTable/ChangesTable";
 import ChangeDetail from "./ChangeDetail/ChangeDetail";
 import {
   DriftChangesList,
+  DriftLeftovers,
   DriftResourceDetail,
 } from "./DriftReport/DriftReport";
 import styles from "./ResultPanel.module.css";
@@ -242,12 +243,18 @@ export default function ResultPanel({
                 </div>
               )}
               {driftResources ? (
-                <DriftChangesList
-                  resources={driftResources}
-                  onSelect={(resource) => {
-                    setActiveDetail("change", resource.resource_address);
-                  }}
-                />
+                <>
+                  <DriftChangesList
+                    resources={driftResources}
+                    onSelect={(resource) => {
+                      setActiveDetail("change", resource.resource_address);
+                    }}
+                  />
+                  <DriftLeftovers
+                    unreconciled={report.unreconciled_drift}
+                    exceptions={report.whitelisted_exceptions}
+                  />
+                </>
               ) : (
                 <ChangesTable
                   changes={report.detailed_changes ?? []}

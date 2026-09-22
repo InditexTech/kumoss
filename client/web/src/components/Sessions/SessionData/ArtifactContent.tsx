@@ -24,6 +24,7 @@ import {
   EstimatedCostsCard,
   CostsDetail,
   DriftChangesList,
+  DriftLeftovers,
   DriftResourceDetail,
   ApplyChangesList,
   ApplyResourceDetail,
@@ -305,12 +306,18 @@ export default function ArtifactContent({
           );
         case "drift":
           return (
-            <DriftChangesList
-              resources={report.remediated_resources ?? []}
-              onSelect={(resource) => {
-                setActiveDetail("change", resource.resource_address);
-              }}
-            />
+            <>
+              <DriftChangesList
+                resources={report.remediated_resources ?? []}
+                onSelect={(resource) => {
+                  setActiveDetail("change", resource.resource_address);
+                }}
+              />
+              <DriftLeftovers
+                unreconciled={report.unreconciled_drift}
+                exceptions={report.whitelisted_exceptions}
+              />
+            </>
           );
         default:
           return (
