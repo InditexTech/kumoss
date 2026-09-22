@@ -6,19 +6,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # Mock API
 
-[MSW](https://mswjs.io/) v2 mocks of the browser-facing `/api/v1` surface. The same handler set serves two consumers:
+[MSW](https://mswjs.io/) v2 mocks of the browser-facing `/api/v1` surface.
 
 | Consumer | Entry | Store | Unhandled request |
 |---|---|---|---|
 | Vitest | `server.ts` (via `src/test/setup.ts`) | **empty** — each test adds what it needs | fails the test |
-| Dev browser | `browser.ts` (via `main.tsx`, `VITE_MOCK_API=true`) | seeded with 19 sessions | warns |
 
-```bash
-npm run dev:mock     # Vite on :5173, mocks on, no backend needed
-npm run dev          # mocks off — needs the docker compose stack
-```
-
-Mocks are enabled by `VITE_MOCK_API=true`; `main.tsx` awaits `startMockWorker()` **before** `loadAuthConfig()`, otherwise the bootstrap fetch escapes the interceptor.
+Only the `msw/node` entry is committed, so these handlers run under Vitest and nowhere else. The Service Worker entry that served the same handlers to a real browser with no backend behind it (`npm run dev:mock`) has been removed — its wiring was deliberately local-only, which left the committed entrypoint orphaned and referencing an intentionally gitignored worker asset. [BROWSER_DEV_MODE.md](./BROWSER_DEV_MODE.md) is the recipe to restore it.
 
 ## What these mocks mirror
 
@@ -34,9 +28,8 @@ Where a contract *is* the source, core reshapes it before the browser sees it �
 
 ```
 src/mocks/
-  browser.ts        Service Worker entry (dev) — seeds, then starts
   server.ts         Node entry (tests) — starts empty
-  seed.ts           Installs the seed sessions; browser only
+  seed.ts           Installs the seed sessions; opt-in, no default caller
   state.ts          In-memory session store + makeStatus/makeRound/makeSessionDetail
   runtime.ts        Pending-run registry: POST schedules, SSE executes
   triggers.ts       Magic input values for deterministic failures
@@ -132,11 +125,13 @@ Tag names match `[\w.-]+`; `Terraform_Plan` feeds the Plan tab, every other tag 
 
 `destructive` is a *migration* (things are created as well as destroyed); `remove_resource` is a **pure removal** — a destroy-only plan with nothing created or replaced, which is the case the apply lock exists for.
 
-Prefix a query with `mock:<type>` (e.g. `mock:destructive add a bucket`) to force a specific bundle in the browser.
+Prefix a query with `mock:<type>` (e.g. `mock:destructive add a bucket`) to force a specific bundle.
 
 An apply round has no query of its own, so its log is inferred from the session's original request: a removal (`remove | delete | destroy | decommission | tear down`) replays as `apply_destroy`, anything else as `apply_create`.
 
-## Seed sessions (browser only)
+## Seed sessions (opt-in)
+
+Installed by `seedMockData()`. Nothing calls it by default — it was the Service Worker entry's first step, and a test that wants the full set now calls it itself.
 
 19 sessions across 3 users, covering every state the UI renders — completed, failed, in-flight, filter-rejected, multi-round, and generate→apply chains:
 
@@ -175,7 +170,7 @@ Sessions owned by `alice@example.com` / `bob@example.com` appear only under `/ad
 
 ## Reproduction fixtures
 
-`data/repro.ts` holds five deliberately broken sessions for the session-recovery review findings. They are seeded by `seedReproData()` — called from `browser.ts` only, **not** from `seedMockData()`, so `mocks.test.ts` still counts the 19 seeds and every other test keeps declaring its own world. A test that wants one calls `buildReproSessions()` itself.
+`data/repro.ts` holds five deliberately broken sessions for the session-recovery review findings. They are seeded by `seedReproData()` — kept **out** of `seedMockData()`, so `mocks.test.ts` still counts the 19 seeds and every other test keeps declaring its own world. A test that wants one calls `buildReproSessions()` itself.
 
 Each carries its finding number in the UUID (`…-90NN-…b00N`), the branch, the `nebula-repro` repo and the query text, so the table row and the URL both name the fixture causing the behaviour.
 
@@ -229,7 +224,7 @@ mockState.addSession(
 );
 ```
 
-Override a single endpoint with `server.use(...)`; seed the full browser fixture set with `seedMockData()` from `seed.ts`.
+Override a single endpoint with `server.use(...)`; seed the full fixture set with `seedMockData()` from `seed.ts`.
 
 ## Adding to the mocks
 
@@ -245,6 +240,6 @@ Override a single endpoint with `server.use(...)`; seed the full browser fixture
 
 **403 from `/mock-artifacts/…`** — the key isn't registered. Artifacts are created per session build, so a stale URL from a previous page load (or a `mockState.clear()`) will miss.
 
-**MSW warns about an unhandled request** — an `/api/` path with no handler. With no backend behind Vite it will simply fail to connect, so add the handler.
+**A test fails on an unhandled request** — an `/api/` path with no handler. `src/test/setup.ts` runs with `onUnhandledRequest: "error"`, so add the handler.
 
-**Mocks not intercepting** — `npm run dev` does not enable them; use `npm run dev:mock`. In tests, check `src/test/setup.ts` is in the Vitest `setupFiles`.
+**Mocks not intercepting** — check `src/test/setup.ts` is in the Vitest `setupFiles`. These handlers do not run in the browser; `npm run dev` needs the docker compose stack, and the Service Worker mode is removed (see [BROWSER_DEV_MODE.md](./BROWSER_DEV_MODE.md)).

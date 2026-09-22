@@ -154,8 +154,8 @@ describe("seeded sessions", () => {
   it("keys a drift round's plan so it labels as a drift operation", async () => {
     // `artifactLabel` reads the flavour off the object key, the way it does
     // against a real bucket. A seed that keys every plan the same way would
-    // show "Terraform Plan" on drift rounds in `dev:mock` while production
-    // showed "Drift Operation" — the fixture has to carry the prefix too.
+    // show "Terraform Plan" on drift rounds against the mocks while
+    // production showed "Drift Operation" — the fixture carries the prefix too.
     const seed = mockState
       .listSessions()
       .find((s) => s.operation === "drift" && s.rounds.some((r) => r.plans.length > 0))!;
