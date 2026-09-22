@@ -8,9 +8,13 @@ import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
-import { CodeBlock } from "@/components/ui";
+import { CodeBlock, StatusBadge } from "@/components/ui";
 import { processTerraformPlan } from "@/utils/terraformUtils";
-import { extractCodeFiles, hasStructuredCosts } from "./resultPanelUtils";
+import {
+  extractCodeFiles,
+  hasStructuredCosts,
+  reportStatusVariant,
+} from "./resultPanelUtils";
 import type { DetailView, FilterId } from "./resultPanelUtils";
 import {
   PotentialImpactCard,
@@ -110,6 +114,9 @@ export default function ResultPanel({
   // Drift reports carry `remediated_resources` and a prose `summary`
   // instead of the plan report's `detailed_changes`.
   const driftResources = report?.remediated_resources;
+  const driftStatus = driftResources
+    ? reportStatusVariant(report?.status)
+    : null;
   const summaryText =
     report?.execution_summary ??
     (typeof report?.summary === "string" ? report.summary : undefined);
@@ -210,6 +217,12 @@ export default function ResultPanel({
                 <div className={styles.executionSummary}>
                   <Typography variant="label" className={styles.executionSummaryLabel}>
                     {driftResources ? "Drift Summary" : "Execution Summary"}
+                    {driftStatus && (
+                      <StatusBadge
+                        variant={driftStatus}
+                        className={styles.summaryStatusBadge}
+                      />
+                    )}
                   </Typography>
                   <Typography variant="bodyText" className={styles.executionSummaryText}>
                     {summaryText}

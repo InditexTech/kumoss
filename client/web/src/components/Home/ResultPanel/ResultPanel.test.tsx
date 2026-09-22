@@ -183,6 +183,25 @@ describe("ResultPanel", () => {
       expect(screen.queryByText("Recreated")).not.toBeInTheDocument();
     });
 
+    it("badges the round's status next to the drift summary", () => {
+      renderResultPanel(undefined, { terraform_report: driftReport });
+      expect(screen.getByText("SUCCEEDED")).toBeInTheDocument();
+    });
+
+    it("badges a partially remediated round as partial", () => {
+      renderResultPanel(undefined, {
+        terraform_report: { ...driftReport, status: "Partial" },
+      });
+      expect(screen.getByText("PARTIAL")).toBeInTheDocument();
+    });
+
+    it("leaves the plan report's summary unbadged", () => {
+      renderResultPanel(undefined, {
+        terraform_report: { ...mockReport, status: "Succeeded" },
+      });
+      expect(screen.queryByText("SUCCEEDED")).not.toBeInTheDocument();
+    });
+
     it("opens the resource detail when a row is clicked", async () => {
       const user = userEvent.setup();
       renderResultPanel(undefined, { terraform_report: driftReport });

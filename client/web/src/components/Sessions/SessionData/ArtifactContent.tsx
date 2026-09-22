@@ -30,6 +30,7 @@ import {
   ApplyResourceDetail,
   ApplyRecommendations,
   hasStructuredCosts,
+  reportStatusVariant,
 } from "@/components/Home";
 import type { FilterId, DetailView, ApplyFilterId } from "@/components/Home";
 import { CodeBlock, StatusBadge } from "@/components/ui";
@@ -278,11 +279,11 @@ export default function ArtifactContent({
     reportData?.execution_summary ??
     (typeof reportData?.summary === "string" ? reportData.summary : undefined);
 
-  // Apply reports badge the run's overall outcome next to the summary
-  // label; the backend's "success" is the badge's "succeeded" variant.
-  const applyStatus =
-    reportType === "apply" && typeof reportData?.status === "string"
-      ? reportData.status
+  // Apply and drift reports badge the round's overall outcome next to
+  // the summary label; generate/import ones carry no such status.
+  const reportStatus =
+    reportType === "apply" || reportType === "drift"
+      ? reportStatusVariant(reportData?.status)
       : null;
 
   if (kind === "report" && reportData) {
@@ -339,13 +340,9 @@ export default function ArtifactContent({
           <div className={styles.executionSummary}>
             <Typography variant="label" className={styles.executionSummaryLabel}>
               {reportType === "drift" ? "Drift Summary" : "Execution Summary"}
-              {applyStatus && (
+              {reportStatus && (
                 <StatusBadge
-                  variant={
-                    applyStatus.toLowerCase() === "success"
-                      ? "succeeded"
-                      : applyStatus
-                  }
+                  variant={reportStatus}
                   className={styles.summaryStatusBadge}
                 />
               )}

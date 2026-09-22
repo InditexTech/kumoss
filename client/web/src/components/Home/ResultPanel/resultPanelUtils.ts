@@ -34,6 +34,14 @@ export function hasStructuredCosts(
   return typeof costs?.total_fixed_monthly_cost === "number";
 }
 
+// Drift rounds report "Succeeded" / "Partial" / "Failed", apply rounds
+// "success" / "failed" — the badge knows "succeeded".
+export function reportStatusVariant(status: unknown): string | null {
+  if (typeof status !== "string" || status.trim() === "") return null;
+  const key = status.trim().toLowerCase();
+  return key === "success" ? "succeeded" : key;
+}
+
 const HOURS_PER_MONTH = 730;
 
 export const PRICING_MODEL_LABELS: Record<string, string> = {

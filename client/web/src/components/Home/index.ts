@@ -23,5 +23,8 @@ export {
   ApplyRecommendations,
 } from "./ResultPanel/ApplyReport/ApplyReport";
 export type { ApplyFilterId } from "./ResultPanel/ApplyReport/ApplyReport";
-export { hasStructuredCosts } from "./ResultPanel/resultPanelUtils";
+export {
+  hasStructuredCosts,
+  reportStatusVariant,
+} from "./ResultPanel/resultPanelUtils";
 export type { FilterId, DetailView } from "./ResultPanel/resultPanelUtils";

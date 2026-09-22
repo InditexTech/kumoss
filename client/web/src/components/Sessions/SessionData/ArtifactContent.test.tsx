@@ -151,6 +151,7 @@ describe("ArtifactContent apply reports", () => {
     );
 
     expect(await screen.findByText("Drift Not Reconciled")).toBeInTheDocument();
+    expect(screen.getByText("PARTIAL")).toBeInTheDocument();
     expect(screen.getByText("The plan could not be read.")).toBeInTheDocument();
     expect(screen.getByText("Left Alone by Exception Rules")).toBeInTheDocument();
     expect(
