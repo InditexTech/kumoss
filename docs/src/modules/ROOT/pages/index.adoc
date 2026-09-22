@@ -1,124 +1,131 @@
 = Nebula
 :page-layout: home
 :page-nav-module: main
-:description: Replace this with a one-line description of Nebula — it feeds page metadata as well as the hero.
-:page-tags: replace, these, tags
+:description: Turn natural-language requests into reviewed, compliant Terraform-compatible Infrastructure as Code, generated directly in your repository.
+:page-tags: infrastructure-as-code, terraform, opentofu, compliance, llm
 :page-action: Get started
 :page-action-url: main:quickstart.adoc
 :page-action-secondary: About
-:page-action-secondary-url: main:architecture.adoc
-:page-hero-image: hero-placeholder.png
-:page-hero-image-alt: Placeholder standing in for a product screenshot or diagram.
+:page-action-secondary-url: main:about.adoc
+:page-hero-image: main:system-architecture.png
+:page-hero-image-alt: Nebula system architecture: the browser and Nginx edge, the layered core, the sidecar services, and the data and observability containers on one Compose network.
+:page-hero-image-bordered:
 
-Replace this preamble with a short lead-in for Nebula — one or two
-sentences, no heading of its own. It sits above the `Get started` row below
-and is the first thing a reader sees beside the hero.
+Nebula turns natural-language infrastructure requests into reviewed,
+compliant Terraform-compatible code. Platform engineers and application
+developers describe what they need; Nebula generates the code, validates
+it against the target cloud, and audits it for compliance, then hands
+over a pull request that a developer applies explicitly — every blocking
+decision is computed by application code, never by a model.
 
 == Get started
 
-[cards,type=image-square,columns="1 s:2 m:4",width=container]
+[cards,columns="1 s:2 m:4"]
 ====
 [card,subheader="Start here"]
-.xref:main:quickstart.adoc[Getting started]
---
-image::card-placeholder.png[Placeholder card image]
+.xref:main:quickstart.adoc[Try Nebula locally]
+Run the full stack — core, sidecars, PostgreSQL, and Phoenix — in Docker
+Compose, with every credential defaulted for evaluation.
 
-Add a page, build the site, publish it.
---
+[card,subheader="Production"]
+.xref:main:guides/deploy-to-production.adoc[Deploy to production]
+Harden OIDC, project-level authorization, secrets, persistence, and TLS
+before running Nebula beyond a trusted workstation.
 
-[card,subheader="Overview"]
-.xref:main:architecture.adoc[About]
---
-image::card-placeholder.png[Placeholder card image]
+[card,subheader="Architecture"]
+.xref:main:architecture.adoc[See how it is built]
+The layered FastAPI core, the four contract-first sidecars, and the
+request lifecycle from filter to apply.
 
-What this placeholder module is, and how to replace it with real content.
---
-
-[card,subheader="Reference"]
-.xref:main:quickstart.adoc[Quickstart]
---
-image::card-placeholder.png[Placeholder card image]
-
-The smallest path to a working result, as concrete steps.
---
-
-[card,subheader="Design"]
-.xref:main:architecture.adoc[Architecture]
---
-image::card-placeholder.png[Placeholder card image]
-
-Where to describe the system's major components and how they fit together.
---
+[card,subheader="Guides"]
+.xref:main:guides-overview.adoc[Follow a session end to end]
+Step-by-step guides for making a request, following a session, and
+merging and applying the result.
 ====
 
-== Key features
+== Key capabilities
 
-Replace this `[feature-tabs]` block with Nebula's own — each slide
-is a media still, a short paragraph, and an optional call to action.
-
-[feature-tabs]
+[cards,columns="1 s:2 m:3"]
 ====
-[feature,label="Replace me"]
---
-image::feature-placeholder.png[Placeholder feature image]
-image::feature-placeholder-dark.png[role=dark]
+[card]
+.xref:main:guides/make-a-request.adoc[Describe what you need, in plain language]
+Open a session and phrase a request; Nebula fills in naming conventions,
+resource defaults, and the placement it finds in your repository.
 
-Describe the first thing worth knowing about Nebula here.
+[card]
+.xref:main:guides/generate-infrastructure.adoc[Get back validated Terraform code]
+Nebula writes Terraform-compatible HCL on a new branch and runs it through
+the engine's own `init`, `validate`, and `plan` until it passes.
 
-[.cta]
-xref:main:architecture.adoc[Learn more]
---
+[card]
+.xref:main:guides/merge-and-apply.adoc#session-locked[Catch compliance issues before they ship]
+An LLM auditor reviews every plan against your organization's rules; a
+failing finding or a high-impact change locks the session until a
+reviewer clears it.
 
-[feature,label="Replace me too"]
---
-image::feature-placeholder.png[Placeholder feature image]
-image::feature-placeholder-dark.png[role=dark]
-
-A second slide, same shape — media, prose, an optional call to action.
-
-[.cta]
-xref:main:architecture.adoc[Learn more]
---
-
-[feature,label="And this one"]
---
-image::feature-placeholder.png[Placeholder feature image]
-image::feature-placeholder-dark.png[role=dark]
-
-A third slide. A slide with no call to action is fine too — it is optional.
---
+[card]
+.xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
+Nebula opens a pull request from the reviewed plan and applies it only
+after an explicit apply request — never on its own.
 ====
 
 == Free & open source
 
-Replace or remove this `[cta]` block — a flat one-line pitch plus a single
-primary action, styled apart from the ordinary body copy above it.
-
 [cta]
 ====
-Replace this with a short pitch for Nebula — why it is worth a
-reader's attention.
+Nebula is open source and actively developed — issues, feedback, and
+contributions are welcome.
 
 [.primary]
-https://github.com[Replace with a real link]
+https://github.com/InditexTech/nebula[Star Nebula on GitHub]
 ====
 
 == Frequently asked questions
 
-Replace this `[accordion]` block with Nebula's own real questions —
-this is a placeholder shape, not sample copy to keep.
+More questions? See the full xref:main:faq.adoc[FAQ].
 
 [accordion,aria-label="Frequently asked questions"]
 --
-.Replace this with a real question?
+.Where does Terraform state live?
 [%collapsible]
 ====
-Replace this with a real answer.
+Out of the box, Nebula keeps state itself, in a bucket dedicated to
+state with one file per project. Your platform team can instead point it
+at the remote backend your repository's own Terraform files declare.
+Either way, your pull request never contains a state or backend file.
 ====
 
-.And a second one?
+.Which cloud credentials does Nebula use?
 [%collapsible]
 ====
-Answers can be as short or as long as the question needs.
+The identity your platform team configured for the execution engine —
+never yours. An optional external authorization service can also be
+asked, at the start of each session, whether you may work on that cloud,
+repository, and path.
+====
+
+.What data leaves Nebula when I make a request?
+[%collapsible]
+====
+Your request text, the conversation, the repository files the agent
+reads, the plan, and validation errors are sent to the language model
+your platform team configured, and stored in the tracing system for
+review.
+====
+
+.Do I have to open a pull request?
+[%collapsible]
+====
+The API allows a direct apply, but the web application always routes
+you through a pull request before applying — the recommended path,
+since it brings your team's review and CI into the decision.
+====
+
+.Can other people see my sessions?
+[%collapsible]
+====
+Only reviewers who hold a panel role (viewer, editor, or admin) can
+read them, including the conversation. Nobody but you can continue,
+merge, or apply your sessions.
 ====
 --
