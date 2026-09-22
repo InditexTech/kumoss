@@ -4,6 +4,7 @@
 
 import json
 
+from src.domains.dto import FilteredOperationsDTO
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
@@ -55,6 +56,26 @@ class TaskService:
             sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER),
         )
         return self.__group(response.result["operations"])
+
+    async def filter_exceptions(
+        self, operations: list[list[str]]
+    ) -> FilteredOperationsDTO:
+        flat_operations: list[str] = [op for group in operations for op in group]
+        if not flat_operations:
+            return FilteredOperationsDTO(kept=[], excluded=[], explanation="")
+        response = await self.__llm_svc.generate(
+            query=json.dumps(flat_operations),
+            prompt=await self.__template_svc.render(
+                PromptsLibrary.FILTER_DRIFT_EXCEPTIONS
+            ),
+            tools=[self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER)],
+        )
+        kept: list[str] = response.result["operations"]
+        return FilteredOperationsDTO(
+            kept=self.__group(kept),
+            excluded=[op for op in flat_operations if op not in kept],
+            explanation=response.result.get("explanation", ""),
+        )
 
     def __group(self, ops: list[str]) -> list[list[str]]:
         size = system_config.orchestration.drift_group_operations

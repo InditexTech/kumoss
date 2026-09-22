@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -118,6 +118,11 @@ class TerraformDriftDTO:
     Keeping stderr in ``feedback`` and drift in ``drift`` is what stops
     terraform's error output from reaching the task splitter as though it
     were drift. ``stdout`` is the plan text the drift was read from.
+
+    ``excluded`` is what the drift exception rules kept out of
+    remediation, one note per iteration that excluded something. It is
+    defaulted so the terraform adapter's construction sites need not know
+    about it: only the drift loop fills it in.
     """
 
     in_sync: bool
@@ -125,6 +130,7 @@ class TerraformDriftDTO:
     feedback: str
     stdout: str
     plan: "PlanRef | None"
+    excluded: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -155,6 +161,22 @@ class TerraformApplyDTO:
     @property
     def summary(self) -> str:
         return self.stdout if self.ok else self.feedback
+
+
+@dataclass
+class FilteredOperationsDTO:
+    """What a drift exception filter pass kept and what it removed.
+
+    ``excluded`` is the flattened input minus the flattened survivors,
+    matched exactly, so an operation the agent trimmed appears on both
+    sides: the original here, its remainder in ``kept``. ``explanation``
+    is the agent's own account of what it removed and why, and is the
+    better source for anything a user reads.
+    """
+
+    kept: list[list[str]]
+    excluded: list[str]
+    explanation: str
 
 
 @dataclass
@@ -261,15 +283,46 @@ class TerraformDriftResource(BaseModel):
     changes: list[TerraformDriftChange]
 
 
+class TerraformDriftUnreconciled(BaseModel):
+    """Drift the round could not reconcile, left in place involuntarily.
+
+    ``resource_address`` is best-effort: a failed drift read names no
+    resource, and the reason is the whole of what can be reported.
+    """
+
+    resource_address: str = ""
+    reason: str
+    details: list[str] = []
+
+
+class TerraformDriftException(BaseModel):
+    """Drift left unreconciled on purpose, covered by a drift exception rule.
+
+    ``rule`` is the rule that covers the change, quoted back from the
+    exception filter's own account of what it removed.
+    """
+
+    resource_address: str = ""
+    change: str
+    rule: str
+
+
 class TerraformDriftReport(BaseModel):
     """
     Structured report summarizing actions taken to remediate Terraform configuration drift.
     Details which files and resources were changed, specific changes made, and remediation reasons.
+
+    The two trailing blocks are optional and empty unless the round left
+    drift behind: ``unreconciled_drift`` for what could not be
+    reconciled, ``whitelisted_exceptions`` for what the cloud's drift
+    exception rules keep out of remediation.
     """
 
     summary: str
     status: Literal["Succeeded", "Partial", "Failed"]
     remediated_resources: list[TerraformDriftResource]
+    unreconciled_drift: list[TerraformDriftUnreconciled] = []
+    whitelisted_exceptions: list[TerraformDriftException] = []
 
 
 class TerraformApplyChange(BaseModel):

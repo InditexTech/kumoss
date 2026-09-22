@@ -100,6 +100,12 @@ class TemplateAdapter(ITemplate):
         return t.render(CWD=self._cwd)
 
     @override
+    async def render_filter_drift_exceptions(self) -> str:
+        exceptions = await self._fetch_guidelines("drift_exceptions")
+        t = self._get_template(self._core + "filter_drift_exceptions.jinja")
+        return t.render(DRIFT_EXCEPTIONS=exceptions)
+
+    @override
     def render_joker(self) -> str:
         t = self._get_template(self._message + "joker.jinja")
         return t.render()

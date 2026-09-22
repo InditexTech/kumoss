@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-import json
 from typing import Callable, Any
 
 from src.application.services.requests_filter_service import RequestsFilterService
@@ -85,11 +84,20 @@ class TerraformDriftHandler:
                     conventions=conventions,
                     max_iterations=system_config.orchestration.max_drift_reports,
                 )
-                content: str = json.dumps(ctx.history.serialize())
+                content: str = (
+                    "The drift remediation round has finished. Report the "
+                    "reconciliation from the changes on the session branch."
+                )
                 if not drift.in_sync:
                     content += (
-                        "\n\nPlease note, this drift couldn't be reconcile: "
-                        f"{drift.feedback or drift.drift}"
+                        "\n\nUnreconciled drift. Please note, the plan still "
+                        f"shows this drift: {drift.feedback or drift.drift}"
+                    )
+                if drift.excluded:
+                    content += (
+                        "\n\nWhitelisted exceptions. Please note, this drift was "
+                        "left unreconciled on purpose, covered by the drift "
+                        "exception rules:\n" + "\n".join(drift.excluded)
                     )
 
                 _ = await self.__report_svc.generate_report(

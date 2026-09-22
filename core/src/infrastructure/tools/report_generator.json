@@ -213,17 +213,17 @@
   },
   {
     "name": "generate_terraform_drift_report",
-    "description": "Creates a structured report summarizing the actions taken to remediate a Terraform configuration drift. This report details which files and resources were changed, what the specific changes were, and the reason for the remediation.",
+    "description": "Creates a structured report summarizing the actions taken to remediate a Terraform configuration drift. The remediated resources are the code changes reported by the `diff_history` tool; the two optional blocks state the drift that was left in place, either because it could not be reconciled or because a drift exception rule covers it.",
     "parameters": {
       "type": "object",
       "properties": {
         "summary": {
           "type": "string",
-          "description": "A high-level summary of the entire remediation action and possible exceptions whitelist resources present in the terrafrom plan."
+          "description": "A high-level summary of the entire remediation action, stating explicitly when drift was left unreconciled: what could not be reconciled, and what was deliberately left alone under the drift exception rules."
         },
         "status": {
           "type": "string",
-          "description": "The final status of the remediation attempt.",
+          "description": "The final status of the remediation attempt: 'Succeeded' when nothing is left in 'unreconciled_drift' (drift the exception rules cover never lowers it), 'Partial' when part of the drift remains unreconciled, 'Failed' when the drift could not be read or none of it was reconciled.",
           "enum": [
             "Succeeded",
             "Partial",
@@ -232,7 +232,7 @@
         },
         "remediated_resources": {
           "type": "array",
-          "description": "A list of Terraform resources that were modified during the remediation process.",
+          "description": "A list of Terraform resources that were modified during the remediation process. Every entry must trace back to a change in the `diff_history` output; use an empty list when the diff shows no remediation.",
           "items": {
             "type": "object",
             "properties": {
@@ -282,6 +282,58 @@
               "file_path",
               "resource_address",
               "changes"
+            ]
+          }
+        },
+        "unreconciled_drift": {
+          "type": "array",
+          "description": "Optional. The drift that could not be reconciled, one entry per resource. Include this parameter ONLY when the input states that drift was left unreconciled; omit it entirely otherwise, and never fill it with drift the exception rules cover.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_address": {
+                "type": "string",
+                "description": "The full address of the resource whose drift remains (e.g., 'azurerm_cosmosdb_account.csm_001'). Omit it when the input names no resource, as when the drift or plan could not be read at all."
+              },
+              "reason": {
+                "type": "string",
+                "description": "Why the drift was not reconciled, taken from the input (e.g., 'The iteration limit was reached with differences still present.', 'The plan could not be read: ...')."
+              },
+              "details": {
+                "type": "array",
+                "description": "The specific differences still present, one per entry, quoted from the input.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        "whitelisted_exceptions": {
+          "type": "array",
+          "description": "Optional. The drift left unreconciled on purpose because a drift exception rule covers it, one entry per excluded change. Include this parameter ONLY when the input reports excluded drift; omit it entirely otherwise.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_address": {
+                "type": "string",
+                "description": "The full address of the resource the exception covers (e.g., 'azurerm_storage_account.sta_001'). Omit it when the rule covers a type, a tag or a naming pattern rather than a single resource."
+              },
+              "change": {
+                "type": "string",
+                "description": "The change that was left in place (e.g., 'The `created_at` tag differs from the declared value.')."
+              },
+              "rule": {
+                "type": "string",
+                "description": "The exception rule that covers the change, quoted from the input (e.g., 'The platform team manages this storage account outside Terraform.')."
+              }
+            },
+            "required": [
+              "change",
+              "rule"
             ]
           }
         }

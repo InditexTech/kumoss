@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 from src.application.services.terraform_drift_service import TerraformDriftService
-from src.domains.dto import TerraformDriftDTO, TerraformPlanDTO
+from src.domains.dto import FilteredOperationsDTO, TerraformDriftDTO, TerraformPlanDTO
 from src.domains.value_objects import PlanRef
 
 
@@ -46,12 +46,29 @@ def _drift(drift: str, plan: PlanRef, feedback: str = "") -> TerraformDriftDTO:
     )
 
 
+def _filtered(
+    kept: list[list[str]],
+    excluded: list[str] | None = None,
+    explanation: str = "",
+) -> FilteredOperationsDTO:
+    return FilteredOperationsDTO(
+        kept=kept,
+        excluded=excluded or [],
+        explanation=explanation,
+    )
+
+
 class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.ctx = MagicMock()
         self.validation_svc = AsyncMock()
         self.terraform_svc = AsyncMock()
         self.split_svc = AsyncMock()
+        # The exception filter runs on every iteration; unless a test is
+        # about it, it lets everything through.
+        self.split_svc.filter_exceptions.side_effect = lambda operations: _filtered(
+            kept=operations
+        )
         self.artifact_svc = AsyncMock()
         self.targets = TARGETS
         self.conventions = MagicMock()
@@ -298,6 +315,93 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(kwargs["is_drift"])
         self.assertEqual(kwargs["content"], "[drift]")
         self.assertEqual(kwargs["targets"], self.targets)
+
+    async def test_the_exception_filter_runs_after_the_reconciliation_filter(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = [["revert sku", "add tag"]]
+        self.split_svc.filter_reconciliation.return_value = [["add tag", "drop kv"]]
+        self.split_svc.filter_exceptions.side_effect = None
+        self.split_svc.filter_exceptions.return_value = _filtered(
+            kept=[["add tag"]],
+            excluded=["drop kv"],
+            explanation="rule 1 protects the key vault",
+        )
+        self.validation_svc.generate_and_validate.return_value = _plan(_ref("rev-gen"))
+
+        result = await self._run(filter_session_changes=True, plan=self.round_ref)
+
+        self.split_svc.filter_exceptions.assert_awaited_once_with(
+            operations=[["add tag", "drop kv"]]
+        )
+        self.validation_svc.generate_and_validate.assert_awaited_once()
+        kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
+        self.assertEqual(kwargs["q"], str(["add tag"]))
+        self.assertEqual(result.excluded, ["rule 1 protects the key vault"])
+
+    async def test_the_exception_filter_also_runs_unfiltered(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = [["op a"]]
+        self.validation_svc.generate_and_validate.return_value = _plan(_ref("rev-gen"))
+
+        await self._run(filter_session_changes=False, plan=self.round_ref)
+
+        # A full drift round has no session changes to filter, but the
+        # exception rules still apply.
+        self.split_svc.filter_reconciliation.assert_not_awaited()
+        self.split_svc.filter_exceptions.assert_awaited_once_with(operations=[["op a"]])
+
+    async def test_excluding_everything_stops_without_remediating_or_replanning(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = [["drop kv"]]
+        self.split_svc.filter_exceptions.side_effect = None
+        self.split_svc.filter_exceptions.return_value = _filtered(
+            kept=[], excluded=["drop kv"]
+        )
+
+        result = await self._run(
+            filter_session_changes=False, max_iterations=3, plan=self.round_ref
+        )
+
+        # Re-planning would only rediscover the same excluded drift.
+        self.validation_svc.generate_and_validate.assert_not_awaited()
+        self.terraform_svc.plan.assert_not_awaited()
+        self.terraform_svc.drift.assert_awaited_once()
+        self.assertFalse(result.in_sync)
+        # No explanation from the agent, so the operations stand in for one.
+        self.assertEqual(result.excluded, ["drop kv"])
+
+    async def test_exclusions_survive_the_closing_re_read(self):
+        reconciled = _ref("rev-reconciled")
+        self.terraform_svc.drift.side_effect = [
+            _drift("[drift]", self.round_ref),
+            _drift("", reconciled),
+        ]
+        self.split_svc.split_task.return_value = [["add tag", "drop kv"]]
+        self.split_svc.filter_exceptions.side_effect = None
+        self.split_svc.filter_exceptions.return_value = _filtered(
+            kept=[["add tag"]],
+            excluded=["drop kv"],
+            explanation="rule 1 protects the key vault",
+        )
+        self.validation_svc.generate_and_validate.return_value = _plan(reconciled)
+
+        result = await self._run(
+            filter_session_changes=False, max_iterations=1, plan=self.round_ref
+        )
+
+        # The closing read returns a fresh DTO; the exclusions are the
+        # loop's own bookkeeping and must be carried onto it.
+        self.assertTrue(result.in_sync)
+        self.assertEqual(result.excluded, ["rule 1 protects the key vault"])
+
+    async def test_an_iteration_that_excluded_nothing_records_nothing(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = [["op a"]]
+        self.validation_svc.generate_and_validate.return_value = _plan(_ref("rev-gen"))
+
+        result = await self._run(filter_session_changes=False, plan=self.round_ref)
+
+        self.assertEqual(result.excluded, [])
 
 
 if __name__ == "__main__":

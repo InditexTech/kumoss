@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP resources and changes drift remediation must never reconcile.
+body: |
+  # Drift Exception Rules
+
+  Drift remediation drops every change these rules cover and reports it
+  as left alone on purpose. The list ships empty: add one bullet per
+  exception, naming the resource address, type or attribute precisely
+  enough for an agent to match it against a remediation instruction.
+
+  ## Provider quirks (permanent false diffs)
+  - No provider quirks configured.
+  - Example: "The `google` provider always reports a diff on the
+    `goog-*` labels Google adds automatically; never reconcile them."
+
+  ## Resources managed outside Terraform
+  - No externally managed resources configured.
+  - Example: "`google_container_node_pool.node_count` is managed by the
+    cluster autoscaler; never reconcile it."
+
+  ## Environment, team and naming carve-outs
+  - No carve-outs configured.
+  - Example: "Never reconcile resources in the `shared-networking`
+    project; the platform team owns them."

@@ -183,6 +183,25 @@ describe("ResultPanel", () => {
       expect(screen.queryByText("Recreated")).not.toBeInTheDocument();
     });
 
+    it("badges the round's status next to the drift summary", () => {
+      renderResultPanel(undefined, { terraform_report: driftReport });
+      expect(screen.getByText("SUCCEEDED")).toBeInTheDocument();
+    });
+
+    it("badges a partially remediated round as partial", () => {
+      renderResultPanel(undefined, {
+        terraform_report: { ...driftReport, status: "Partial" },
+      });
+      expect(screen.getByText("PARTIAL")).toBeInTheDocument();
+    });
+
+    it("leaves the plan report's summary unbadged", () => {
+      renderResultPanel(undefined, {
+        terraform_report: { ...mockReport, status: "Succeeded" },
+      });
+      expect(screen.queryByText("SUCCEEDED")).not.toBeInTheDocument();
+    });
+
     it("opens the resource detail when a row is clicked", async () => {
       const user = userEvent.setup();
       renderResultPanel(undefined, { terraform_report: driftReport });
@@ -193,6 +212,53 @@ describe("ResultPanel", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText("Removed: azurerm_key_vault.app"),
+      ).toBeInTheDocument();
+    });
+
+    it("claims no leftover drift when the round left none", () => {
+      renderResultPanel(undefined, { terraform_report: driftReport });
+
+      expect(screen.queryByText("Drift Not Reconciled")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Left Alone by Exception Rules"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps unreconciled drift apart from the whitelisted exceptions", () => {
+      renderResultPanel(undefined, {
+        terraform_report: {
+          ...driftReport,
+          status: "Partial",
+          unreconciled_drift: [
+            {
+              resource_address: "azurerm_postgresql_server.db",
+              reason: "The iteration limit was reached.",
+              details: ["The sku_name still differs."],
+            },
+          ],
+          whitelisted_exceptions: [
+            {
+              resource_address: "azurerm_storage_account.shared",
+              change: "The created_at tag differs.",
+              rule: "The provider reports a permanent false diff on it.",
+            },
+          ],
+        },
+      });
+
+      expect(screen.getByText("Drift Not Reconciled")).toBeInTheDocument();
+      expect(
+        screen.getByText("The iteration limit was reached."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("The sku_name still differs.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Left Alone by Exception Rules"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("The created_at tag differs."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("The provider reports a permanent false diff on it."),
       ).toBeInTheDocument();
     });
   });
