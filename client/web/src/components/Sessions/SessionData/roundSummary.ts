@@ -36,6 +36,21 @@ const OUTCOME_SUFFIXES: Partial<Record<SessionStatus, string>> =
   STRINGS.sessions.roundOutcomeSuffixes;
 
 /**
+ * Copy for a timeline row. The map is partial on purpose — the statuses it
+ * omits (`started`, `apply`, `completed`, `uncompleted`, `failed`) are
+ * already the words a reader wants, so they fall through to the status name
+ * capitalised rather than needing a hand-written phrase each.
+ */
+const STATUS_LABELS: Partial<Record<SessionStatus, string>> =
+  STRINGS.sessions.statusLabels;
+
+export function statusLabel(status: SessionStatus): string {
+  return (
+    STATUS_LABELS[status] ?? status.charAt(0).toUpperCase() + status.slice(1)
+  );
+}
+
+/**
  * The report type is the most authoritative signal, but a failed round never
  * produces one — hence the two fallbacks. `session.operation` cannot be
  * "apply" (apply reuses the session's stored plan and keeps the original

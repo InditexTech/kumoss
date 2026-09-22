@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import { makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import SessionData from "./SessionData";
 
@@ -89,12 +89,12 @@ describe("SessionData timeline", () => {
     renderWithProviders(<SessionData session={interleavedSession()} />);
 
     const rows = [
-      "Filtering",
-      "Generating",
+      "Request acceptance",
+      "Generating Infrastructure as Code",
       "main.tf",
-      "Validating",
+      "Validating infrastructure configuration",
       "Terraform Plan",
-      "Report",
+      "Constructing a final report",
       "Drift Report",
     ].map((label) => screen.getByText(label));
 
@@ -140,7 +140,7 @@ describe("SessionData timeline", () => {
     });
     renderWithProviders(<SessionData session={session} />);
 
-    const phase = screen.getByText("Reconciling");
+    const phase = screen.getByText("Reconciling drift state");
     const plan = screen.getByText("Terraform Plan");
     expect(phase).toBeInTheDocument();
     expect(isBefore(phase, plan)).toBe(true);

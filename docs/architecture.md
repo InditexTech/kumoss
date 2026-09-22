@@ -101,9 +101,10 @@ The editable sources are the Archify sequence specifications in [`diagrams/`](di
 
 ### Phase 6: implicit drift pre-check on the validated targets (at most 2 rounds)
 
-- **Inspect the plan.** With the code validated, the core runs `show -json` on the plan artifact validation left in the workspace and diffs each resource's `before` and `after` states. It reads the round's own plan instead of producing a second one: the validation step handed back a `PlanRef` naming that artifact, and the pre-check passes the ref straight to `show`. The differences are inverted into "make the code match the infrastructure" operations, and the drift JSON is stored as an artifact.
+- **Inspect the plan** (status `reconciling`). With the code validated, the core runs `show -json` on the plan artifact validation left in the workspace and diffs each resource's `before` and `after` states. It reads the round's own plan instead of producing a second one: the validation step handed back a `PlanRef` naming that artifact, and the pre-check passes the ref straight to `show`. The differences are inverted into "make the code match the infrastructure" operations, and the drift JSON is stored as an artifact.
 - **Split and filter.** If the plan shows differences, the Drift Task Splitter (small model) turns them into plain-language operations, and the Reconciliation Filter (small model) reads the branch's `diff_history` and drops every operation that would merely undo the session's own intended changes.
 - **Decide.** If genuine drift remains, it re-enters the generation loop in batches of `orchestration.drift_group_operations` (8) with the forbidden-actions block omitted, and the pre-check runs once more — on the ref the last reconciliation round produced, again without planning twice. If only the session's own changes remain, or the plan is clean, the pre-check stops and the last plan is final.
+- **What the timeline shows.** Every entry into `TerraformDriftService.detect_and_resolve_drift` writes a `reconciling` status per iteration *before* it reads drift — so an in-sync check still leaves a trace — and one more when the loop ends, carrying its conclusion: no drift found, the remaining differences are the session's own changes, or the unresolved drift itself, paraphrased by the small model. Error exits (an unplannable workspace, an unreadable plan) write only the assessment entry, since the handler's report and the runner's terminal status already carry the failure. Because the pre-check is part of every generate round, `reconciling` appears in generate sessions too, not only in dedicated drift ones.
 
 ### Phase 7: report and artifacts
 
@@ -262,7 +263,7 @@ The generate flow advances through the statuses the SSE stream reports:
 
 1. **FILTERING.** The small model screens the request against the request and forbidden-action prompts and can end the round as `UNCOMPLETED`.
 2. **GENERATING / VALIDATING**, up to five iterations. The main model edits Terraform files through tools (at most 70 executions, terminated by the sentinel `task_complete`); files are committed and pushed; the session target generator derives `-target` entries from the history; the iac sidecar runs `init` (cached per round, re-run only if the engine asks for it), `validate`, and `plan -target`.
-3. **Drift pre-check** on the validated targets (next subsection), then **REPORT**, the compliance gate, and the pin.
+3. **RECONCILING**, the drift pre-check on the validated targets (next subsection), then **REPORT**, the compliance gate, and the pin.
 
 Model routing is by prompt type: generation, target calculation, and report writing use the main model; filtering, status messages, pull-request text, task splitting, the reconciliation filter, and the compliance audit use the small model.
 
@@ -284,6 +285,8 @@ All drift work runs through `TerraformDriftService.detect_and_resolve_drift`, a 
 1. Read the drift out of a plan. Detection is `show -json` on a plan artifact, so the loop takes the plan to start from as a parameter: a `PlanRef` — the workspace, the plan file, the targets the plan was produced with, and a `sha256` of `git status --porcelain=v2 --branch` sampled immediately after the plan job returned. A generate round passes the ref it has just validated and its pre-check costs one `show`; a dedicated drift session passes `None` and the loop plans first. The fingerprint is what makes reading someone else's plan safe: `Terraform.drift` re-plans any ref the working tree has moved past and refuses one naming another workspace, and because it covers uncommitted and untracked files it moves for generated code, while ignoring the engine's own output (a rewritten plan file, a growing provider cache). Every reconciliation group re-plans, and the last of those is what the next iteration reads; an iteration whose split yielded no operations has no ref to hand on, so the next one plans for itself — which is what keeps every iteration that could have changed reading live state.
 2. `TerraformUtils.plan_to_drift` DeepDiffs each resource's `before` and `after` and *inverts* the result into "make the code match the infrastructure" operations; the drift JSON is stored as an artifact. The plan text is stored by the validation loop that produced it, one artifact per attempt.
 3. If the plan is clean, stop. Otherwise the Drift Task Splitter (small model) turns the JSON into plain-language operations, chunked into groups of `drift_group_operations` (8), and each group re-enters the generation and validation loop with the forbidden-actions block omitted (the intent is reconciliation).
+
+Each iteration opens with a `reconciling` status written before step 1, and the loop closes with a second one carrying its conclusion — the phase is visible on the timeline whether or not drift was found.
 
 The loop has two entry points that differ in *what* they target and *whether session intent is filtered out*:
 

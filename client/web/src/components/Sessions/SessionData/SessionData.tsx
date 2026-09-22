@@ -41,6 +41,7 @@ import {
   roundEvents,
   roundMeta,
   roundTitle,
+  statusLabel,
 } from "./roundSummary";
 import styles from "./SessionData.module.css";
 
@@ -370,7 +371,7 @@ export default function SessionData({
                                   component="div"
                                   className={styles.timelineOpName}
                                 >
-                                  {capitalize(event.status)}
+                                  {statusLabel(event.status)}
                                 </Typography>
                                 <span className={styles.timelineOpDate}>
                                   {formatDateTime(event.created_at)}
