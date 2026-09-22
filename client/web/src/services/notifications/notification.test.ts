@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import { ApiError } from "@/services/api";
 import { NotificationSeverity } from "@/types/api_notifications";
 import { sendNotification } from "./notification";

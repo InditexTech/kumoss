@@ -4,8 +4,8 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
-import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import { server } from "@/test/server";
+import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 import type { PlanType, ReportRef, TerraformPlanRef } from "@/types/api";
 import {
   resolveSessionOutcome,

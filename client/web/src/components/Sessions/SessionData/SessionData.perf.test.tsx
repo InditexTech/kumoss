@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import { makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import SessionData from "./SessionData";
 import { roundEvents } from "./roundSummary";

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import '@testing-library/jest-dom/vitest';
-import { server } from '../mocks/server';
+import { server } from './server';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 
 vi.mock("lottie-react", () => ({
