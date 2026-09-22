@@ -234,6 +234,8 @@ class ToolRegistryStatic(IToolRegistry):
                 summary=summary,
                 status=status,
                 remediated_resources=resources,
+                unreconciled_drift=parameters.get("unreconciled_drift", []),
+                whitelisted_exceptions=parameters.get("whitelisted_exceptions", []),
             )
         except ValidationError as e:
             raise ToolInferenceParamsError(

@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS resources and changes drift remediation must never reconcile.
+body: |
+  # Drift Exception Rules
+
+  Drift remediation drops every change these rules cover and reports it
+  as left alone on purpose. The list ships empty: add one bullet per
+  exception, naming the resource address, type or attribute precisely
+  enough for an agent to match it against a remediation instruction.
+
+  ## Provider quirks (permanent false diffs)
+  - No provider quirks configured.
+  - Example: "The `aws` provider always reports a diff on the `tags_all`
+    propagated by AWS Organizations; never reconcile it."
+
+  ## Resources managed outside Terraform
+  - No externally managed resources configured.
+  - Example: "`aws_autoscaling_group.desired_capacity` is set by the
+    autoscaler; never reconcile it."
+
+  ## Environment, team and naming carve-outs
+  - No carve-outs configured.
+  - Example: "Never reconcile resources tagged `owner = platform`; the
+    platform team manages them."

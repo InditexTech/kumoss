@@ -33,17 +33,25 @@ class TestRepoUri(unittest.TestCase):
         uri = "ssh://git@github.com/foo/bar.git"
         self.assertEqual(self.adapter.validate_python(uri), uri)
 
+    def test_https_uri_with_a_username_passes_through_verbatim(self):
+        uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/devops.project.greenai"
+        self.assertEqual(self.adapter.validate_python(uri), uri)
+
     def test_rejects_user_and_password(self):
         with self.assertRaises(ValidationError):
             _ = self.adapter.validate_python(
                 "https://user:ghp_secret@github.com/foo/bar.git"
             )
 
-    def test_rejects_bare_token_as_username(self):
+    def test_rejects_password_without_a_username(self):
         with self.assertRaises(ValidationError):
             _ = self.adapter.validate_python(
-                "https://ghp_secret@github.com/foo/bar.git"
+                "https://:ghp_secret@github.com/foo/bar.git"
             )
+
+    def test_rejects_an_empty_password(self):
+        with self.assertRaises(ValidationError):
+            _ = self.adapter.validate_python("https://user:@github.com/foo/bar.git")
 
     def test_rejects_credentials_with_mixed_case_scheme(self):
         with self.assertRaises(ValidationError):
@@ -54,6 +62,10 @@ class TestRepoUri(unittest.TestCase):
     def test_rejects_password_under_any_scheme(self):
         with self.assertRaises(ValidationError):
             _ = self.adapter.validate_python("ssh://git:ghp_secret@github.com/foo/bar")
+
+    def test_a_port_is_not_mistaken_for_a_password(self):
+        uri = "https://git.example.com:8443/foo/bar.git"
+        self.assertEqual(self.adapter.validate_python(uri), uri)
 
 
 class TestGenerateRequest(unittest.TestCase):
@@ -116,6 +128,16 @@ class TestGenerateRequest(unittest.TestCase):
                 scope_id="sub-123",
                 q="x",
             )
+
+    def test_accepts_a_uri_that_only_carries_a_username(self):
+        uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/repo"
+        req = GenerateRequest(
+            repo_uri=uri,
+            terraform_providers="azure",
+            scope_id="sub-123",
+            q="x",
+        )
+        self.assertEqual(req.repo_uri, uri)
 
     def test_iteration_call_without_a_uri_is_unaffected(self):
         req = GenerateRequest(session_id=str(_SID), q="x")

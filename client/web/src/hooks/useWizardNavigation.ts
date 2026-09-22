@@ -71,6 +71,25 @@ export function useWizardNavigation() {
     }
   }, [step, data.provider]);
 
+  /**
+   * Merge `patch` into the collected data and hand the result back.
+   *
+   * The return value is required, not a convenience: when the mapper
+   * supplies a provider and a scope, both are written and consumed in
+   * the same tick, so `data` still holds the pre-merge value for the
+   * rest of this render. Reading `data` straight after `setData` is
+   * safe elsewhere only because each step is a separate interaction in
+   * a separate render.
+   */
+  const applyResolution = useCallback(
+    (patch: Partial<WizardData>): WizardData => {
+      const merged = { ...data, ...patch };
+      setData(merged);
+      return merged;
+    },
+    [data],
+  );
+
   const resetNavigation = useCallback(() => {
     setStep("query");
     setData(INITIAL_DATA);
@@ -81,6 +100,7 @@ export function useWizardNavigation() {
     setStep,
     data,
     setData,
+    applyResolution,
     promptMessage,
     placeholder,
     resetNavigation,

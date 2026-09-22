@@ -52,6 +52,11 @@ class TerraformDriftService:
         changed reading live state.
         """
         drift = TerraformDriftDTO.empty()
+        exclusions: list[str] = []
+
+        def resolved(result: TerraformDriftDTO) -> TerraformDriftDTO:
+            result.excluded = exclusions
+            return result
 
         async def validator(history: History) -> TerraformPlanDTO:
             return await self.__terraform_svc.plan(targets=targets)
@@ -63,12 +68,14 @@ class TerraformDriftService:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
                 if plan_result.plan is None:
                     logging.error(f"Drift check could not plan: {plan_result.feedback}")
-                    return TerraformDriftDTO(
-                        in_sync=False,
-                        drift="",
-                        feedback=plan_result.feedback,
-                        stdout=plan_result.stdout,
-                        plan=None,
+                    return resolved(
+                        TerraformDriftDTO(
+                            in_sync=False,
+                            drift="",
+                            feedback=plan_result.feedback,
+                            stdout=plan_result.stdout,
+                            plan=None,
+                        )
                     )
                 plan = plan_result.plan
 
@@ -81,7 +88,7 @@ class TerraformDriftService:
 
             if drift.feedback:
                 logging.error(f"Drift could not be read: {drift.feedback}")
-                return drift
+                return resolved(drift)
 
             operations: list[list[str]] = await self.__split_svc.split_task(
                 task=drift.drift,
@@ -94,7 +101,20 @@ class TerraformDriftService:
                     logging.warning(
                         "Drift pre-check completed, remaining drift corresponds to session changes"
                     )
-                    return drift
+                    return resolved(drift)
+
+            filtered = await self.__split_svc.filter_exceptions(operations=operations)
+            if filtered.excluded:
+                note = filtered.explanation or "; ".join(filtered.excluded)
+                logging.warning(f"Drift exception rules excluded operations: {note}")
+                exclusions.append(note)
+            if operations and not filtered.kept:
+                logging.warning(
+                    "Drift remediation stopped, every operation is covered by the "
+                    f"drift exception rules: {exclusions}"
+                )
+                return resolved(drift)
+            operations = filtered.kept
 
             plan = None
             for idx, group_ops in enumerate(operations):
@@ -118,7 +138,7 @@ class TerraformDriftService:
                 f"Drift resolution completed but issues remain: {drift.drift}"
             )
 
-        return drift
+        return resolved(drift)
 
     async def __store_drift(
         self,

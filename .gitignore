@@ -102,3 +102,10 @@ local_test/
 
 # Unpublished files
 docs-tmp/
+
+# Unpublished diagrams: interactive HTML exports are generated from the
+# *.architecture.json
+docs/diagrams/*.html
+# Throwaway browser evidence from `archify visual-check`; the published export
+# is docs/images/<diagram>.png
+docs/diagrams/*.visual-check.*

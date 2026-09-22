@@ -84,6 +84,75 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(groups, [])
         self.llm_svc.generate.assert_not_awaited()
 
+    async def test_filter_exceptions_sends_flat_json_and_regroups_survivors(self):
+        kept = self._ops(self.group_size + 2)
+        self._llm_returns(kept)
+        incoming = [["a", "b"], ["c"]]
+
+        result = await self.service.filter_exceptions(operations=incoming)
+
+        self.assertEqual(
+            result.kept, [kept[: self.group_size], kept[self.group_size :]]
+        )
+        kwargs = self.llm_svc.generate.await_args.kwargs
+        self.assertEqual(json.loads(kwargs["query"]), ["a", "b", "c"])
+        self.assertEqual(kwargs["prompt"], "rendered prompt")
+        # A text-only agent: the sentinel is the whole tool set, and
+        # generate() treats a lone tool as its own sentinel.
+        self.assertEqual(kwargs["tools"], ["sentinel"])
+        self.assertNotIn("sentinel_tool", kwargs)
+        self.template_svc.render.assert_awaited_once_with(
+            PromptsLibrary.FILTER_DRIFT_EXCEPTIONS
+        )
+        self.tool_svc.get_sentinel_tool.assert_called_once_with(
+            ToolContext.TASK_SPLITTER
+        )
+        self.tool_svc.get_available_tools.assert_not_called()
+
+    async def test_filter_exceptions_reports_the_input_minus_the_survivors(self):
+        self._llm_returns(["a", "c"])
+
+        result = await self.service.filter_exceptions(operations=[["a", "b"], ["c"]])
+
+        self.assertEqual(result.kept, [["a", "c"]])
+        self.assertEqual(result.excluded, ["b"])
+
+    async def test_filter_exceptions_counts_a_trimmed_operation_as_excluded(self):
+        # A trimmed survivor no longer matches its input string, so the
+        # original shows up as excluded and its remainder as kept. That is
+        # precise enough for the log line the caller writes.
+        self._llm_returns(["a (trimmed)"])
+
+        result = await self.service.filter_exceptions(operations=[["a"]])
+
+        self.assertEqual(result.kept, [["a (trimmed)"]])
+        self.assertEqual(result.excluded, ["a"])
+
+    async def test_filter_exceptions_carries_the_explanation(self):
+        self.llm_svc.generate.return_value = MagicMock(
+            result={"operations": ["a"], "explanation": "rule 2 covers b"}
+        )
+
+        result = await self.service.filter_exceptions(operations=[["a", "b"]])
+
+        self.assertEqual(result.explanation, "rule 2 covers b")
+
+    async def test_filter_exceptions_skips_llm_when_nothing_to_filter(self):
+        result = await self.service.filter_exceptions(operations=[])
+
+        self.assertEqual(result.kept, [])
+        self.assertEqual(result.excluded, [])
+        self.assertEqual(result.explanation, "")
+        self.llm_svc.generate.assert_not_awaited()
+
+    async def test_filter_exceptions_excludes_everything_when_nothing_survives(self):
+        self._llm_returns([])
+
+        result = await self.service.filter_exceptions(operations=[["a"], ["b"]])
+
+        self.assertEqual(result.kept, [])
+        self.assertEqual(result.excluded, ["a", "b"])
+
 
 if __name__ == "__main__":
     unittest.main()

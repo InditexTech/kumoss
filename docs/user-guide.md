@@ -14,7 +14,7 @@ You need:
 
 - **An account.** Your administrator gives you access through your organization's identity provider. On first login you have the `developer` role, which lets you generate infrastructure, open and merge pull requests, and apply your own sessions. Drift remediation needs the `devops` role; ask your administrator ([Admin portal](admin-portal.md)).
 - **A repository URL** that holds Terraform-compatible code and that Nebula's service account can clone and push to. Enter the plain URL; URLs with a user name or token embedded are rejected.
-- **The cloud scope** your change targets: the Azure subscription id, Google Cloud project id, AWS account id, OCI compartment, or Kubernetes namespace.
+- **The cloud scope** your change targets: the Azure subscription id, Google Cloud project id, AWS account id, or OCI compartment OCID. Kubernetes has no cloud scope of its own — the API asks for "any stable identifier", so use whatever your team agreed on (a cluster or namespace name works).
 
 Nebula never asks you for cloud or Git credentials. It uses the identity your platform team configured.
 
@@ -35,15 +35,15 @@ Nebula never asks you for cloud or Git credentials. It uses the identity your pl
 
 1. **Choose the mode** in the header drop-down. Most work uses *Generate Infrastructure*. The drift modes and *Import Infrastructure* are shown greyed out with the hint "Requires the devops operation role." if you do not hold that role.
 2. **"What do you need?"** Type your request (up to 500 characters) and press Enter. The rotating hints under the field show the expected level of detail, for example "Deploy a PostgreSQL database on Azure" or "Create a virtual network with three subnets".
-3. **"What is the repository URL?"** Paste the repository URL. Nebula resolves it, clones it briefly, and looks for Terraform roots. This is the step that takes a few seconds ("Resolving repository...").
-4. **"Which IaC path?"** If the repository has more than one Terraform root, pick the directory to work in. With exactly one root this step is skipped. If none is found you see "No IaC paths found in this repository. Please check the repository and try again."
+3. **"What is the repository URL?"** Paste the repository URL. Nebula resolves it, clones only its metadata, and looks for Terraform roots among the files committed on the default branch: directories that hold `.tf` files, skipping `modules`, `examples`, and `.terraform` folders, and keeping those with a `main.tf`-style marker or a `.tfvars` file (the exact rules and examples are in [Operating modes](modes.md#how-nebula-finds-terraform-roots)). This is the step that takes a few seconds ("Resolving repository...").
+4. **"Which IaC path?"** If the repository has more than one Terraform root, pick the directory to work in. With exactly one root this step is skipped. If none is found you see "No IaC paths found in this repository. Please check the repository and try again." — usually because the `.tf` files are not committed on the default branch or live under a `modules` or `examples` directory. Top-level `.tf` files are offered as the path `.`.
 5. **"Which cloud provider?"** Pick Microsoft Azure, Google Cloud, Amazon Web Services, Oracle Cloud Infrastructure, or Kubernetes.
-6. **Cloud scope.** Enter the subscription id, project id, account id, compartment, or namespace. Only letters, digits, and hyphens are accepted (up to 64 characters); the field does not advance until the value is valid.
-7. **Permissions check.** Nebula asks your organization's authorization service whether you may work on that scope ("Checking permissions on ..."). If the answer is no, the reason is shown with two buttons: *Try again* (back to the scope) and *Start over*.
+6. **Cloud scope.** Enter the subscription id, project id, account id, or compartment OCID — for Kubernetes, any stable identifier your team uses. Only letters, digits, and hyphens are accepted (up to 64 characters); the field does not advance until the value is valid.
+7. **Permissions check.** Nebula asks your organization's authorization service whether you may work there, sending the cloud, the repository URL, and the IaC path — not the scope you just typed ("Checking permissions on ..."). If the answer is no, the reason is shown with two buttons: *Try again* (back to the scope) and *Start over*. In a deployment that has not connected such a service, which is the shipped default, the answer is always yes and the step passes straight through.
 
 The session then starts and you are taken to the progress screen.
 
-**Errors at this stage.** "Could not resolve repository. Please try again." means the URL could not be resolved or cloned; check that it is reachable and that Nebula's service account has access. A repository the engine cannot reach at run time fails the session with "Cannot reach repository".
+**Errors at this stage.** The wizard always shows the fixed message "Could not resolve repository. Please try again." when the reachability check fails, whatever the underlying cause. It runs before the session is created — Nebula answers an error and nothing is started. The more specific reason — the Git client's own text, or "Cannot reach repository: <url>" when the client said nothing — is the API response's `detail` field: visible to direct API callers, and to the wizard itself only if a later request (for example the first generate step) fails with a 400, in which case the UI falls back to showing that `detail`. Check that the URL is reachable and that Nebula's service account has access. A repository that becomes unreachable later, when the session clones it for real, is a different failure: the round ends with "git clone failed: ..." and the session is failed and cannot be resumed.
 
 ## 4. Writing a request that gets accepted
 
@@ -110,7 +110,10 @@ The results screen has the chat on the left and a panel with three tabs on the r
 - **Estimated Cost.** A monthly figure (and the derived hourly figure) for resources with a **fixed** price. Usage-based and free resources are listed in the breakdown as "Usage-based" or "Free" and are not included in the total. Treat the figure as an approximation for comparison, not as a quote; prices come from public pricing pages at generation time.
 - **Changes table.** Filter by *All*, *Created*, *Updated*, *Deleted*, *Recreated*. Each row names the resource with a short note; click it for the description and the raw plan detail.
 
-For drift sessions the report shows a *Drift Summary*, an outcome (Succeeded, Partial, Failed), and a *Remediated Resources* list with the file, the change, and the reason for each.
+For drift sessions the report shows a *Drift Summary*, an outcome (Succeeded, Partial, Failed), and a *Remediated Resources* list with the file, the change, and the reason for each. Two further sections appear only when the round left drift behind, and they mean different things:
+
+- **Drift Not Reconciled.** Drift Nebula could *not* fix — the remediation ran out of iterations, or the drift could not be read at all. Each entry gives the reason and what still differs. This is what makes an outcome *Partial*; act on it.
+- **Left Alone by Exception Rules.** Drift Nebula deliberately did not touch, because one of your platform's drift exception rules covers it. Each entry names the change and quotes the rule. This is the intended behaviour and does not lower the outcome, so a report can say *Succeeded* and still list entries here.
 
 **What you do not see.** The compliance audit that runs after the report produces rule-level findings, but they are not displayed in the application. If the audit fails you see its consequence, the lock (next section), and the reviewers who receive the notification see the summary. Ask your reviewer or platform team for the details.
 
@@ -127,7 +130,7 @@ While locked you can still read everything, continue the conversation, and creat
 1. **Create PR.** In the results view choose *Create PR*. Nebula writes the title and description and opens the pull request from the session branch on your Git provider. Creating it can take a minute.
 2. **Review.** "Here is your Pull Request." Use *View Pull Request* to open it (the button appears when the link points at a recognised host; otherwise copy the link from the session details). Your team's normal review and CI apply. If reviewers ask for changes, type them as a follow-up request; the new round pushes to the same branch and updates the pull request.
 3. **Approve PR and Apply.** When the review is done, choose *Approve PR and Apply*. A confirmation asks you to confirm that you read and understood the report and the proposed changes; *Request Review* sends a support request instead, *Confirm and Apply* merges the pull request into the default branch and starts the apply. In a drift-remediation session the button only merges: the merge is the remediation, no apply follows, and you return to the report.
-4. **Apply.** The engine executes exactly the plan you reviewed; it is not re-planned. The apply-results screen shows *Succeeded*, *Partially Applied*, or *Failed*, the execution summary, the resources created, updated, destroyed, or failed, and recommendations. A failed apply is not retried; read the error and start a new request.
+4. **Apply.** The engine executes exactly the plan you reviewed; it is not re-planned. The report's own status is `Success`, `Partial`, or `Failed`, shown on the apply-results screen as *Succeeded*, *Partially Applied*, or *Failed*, together with the execution summary, the resources created, updated, destroyed, or failed, and recommendations. A failed apply still closes the session normally — it is not retried and nothing is rolled back; read the error and start a new request.
 
 After an apply the reviewed plan is consumed. To change something else, send a new request; a fresh plan is produced and reviewed before the next apply. *Import Infrastructure* in the mode drop-down currently performs this same apply step on an existing session; it does not yet import unmanaged resources ([Operating modes](modes.md)).
 

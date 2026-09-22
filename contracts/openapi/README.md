@@ -15,7 +15,7 @@ them.
 | Spec | Service | Bundled reference implementation | Conformance suite |
 |---|---|---|---|
 | [`iac.v1.yaml`](iac.v1.yaml) | IaC engine executor: runs OpenTofu or Terraform commands as asynchronous jobs on a shared workspace | [`services/iac`](../../services/iac/README.md) | [`../conformance/iac/`](../conformance/iac/) |
-| [`mapping.v1.yaml`](mapping.v1.yaml) | Resolves a business identifier to a repository URL and project name | [`services/mapping`](../../services/mapping/README.md) | [`../conformance/mapping/`](../conformance/mapping/) |
+| [`mapping.v1.yaml`](mapping.v1.yaml) | Resolves a business identifier to a repository URL, plus a best-effort terraform provider and cloud scope | [`services/mapping`](../../services/mapping/README.md) | [`../conformance/mapping/`](../conformance/mapping/) |
 | [`notifications.v1.yaml`](notifications.v1.yaml) | Delivers notifications (compliance failures, high-impact detections, apply failures, user support requests) to a channel | [`services/notifications`](../../services/notifications/README.md) | [`../conformance/notifications/`](../conformance/notifications/) |
 | [`authz.v1.yaml`](authz.v1.yaml) | Cloud-project authorization checks | [`services/authz`](../../services/authz/README.md) | [`../conformance/authz/`](../conformance/authz/) |
 

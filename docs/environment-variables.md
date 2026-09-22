@@ -22,25 +22,42 @@ The core reads variables through the names configured in `config.yaml`. The tabl
 
 | Variable | Requirement | Default / fallback | Meaning | Activated by | Must match | Checked |
 |---|---|---|---|---|---|---|
-| LLM provider credentials (for example `ANTHROPIC_API_KEY`, `VERTEXAI_PROJECT`) | Mandatory for the provider selected by `llm.model` and `llm.small_model` | none | Credentials that LiteLLM reads for the configured provider. Names follow LiteLLM conventions; see [LiteLLM providers and models](litellm.md). | `llm.model`, `llm.small_model`, `llm.model_list` | nothing | At boot for providers LiteLLM can validate; otherwise on the first LLM call |
+| LLM provider credentials (`AZURE_AI_API_KEY` and `AZURE_AI_API_BASE` for the shipped `azure_ai/` models; for example `ANTHROPIC_API_KEY`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS` trio for other providers) | Mandatory for the provider selected by `llm.model` and `llm.small_model` | none | Credentials that LiteLLM reads for the configured provider. Names follow LiteLLM conventions; see [LiteLLM providers and models](litellm.md). For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. | `llm.model`, `llm.small_model`, `llm.model_list` | nothing | At boot for providers LiteLLM can validate; otherwise on the first LLM call |
 | `NEBULA_IAC_TOKEN` | Mandatory (the IaC sidecar is always called; it has no `enabled` flag) | sample value `dev-iac-token` | Bearer token the core sends to the IaC sidecar. | always | `NEBULA_IAC_TOKEN` in `services/iac/.env` | At boot: an empty token aborts startup |
 | `NEBULA_MAPPING_TOKEN` | Conditional | sample value `dev-mapping-token` | Bearer token for the mapping sidecar. | `services.mapping.enabled: true` | `NEBULA_MAPPING_TOKEN` in `services/mapping/.env` | At boot when enabled |
 | `NEBULA_NOTIFICATIONS_TOKEN` | Conditional | sample value `dev-notifications-token` | Bearer token for the notifications sidecar. | `services.notifications.enabled: true` | `NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env` | At boot when enabled |
 | `NEBULA_AUTHZ_TOKEN` | Conditional | sample value `dev-authz-token` | Bearer token for the authorization sidecar. | `services.authz.enabled: true` | `NEBULA_AUTHZ_TOKEN` in `services/authz/.env` | At boot when enabled |
 | `GIT_USER` | Optional but needed for pushes | empty | Account username at the Git provider selected by `git.provider`. | `git.provider` (default `GITHUB`) | nothing | At boot the core logs a warning when empty; pushes fail later unless credentials come from elsewhere |
 | `GIT_TOKEN` | Optional but needed for pushes | empty | Personal access token for that account. Written with `GIT_USER` into `~/.git-credentials` inside the core container at boot. | `git.provider` | nothing | Same as `GIT_USER` |
-| `RUSTFS_ACCESS_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS`; empty otherwise | Access key for the S3-compatible artifact store. | `storage.provider: RUSTFS` (or `S3` with static keys) | `RUSTFS_ACCESS_KEY` on the `object-storage` service in `docker-compose.yml` | At boot: the core creates or checks the bucket and aborts if the store is unusable |
-| `RUSTFS_SECRET_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS`; empty otherwise | Secret key for the artifact store. For `S3`, leave both keys unset to use the AWS SDK default credential chain (an instance role or workload identity), or set static keys under these same variable names unless you rename `storage.access_key_env` / `storage.secret_key_env`. | as above | `RUSTFS_SECRET_KEY` on `object-storage` | At boot |
+| `RUSTFS_ACCESS_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS` **and the variable is unset**; empty otherwise | Access key for the S3-compatible store, used for the artifacts bucket and — where Nebula-managed state is enabled (`storage.terraform_state_bucket` non-blank; that's the shipped default) — for the state bucket too, in which case it is also embedded into the backend block the IaC sidecar executes. | `storage.provider: RUSTFS` (or `S3` with static keys) | `RUSTFS_ACCESS_KEY` on the `object-storage` service in `docker-compose.yml` | At boot: the core creates or checks every configured bucket and aborts if the store is unusable |
+| `RUSTFS_SECRET_KEY` | Conditional | `rustfsadmin` when `storage.provider` is `RUSTFS` **and the variable is unset**; empty otherwise | Secret key for the artifact store. For `S3`, leave both keys unset to use the AWS SDK default credential chain (an instance role or workload identity), or set static keys under these same variable names unless you rename `storage.access_key_env` / `storage.secret_key_env`. | as above | `RUSTFS_SECRET_KEY` on `object-storage` | At boot |
 | `STORAGE_ACCOUNT_KEY` | Conditional | empty | Shared key of the Azure storage account; also signs download URLs. The account name is derived from `storage.endpoint_url`. | `storage.provider: STORAGE_ACCOUNT` | nothing | At boot: configuration validation fails if empty |
 | `NEBULA_SQL_DATABASE_URL` | Mandatory | sample value points at the bundled `core-db` container | Connection URL of Nebula's PostgreSQL database. | `database.nebula_database_url_env` | credentials of the `core-db` service in `docker-compose.yml` | At boot: configuration validation fails if empty, and database initialisation fails if unreachable |
-| `NEBULA_REDIS_URL` | Optional | `redis://redis:6379/0` from `redis.default_url` | Redis URL for the session cache. Set it only when the URL embeds a password or points outside the compose network. Cache operations fail open at runtime, but the boot-time ping must succeed. | `redis.redis_url_env` | nothing | At boot: Redis initialisation fails if unreachable |
+| `NEBULA_REDIS_URL` | Optional; not present in `core/env.sample` | `redis://redis:6379/0` from `redis.default_url` | Redis URL for the session cache. Add it only to point at an external Redis — for example when the URL embeds a password or sits outside the compose network. Cache operations fail open at runtime, but the boot-time ping must succeed. | `redis.redis_url_env` | nothing | At boot: Redis initialisation fails if unreachable |
 | `NEBULA_CONFIG` | Optional; not present in `env.sample` | `/etc/nebula/config.yaml` | Path, inside the container, of the configuration file to load. The file must exist at that path (for example through a mounted volume); a missing file silently falls back to built-in defaults. | always | nothing | At boot |
 | `APP_VERSION` | Optional; not present in `env.sample` | `0.0.0-dev` | Version string reported by the API's OpenAPI document. Set it from your release pipeline. | always | nothing | never |
+
+The `rustfsadmin` fallback applies only when the variable is **absent from the environment**. A variable that is present but blank (`RUSTFS_ACCESS_KEY=` in `core/.env`) resolves to the empty string, no fallback is applied, and under `storage.provider: RUSTFS` the core embeds no static credentials at all: boto3 falls back to the AWS default credential chain, which has nothing to find in the container, and boot fails at `ensure_bucket()`. Blank the two keys only for `storage.provider: S3` with an instance profile or IRSA, where an empty value is what tells the core to omit them and let the AWS default chain resolve.
+
+**What the boot check actually covers.** `SystemConfig` validates the LLM credentials with `litellm.validate_environment` for every entry in the effective model list. For the shipped `config.yaml` — which selects `azure_ai/...` models — that check verifies **nothing**: LiteLLM has no validation mapping for `azure_ai`, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE` boots cleanly and fails on the first LLM call. For `vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at boot. Coverage is per provider (for `anthropic/*`, either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no provider's check validates that a credential actually works.
+
+**`litellm` loads `core/.env` by itself.** The library calls `load_dotenv()` at import time, so running the core or its test suite from the `core/` directory *outside* Docker silently picks up `core/.env` even when you meant to run with a clean environment. Run from another directory if you need to reproduce a missing-credential failure.
 
 Two related facts about the sample file:
 
 - The pre-filled `dev-*-token` placeholders are accepted because the bundled sidecars ship with an empty expected token, which disables their bearer check. That is acceptable only on an isolated workstation.
 - Nothing OIDC-related goes in `core/.env`. The single-page application is a public client using PKCE (Proof Key for Code Exchange), and the core validates tokens with the issuer's public keys. All OIDC settings live in `config.yaml`.
+
+### Read by libraries, not by Nebula
+
+Two more variables can matter to the core even though no Nebula code reads them. Neither is in `core/env.sample`, and neither is needed for the bundled Phoenix.
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_HEADERS` | the OpenTelemetry SDK | Comma-separated `key=value` headers added to OTLP exports — the usual way to authenticate against a hosted collector. The core builds its `OTLPSpanExporter` with the endpoint only and passes no headers of its own (`core/src/infrastructure/telemetry/_initializer.py:76-82`). |
+| `PHOENIX_API_KEY` | the `phoenix.client` library | API key for an authenticated Phoenix instance, used when fetching and seeding prompt templates. The core constructs `AsyncClient(base_url=...)` and supplies no credential (`core/src/infrastructure/templates/_fetcher.py:17`). |
+
+Because the core passes the endpoint and base URL programmatically, whether each library still picks these variables up from the environment in that configuration is **not verified in this repository** — consult the OpenTelemetry Python and Phoenix client documentation for the version you run before relying on them.
 
 ## IaC sidecar (`services/iac/env.sample`)
 
@@ -48,6 +65,7 @@ Two related facts about the sample file:
 |---|---|---|---|---|
 | `NEBULA_IAC_TOKEN` | Recommended; mandatory outside an isolated workstation | empty (accepts any bearer) | Token the sidecar requires on every `/v1/*` call. Must equal the core's `NEBULA_IAC_TOKEN`. | Per request: a mismatch returns `401` to the core |
 | `IAC_BINARY` | Optional | `tofu` | Name or absolute path of the IaC engine CLI. `tofu` runs the bundled OpenTofu; `terraform` runs the bundled HashiCorp Terraform (BUSL-1.1 licensed; your use is subject to its terms). Any Terraform-compatible engine on `PATH` works. | At boot: the service refuses to start if the binary cannot be found |
+| `IAC_BACKEND_CONFIG` | Optional | empty (unset) | Path to a `.hcl` or `.tfbackend` file of state-backend values, passed to every `init` as `-backend-config=<path>`. Absolute paths resolve **inside the sidecar container**, so mount the file there yourself; relative paths resolve against the workspace, so the target repository can carry the file. It supplies values only — the backend *type* still comes from the workspace's own `terraform { backend "..." }` block. Its values take precedence over the core's `backend_override.tf`, which in turn beats the repository's own block; keys the file does not declare fall through, so setting it *together with* Nebula-managed state (`storage.terraform_state_bucket` set) merges the two backends key by key instead of picking one — a misconfiguration to avoid, not a layering feature. Blank or whitespace counts as unset. See [Terraform/OpenTofu state backends](terraform-state-backends.md#model-3--sidecar-supplied-backend-configuration). | No: unlike `IAC_BINARY` this path is not checked at startup, so a wrong one fails on `init`, in that job's stderr |
 
 The job retention period (how long a finished job stays pollable at `GET /v1/jobs/{job_id}`, one hour) is a constant in `services/iac/src/config.py`, not an environment variable. Jobs live in memory, so a restart also forgets them.
 
@@ -55,17 +73,32 @@ The job retention period (how long a finished job stays pollable at `GET /v1/job
 
 The IaC sidecar does not interpret cloud credentials. It launches the engine with its **entire container environment inherited and no allowlist**, so every variable in `services/iac/.env` (including `NEBULA_IAC_TOKEN`) is visible to the Terraform and OpenTofu **providers** and to any `external` or `local-exec` code in the repositories you run. The providers read their credentials directly during `init`, `plan`, and `apply`. Missing or invalid credentials never stop the container; the command runs and the engine's own authentication error appears in the job's `stderr`, which the session shows to the user. Keep only the variables the engine needs in that file, and treat the sidecar's environment as exposed to the IaC code it executes.
 
+The sidecar's `/v1/import/scope-resource-ids` endpoint is the one exception to "does not interpret": it launches no engine and instead reads the same `ARM_*`, `GOOGLE_*`, and `AWS_*` credential variables itself through the clouds' auth libraries to query Azure Resource Graph, GCP Cloud Asset Inventory, or AWS Resource Explorer. Two extra requirements apply to it only: on AWS `AWS_REGION` must be set and Resource Explorer must be enabled for the account; on GCP the `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com` APIs must be enabled. The core does not call this endpoint today. See "Import discovery" in [`services/iac/README.md`](../services/iac/README.md#import-discovery).
+
 The sample file lists no cloud variables; add the ones your modules need. [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md) gives the minimum set per cloud and authentication method (service principal, OIDC federation, managed identity, named profile, and so on) plus the state-backend minimums, and [`services/iac/FULL_PROVIDERS.md`](../services/iac/FULL_PROVIDERS.md) lists every variable each provider and backend reads. The table below is a short orientation; the sidecar imposes nothing beyond what the provider supports.
 
 | Cloud | Typical variables | Provider chain (examples, not a complete list) |
 |---|---|---|
-| Azure (`azurerm`, `azuread`) | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` | Service principal with client secret. Certificate, OIDC federation, and managed identity are other documented provider options. |
-| Google Cloud (`google`) | `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | `GOOGLE_CREDENTIALS` holds the service-account key as JSON content; `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable inside the container. Set one of them. |
+| Azure (`azurerm`, `azuread`) | `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`, `ARM_SUBSCRIPTION_ID` | Service principal with client secret. Certificate, OIDC federation, and managed identity are other documented provider options. **`ARM_SUBSCRIPTION_ID` set here is overwritten** on every `init`, `plan`, and `apply` with the request's scope id (`services/iac/src/engine.py:55-76`), so it only takes effect for `validate` and `show`. |
+| Google Cloud (`google`) | `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS` | `GOOGLE_CREDENTIALS` holds the service-account key as JSON content; `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable inside the container. Set one of them. **`GOOGLE_PROJECT` set here is overwritten** on every `init`, `plan`, and `apply` with the request's scope id (`services/iac/src/engine.py:55-76`), so it only takes effect for `validate` and `show`. |
 | AWS (`aws`) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, or `AWS_PROFILE` | Static keys, or a profile from a mounted credentials file. Instance roles and web-identity federation are other documented provider options. |
 | Oracle Cloud (`oci`) | `OCI_*` or `TF_VAR_*` | The provider's documented mechanisms, for example an OCI configuration file mounted into the container, or instance principals. |
-| Kubernetes (`kubernetes`, `helm`) | `KUBE_CONFIG_PATH` | A mounted kubeconfig, or in-cluster service-account credentials. |
+| Kubernetes (`kubernetes`, `helm`) | `KUBE_CONFIG_PATH` | A mounted kubeconfig (`KUBE_CONFIG_PATHS` for several), `KUBE_HOST` + `KUBE_TOKEN`, or in-cluster service-account credentials. See [`services/iac/PROVIDERS.md`](../services/iac/PROVIDERS.md). |
+
+These are the **provider** credentials, the ones `plan` and `apply` use on the resources themselves. `init` needs a second, separate grant on the state store, which may be a different account or even a different cloud, and which some variables serve exclusively — `ARM_ACCESS_KEY`, `ARM_SAS_TOKEN`, `ARM_USE_AZUREAD`, `GOOGLE_BACKEND_CREDENTIALS`, `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. Both grants live in the same `services/iac/.env`; which variables you need for which is in [Two sets of credentials on the sidecar](terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar).
 
 Credential files you mount must be readable by the unprivileged user the image runs as (`nebula`, uid and gid `10001` by default).
+
+### Credentials for the state backend
+
+The sidecar is the process that reads and writes Terraform state, so state-backend credentials are always a sidecar concern.
+
+- **By default** (`storage.terraform_state_bucket` non-blank — that's the shipped value), Nebula manages state. When the core's rendered backend block **contains** static keys (`RUSTFS`, or `S3`/`STORAGE_ACCOUNT` with keys set in `core/.env`), the sidecar needs nothing extra for state.
+- When Nebula-managed state is on and the block **omits** those keys (`provider: S3` with `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` blank), the engine resolves credentials from the sidecar's own environment: `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an attached instance role or IRSA token. Granting that role to the **core** container only is the common mistake — the core just creates the bucket at boot.
+- With Nebula-managed state on, the sidecar must also reach `storage.endpoint_url`. In the Compose stack `core` and `iac` share `bridge-network`, so `http://object-storage:9000` resolves; elsewhere, allow that egress.
+- If a deployment sets `storage.terraform_state_bucket` to `""`, the backend comes from the target repository instead, and the sidecar must hold whatever that backend needs — S3 keys or a role, an Azure identity, a GCS service account. Nothing on the core side helps here.
+
+Where state lives, and how each provider is configured, is covered in [Terraform/OpenTofu state backends](terraform-state-backends.md).
 
 ## Mapping sidecar (`services/mapping/env.sample`)
 
@@ -73,7 +106,7 @@ Credential files you mount must be readable by the unprivileged user the image r
 |---|---|---|---|---|
 | `NEBULA_MAPPING_TOKEN` | Recommended when the sidecar is enabled | empty (accepts any bearer) | Token required on `POST /v1/resolve`. Must equal the core's `NEBULA_MAPPING_TOKEN`. | Per request |
 
-The bundled mapping service is an identity passthrough: it returns the identifier it receives as both repository URL and project name (the project name is truncated to 128 characters). While `services.mapping.enabled` is `false` (the default) the core performs that same mapping itself and never calls the service. Once enabled, a sidecar that times out or is unreachable makes the wizard's resolve step fail with `504` or `502`; there is no silent fallback.
+The bundled mapping service is an identity passthrough: it returns the identifier it receives as both `repo_url` and `identifier`, echoes back any `terraform_provider` it was sent, and always answers `null` for `scope_id` — it knows nothing it was not told, and `null` means "ask the user". While `services.mapping.enabled` is `false` (the default) the core performs that same mapping itself and never calls the service. Once enabled, a sidecar that times out or is unreachable makes the wizard's resolve step fail with `504` or `502`, and so does a response the core cannot parse or one naming a provider outside the contract's enum; there is no silent fallback.
 
 ## Notifications sidecar (`services/notifications/env.sample`)
 
@@ -85,7 +118,7 @@ The bundled mapping service is an identity passthrough: it returns the identifie
 
 The core sends four kinds of notification on its own: `iac.compliance.failed` and `iac.impact.high` at the end of a generate round, `iac.apply.failure` when an apply fails, and `system.exception.failure` when a background run raises. Users can also send free-form support requests through `POST /api/v1/notifications` (see [Admin portal](admin-portal.md#support-requests)). The audience of every notification is the session owner (or the caller) plus every user with a panel role of `editor` or higher. Delivery is best-effort: the core logs `Failed to send '<kind>' notification` and continues. The bundled sidecar delivers synchronously to Slack with a 10-second budget and answers `502` when Slack rejects the message.
 
-The bundled notifications container **refuses to start without `SLACK_WEBHOOK_URL`, even when the core integration is disabled**. Because Compose starts every sidecar regardless of `config.yaml`, a notifications container that exits immediately is expected and harmless while `services.notifications.enabled` is `false`. Remove the service from your Compose file or provide a webhook URL to avoid the restart noise.
+The bundled notifications container **refuses to start without `SLACK_WEBHOOK_URL`, even when the core integration is disabled**. Because Compose starts every sidecar regardless of `config.yaml`, a notifications container that exits immediately is expected and harmless while `services.notifications.enabled` is `false`. No restart policy is set for it (only `proxy` carries `restart: on-failure`, `docker-compose.yml:12`), so it exits once and then simply shows as `Exited` in `docker compose ps` — it is not restarted in a loop. Remove the service from your Compose file or provide a webhook URL if you would rather not see it.
 
 ## Authorization sidecar (`services/authz/env.sample`)
 
@@ -127,17 +160,19 @@ Variable names follow LiteLLM's provider conventions and are selected by the `ll
   Paste the output into both `core/.env` and the matching sidecar `.env`. Generate a distinct value per sidecar. Do not reuse the `dev-*-token` placeholders or an empty sidecar token outside an isolated workstation: an empty sidecar token disables its bearer check entirely.
 - **Never put secrets in `config.yaml`.** It is baked into the core image and is meant to be shareable. Use the `*_env` fields to rename variables if your platform imposes naming conventions.
 - **Keep sidecars private.** The bundled sidecars compare bearer tokens in constant time, but they are still simple services: keep them on a private network that only the core can reach, and rotate tokens on a schedule.
-- **Only the IaC and core images run unprivileged.** The bundled mapping, notifications, and authorization images run as root; apply your platform's pod or container security defaults to them.
+- **All five Nebula-built images run unprivileged.** The core, IaC, mapping, notifications, and authorization Dockerfiles each create and switch to the `nebula` user (uid/gid `10001` by default, from the `NEBULA_UID` / `NEBULA_GID` build args). The `proxy` service is the upstream nginx image, which starts as root and drops privileges for its worker processes. Apply your platform's pod or container security defaults on top regardless — the Compose file adds no `cap_drop`, `read_only`, or resource limits.
 - **Prefer a secret manager or orchestrator secrets** (Docker secrets, Kubernetes Secrets, a vault) over plaintext `.env` files in shared and production deployments. Mount files with permissions readable only by uid `10001`.
 - **Scope Git tokens narrowly.** `GIT_TOKEN` is single-tenant: one token pushes every session's branch and opens every pull request. Give it the minimum repository permissions your provider offers.
-- **Rotate the RustFS keys and database password** from the bundled `rustfsadmin` and `postgres` defaults in `docker-compose.yml` before exposing the stack beyond a workstation.
+- **Rotate the RustFS keys and database password** from the bundled `rustfsadmin` and `postgres` defaults in `docker-compose.yml` before exposing the stack beyond a workstation. The same file hard-codes `PHOENIX_SQL_DATABASE_URL` with the `phoenix-db` password in it (`docker-compose.yml:137`) and enables the RustFS web console (`RUSTFS_CONSOLE_ENABLE=true`, `docker-compose.yml:166`) — change the first and disable the second outside a workstation.
 - **Restrict who can reach the stack while OIDC is disabled.** With a blank `oidc.issuer_url`, every request is treated as a fully privileged local developer. See [OIDC setup](oidc-setup.md).
 
 ## Example `.env` sets
 
 All values below are fictitious. Replace every token and URL.
 
-### Core plus IaC sidecar only (shipped defaults, Anthropic models)
+### Core plus IaC sidecar only (Anthropic models)
+
+Only the IaC sidecar is enabled, as in the shipped `config.yaml` — but the model strings below are **not** the shipped ones. The checked-in `config.yaml` selects Azure AI Foundry models (`azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`, which need `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`); the Vertex AI set is shown in the next example; `anthropic/*` is what `SystemConfig` falls back to when no `config.yaml` is loaded at all. Use this set only if you put the excerpt below in your own `config.yaml`.
 
 `config.yaml` excerpt for this example:
 
@@ -175,6 +210,16 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
+# Unset: the backend comes from the workspace — the target repository's
+# own block, or the override the core writes when Nebula-managed state
+# is on (the shipped default). If set, this file's values win over that
+# override, key by key (docs/terraform-state-backends.md), so set it
+# only with storage.terraform_state_bucket explicitly blanked to "",
+# and mount the file in this container.
+# IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl
+
+# These credentials serve both the providers and, when the rendered
+# backend block omits static keys, the S3 state backend.
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
 AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
@@ -196,7 +241,8 @@ services:
   authz:
     enabled: true
   iac:
-    enabled: true
+    # No enabled flag: the IaC sidecar is mandatory and always called.
+    endpoint: "http://iac:8082"
 ```
 
 `core/.env`:
@@ -227,10 +273,16 @@ NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
+# Provider grant: the resources plan and apply create.
 ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000
 ARM_CLIENT_SECRET=example-not-a-real-client-secret
 ARM_TENANT_ID=00000000-0000-0000-0000-000000000001
 ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000002
+
+# State-backend grant: the storage account the target repository's own
+# azurerm backend block names. Backend-only, and enough on its own.
+# Drop it and add ARM_USE_AZUREAD=true to reuse the principal above.
+ARM_ACCESS_KEY=<storage-account-access-key>
 ```
 
 `services/mapping/.env`:
@@ -278,7 +330,12 @@ OPENAI_API_BASE=https://llm.example.invalid/v1
 Google Cloud:
 
 ```dotenv
+# Provider grant. Also serves the gcs backend, unless you override it below.
 GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
+
+# State-backend grant: backend-only, and needed only when the state bucket
+# lives outside the project above. Omit it and `init` reuses GOOGLE_CREDENTIALS.
+# GOOGLE_BACKEND_CREDENTIALS={"type":"service_account", ...}
 ```
 
 Kubernetes (kubeconfig mounted into the container):
