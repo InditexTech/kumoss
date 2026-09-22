@@ -71,10 +71,6 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_import_addresses(self, selected_ids: list[str]) -> str:
-        pass
-
-    @abstractmethod
     def render_joker(self) -> str:
         pass
 

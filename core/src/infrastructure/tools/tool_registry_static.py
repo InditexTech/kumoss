@@ -53,7 +53,6 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
-            "iac_import.json": ToolContext.IAC_IMPORT,
             "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
 
@@ -94,7 +93,6 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
-            "iac_import": self.__handle_iac_import,
             "report_compliance_findings": self._handle_compliance_findings,
             # External information
             "web_search": self.__handle_web_search,
@@ -350,17 +348,6 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
-
-    def __handle_iac_import(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        status = parameters["status"]
-        summary = parameters["summary"]
-        imports = parameters["imports"]
-        if not isinstance(imports, list):
-            raise ToolInferenceParamsError(
-                message=f"IAC import inference hasn't returned the expected structure. got={imports}",
-                error_code=500,
-            )
-        return {"status": status, "summary": summary, "imports": imports}
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
         query = parameters["query"]

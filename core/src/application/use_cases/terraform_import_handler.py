@@ -190,7 +190,7 @@ class TerraformImportHandler:
                     )
 
                 imports = await self.__import_address_svc.get_import_addresses(
-                    ctx.history, selected_ids
+                    selected_ids
                 )
                 if not imports:
                     logging.warning(
