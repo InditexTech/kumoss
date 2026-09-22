@@ -1,0 +1,33 @@
+.gitignore
+  s_87b3c0b35793fa::t_f16fbcaeb87716 110
+config.yaml
+  s_87b3c0b35793fa::t_23ec94500fb7bf 14-17,25-27,34-35,48-51,105-106,134-136,220-221,250-251
+core/env.sample
+  s_80925b41a3405c::t_51ae509236c323 15-16,24-27,49
+core/src/shared/config/system_config.py
+  s_87b3c0b35793fa::t_7fbe55554c8a9f 113-116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5ec93a4bc1afb018cf1ddbd693484e65db61587",
+  "prompts": {},
+  "sessions": {
+    "s_80925b41a3405c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c62b8d0-62fd-42e9-a702-3972929b0e26",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_87b3c0b35793fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1315fa6aa05368d8",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
