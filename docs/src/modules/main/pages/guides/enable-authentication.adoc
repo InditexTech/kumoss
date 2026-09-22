@@ -111,7 +111,7 @@ oidc:
   client_id: "<application-client-id>"
 ----
 +
-That's all: for `login.microsoftonline.com` issuers the core
+That is all: for `login.microsoftonline.com` issuers the core
 automatically appends `api://\{client_id}/.default` to the login scopes,
 which requests the exposed scope(s) without needing their names. Leave
 `audience` blank — both the bare client id and `api://<client-id>` are
@@ -236,13 +236,13 @@ Everyone else is then managed from the admin panel's Users tab.
 == Troubleshooting
 
 * *401 "Token validation failed … audience".* The access token's `aud`
-  doesn't match `audience`/`client_id`. Entra: the app doesn't expose an
-  API scope, or a sovereign-cloud issuer skipped the auto-scope (set
+  does not match `audience`/`client_id`. Entra: the app does not expose
+  an API scope, or a sovereign-cloud issuer skipped the auto-scope (set
   `scope` explicitly). Keycloak: missing audience mapper. Auth0:
-  `audience` not set in `config.yaml`. Okta: `audience` doesn't match
+  `audience` not set in `config.yaml`. Okta: `audience` does not match
   the authorization server's audience setting.
 * *Login redirect rejected by the IdP.* The redirect URI
-  `<origin>/auth/callback` isn't registered exactly (scheme, host,
+  `<origin>/auth/callback` is not registered exactly (scheme, host,
   port).
 * *Config changes have no effect.* Rebuild the core image (`docker
   compose build core`); the file is baked in.

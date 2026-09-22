@@ -51,8 +51,8 @@ deployment model.
 `config.yaml` at the repository root is the single configuration file. It
 is baked into the core image at build time, so every edit needs
 `docker compose build core`. All fields are documented in the
-configuration reference. Do not change default settings; the table below
-is what to review.
+xref:main:reference/configuration.adoc[configuration reference]. Do not
+change default settings; the table below is what to review.
 
 [cols="2,2,5",options="header"]
 |===
@@ -63,8 +63,10 @@ is what to review.
 |LiteLLM model strings (`provider/model-id`). The shipped file selects
 `azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`. Keep them if
 you have an Azure AI Foundry endpoint; otherwise pick another provider and
-model pair. The provider prefix decides which credential variables the
-next step (`core/.env`) needs.
+model pair from
+xref:main:reference/llm-providers.adoc[LiteLLM providers and models]. The
+provider prefix decides which credential variables the next step
+(`core/.env`) needs.
 
 |`git.provider`
 |Optional (default `GITHUB`)
@@ -91,7 +93,8 @@ variable `NEBULA_IAC_TOKEN`.
 |`oidc.issuer_url`, `oidc.client_id`
 |Optional
 |Leave blank to keep authentication disabled on a trusted workstation. Fill
-them to test a real login flow.
+them to test a real login flow; see
+xref:main:guides/enable-authentication.adoc[OIDC setup].
 
 |`storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins`
 |Leave as shipped
@@ -105,7 +108,8 @@ reaches the host under another name (then update
 |Leave as shipped (`nebula-terraform-state`)
 |As shipped, Nebula owns state on the bundled RustFS, which is what this
 guide assumes. Set it to `""` only if you want each repository to declare
-its own backend instead, and rebuild the core image afterwards.
+its own backend instead, and rebuild the core image afterwards:
+xref:main:guides/configure-state-backends.adoc[state backends].
 
 |`orchestration.*`
 |Leave as shipped
@@ -160,8 +164,9 @@ it is always called, and its `endpoint` and `token_env` default in code to
 
 === 3. Configure core/.env
 
-Every variable is documented in the environment variables and secrets
-reference. The effective minimum for this deployment:
+Every variable is documented in
+xref:main:reference/environment-variables.adoc[Environment variables and
+secrets]. The effective minimum for this deployment:
 
 [cols="2,2,5",options="header"]
 |===
@@ -175,7 +180,9 @@ and `AZURE_AI_API_BASE`; for others, for example `ANTHROPIC_API_KEY`, or
 `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, and `VERTEXAI_CREDENTIALS`. The
 core refuses to boot with `LLM credentials missing from environment: ...`
 when LiteLLM can detect a missing variable; it cannot for `azure_ai/`,
-which fails on the first call instead.
+which fails on the first call instead. Names per provider:
+xref:main:reference/llm-providers.adoc#provider-credentials[LiteLLM
+providers and models].
 
 |`NEBULA_IAC_TOKEN`
 |*Mandatory, non-empty*
@@ -253,7 +260,8 @@ license. The service refuses to start if the binary cannot be found.
 |Leave unset
 |Only for deployments that supply the backend's *values* from a file,
 either mounted in this container or carried by the target repository,
-instead of the repository's own backend block.
+instead of the repository's own backend block:
+xref:main:guides/state-backends/sidecar-supplied.adoc[state backends].
 
 |*Provider credentials*
 |Mandatory for `plan` and `apply`
@@ -274,7 +282,9 @@ nothing extra to add here. If you set `storage.terraform_state_bucket` to
 access to the state store that repository's `terraform { backend ... }`
 block names — see
 xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
-minimums].
+minimums] and
+xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[Two
+sets of credentials on the sidecar].
 |===
 
 Missing or invalid cloud credentials do *not* stop the container. The
@@ -286,7 +296,7 @@ core side (previous step) it must be non-empty, and `core/env.sample` ships
 it filled in (`dev-iac-token`). On the sidecar side, `services/iac/env.sample`
 ships it *blank*, which turns that sidecar's own bearer check off — the
 mismatch between the two samples is harmless on an isolated workstation
-because the sidecar simply stops checking. In any deployment reachable by
+because the sidecar stops checking. In any deployment reachable by
 more than you, set the same non-empty value in both files.
 
 Each tab below shows both grants, using the simplest authentication method
@@ -449,10 +459,10 @@ returns a JSON document with an empty `issuer_url`.
 |===
 |URL |What it serves
 
-|`http://localhost`
+|`\http://localhost`
 |Nebula web application and the API under `/api/v1/...`
 
-|`http://localhost/monitoring/`
+|`\http://localhost/monitoring/`
 |Phoenix: traces of every run and the prompt registry
 
 |`\http://localhost:9000`
@@ -460,15 +470,20 @@ returns a JSON document with an empty `issuer_url`.
 RustFS console — trusted workstation only
 |===
 
-Open `http://localhost`. With authentication disabled you land directly in
+Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
 push to, choose the cloud and scope, describe the infrastructure you need,
-and follow the session.
+and follow the session. What each mode does is explained in
+xref:main:guides-overview.adoc[Guides]; your sessions and the admin panel
+are described in
+xref:main:guides/administer-users-and-locks.adoc[Administer users and
+locks].
 
-Open `http://localhost/monitoring/` to see the traces of the run under the
+Open `\http://localhost/monitoring/` to see the traces of the run under the
 `dev-terraform-day2` project and the seeded prompts under *Prompts*.
 Phoenix receives prompts, plans, and generated code in clear text and has
-no authentication of its own in this stack.
+no authentication of its own in this stack; see
+xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
 
 == Stop or reset the stack
 
@@ -525,7 +540,9 @@ each repository declares its own backend instead.
 
 * *Core exits with `LLM credentials missing from environment`.* The
   variables for the provider prefix in `llm.model` or `llm.small_model` are
-  not in `core/.env`.
+  not in `core/.env`. See
+  xref:main:reference/llm-providers.adoc#llm-troubleshooting[LiteLLM
+  troubleshooting].
 * *Core exits with `Services the core calls have no bearer token`.*
   `NEBULA_IAC_TOKEN`, or the `NEBULA_*_TOKEN` of an enabled optional
   sidecar, is empty in `core/.env`.
@@ -554,7 +571,7 @@ each repository declares its own backend instead.
   permissions.
 * *A session aborts with `Prompt not found: <name>`.* The prompt is
   missing in Phoenix or has no version tagged with the `environment`
-  value.
+  value. See xref:main:guides/customize-prompts.adoc[Customize prompts].
 * *The browser cannot download an artifact.* Port 9000 must be reachable
   from the browser under the host in `storage.public_endpoint_url`
   (`\http://localhost:9000` by default).
@@ -564,7 +581,10 @@ each repository declares its own backend instead.
   `storage.terraform_state_bucket` to `""`, the backend is the
   repository's own instead: one that declares a backend needs that
   backend's credentials in `services/iac/.env`, and one that declares none
-  plans against local state that dies with the workspace.
+  plans against local state that dies with the workspace. Other causes are
+  in
+  xref:main:guides/configure-state-backends.adoc#state-troubleshooting[Troubleshooting
+  state backends].
 * *`init` fails on a missing backend configuration file.*
   `IAC_BACKEND_CONFIG` is not checked at startup, so the sidecar boots
   normally and a wrong path only appears in the failing job's stderr.

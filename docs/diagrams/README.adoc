@@ -1,0 +1,37 @@
+= Diagram sources
+:description: Editable Archify sources for the PNGs the documentation site embeds.
+
+This directory sits outside `docs/src/`, so Antora does not publish it: it
+holds the editable Archify originals for the PNGs in
+`docs/src/modules/main/images/`.
+
+== Render recipe
+
+Each `*.architecture.json` and `*.sequence.json` file is an Archify
+specification. Render one with the `archify` skill, from its own directory:
+
+[source,bash]
+----
+node bin/archify.mjs validate <type> <spec.json> --quality showcase --json
+node bin/archify.mjs deliver  <type> <spec.json> <out.html> --quality showcase --json
+node bin/archify.mjs visual-check <out.html> --json
+----
+
+`<type>` is `architecture` for a `*.architecture.json` file and `sequence`
+for a `*.sequence.json` file. The delivered HTML is a build output and is not
+committed; export the PNG from the viewer and replace the file of the same
+name in `docs/src/modules/main/images/`. Changing a specification therefore
+means re-exporting its PNG too.
+
+== Known follow-up
+
+`docs/src/modules/main/images/system-architecture.png` — used as the landing
+page's hero and on `architecture.adoc` — is a 2048x1320 diagramming-canvas
+screenshot that still carries the tool's own chrome: a
+"Light / Classic / Present / Export" button row at top right and a
+"PATH MAP LENS ... 100% +" zoom bar at bottom right. It is the most visible
+image on the site and the chrome should not be in it.
+
+The fix is a re-render from `system-architecture.architecture.json` in this
+directory with the chrome excluded, not a crop. It is recorded here rather
+than done because restoring these sources is what makes it tractable.

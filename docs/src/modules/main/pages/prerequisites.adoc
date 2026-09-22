@@ -16,7 +16,9 @@ Do *not* use it for shared or production environments. As shipped it has no
 TLS, well-known default credentials for PostgreSQL and RustFS, an
 unauthenticated Phoenix console, and, unless you enable OIDC, *no
 authentication at all*: every request runs as a built-in local identity
-that holds the `devops` operation role and the panel `admin` role.
+that holds the `devops` operation role and the panel `admin` role. For
+anything shared, read
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 == Requirements
 
@@ -38,7 +40,9 @@ that holds the `devops` operation role and the panel `admin` role.
    credentials you configure alongside the stack. If you instead point
    `storage.terraform_state_bucket` to `""` so that the repository you
    target declares its own backend (`terraform { backend ... }`), this
-   grant must reach the bucket or container that block names instead.
+   grant must reach the bucket or container that block names instead. See
+   xref:main:guides/configure-state-backends.adoc[Configure state
+   backends].
 
 Git and Docker are the only things you install on the host. Everything the
 first build installs — OpenTofu and Terraform — goes into the `iac`

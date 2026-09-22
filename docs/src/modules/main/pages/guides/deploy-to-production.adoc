@@ -7,10 +7,12 @@ apply to each component, and which settings and secrets you must
 supply. It does not repeat the field-by-field references; it points at
 them:
 
-* Configuration reference, for every `config.yaml` field.
-* Environment variables and secrets, for every core and sidecar
-  variable.
-* LiteLLM providers and models, for LLM providers and credentials.
+* xref:main:reference/configuration.adoc[Configuration reference], for
+  every `config.yaml` field.
+* xref:main:reference/environment-variables.adoc[Environment variables
+  and secrets], for every core and sidecar variable.
+* xref:main:reference/llm-providers.adoc[LiteLLM providers and models],
+  for LLM providers and credentials.
 * xref:main:guides/enable-authentication.adoc[] for authentication.
 * xref:main:guides/monitor-with-phoenix.adoc[] for tracing.
 * xref:main:guides/customize-prompts.adoc[] for the prompt registry.
@@ -441,8 +443,11 @@ against your entitlement source and enable it.
 
 `config.yaml` is baked into the core image at build time, or mounted at
 the path in `NEBULA_CONFIG`. It contains no secrets and can live in
-version control. Review every section; the configuration reference has
-the fields and a production-shaped example.
+version control. Review every section; the
+xref:main:reference/configuration.adoc[configuration reference] has the
+fields and a
+xref:main:reference/configuration.adoc#example-production[production-shaped
+example].
 
 [cols="2,6",options="header"]
 |===
@@ -460,7 +465,8 @@ every prompt in Phoenix.
 |`admin`
 |`default_root_email` for identity providers that emit
 `email_verified`; otherwise plan the one-off SQL grant
-(xref:main:guides/enable-authentication.adoc#bootstrap-admin[]).
+(xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the
+first administrator access]).
 
 |`services.iac`
 |Endpoint of your IaC sidecar, token variable name, `job_timeout`

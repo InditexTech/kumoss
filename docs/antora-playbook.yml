@@ -18,11 +18,7 @@ site:
   # Publishing to GitHub Pages as a project page always publishes under
   # https://<org>.github.io/<repo>/ — the repo name has to be baked into
   # this as a path segment; Antora uses it to generate correct absolute
-  # asset URLs — e.g.:
-  #
-  # url: https://<org>.github.io/<repo>
-  # url: https://docs.example.com
-  #
+  # asset URLs.
   url: https://inditextech.github.io/nebula
   # A second /<component-name>/ segment only appears below (in
   # site.start_page) if this site opted into one (`docouture new`'s "extra URL

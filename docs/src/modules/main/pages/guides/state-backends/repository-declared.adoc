@@ -1,4 +1,3 @@
-[#repository-declared-backend]
 = Repository-declared backend
 :description: Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.
 
@@ -97,8 +96,9 @@ Per-cloud, per-authentication-method minimums for both sets are in
 xref:main:reference/terraform-providers.adoc[Terraform providers]
 (provider minimums, then
 xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
-minimums]); the variable-level view is in the "Cloud credentials for the
-IaC engine" section of the environment variables reference.
+minimums]); the variable-level view is in
+xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
+credentials for the IaC engine].
 
 Model 2 — what ships — can spare you the second set: Nebula writes the
 backend itself, and where the rendered block embeds static keys — the

@@ -139,7 +139,7 @@ Yes. The session runs on the server. Reopen it from the *Sessions*
 panel in the footer or from *View all sessions* on your user page.
 ====
 
-.Why can't I continue a failed session?
+.Why can I not continue a failed session?
 [%collapsible]
 ====
 A failed round ends the session for good. Start a new session; if the

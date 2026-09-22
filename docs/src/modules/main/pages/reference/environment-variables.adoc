@@ -290,8 +290,8 @@ declare fall through, so setting it _together with_ Nebula-managed
 state (`storage.terraform_state_bucket` set) merges the two backends
 key by key instead of picking one — a misconfiguration to avoid, not a
 layering feature. Blank or whitespace counts as unset. See
-xref:main:guides/state-backends/sidecar-supplied.adoc#sidecar-supplied-backend[Terraform/OpenTofu
-state backends].
+xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
+backend].
 |No: unlike `IAC_BINARY` this path is not checked at startup, so a
 wrong one fails on `init`, in that job's stderr
 |===

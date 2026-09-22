@@ -106,8 +106,8 @@ hand-edit it.
 After changing a contract, regenerate the client for that service or
 the core keeps speaking the old shape. The command, the reason the
 generator drops the SPDX headers, and how to put them back are in
-"Regenerating sidecar clients" in
-xref:main:guides/development.adoc[Development].
+xref:main:guides/development.adoc#regenerating-clients[Regenerating
+sidecar clients].
 
 == Next steps
 

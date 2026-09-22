@@ -58,8 +58,9 @@ from the host in the default stack.
 
 == Configuration
 
-All keys are in `config.yaml` under `telemetry` (details in the
-configuration reference):
+All keys are in `config.yaml` under `telemetry` (details in
+xref:main:reference/configuration.adoc#telemetry[the `telemetry` section]
+of the configuration reference):
 
 [cols="2,2,4",options="header"]
 |===
@@ -175,8 +176,9 @@ generation, code generation, reporting, and so on).
 * *Kind:* `LLM`.
 * *Model and provider:* `llm.model_name`, and `llm.provider` when the
   LiteLLM prefix maps to an OpenInference provider name. When
-  `llm.model_list` uses a custom alias (see LiteLLM providers and
-  models), `llm.model_name` on the span is that alias rather than the
+  `llm.model_list` uses a custom alias (see
+  xref:main:reference/llm-providers.adoc[LiteLLM providers and models]),
+  `llm.model_name` on the span is that alias rather than the
   underlying `provider/model-id` string, and `llm.provider` is left
   unset because the alias carries no recognizable prefix.
 * *Invocation parameters:* `llm.invocation_parameters` with the request
@@ -278,7 +280,7 @@ start time, so durations are correct even though the nesting is flat.
   background thread. If the collector is unreachable, the exporter
   retries with back-off within its timeout, logs `Failed to export span
   batch`, and drops the batch. Sessions are not affected; the traces
-  are simply lost.
+  are lost.
 * There is no startup connectivity check for the trace endpoint. The
   core does, however, need Phoenix's HTTP API at the same base URL for
   prompt seeding: it retries the connection for about 27 seconds and

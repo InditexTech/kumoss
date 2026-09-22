@@ -204,8 +204,9 @@ take, not a default you inherit.
 *Any change to `config.yaml` needs an image rebuild* (`docker compose
 build core && docker compose up -d core`), because the file is baked
 into the core image. To vary it per environment without rebuilding,
-mount `config.yaml` and point `NEBULA_CONFIG` at it — see Images and
-configuration delivery, in the production deployment guide.
+mount `config.yaml` and point `NEBULA_CONFIG` at it — see
+xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
+and configuration delivery].
 
 *Switching models moves nothing.* Turning managed state on does not
 import the state your repositories' backends hold; turning it off
@@ -479,14 +480,16 @@ Terraform 1.16.0; both support `use_lockfile`.
 
 === Related documentation
 
-* Configuration reference — the `storage` section — every field,
-  default, and validation rule.
-* The environment variables reference — `core/.env` and the sidecar
-  `.env` files.
+* xref:main:reference/configuration.adoc#storage[Configuration reference
+  — the `storage` section] — every field, default, and validation rule.
+* xref:main:reference/environment-variables.adoc[Environment variables
+  and secrets] — `core/.env` and the sidecar `.env` files.
 * xref:main:reference/api/iac.adoc#state-backend[IaC sidecar API —
   State backend] — the contract-level view.
 * xref:main:reference/terraform-providers.adoc[Terraform providers] —
   per-cloud backend credential minimums.
 * xref:main:architecture/data-and-state.adoc#terraform-state[Architecture
   — Data and state] — where state sits among Nebula's stores.
-* The production deployment guide — persistence expectations.
+* xref:main:guides/production/operations.adoc#data-and-persistence[Operations
+  — Data services and persistence] — persistence expectations in
+  production.

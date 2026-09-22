@@ -83,5 +83,21 @@ footer:
           url: ROOT:index.adoc
         - text: Quickstart
           url: main:quickstart.adoc
+        - text: FAQ
+          url: main:faq.adoc
+    - title: Documentation
+      links:
+        - text: Guides
+          url: main:guides-overview.adoc
+        - text: Reference
+          url: main:reference-overview.adoc
         - text: Architecture
           url: main:architecture.adoc
+    - title: Project
+      links:
+        - text: Contributing
+          url: main:contributing.adoc
+        - text: Release notes
+          url: main:release-notes/index.adoc
+        - text: Additional information
+          url: main:additional-information.adoc

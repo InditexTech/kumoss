@@ -54,4 +54,8 @@ the only public entry point.
 
 Nebula's runtime components, internal layering, and end-to-end request flow
 are covered in xref:main:architecture.adoc[Architecture]. To run the bundled
-stack locally, see xref:main:quickstart.adoc[Quickstart].
+stack locally, see xref:main:quickstart.adoc[Quickstart]. From there,
+xref:main:guides-overview.adoc[Guides] walks through each task the web
+application supports, and xref:main:reference-overview.adoc[Reference] holds
+the configuration, environment-variable, role, and API details those guides
+point at.

@@ -66,7 +66,7 @@ header env vars may be honoured by the OpenTelemetry SDK but this is
 not verified here — put an authenticating proxy or collector in front
 of Phoenix if you need auth. Note that the same
 `telemetry.collector_url` serves both trace export and the prompt API
-(xref:main:guides/monitor-with-phoenix.adoc#configuration[]).
+(xref:main:guides/monitor-with-phoenix.adoc#configuration[Configuration]).
 
 *Checked-in defaults you must not carry into production.* The compose
 file hard-codes several credentials and settings that are fine only on

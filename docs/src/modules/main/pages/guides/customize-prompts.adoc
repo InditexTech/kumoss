@@ -138,7 +138,7 @@ Phoenix.
 Every shipped seed provides both keys and starts with the repository's
 SPDX comment header. The loader reads `body` and `description` and
 ignores everything else in the mapping — an extra key is neither
-rejected nor surfaced anywhere; it is simply dead weight in the file.
+rejected nor surfaced anywhere; it is dead weight in the file.
 
 == How seeding works
 

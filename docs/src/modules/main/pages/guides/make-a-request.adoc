@@ -11,7 +11,9 @@ so the filter accepts it as a change.
   organization's identity provider. On first login you have the
   `developer` role, which lets you generate infrastructure, open and merge
   pull requests, and apply your own sessions. Drift remediation needs the
-  `devops` role; ask your administrator (Admin portal).
+  `devops` role; ask your administrator (see
+  xref:main:guides/administer-users-and-locks.adoc[Administer users and
+  locks]).
 * *A repository URL* that holds Terraform-compatible code and that
   Nebula's service account can clone and push to. Enter the plain URL;
   URLs with a user name or token embedded are rejected.

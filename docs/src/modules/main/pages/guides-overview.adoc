@@ -67,7 +67,9 @@ run is in progress; a failed session must be replaced by a new one.
 `sessions/<session>/rounds/<round>/` and the session detail view offers
 them as download links: code-change files, plan text, drift reports, and
 JSON reports. Everything is also visible to admin-panel users in the admin
-panel of the admin portal.
+panel (see
+xref:main:guides/administer-users-and-locks.adoc[Administer users and
+locks]).
 
 *Pull requests.* Creating a pull request is a separate action ("Create
 Pull Request" in the results view). The core writes a title and

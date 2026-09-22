@@ -1,4 +1,3 @@
-[#nebula-managed-state]
 = Nebula-managed state
 :description: The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 

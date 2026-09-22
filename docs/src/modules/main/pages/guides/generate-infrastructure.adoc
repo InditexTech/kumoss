@@ -32,7 +32,7 @@ bucket for application logs", "open port 443 on the web security group",
   explanation and the round ends `uncompleted`.
 . *Prompt composition.* The compositor selects the relevant resource
   prompts and abbreviations for the target cloud from Phoenix, in two
-  passes (see the Phoenix prompt templates guide).
+  passes (see xref:main:guides/customize-prompts.adoc[Customize prompts]).
 . *Generate and validate loop.* The main model edits files in the
   workspace; changed files are uploaded as code-change artifacts and
   committed to the session branch. The target generator picks the
@@ -94,8 +94,9 @@ create the pull request, merge it, and apply.
   `services/iac/.env`; missing cloud credentials surface as engine errors
   in the session, not at startup.
 * Every cloud scope needs its six guideline prompts in Phoenix; a missing
-  one aborts the round with `Prompt not found`. See the prompt templates
-  guide for the list every cloud scope must provide.
+  one aborts the round with `Prompt not found`. See
+  xref:main:guides/customize-prompts.adoc#guideline-prompts[Guideline
+  prompts] for the list every cloud scope must provide.
 * A `high` impact or a failed compliance check does not stop the round,
   it locks the session; review the report before asking for an unlock.
 

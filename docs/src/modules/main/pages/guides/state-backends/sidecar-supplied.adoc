@@ -1,4 +1,3 @@
-[#sidecar-supplied-backend]
 = Sidecar-supplied backend
 :description: Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
 
