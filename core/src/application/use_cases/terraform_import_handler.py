@@ -213,11 +213,15 @@ class TerraformImportHandler:
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )
                     if not convergence.validation:
-                        logging.warning(
-                            f"Convergence resolution completed but the generated "
-                            f"code still differs from the imported state: "
-                            f"{convergence.feedback}"
+                        fail_msg = await self.__report_svc.summarize_problem(
+                            feedback=convergence.feedback,
+                            history=ctx.history,
                         )
+                        raise TerraformValidationFailedError(
+                            message=fail_msg,
+                            error_code=500,
+                        )
+
                     plan_after_import = convergence.terraform_plan or plan_after_import
 
                 _ = await self.__report_svc.generate_report(
