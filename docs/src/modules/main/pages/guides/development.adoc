@@ -125,5 +125,7 @@ Regeneration drops the SPDX headers from the generated files; re-add
 them afterwards. Do not hand-edit anything under
 `core/src/clients/{authz,iac,mapping,notifications}/`.
 
+== Pull requests
+
 Once your change is ready, xref:main:contributing.adoc[] covers the
 pull-request process and the checks it must pass.

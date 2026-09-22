@@ -12,17 +12,16 @@ xref:main:guides/development.adoc[].
 * Before contributing code, sign the Contributor License Agreement
   (CLA). Instructions are at
   https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md[InditexTech/foss].
-* Follow the
+* By participating in the project you agree to abide by the rules and
+  principles set out in the
   https://github.com/InditexTech/nebula/blob/main/CODE_OF_CONDUCT.md[code
-  of conduct] in every project space. Nebula adheres to the general
+  of conduct]. Nebula adheres to the general
   https://github.com/InditexTech/foss/blob/main/CODE_OF_CONDUCT.md[Inditex
   Tech Code of Conduct]; direct any inquiry about it to oso@inditex.com.
-* Open an issue to discuss and gather feedback on a feature or fix
-  before starting work, and check existing
-  https://github.com/InditexTech/nebula/issues[issues] and
-  https://github.com/InditexTech/nebula/pulls[pull requests] first to
-  avoid duplication. If you take on an existing issue, comment on it so
-  other contributors know it is in progress.
+* Check existing https://github.com/InditexTech/nebula/issues[issues]
+  and https://github.com/InditexTech/nebula/pulls[pull requests] before
+  starting work, to avoid duplication. If you take on an existing issue,
+  comment on it so other contributors know it is in progress.
 * Discuss and gather feedback from the community before making
   significant changes to the project's structure or architecture.
 
@@ -56,7 +55,8 @@ and link the issue it addresses. Include UI screenshots for visible
 changes. Document any new changes or features you add, so other
 contributors and users understand your work and its purpose.
 
-Commit subjects must follow the
+Keep the commit history clean and organized: divide your changes into
+logical, descriptive commits. Commit subjects must follow the
 https://www.conventionalcommits.org/en/v1.0.0/[Conventional Commits
 Specification] (for example `fix(core): release session lock`); CI
 rejects other subjects. Sign your commits (`git commit -S`) — signing

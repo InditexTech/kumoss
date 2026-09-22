@@ -3,7 +3,9 @@
 
 Short answers for people using the Nebula web application. The longer
 explanations are in the xref:main:guides/make-a-request.adoc[user
-guide]; mode-by-mode behavior is in xref:main:guides-overview.adoc[Guides].
+guide]; mode-by-mode behavior is in
+xref:main:guides-overview.adoc#compare-modes[Comparing the operating
+modes].
 If the answer you need is not here, see
 xref:main:additional-information.adoc#support-requests[Support requests].
 

@@ -78,12 +78,28 @@ via the `RUSTFS` provider
 |No component shipped; any compliant IdP
 |===
 
+== Contact and support
+
+Three channels, each with its own purpose:
+
+* *Support request in the web application* — questions about your own
+  Nebula deployment or about one of your sessions. It reaches the
+  reviewers in your deployment, not the Nebula project.
+* https://github.com/InditexTech/nebula/issues[Issue tracker] — bugs
+  and feature requests in Nebula itself. Check the existing issues
+  first; xref:main:contributing.adoc[] covers what happens next.
+* https://vdp.inditex.com[Disclosure submission program] — security
+  vulnerabilities, reported privately and never through a public
+  GitHub issue.
+
 [#support-requests]
-== Support requests
+=== Support requests
 
 Any signed-in user can send a support request from inside the web
-application, and it reaches Nebula's own reviewers rather than a
-generic mailbox.
+application. It goes to the people who hold the reviewer roles in your
+own Nebula deployment — colleagues on your platform team, not the
+Nebula project — through the channel your platform team connected
+(Slack in the reference setup), with a copy addressed to you.
 
 From the browser, the chat-bubble *Support* icon in the header opens a
 form for up to 500 characters, plain text only — HTML and code
@@ -107,7 +123,8 @@ higher, and the bundled sidecar posts it to Slack. When
 Notifications are disabled.`; when delivery fails it answers `502
 Notification was not delivered.`
 
-== Reporting a security vulnerability
+[#security]
+=== Security
 
 Report a security vulnerability through the
 https://vdp.inditex.com[disclosure submission program], in English —
