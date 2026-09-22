@@ -111,6 +111,17 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 422)
         svc.detect_roots.assert_not_awaited()
 
+    def test_parse_accepts_a_username_only_uri(self):
+        uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/repo"
+        svc = _mock_service(AsyncMock(return_value=[]))
+        with patch(
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            return_value=svc,
+        ):
+            resp = self.client.post("/v1/repository/parse", json={"repo_uri": uri})
+        self.assertEqual(resp.status_code, 200)
+        svc.detect_roots.assert_awaited_once_with(uri)
+
     def test_parse_bogus_uri_rejected_by_ls_remote(self):
         """Unmocked: a URI that fails git ls-remote produces a 400."""
         resp = self.client.post(
