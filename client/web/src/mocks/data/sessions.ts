@@ -72,8 +72,9 @@ function statusSequence(content: MockContentType): SessionStatus[] {
   if (content.startsWith("apply")) {
     return ["started", "apply", "report"];
   }
-  // A drift pass that found drift emits `reconciling` once before the
-  // remediation generate/validate loop. A clean run records none.
+  // A drift pass records its assessment before the drift read and its
+  // conclusion after the remediation loop — one `reconciling` entry on
+  // each side of `generating`/`validating`.
   if (content.startsWith("drift") || content.startsWith("partial_drift")) {
     return [
       "started",
@@ -81,6 +82,7 @@ function statusSequence(content: MockContentType): SessionStatus[] {
       "reconciling",
       "generating",
       "validating",
+      "reconciling",
       "report",
     ];
   }
@@ -92,7 +94,7 @@ const STAGE_MESSAGES: Partial<Record<SessionStatus, string>> = {
   filtering: "Identifying relevant resources...",
   generating: "Generating Terraform code...",
   validating: "Validating generated code with terraform...",
-  reconciling: "Correcting drifted resources...",
+  reconciling: "Reconciling infrastructure drift...",
   apply: "Applying the stored plan...",
   report: "Preparing report...",
   completed: "Infrastructure code ready.",

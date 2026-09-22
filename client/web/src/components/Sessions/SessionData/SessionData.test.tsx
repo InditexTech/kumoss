@@ -124,8 +124,9 @@ describe("SessionData timeline", () => {
           plans: [
             {
               id: 7,
-              // The remediation plan a reconciling pass produces, not
-              // the drift diff that opened the round.
+              // An artifact stored after the reconciling entry: the
+              // drift diff the assessment read, which is what the phase
+              // owns before remediation re-plans.
               type: "plan",
               targets: [],
               url: "https://storage.example.com/plan",

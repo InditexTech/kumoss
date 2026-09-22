@@ -198,6 +198,10 @@ describe("live run", () => {
 
     const detail = await getSessionDetail(session_id);
     const statuses = detail.rounds.flatMap((r) => r.statuses);
+    // Scoped to a generate session, whose mock sequence has no
+    // pre-check: a real drift pass writes an assessment and its
+    // conclusion, so two consecutive `reconciling` rows are expected
+    // there. What this guards is the SSE client, not the pipeline.
     const consecutiveRepeat = statuses.some(
       (entry, i) => i > 0 && statuses[i - 1].status === entry.status,
     );

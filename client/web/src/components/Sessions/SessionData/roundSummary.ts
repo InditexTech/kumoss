@@ -123,10 +123,11 @@ export type TimelineEvent = {
  *  - `started`, `filtering`, `apply`, `completed`, `uncompleted` and `failed`
  *    never carry artifacts. That falls out of the rule; it is not hardcoded.
  *  - The read model returns *every* plan and report of a round, oldest
- *    first, so each `validating` / `reconciling` pass carries the plan it
- *    actually produced. Under the old latest-wins read model the earlier
- *    passes were bare, and a drift diff could never be shown next to the
- *    plan it produced.
+ *    first, so each pass carries the artifact it actually produced: a
+ *    `reconciling` entry carries the drift diff stored right after it,
+ *    and the remediation plan lands under the `validating` that follows.
+ *    Under the old latest-wins read model the earlier passes were bare,
+ *    and a drift diff could never be shown next to the plan it produced.
  *
  * A round with no statuses yet (INSERTed, first status still unwritten) has
  * no events. It cannot own artifacts either, since every writer statuses
