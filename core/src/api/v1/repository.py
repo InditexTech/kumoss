@@ -124,7 +124,8 @@ async def parse_repository(
         Body(
             description=(
                 "Git-cloneable repository URI to parse for Terraform roots. "
-                "Must not embed credentials."
+                "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
+                "but must not embed a password or token."
             ),
             embed=True,
         ),
