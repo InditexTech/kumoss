@@ -1,4 +1,4 @@
-= Nebula
+= Home
 :page-layout: home
 :page-nav-module: main
 :description: Turn natural-language requests into reviewed, compliant Terraform-compatible Infrastructure as Code, generated directly in your repository.
@@ -24,8 +24,8 @@ decision is computed by application code, never by a model.
 ====
 [card,subheader="Start here"]
 .xref:main:quickstart.adoc[Try Nebula locally]
-Run the full stack — core, sidecars, PostgreSQL, and Phoenix — in Docker
-Compose, with every credential defaulted for evaluation.
+Run the checked-in Docker Compose file — service tokens and datastore
+passwords are already filled in; only LLM credentials are yours to supply.
 
 [card,subheader="Production"]
 .xref:main:guides/deploy-to-production.adoc[Deploy to production]
@@ -45,7 +45,7 @@ merging and applying the result.
 
 == Key capabilities
 
-[cards,columns="1 s:2 m:3"]
+[cards,columns="1 s:2 m:2"]
 ====
 [card]
 .xref:main:guides/make-a-request.adoc[Describe what you need, in plain language]
@@ -59,9 +59,9 @@ the engine's own `init`, `validate`, and `plan` until it passes.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc#session-locked[Catch compliance issues before they ship]
-An LLM auditor reviews every plan against your organization's rules; a
-failing finding or a high-impact change locks the session until a
-reviewer clears it.
+An LLM auditor reviews every generated plan against your organization's
+rules; a failing finding or a high-impact change locks the session until
+a reviewer clears it.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
@@ -74,7 +74,8 @@ after an explicit apply request — never on its own.
 [cta]
 ====
 Nebula is open source and actively developed — issues, feedback, and
-contributions are welcome.
+contributions are welcome; see how each default component is licensed
+in xref:main:additional-information.adoc#licensing-of-the-default-stack[the licensing table].
 
 [.primary]
 https://github.com/InditexTech/nebula[Star Nebula on GitHub]
@@ -116,9 +117,10 @@ review.
 .Do I have to open a pull request?
 [%collapsible]
 ====
-The API allows a direct apply, but the web application always routes
-you through a pull request before applying — the recommended path,
-since it brings your team's review and CI into the decision.
+The API allows a direct apply, but the web application has no
+standalone Apply button. As a `developer`, the pull request is your
+route to apply — the recommended path, since it brings your team's
+review and CI into the decision.
 ====
 
 .Can other people see my sessions?
