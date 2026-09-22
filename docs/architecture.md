@@ -102,7 +102,7 @@ The editable sources are the Archify sequence specifications in [`diagrams/`](di
 ### Phase 6: implicit drift pre-check on the validated targets (at most 2 rounds)
 
 - **Inspect the plan.** With the code validated, the core runs `show -json` on the plan artifact validation left in the workspace and diffs each resource's `before` and `after` states. It reads the round's own plan instead of producing a second one: the validation step handed back a `PlanRef` naming that artifact, and the pre-check passes the ref straight to `show`. The differences are inverted into "make the code match the infrastructure" operations, and the drift JSON is stored as an artifact.
-- **Split and filter.** If the plan shows differences, the Drift Task Splitter (small model) turns them into plain-language operations, and the Reconciliation Filter (small model) reads the branch's `diff_history` and drops every operation that would merely undo the session's own intended changes.
+- **Split and filter.** If the plan shows differences, the Drift Task Splitter (main model) turns them into plain-language operations, and the Reconciliation Filter (small model) reads the branch's `diff_history` and drops every operation that would merely undo the session's own intended changes.
 - **Decide.** If genuine drift remains, it re-enters the generation loop in batches of `orchestration.drift_group_operations` (8) with the forbidden-actions block omitted, and the pre-check runs once more — on the ref the last reconciliation round produced, again without planning twice. If only the session's own changes remain, or the plan is clean, the pre-check stops and the last plan is final.
 
 ### Phase 7: report and artifacts
@@ -172,7 +172,7 @@ Each diagram is an Archify sequence diagram: participants across the top, time r
 
 ### Agent catalogue
 
-Every message into the agents lane is one of the agents below. Each is an `LLMOrchestrationService` loop rendered from a Jinja layout with prompts fetched from Phoenix, given a fixed tool set, and ended by a **sentinel tool** whose structured arguments are the agent's result. Model routing is by prompt type: only the generation, target, and report prompts use the main model.
+Every message into the agents lane is one of the agents below. Each is an `LLMOrchestrationService` loop rendered from a Jinja layout with prompts fetched from Phoenix, given a fixed tool set, and ended by a **sentinel tool** whose structured arguments are the agent's result. Model routing is by prompt type: only the generation, target, report, and task-splitter prompts use the main model.
 
 | Agent | Model role | Tools available | Ends via | Where it appears |
 |---|---|---|---|---|
@@ -183,7 +183,7 @@ Every message into the agents lane is one of the agents below. Each is an `LLMOr
 | Request Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` | `requests_filter` | Phase 3; also the first step of partial drift sessions |
 | Prompt Compositor | small | none besides its sentinel | `construct_information` (called in two passes) | Phase 4 |
 | Status Message Agent | small | none | plain text | Every status change; its text is what the SSE stream carries |
-| Drift Task Splitter | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search` | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions |
+| Drift Task Splitter | main | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search` | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions |
 | Reconciliation Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it **must** call `diff_history`) | `report_decomposed_task_operations` | Phase 6 only (generate rounds) |
 | Drift Exception Filter Agent | small | none besides its sentinel; rendered with the cloud's `drift_exceptions` prompt | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions, after the reconciliation filter |
 | Compliance Auditor Agent | small | none besides its sentinel (input: the first request and the raw plan output) | `report_compliance_findings` | Phase 8, generate rounds only, when `orchestration.enable_compliance_checker` is `true` |
@@ -284,7 +284,7 @@ All drift work runs through `TerraformDriftService.detect_and_resolve_drift`, a 
 
 1. Read the drift out of a plan. Detection is `show -json` on a plan artifact, so the loop takes the plan to start from as a parameter: a `PlanRef` — the workspace, the plan file, the targets the plan was produced with, and a `sha256` of `git status --porcelain=v2 --branch` sampled immediately after the plan job returned. A generate round passes the ref it has just validated and its pre-check costs one `show`; a dedicated drift session passes `None` and the loop plans first. The fingerprint is what makes reading someone else's plan safe: `Terraform.drift` re-plans any ref the working tree has moved past and refuses one naming another workspace, and because it covers uncommitted and untracked files it moves for generated code, while ignoring the engine's own output (a rewritten plan file, a growing provider cache). Every reconciliation group re-plans, and the last of those is what the next iteration reads; an iteration whose split yielded no operations has no ref to hand on, so the next one plans for itself — which is what keeps every iteration that could have changed reading live state.
 2. `TerraformUtils.plan_to_drift` DeepDiffs each resource's `before` and `after` and *inverts* the result into "make the code match the infrastructure" operations; the drift JSON is stored as an artifact. The plan text is stored by the validation loop that produced it, one artifact per attempt.
-3. If the plan is clean, stop. Otherwise the Drift Task Splitter (small model) turns the JSON into plain-language operations, chunked into groups of `drift_group_operations` (8), and each group re-enters the generation and validation loop with the forbidden-actions block omitted (the intent is reconciliation).
+3. If the plan is clean, stop. Otherwise the Drift Task Splitter (main model) turns the JSON into plain-language operations, chunked into groups of `drift_group_operations` (8), and each group re-enters the generation and validation loop with the forbidden-actions block omitted (the intent is reconciliation).
 
 The loop has two entry points that differ in *what* they target and *whether session intent is filtered out*:
 

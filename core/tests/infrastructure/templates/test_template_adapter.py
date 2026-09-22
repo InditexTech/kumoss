@@ -296,6 +296,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("sole source of truth", prompt)
         self.assertIn("unreconciled_drift", prompt)
         self.assertIn("whitelisted_exceptions", prompt)
+        self.assertIn("belongs in `whitelisted_exceptions` alone", prompt)
 
     async def test_render_report_generator_apply(self):
         prompt, mock_fetch = await self._run_report_generator_test(

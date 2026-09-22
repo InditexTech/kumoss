@@ -90,8 +90,8 @@ class TerraformDriftHandler:
                 )
                 if not drift.in_sync:
                     content += (
-                        "\n\nUnreconciled drift. Please note, this drift couldn't "
-                        f"be reconciled: {drift.feedback or drift.drift}"
+                        "\n\nUnreconciled drift. Please note, the plan still "
+                        f"shows this drift: {drift.feedback or drift.drift}"
                     )
                 if drift.excluded:
                     content += (

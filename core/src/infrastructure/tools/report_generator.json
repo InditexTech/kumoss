@@ -223,7 +223,7 @@
         },
         "status": {
           "type": "string",
-          "description": "The final status of the remediation attempt.",
+          "description": "The final status of the remediation attempt: 'Succeeded' when nothing is left in 'unreconciled_drift' (drift the exception rules cover never lowers it), 'Partial' when part of the drift remains unreconciled, 'Failed' when the drift could not be read or none of it was reconciled.",
           "enum": [
             "Succeeded",
             "Partial",

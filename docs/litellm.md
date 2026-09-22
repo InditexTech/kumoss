@@ -18,8 +18,8 @@ Nebula configures two model roles in `config.yaml`. Both are applied by the core
 
 | Key | Role | Used for |
 |---|---|---|
-| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), and the report generator chain. |
-| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, task splitting, drift reconciliation filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
+| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), the report generator chain, and the task splitter chain (turning a drift report into remediation operations). |
+| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
 
 Two extra settings apply to both roles:
 
