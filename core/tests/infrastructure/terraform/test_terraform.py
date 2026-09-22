@@ -484,12 +484,13 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
             scope=_ok(stdout=json.dumps(["res-1", "res-2", "res-3"])),
         )
 
-        ids = await self.terraform.scope_resource_ids(
+        discovery = await self.terraform.scope_resource_ids(
             scope_id="scope-123",
             terraform_provider="azure",
         )
 
-        self.assertEqual(ids, ["res-1", "res-2", "res-3"])
+        self.assertEqual(discovery.resource_ids, ["res-1", "res-2", "res-3"])
+        self.assertEqual(discovery.feedback, "")
         scope_body = submit_mocks["scope"].await_args.kwargs["body"]
         # Here scope_id names the scope being listed, so it comes from the
         # argument; the init that precedes it runs under the session scope.
@@ -509,20 +510,23 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
             )
         self.assertEqual(ctx.exception.error_code, 502)
 
-    async def test_scope_op_failure_raises(self):
+    async def test_scope_op_failure_returns_no_ids_with_diagnostics(self):
+        # A failed cloud query is a succeeded job with diagnostics under the
+        # IaC contract, so the scope reads as empty and the stderr travels
+        # back with it instead of aborting the import session.
         self._use_config()
         self._patch_import_ops(
             init=_ok(),
             scope=_failed_cmd("Error: scope retrieval failed"),
         )
 
-        with self.assertRaises(ExceptionHandler) as ctx:
-            await self.terraform.scope_resource_ids(
-                scope_id="scope-123",
-                terraform_provider="azure",
-            )
-        self.assertEqual(ctx.exception.error_code, 502)
-        self.assertIn("scope resource IDs failed", ctx.exception.message)
+        discovery = await self.terraform.scope_resource_ids(
+            scope_id="scope-123",
+            terraform_provider="azure",
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("scope retrieval failed", discovery.feedback)
 
     async def test_disabled_config_raises(self):
         self._use_config(enabled=False)

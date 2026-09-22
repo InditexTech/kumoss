@@ -14,8 +14,12 @@ import unittest
 from unittest.mock import AsyncMock
 
 from src.application.services.terraform_import_service import TerraformImportService
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformDiscoveryDTO, TerraformValidationDTO
 from src.shared.constants import TerraformProvider
+
+
+def _discovery(resource_ids: list[str], feedback: str = "") -> TerraformDiscoveryDTO:
+    return TerraformDiscoveryDTO(resource_ids=resource_ids, feedback=feedback)
 
 
 def _import_result(validation: bool, feedback: str = "") -> TerraformValidationDTO:
@@ -36,14 +40,58 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
 
     async def test_unmanaged_resources_are_the_sorted_scope_diff(self):
         self.import_prv.state_resource_ids.return_value = ["res-b"]
-        self.import_prv.scope_resource_ids.return_value = ["res-c", "res-a", "res-b"]
+        self.import_prv.scope_resource_ids.return_value = _discovery(
+            ["res-c", "res-a", "res-b"]
+        )
 
-        unmanaged = await self.service.get_unmanaged_resources(
+        discovery = await self.service.get_unmanaged_resources(
             scope_id="scope-123",
             terraform_provider=TerraformProvider.AZURE,
         )
 
-        self.assertEqual(unmanaged, ["res-a", "res-c"])
+        self.assertEqual(discovery.resource_ids, ["res-a", "res-c"])
+        self.assertEqual(discovery.feedback, "")
+
+    async def test_failed_scope_query_reports_the_provider_diagnostics(self):
+        # The three ways a round finds nothing to import stay apart: here
+        # the query failed, so its stderr reaches the caller verbatim.
+        self.import_prv.state_resource_ids.return_value = []
+        self.import_prv.scope_resource_ids.return_value = _discovery(
+            [], "Error: invalid token"
+        )
+
+        discovery = await self.service.get_unmanaged_resources(
+            scope_id="scope-123",
+            terraform_provider=TerraformProvider.AZURE,
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("could not be listed", discovery.feedback)
+        self.assertIn("Error: invalid token", discovery.feedback)
+
+    async def test_empty_scope_is_reported_apart_from_a_failed_query(self):
+        self.import_prv.state_resource_ids.return_value = []
+        self.import_prv.scope_resource_ids.return_value = _discovery([])
+
+        discovery = await self.service.get_unmanaged_resources(
+            scope_id="scope-123",
+            terraform_provider=TerraformProvider.AZURE,
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("holds no importable resource", discovery.feedback)
+
+    async def test_fully_managed_scope_is_reported_apart_from_an_empty_one(self):
+        self.import_prv.state_resource_ids.return_value = ["res-a", "res-b"]
+        self.import_prv.scope_resource_ids.return_value = _discovery(["res-a", "res-b"])
+
+        discovery = await self.service.get_unmanaged_resources(
+            scope_id="scope-123",
+            terraform_provider=TerraformProvider.AZURE,
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("already managed", discovery.feedback)
 
     # --- Import execution ---
 

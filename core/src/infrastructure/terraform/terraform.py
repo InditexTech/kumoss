@@ -29,6 +29,13 @@ so the service injects it into the engine's environment for those three
 commands where the provider has a variable that names a scope (Azure
 and GCP). ``validate`` and ``show`` reach no cloud API and are
 submitted unscoped.
+
+Import discovery follows the same planes: a ``state pull`` that exits
+non-zero leaves the managed set unknown, so it is raised, while a
+failed cloud query in ``scope-resource-ids`` is a normal outcome of
+that endpoint (unknown scope, credentials, a provider with no
+inventory query) and comes back as an empty scope whose feedback is the
+command's ``stderr`` — nothing to import, not a broken session.
 """
 
 from __future__ import annotations
@@ -72,7 +79,7 @@ from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRe
 from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
 from src.clients.iac.models.import_request import ImportRequest
 from src.clients.iac.types import UNSET
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformDiscoveryDTO, TerraformValidationDTO
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
 from src.shared.config import system_config
@@ -356,7 +363,7 @@ class Terraform(ITerraform):
         self,
         scope_id: str,
         terraform_provider: TerraformProvider,
-    ) -> list[str]:
+    ) -> TerraformDiscoveryDTO:
         cfg = system_config.services.iac
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
@@ -383,11 +390,19 @@ class Terraform(ITerraform):
                     cfg,
                 )
                 if scope_res.exit_code != 0:
-                    raise ExceptionHandler(
-                        f"terraform scope resource IDs failed: {scope_res.stderr or 'unknown error'}",
-                        502,
+                    # A failed cloud query is a normal outcome of this
+                    # endpoint (scope not found, credentials issue, a
+                    # provider with no inventory query at all), so the
+                    # scope reads as empty and the diagnostics travel
+                    # back with it: discovery finds nothing to import
+                    # rather than the session failing.
+                    return TerraformDiscoveryDTO(
+                        resource_ids=[],
+                        feedback=scope_res.stderr or "unknown error",
                     )
-                return json.loads(scope_res.stdout)
+                return TerraformDiscoveryDTO(
+                    resource_ids=json.loads(scope_res.stdout),
+                )
 
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e

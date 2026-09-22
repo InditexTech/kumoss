@@ -2,7 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.dto import TerraformImportAttempt, TerraformImportDTO
+from src.domains.dto import (
+    TerraformDiscoveryDTO,
+    TerraformImportAttempt,
+    TerraformImportDTO,
+)
 from src.domains.interfaces import ITerraform
 from src.shared.constants import TerraformProvider
 from src.shared.logger import logging
@@ -19,20 +23,45 @@ class TerraformImportService:
         self,
         scope_id: str,
         terraform_provider: TerraformProvider,
-    ) -> list[str]:
+    ) -> TerraformDiscoveryDTO:
+        """Diff the cloud scope against the Terraform state.
+
+        Returns the unmanaged resource IDs and, when there are none, why:
+        the three ways a round can find nothing to import — the cloud
+        query failed, the scope holds nothing importable, or every
+        resource in it is already managed — stay separate outcomes for
+        the caller to report, not one empty list.
+        """
         managed_res = await self.__import_prv.state_resource_ids()
 
         logging.debug(f"Managed resources for scope {scope_id}: {managed_res}")
 
-        scope_res = await self.__import_prv.scope_resource_ids(
+        scope = await self.__import_prv.scope_resource_ids(
             scope_id=scope_id,
             terraform_provider=terraform_provider,
         )
-        logging.debug(f"Scope resources for scope {scope_id}: {scope_res}")
+        logging.debug(f"Scope resources for scope {scope_id}: {scope.resource_ids}")
 
-        unmanaged_res = sorted(set(scope_res) - set(managed_res))
+        if scope.feedback:
+            logging.warning(f"Listing scope {scope_id} failed: {scope.feedback}")
+            return TerraformDiscoveryDTO(
+                resource_ids=[],
+                feedback=f"The scope {scope_id} could not be listed: {scope.feedback}",
+            )
+        if not scope.resource_ids:
+            return TerraformDiscoveryDTO(
+                resource_ids=[],
+                feedback=f"The scope {scope_id} holds no importable resource.",
+            )
+
+        unmanaged_res = sorted(set(scope.resource_ids) - set(managed_res))
         logging.debug(f"Unmanaged resources for scope {scope_id}: {unmanaged_res}")
-        return unmanaged_res
+        return TerraformDiscoveryDTO(
+            resource_ids=unmanaged_res,
+            feedback=""
+            if unmanaged_res
+            else f"Every resource in the scope {scope_id} is already managed.",
+        )
 
     async def import_resources(
         self,

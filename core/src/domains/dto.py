@@ -98,6 +98,22 @@ class TerraformValidationDTO:
 
 
 @dataclass
+class TerraformDiscoveryDTO:
+    """Resource IDs an import round can work with, and why when it has none.
+
+    A discovery query that finds nothing is a normal outcome, so the
+    reason rides with the result instead of being raised: ``feedback`` is
+    empty only when ``resource_ids`` is usable, and otherwise says which
+    dead end was reached — the cloud query failed (carrying its own
+    diagnostics), the scope holds nothing importable, or everything in it
+    is already managed.
+    """
+
+    resource_ids: list[str]
+    feedback: str = ""
+
+
+@dataclass
 class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 

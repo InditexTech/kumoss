@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformDiscoveryDTO, TerraformValidationDTO
 from src.shared.constants import TerraformProvider
 
 
@@ -126,7 +126,7 @@ class ITerraform(ABC):
         self,
         scope_id: str,
         terraform_provider: TerraformProvider,
-    ) -> list[str]:
+    ) -> TerraformDiscoveryDTO:
         """
         Lists the resource IDs that exist in a cloud provider scope.
 
@@ -143,8 +143,10 @@ class ITerraform(ABC):
 
         On exit code 0, ``stdout`` is a JSON array of provider-native resource
         ID strings. Non-zero ``exit_code`` with diagnostics in ``stderr`` is a
-        normal outcome (e.g. scope not found, credentials issue) — the job
-        still ends as ``succeeded``.
+        normal outcome (e.g. scope not found, credentials issue, a provider
+        with no inventory query) — the job still ends as ``succeeded``, so the
+        scope reads as empty and the diagnostics come back as the DTO's
+        feedback instead of aborting the caller.
 
         Args:
             scope_id (str): Cloud provider scope to list — Azure: subscription
@@ -153,7 +155,11 @@ class ITerraform(ABC):
                 ``TerraformProvider.AZURE``, ``TerraformProvider.GCP``, ``TerraformProvider.AWS``.
 
         Returns:
-            list[str]: Provider-native resource IDs present in the scope.
+            TerraformDiscoveryDTO: ``resource_ids`` are the provider-native
+                resource IDs present in the scope, and ``feedback`` is the
+                query's diagnostics — empty on success, the command's
+                ``stderr`` when the query failed. The feedback is what tells
+                a failed query apart from a scope that holds nothing.
 
         Raises:
             ExceptionHandler: When the IaC service is disabled, unreachable,

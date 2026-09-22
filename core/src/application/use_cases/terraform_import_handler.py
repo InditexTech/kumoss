@@ -70,8 +70,9 @@ class TerraformImportHandler:
     async def __report_nothing_to_import(self, q: str, msg: str) -> None:
         """Close a round that found nothing to import with an empty report.
 
-        The scope is already fully managed, or the request targets nothing
-        unmanaged. Reporting instead of dead-ending leaves the session
+        The scope could not be listed, holds nothing importable or is
+        already fully managed, or the request targets nothing unmanaged —
+        ``msg`` says which. Reporting instead of dead-ending leaves the session
         completed: the runner marks any handler that returns without setting
         UNCOMPLETED as completed.
         """
@@ -121,14 +122,13 @@ class TerraformImportHandler:
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
-                unmanaged_ids = await self.__import_svc.get_unmanaged_resources(
+                discovery = await self.__import_svc.get_unmanaged_resources(
                     scope_id=ctx.scope_id,
                     terraform_provider=ctx.terraform_prv,
                 )
+                unmanaged_ids = discovery.resource_ids
                 if not unmanaged_ids:
-                    await self.__report_nothing_to_import(
-                        q, "No unmanaged resources found in scope."
-                    )
+                    await self.__report_nothing_to_import(q, discovery.feedback)
                     return
 
                 selected_ids: list[str] = unmanaged_ids
