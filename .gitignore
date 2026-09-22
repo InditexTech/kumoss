@@ -107,5 +107,5 @@ docs-tmp/
 # *.architecture.json
 docs/diagrams/*.html
 # Throwaway browser evidence from `archify visual-check`; the published export
-# is docs/images/<diagram>.png
+# is docs/src/modules/main/images/<diagram>.png
 docs/diagrams/*.visual-check.*
