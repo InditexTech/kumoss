@@ -1,0 +1,19 @@
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_111d1a82612345::t_f57ec6858efce6 4-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "088a8af6279b6eb39ff2652b26044f2ac38d9d29",
+  "prompts": {},
+  "sessions": {
+    "s_111d1a82612345": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b610664-e883-463f-b0a6-de000580bd22",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
