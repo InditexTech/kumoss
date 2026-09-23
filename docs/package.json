@@ -32,6 +32,7 @@
       "ignore": [
         "*/edit/HEAD/*",
         "https://<org>.github.io/<repo>",
+        "https://inditextech.github.io/nebula*",
         "https://github.com/InditexTech/nebula",
         "https://github.com/InditexTech/nebula/issues*",
         "https://github.com/InditexTech/nebula/pulls*"
