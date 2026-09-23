@@ -316,7 +316,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
     # --- Step 4: Import execution ---
 
-    async def test_import_execution_uses_the_mapped_addresses(self):
+    async def test_import_execution_uses_the_mapping_agent_addresses(self):
         self.requests_filter_svc.filter.return_value = (True, "")
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
@@ -338,10 +338,10 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         task = await self.handler.handle("import all", is_partial=True)
         await task()
 
-        # The mapping needs the selection to rebuild the ids: a generated
-        # block never carries its own cloud resource id.
+        # The mapping agent needs the selection to rebuild the ids: a
+        # generated block never carries its own cloud resource id.
         self.import_address_svc.get_import_addresses.assert_awaited_once_with(
-            ["res-1", "res-2"]
+            self.ctx.history, ["res-1", "res-2"]
         )
         self.import_svc.import_resources.assert_awaited_once_with(
             [

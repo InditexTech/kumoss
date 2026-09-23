@@ -100,6 +100,11 @@ class TemplateAdapter(ITemplate):
         return t.render(CWD=self._cwd)
 
     @override
+    def render_import_addresses(self, selected_ids: list[str]) -> str:
+        t = self._get_template(self._core + "import_addresses.jinja")
+        return t.render(CWD=self._cwd, selected_ids=selected_ids)
+
+    @override
     def render_joker(self) -> str:
         t = self._get_template(self._message + "joker.jinja")
         return t.render()

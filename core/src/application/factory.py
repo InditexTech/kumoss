@@ -195,12 +195,14 @@ class ApplicationFactory:
 
     def _get_terraform_import_address_service(
         self,
-        git_utils: IGit,
-        file_utils: IFileSystem,
+        tool_service: ToolOrchestrationService,
+        main_llm_service: LLMOrchestrationService,
+        template_service: TemplateOrchestrationService,
     ) -> TerraformImportAddressService:
         return TerraformImportAddressService(
-            git=git_utils,
-            files=file_utils,
+            tool_service=tool_service,
+            llm_service=main_llm_service,
+            template_service=template_service,
         )
 
     def _get_terraform_split_service(
@@ -510,7 +512,7 @@ class ApplicationFactory:
             import_provider=terraform_prv,
         )
         import_address_svc = self._get_terraform_import_address_service(
-            git_utils, file_utils
+            tool_svc, llm_svc, template_svc
         )
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
