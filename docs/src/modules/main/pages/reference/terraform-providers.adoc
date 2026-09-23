@@ -1,0 +1,836 @@
+= Terraform providers
+:description: Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
+
+The IaC sidecar launches the Terraform or OpenTofu engine with its
+entire container environment inherited, so the credentials below are
+ordinary environment variables set in `services/iac/.env`. This page
+is the curated, per-scenario minimum for each cloud provider and state
+backend; the exhaustive list of every variable each provider and
+backend reads is in <<complete-variable-reference,Complete variable
+reference>> below.
+
+None of the tables below carries the variable the request's cloud
+scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT`
+arrive with each request and overwrite whatever the container sets, so
+set the credential variables in each row and leave the scope to the
+request. Azure and GCP are the only providers with such a variable;
+AWS, OCI, and Kubernetes commands run on the container's ambient
+credentials alone. See
+xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
+credentials for the IaC engine] for where these files fit in the
+deployment.
+
+== Azure — provider minimum
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|Service principal + secret
+|`ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`
+
+|Service principal + certificate
+|`ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_CERTIFICATE_PATH`,
+`ARM_CLIENT_CERTIFICATE_PASSWORD`
+
+|OIDC (GitHub Actions)
+|`ARM_USE_OIDC=true`, `ARM_TENANT_ID`, `ARM_CLIENT_ID`
+
+|OIDC (Azure DevOps)
+|above, plus `ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID`
+
+|Managed identity (system-assigned)
+|`ARM_USE_MSI=true`
+
+|Managed identity (user-assigned)
+|`ARM_USE_MSI=true`, `ARM_CLIENT_ID`
+
+|AKS workload identity
+|`ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_CLIENT_ID`, `ARM_TENANT_ID`
+— plus `AZURE_FEDERATED_TOKEN_FILE`, which the AKS workload-identity
+webhook sets on the pod
+
+|Local development (`az login`)
+|none
+|===
+
+No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it
+mandatory: `init`, `plan`, `apply`, and `import` carry a `scope_id`,
+and the sidecar injects it as `ARM_SUBSCRIPTION_ID` into the engine
+subprocess for that one command, overriding whatever the container
+holds.
+
+OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI
+runner injects them.
+
+Import discovery (`/v1/import/scope-resource-ids`) reads the
+*credential* variables through `azure-identity` — the subscription it
+lists comes from the request's `scope_id`, never from the environment.
+Three exceptions: the `az login` row has no equivalent (discovery
+needs a service principal, a managed identity, or a workload
+identity); the OIDC rows need the assertion itself in `ARM_OIDC_TOKEN`
+or `ARM_OIDC_TOKEN_FILE_PATH`, because the `ARM_OIDC_REQUEST_URL`
+exchange the CI runner performs is not reimplemented here; and only
+the direct `ARM_CLIENT_ID`/`ARM_CLIENT_SECRET` forms are read, not the
+`ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH` ones the
+provider also accepts (see <<complete-variable-reference,Complete
+variable reference>>) — a deployment using those runs every command
+fine and fails discovery with `no Azure credentials configured`.
+`ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` is likewise provider-only, and
+`ARM_ENVIRONMENT` is ignored: discovery talks to the public cloud
+only.
+
+== AWS — provider minimum
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|Static keys
+|`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+
+|Temporary or STS credentials
+|above, plus `AWS_SESSION_TOKEN`
+
+|Named profile
+|`AWS_PROFILE`, `AWS_REGION`
+
+|OIDC (GitHub Actions)
+|`AWS_REGION` only — the action writes the rest
+
+|OIDC (manual)
+|`AWS_ROLE_ARN`, `AWS_WEB_IDENTITY_TOKEN_FILE`, `AWS_REGION`
+
+|EKS IRSA
+|`AWS_REGION` only — injected by the webhook
+
+|EC2 instance role
+|`AWS_REGION` only
+
+|ECS task role
+|`AWS_REGION` only
+
+|LocalStack
+|`AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_REGION`,
+`AWS_ENDPOINT_URL`
+|===
+
+`AWS_REGION` is the only universal requirement, and never an account
+id — unlike Azure and GCP, nothing here is injected from `scope_id`,
+because no environment variable redirects the provider to an account.
+Every command runs against whatever account the credentials above
+resolve to, so making them agree with the `scope_id` callers send is
+the deployment's job.
+
+Import discovery additionally requires AWS Resource Explorer to be
+enabled for the account, with an aggregator index and a default view.
+Every row above works for it except LocalStack, which has no Resource
+Explorer to query, since boto3's default chain resolves the same
+credentials the provider does. Two details are discovery's alone: it
+reads the region from `AWS_REGION`/`AWS_DEFAULT_REGION` only, so the
+region a profile names does not satisfy it, and it does not select the
+account either — it calls STS and fails if the resolved account is not
+the requested `scope_id`.
+
+== GCP — provider minimum
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|Service account key
+|`GOOGLE_CREDENTIALS` (or `GOOGLE_APPLICATION_CREDENTIALS`)
+
+|Workload Identity Federation
+|`GOOGLE_APPLICATION_CREDENTIALS` (WIF config path)
+
+|WIF plus impersonation
+|above, plus `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`
+
+|GCE, GKE, or Cloud Run attached service account
+|none
+
+|Local development (`gcloud auth application-default login`)
+|none
+
+|Short-lived token
+|`GOOGLE_OAUTH_ACCESS_TOKEN`
+|===
+
+`GOOGLE_REGION`/`GOOGLE_ZONE` are optional, but leaving them out forces
+explicit `region`/`zone` on many resources.
+
+No row carries `GOOGLE_PROJECT` either, for the same reason as
+`ARM_SUBSCRIPTION_ID` above: the sidecar injects the request's
+`scope_id` under that name for `init`, `plan`, `apply`, and `import`.
+It sets `GOOGLE_PROJECT` specifically, which outranks the
+`GOOGLE_CLOUD_PROJECT`/`GCLOUD_PROJECT`/`CLOUDSDK_CORE_PROJECT` aliases
+(see <<complete-variable-reference,Complete variable reference>>), so
+an ambient alias cannot quietly win. Set the credential variables in
+each row and leave the project to the request.
+
+Import discovery reads the *credential* variables through
+`google-auth`, including `GOOGLE_OAUTH_ACCESS_TOKEN` and
+`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`, and falls back to
+application-default credentials exactly as the provider does — so the
+`gcloud auth application-default login` row works for it too. The
+project it lists is the request's `scope_id`; the project that
+application-default credentials name is deliberately discarded. It
+needs `cloudasset.googleapis.com` and
+`cloudresourcemanager.googleapis.com` enabled on that project.
+
+== OCI — provider minimum
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|API key
+|`TF_VAR_tenancy_ocid`, `TF_VAR_user_ocid`, `TF_VAR_fingerprint`,
+`TF_VAR_private_key_path`, `TF_VAR_region`
+
+|Config file profile
+|`TF_VAR_auth=ApiKey` (default), `TF_VAR_config_file_profile`
+
+|Instance principal
+|`TF_VAR_auth=InstancePrincipal`, `TF_VAR_region`
+
+|Resource principal (Functions)
+|`TF_VAR_auth=ResourcePrincipal` — `OCI_RESOURCE_PRINCIPAL_*` injected
+by the runtime
+
+|OKE workload identity
+|`TF_VAR_auth=OkeWorkloadIdentity`, `TF_VAR_region`
+|===
+
+Add `TF_VAR_compartment_ocid` in practice — not a provider setting,
+but nearly every resource needs it.
+
+== Kubernetes — provider minimum
+
+Variable names below are the Terraform `kubernetes` provider's own, as
+documented in its registry page; the `helm` provider accepts the same
+set.
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|Kubeconfig file
+|`KUBE_CONFIG_PATH` (`KUBE_CONFIG_PATHS` for several files); add
+`KUBE_CTX` to pick a context other than the current one
+
+|Bearer token
+|`KUBE_HOST`, `KUBE_TOKEN`, `KUBE_CLUSTER_CA_CERT_DATA` (or
+`KUBE_INSECURE=true` to skip server certificate verification)
+
+|In-cluster service account
+|none — the provider reads the projected service-account token and CA
+when the sidecar runs inside the cluster it manages
+|===
+
+No scope variable exists for this provider. The sidecar's scope overlay
+covers `azure` and `gcp` only, so the value the wizard collects as
+`scope_id` is stored with the session and hashed into the state project
+id, but never reaches the engine environment: every command runs
+against whatever cluster the variables above select. A
+mounted kubeconfig must be readable by the unprivileged user the image
+runs as (`nebula`, uid and gid `10001`), and any paths inside it must
+resolve inside the container.
+
+Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
+implementation: it answers exit code `2` with `no scope discovery for
+provider 'kubernetes'`. Importing existing objects therefore needs the
+resource ids supplied by hand.
+
+[#backend-minimums]
+== Backend minimums
+
+=== azurerm
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required env
+
+|Storage account key
+|`ARM_ACCESS_KEY`
+
+|SAS token
+|`ARM_SAS_TOKEN`
+
+|Service principal + Entra ID (RBAC)
+|`ARM_USE_AZUREAD=true`, `ARM_TENANT_ID`, `ARM_CLIENT_ID`,
+`ARM_CLIENT_SECRET`, `ARM_SUBSCRIPTION_ID`
+
+|OIDC + Entra ID
+|`ARM_USE_OIDC=true`, `ARM_USE_AZUREAD=true`, `ARM_TENANT_ID`,
+`ARM_CLIENT_ID`, `ARM_SUBSCRIPTION_ID`
+
+|Managed identity
+|`ARM_USE_MSI=true`, `ARM_USE_AZUREAD=true`, `ARM_SUBSCRIPTION_ID`
+
+|Local development (`az login`)
+|none — plus `ARM_USE_AZUREAD=true` for RBAC-only accounts
+|===
+
+Non-environment HCL always needed: `resource_group_name`,
+`storage_account_name`, `container_name`, `key`.
+
+Add `subscription_id` too when the state storage account lives in a
+different subscription than the resources being managed. The backend
+resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs
+with that variable overlaid from the request's `scope_id` — so a
+backend that does not name its subscription explicitly looks for the
+storage account in the *workload's* subscription and fails. Pin it in
+the backend block or in the file `IAC_BACKEND_CONFIG` points at. The
+`ARM_ACCESS_KEY` and `ARM_SAS_TOKEN` rows are unaffected: they address
+the account directly rather than resolving it through a subscription.
+
+=== s3
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required env
+
+|Static keys
+|`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+
+|Named profile
+|`AWS_PROFILE`
+
+|OIDC, IRSA, or instance role
+|none
+
+|Separate state account
+|`AWS_PROFILE` pointing at that account, or `AWS_ROLE_ARN` plus a
+token file
+|===
+
+Region comes from the backend block's `region`, not `AWS_REGION` — so
+a minimal CI setup can need zero backend environment variables.
+Non-environment HCL: `bucket`, `key`, `region`, and
+`use_lockfile = true` (Terraform 1.10+) or `dynamodb_table`.
+
+=== gcs
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required env
+
+|Service account key
+|`GOOGLE_BACKEND_CREDENTIALS` or `GOOGLE_CREDENTIALS`
+
+|Workload Identity Federation
+|`GOOGLE_APPLICATION_CREDENTIALS`
+
+|Attached service account, or `gcloud` application-default credentials
+|none
+
+|Separate state project
+|`GOOGLE_BACKEND_CREDENTIALS` or `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`
+|===
+
+No project or region needed — bucket names are globally unique.
+Non-environment HCL: `bucket`, `prefix`.
+
+== Copy-paste: typical CI setups
+
+These are the sets for this service. The scope variable is
+deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive
+with each request's `scope_id`. Add them only when the engine runs
+outside this service.
+
+[tabs]
+--
+[tab,label="Azure, GitHub Actions OIDC, RBAC state access"]
+****
+[source,bash]
+----
+export ARM_USE_OIDC=true
+export ARM_USE_AZUREAD=true
+export ARM_TENANT_ID=...
+export ARM_CLIENT_ID=...
+----
+****
+
+[tab,label="AWS, GitHub Actions OIDC"]
+****
+[source,bash]
+----
+export AWS_REGION=eu-west-1
+# aws-actions/configure-aws-credentials supplies the rest
+----
+****
+
+[tab,label="GCP, GitHub Actions WIF"]
+****
+[source,bash]
+----
+export GOOGLE_REGION=europe-west1
+# google-github-actions/auth sets GOOGLE_APPLICATION_CREDENTIALS
+----
+****
+--
+
+== Three things that trip people up
+
+*Azure needs the most variables by a wide margin.* AWS and GCP
+collapse to one or two variables in keyless CI because their SDKs
+auto-discover identity and the account or project is either implicit
+or a single value. Azure always needs tenant plus client plus
+subscription explicitly — though under this service the subscription
+arrives with the request rather than from the environment.
+
+*Backend environment variables are usually a subset of provider
+ones* — with `ARM_ACCESS_KEY` and `GOOGLE_BACKEND_CREDENTIALS` being
+the deliberate exceptions for splitting identities. If the full
+provider set is configured, `init` almost always works too; the
+reverse is not true.
+
+*The scope this service injects reaches the azurerm backend as well*,
+because the provider and the backend read the same
+`ARM_SUBSCRIPTION_ID`. Split state — a state account outside the
+managed subscription — therefore needs `subscription_id` in the
+backend config, not just provider credentials. GCP has no equivalent
+problem: the `gcs` backend needs no project.
+
+[#complete-variable-reference]
+== Complete variable reference
+
+.Every provider and backend environment variable
+[%collapsible]
+====
+The tables above are a curated, per-scenario minimum. This section
+lists every variable each provider and backend reads, grouped by
+cloud, for cases the minimum sets above do not cover.
+
+=== Azure (`azurerm`, `azuread`, `azapi` — all share the `ARM_` prefix)
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`ARM_SUBSCRIPTION_ID` |Core |Target subscription. *Mandatory* in
+provider v4+. Injected per request from `scope_id` — do not set it.
+
+|`ARM_TENANT_ID` |Core |Entra ID tenant
+
+|`ARM_CLIENT_ID` |Core |App/service-principal or managed-identity
+client id
+
+|`ARM_CLIENT_ID_FILE_PATH` |Core |Read the client id from a file.
+Provider only — import discovery reads `ARM_CLIENT_ID`
+
+|`ARM_ENVIRONMENT` |Core |`public`, `usgovernment`, `china`. Provider
+only — import discovery is public-cloud
+
+|`ARM_METADATA_HOST` |Core |Custom metadata endpoint (Azure Stack)
+
+|`ARM_AUXILIARY_TENANT_IDS` |Core |Comma-separated, for cross-tenant
+
+|`ARM_CLIENT_SECRET` |Service principal + secret |Client secret
+
+|`ARM_CLIENT_SECRET_FILE_PATH` |Service principal + secret |Read the
+secret from a file. Provider only — import discovery reads
+`ARM_CLIENT_SECRET`
+
+|`ARM_CLIENT_CERTIFICATE` |Service principal + certificate |Base64
+PKCS#12 bundle
+
+|`ARM_CLIENT_CERTIFICATE_PATH` |Service principal + certificate |Path
+to `.pfx`
+
+|`ARM_CLIENT_CERTIFICATE_PASSWORD` |Service principal + certificate
+|Certificate password
+
+|`ARM_USE_OIDC` |OIDC |Enable OIDC/workload identity federation
+
+|`ARM_OIDC_TOKEN` |OIDC |ID token value
+
+|`ARM_OIDC_TOKEN_FILE_PATH` |OIDC |Path to the ID token
+
+|`ARM_OIDC_REQUEST_URL` |OIDC |Token request URL (GitHub Actions or
+Azure DevOps)
+
+|`ARM_OIDC_REQUEST_TOKEN` |OIDC |Bearer token for the above
+
+|`ARM_ADO_PIPELINE_SERVICE_CONNECTION_ID` |OIDC |Azure DevOps service
+connection
+
+|`ARM_USE_MSI` |Managed identity |Enable IMDS authentication
+
+|`ARM_MSI_ENDPOINT` |Managed identity |Override the IMDS endpoint
+
+|`ARM_USE_AKS_WORKLOAD_IDENTITY` |AKS |Workload identity in AKS pods
+
+|`AZURE_FEDERATED_TOKEN_FILE` |AKS |Path of the projected
+service-account token, set by the AKS workload-identity webhook. Read
+by the provider and by import discovery
+(`WorkloadIdentityCredential`)
+
+|`ARM_USE_CLI` |Local development |Use the `az login` session (default
+`true`)
+
+|`ARM_RESOURCE_PROVIDER_REGISTRATIONS` |Behavior |`core`, `extended`,
+`all`, `none` (v4+)
+
+|`ARM_SKIP_PROVIDER_REGISTRATION` |Behavior |Deprecated predecessor of
+the above
+
+|`ARM_STORAGE_USE_AZUREAD` |Behavior |Entra ID instead of shared keys
+for the storage data plane
+
+|`ARM_PARTNER_ID` |Telemetry |Partner attribution GUID
+
+|`ARM_DISABLE_TERRAFORM_PARTNER_ID` |Telemetry |Opt out
+
+|`ARM_DISABLE_CORRELATION_REQUEST_ID` |Telemetry |Opt out
+|===
+
+=== AWS (`aws`)
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`AWS_ACCESS_KEY_ID` |Static keys |Access key
+
+|`AWS_SECRET_ACCESS_KEY` |Static keys |Secret key
+
+|`AWS_SESSION_TOKEN` |Static keys |Required for temporary or STS
+credentials
+
+|`AWS_REGION` |Core |Region — *mandatory* unless set in the provider
+block
+
+|`AWS_DEFAULT_REGION` |Core |Fallback
+
+|`AWS_PROFILE` |Profiles |Named profile
+
+|`AWS_SHARED_CREDENTIALS_FILE` |Profiles |Override
+`~/.aws/credentials`
+
+|`AWS_CONFIG_FILE` |Profiles |Override `~/.aws/config`
+
+|`AWS_SDK_LOAD_CONFIG` |Profiles |Legacy (provider v3 only)
+
+|`AWS_ROLE_ARN` |Assume role / OIDC |Role to assume
+
+|`AWS_ROLE_SESSION_NAME` |Assume role / OIDC |Session name
+
+|`AWS_WEB_IDENTITY_TOKEN_FILE` |OIDC |IRSA / GitHub Actions token path
+
+|`AWS_CONTAINER_CREDENTIALS_RELATIVE_URI` |ECS |Task role
+
+|`AWS_CONTAINER_CREDENTIALS_FULL_URI` |ECS / EKS Pod Identity
+|Credential endpoint
+
+|`AWS_CONTAINER_AUTHORIZATION_TOKEN` |ECS / EKS |Token for the above
+
+|`AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE` |ECS / EKS |Token from a
+file
+
+|`AWS_EC2_METADATA_DISABLED` |IMDS |`true` skips IMDS (faster
+failures)
+
+|`AWS_EC2_METADATA_SERVICE_ENDPOINT` |IMDS |Custom IMDS endpoint
+
+|`AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE` |IMDS |`IPv4` / `IPv6`
+
+|`AWS_MAX_ATTEMPTS` |Behavior |Retry count
+
+|`AWS_RETRY_MODE` |Behavior |`legacy`, `standard`, `adaptive`
+
+|`AWS_CA_BUNDLE` |Behavior |Custom CA for proxies
+
+|`AWS_ENDPOINT_URL` |Behavior |Global endpoint override
+
+|`AWS_ENDPOINT_URL_<SERVICE>` |Behavior |Per-service override
+(LocalStack)
+
+|`AWS_USE_FIPS_ENDPOINT` |Behavior |FIPS endpoints
+
+|`AWS_USE_DUALSTACK_ENDPOINT` |Behavior |IPv6 dual-stack
+
+|`AWS_STS_REGIONAL_ENDPOINTS` |Behavior |`regional` / `legacy`
+|===
+
+No `AWS_ACCOUNT_ID` — the account is implicit in the credential.
+
+=== GCP (`google`, `google-beta`)
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`GOOGLE_CREDENTIALS` |Key-based |JSON key contents or a path
+
+|`GOOGLE_CLOUD_KEYFILE_JSON` |Key-based |Alias
+
+|`GCLOUD_KEYFILE_JSON` |Key-based |Alias
+
+|`GOOGLE_APPLICATION_CREDENTIALS` |ADC / WIF |Key file or Workload
+Identity Federation config
+
+|`GOOGLE_OAUTH_ACCESS_TOKEN` |Token |Short-lived bearer token
+
+|`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` |Impersonation |Target service
+account to impersonate
+
+|`GOOGLE_PROJECT` |Targeting |Default project — *required* unless set
+in the provider block. Injected per request from `scope_id` — do not
+set it.
+
+|`GOOGLE_CLOUD_PROJECT` |Targeting |Alias
+
+|`GCLOUD_PROJECT` |Targeting |Alias
+
+|`CLOUDSDK_CORE_PROJECT` |Targeting |Alias
+
+|`GOOGLE_REGION` / `GCLOUD_REGION` / `CLOUDSDK_COMPUTE_REGION`
+|Targeting |Default region
+
+|`GOOGLE_ZONE` / `GCLOUD_ZONE` / `CLOUDSDK_COMPUTE_ZONE` |Targeting
+|Default zone
+
+|`GOOGLE_BILLING_PROJECT` |Quota |Project billed for API calls
+
+|`USER_PROJECT_OVERRIDE` |Quota |Enables the above
+
+|`GOOGLE_REQUEST_REASON` |Behavior |Audit log reason string
+
+|`GOOGLE_REQUEST_TIMEOUT` |Behavior |Per-request timeout
+
+|`GOOGLE_UNIVERSE_DOMAIN` |Behavior |Non-`googleapis.com` universes
+(sovereign)
+|===
+
+=== OCI (`oracle/oci`)
+
+An unusual quirk: this provider uses `TF_VAR_*` names as its own
+environment-variable defaults, which is why OCI examples look
+different from every other cloud.
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`TF_VAR_tenancy_ocid` |API key |Tenancy OCID
+
+|`TF_VAR_user_ocid` |API key |User OCID
+
+|`TF_VAR_fingerprint` |API key |Public key fingerprint
+
+|`TF_VAR_private_key_path` |API key |Path to the PEM private key
+
+|`TF_VAR_private_key` |API key |PEM contents inline
+
+|`TF_VAR_private_key_password` |API key |Passphrase
+
+|`TF_VAR_region` |Core |For example `eu-frankfurt-1`
+
+|`TF_VAR_auth` |Core |`ApiKey`, `SecurityToken`, `InstancePrincipal`,
+`ResourcePrincipal`, `OkeWorkloadIdentity`
+
+|`TF_VAR_config_file_profile` |Config file |Profile in
+`~/.oci/config`
+
+|`OCI_CONFIG_FILE` / `OCI_CLI_CONFIG_FILE` |Config file |Override the
+config path
+
+|`OCI_CLI_PROFILE` |Config file |Profile (SDK/CLI level)
+
+|`OCI_RESOURCE_PRINCIPAL_VERSION` |Resource principal |Set by the OCI
+Functions runtime
+
+|`OCI_RESOURCE_PRINCIPAL_RPST` |Resource principal |Session token
+
+|`OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM` |Resource principal |Private key
+
+|`OCI_RESOURCE_PRINCIPAL_REGION` |Resource principal |Region
+|===
+
+Compartment OCID is a *resource* argument, not an environment
+variable — commonly passed as `TF_VAR_compartment_ocid`, an ordinary
+Terraform variable rather than a provider setting.
+
+=== Kubernetes (`kubernetes`, `helm`)
+
+Names as documented by the upstream `kubernetes` provider; no scope
+variable is injected for this provider.
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`KUBE_CONFIG_PATH` |Kubeconfig |Path to a kubeconfig file
+
+|`KUBE_CONFIG_PATHS` |Kubeconfig |Several kubeconfig paths, merged
+
+|`KUBE_CTX` |Kubeconfig |Context to use instead of the current one
+
+|`KUBE_CTX_AUTH_INFO` |Kubeconfig |Override the context's user
+
+|`KUBE_CTX_CLUSTER` |Kubeconfig |Override the context's cluster
+
+|`KUBE_HOST` |Direct |API server URL
+
+|`KUBE_TOKEN` |Direct |Bearer token
+
+|`KUBE_USER` / `KUBE_PASSWORD` |Direct |Basic authentication
+
+|`KUBE_CLIENT_CERT_DATA` / `KUBE_CLIENT_KEY_DATA` |Direct |PEM client
+certificate and key
+
+|`KUBE_CLUSTER_CA_CERT_DATA` |Direct |PEM CA bundle of the API server
+
+|`KUBE_INSECURE` |Direct |Skip server certificate verification
+
+|`KUBE_TLS_SERVER_NAME` |Direct |Server name for certificate
+verification
+
+|`KUBE_PROXY_URL` |Behavior |HTTP proxy for API calls
+|===
+
+=== Backend storage environment variables
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Backend |Purpose
+
+|`ARM_SUBSCRIPTION_ID` |azurerm |Subscription of the state storage
+account. Overlaid from `scope_id` during `init`, so pin
+`subscription_id` in the backend config for split state
+
+|`ARM_TENANT_ID` |azurerm |Tenant
+
+|`ARM_CLIENT_ID` |azurerm |Service principal / managed identity
+
+|`ARM_CLIENT_SECRET` |azurerm |Service principal secret
+
+|`ARM_CLIENT_CERTIFICATE_PATH` |azurerm |Service principal certificate
+
+|`ARM_CLIENT_CERTIFICATE_PASSWORD` |azurerm |Certificate password
+
+|`ARM_ACCESS_KEY` |azurerm |Storage account key (simplest CI option)
+
+|`ARM_SAS_TOKEN` |azurerm |SAS token alternative
+
+|`ARM_USE_AZUREAD` |azurerm |Entra ID authentication to blob instead
+of keys
+
+|`ARM_USE_MSI` |azurerm |Managed identity
+
+|`ARM_MSI_ENDPOINT` |azurerm |Override IMDS
+
+|`ARM_USE_OIDC` |azurerm |OIDC / Workload Identity Federation
+
+|`ARM_OIDC_TOKEN` |azurerm |ID token
+
+|`ARM_OIDC_TOKEN_FILE_PATH` |azurerm |ID token path
+
+|`ARM_OIDC_REQUEST_URL` |azurerm |Token request URL
+
+|`ARM_OIDC_REQUEST_TOKEN` |azurerm |Bearer for the above
+
+|`ARM_USE_AKS_WORKLOAD_IDENTITY` |azurerm |AKS workload identity
+
+|`ARM_ENVIRONMENT` |azurerm |Cloud environment
+
+|`ARM_METADATA_HOST` |azurerm |Azure Stack metadata
+
+|`ARM_SNAPSHOT` |azurerm |Snapshot the blob before writing
+
+|`AWS_ACCESS_KEY_ID` |s3 |Access key
+
+|`AWS_SECRET_ACCESS_KEY` |s3 |Secret key
+
+|`AWS_SESSION_TOKEN` |s3 |Temporary credentials
+
+|`AWS_REGION` / `AWS_DEFAULT_REGION` |s3 |Bucket region
+
+|`AWS_PROFILE` |s3 |Named profile (often a *different* one than the
+provider)
+
+|`AWS_SHARED_CREDENTIALS_FILE` |s3 |Credentials file path
+
+|`AWS_CONFIG_FILE` |s3 |Config file path
+
+|`AWS_ROLE_ARN` |s3 |Role to assume for state access
+
+|`AWS_WEB_IDENTITY_TOKEN_FILE` |s3 |OIDC token
+
+|`AWS_CA_BUNDLE` |s3 |Custom CA
+
+|`AWS_ENDPOINT_URL_S3` |s3 |Custom S3 endpoint (MinIO, OCI Object
+Storage)
+
+|`AWS_ENDPOINT_URL_DYNAMODB` |s3 |Custom DynamoDB endpoint (legacy
+locking)
+
+|`AWS_ENDPOINT_URL_STS` |s3 |Custom STS endpoint
+
+|`AWS_S3_ENDPOINT` |s3 |Legacy alias
+
+|`AWS_DYNAMODB_ENDPOINT` |s3 |Legacy alias
+
+|`AWS_METADATA_URL` |s3 |Legacy IMDS override
+
+|`GOOGLE_BACKEND_CREDENTIALS` |gcs |Backend-only credentials (key JSON
+or path)
+
+|`GOOGLE_CREDENTIALS` |gcs |Falls back to the provider variable
+
+|`GOOGLE_APPLICATION_CREDENTIALS` |gcs |ADC / WIF config
+
+|`GOOGLE_CLOUD_KEYFILE_JSON` |gcs |Alias
+
+|`GCLOUD_KEYFILE_JSON` |gcs |Alias
+
+|`GOOGLE_OAUTH_ACCESS_TOKEN` |gcs |Bearer token
+
+|`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT` |gcs |Impersonation
+
+|`GOOGLE_ENCRYPTION_KEY` |gcs |Customer-supplied AES-256 key for state
+
+|`GOOGLE_KMS_ENCRYPTION_KEY` |gcs |Cloud KMS key for state
+|===
+
+=== Caveats worth internalizing
+
+*Backend location is never settable through environment variables.*
+Only credentials are. `bucket`/`key`, `storage_account_name`/
+`container_name`, `bucket`/`prefix` must be literal HCL,
+`-backend-config=...`, or a `.tfbackend` file. `TF_VAR_*` does not
+work for backends because backend blocks are evaluated before
+variables exist.
+
+[source,bash]
+----
+terraform init -backend-config=env/prod.s3.tfbackend
+----
+
+*`gcs` needs no project* — the bucket namespace is global. `azurerm`
+and `s3` both need region or subscription context.
+
+*Backend and provider credentials can, and often should, differ.*
+`GOOGLE_BACKEND_CREDENTIALS` and `AWS_PROFILE` switching exist
+precisely for this. Azure has no `ARM_BACKEND_*` equivalent, so
+separation there means either `ARM_ACCESS_KEY` for the backend
+(leaving the service-principal variables for the provider) or wrapper
+scripts that swap the environment between `init` and `plan`.
+
+*Version drift is real.* `ARM_SUBSCRIPTION_ID` became mandatory in
+azurerm v4; `ARM_SKIP_PROVIDER_REGISTRATION` was superseded;
+`dynamodb_table` gave way to `use_lockfile`. Treat this section as a
+working reference and confirm against the registry documentation for
+the provider version pinned in the deployment.
+====
+
+== Next steps
+
+* xref:main:guides/configure-state-backends.adoc[Configure state
+  backends] for how these credentials fit into the backend model
+  Nebula chooses.
+* xref:main:reference/environment-variables.adoc[Environment variables
+  and secrets] for every other variable the stack reads.

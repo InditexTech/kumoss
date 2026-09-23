@@ -1,0 +1,5 @@
+One request-and-response cycle inside a session, with its own statuses,
+report, plan, code changes, and pull requests. The first API call creates
+round 1 with status `started` and the handler immediately opens round 2
+for the actual work; the API exposes both a round's database id and its
+per-session number, and the web application labels rounds by number.

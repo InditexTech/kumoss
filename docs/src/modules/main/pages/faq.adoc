@@ -1,0 +1,384 @@
+= Frequently asked questions
+:description: Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
+
+Short answers for people using the Nebula web application. The longer
+explanations are in the xref:main:guides/make-a-request.adoc[Make a
+request] guide; mode-by-mode behavior is in
+xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating
+modes].
+If the answer you need is not here, see
+xref:main:additional-information.adoc#support-requests[Support requests].
+
+== FAQ
+
+=== Access and roles
+
+[accordion,aria-label="Access and roles frequently asked questions"]
+--
+.Why are the drift modes and Import Infrastructure greyed out?
+[%collapsible]
+====
+They require the `devops` operation role. New users start as
+`developer`. Ask your administrator to change your role in the admin
+portal; it takes effect on your next page load.
+====
+
+.Can other people see my sessions?
+[%collapsible]
+====
+Only reviewers who hold a panel role (viewer, editor, or admin) can
+read them, including the conversation. Nobody but you can continue,
+merge, or apply your sessions.
+====
+
+.Why does the login page say my session has expired?
+[%collapsible]
+====
+Your identity token expired and the application signed you out. Sign
+in again. Any Nebula session that was running continues on the
+server; reopen it from the footer or your user page.
+====
+--
+
+=== Requests
+
+[accordion,aria-label="Requests frequently asked questions"]
+--
+.Do I have to specify every parameter?
+[%collapsible]
+====
+No. Missing parameters never block a creation request. Nebula applies
+your organization's naming conventions, resource defaults, and the
+placement it finds in the workspace, and it states the assumptions it
+made in the response.
+====
+
+.My request was declined. Why?
+[%collapsible]
+====
+The filter explains the reason in the chat. The four causes are: out
+of scope (not a Terraform-managed change), prohibited by your
+organization's forbidden-actions list, an ambiguous target (name the
+resource), or a missing referent (the thing you refer to does not
+exist in that repository and path).
+====
+
+.Can I ask questions instead of requesting changes?
+[%collapsible]
+====
+Yes. Inventory, improvement, and impact questions are answered in the
+chat; the round ends without changes and you can continue with a
+change request in the same session.
+====
+
+.Can I request several changes at once?
+[%collapsible]
+====
+You can, but one intent per request produces better results and
+clearer reports. Use follow-ups for the next step; they run on the
+same branch.
+====
+
+.Why was my repository URL rejected?
+[%collapsible]
+====
+URLs that embed a user name or token are refused; enter the plain
+HTTPS URL. Azure DevOps users: the portal's clone URL starts with
+`\https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only
+`github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are
+supported for pull requests. The repository must also be reachable by
+Nebula's service account.
+====
+
+.Why does Nebula say it found no IaC paths?
+[%collapsible]
+====
+It only sees files committed on the repository's default branch, and
+it offers a directory only when it contains `.tf` files and no part
+of its path is `modules`, `examples`, `example`, or `.terraform`.
+Commit the Terraform files to the default branch, or move them out of
+an excluded directory. The rules are in
+xref:main:reference/repository-layout.adoc#terraform-roots[Repository
+layout].
+====
+
+.Why is my directory not offered as an IaC path?
+[%collapsible]
+====
+Either it sits under an excluded directory name, or it is nested
+under another directory that already qualifies as a root (for example
+`platform/network/` under a `platform/` that has a `main.tf`); in that
+case pick the parent, Nebula works from there.
+====
+
+.Why does the scope field not accept my value?
+[%collapsible]
+====
+It accepts letters, digits, and hyphens only, up to 64 characters, and
+lower-cases the value. Underscores, dots, and spaces are not accepted.
+====
+--
+
+=== Sessions
+
+[accordion,aria-label="Sessions frequently asked questions"]
+--
+.How long does a session take?
+[%collapsible]
+====
+From a couple of minutes for a small change to considerably longer for
+large roots: generation and up to five validation attempts run first,
+then a drift check and the report. The progress screen shows what is
+happening at each moment.
+====
+
+.Can I close the browser?
+[%collapsible]
+====
+Yes. The session runs on the server. Reopen it from the *Sessions*
+panel in the footer or from *View all sessions* on your user page.
+====
+
+.Why can I not continue a failed session?
+[%collapsible]
+====
+A failed round ends the session for good. Start a new session; if the
+failure was "Validation loop exceeded.", make the request more
+specific or split it.
+====
+
+.Why does nothing happen when I send a second request while one is running?
+[%collapsible]
+====
+Only one operation runs per session at a time. Wait for the current
+round to finish; the input is disabled during a run.
+====
+
+.What is the branch called?
+[%collapsible]
+====
+`Nebula/YYYY-MM-DD_HHMMSS` in UTC, created on the first request of the
+session. Every round pushes to it.
+====
+--
+
+=== Results
+
+[accordion,aria-label="Results frequently asked questions"]
+--
+.What do Low, Medium, and High impact mean?
+[%collapsible]
+====
+With the default criteria: high is destructive actions, restarts,
+downtime, or critical networking changes; medium is a significant
+configuration update that changes behavior without guaranteed
+downtime; low is isolated new resources or non-disruptive updates such
+as tags.
+====
+
+.Is the estimated cost accurate?
+[%collapsible]
+====
+It is an approximation of fixed monthly prices for the resources in
+the plan, taken from public pricing pages when the report was
+written. Usage-based and free resources are listed but not included in
+the total. Use it to compare options, not as a quote.
+====
+
+.Where are the compliance findings?
+[%collapsible]
+====
+They are not displayed in the application. The audit's outcome is
+visible as the lock; the reviewers who receive the notification see
+the summary. Ask them for the rule-level detail.
+====
+
+.Can I download the plan or the report?
+[%collapsible]
+====
+Not as files. The plan, report, and changed files are shown inline in
+the results view and in the session details; the code itself is on the
+session branch in your repository.
+====
+--
+
+=== Locks and approvals
+
+[accordion,aria-label="Locks and approvals frequently asked questions"]
+--
+.Why is my session locked?
+[%collapsible]
+====
+The compliance audit found an error-level or critical violation (with
+the default rules: changes outside the scope of your request, parts of
+the request left undone, or a standalone deletion), or the impact was
+rated High in a deployment that locks on high impact.
+====
+
+.What can I do while locked?
+[%collapsible]
+====
+Read everything, continue the conversation, and create the pull
+request so reviewers can see the diff. Merging and applying are
+refused.
+====
+
+.How is a lock released?
+[%collapsible]
+====
+A reviewer with the editor or admin panel role unlocks the session
+from the admin panel, or a new request in the same session produces a
+result that passes cleanly.
+====
+
+.Why is a deletion I explicitly asked for flagged?
+[%collapsible]
+====
+The default compliance rule treats any standalone deletion as a
+critical violation regardless of the request; only a recreate of the
+same resource is allowed. A reviewer can unlock the session after
+looking at it, and your organization can adapt the rule.
+====
+--
+
+=== Pull requests and apply
+
+[accordion,aria-label="Pull requests and apply frequently asked questions"]
+--
+.Do I have to open a pull request?
+[%collapsible]
+====
+The API allows a direct apply, but the web application does not offer
+a standalone Apply button. In practice you reach apply either through
+*Approve PR and Apply*, which merges the pull request and then
+applies, or through the *Import Infrastructure* mode in the header
+drop-down, which calls the same apply on the current session and is
+only selectable with the `devops` role. So as a `developer` in the web
+application, the pull request is the route to apply — which is also
+the recommended one, because it brings your team's review and CI into
+the decision.
+====
+
+.Reviewers asked for changes. What now?
+[%collapsible]
+====
+Type the changes as a follow-up request in the same session. The new
+round pushes to the same branch, so the pull request updates.
+====
+
+.What exactly does Approve PR and Apply do?
+[%collapsible]
+====
+After you confirm, it merges the pull request into the default branch
+and executes the plan you reviewed, without re-planning. The
+apply-results screen shows what happened.
+====
+
+.The apply failed. Will Nebula retry?
+[%collapsible]
+====
+No. The session still closes as completed, with an apply report whose
+status is the model's reading of the engine output (normally *Failed*)
+and a failure notification to your reviewers, which is the signal keyed
+to the exit code; nothing is
+rolled back and nothing is re-run. Read the error in the apply
+results, fix the cause (often cloud permissions or a resource that
+changed since the plan), and send a new request, which produces a
+fresh plan to review.
+====
+
+.Does Import Infrastructure import my existing resources?
+[%collapsible]
+====
+Not yet. Today it runs the apply of an existing session's reviewed
+plan. Importing unmanaged resources is a planned capability.
+====
+
+.Where does Terraform state live?
+[%collapsible]
+====
+Not in the repository, and not in the working copy Nebula creates. Out
+of the box, Nebula keeps state for you, in a bucket dedicated to state
+with one state file per project (repository + cloud scope + path).
+Your platform team can instead configure Nebula to leave it in the
+remote backend your repository's own Terraform files declare, exactly
+as it would if you ran the engine yourself. Either way your pull
+request contains only your infrastructure code — no state file and no
+backend file — and there is nothing for you to set per session; the
+details are in
+xref:main:guides/configure-state-backends.adoc[Configure state
+backends].
+====
+
+.My plan wants to create resources that already exist. Why?
+[%collapsible]
+====
+The session is planning against empty state. The usual causes are that
+your platform team turned off Nebula-managed state and your repository
+declares no remote backend of its own, that the project's identity
+changed — the root-module path moved, the repository was renamed, or a
+different cloud scope was selected — or that your platform team changed
+the state backend, which Nebula never migrates. Report it with the
+session id; an operator can check the state location.
+====
+--
+
+=== Data and privacy
+
+[accordion,aria-label="Data and privacy frequently asked questions"]
+--
+.What data leaves Nebula when I make a request?
+[%collapsible]
+====
+Your request text, the conversation, the repository files the agent
+reads, the plan, and validation errors are sent to the language model
+your platform team configured and stored in the tracing system for
+review. Do not paste secrets into requests or commit them to the
+repository.
+====
+
+.Which cloud credentials does Nebula use?
+[%collapsible]
+====
+The identity your platform team configured for the execution engine,
+never yours. Your deployment can also plug in an external
+authorization service that is asked, at the start of each session,
+whether you may work on that cloud, repository, and IaC path; in the
+shipped configuration that service is switched off and no such check
+runs.
+====
+--
+
+=== Getting help
+
+[accordion,aria-label="Getting help frequently asked questions"]
+--
+.How do I contact support?
+[%collapsible]
+====
+Use the chat-bubble *Support* icon in the header, or *Contact Team* on
+a locked session. The message carries your e-mail, the session id, and
+the session context automatically and reaches the reviewers of your
+deployment.
+====
+
+.Support says notifications are disabled.
+[%collapsible]
+====
+Your deployment has not connected a notification channel. Use your
+organization's usual support route and quote the session id from the
+session details.
+====
+
+.What should I include when reporting a problem?
+[%collapsible]
+====
+The session id, the mode, the repository and path, what you asked, and
+what you expected instead. Reviewers can then open the session's
+history, artifacts, and traces.
+====
+--
+
+See xref:main:additional-information.adoc#support-requests[Support
+requests] for the full detail on what each support channel carries and
+how it is routed.

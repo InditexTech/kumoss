@@ -1,0 +1,90 @@
+= Guides
+:description: Task guides for using, operating, and developing Nebula, grouped by what you want to do.
+
+These guides show how to accomplish specific tasks with Nebula. Pick the
+group that matches your role, then the guide that states your goal. For
+what each operating mode does today, side by side, see
+xref:main:reference/operating-modes.adoc[Operating modes].
+
+== Use Nebula
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/make-a-request.adoc[Make a request]
+Open a session and phrase a request the filter accepts.
+
+[card]
+.xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+Turn a request into validated Terraform code, reviewed as a plan and
+report before you apply it.
+
+[card]
+.xref:main:guides/follow-a-session.adoc[Follow a session]
+Track progress and read the plan, code, and report.
+
+[card]
+.xref:main:guides/merge-and-apply.adoc[Merge and apply]
+Handle a session lock, then open, merge, and apply the pull request.
+
+[card]
+.xref:main:guides/remediate-drift.adoc[Remediate drift]
+Detect and reconcile drift for a set of resources or a whole Terraform
+root.
+
+[card]
+.xref:main:guides/import-infrastructure.adoc[Import infrastructure]
+What the Import Infrastructure mode does today, and what it does not yet
+do.
+====
+
+== Operate Nebula
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/enable-authentication.adoc[Enable authentication]
+Connect an OIDC identity provider and grant the first administrator
+access.
+
+[card]
+.xref:main:guides/administer-users-and-locks.adoc[Administer users and locks]
+Review any user's sessions, and manage session locks and roles from the
+admin panel.
+
+[card]
+.xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
+Read Nebula's traces in Arize Phoenix, and know what a trace contains and
+omits.
+
+[card]
+.xref:main:guides/customize-prompts.adoc[Customize prompts]
+Manage the prompt registry that encodes your conventions and compliance
+rules.
+
+[card]
+.xref:main:guides/configure-state-backends.adoc[Configure state backends]
+Choose who owns Terraform and OpenTofu state:
+xref:main:guides/state-backends/repository-declared.adoc[the repository],
+xref:main:guides/state-backends/nebula-managed.adoc[Nebula], or
+xref:main:guides/state-backends/sidecar-supplied.adoc[the deployment].
+
+[card]
+.xref:main:guides/deploy-to-production.adoc[Deploy to production]
+Plan a production deployment, then work through
+xref:main:guides/production/secrets-and-credentials.adoc[secrets and
+credentials],
+xref:main:guides/production/networking-and-tls.adoc[networking and TLS],
+xref:main:guides/production/hardening.adoc[hardening], and
+xref:main:guides/production/operations.adoc[operations].
+====
+
+== Develop Nebula
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/development.adoc[Development]
+Run the stack for development, test, type-check, lint, and regenerate the
+sidecar clients.
+====

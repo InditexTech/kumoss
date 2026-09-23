@@ -1,0 +1,119 @@
+= Glossary
+:description: Terms and abbreviations used across the Nebula documentation.
+
+This glossary lists the terms, abbreviations, and phrases used across the
+Nebula documentation, together with their definitions. Use this terminology
+for clarity and consistency when discussing Nebula.
+
+== Compliance audit
+
+include::partial$glossary/compliance-audit.adoc[]
+
+See
+xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
+locks].
+
+== Drift
+
+include::partial$glossary/drift.adoc[]
+
+See xref:main:guides/remediate-drift.adoc[Remediate drift].
+
+== Filter
+
+include::partial$glossary/filter.adoc[]
+
+See xref:main:guides/make-a-request.adoc[Make a request].
+
+== Generation
+
+include::partial$glossary/generation.adoc[]
+
+See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== IaC engine
+
+include::partial$glossary/iac-engine.adoc[]
+
+See xref:main:architecture/deployment-view.adoc[Deployment view].
+
+== Mode
+
+include::partial$glossary/mode.adoc[]
+
+See xref:main:reference/operating-modes.adoc[Operating modes].
+
+== OpenTofu
+
+include::partial$glossary/opentofu.adoc[]
+
+See xref:main:architecture/deployment-view.adoc[Deployment view].
+
+== Operation role
+
+include::partial$glossary/operation-role.adoc[]
+
+See xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+
+== Panel role
+
+include::partial$glossary/panel-role.adoc[]
+
+See xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+
+== Pinned plan
+
+include::partial$glossary/pinned-plan.adoc[]
+
+See xref:main:guides/merge-and-apply.adoc[Merge and apply].
+
+== Report
+
+include::partial$glossary/report.adoc[]
+
+See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== Request
+
+include::partial$glossary/request.adoc[]
+
+See xref:main:guides/make-a-request.adoc[Make a request].
+
+== Round
+
+include::partial$glossary/round.adoc[]
+
+See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== Session
+
+include::partial$glossary/session.adoc[]
+
+See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+[#session-locks]
+== Session lock
+
+include::partial$glossary/session-lock.adoc[]
+
+See
+xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
+locks].
+
+== Sidecar
+
+include::partial$glossary/sidecar.adoc[]
+
+See xref:main:reference/api/index.adoc[HTTP APIs].
+
+== Validation
+
+include::partial$glossary/validation.adoc[]
+
+See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== Workspace
+
+include::partial$glossary/workspace.adoc[]
+
+See xref:main:architecture/deployment-view.adoc[Deployment view].

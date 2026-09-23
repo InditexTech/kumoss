@@ -17,6 +17,7 @@ path = [
     "**/*Dockerfile",
     "**/*.pyc",
     "**/*.png",
+    "**/*.jpg",
     "**/*.mp4",
     "**/*.lottie",
     "**/*.svg",
@@ -25,6 +26,18 @@ path = [
     "**/*.ico",
     "**/*.webmanifest",
     "**/mockServiceWorker.js",
+]
+SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+    "docs/**/*.adoc",
+    "docs/**/*.yml",
+    "docs/**/*.mjs",
+    "docs/src/modules/*/attachments/*.html",
+    "docs/.tool-versions",
+    ".github/workflows/docouture-*.yml",
 ]
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
 SPDX-License-Identifier = "Apache-2.0"

@@ -1,0 +1,158 @@
+= Operating modes
+:description: What each Nebula operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
+
+Nebula's web application offers four operating modes in its header:
+Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation,
+and Import Infrastructure. This page is the lookup material behind them:
+the inputs every session provides, the lifecycle every session follows,
+and a table that compares what each mode does today. The task guides for
+each mode are xref:main:guides/generate-infrastructure.adoc[Generate
+infrastructure], xref:main:guides/remediate-drift.adoc[Remediate drift],
+and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
+
+== Session inputs
+
+The first request of a session provides the repository URL (which may
+carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
+`kubernetes`), a scope identifier (for example a subscription, project, or
+account id), an optional path to the Terraform root inside the repository
+(see xref:main:reference/repository-layout.adoc#terraform-roots[Repository
+layout]), and the request text. The scope is stored with the session, sent
+to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed
+together with the repository URL and the IaC path into the state project
+id when Nebula manages state, and shown in the session detail view. Later
+requests in the same session send only the session id and the new text.
+When the mapping sidecar is enabled and its catalogue knows the
+repository, it may also answer the provider and the scope; the wizard
+then skips those two questions, so a mapper must answer `null` for
+anything it is not sure of.
+
+== How a session runs
+
+*Authorization preflight.* Before the first request is sent, the wizard
+calls `POST /api/v1/auth/authorize`. With the shipped configuration
+(`services.authz.enabled: false`) no external check runs at all: the core
+answers "authorized" without contacting anything. When the sidecar is
+enabled, the core sends the cloud, the *repository URL* as the project
+name, and the *IaC path* as the environment — the scope id is never part
+of that check.
+
+*Asynchronous execution.* Every IaC route answers `202 Accepted` with a
+session id immediately and runs in the background. Progress arrives
+through server-sent events (`GET /api/v1/events/subscribe/\{session_id}`),
+which the web application streams; a subscription closes after roughly
+three hours (`orchestration.max_session_events_iteration` polls of 4-5
+seconds).
+
+*One operation per session.* The API accepts every request with `202`
+before the background run starts. If the session already has an operation
+in flight, or its last round failed, the run never starts: the core logs
+`Session ... already has an operation in flight.` or `Session ... is
+finished and cannot be resumed.` and nothing changes in the session. The
+web application prevents this in practice by disabling submission while a
+run is in progress; a failed session must be replaced by a new one.
+
+*Statuses.* A round moves through `started`, `filtering`, `generating`,
+`validating`, `report`, `apply`, and ends in `completed`, `uncompleted`
+(the request was declined or answered without changes), or `failed`.
+
+*Artifacts.* The core uploads artifacts to object storage under
+`sessions/<session>/rounds/<round>/` — code-change files, plan text, drift
+reports, and JSON reports — and the session detail view renders them
+inline, fetched through presigned URLs; nothing is offered as a file
+download. Panel users can also see them in the admin panel (see
+xref:main:guides/administer-users-and-locks.adoc[Administer users and
+locks]).
+
+*Pull requests.* Creating a pull request is a separate action ("Create
+Pull Request" in the results view). The core writes a title and
+description with the small model and opens the pull request from the
+session branch using the `GIT_TOKEN` credentials. Merging it from the web
+application calls the merge route, which is blocked while the session is
+locked.
+
+[#compare-modes]
+== Comparing the operating modes
+
+[cols="2,3,3,3,3",options="header"]
+|===
+| |Generate Infrastructure |Partial Drift Remediation |Full Drift Remediation |Import Infrastructure (today)
+
+|Core route
+|`POST /api/v1/iac/generate`
+|`POST /api/v1/iac/drift` with `is_partial: true`
+|`POST /api/v1/iac/drift` with `is_partial: false`
+|`POST /api/v1/iac/apply`
+
+|Minimum operation role (API)
+|`developer`
+|`devops`
+|`devops`
+|`developer` + owner
+
+|Selectable by roles below `devops` in the UI
+|yes
+|no (shown disabled)
+|no (shown disabled)
+|no (shown disabled)
+
+|Request text
+|required, classified by the filter
+|required, classified by the drift filter
+|required by the API, not used for filtering
+|not sent
+
+|Reads existing code and state
+|yes
+|yes
+|yes
+|applies the pinned plan only
+
+|Terraform targets
+|generated from the diff history
+|generated from the request
+|none (whole root)
+|fixed by the pinned plan
+
+|Drift handling
+|two-iteration pre-check on session targets
+|up to `max_drift_reports` iterations
+|up to `max_drift_reports` iterations
+|none
+
+|Compliance check
+|yes, when enabled
+|no
+|no
+|no
+
+|Can lock the session
+|yes (high impact or failed compliance)
+|no
+|no
+|no
+
+|Report type
+|`generate`
+|`drift`
+|`drift`
+|`apply`
+
+|Pins a plan
+|yes
+|no
+|no
+|consumes it
+
+|Enables apply
+|yes
+|no
+|no
+|is the apply
+
+|Pull request
+|create and merge from the branch
+|create and merge from the branch
+|create and merge from the branch
+|typically after merge
+|===

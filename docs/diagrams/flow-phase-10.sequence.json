@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Nebula request flow · Phase 10 — human-triggered apply, never automatic",
+    "title": "Nebula request flow · Phase 10",
     "output": "flow-phase-10.html",
     "quality_profile": "showcase",
     "locale": "en",

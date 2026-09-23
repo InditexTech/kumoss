@@ -78,6 +78,7 @@ class PromptsLibrary(Enum):
     REQUESTS_FILTER = "requests_filter"
     TASK_SPLITTER = "task_splitter"
     FILTER_RECONCILIATION = "filter_reconciliation"
+    FILTER_DRIFT_EXCEPTIONS = "filter_drift_exceptions"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
     TARGET_GENERATOR = "target_generator"

@@ -110,8 +110,10 @@ class LlmConfig(BaseModel):
     reasoning and ``small_model`` for cheaper filler work.  Both are
     LiteLLM model-id strings (``provider/model``).  Credentials are
     resolved from the provider's standard env vars (see the provider
-    tables in ``docs/litellm.md``); the validator fails boot when
-    litellm reports required env vars missing.
+    tables at
+    https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/);
+    the validator fails boot when litellm reports required env vars
+    missing.
 
     ``temperature`` and ``max_output_tokens`` apply to both roles.
 

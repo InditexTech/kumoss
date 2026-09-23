@@ -1,0 +1,90 @@
+= Import infrastructure
+:description: Understand what the Import Infrastructure mode does today, and what it does not yet do.
+
+Import Infrastructure, in the mode drop-down, is labelled "Adds existing
+resources to manage them from the tool". Today it does something
+narrower: it runs the apply step of an existing session's reviewed plan.
+This guide describes exactly what that apply does and what a real
+resource-import workflow would still need.
+
+== Prerequisites
+
+* The web application requires the `devops` operation role to select the
+  mode; the API itself requires only `developer` plus ownership of the
+  session. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
+* An existing session with a pinned plan from a completed generate round.
+  Submitting the mode from a fresh wizard with no session sends an empty
+  session id, which the API rejects with `422`.
+
+== What the UI does today
+
+Selecting Import Infrastructure and submitting calls
+`POST /api/v1/iac/apply` with the current session id. No request text or
+targets are sent. The same apply is what the *Approve PR and Apply*
+button triggers after a pull request is merged, as covered in
+xref:main:guides/merge-and-apply.adoc[Merge and apply]. Apply:
+
+. Requires `developer` and session ownership and a session that is not
+  locked; these are checked before the `202` answer.
+. Opens a new round with the text "Terraform apply.", sets the status
+  `apply`, and checks that a pinned plan exists. Without one it fails
+  with `No reviewed plan is pinned for this session; run a generate or
+  drift round before applying.`, sends `system.exception.failure`, and
+  leaves the session `FAILED` and unresumable. With one it runs a single
+  `apply session.plan` job on the pinned workspace. No `init` or `plan`
+  is re-run, so what executes is exactly the plan that was reviewed.
+. Produces an `apply` JSON report with an outcome (`Success`, `Partial`,
+  `Failed`), an execution summary, the resource changes, and
+  recommendations. An engine failure is *not* an exception: the report is
+  written with status `Failed`, a notification of kind
+  `iac.apply.failure` is sent when notifications are enabled, and the
+  session still ends `completed` — there is no retry, and a new generate
+  round is needed to produce a new plan. Any *unexpected* error in a
+  background run of any mode is different: it marks the session `failed`
+  and sends `system.exception.failure`.
+. Discards the pinned workspace whatever the outcome; a new generate
+  round is needed before another apply.
+
+== What import produces
+
+* *Inspects existing state.* Only through the apply itself.
+* *Targets.* None; the pinned plan already fixes them.
+* *Artifacts and reports.* An `apply` JSON report and a history entry
+  with the execution summary.
+* *Plan pinned.* Consumed.
+* *Compliance and locks.* No new compliance check; a locked session is
+  refused with `409 Session ... is blocked; apply is not allowed.`
+
+== What is not implemented
+
+Despite the label "Adds existing resources to manage them from the
+tool", the core has no route that discovers cloud resources, generates
+`import` blocks, or runs the engine's `import` command as part of a
+browser-facing workflow. Related building blocks exist at a lower level:
+
+* The IaC contract defines `POST /v1/import`,
+  `POST /v1/import/state-resource-ids`, and
+  `POST /v1/import/scope-resource-ids`, and the bundled sidecar
+  implements all three: it imports a single address, lists what the
+  workspace's state tracks, and lists what exists in an Azure
+  subscription, GCP project, or AWS account through those clouds'
+  inventory APIs. See
+  xref:main:reference/api/iac.adoc[IaC sidecar API].
+* The core's generated IaC client contains these operations, and the
+  core defines an `import` operation type, `import` report type, and
+  `*-terraform-import` Phoenix projects.
+
+== Example
+
+After the example pull request in
+xref:main:guides/generate-infrastructure.adoc[Generate infrastructure] is
+merged, choose Import Infrastructure and submit. Nebula applies the
+pinned plan, creates the bucket, and shows an `apply` report with
+`Success`.
+
+== Next steps
+
+* xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+  to start a session that produces a plan to apply.
