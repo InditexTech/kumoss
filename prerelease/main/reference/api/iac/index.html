@@ -1,0 +1,2032 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>IaC sidecar API | Nebula</title>
+
+    <link rel="prev" href="../core/">
+    <link rel="next" href="../notifications/">
+    <meta name="description" content="The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">HTTP APIs</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">IaC sidecar API</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">IaC sidecar API</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>The IaC service is a <strong>raw executor</strong> for an IaC engine&#8217;s command-line
+interface. It is the one mandatory sidecar: without it the core cannot
+validate or apply anything, so <code>services.iac</code> has no <code>enabled</code> flag.</p>
+</div>
+<div class="paragraph">
+<p>Contract: <code>contracts/openapi/iac.v1.yaml</code>. Default endpoint:
+<code>http://iac:8082</code>. Bearer token: the value of the variable named by
+<code>services.iac.token_env</code>, <code>NEBULA_IAC_TOKEN</code> by default, which the
+bundled implementation reads from the variable of the same name.</p>
+</div>
+<div class="paragraph">
+<p>Every POST enqueues a <strong>job</strong> that runs exactly one command against the
+workspace at <code>workspace_path</code> and answers <code>202 Accepted</code> with a job id
+immediately. Clients poll <code>GET /v1/jobs/{job_id}</code> for progress and
+the result.</p>
+</div>
+<div class="paragraph">
+<p>Orchestration is the caller&#8217;s responsibility. The service does not
+sequence commands, interpret plan output, or detect drift: a caller
+that wants "validate this workspace" submits <code>init</code>, then <code>validate</code>,
+then <code>plan</code>, and <code>show</code> if it needs the plan JSON, as separate jobs,
+deciding after each one whether to continue. In Nebula that logic
+lives in the core.</p>
+</div>
+<div class="paragraph">
+<p>Jobs targeting the same <code>workspace_path</code> run one at a time in
+submission order. Jobs for different workspaces may run concurrently.
+A submission is never refused because the workspace is busy — it
+queues.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The contract is written in terms of <code>terraform</code>, and the field name
+<code>terraform_provider</code> reflects that. The bundled implementation
+defaults to <strong>OpenTofu</strong> and selects the engine at runtime with
+<code>IAC_BINARY</code>, so the command it actually runs is <code>tofu init</code> unless
+that variable says otherwise. The flags of the subcommands the service
+uses are identical across both engines, which is why the contract does
+not distinguish them. See <a href="#choosing-the-iac-engine">Choosing the IaC engine</a>.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="endpoints"><a class="anchor" href="#endpoints"></a>Endpoints</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Ten paths, all under <code>/v1</code> except the liveness probe.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 42.8571%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Endpoint</th>
+<th class="tableblock halign-left valign-top">Command it enqueues</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/init</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> in the workspace.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/validate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>validate</code> in the workspace. The workspace must already be
+initialised.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/plan</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan -out &lt;plan_file&gt;</code>, with optional <code>-target=</code> filters.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/show</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>show -json &lt;plan_file&gt;</code>. On exit code 0 the result&#8217;s <code>stdout</code> is the
+plan JSON.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>apply &lt;plan_file&gt;</code> — exactly the changes recorded in that file.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import &lt;address&gt; &lt;resource_id&gt;</code>. The resource block for <code>address</code>
+must already exist in the workspace; the engine reports it if not.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/state-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>state pull</code>, then the identifiers of the managed resource instances
+it found. See <a href="#import-discovery">Import discovery</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/scope-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No engine command at all — a query against the cloud&#8217;s own inventory
+API. See <a href="#import-discovery">Import discovery</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /v1/jobs/{job_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Nothing; returns the job&#8217;s status and outcome.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /healthz</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Nothing; liveness probe, answers <code>{"status":"ok"}</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="sect2">
+<h3 id="request-fields"><a class="anchor" href="#request-fields"></a>Request fields</h3>
+<div class="paragraph">
+<p>Every request schema sets <code>additionalProperties: false</code>, so sending a
+field an endpoint does not declare is a <code>422</code> rather than a silently
+ignored no-op.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>workspace_path</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Absolute filesystem path to the workspace <strong>as the implementation sees
+it</strong>, 1 to 4096 characters. Required on every POST. In the compose
+deployment this is a path on the volume mounted into both the core and
+this service, for example <code>/workspaces/my-iac_a1b2c3</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope_id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud scope the operation targets, 1 to 1024 characters — Azure
+subscription id, GCP project id, AWS account id, OCI compartment
+OCID. Required on the five endpoints that reach a cloud API. See
+<a href="#scope-injection">Scope injection</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_provider</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Which cloud that is: one of <code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>,
+<code>kubernetes</code>. These are the core&#8217;s provider names, not Terraform
+registry provider names such as <code>azurerm</code> or <code>google</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan_file</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <strong>filename</strong>, not a path, matching <code>^[A-Za-z0-9._-]{1,128}$</code> so it
+cannot escape the workspace. <code>plan</code> writes it; <code>show</code> and <code>apply</code> read
+the one a previous <code>plan</code> wrote.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>targets</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan</code> only. Up to 256 <code>-target=</code> filters. Omitted or empty plans the
+whole configuration.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>address</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import</code> only. The Terraform resource address to import into, for
+example <code>azurerm_resource_group.main</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>resource_id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import</code> only. The provider-specific identifier of the existing cloud
+resource, for example an Azure resource ID or an AWS ARN.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Which endpoint takes which:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 37.5%;">
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Endpoint</th>
+<th class="tableblock halign-left valign-top"><code>workspace_path</code></th>
+<th class="tableblock halign-left valign-top"><code>scope_id</code> + <code>terraform_provider</code></th>
+<th class="tableblock halign-left valign-top"><code>plan_file</code></th>
+<th class="tableblock halign-left valign-top"><code>targets</code></th>
+<th class="tableblock halign-left valign-top"><code>address</code> + <code>resource_id</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/init</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/validate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/plan</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/show</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/state-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/scope-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="submission-responses"><a class="anchor" href="#submission-responses"></a>Submission responses</h3>
+<div class="paragraph">
+<p>A successful submission is <code>202 Accepted</code> with a <code>Location</code> header
+pointing at the job resource and this body:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"job_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"3f2504e0-4f89-11d3-9a0c-0305e82c3301"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"status"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"queued"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>status</code> is always <code>queued</code> at submission time. Errors detectable at
+submission are reported synchronously on the POST:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 83.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Status</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>400</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The body could not be parsed at the transport layer — malformed JSON,
+non-UTF-8 bytes, no <code>Content-Type</code>. Implementations may answer with a
+problem document or a framework-default body; the bundled one returns
+the latter here.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>401</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Missing or invalid bearer token. Carries a <code>WWW-Authenticate: Bearer</code>
+challenge.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>403</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The token is valid but not authorized for this endpoint.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>404</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>workspace_path</code> does not exist or is not reachable from the
+implementation. This is distinct from an engine-level failure, which
+surfaces in the job result instead.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>422</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The body is well-formed JSON but failed schema validation.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>503</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The implementation is running but lacks a prerequisite needed to
+accept jobs at all — no engine binary, no configured state backend.
+Faults that only surface once the job runs end the job as <code>failed</code>
+instead.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p><strong>The bundled implementation never emits that <code>503</code>.</strong> The contract
+defines the response, but the reference service reaches the two
+prerequisite failures by other routes. A missing or unresolvable
+engine binary is asserted at startup, so the process exits with a
+configuration error and is never running to answer anything. A missing
+or wrong <code>IAC_BACKEND_CONFIG</code> path is not checked at all and surfaces
+on <code>init</code>, in that job&#8217;s <code>stderr</code>. Its only <code>503</code> is a job-level one —
+<code>Service shut down before the job finished.</code> in the job&#8217;s <code>error</code> — so
+it appears on <code>GET /v1/jobs/{job_id}</code>, never on a POST. Nor does it
+ever emit the job-level <code>504</code>: it puts no time limit on the engine
+command, so a hung command stays <code>running</code> instead of ending <code>failed</code>
+(see <a href="#job-model">The job model</a>). Another implementation of the same contract may
+use the submission-time <code>503</code> and the <code>504</code>, so a caller must still
+handle both.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="job-model"><a class="anchor" href="#job-model"></a>The job model</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>GET /v1/jobs/{job_id}</code> returns the job. All keys are always present;
+<code>started_at</code>, <code>finished_at</code>, <code>result</code>, and <code>error</code> are null until they
+become meaningful.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "job_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"3f2504e0-4f89-11d3-9a0c-0305e82c3301"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "kind"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"plan"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "status"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"succeeded"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "created_at"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"2026-09-21T10:00:00Z"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "started_at"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"2026-09-21T10:00:01Z"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "finished_at"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"2026-09-21T10:02:33Z"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "result"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"exit_code"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">0</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"stdout"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"..."</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"stderr"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">},</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "error"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">null</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>kind</code> is one of <code>init</code>, <code>validate</code>, <code>plan</code>, <code>show</code>, <code>apply</code>,
+<code>import</code>, <code>state_resource_ids</code>, <code>scope_resource_ids</code>. <code>status</code> moves
+through four values:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 80%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Status</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>queued</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Accepted, waiting for its workspace&#8217;s queue.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>running</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The command or query is executing.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>succeeded</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The command ran to completion. Inspect <code>result</code> — <code>exit_code</code> may
+still be non-zero.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>failed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A service-level fault. Inspect <code>error</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><strong>The two failure planes are deliberately distinct, and a caller must
+tell them apart.</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Engine-level failures are a normal outcome.</strong> The job ends
+<code>succeeded</code> and its <code>result</code> carries the process&#8217;s <code>exit_code</code>
+(non-zero on failure) with <code>stdout</code> and <code>stderr</code> passed through
+verbatim — including the engine&#8217;s own provider authentication
+errors. Failures of the underlying cloud query in a discovery job
+ride this same plane.</p>
+</li>
+<li>
+<p><strong>Service-level faults</strong> — an unexpected exception, shutdown
+mid-job, a subprocess timeout where the implementation enforces
+one — end the job as <code>failed</code> with an RFC 7807 problem document in
+<code>error</code> and no result. The problem&#8217;s embedded <code>status</code> member is the
+HTTP status an equivalent synchronous API would have returned: <code>500</code>
+for an unexpected execution failure, <code>504</code> for a subprocess timeout,
+<code>503</code> for a shutdown before completion. The <code>504</code> is part of the
+contract, but the bundled implementation never produces it: it puts
+no time limit on the engine command, so a hung command keeps the job
+<code>running</code> indefinitely.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Polling an unknown or expired job is <code>404</code>, and a <code>job_id</code> that is not
+a valid UUID is <code>422</code>. The bundled implementation keeps terminal jobs
+in memory for its <code>job_ttl</code> (one hour) and holds no job across a
+restart, so <strong>a client must treat an unexpected <code>404</code> as job loss</strong> and
+resubmit if the work still matters.</p>
+</div>
+<div class="paragraph">
+<p>The core polls every <code>services.iac.job_poll_interval</code> seconds and
+gives up after <code>services.iac.job_timeout</code> (3600 seconds by default).
+That timeout has to cover both the queue wait and the command itself,
+and against the bundled implementation it is the <strong>only</strong> limit: when an
+engine command hangs, the core stops waiting once the timeout elapses,
+while the job stays <code>running</code> and the command keeps running in the
+sidecar until it exits on its own.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="scope-injection"><a class="anchor" href="#scope-injection"></a>Scope injection</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Only the commands that reach a cloud API need to know which scope they
+run against, and only those carry <code>scope_id</code> and
+<code>terraform_provider</code>:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 42.8571%;">
+<col style="width: 14.2857%;">
+<col style="width: 42.8572%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Endpoint</th>
+<th class="tableblock halign-left valign-top">Scope</th>
+<th class="tableblock halign-left valign-top">Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/init</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">May access external services during initialization.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/plan</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Refreshes state against the API.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Creates and changes resources.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reads the live resource.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/scope-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Enumerates a scope.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/validate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Local configuration check.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/show</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reads the local plan file.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/state-resource-ids</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reads Terraform state.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Generated provider blocks do not name a scope. So where a cloud
+exposes a provider-level environment variable that names one, the
+implementation injects <code>scope_id</code> into the engine&#8217;s environment for
+that command only, picking the variable from <code>terraform_provider</code>:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 40%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"><code>terraform_provider</code></th>
+<th class="tableblock halign-left valign-top">Environment variable</th>
+<th class="tableblock halign-left valign-top">Scope it sets</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_SUBSCRIPTION_ID</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">subscription</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_PROJECT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">project</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Only Azure and GCP have such a variable. An AWS account is implicit in
+the credentials the provider resolves, and an OCI compartment or a
+Kubernetes namespace is a resource argument rather than a provider
+setting, so no environment variable redirects a command to one. For
+those three the bundled implementation injects nothing: the command
+runs against whatever scope the deployment&#8217;s ambient credentials and
+configuration select, and making those agree with <code>scope_id</code> is the
+deployment&#8217;s responsibility. The pair stays required on the wire so
+the intended scope is always stated, and so an implementation that can
+enforce it has what it needs.</p>
+</div>
+<div class="paragraph">
+<p>An implementation may scope a command by another mechanism instead —
+an AWS AssumeRole into the account, a provider alias, a credential
+broker — as long as the command runs against <code>scope_id</code>. Callers need
+to know nothing about which mechanism was used.</p>
+</div>
+<div class="paragraph">
+<p>Where the overlay is applied it sits on top of the service&#8217;s own
+environment, so it wins over an <code>ARM_SUBSCRIPTION_ID</code> set on the
+container. Ambient provider credentials are otherwise untouched.</p>
+</div>
+<div class="paragraph">
+<p>On Azure that variable is also the <code>azurerm</code> backend&#8217;s, so <code>init</code>
+resolves the state storage account in <code>scope_id&#8217;s subscription. A
+deployment keeping state outside that subscription has to name
+`subscription_id</code> in its backend configuration; see
+<a href="../../terraform-providers/#backend-minimums" class="xref page">Backend
+minimums</a>.</p>
+</div>
+<div class="paragraph">
+<p><code>POST /v1/import/scope-resource-ids</code> is the exception: it launches no
+subprocess, so there is no environment to overlay. Its <code>scope_id</code> is
+the argument of the inventory query itself — the subscription,
+project, or account whose contents are listed.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="import-discovery"><a class="anchor" href="#import-discovery"></a>Import discovery</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Two endpoints answer the question "what already exists here that
+Terraform does not manage yet?" without running a state-mutating
+command. Both follow the job model, and on success both put a JSON
+array of identifier strings in the result&#8217;s <code>stdout</code> as a string, the
+way <code>show</code> returns the plan JSON, so a caller reads it with one JSON
+parse. The implementation normalizes both lists so they are directly
+comparable, and a caller typically diffs them to decide which existing
+resources still need an <code>import</code> job.</p>
+</div>
+<div class="paragraph">
+<p><code>POST /v1/import/state-resource-ids</code> runs <code>state pull</code> and extracts
+the provider-assigned identifier of every managed resource instance in
+the state — its <code>arn</code> attribute when it has one, otherwise its <code>id</code> —
+deduplicated. An instance with neither contributes nothing. An empty
+state answers <code>[]</code>. A <code>state pull</code> that exits 0 but prints something
+other than a state document ends the job with exit code 1 and <code>state
+pull returned an unparsable state document</code>; a non-zero <code>state pull</code>
+is passed through with its own exit code, its <code>stderr</code>, and an empty
+<code>stdout</code>. The workspace must already be initialised.</p>
+</div>
+<div class="paragraph">
+<p><code>POST /v1/import/scope-resource-ids</code> talks to each cloud&#8217;s inventory
+API directly over HTTPS. No <code>az</code>, <code>gcloud</code>, or <code>aws</code> binary is
+involved, and none is present in the bundled image. Tokens come from
+the official auth libraries reading the same <code>ARM_*</code>, <code>GOOGLE_*</code>, and
+<code>AWS_*</code> variables the engine&#8217;s providers use, so most deployments that
+can run <code>plan</code> can run discovery unchanged.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"><code>terraform_provider</code></th>
+<th class="tableblock halign-left valign-top">Source</th>
+<th class="tableblock halign-left valign-top">Scope is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure Resource Graph</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">subscription ID</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud Asset Inventory <code>searchAllResources</code>, plus Resource Manager
+<code>projects.get</code> and <code>getIamPolicy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">project ID</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Resource Explorer <code>ListIndexes</code>, <code>GetDefaultView</code>, <code>ListResources</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">account ID</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code>, <code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>oci</code> and <code>kubernetes</code> are answered with exit code 2 and
+<code>no scope discovery for provider '&lt;provider&gt;'</code> in <code>stderr</code>, with the
+provider name quoted. That is a deliberate outcome, not a crash: the
+job still ends <code>succeeded</code>, and the exit code tells the caller the
+provider is unsupported rather than that a cloud call failed.</p>
+</div>
+<div class="paragraph">
+<p>The contract&#8217;s own description of this endpoint&#8217;s <code>scope_id</code> field
+enumerates only Azure, GCP, and AWS, omitting both <code>oci</code> and
+<code>kubernetes</code> even though the schema&#8217;s provider enum accepts them.
+The omission is consequential here, unlike in the generic <code>scope_id</code>
+description: these are exactly the two providers that produce the exit
+code 2 above, so the field description reads as though they cannot be
+sent at all, when in fact they are accepted and answered with a
+negative result.</p>
+</div>
+<div class="paragraph">
+<p><strong>The core does not call this endpoint today.</strong> The generated client
+contains both operations, and the core defines the <code>import</code> operation
+type, but the mode is not wired into a session pipeline. See
+<a href="../../../guides/import-infrastructure/" class="xref page">Import infrastructure</a>.</p>
+</div>
+<div class="sect2">
+<h3 id="what-the-listing-leaves-out"><a class="anchor" href="#what-the-listing-leaves-out"></a>What the listing leaves out</h3>
+<div class="paragraph">
+<p>Resources whose lifecycle belongs to another control plane are
+excluded at the query, so the caller never sees them. Importing them
+would put Terraform in a fight it loses.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Azure</strong> — resource groups carrying a <code>managedBy</code> (Databricks,
+HDInsight, Batch), AKS node resource groups (<code>MC_*</code>), and
+<code>NetworkWatcherRG</code>, both names matched case-insensitively, plus
+everything inside them, role assignments scoped into one of those
+groups included. Also every
+<code>microsoft.alertsmanagement/smartdetectoralertrules</code> row, not only
+App Service&#8217;s, and any resource carrying a <code>hidden-link*</code> tag. The
+tag filter matches the serialized tags, so a tag <strong>value</strong> containing
+<code>"hidden-link</code> drops the row too, and it is applied to resources
+only — resource groups and role assignments are not tag filtered.</p>
+</li>
+<li>
+<p><strong>GCP</strong> — the project asset itself, both the Resource Manager and the
+Compute one; anything labelled <code>goog-<strong></code>, which covers GKE-created
+disks and <code>goog-terraform-provisioned</code>; resources whose name ends in
+a <code>gke-</strong></code> segment, meaning node instances, instance groups,
+templates, and firewall rules; and Dataproc, Cloud Functions, Cloud
+Run, and Cloud Build staging buckets. The <code>gke-</code> test is on the last
+path segment and ignores the asset type, so a resource of your own
+whose final segment starts with <code>gke-</code> is dropped as well.</p>
+</li>
+<li>
+<p><strong>AWS</strong> — every <code>ec2:network-interface</code>, because elastic network
+interfaces are almost always created by another service (Lambda,
+RDS, ELB, EKS) and are imported with their owner rather than on
+their own; service-linked and AWS SSO reserved IAM roles; anything
+tagged <code>aws:*</code> (CloudFormation and CDK stacks), <code>eks:*</code>,
+<code>kubernetes.io/<strong></code>, <code>k8s.io/</strong></code>, <code>alpha.eksctl.io/<strong></code>, or the AWS Load
+Balancer Controller&#8217;s <code>elbv2.k8s.aws/</strong></code>, <code>ingress.k8s.aws/<strong></code>, and
+<code>service.k8s.aws/</strong></code>; and resources owned by another account that the
+view can see.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="identifier-normalization"><a class="anchor" href="#identifier-normalization"></a>Identifier normalization</h3>
+<div class="paragraph">
+<p>The service, not the caller, decides the identifier shape.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Azure</strong> emits full ARM resource IDs, plus resource-group and
+role-assignment IDs. ARM IDs are case-insensitive in their provider
+and type segments, so compare them case-insensitively against state.</p>
+</li>
+<li>
+<p><strong>GCP</strong> emits asset names with the <code>//service.googleapis.com/</code> prefix
+stripped and any <code>projects/&lt;number&gt;</code> rewritten to
+<code>projects/&lt;project-id&gt;</code>, because Cloud Asset Inventory reports some
+services by project number while Terraform IDs use the id. The
+number comes from the <code>projects.get</code> call; if the answer carries no
+<code>projectNumber</code> the rewrite is skipped silently and those names keep
+the number they arrived with. Project IAM produces one entry per
+role and member in the provider&#8217;s own space-delimited form,
+<code>&lt;project-id&gt; &lt;role&gt; &lt;member&gt;</code>, which is both the <code>id</code>
+<code>google_project_iam_member</code> stores in state — so the two listings
+line up — and the identifier <code>import</code> takes verbatim. <code>deleted:</code>
+members are dropped, and so is every <code>*.gserviceaccount.com</code> member
+that does not end in <code>@&lt;project-id&gt;.iam.gserviceaccount.com</code>:
+Google&#8217;s own service agents, and with them any service account owned
+by a different project. Only the listed project&#8217;s own service
+accounts survive. A binding with no role, and an asset with no name,
+are skipped without comment.</p>
+</li>
+<li>
+<p><strong>AWS</strong> emits ARNs. <code>POST /v1/import/state-resource-ids</code> prefers a
+resource&#8217;s <code>arn</code> attribute over its <code>id</code> for exactly this reason, so
+the two lists line up. That preference is not AWS-specific — the
+endpoint takes no <code>terraform_provider</code>, so it applies to every state
+document, a no-op for <code>azurerm</code> and <code>google</code> resources, which expose
+no <code>arn</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="prerequisites-and-permissions"><a class="anchor" href="#prerequisites-and-permissions"></a>Prerequisites and permissions</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Azure</strong> — <code>Reader</code> on the subscription is enough. Resource Graph
+needs no separate enablement.</p>
+</li>
+<li>
+<p><strong>GCP</strong> — enable <code>cloudasset.googleapis.com</code> and
+<code>cloudresourcemanager.googleapis.com</code> on the project that owns the
+credentials. No <code>x-goog-user-project</code> header is sent, so quota and
+API enablement are evaluated there, not on the project being listed.
+On the listed project the identity needs <code>roles/cloudasset.viewer</code>
+and <code>roles/viewer</code>, which grants the
+<code>resourcemanager.projects.get</code> and
+<code>resourcemanager.projects.getIamPolicy</code> the lister calls.
+<code>projects.get</code> runs first and is not optional — it resolves the
+project number the asset names are rewritten with, so a <code>403</code> there
+fails the whole listing.</p>
+</li>
+<li>
+<p><strong>AWS</strong> — <strong>Resource Explorer must be enabled for the account.</strong> Create
+an aggregator index in one region, a local index in every region you
+want discovered, and a default view in the aggregator region; the
+console&#8217;s quick setup creates all of these. A region with no local
+index contributes nothing, and the service checks only that the
+aggregator index and the default view exist. Then grant the identity
+<code>sts:GetCallerIdentity</code>, <code>resource-explorer-2:ListIndexes</code>,
+<code>resource-explorer-2:GetDefaultView</code>, and
+<code>resource-explorer-2:Search</code> — the last of which is what authorizes
+the <code>ListResources</code> call, since that call has no IAM action of its
+own. <code>ListIndexes</code> is called in <code>AWS_REGION</code> and the other two in
+the aggregator&#8217;s region, so the grant has to be effective in both,
+and <code>GetDefaultView</code> needs an index in the region it is called in.
+Without an aggregator index or a default view the job ends with exit
+code 1 and <code>AWS Resource Explorer is not enabled for account</code>; a
+missing permission produces a different message naming the call that
+was denied. The default view must also expose tags, because the tag
+exclusions above read the rows' <code>tags</code> property and a view that
+leaves it out makes every one of them silently do nothing. Finally,
+<code>AWS_REGION</code> or <code>AWS_DEFAULT_REGION</code> must be set in the
+environment — it is where the index lookup starts, and a region that
+only a profile or <code>~/.aws/config</code> names does not count. Only the
+account the ambient credentials belong to can be listed; a
+<code>scope_id</code> naming another account is refused before any Resource
+Explorer call.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="known-gaps"><a class="anchor" href="#known-gaps"></a>Known gaps</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>Azure Resource Graph&#8217;s coverage of child resources is type by type,
+and the service emits whatever it returns. Some child types are rows
+and are listed (<code>microsoft.compute/virtualmachines/extensions</code>,
+<code>microsoft.sql/servers/databases</code>); others, such as subnets and
+network security group rules, are not indexed at all, and only the
+parent&#8217;s ID appears. Consult Resource Graph&#8217;s supported-types
+reference before assuming a child resource will show up.</p>
+</li>
+<li>
+<p>A few GCP resource types have a Terraform identifier shape that
+differs from the normalized asset name. <code>google_project_service</code> is
+the known case.</p>
+</li>
+<li>
+<p>GCP conditional IAM bindings are emitted without their condition.</p>
+</li>
+<li>
+<p>GCP drops any bound service account that does not belong to the
+listed project, so a shared identity from another project is missing
+from the listing even though its binding is importable. Rebuild
+those by hand.</p>
+</li>
+<li>
+<p>An AWS ARN is not the import identifier for most resource types:
+<code>aws_instance</code> takes the instance ID, <code>aws_s3_bucket</code> the bucket
+name. Turning an ARN into the argument for <code>POST /v1/import</code> is the
+caller&#8217;s job.</p>
+</li>
+<li>
+<p>ARM resource IDs are reported exactly as Resource Graph returns
+them, and providers disagree about the casing of the
+<code>resourceGroups</code> segment. Diffing an Azure listing against state can
+therefore report a difference that is only a difference in case,
+which AWS and GCP listings do not do. The service does not normalize
+the casing, because lowercasing an ARM ID can make it unusable as
+the <code>resource_id</code> argument to <code>POST /v1/import</code>.</p>
+</li>
+<li>
+<p>Each <code>scope_id</code> is checked for shape before anything else. Azure
+wants a subscription GUID, and GCP accepts modern project ids only,
+so a legacy domain-scoped id such as <code>example.com:my-project</code> is
+rejected. Either rejection happens before a token is fetched and
+ends the job with exit code 1.</p>
+</li>
+<li>
+<p>Azure sovereign clouds, the <code>az login</code> and CI-injected OIDC
+request-URL flows, and the <code>ARM_CLIENT_ID_FILE_PATH</code> and
+<code>ARM_CLIENT_SECRET_FILE_PATH</code> credential forms are not supported for
+discovery, although provider commands still accept all of them. The
+credential cases at least say so — <code>no Azure credentials configured
+for scope discovery</code> — but <code>ARM_ENVIRONMENT</code> is not read at all, so
+a sovereign deployment fails against the public endpoints rather
+than being told the cloud is unsupported.</p>
+</li>
+<li>
+<p>Each cloud is paged to a bounded number of requests: 100 pages for
+Azure, 200 for GCP and AWS. A scope large enough to exceed that ends
+the job with exit code 1 rather than truncating the list silently.
+Resource Graph&#8217;s own <code>resultTruncated</code> flag is treated the same way.</p>
+</li>
+<li>
+<p>The service itself never retries a cloud call, throttling included.
+On Azure and GCP a single <code>429</code> mid-paging ends the job with exit
+code 1 and discards the pages already collected; Resource Graph&#8217;s
+per-tenant quota makes that the most likely failure on a large
+subscription. Retry the request. AWS is the partial exception: the
+boto3 client is configured with timeouts only, so botocore&#8217;s default
+retry mode still retries throttled and transient calls a few times
+before the same failure surfaces.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="state-backend"><a class="anchor" href="#state-backend"></a>State backend</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The service does not choose where state goes. <code>init</code> reads the backend
+from the workspace it is handed, and preparing that workspace is the
+caller&#8217;s job. Nebula&#8217;s core writes a <code>backend_override.tf</code> into the
+workspace before calling <code>init</code>, pinning state to the object store it
+already holds credentials for. The engine merges <code>*_override.tf</code> over
+the rest of the configuration, so an override both introduces a
+backend where the workspace declares none and replaces one that it
+does declare — any caller can use the same trick.</p>
+</div>
+<div class="paragraph">
+<p><code>IAC_BACKEND_CONFIG</code> is the escape hatch for a deployment that owns
+the decision instead. Set it to the path of a backend configuration
+file, <code>.hcl</code> or <code>.tfbackend</code>, and <code>init</code> runs with
+<code>-backend-config=&lt;path&gt;</code>, with the backend <strong>type</strong> still coming from
+the workspace&#8217;s own <code>terraform { backend }</code> block. The path is either
+absolute, for a file mounted into the container, or relative to the
+workspace, for one the target repository carries at a fixed place.
+Unlike the engine binary, the service does not check it at startup:
+under the second form the file exists only once a repository has been
+cloned into a workspace, so a wrong path fails on <code>init</code>, in that
+job&#8217;s <code>stderr</code>. The values in this file win over the core&#8217;s
+<code>backend_override.tf</code> key by key, and the override&#8217;s remaining keys
+survive the merge, so do not combine the two: set
+<code>storage.terraform_state_bucket: ""</code> whenever <code>IAC_BACKEND_CONFIG</code> is
+set. See <a href="../../../guides/configure-state-backends/" class="xref page">Configure
+state backends</a>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Reinitialization.</strong> <code>init</code> always runs <code>-reconfigure</code>, so a workspace
+whose backend changed between calls is rebound to the new one instead
+of failing with "Backend configuration changed", which <code>-input=false</code>
+could not answer interactively. State already in the target backend is
+adopted; state held under the previous backend is <strong>not</strong> migrated. Move
+it yourself if it matters.</p>
+</div>
+<div class="paragraph">
+<p>The full picture, including which of the three models to pick, is in
+<a href="../../../guides/configure-state-backends/" class="xref page">Configure state
+backends</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="choosing-the-iac-engine"><a class="anchor" href="#choosing-the-iac-engine"></a>Choosing the IaC engine</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The bundled image ships both engines and <code>IAC_BINARY</code> selects one at
+runtime, with no rebuild needed to switch:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>OpenTofu 1.12.6</strong> (MPL-2.0) — the default, <code>IAC_BINARY=tofu</code>.
+Installed from the official minimal OpenTofu image, pinned by
+digest.</p>
+</li>
+<li>
+<p><strong>HashiCorp Terraform 1.16.0</strong> (BUSL-1.1) — <code>IAC_BINARY=terraform</code>.
+Fetched at build time and checksum-verified. Use of it is subject to
+its license terms.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The service itself is engine-agnostic: it only shells out to <code>init</code>,
+<code>validate</code>, <code>plan</code>, <code>show</code>, <code>apply</code>, <code>import</code>, and <code>state pull</code>, whose
+flags are identical across both engines, so any Terraform-compatible
+engine on <code>PATH</code> or at an absolute path works.</p>
+</div>
+<div class="paragraph">
+<p>Three things to know when pointing a workspace previously managed by
+Terraform at the default OpenTofu engine:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Providers resolve from <code>registry.opentofu.org</code>. Hostless sources
+such as <code>hashicorp/azurerm</code> work unchanged, but allow that egress
+alongside or instead of <code>registry.terraform.io</code>.</p>
+</li>
+<li>
+<p>A repository with a committed <code>.terraform.lock.hcl</code> generated by
+Terraform may need one <code>tofu init -upgrade</code> to regenerate provider
+checksums. The failure, if any, surfaces in the <code>init</code> job&#8217;s
+<code>stderr</code>.</p>
+</li>
+<li>
+<p>State remains readable in both directions until OpenTofu first
+applies. After that, going back to Terraform requires restoring a
+state backup — see OpenTofu&#8217;s
+<a href="https://opentofu.org/docs/intro/migration/">migration guide</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="workspace-and-runtime-ownership"><a class="anchor" href="#workspace-and-runtime-ownership"></a>Workspace and runtime ownership</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The service operates on <code>workspace_path</code> as visible <strong>inside</strong> its own
+container. The contract makes no assumption about how the workspace
+got there. The compose deployment mounts a named <code>workspaces</code> volume
+at <code>/workspaces</code> in both the core and the IaC containers, so the core
+writes the cloned repository there and references the same path when
+submitting jobs. Other deployments may use a PersistentVolumeClaim, an
+NFS mount, object storage, or an upload endpoint — same contract,
+different mechanics.</p>
+</div>
+<div class="paragraph">
+<p>The bundled image runs as an unprivileged user, <code>nebula</code>, uid and gid
+<code>10001</code> by default, set by the <code>NEBULA_UID</code> and <code>NEBULA_GID</code> build
+arguments. The engine executes provider plugins and provisioners from
+generated code, so it must not run as root.</p>
+</div>
+<div class="paragraph">
+<p>Because the engine writes <code>.terraform/</code>, <code>.terraform.lock.hcl</code>, plan
+files, and state next to the configuration, <strong>workspace directories
+must be writable by that uid</strong>. In the compose stack this holds because
+the core image is built with the same two build arguments and also
+runs as <code>nebula</code>, so everything the core clones is owned by the same
+user. Override the two arguments together or not at all.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Existing volumes.</strong> A <code>workspaces</code> volume created by a stack that
+ran as root keeps root-owned directories the engine can no longer
+write to, and <code>plan</code> then fails with <code>permission denied</code> on the
+state or plan file.</p>
+</li>
+<li>
+<p><strong>Other deployments.</strong> The requirement does not change with the
+topology: whatever backs the shared workspace must be owned by the
+unprivileged user the images were built with, and every component
+that stages repositories into it must run as that same identity. How
+a platform expresses that — a pod security context, export options,
+a one-off <code>chown</code> — is deployment-specific; the ownership itself is
+not.</p>
+</li>
+<li>
+<p><strong>Provider credentials.</strong> Credential files you mount must be readable
+by uid <code>10001</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="configuration"><a class="anchor" href="#configuration"></a>Configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The bundled implementation reads four groups of variables.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token clients must present. Blank disables the check
+entirely.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BINARY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name or absolute path of the engine CLI. Default <code>tofu</code>; set
+<code>terraform</code> for the bundled Terraform.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BACKEND_CONFIG</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to a backend configuration file <code>init</code> passes to
+<code>-backend-config</code>. Not validated at startup. Unset, the backend comes
+from the workspace itself.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_*</code>, <code>GOOGLE_*</code>, <code>AWS_*</code>, <code>OCI_*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Provider credentials, read directly by the engine&#8217;s providers and
+identical for OpenTofu and Terraform. Provide whichever your modules
+need; without them <code>plan</code> and <code>apply</code> fail with the engine&#8217;s own
+authentication errors in the result&#8217;s <code>stderr</code>. The per-request scope
+variable is layered on top of these.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Everything else is a property of the service rather than of a
+deployment: <code>job_ttl</code>, how long a terminal job stays pollable, and
+<code>log_level</code>. The per-cloud minimum sets and every credential variable
+are in <a href="../../terraform-providers/" class="xref page">Terraform
+providers</a>;
+<a href="../../environment-variables/#iac-cloud-credentials" class="xref page">Cloud
+credentials for the IaC engine</a> covers how they reach the container.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="conformance"><a class="anchor" href="#conformance"></a>Conformance</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The implementation-agnostic Schemathesis suite at
+<code>contracts/conformance/iac/</code> runs against any implementation of this
+contract, in-tree or your own. Point <code>--service-url</code> at a running
+instance:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> contracts/conformance/iac</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> sync</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pytest</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --service-url=https://iac.your.example</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --service-token=</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$YOUR_TOKEN</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>--service-token</code> is needed only if the implementation enforces
+authentication. Both values may also come from <code>NEBULA_IAC_URL</code> and
+<code>NEBULA_IAC_TOKEN</code>.</p>
+</div>
+<div class="paragraph">
+<p>The suite generates requests from the OpenAPI document and checks that
+every status the service answers is one the contract documents for
+that operation, and that response bodies match the declared schemas.
+It does not check that every documented status is reachable — a status
+the implementation never emits, such as the submission-time <code>503</code>,
+leaves the run green. Nor does it check that the commands the jobs run
+produce accurate output for your modules, cloud-provider
+authentication semantics, or behaviour under concurrency.</p>
+</div>
+<div class="paragraph">
+<p>The bundled implementation has its own unit test suite, separate from
+this one; see <a href="../../../guides/development/" class="xref page">Development</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="next-steps"><a class="anchor" href="#next-steps"></a>Next steps</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../../guides/configure-state-backends/" class="xref page">Configure state
+backends</a> for the three ways state can be pinned.</p>
+</li>
+<li>
+<p><a href="../../terraform-providers/" class="xref page">Terraform providers</a>
+for the credential variables each cloud needs.</p>
+</li>
+<li>
+<p><a href="../../../guides/deploy-to-production/#iac-mandatory" class="xref page">Deploy to
+production</a> for why a production deployment should implement this
+contract rather than harden the bundled image.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../core/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Core API</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../notifications/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Notifications sidecar API</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/reference/api/iac.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../../_/js/site.js" data-ui-root-path="../../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

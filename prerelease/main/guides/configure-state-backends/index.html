@@ -1,0 +1,1512 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Configure state backends | Nebula</title>
+
+    <link rel="prev" href="../customize-prompts/">
+    <link rel="next" href="../state-backends/repository-declared/">
+    <meta name="description" content="Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Configure state backends</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Configure state backends</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula&#8217;s workspaces are <strong>ephemeral by design</strong>: every call clones the
+repository into a fresh directory on the shared <code>workspaces</code> volume and
+deletes it in a <code>finally</code> block, and the workspace pinned for an apply is
+removed once the apply completes. Nothing there survives. Hence a remote
+backend is not optional:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>A local state file would be lost.</strong> <code>terraform.tfstate</code> written next
+to the configuration dies with the clone directory, and the next
+session plans against empty state — proposing to create infrastructure
+that already exists.</p>
+</li>
+<li>
+<p><strong>State must be shared across runs, not across directories.</strong> Two
+sessions on the same project get two different clone paths, so only
+something that describes <em>the project</em> can bring their state together.
+Nebula derives that identity itself (see
+<a href="../state-backends/nebula-managed/#state-keys" class="xref page">State
+keys</a>).</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The seeded <code>.gitignore</code> excludes <code><strong>.tfstate</code>, <code></strong>.tfstate.*</code>, and
+<code>*_override.tf</code>, so state and the generated backend file never reach a
+commit or a pull request.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-ships-by-default"><a class="anchor" href="#what-ships-by-default"></a>What ships by default</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>The shipped <code>config.yaml</code> sets
+<code>storage.terraform_state_bucket: "nebula-terraform-state"</code>, so Nebula
+manages state itself.</strong> It takes over the backend entirely: it creates
+the bucket or container at boot in the store that <code>storage.provider</code>
+selects (RustFS by default), writes the backend into every workspace,
+and assigns a state key per project. The repositories Nebula operates on
+need no backend block of their own, and there is nothing to set up in a
+cloud account first.</p>
+</div>
+<div class="paragraph">
+<p>If your repositories already declare their own backends and must keep
+them, <strong>set <code>storage.terraform_state_bucket</code> to the empty string</strong> and
+Nebula configures no backend at all. The backend is then yours to
+provide: every repository must declare its own remote backend, and the
+IaC sidecar must hold the credentials to reach it. A repository with no
+backend block falls back to local state, which is lost with the
+workspace.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># As shipped: Nebula-managed state. Nothing else to configure on RUSTFS.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-artifacts"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-terraform-state"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Only an explicit empty string turns managed state off.</strong> Write
+<code>terraform_state_bucket: ""</code>; whitespace-only counts too. Deleting the
+key does not: the field&#8217;s default in code is <code>nebula-terraform-state</code>,
+so a <code>config.yaml</code> without <code>terraform_state_bucket</code> still manages state.
+Nor does writing the key with <strong>no value after it</strong> — YAML reads that as
+null, the field is typed <code>str</code>, and the core dies at boot with
+<code>storage.terraform_state_bucket / Input should be a valid string
+[type=string_type, input_value=None]</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-three-ownership-models"><a class="anchor" href="#the-three-ownership-models"></a>The three ownership models</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Exactly one party decides where state goes. Pick deliberately.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 10%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">#</th>
+<th class="tableblock halign-left valign-top">Model</th>
+<th class="tableblock halign-left valign-top">Who decides</th>
+<th class="tableblock halign-left valign-top">Selected by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Repository-declared backend</strong> — <em>opt-in</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Each <strong>repository&#8217;s own HCL</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_state_bucket: ""</code> and <code>IAC_BACKEND_CONFIG</code> unset</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Nebula-managed state</strong> — <em>shipped default</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The <strong>core</strong>, from <code>storage.*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_state_bucket</code> set to a bucket name — as shipped,
+<code>nebula-terraform-state</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Sidecar-supplied backend configuration</strong> — <em>opt-in</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The <strong>deployment</strong>, via a mounted file</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_state_bucket: ""</code> and <code>IAC_BACKEND_CONFIG</code> set</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/repository-declared/" class="xref page">Repository-declared backend</a></div><p>Blank the state bucket and let each repository&#8217;s own backend block own
+state.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/nebula-managed/" class="xref page">Nebula-managed state</a></div><p>Keep the shipped default: the core creates the bucket and writes the
+backend for you.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/sidecar-supplied/" class="xref page">Sidecar-supplied backend</a></div><p>Mount a backend configuration file on the IaC sidecar and own the
+decision centrally.</p></div></div></div></div>
+<div class="paragraph">
+<p>Which one is appropriate:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 30%;">
+<col style="width: 20%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Deployment</th>
+<th class="tableblock halign-left valign-top">Recommended model</th>
+<th class="tableblock halign-left valign-top">Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Local / non-production, no backend set up yet</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> with <code>RUSTFS</code>, as shipped</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No configuration at all, no cloud account, no credentials; state
+survives restarts in the bundled store.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Local / non-production against a real cloud project</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>1</strong>, by blanking the state bucket</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reuses the backend your repositories already declare, so local runs and
+CI plan against the same state.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Production, repositories already have backends you must not change</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>1</strong>, by blanking the state bucket</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula writes nothing; each repository keeps the backend its team
+declared.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Production, Nebula owns the projects it generates</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> with <code>S3</code> or <code>STORAGE_ACCOUNT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One managed store, one credential set, one lifecycle policy, state keys
+assigned automatically.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Production, one central backend for every project, defined outside
+Nebula</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>3</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Backend values live in a file your platform mounts and rotates.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-core-and-sidecar-configuration-interact"><a class="anchor" href="#how-core-and-sidecar-configuration-interact"></a>How core and sidecar configuration interact</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The two settings are meant as <strong>alternatives, not layers</strong> — but if you
+set both, the engine merges them rather than picking one.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>storage.terraform_state_bucket (core)        IAC_BACKEND_CONFIG (iac sidecar)</span></span>
+<span class="line"><span>            │                                            │</span></span>
+<span class="line"><span>            ▼                                            ▼</span></span>
+<span class="line"><span>  writes backend_override.tf                  adds -backend-config=&#x3C;file></span></span>
+<span class="line"><span>  into the workspace                          to the init command line</span></span>
+<span class="line"><span>            │                                            │</span></span>
+<span class="line"><span>            └──────────────► engine merge ◄──────────────┘</span></span>
+<span class="line"><span>                                   │</span></span>
+<span class="line"><span>                   -backend-config values win over</span></span>
+<span class="line"><span>                   *_override.tf, which wins over the</span></span>
+<span class="line"><span>                   repository's own backend block</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Precedence, highest first: <strong><code>-backend-config</code> values</strong> from
+<code>IAC_BACKEND_CONFIG</code>, passed as <code>-backend-config=&lt;file&gt;</code> on <code>init</code>, then the core-written
+<strong><code>backend_override.tf</code></strong> (model 2), then <strong>the repository&#8217;s own
+<code>terraform { backend }</code> block</strong> (model 1). This was verified empirically
+by running <code>tofu init</code> (and <code>terraform init</code>) against a local backend
+with the same key set in all three layers, and reading back which value
+the engine bound.</p>
+</div>
+<div class="paragraph">
+<p>Keys absent from a higher layer fall through to the next one, so
+<strong>setting both model 2 and model 3 produces a partial merge, not a clean
+override</strong>: for every key the mounted file declares (<code>bucket</code>, <code>key</code>,
+<code>region</code>, credentials) it replaces Nebula&#8217;s value, and Nebula&#8217;s
+remaining keys survive. That is worse than either model alone, because
+the result is a backend neither side fully describes. The common
+failure is the mounted file supplying a single <code>key</code>: Nebula&#8217;s
+per-project <code>key = &lt;project_id&gt;/terraform.tfstate</code> is then gone and
+<strong>every project shares one state object</strong>. <strong>Set
+<code>terraform_state_bucket: ""</code> whenever you set <code>IAC_BACKEND_CONFIG</code></strong> —
+managed state is on as shipped, so blanking it is a step you have to
+take, not a default you inherit.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 28.5714%;">
+<col style="width: 42.8572%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"><code>terraform_state_bucket</code></th>
+<th class="tableblock halign-left valign-top"><code>IAC_BACKEND_CONFIG</code></th>
+<th class="tableblock halign-left valign-top">Effective model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">unset <em>(shipped)</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>1</strong> — repository-declared</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set <em>(shipped)</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">unset <em>(shipped)</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> — Nebula-managed</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>3</strong> — sidecar-supplied</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">mixed — <code>IAC_BACKEND_CONFIG</code> keys override the core&#8217;s
+<code>backend_override.tf</code>; misconfiguration</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="changing-backend-configuration"><a class="anchor" href="#changing-backend-configuration"></a>Changing backend configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Any change to <code>config.yaml</code> needs an image rebuild</strong> (<code>docker compose
+build core &amp;&amp; docker compose up -d core</code>), because the file is baked
+into the core image. To vary it per environment without rebuilding,
+mount <code>config.yaml</code> and point <code>NEBULA_CONFIG</code> at it — see
+<a href="../production/networking-and-tls/#images-and-config-delivery" class="xref page">Images
+and configuration delivery</a>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Switching models moves nothing.</strong> Turning managed state on does not
+import the state your repositories' backends hold; turning it off
+leaves whatever Nebula stored in its bucket, where those backends will
+not look for it. Migrate first, or accept that the affected projects
+start from empty state.</p>
+</div>
+<div class="paragraph">
+<p><code>init</code> <strong>always</strong> runs with <code>-reconfigure</code> (<code>tofu init -no-color
+-input=false -reconfigure</code>): Nebula runs the engine non-interactively,
+and <code>-input=false</code> cannot answer the <em>"Backend configuration changed"</em>
+prompt, so without it any workspace whose backend differs from its
+previous initialization would fail hard. What that means for you:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>State already in the new backend is adopted.</strong> Re-pointing a project
+at a backend that already holds its state is safe and needs no
+action.</p>
+</li>
+<li>
+<p><strong>State under the previous backend is not migrated.</strong> <code>-reconfigure</code>
+deliberately skips the migration <code>-migrate-state</code> would perform.
+Nebula never copies state between backends.</p>
+</li>
+<li>
+<p><strong>A project therefore starts from empty state</strong> after any change that
+alters its backend or its key — switching <code>storage.provider</code>,
+renaming <code>terraform_state_bucket</code>, moving the root module, changing
+the cloud scope — and the next plan proposes creating resources that
+already exist.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Migrate deliberately, before the next session runs, with the engine
+itself:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">tofu</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> state</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pull</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> > </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">project.tfstate</span><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">           # against the old backend</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">tofu</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> init</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -reconfigure</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -backend-config=...</span><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # point at the new backend</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">tofu</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> state</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> push</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> project.tfstate</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>tofu init -migrate-state</code> run by hand in an equivalent workspace works
+too. Either way, keep the pulled file as a backup and verify with a plan
+that shows no changes before letting Nebula run again.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-nebula-does-not-do"><a class="anchor" href="#what-nebula-does-not-do"></a>What Nebula does not do</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>State ownership stops at "write the backend and key". Everything below
+is yours:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>No state migration.</strong> Never, between any two backends. See above.</p>
+</li>
+<li>
+<p><strong>No versioning or backups.</strong> Nebula does not enable bucket versioning,
+object lock, soft delete, or point-in-time restore on the state
+bucket. Turn them on yourself — for state this matters far more than
+for artifacts.</p>
+</li>
+<li>
+<p><strong>No lifecycle or retention policy</strong>, and no deletion: Nebula never
+removes a state object, so state for a decommissioned project persists
+until you delete it.</p>
+</li>
+<li>
+<p><strong>No DynamoDB lock table.</strong> Locking uses the S3-native lockfile; there is
+nothing to provision.</p>
+</li>
+<li>
+<p><strong>No <code>gcs</code> backend adapter.</strong> The storage provider setting has exactly three
+members (<code>RUSTFS</code>, <code>S3</code>, <code>STORAGE_ACCOUNT</code>). A Google Cloud Storage
+bucket can only be reached through its S3-compatible interoperability
+endpoint with <code>provider: RUSTFS</code>, which the repository does not test.
+For a first-class <code>gcs</code> backend, use
+<a href="../state-backends/repository-declared/" class="xref page">Repository-declared
+backend</a> or
+<a href="../state-backends/sidecar-supplied/" class="xref page">Sidecar-supplied
+backend</a>: set <code>terraform_state_bucket: ""</code> and let the repository&#8217;s
+own block, or a mounted backend file, declare <code>gcs</code> itself.</p>
+</li>
+<li>
+<p><strong>No state encryption beyond the store&#8217;s own.</strong> State contains resource
+attributes and can contain secrets; rely on bucket-level encryption at
+rest and restrict access accordingly.</p>
+</li>
+<li>
+<p><strong>No import of existing resources into managed state.</strong> The bundled IaC
+sidecar implements the contract&#8217;s <code>/v1/import*</code> endpoints
+(single-address import, state inventory, cloud-scope inventory), but
+the core never calls them: nothing in a session adopts pre-existing
+resources into the state Nebula manages. See
+<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="operations"><a class="anchor" href="#operations"></a>Operations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This section assumes model 2, which is what ships. If you turned it off
+with <code>terraform_state_bucket: ""</code>, the state bucket is not Nebula&#8217;s, so
+its operation — versioning, access, backups — belongs to whoever owns
+the backend each repository declares.</p>
+</div>
+<div class="paragraph">
+<p><strong>Find a project&#8217;s state.</strong> The core logs the target before every <code>init</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Terraform state: rustfs bucket=nebula-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Inspect the bundled store.</strong> RustFS speaks the S3 API, so any S3 client
+works. From the host, through the nginx server on port 9000 (it forwards
+the <code>Host</code> header unchanged, so SigV4 signatures verify):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># One-off: the backend uses path-style addressing, so the client must too.</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">aws</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> configure</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> default.s3.addressing_style</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> path</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">AWS_ACCESS_KEY_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE"> AWS_SECRET_ACCESS_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> \</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">AWS_DEFAULT_REGION=us-east-1 </span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D">\</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  aws</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --endpoint-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost:9000</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  s3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ls</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3://nebula-terraform-state/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --recursive</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Reset local state.</strong> <code>docker compose down -v</code> removes the
+<code>object_storage_data</code> volume and with it all state <em>and</em> all artifacts.
+That is usually what you want on a workstation and never what you want
+elsewhere.</p>
+</div>
+<div class="paragraph">
+<p><strong>In production</strong>, on the state bucket: versioning and soft delete on;
+encryption at rest with your own key if policy requires it; access
+restricted to the core and the IaC sidecar identities; excluded from any
+lifecycle expiry you apply to the artifacts bucket; and included in your
+backup and restore drills — this bucket is the record of what Nebula has
+built.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="state-troubleshooting"><a class="anchor" href="#state-troubleshooting"></a>Troubleshooting</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Symptom</th>
+<th class="tableblock halign-left valign-top">Cause</th>
+<th class="tableblock halign-left valign-top">Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every session plans against empty state, and nothing is ever recorded</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A deployment that blanked <code>storage.terraform_state_bucket</code> (model 1)
+but whose repositories declare no backend: <code>init</code> succeeds against the
+<em>local</em> backend, and the state file dies with the throwaway clone.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Add a <code>terraform { backend &#8230;&#8203; }</code> block to the repository, or go back
+to the shipped model 2 by setting <code>storage.terraform_state_bucket</code> to a
+bucket name.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core fails at boot: <code>Failed to initialize object storage</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Model 2, which is on as shipped: the state bucket cannot be created or
+reached — wrong credentials, missing <code>CreateBucket</code> permission, or an
+unreachable endpoint.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pre-create the bucket, or grant creation rights. The artifact bucket
+and the state bucket are checked in the same step, so verify both.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails with <code>InvalidAccessKeyId</code> after switching to
+<code>provider: S3</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> are still set to
+<code>rustfsadmin</code> in <code>core/.env</code> and got embedded into the backend block.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Blank both variables, rebuild the core image, and let the AWS default
+chain resolve credentials — on the <strong>IaC sidecar</strong>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails with a credentials or <code>AccessDenied</code> error, and the
+override contains no <code>access_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The <strong>IaC sidecar</strong> container has no ambient cloud credentials, or they
+lack access to the state bucket.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Give the sidecar the role/keys, not just the core. See
+<a href="../state-backends/nebula-managed/#credentials-required" class="xref page">Credentials
+required</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails to dial the endpoint (<code>connection refused</code>, DNS failure)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The sidecar cannot reach <code>storage.endpoint_url</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Put the sidecar on the same network as the store, or allow that
+egress. In Compose both must be on <code>bridge-network</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every plan proposes creating resources that already exist</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The project&#8217;s state key changed, or state was never migrated after a
+backend change.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Check the logged <code>key=</code> against what is in the bucket; migrate the old
+state. See <a href="#changing-backend-configuration">Changing backend
+configuration</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Error acquiring the state lock</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Another run holds the lock, or a crashed run left it stale.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Wait; if stale, run <code>tofu force-unlock &lt;LOCK_ID&gt;</code> (the id is printed in
+the lock error) in an equivalent workspace, or remove the <code>.tflock</code>
+object / break the blob lease.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Two repositories collide on one state file</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A shared <code>-backend-config</code> file supplies one <code>key</code> — under model 3, or
+under the mixed model 2 + model 3 case, where the mounted file&#8217;s <code>key</code>
+overrides Nebula&#8217;s per-project one.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Declare distinct keys per repository, or use model 2 alone (leave
+<code>IAC_BACKEND_CONFIG</code> unset).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails on the backend configuration file</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BACKEND_CONFIG</code> is not checked at startup, so the sidecar starts
+and the error lands in the failing job&#8217;s stderr. The path is wrong, the
+file is not mounted, or it is not readable by uid <code>10001</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Fix the mount and ownership, or unset the variable.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>backend_override.tf</code> shows up in a pull request</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The workspace <code>.gitignore</code> write failed, so the seeded rule that
+ignores <code>*_override.tf</code> never took effect. The core logs <code>terraform
+gitignore couldn&#8217;t be created</code> and carries on, and the next commit
+(<code>git add -A</code>) picks the override file up. A repository that carried no
+<code>.gitignore</code> is not the cause: the seeded file is honoured for the
+working tree even though it ignores itself and is never committed. A
+repository that already tracks a <code>.gitignore</code> gets Nebula&#8217;s template
+appended to it, and that modification is committed and pushed to the
+session branch.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Look for the warning in the core log and check that the <code>workspaces</code>
+volume is writable by uid/gid <code>10001</code>. Remove the file from the branch
+and re-run the round once the write succeeds.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Session fails with a Terraform backend error before <code>init</code> runs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The core could not write <code>backend_override.tf</code> into the workspace.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Check ownership of the <code>workspaces</code> volume: it must be writable by
+uid/gid <code>10001</code>. A volume from a stack that ran as root needs
+<code>chown -R 10001:10001</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="reference"><a class="anchor" href="#reference"></a>Reference</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="config-yaml"><a class="anchor" href="#config-yaml"></a><code>config.yaml</code></h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 30%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.provider</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Selects the backend type for state as well as artifacts: <code>RUSTFS</code>/<code>S3</code>
+→ <code>s3</code>, <code>STORAGE_ACCOUNT</code> → <code>azurerm</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.terraform_state_bucket</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>nebula-terraform-state</code> <em>(shipped, and the field default)</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Names the bucket (blob container on <code>STORAGE_ACCOUNT</code>) that holds
+Nebula-managed state; it is created at boot if missing. Set it to <code>""</code>
+to leave state to the repository instead — <code>""</code> and whitespace-only
+both count as blank. <strong>Deleting the key falls back to the same field
+default and keeps managed state on</strong>, and a key written with no value is
+null, not blank: the core fails validation at boot.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.endpoint_url</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://object-storage:9000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rendered into the <code>endpoints.s3</code> block for <code>RUSTFS</code>; supplies the
+account name for <code>STORAGE_ACCOUNT</code>; ignored for <code>S3</code>. Must be reachable
+<strong>from the IaC sidecar</strong>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.region</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>us-east-1</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rendered as the backend <code>region</code> for <code>RUSTFS</code> and <code>S3</code>. Ignored for
+<code>STORAGE_ACCOUNT</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.access_key_env</code> / <code>storage.secret_key_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">When <strong>both</strong> resolve non-empty, the keys are embedded in the backend
+block; otherwise the credential lines are omitted. On <code>RUSTFS</code> an unset
+or empty variable falls back to <code>rustfsadmin</code>, so the credential lines
+are always present there; only <code>S3</code> omits them when the variables are
+blank.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.account_key_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>STORAGE_ACCOUNT_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure shared key, embedded as the backend <code>access_key</code>. Mandatory for
+<code>STORAGE_ACCOUNT</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>storage.bucket</code>, <code>storage.public_endpoint_url</code>, and
+<code>storage.presign_expiry_seconds</code> affect artifacts only and play no part
+in the state backend. Changing any of these requires rebuilding the
+core image, because <code>config.yaml</code> is baked in.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="servicesiac-env"><a class="anchor" href="#servicesiac-env"></a><code>services/iac/.env</code></h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 22.2222%;">
+<col style="width: 55.5556%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BACKEND_CONFIG</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">unset</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path <strong>inside the sidecar container</strong> to a <code>.hcl</code>/<code>.tfbackend</code> backend
+configuration file passed to <code>init</code> as <code>-backend-config</code>. Not checked
+at startup; a wrong path fails the first <code>init</code> job (error in that job&#8217;s
+stderr). Overrides model 2 values key by key (the file&#8217;s keys win over
+the core&#8217;s <code>backend_override.tf</code>, the core&#8217;s remaining keys survive); do
+not combine the two.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BINARY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>tofu</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The engine that executes the backend. OpenTofu 1.12.6 or the bundled
+Terraform 1.16.0; both support <code>use_lockfile</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="related-documentation"><a class="anchor" href="#related-documentation"></a>Related documentation</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../reference/configuration/#storage" class="xref page">Configuration reference
+— the <code>storage</code> section</a> — every field, default, and validation rule.</p>
+</li>
+<li>
+<p><a href="../../reference/environment-variables/" class="xref page">Environment variables
+and secrets</a> — <code>core/.env</code> and the sidecar <code>.env</code> files.</p>
+</li>
+<li>
+<p><a href="../../reference/api/iac/#state-backend" class="xref page">IaC sidecar API —
+State backend</a> — the contract-level view.</p>
+</li>
+<li>
+<p><a href="../../reference/terraform-providers/" class="xref page">Terraform providers</a> —
+per-cloud backend credential minimums.</p>
+</li>
+<li>
+<p><a href="../../architecture/data-and-state/#terraform-state" class="xref page">Architecture
+— Data and state</a> — where state sits among Nebula&#8217;s stores.</p>
+</li>
+<li>
+<p><a href="../production/operations/#data-and-persistence" class="xref page">Operations
+— Data services and persistence</a> — persistence expectations in
+production.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../customize-prompts/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Customize prompts</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../state-backends/repository-declared/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Repository-declared backend</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/configure-state-backends.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

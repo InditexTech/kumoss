@@ -1,0 +1,1712 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>LLM providers and models | Nebula</title>
+
+    <link rel="prev" href="../environment-variables/">
+    <link rel="next" href="../roles-and-permissions/">
+    <meta name="description" content="How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">LLM providers and models</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">LLM providers and models</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula calls large language models (LLMs) through
+<a href="https://docs.litellm.ai/">LiteLLM</a>, a routing library that speaks to
+many providers behind one interface. This page explains how Nebula
+selects models, where credentials go, what the core checks at startup,
+and how to use the advanced <code>llm.model_list</code> router configuration.</p>
+</div>
+<div class="paragraph">
+<p>All values in the examples are fictitious. Domains use <code>.invalid</code>, and
+keys look like <code>sk-example-not-a-real-key</code>. Never paste real secrets
+into <code>config.yaml</code> or into documentation.</p>
+</div>
+<div class="paragraph">
+<p>Related guides: <a href="../configuration/" class="xref page">Configuration</a>
+(every <code>config.yaml</code> field), <a href="../environment-variables/" class="xref page">Environment
+variables and secrets</a> (the <code>.env</code> files), and the two installation
+guides, <a href="../../quickstart/" class="xref page">Quickstart</a> and
+<a href="../../guides/deploy-to-production/" class="xref page">Deploy to production</a>, which
+say where the credentials live in each deployment model.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-nebula-uses-litellm"><a class="anchor" href="#how-nebula-uses-litellm"></a>How Nebula uses LiteLLM</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula configures two model roles in <code>config.yaml</code>. Both are applied by
+the core&#8217;s LiteLLM Router; there is no provider enum in Nebula, so any
+model string LiteLLM understands is accepted by the configuration.
+Whether a model <em>works</em> is a different matter; see <a href="#model-requirements">Model
+requirements</a> below.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 14.2857%;">
+<col style="width: 28.5714%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Role</th>
+<th class="tableblock halign-left valign-top">Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.model</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">High-quality model</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The IaC generator chain (writing and fixing Terraform code), the
+target generator chain (choosing plan targets), the report generator
+chain, and the task splitter chain (turning a drift report into
+remediation operations).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Fast, cheaper model</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every other chain: request filtering, drift reconciliation filtering,
+drift exception filtering, prompt composition, pull-request text, the
+compliance checker, status messages, and the LLM calls that some tools
+make internally (for example web search).</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Two extra settings apply to both roles:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 66.6668%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.temperature</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>0.1</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sampling temperature sent with every chat completion. When a chain
+requests extended thinking, the core sends <code>1.0</code> instead, because
+reasoning-enabled models require it. Tool-internal LLM calls use a
+fixed <code>0.5</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.max_output_tokens</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>32000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sent as <code>max_tokens</code> (or <code>max_output_tokens</code> for the web-search path)
+on every call. Lower it if your provider caps completions below this
+value.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The core passes <code>drop_params=True</code> to LiteLLM, so a provider that does
+not support one of these parameters ignores it instead of failing.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="model-requirements"><a class="anchor" href="#model-requirements"></a>Model requirements</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula&#8217;s agents are tool-calling loops, so the configuration accepting
+a model string does not mean the model can run a session. Both roles
+must provide:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>OpenAI-style function calling with forced tool choice.</strong> Agent loops
+send a <code>tools</code> list with <code>tool_choice: required</code> and expect
+well-formed JSON arguments back; each loop ends only when the model
+calls its sentinel tool. This applies to agent loops specifically —
+the status/summary text calls (<code>generate_text</code>) send no tools at all.
+Models without reliable function calling (many small self-hosted
+models) fail every agent session.</p>
+</li>
+<li>
+<p><strong>A completion cap of at least <code>llm.max_output_tokens</code></strong> (32000 by
+default), or lower that setting to what the provider allows.</p>
+</li>
+<li>
+<p><strong>A finish reason of <code>tool_use</code> or <code>end_turn</code>.</strong> Any other finish reason
+— <code>length</code> (the completion was truncated), <code>content_filter</code>, and so
+on — aborts the chain with <code>UnhandledInferenceFinishReason</code> instead of
+being retried or degraded gracefully. In practice this means
+<code>max_output_tokens</code> must comfortably fit within the model&#8217;s own output
+limit, or a long response gets truncated and the session fails
+outright.</p>
+</li>
+<li>
+<p><strong>Long context.</strong> The generator receives the composed conventions, the
+repository excerpts it reads, and the plan output; models with short
+context windows truncate silently.</p>
+</li>
+<li>
+<p>Optional: native <code>web_search_options</code> support, which LiteLLM reports
+per model. Without it the web-search tool falls back to the OpenAI
+Responses API path, which only works on OpenAI-compatible endpoints.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The shipped models (Anthropic Claude on Azure AI Foundry, <code>azure_ai/</code>)
+and the code defaults (Anthropic Claude direct, <code>anthropic/</code>) satisfy
+all of these, as do the Claude and Gemini models on Vertex AI that the
+core&#8217;s test suite exercises. Nebula has not tested every provider
+LiteLLM lists.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-providermodel-id-notation"><a class="anchor" href="#the-providermodel-id-notation"></a>The <code>provider/model-id</code> notation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A LiteLLM model string is <code>&lt;provider&gt;/&lt;model-id&gt;</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>&lt;provider&gt;</code> selects the LiteLLM integration and therefore the
+credential variables (for example <code>anthropic</code>, <code>vertex_ai</code>, <code>azure</code>,
+<code>bedrock</code>, <code>openai</code>, <code>ollama</code>).</p>
+</li>
+<li>
+<p><code>&lt;model-id&gt;</code> is whatever that provider calls the model or deployment
+(<code>claude-sonnet-5</code>, <code>gpt-4o</code>, a deployment name, an endpoint name).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Routing is purely prefix based. Nebula does not validate that the
+model id exists; a typo surfaces as an error from the provider on the
+first call. The reference list of model ids is
+<a href="https://models.litellm.ai/">models.litellm.ai</a>; the provider list with
+credential keys is
+<a href="https://docs.litellm.ai/docs/providers">the LiteLLM provider docs</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="model-selection-versus-credentials"><a class="anchor" href="#model-selection-versus-credentials"></a>Model selection versus credentials</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Model selection lives in <code>config.yaml</code>; credentials live in
+<code>core/.env</code>. They must belong to the same provider:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml (fictitious example)</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  temperature</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">0.1</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  max_output_tokens</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">32000</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># core/.env (fictitious example)</span></span>
+<span class="line"><span>ANTHROPIC_API_KEY=sk-example-not-a-real-key</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Changing a model identifier to a different provider means changing the
+credential variables too. <code>config.yaml</code> is baked into the core image,
+so a model change requires <code>docker compose build core</code>; a credential
+change in <code>core/.env</code> only requires restarting the core container.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="startup-credential-validation"><a class="anchor" href="#startup-credential-validation"></a>Startup credential validation and its limits</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>At boot the core calls <code>litellm.validate_environment(model=&#8230;&#8203;)</code> for
+each configured model (or for each <code>llm.model_list</code> entry when that
+key is set). If LiteLLM reports missing environment variables, the
+core refuses to start with:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>LLM credentials missing from environment: ANTHROPIC_API_KEY. Set the listed env vars or configure llm.model_list in config.yaml.</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Treat this check as a convenience, not a guarantee:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Some providers have no validation mapping in LiteLLM.</strong> For
+<code>azure_ai</code>, <code>cohere_chat</code>, <code>databricks</code>, <code>watsonx</code>, <code>sambanova</code>,
+<code>anyscale</code>, and <code>snowflake</code> the check reports nothing missing even
+with no credentials set; the failure appears on the first LLM call
+instead. The prefix matters, not the vendor: <code>cohere/&lt;model&gt;</code> is
+validated (<code>COHERE_API_KEY</code>), <code>cohere_chat/&lt;model&gt;</code> is not.</p>
+</li>
+<li>
+<p><strong>Unknown prefixes pass silently.</strong> A string such as
+<code>nonexistent_provider/x</code> or a bare <code>model-name</code> without a provider is
+not rejected at boot.</p>
+</li>
+<li>
+<p><strong>Vertex AI checks only the project and location variables.</strong> Boot
+always requires <code>VERTEXAI_PROJECT</code> and <code>VERTEXAI_LOCATION</code> to be set;
+the check is a plain environment lookup and does not consult
+Application Default Credentials or a Google Cloud SDK installation.
+<code>VERTEXAI_CREDENTIALS</code> is not checked at boot: when it is unset,
+LiteLLM falls back to Application Default Credentials
+(<code>GOOGLE_APPLICATION_CREDENTIALS</code>) on the first call, and a missing
+credential file fails there.</p>
+</li>
+<li>
+<p><strong>Only presence is checked, never validity.</strong> A wrong or expired key
+passes validation and fails on the first call.</p>
+</li>
+<li>
+<p><strong>Boot validation always uses the provider&#8217;s default variable names</strong>,
+even for <code>llm.model_list</code> entries that reference custom variables
+through <code>os.environ/&#8230;&#8203;</code>. See the note under
+<a href="#advanced-routing-with-llmmodel_list">Advanced routing</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The exact behaviour depends on the installed LiteLLM version (the core
+pins <code>litellm&gt;=1.93.0</code>).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="provider-credentials"><a class="anchor" href="#provider-credentials"></a>Provider-specific credential variables</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The tables below list the LiteLLM model string format, the environment
+variables LiteLLM reads by default, and the <code>litellm_params</code> keys you
+would use instead when writing an <code>llm.model_list</code> entry. The lists
+come from LiteLLM&#8217;s documentation. <strong>Nebula has not tested every
+provider listed here</strong>; the checked-in <code>config.yaml</code> targets Azure AI
+Foundry (<code>azure_ai/</code>), the code defaults target Anthropic directly
+(<code>anthropic/</code>), and the core&#8217;s test suite
+(<code>core/tests/shared/config/test_llm_config.py</code>) exercises the
+OpenAI-style and Vertex AI validation paths.</p>
+</div>
+<div class="sect2">
+<h3 id="direct-providers-frontier-labs"><a class="anchor" href="#direct-providers-frontier-labs"></a>Direct providers (frontier labs)</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 25%;">
+<col style="width: 12.5%;">
+<col style="width: 37.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Model string</th>
+<th class="tableblock halign-left valign-top">Default env vars</th>
+<th class="tableblock halign-left valign-top"><code>litellm_params</code> keys</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Anthropic</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ANTHROPIC_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>anthropic/claude-sonnet-5</code>. <code>ANTHROPIC_AUTH_TOKEN</code> is also
+accepted as an alternative to the API key.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OpenAI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>openai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OPENAI_API_KEY</code>, <code>OPENAI_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_base</code> defaults to <code>https://api.openai.com/v1</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">xAI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>xai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>XAI_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mistral AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>mistral/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>MISTRAL_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cohere</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cohere/&lt;model&gt;</code> or <code>cohere_chat/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>COHERE_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Boot validation covers the <code>cohere/</code> prefix only; <code>cohere_chat/</code> has
+no validation mapping and a missing key fails on the first call.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="cloud-platforms"><a class="anchor" href="#cloud-platforms"></a>Cloud platforms</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 25%;">
+<col style="width: 12.5%;">
+<col style="width: 37.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Model string</th>
+<th class="tableblock halign-left valign-top">Default env vars</th>
+<th class="tableblock halign-left valign-top"><code>litellm_params</code> keys</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Google Vertex AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VERTEXAI_PROJECT</code>, <code>VERTEXAI_LOCATION</code>, <code>VERTEXAI_CREDENTIALS</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_project</code>, <code>vertex_location</code>, <code>vertex_credentials</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VERTEXAI_CREDENTIALS</code> is a service-account JSON, as a file path or
+the raw JSON. Omit it to use Application Default Credentials
+(<code>GOOGLE_APPLICATION_CREDENTIALS</code>, workload identity, and so on).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Google AI Studio (Gemini API)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gemini/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GEMINI_API_KEY</code> (LiteLLM also accepts <code>GOOGLE_API_KEY</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure OpenAI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure/&lt;deployment&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AZURE_API_KEY</code>, <code>AZURE_API_BASE</code>, <code>AZURE_API_VERSION</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code>, <code>api_version</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_base</code> is <code>https://&lt;resource&gt;.openai.azure.com</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure AI Foundry</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure_ai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AZURE_AI_API_KEY</code>, <code>AZURE_AI_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No boot-time validation mapping in LiteLLM.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS Bedrock</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>bedrock/&lt;model-id&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_REGION_NAME</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_access_key_id</code>, <code>aws_secret_access_key</code>, <code>aws_region_name</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Boot validation checks only the two key variables; the region is
+still needed at call time. <code>AWS_PROFILE</code>, or <code>AWS_ROLE_ARN</code><br>
+<code>AWS_WEB_IDENTITY_TOKEN_FILE</code>, are also accepted as alternatives to
+static keys.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS SageMaker</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>sagemaker/&lt;endpoint&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_REGION_NAME</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_access_key_id</code>, <code>aws_secret_access_key</code>, <code>aws_region_name</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloudflare Workers AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cloudflare/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>CLOUDFLARE_API_KEY</code>, <code>CLOUDFLARE_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="hosted-inference-services"><a class="anchor" href="#hosted-inference-services"></a>Hosted inference services</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3335%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Model string</th>
+<th class="tableblock halign-left valign-top">Default env vars</th>
+<th class="tableblock halign-left valign-top"><code>litellm_params</code> keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Groq</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>groq/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GROQ_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DeepSeek</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deepseek/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>DEEPSEEK_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Together AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>together_ai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>TOGETHERAI_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Fireworks AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>fireworks_ai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>FIREWORKS_AI_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OpenRouter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>openrouter/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OPENROUTER_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Perplexity AI</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>perplexity/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>PERPLEXITYAI_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cerebras</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cerebras/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>CEREBRAS_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SambaNova</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>sambanova/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SAMBANOVA_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DeepInfra</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deepinfra/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>DEEPINFRA_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Anyscale</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anyscale/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ANYSCALE_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Replicate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>replicate/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>REPLICATE_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AI21</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ai21/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AI21_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Databricks</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>databricks/&lt;endpoint&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>DATABRICKS_API_KEY</code>, <code>DATABRICKS_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IBM watsonx</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>watsonx/&lt;model-id&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>WATSONX_APIKEY</code>, <code>WATSONX_URL</code>, <code>WATSONX_PROJECT_ID</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code>, <code>watsonx_project_id</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Snowflake Cortex</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>snowflake/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SNOWFLAKE_ACCOUNT_ID</code>, <code>SNOWFLAKE_USER</code>, <code>SNOWFLAKE_PASSWORD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>snowflake_account_id</code>, <code>snowflake_user</code>, <code>snowflake_password</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="openai-compatible-and-self-hosted-endpoints"><a class="anchor" href="#openai-compatible-and-self-hosted-endpoints"></a>OpenAI-compatible and self-hosted endpoints</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 12.5%;">
+<col style="width: 12.5%;">
+<col style="width: 25%;">
+<col style="width: 12.5%;">
+<col style="width: 37.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Engine</th>
+<th class="tableblock halign-left valign-top">Model string</th>
+<th class="tableblock halign-left valign-top">Default env vars</th>
+<th class="tableblock halign-left valign-top"><code>litellm_params</code> keys</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Ollama</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ollama/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OLLAMA_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Default base <code>http://localhost:11434</code>; no API key. From inside the
+compose network, use the host or container address, not <code>localhost</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vLLM, LocalAI, LM Studio, FastChat, TabbyAPI, and other
+OpenAI-compatible servers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>openai/&lt;model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OPENAI_API_KEY</code>, <code>OPENAI_API_BASE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Point <code>api_base</code> at <code>http://&lt;host&gt;:&lt;port&gt;/v1</code>. Boot validation still
+requires <code>OPENAI_API_KEY</code> to be set; use a placeholder such as <code>none</code>
+if the server does not check it.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Hugging Face (serverless or dedicated endpoints, TGI)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>huggingface/&lt;repo/model&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>HUGGINGFACE_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api_key</code>, <code>api_base</code></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="minimal-configuration-example"><a class="anchor" href="#minimal-configuration-example"></a>Minimal configuration example</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A single direct provider, both roles on the same vendor, no router
+customisation. This is the simplest working setup.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml (fictitious)</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  temperature</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">0.1</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  max_output_tokens</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">32000</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># core/.env (fictitious)</span></span>
+<span class="line"><span>ANTHROPIC_API_KEY=sk-example-not-a-real-key</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The checked-in <code>config.yaml</code> uses Azure AI Foundry, whose credentials
+LiteLLM cannot validate at boot (a missing value fails on the first
+call):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure_ai/claude-sonnet-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure_ai/claude-haiku-4-5"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>AZURE_AI_API_KEY=example-not-a-real-key</span></span>
+<span class="line"><span>AZURE_AI_API_BASE=https://demo-platform.services.ai.azure.com</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Equivalent example on Google Vertex AI:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.7-flash"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
+<span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
+<span class="line"><span>VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json</span></span></span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="advanced-routing-with-llmmodel_list"><a class="anchor" href="#advanced-routing-with-llmmodel_list"></a>Advanced routing with <code>llm.model_list</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>llm.model_list</code> follows the
+<a href="https://docs.litellm.ai/docs/routing">LiteLLM Router format</a> and is
+passed to the Router verbatim. Use it only when you need something the
+two plain model strings cannot express:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Load balancing.</strong> Several entries sharing one <code>model_name</code> are load
+balanced by the Router. Router-level <strong>fallbacks</strong> between different
+<code>model_name`s are <strong>not</strong> available: the core passes only `model_list</code>
+to the Router and exposes no <code>fallbacks</code> or <code>routing_strategy</code>
+setting. If the alias named by <code>llm.model</code> or <code>llm.small_model</code> has
+no healthy deployment, the call fails.</p>
+</li>
+<li>
+<p><strong>Custom credential variable names.</strong> A <code>litellm_params</code> value of the
+form <code>os.environ/VARIABLE_NAME</code> is resolved by LiteLLM from the
+environment at call time, so secrets stay out of <code>config.yaml</code>.</p>
+</li>
+<li>
+<p><strong>Per-model endpoints</strong>, such as a self-hosted OpenAI-compatible server
+for the small model and a cloud provider for the main model.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>You do <strong>not</strong> need it to keep credentials in <code>core/.env</code>: plain model
+strings already read the provider&#8217;s default variables.</p>
+</div>
+<div class="paragraph">
+<p>Rules when <code>model_list</code> is non-empty:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>llm.model</code> and <code>llm.small_model</code> <strong>must equal a <code>model_name</code></strong> in the
+list. They are router aliases now, not provider strings.</p>
+</li>
+<li>
+<p>Only <code>litellm_params.model</code> is required in an entry. <strong><code>api_key</code>,
+<code>api_base</code>, <code>api_version</code>, and the other credential keys are
+optional</strong>: when omitted, LiteLLM reads the provider&#8217;s default
+environment variables at call time (for <code>azure/&#8230;&#8203;</code>, that is
+<code>AZURE_API_KEY</code>, <code>AZURE_API_BASE</code>, and <code>AZURE_API_VERSION</code>). Add them
+only to point an entry at a different endpoint or at a differently
+named variable.</p>
+</li>
+<li>
+<p>Boot validation runs against each entry&#8217;s <code>litellm_params.model</code>
+instead of the two role strings.</p>
+</li>
+<li>
+<p>Boot validation still checks the provider&#8217;s <strong>default</strong> variable
+names. If an entry references <code>os.environ/MY_CUSTOM_KEY</code>, the
+default-named variable (for example <code>ANTHROPIC_API_KEY</code>) must also be
+set, or the core will not boot. This is a LiteLLM limitation;
+<code>validate_environment</code> treats an empty-string value as present, so
+the default-named variable can hold any value, even empty, because
+only the custom one is used at call time.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>If all you want is the default provider credentials from <code>core/.env</code>,
+you do not need <code>model_list</code> at all; the two plain model strings are
+the right configuration.</p>
+</div>
+<div class="sect2">
+<h3 id="aliases-with-default-credentials"><a class="anchor" href="#aliases-with-default-credentials"></a>Aliases with default credentials</h3>
+<div class="paragraph">
+<p>Two aliases and nothing else. Credentials come from <code>core/.env</code> under
+the provider&#8217;s default names, exactly as without <code>model_list</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml (fictitious)</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"main"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"small"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model_list</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">model_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"main"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      litellm_params</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure/main-deployment"</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">model_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"small"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      litellm_params</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure/small-deployment"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># core/.env (fictitious)</span></span>
+<span class="line"><span>AZURE_API_KEY=sk-example-not-a-real-key</span></span>
+<span class="line"><span>AZURE_API_BASE=https://demo-platform.openai.azure.example.invalid</span></span>
+<span class="line"><span>AZURE_API_VERSION=2025-01-01-preview</span></span></span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="advanced-example-per-entry-endpoints-and-custom-variable-names"><a class="anchor" href="#advanced-example-per-entry-endpoints-and-custom-variable-names"></a>Advanced example: per-entry endpoints and custom variable names</h3>
+<div class="paragraph">
+<p>Two aliases, two load-balanced Azure OpenAI deployments for the main
+role in different regions, a self-hosted small model, and custom
+credential variable names. Here <code>api_key</code>, <code>api_base</code>, and
+<code>api_version</code> are present <strong>because each entry needs its own endpoint
+and key</strong>; they would be redundant otherwise. All values are fictitious;
+<code>main-deployment</code> is an Azure OpenAI deployment name.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml (fictitious)</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"main"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"small"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  temperature</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">0.1</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  max_output_tokens</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">32000</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model_list</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Primary deployment for the main role.</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">model_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"main"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      litellm_params</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure/main-deployment"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_key</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"os.environ/PLATFORM_AZURE_KEY_EU"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_base</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://eu.llm.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_version</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"2025-01-01-preview"</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Second deployment with the same alias: load balanced with the first.</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">model_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"main"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      litellm_params</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure/main-deployment"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_key</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"os.environ/PLATFORM_AZURE_KEY_US"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_base</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://us.llm.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_version</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"2025-01-01-preview"</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Self-hosted OpenAI-compatible server for the small role.</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">model_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"small"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      litellm_params</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"openai/llama-3.3-70b-instruct"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_key</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"os.environ/SELF_HOSTED_LLM_KEY"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">        api_base</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://llm.example.invalid/v1"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># core/.env (fictitious)</span></span>
+<span class="line"><span>PLATFORM_AZURE_KEY_EU=sk-example-not-a-real-key-eu</span></span>
+<span class="line"><span>PLATFORM_AZURE_KEY_US=sk-example-not-a-real-key-us</span></span>
+<span class="line"><span>SELF_HOSTED_LLM_KEY=sk-example-not-a-real-key-local</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Required only to satisfy boot validation, which checks the provider</span></span>
+<span class="line"><span># default names even when os.environ/... references are used.</span></span>
+<span class="line"><span>AZURE_API_KEY=placeholder-for-boot-validation</span></span>
+<span class="line"><span>AZURE_API_BASE=https://placeholder.example.invalid</span></span>
+<span class="line"><span>AZURE_API_VERSION=2025-01-01-preview</span></span>
+<span class="line"><span>OPENAI_API_KEY=placeholder-for-boot-validation</span></span></span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="llm-troubleshooting"><a class="anchor" href="#llm-troubleshooting"></a>Troubleshooting</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Core exits with <code>LLM credentials missing from environment: &#8230;&#8203;</code>.</strong> The
+provider chosen by <code>llm.model</code> or <code>llm.small_model</code> needs the listed
+variables in <code>core/.env</code>. Either you changed the model prefix without
+changing the credentials, or you rely on custom variable names through
+<code>model_list</code> without also setting the default-named ones.</p>
+</div>
+<div class="paragraph">
+<p><strong>Core boots but the first session fails with an authentication or
+"model not found" error.</strong> The provider has no boot-time validation
+mapping (for example <code>azure_ai</code>), the key is present but invalid, or
+the <code>&lt;model-id&gt;</code> part of the string is wrong for that provider. Check
+the model id against <a href="https://models.litellm.ai/">models.litellm.ai</a> and
+the provider&#8217;s own console.</p>
+</div>
+<div class="paragraph">
+<p><strong>Boot validation complains about a default variable although you use
+custom names.</strong> Expected. Set the default-named variable to any value,
+even empty (<code>validate_environment</code> treats an empty string as present);
+only the <code>os.environ/&#8230;&#8203;</code> reference in <code>model_list</code> is used at call
+time.</p>
+</div>
+<div class="paragraph">
+<p><strong><code>model</code> or <code>small_model</code> does not match any <code>model_name</code>.</strong> When
+<code>model_list</code> is set, the two role strings are aliases. LiteLLM raises
+an error on the first call for an alias with no matching entry. Make
+both values equal to a <code>model_name</code> from the list.</p>
+</div>
+<div class="paragraph">
+<p><strong>Requests time out or the endpoint is unreachable.</strong> Each chat
+completion call has a 120-second timeout and <code>num_retries=3</code> inside
+LiteLLM. The web-search Responses API fallback path is different: it
+retries up to 4 attempts with 30-second sleeps between them and sets no
+<code>num_retries</code>, so a slow or flaky OpenAI-compatible endpoint can stall
+that path for minutes. For self-hosted endpoints, remember that the
+core runs inside the compose network: <code>localhost</code> refers to the core
+container, not to the host. Use the service name or the host&#8217;s
+routable address in <code>api_base</code>, and make sure any TLS certificate is
+trusted by the core image.</p>
+</div>
+<div class="paragraph">
+<p><strong>Provider rejects <code>temperature</code> or <code>max_tokens</code>.</strong> The core sends
+<code>drop_params=True</code>, so unsupported parameters are dropped. If the
+provider still rejects a value (for example a completion cap below
+<code>32000</code>), lower <code>llm.max_output_tokens</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="running-outside-docker"><a class="anchor" href="#running-outside-docker"></a>Running outside Docker</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>litellm</code> calls <code>load_dotenv()</code> at import time unless <code>LITELLM_MODE</code>
+is set to <code>PRODUCTION</code>. Running the core, or <code>pytest</code>, on your
+workstation (rather than inside the container) therefore silently
+loads <code>core/.env</code> into the process environment — including any real
+secrets it holds — even though nothing in Nebula&#8217;s own code does this.
+The working directory does not matter: python-dotenv searches upwards
+from the directory of the <strong>calling package</strong>, so with the virtual
+environment at <code>core/.venv</code> the file <code>core/.env</code> is found from any
+directory. Variables already present in the environment are not
+overwritten by the file. To reproduce a clean-environment boot, set
+<code>LITELLM_MODE=PRODUCTION</code>, move <code>core/.env</code> aside, or use a virtual
+environment outside <code>core/</code>; otherwise a variable you think is unset
+may actually be coming from <code>core/.env</code>.</p>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../environment-variables/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Environment variables</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../roles-and-permissions/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Roles and permissions</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/reference/llm-providers.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

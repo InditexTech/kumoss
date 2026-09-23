@@ -1,0 +1,1777 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Customize prompts | Nebula</title>
+
+    <link rel="prev" href="../monitor-with-phoenix/">
+    <link rel="next" href="../configure-state-backends/">
+    <meta name="description" content="Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Customize prompts</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Customize prompts</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Manage Nebula&#x27;s runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula does not hard-code cloud knowledge. The instructions that tell
+its agents how to name, configure, and secure resources are <strong>prompts</strong>
+stored in the prompt registry of <a href="https://arize.com/docs/phoenix">Arize
+Phoenix</a>, fetched by the core at request time. This guide explains the
+three layers involved, the naming conventions, how seeding and runtime
+lookup work, how the prompts are composed into a system prompt, and how
+to add or change prompts safely.</p>
+</div>
+<div class="paragraph">
+<p>Phoenix also collects Nebula&#8217;s traces. That is a separate function,
+documented in <a href="../monitor-with-phoenix/" class="xref page">Monitoring with
+Phoenix</a>. Where Phoenix runs and how it is protected in each deployment
+model is covered by <a href="../../quickstart/" class="xref page">Quickstart</a> and
+<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="three-different-things-not-one"><a class="anchor" href="#three-different-things-not-one"></a>Three different things, not one</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 12.5%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 37.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Layer</th>
+<th class="tableblock halign-left valign-top">Where</th>
+<th class="tableblock halign-left valign-top">Who changes it</th>
+<th class="tableblock halign-left valign-top">When it takes effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Runtime prompts</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix prompt registry (UI at <code>/monitoring/</code> in the default stack,
+persisted in <code>phoenix-db</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt maintainers, in the Phoenix UI or API</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Immediately on the next request; the core caches nothing</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Seed YAML files</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/prompts/seed/&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;.yaml</code> in the repository</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Contributors and operators preparing a new deployment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Only at core startup, and only for prompt names that do not yet exist
+in Phoenix</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Local Jinja layouts</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/src/infrastructure/templates/base_layouts/</code> (<code>core/</code> and
+<code>messages/</code>), inside the core image</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula developers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">After rebuilding the core image</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The seed files are the initial content of the registry, nothing more.
+The Jinja layouts are the fixed skeletons of each agent&#8217;s system prompt:
+they define the agent&#8217;s role, its tools and its output rules, and they
+contain placeholders that the core fills with prompts fetched from
+Phoenix. Operators customise the runtime prompts; the layouts are code.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="seed-file-conventions"><a class="anchor" href="#seed-file-conventions"></a>Seed file conventions</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="path"><a class="anchor" href="#path"></a>Path</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>core/prompts/seed/&#x3C;scope>/&#x3C;type>/&#x3C;name>.yaml</span></span></span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>&lt;scope&gt;</code> is one of <code>general</code>, <code>aws</code>, <code>azure</code>, <code>gcp</code>, <code>oci</code>,
+<code>kubernetes</code>.</p>
+</li>
+<li>
+<p><code>&lt;type&gt;</code> is one of <code>guidelines</code>, <code>resources</code>, <code>compliance</code>.</p>
+</li>
+<li>
+<p><code>&lt;name&gt;</code> must match <code>^[a-z0-9_]+$</code> (lowercase letters, digits,
+underscores).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The loader rejects any other depth, scope, type, or name at startup
+with a <code>PromptSeedLoadError</code>, for example <code>Invalid prompt name
+'Bad-Name' in &#8230;&#8203;; must match ^[a-z0-9_]+$</code>. That check only applies to
+files it actually loads: the loader globs <code>*.yaml</code> only, so a <code>.yml</code>
+file, or any other extension, is silently skipped rather than rejected
+— a typo in the extension produces no error at all, just a missing
+prompt.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="qualified-name"><a class="anchor" href="#qualified-name"></a>Qualified name</h3>
+<div class="paragraph">
+<p>The Phoenix prompt name is derived from the path, never declared inside
+the file, so a misfiled prompt cannot misreport its identity:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;scope>-&#x3C;type>-&#x3C;name></span></span></span></code></pre>
+</div>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">File</th>
+<th class="tableblock halign-left valign-top">Phoenix prompt name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/networking.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-networking</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/abbreviations.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-abbreviations</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/resources_list.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-resources_list</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/resources/s3_bucket.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-resources-s3_bucket</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure/resources/storage_account.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure-resources-storage_account</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes/resources/deployment.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes-resources-deployment</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-terraform</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-requests</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-report</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-impact</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Two files that would produce the same qualified name abort the boot
+with <code>Duplicate qualified name &#8230;&#8203;</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="content"><a class="anchor" href="#content"></a>Content</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>body</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">non-empty string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The prompt text, usually Markdown. Stored as a single user message in
+Phoenix.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>description</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Shown in the Phoenix UI next to the prompt.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Every shipped seed provides both keys and starts with the repository&#8217;s
+SPDX comment header. The loader reads <code>body</code> and <code>description</code> and
+ignores everything else in the mapping — an extra key is neither
+rejected nor surfaced anywhere; it is dead weight in the file.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-seeding-works"><a class="anchor" href="#how-seeding-works"></a>How seeding works</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>At every core startup, after the database, Redis, and object storage
+have been initialised, the seeder:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Loads every seed file (sorted, validated as above).</p>
+</li>
+<li>
+<p>Probes Phoenix at <code>telemetry.collector_url</code>, retrying connection
+errors for about 27 seconds. If Phoenix stays unreachable the boot
+fails with <code>Phoenix unreachable after 8 attempts</code>. Phoenix must
+therefore be available whenever the core starts.</p>
+</li>
+<li>
+<p>For each seed, asks Phoenix whether a prompt with that name exists
+(by name, regardless of tags). If it exists, the seed is skipped. If
+not, the seeder creates the prompt with one version whose displayed
+model name is <code>nebula-seed</code> (Phoenix requires a model name; Nebula
+ignores it) and tags that version with the value of <code>environment</code>
+from <code>config.yaml</code> (<code>development</code> by default).</p>
+</li>
+<li>
+<p>Logs <code>Prompt seeding complete: N created, M already present</code>.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Consequences to plan for:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Seeding never overwrites.</strong> Editing a seed file after the first boot
+against a given Phoenix database has no effect on the prompt that
+already exists there. To change an already seeded prompt, edit it in
+Phoenix (see below) or delete it there and restart the core.</p>
+</li>
+<li>
+<p><strong>Only new names are pushed.</strong> Adding a new seed file and restarting the
+core does create the new prompt, even on an existing deployment.</p>
+</li>
+<li>
+<p><strong>The environment tag matters.</strong> The core fetches prompts by name and
+tag, and the tag is <code>environment</code>. If you change <code>environment</code> (say
+from <code>development</code> to <code>production</code>) on a deployment whose prompts
+were seeded earlier, the seeder sees the names already exist, skips
+them, and never applies the new tag. The next session then fails
+because <code>general-guidelines-terraform</code> has no version tagged
+<code>production</code>. Tag a version of every prompt with the new value in
+Phoenix before switching, or start from an empty Phoenix database.</p>
+</li>
+<li>
+<p><strong>Prompt versions are yours to manage.</strong> Nebula always fetches the
+version currently carrying the environment tag. Publishing a new
+version and moving the tag is how you roll a change out; moving the
+tag back is how you roll it back.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="runtime-lookup"><a class="anchor" href="#runtime-lookup"></a>Runtime lookup</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each time an agent chain is rendered, the core fetches the prompts its
+layout needs from Phoenix with the <code>&lt;scope&gt;-&lt;type&gt;-&lt;name&gt;</code> name and the
+<code>environment</code> tag, and reads the text of the first message of that
+version. There is no cache: every session sees the current tagged
+version, so editing a prompt in Phoenix takes effect on the next run
+without rebuilding or restarting the core.</p>
+</div>
+<div class="paragraph">
+<p>If a requested prompt (or a version with the right tag) does not exist,
+the Phoenix client raises <code>Prompt not found: &lt;name&gt;</code> and the background
+run stops. This error is not one the runner converts into a failed
+round: the session keeps its last status (for example <code>filtering</code>), no
+failure message or notification is produced, and the browser&#8217;s event
+stream stays open until its timeout. The workspace is cleaned up and the
+session&#8217;s in-flight guard is released, so a new request can be sent once
+the prompt exists. There is no fallback to seed files at runtime.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="prompt-categories"><a class="anchor" href="#prompt-categories"></a>Prompt categories</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="provider-wide-guidelines-cloud-guidelines"><a class="anchor" href="#provider-wide-guidelines-cloud-guidelines"></a>Provider-wide guidelines (<code>&lt;cloud&gt;-guidelines-*</code>)</h3>
+<div class="paragraph">
+<p>One set per cloud scope, applied across all resources of that cloud:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Table of short prefixes for resource names; the compositor offers them
+to the model.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>drift_exceptions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Resources and changes drift remediation must never touch. Ships as a
+placeholder with no exceptions.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Drift exception filter, in every drift round and every generate round&#8217;s
+drift pre-check</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>forbidden_actions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Actions the agents must refuse or avoid (for example destructive
+operations).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter; IaC generator and compliance checker in generate rounds</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>networking</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Networking conventions (address plans, exposure rules, private
+endpoints).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator, compliance checker</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>permissions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Identity and access conventions (least privilege, role assignment
+patterns).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator, compliance checker</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>resource_creation</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">General conventions for creating resources (tags, naming, defaults).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator, compliance checker</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Catalogue of the <code>&lt;cloud&gt;-resources-*</code> prompts the compositor may
+select. Source of truth for discovery.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="general-cross-provider-prompts-general-guidelines"><a class="anchor" href="#general-cross-provider-prompts-general-guidelines"></a>General cross-provider prompts (<code>general-guidelines-*</code>)</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-terraform</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Organisation-wide Terraform standards (structure, providers, state,
+style).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator, compliance checker</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-requests</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rules for classifying and accepting user requests.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-targeting_policies</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Exclusions and policies for choosing drift remediation targets. Ships
+as a placeholder with no exclusions.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Target generator, drift mode only</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="compliance-prompts-general-compliance"><a class="anchor" href="#compliance-prompts-general-compliance"></a>Compliance prompts (<code>general-compliance-*</code>)</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-report</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Business rules with rule ids and severities that the compliance
+auditor checks a plan against. The shipped seed defines
+<code>scope_exceeded</code>, <code>scope_incomplete</code>, and <code>critical_deletion</code>. A failed
+check locks the session.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance checker (when <code>orchestration.enable_compliance_checker</code> is
+<code>true</code>)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-impact</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Criteria for labelling each change group <code>low</code>, <code>medium</code>, or <code>high</code>. A
+<code>high</code> banner locks the session when
+<code>orchestration.block_on_high_impact</code> is <code>true</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Report generator, generate reports only</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="component-and-resource-prompts-cloud-resources-name"><a class="anchor" href="#component-and-resource-prompts-cloud-resources-name"></a>Component and resource prompts (<code>&lt;cloud&gt;-resources-&lt;name&gt;</code>)</h3>
+<div class="paragraph">
+<p>One prompt per resource type, holding the default configuration the
+model should produce unless the user asks otherwise. Examples that ship
+today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_account</code>,
+<code>gcp-resources-cloud_run</code>, <code>oci-resources-compute_instance</code>,
+<code>kubernetes-resources-deployment</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="shipped-seed-inventory"><a class="anchor" href="#shipped-seed-inventory"></a>Shipped seed inventory</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every cloud scope ships the same seven guideline prompts; the resource
+prompts differ per cloud.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 11.1111%;">
+<col style="width: 33.3333%;">
+<col style="width: 44.4444%;">
+<col style="width: 11.1112%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Scope</th>
+<th class="tableblock halign-left valign-top"><code>guidelines</code></th>
+<th class="tableblock halign-left valign-top"><code>resources</code></th>
+<th class="tableblock halign-left valign-top"><code>compliance</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>requests</code>, <code>targeting_policies</code>, <code>terraform</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>impact</code>, <code>report</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>, <code>ec2</code>, <code>iam_role</code>,
+<code>internet_gateway</code>, <code>lambda</code>, <code>nat_gateway</code>, <code>rds</code>, <code>redshift</code>,
+<code>route53</code>, <code>s3_bucket</code>, <code>sagemaker</code>, <code>security_group</code>, <code>subnet</code>, <code>vpc</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>application_insights</code>, <code>azure_openai</code>, <code>container_app</code>, <code>cosmosdb</code>,
+<code>function</code>, <code>key_vault</code>, <code>nat_gateway</code>, <code>network_security_group</code>,
+<code>postgres_flexible_server</code>, <code>redis_managed</code>, <code>resource_group</code>,
+<code>storage_account</code>, <code>subnet</code>, <code>virtual_machine</code>, <code>virtual_network</code>,
+<code>webapp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>bigquery</code>, <code>cloud_nat</code>, <code>cloud_router</code>, <code>cloud_run</code>,
+<code>cloud_sql_postgres</code>, <code>firewall</code>, <code>gke_autopilot</code>, <code>load_balancer</code>,
+<code>project</code>, <code>service_account</code>, <code>spanner</code>, <code>storage_bucket</code>,
+<code>subnetwork</code>, <code>vertex</code>, <code>vpc_network</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>block_volume</code>, <code>compute_instance</code>,
+<code>dns_zone</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
+<code>internet_gateway</code>, <code>load_balancer</code>, <code>nat_gateway</code>,
+<code>network_security_group</code>, <code>object_storage</code>, <code>oke_cluster</code>,
+<code>security_list</code>, <code>subnet</code>, <code>vault</code>, <code>vcn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster_role</code>, <code>cluster_role_binding</code>, <code>config_map</code>, <code>cron_job</code>,
+<code>daemon_set</code>, <code>deployment</code>, <code>horizontal_pod_autoscaler</code>, <code>ingress</code>,
+<code>namespace</code>, <code>network_policy</code>, <code>persistent_volume_claim</code>, <code>role</code>,
+<code>role_binding</code>, <code>secret</code>, <code>service</code>, <code>service_account</code>, <code>stateful_set</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="sect2">
+<h3 id="guideline-prompts"><a class="anchor" href="#guideline-prompts"></a>Guideline prompts every cloud scope must provide</h3>
+<div class="paragraph">
+<p>The core requests these guideline prompts unconditionally for the
+session&#8217;s cloud, so every scope must have all of them in Phoenix or its
+sessions abort with <code>Prompt not found</code>:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Requested by</th>
+<th class="tableblock halign-left valign-top">Prompt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor (every generate and drift round)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-abbreviations</code>, <code>&lt;cloud&gt;-guidelines-resources_list</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter (every generate round and every partial drift round)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-forbidden_actions</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator and compliance checker</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-resource_creation</code>, <code>&lt;cloud&gt;-guidelines-networking</code>,
+<code>&lt;cloud&gt;-guidelines-permissions</code>; plus
+<code>&lt;cloud&gt;-guidelines-forbidden_actions</code> in generate rounds</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Drift exception filter (every drift round and every generate round&#8217;s
+drift pre-check)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-drift_exceptions</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Keep this in mind when you delete a prompt in Phoenix or trim the seed
+set for a deployment. (The GCP <code>abbreviations</code>, <code>forbidden_actions</code>, and
+<code>networking</code> seeds were missing before 2026-09-11 and have been added;
+an already seeded Phoenix database does not receive them until the core
+restarts, because only new names are pushed.)</p>
+</div>
+<div class="paragraph">
+<p>Also note that the loader&#8217;s name pattern permits a leading underscore
+while Phoenix rejects names starting with <code>_</code>; avoid them.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="drift-exception-rules"><a class="anchor" href="#drift-exception-rules"></a>Drift exception rules</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>&lt;cloud&gt;-guidelines-drift_exceptions</code> is the list of things drift
+remediation must never touch. It is read by a dedicated <strong>drift exception
+filter</strong>: after the task splitter turns a drift report into operations,
+and after the reconciliation filter has removed the session&#8217;s own
+changes, this agent receives the remaining operations together with the
+rules and returns the ones no rule covers. Only those are remediated.
+Whatever it removes is logged as a warning and reported in the drift
+report&#8217;s <code>whitelisted_exceptions</code> block, one entry per excluded change,
+naming the change and the rule that covers it. That block is kept apart
+from <code>unreconciled_drift</code>, which is for drift the round genuinely failed
+to fix, and it does not lower the report&#8217;s outcome: leaving an excluded
+change alone is the intended result.</p>
+</div>
+<div class="paragraph">
+<p>The filter runs on <strong>every</strong> drift round, full or partial, and on the
+drift pre-check inside every generate round, so a generate round cannot
+silently "fix" an excluded resource either. That also makes the prompt
+mandatory for every cloud scope: a missing one aborts the round with
+<code>Prompt not found</code>.</p>
+</div>
+<div class="paragraph">
+<p>This is not the same brake as <code>general-guidelines-targeting_policies</code>.
+Targeting policies decide which resources a <strong>partial</strong> drift round plans
+at all; they never reach a full drift round and they never see the
+operations. Exception rules apply to the operations of every drift
+round, whatever produced them.</p>
+</div>
+<div class="sect2">
+<h3 id="how-to-write-one"><a class="anchor" href="#how-to-write-one"></a>How to write one</h3>
+<div class="paragraph">
+<p>The body is prose, read by a model. Keep each exception on its own
+bullet, and name the resource address, type, attribute, tag, namespace
+or naming pattern precisely enough that an agent can match it against a
+sentence like "In <code>main.tf</code>, for <code>azurerm_key_vault.kvt_001</code>: update the
+tag <code>owner</code> from <code>platform</code> to <code>payments</code>." Say what must not be
+reconciled, and why — the reason is what the agent quotes back in the
+report.</p>
+</div>
+<div class="paragraph">
+<p>The shipped seed has three sections, and they are the rule kinds the
+filter understands:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Provider quirks</strong>: a permanent false diff the provider reports on every
+plan.</p>
+</li>
+<li>
+<p><strong>Resources managed outside Terraform</strong>: something another system owns
+and keeps changing on purpose.</p>
+</li>
+<li>
+<p><strong>Environment, team and naming carve-outs</strong>: whole slices of the estate a
+workload session must not touch.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The agent may also <strong>trim</strong> an operation: when one instruction bundles an
+excluded change with a legitimate one, it keeps the legitimate part and
+drops the rest. Rules that name a single attribute are therefore as
+useful as rules that name a whole resource.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="worked-examples"><a class="anchor" href="#worked-examples"></a>Worked examples</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  ## Provider quirks (permanent false diffs)</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">The `azurerm` provider always reports a diff on the `created_at` tag</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    written by the tagging policy; never reconcile that tag.</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  ## Resources managed outside Terraform</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">The values of `azurerm_key_vault_secret` are rotated by the secrets</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    platform; never reconcile them.</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  ## Environment, team and naming carve-outs</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">Never reconcile resources in the `rg-shared-platform` resource</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    group; the platform team owns them.</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>With those rules in place, a drift round that found "Delete resource
+<code>azurerm_storage_account.sta_shared_001</code> in <code>rg-shared-platform`"
+remediates nothing, stops rather than re-planning, and lists the resource
+under `whitelisted_exceptions</code> in the report, quoting the carve-out — with
+the outcome still <code>Succeeded</code>, because nothing was left unreconciled
+involuntarily.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-prompts-are-composed-into-a-system-prompt"><a class="anchor" href="#how-prompts-are-composed-into-a-system-prompt"></a>How prompts are composed into a system prompt</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a generate or drift round the core builds the conventions in two
+model passes and then renders the layouts:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>First compositor pass.</strong> The <code>prompt_compositor</code> layout is rendered
+with the cloud&#8217;s <code>resources_list</code> (as the list of available
+templates) and <code>abbreviations</code> (as the list of available
+abbreviations). The small model reads the user&#8217;s request and calls
+the <code>construct_information</code> tool with the resource template names and
+abbreviations it considers relevant. Names must match the
+<code>resources_list</code> entries exactly.</p>
+</li>
+<li>
+<p><strong>Second compositor pass.</strong> The layout is rendered again, this time
+including the full text of the resource prompts selected in the
+first pass. The model looks for dependencies (a subnet needs a
+network, a function needs a storage account, and so on) and returns
+additional templates and abbreviations. Both passes are merged into
+the round&#8217;s conventions.</p>
+</li>
+<li>
+<p><strong>Rendering the agent layouts.</strong> The IaC generator layout (and the
+compliance checker layout) receives <code>general-guidelines-terraform</code>,
+the cloud&#8217;s <code>resource_creation</code>, <code>networking</code>, and <code>permissions</code>
+guidelines, <code>forbidden_actions</code> in generate rounds (drift rounds omit
+it), and a concrete-implementation section built from the selected
+<code>&lt;cloud&gt;-resources-*</code> prompts and abbreviations. The compliance
+checker additionally receives <code>general-compliance-report</code>; the
+report generator receives <code>general-compliance-impact</code> for generate
+reports; the drift target generator receives
+<code>general-guidelines-targeting_policies</code>; the drift exception filter
+receives the cloud&#8217;s <code>drift_exceptions</code>; the request filter receives
+<code>general-guidelines-requests</code> and the cloud&#8217;s <code>forbidden_actions</code>.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>The layouts also carry fixed content that is not in Phoenix: the
+agent&#8217;s role, the tools it may call, output format rules, and the
+working directory. Those change only with a core rebuild.</p>
+</div>
+<div class="paragraph">
+<p><strong>Discovery depends on <code>resources_list</code>.</strong> Nothing enumerates the
+<code>&lt;cloud&gt;-resources-*</code> prompts that exist in Phoenix. The compositor can
+only pick names that appear in <code>resources_list</code>, and every name it
+picks is then fetched, so a name listed there without a matching
+resource prompt aborts the run. The reverse is just as important: a
+resource prompt that exists but is not named in the cloud&#8217;s
+<code>resources_list</code> is never selected — the compositor has no other way to
+discover it, and the loader does no cross-check between the seed files
+on disk and the <code>resources_list</code> catalogue at startup. Whenever you add
+a resource seed, add its name to <code>resources_list</code> in the same change,
+for every cloud you edit. The Azure <code>resources_list</code> now names all 16
+shipped Azure resource seeds; keep it that way as you add more.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>All examples are fictitious and use the repository conventions.</p>
+</div>
+<div class="sect2">
+<h3 id="a-provider-wide-guideline-seed"><a class="anchor" href="#a-provider-wide-guideline-seed"></a>A provider-wide guideline seed</h3>
+<div class="paragraph">
+<p>File <code>core/prompts/seed/aws/guidelines/networking.yaml</code> (shipped; body
+shortened here for space — see the file for the full text), producing the
+Phoenix prompt <code>aws-guidelines-networking</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">#</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-License-Identifier: Apache-2.0</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">AWS networking conventions (VPCs, subnets, gateways, security groups).</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # AWS Networking Guidelines</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ## Topology</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Default to a multi-AZ VPC with public and private subnets per</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    availability zone.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - For multi-environment deployments, use separate VPCs per</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    environment (`dev`, `staging`, `prod`) connected through Transit</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    Gateway or VPC peering.</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ## Address space</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    or other VPCs that will be peered.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Allocate `/16` per VPC by default; carve `/24` subnets within.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Spread subnets across at least two availability zones.</span></span></span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="a-resource-component-seed"><a class="anchor" href="#a-resource-component-seed"></a>A resource (component) seed</h3>
+<div class="paragraph">
+<p>File <code>core/prompts/seed/aws/resources/s3_bucket.yaml</code> (shipped; body
+shortened here for space — see the file for the full text), producing
+<code>aws-resources-s3_bucket</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">#</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-License-Identifier: Apache-2.0</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # AWS S3 Bucket</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  For an S3 Bucket, unless explicitly requested otherwise, use the</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  following default configuration:</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Naming convention: `&#x3C;project>-&#x3C;purpose>-&#x3C;environment>`. Bucket</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    names are globally unique, lowercase, 3-63 characters.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Versioning must be enabled.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Server-side encryption must use aws:kms with bucket key enabled.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Block Public Access must be fully enabled unless the request</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    explicitly requires a public bucket.</span></span></span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="the-matching-resources_list-entry"><a class="anchor" href="#the-matching-resources_list-entry"></a>The matching <code>resources_list</code> entry</h3>
+<div class="paragraph">
+<p>The compositor can only select <code>s3_bucket</code> because it appears in
+<code>core/prompts/seed/aws/guidelines/resources_list.yaml</code>
+(<code>aws-guidelines-resources_list</code>). The shipped file is a bulleted
+catalogue; a new resource prompt needs one more line in the same style,
+for example a hypothetical <code>sqs_queue</code> resource that does not ship
+today:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">Names of aws-resources-* prompts the compositor may select from.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # Available AWS Resource Templates</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ...</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - `sqs_queue` — SQS queue with encryption, dead-letter queue, and retention.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ...</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The name in backticks must equal the <code>&lt;name&gt;</code> part of the resource
+prompt exactly, and it must exist on both sides: a resource prompt with
+no <code>resources_list</code> entry is never selected, and a <code>resources_list</code>
+entry with no matching resource prompt aborts the run when picked.</p>
+</div>
+<div class="paragraph">
+<p><strong>List style is not uniform across clouds.</strong> AWS, Azure, GCP, and OCI name
+entries in backticks with a trailing description, as above; the
+Kubernetes <code>resources_list</code> uses plain bullets with no backticks at all
+(<code>- namespace</code>, <code>- deployment</code>, and so on). There is no enforced format
+— the compositor only needs the bare name to appear somewhere in the
+body. When you edit a <code>resources_list</code>, follow the style already used
+in that specific file rather than copying another cloud&#8217;s convention.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="adding-a-new-component-prompt-to-a-fresh-deployment"><a class="anchor" href="#adding-a-new-component-prompt-to-a-fresh-deployment"></a>Adding a new component prompt to a fresh deployment</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create <code>core/prompts/seed/&lt;cloud&gt;/resources/&lt;name&gt;.yaml</code> with
+<code>description</code> and <code>body</code>.</p>
+</li>
+<li>
+<p>Add the <code>&lt;name&gt;</code> entry to
+<code>core/prompts/seed/&lt;cloud&gt;/guidelines/resources_list.yaml</code>.</p>
+</li>
+<li>
+<p>Rebuild the core image (<code>docker compose build core</code>) so the new seed
+files are inside it, and start the stack. The seeder creates
+<code>&lt;cloud&gt;-resources-&lt;name&gt;</code> and, because <code>resources_list</code> does not
+exist yet either, the updated catalogue.</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="adding-or-changing-a-prompt-on-an-already-running-deployment"><a class="anchor" href="#adding-or-changing-a-prompt-on-an-already-running-deployment"></a>Adding or changing a prompt on an already running deployment</h3>
+<div class="paragraph">
+<p>The seeder will not touch <code>&lt;cloud&gt;-guidelines-resources_list</code> once it
+exists, so the catalogue must be edited in Phoenix:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Open Phoenix (<code>/monitoring/</code> in the default stack) and go to
+<strong>Prompts</strong>.</p>
+</li>
+<li>
+<p>For a new component: either add the seed file and restart the core
+(new names are created), or create the prompt
+<code>&lt;cloud&gt;-resources-&lt;name&gt;</code> directly in Phoenix. In both cases the
+new version must carry the deployment&#8217;s <code>environment</code> tag
+(<code>development</code> by default); the seeder tags what it creates, a
+manual creation must be tagged by hand.</p>
+</li>
+<li>
+<p>Open <code>&lt;cloud&gt;-guidelines-resources_list</code>, create a new version with
+the extra line, and move the environment tag to it.</p>
+</li>
+<li>
+<p>Run a session that mentions the new resource. No core rebuild or
+restart is needed for step 3 to take effect.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>To <strong>change</strong> an existing prompt (a naming rule, a security default, a
+compliance rule), create a new version in Phoenix and move the tag.
+Keep the previous version; moving the tag back is the rollback.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="checklist-for-operators"><a class="anchor" href="#checklist-for-operators"></a>Checklist for operators</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Review every shipped prompt before relying on a deployment: naming
+conventions, security defaults, forbidden actions, and compliance
+rules encode a policy, not yours.</p>
+</li>
+<li>
+<p>Keep Phoenix reachable during core startups; seeding is part of the
+boot.</p>
+</li>
+<li>
+<p>Decide who may edit prompts. Anyone with access to the Phoenix UI can
+change what the agents generate. Phoenix has no authentication in the
+default stack.</p>
+</li>
+<li>
+<p>Treat the <code>environment</code> value as part of the prompt data model: it is
+the tag every fetch uses.</p>
+</li>
+<li>
+<p>Back up <code>phoenix-db</code>; it holds your curated prompts as well as the
+traces.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../monitor-with-phoenix/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Monitor with Phoenix</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../configure-state-backends/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Configure state backends</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/customize-prompts.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,1367 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Monitor with Phoenix | Nebula</title>
+
+    <link rel="prev" href="../administer-users-and-locks/">
+    <link rel="next" href="../customize-prompts/">
+    <meta name="description" content="Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
+    <span class="dt-tag__label">prerelease</span>
+  </span>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Monitor with Phoenix</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Monitor with Phoenix</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Read Nebula&#x27;s OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula records what its agents do as <strong>traces</strong>: for every session run,
+the prompts sent to the language model, the tool calls the model made,
+the Terraform validations, and the results. Traces are exported with
+OpenTelemetry using the OpenInference conventions and, in the default
+Compose stack, collected and displayed by
+<a href="https://arize.com/docs/phoenix">Arize Phoenix</a>.</p>
+</div>
+<div class="paragraph">
+<p>This guide covers tracing only. Phoenix also hosts Nebula&#8217;s runtime
+prompt registry; that is a separate function described in
+<a href="../customize-prompts/" class="xref page">Customize prompts</a>. How
+Phoenix is deployed in each model is covered by
+<a href="../../quickstart/" class="xref page">Quickstart</a> and
+<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Data sensitivity.</strong> Phoenix receives, in clear text, the full system
+prompts, the user&#8217;s requests and conversation history, repository
+metadata (URL, path, branch), Terraform plans and validation errors,
+tool inputs and outputs (which can include file contents from the
+repository), model outputs including generated code, and the session
+identifier plus the <strong>user&#8217;s e-mail address</strong> (as <code>user.id</code>) on every
+span. Nothing is redacted or truncated apart from a cap on the number of
+attributes. Operators must put Phoenix behind access control, decide on
+retention, and tell users not to paste secrets into requests or commit
+them into IaC. The default stack exposes Phoenix at <code>/monitoring/</code> on
+the same port as the application, with no authentication of its own.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-ships-in-the-compose-stack"><a class="anchor" href="#what-ships-in-the-compose-stack"></a>What ships in the Compose stack</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Component</th>
+<th class="tableblock halign-left valign-top">Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix</code> (<code>arizephoenix/phoenix:20.12.0</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Receives traces over OTLP/HTTP on port 6006 and serves the UI (port
+4317, OTLP/gRPC, is also exposed on the Compose network but unused by
+Nebula). Started with <code>PHOENIX_HOST_ROOT_PATH=/monitoring</code> so it works
+behind the proxy prefix. Its MCP server is disabled.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix-db</code> (PostgreSQL 17)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Persistence for Phoenix. Traces and prompts survive restarts in the
+<code>phoenix_db_data</code> volume.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>proxy</code> (nginx)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Forwards <code>/monitoring/</code> to Phoenix.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Browser paths:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>http://localhost/monitoring/</code> opens Phoenix.</p>
+</li>
+<li>
+<p><code>http://localhost/monitoring/projects</code> lists the projects. The admin
+panel&#8217;s <strong>Phoenix</strong> link points here.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Only the proxy publishes host ports; Phoenix is not reachable directly
+from the host in the default stack.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="configuration"><a class="anchor" href="#configuration"></a>Configuration</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>All keys are in <code>config.yaml</code> under <code>telemetry</code> (details in
+<a href="../../reference/configuration/#telemetry" class="xref page">the <code>telemetry</code> section</a>
+of the configuration reference):</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Default in <code>config.yaml</code></th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the OTLP/HTTP collector. The core appends <code>v1/traces</code> by
+string concatenation, so the value <strong>must end in</strong> <code>/</code>. The code default
+<code>http://localhost:6006/</code> only works when the core runs outside Docker.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_attribute_count_limit</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>1024</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum attributes per span. Long conversations produce many
+<code>llm.input_messages.N.*</code> attributes. When the limit is hit the
+OpenTelemetry SDK drops the oldest attributes first, and on LLM spans
+those are <code>session.id</code>, <code>user.id</code>, <code>metadata</code>, the span kind, and the
+model name, so an over-long span loses its identity rather than its
+messages. Raise this for long sessions.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_console_exporter</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Also print spans to the core&#8217;s standard output. Useful for debugging
+without Phoenix, but spans carry prompts and plans.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><strong>Replacing Phoenix as the trace collector.</strong> The exporter is the standard
+OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts
+OTLP/HTTP on <code>&lt;collector_url&gt;v1/traces</code> (an OpenTelemetry Collector, a
+vendor endpoint) receives the spans. Two caveats:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The core sets no exporter headers itself (it passes no <code>headers</code>
+argument when it configures the span exporter); OTLP header env vars
+such as <code>OTEL_EXPORTER_OTLP_HEADERS</code> (for example
+<code>authorization=Bearer%20&lt;token&gt;</code>) may be honoured by the OpenTelemetry
+SDK when it reads the core&#8217;s environment, but this is not verified in
+this codebase — treat it as unconfirmed. The Phoenix client used for
+prompts separately reads <code>PHOENIX_API_KEY</code>. Put an authenticating
+proxy or collector in front of Phoenix if you need auth on the
+trace-export path.</p>
+</li>
+<li>
+<p>Today <code>telemetry.collector_url</code> is also the base URL of the Phoenix
+client used for prompt seeding and fetching. Pointing it at a
+non-Phoenix collector breaks startup. To send traces elsewhere while
+keeping Phoenix for prompts, forward from Phoenix or place a collector
+at the same base URL that proxies the prompt API.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="projects"><a class="anchor" href="#projects"></a>Projects</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Phoenix groups traces into projects. Nebula picks the project from the
+<code>environment</code> setting and the session&#8217;s operation:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 10%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+<col style="width: 30%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top"><code>environment</code></th>
+<th class="tableblock halign-left valign-top">Generate</th>
+<th class="tableblock halign-left valign-top">Drift</th>
+<th class="tableblock halign-left valign-top">Import</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>development</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-day2</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-drift</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-import</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>staging</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-day2</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-drift</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-import</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>production</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-day2</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-drift</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-import</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Notes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>day2</code> is the project used for generate operations.</p>
+</li>
+<li>
+<p>Apply runs re-use the operation of the session they belong to
+(generate or drift), so apply spans appear in the <code>day2</code> or <code>drift</code>
+project of that session.</p>
+</li>
+<li>
+<p>The <code>import</code> projects are created (every provider is initialised at
+startup) but no current code path routes spans to them, because the
+core has no import operation yet (see
+<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>).
+Expect them to be empty.</p>
+</li>
+<li>
+<p>Each project has exactly one resource attribute,
+<code>openinference.project.name</code>. There is no <code>service.name</code> or version.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-a-trace-contains"><a class="anchor" href="#what-a-trace-contains"></a>What a trace contains</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula instruments four kinds of work with decorators in the domain
+layer; each produces one span type. Attribute keys follow the
+OpenInference semantic conventions.</p>
+</div>
+<div class="sect2">
+<h3 id="1-agent-chain-spans"><a class="anchor" href="#1-agent-chain-spans"></a>1. Agent (chain) spans</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Name:</strong> <code>Chain - &lt;prompt type&gt;</code>, for example <code>Chain - IAC_GENERATOR</code>,
+<code>Chain - REQUESTS_FILTER</code>, <code>Chain - TARGET_GENERATOR</code>, <code>Chain -
+REPORT_GENERATOR</code>, <code>Chain - PR_GENERATOR</code>, <code>Chain -
+COMPLIANCE_CHECKER</code>, <code>Chain - PROMPT_COMPOSITOR</code>, <code>Chain -
+TASK_SPLITTER</code>, <code>Chain - FILTER_RECONCILIATION</code>, <code>Chain -
+FILTER_DRIFT_EXCEPTIONS</code>, <code>Chain - STATUS_UPDATE</code>.</p>
+</li>
+<li>
+<p><strong>Kind:</strong> <code>AGENT</code>.</p>
+</li>
+<li>
+<p><strong>Input:</strong> the query handed to the chain (<code>input.value</code>).</p>
+</li>
+<li>
+<p><strong>Output:</strong> the chain&#8217;s result, unwrapped to its <code>summary</code>,
+<code>explanation</code>, or <code>description</code> field when it is a tool result
+(<code>output.value</code>).</p>
+</li>
+<li>
+<p><strong>Metadata:</strong> the common metadata plus <code>chain_type</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>One chain span is opened per orchestration step (filtering, target
+generation, code generation, reporting, and so on).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="2-llm-spans"><a class="anchor" href="#2-llm-spans"></a>2. LLM spans</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Name:</strong> <code>Async Inference</code>.</p>
+</li>
+<li>
+<p><strong>Kind:</strong> <code>LLM</code>.</p>
+</li>
+<li>
+<p><strong>Model and provider:</strong> <code>llm.model_name</code>, and <code>llm.provider</code> when the
+LiteLLM prefix maps to an OpenInference provider name. When
+<code>llm.model_list</code> uses a custom alias (see
+<a href="../../reference/llm-providers/" class="xref page">LLM providers and models</a>),
+<code>llm.model_name</code> on the span is that alias rather than the
+underlying <code>provider/model-id</code> string, and <code>llm.provider</code> is left
+unset because the alias carries no recognizable prefix.</p>
+</li>
+<li>
+<p><strong>Invocation parameters:</strong> <code>llm.invocation_parameters</code> with the request
+arguments minus the bulky message and tool payloads (temperature, max
+tokens, retries, timeout, reasoning effort).</p>
+</li>
+<li>
+<p><strong>Messages:</strong> <code>llm.input_messages.N.message.role</code> and <code>.content</code> for the
+system prompt, the conversation history (user, assistant, tool
+results with their <code>tool_call_id</code>), and the current message; assistant
+tool calls appear under <code>.message.tool_calls.M.*</code>.</p>
+</li>
+<li>
+<p><strong>Available tools:</strong> <code>llm.tools.N.tool.json_schema</code>.</p>
+</li>
+<li>
+<p><strong>Output:</strong> <code>output.value</code> (text, or JSON with text and tool calls) and
+<code>llm.output_messages.0.*</code> including the tool calls made.</p>
+</li>
+<li>
+<p><strong>Token counts:</strong> <code>llm.token_count.prompt</code>, <code>llm.token_count.completion</code>,
+<code>llm.token_count.total</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="3-tool-spans"><a class="anchor" href="#3-tool-spans"></a>3. Tool spans</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Name:</strong> <code>Tool call - &lt;tool name&gt;</code>.</p>
+</li>
+<li>
+<p><strong>Kind:</strong> <code>TOOL</code>.</p>
+</li>
+<li>
+<p><strong>Identity:</strong> <code>tool.name</code>, <code>tool.id</code>.</p>
+</li>
+<li>
+<p><strong>Arguments:</strong> <code>tool.parameters</code> and <code>input.value</code>.</p>
+</li>
+<li>
+<p><strong>Result:</strong> <code>output.value</code>, a JSON document with <code>name</code>, <code>tool_call_id</code>,
+<code>success</code>, <code>result</code>, and <code>error_message</code>. A tool that returns a
+failure is recorded with <code>success: false</code> and its message here; the
+span status itself stays <code>OK</code>. A tool whose execution raises produces
+no span at all.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="4-terraform-evaluator-spans"><a class="anchor" href="#4-terraform-evaluator-spans"></a>4. Terraform evaluator spans</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Name:</strong> <code>Terraform &lt;operation&gt; - &lt;outcome&gt;</code>, where the operation is
+the verb that ran (<code>plan</code>, <code>drift</code> or <code>apply</code>) and the outcome is
+<code>True</code> or <code>False</code> — so <code>Terraform plan - True</code>, <code>Terraform drift -
+False</code>, <code>Terraform apply - True</code>. The operation comes from the name of
+the traced method, and the outcome is validation for <code>plan</code>, being in
+sync for <code>drift</code>, and success for <code>apply</code>.</p>
+</li>
+<li>
+<p><strong>Kind:</strong> <code>EVALUATOR</code>.</p>
+</li>
+<li>
+<p><strong>Input:</strong> the keyword arguments of the call: the targets for <code>plan</code>,
+the plan reference being read for <code>drift</code> (its workspace, plan file,
+targets and workspace fingerprint — never the plan text), empty for
+<code>apply</code>.</p>
+</li>
+<li>
+<p><strong>Output:</strong> the Terraform plan text for a successful <code>plan</code>, the drift
+summary for a drifted workspace, the apply output for a successful
+<code>apply</code>; on any failure, the engine&#8217;s error feedback instead.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="common-metadata"><a class="anchor" href="#common-metadata"></a>Common metadata</h3>
+<div class="paragraph">
+<p>Every span of every kind carries:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>session.id</code> and <code>user.id</code> as top-level attributes. <code>user.id</code> is the
+user&#8217;s e-mail address (or <code>user-&lt;id&gt;</code> when the account has none), so
+traces contain personal data;</p>
+</li>
+<li>
+<p>a <code>metadata</code> JSON attribute with <code>session_id</code>, <code>user_id</code> (the same
+e-mail), <code>cloud</code> (<code>AZURE</code>, <code>GCP</code>, <code>AWS</code>, <code>OCI</code>, <code>K8S</code>), <code>repo_uri</code>,
+<code>iac_path</code>, <code>branch_name</code>, and, on chain spans, <code>chain_type</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Use <code>session.id</code> to find everything that happened in one session.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="how-spans-relate"><a class="anchor" href="#how-spans-relate"></a>How spans relate</h3>
+<div class="paragraph">
+<p>Do not expect a deep tree. The current implementation produces:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Chain spans are roots.</strong> Each orchestration step starts a new chain
+span and remembers it as the current root.</p>
+</li>
+<li>
+<p><strong>LLM and tool spans are children of the current chain span</strong>, as
+siblings of each other. A tool span is not nested under the LLM span
+that requested the call.</p>
+</li>
+<li>
+<p><strong>Terraform evaluator spans have no parent.</strong> Each one is a single-span
+trace of its own, linked to the rest only through <code>session.id</code> in the
+metadata.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Child spans are created after their work finishes, with a back-dated
+start time, so durations are correct even though the nesting is flat.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-is-not-recorded"><a class="anchor" href="#what-is-not-recorded"></a>What is not recorded</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Errors and exceptions.</strong> Span status is always <code>OK</code>. When a chain,
+model call, tool, or Terraform command raises, the corresponding span
+is never ended and therefore never exported; a failed run appears
+truncated in Phoenix rather than marked failed. Tool-level failures
+are visible only as <code>success: false</code> in the tool span output. Use the
+session status and failure message in the application or the
+<a href="../administer-users-and-locks/" class="xref page">admin panel</a> for
+error triage.</p>
+</li>
+<li>
+<p><strong>Metrics, dashboards, alerts, evaluations.</strong> Nebula emits traces only.
+Phoenix&#8217;s evaluation and dataset features are available in the UI but
+nothing in Nebula populates them.</p>
+</li>
+<li>
+<p><strong>Logs.</strong> Application logs go to the container&#8217;s standard output and
+are not correlated with traces.</p>
+</li>
+<li>
+<p><strong>Sidecar activity.</strong> The sidecars are not instrumented; engine commands
+appear only through the core&#8217;s Terraform evaluator spans.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="startup-and-shutdown"><a class="anchor" href="#startup-and-shutdown"></a>Startup and shutdown</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Tracer providers for all nine projects are created when the core
+module is imported, before the FastAPI application starts. Each has a
+batching span processor with the OpenTelemetry SDK defaults (export
+every 5 seconds, batches of up to 512 spans, queue of 2048).</p>
+</li>
+<li>
+<p>Span creation never touches the network; export happens on a
+background thread. If the collector is unreachable, the exporter
+retries with back-off within its timeout, logs <code>Failed to export span
+batch</code>, and drops the batch. Sessions are not affected; the traces
+are lost.</p>
+</li>
+<li>
+<p>There is no startup connectivity check for the trace endpoint. The
+core does, however, need Phoenix&#8217;s HTTP API at the same base URL for
+prompt seeding: it retries the connection for about 27 seconds and
+then aborts the boot. In the bundled stack that makes Phoenix
+effectively required at startup.</p>
+</li>
+<li>
+<p>On shutdown the lifespan handler shuts every provider down,
+which drains pending spans (within a 30-second budget) before the
+process exits.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="troubleshooting"><a class="anchor" href="#troubleshooting"></a>Troubleshooting</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Phoenix does not open at <code>/monitoring/</code>.</strong> Check <code>docker compose ps</code> for
+the <code>phoenix</code> and <code>phoenix-db</code> containers and <code>docker compose logs
+phoenix</code>. Phoenix waits for its database; a slow first start is normal.
+The proxy returns <code>502</code> until Phoenix listens.</p>
+</div>
+<div class="paragraph">
+<p><strong>Core exits at boot with <code>Phoenix unreachable after 8 attempts</code>.</strong> The
+core could not reach <code>telemetry.collector_url</code> for prompt seeding.
+Confirm the URL resolves from inside the core container
+(<code>http://phoenix:6006/</code> in the stack), that the value ends with <code>/</code>,
+and that Phoenix is up. Start Phoenix first or restart the core.</p>
+</div>
+<div class="paragraph">
+<p><strong>No traces appear.</strong> Confirm the project: with the default <code>environment:
+development</code>, generate runs are in <code>dev-terraform-day2</code> and drift runs
+in <code>dev-terraform-drift</code>. Check the core logs for <code>Failed to export span
+batch</code>, which means the OTLP endpoint <code>&lt;collector_url&gt;v1/traces</code> was not
+reachable when the batch was sent. Traces are exported in batches every
+few seconds; wait a moment and refresh.</p>
+</div>
+<div class="paragraph">
+<p><strong>A session failed but its trace looks incomplete.</strong> Expected: spans for
+work that raised are not exported. Use the session&#8217;s failure message
+and artifacts.</p>
+</div>
+<div class="paragraph">
+<p><strong>A long LLM span has no <code>session.id</code>, shows an unknown span kind, or
+does not appear in a session search.</strong> The attribute count hit
+<code>telemetry.otel_attribute_count_limit</code>; the SDK dropped the oldest
+attributes, which on LLM spans are the identity and kind fields, not the
+messages. Raise the limit and rebuild the core image.</p>
+</div>
+<div class="paragraph">
+<p><strong>Traces from a different environment are mixed in.</strong> The project prefix
+comes from <code>environment</code> in the core&#8217;s baked-in <code>config.yaml</code>; rebuild
+after changing it. Prompt tags follow the same value, so also read
+<a href="../customize-prompts/" class="xref page">Customize prompts</a> before
+changing it on an existing deployment.</p>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../administer-users-and-locks/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Administer users and locks</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../customize-prompts/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Customize prompts</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>
