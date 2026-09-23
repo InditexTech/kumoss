@@ -132,7 +132,7 @@ omit the `email` claim unless you add it (*Token configuration → Add
 optional claim → Access → `email`*); without it the panel shows
 `preferred_username` instead. Entra never emits `email_verified`, so
 `admin.default_root_email` cannot elevate an Entra user — see
-<<bootstrap-admin,Grant the first administrator access>>.
+link:#bootstrap-admin[Grant the first administrator access].
 ****
 
 [tab,label="Keycloak"]
@@ -181,8 +181,8 @@ trailing slash; the core accepts the issuer with or without it, so the
 Auth0 access tokens for a custom API carry neither `email` nor
 `email_verified`, and Auth0 does not allow adding standard OIDC claims to
 them: users show without an email and `admin.default_root_email` cannot
-elevate anyone — see <<bootstrap-admin,Grant the first administrator
-access>>.
+elevate anyone — see link:#bootstrap-admin[Grant the first administrator
+access].
 ****
 
 [tab,label="Okta"]
@@ -210,7 +210,7 @@ suffices. Okta access tokens carry no `email` claim by default; add one
 on that authorization server (*Security → API → Authorization Servers →
 Claims*, value `user.email`) so the panel shows emails. Okta emits no
 `email_verified`, so `admin.default_root_email` cannot elevate an Okta
-user — see <<bootstrap-admin,Grant the first administrator access>>.
+user — see link:#bootstrap-admin[Grant the first administrator access].
 ****
 --
 
