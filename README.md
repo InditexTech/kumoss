@@ -16,9 +16,9 @@ Its structured review process and agent-based generation make infrastructure del
 
 ## What you deploy
 
-![What you deploy: the core platform components (proxy, core, core-db, redis, object-storage, phoenix) run as shipped; the four sidecars (iac, notifications, mapping, authz) each implement an OpenAPI contract and connect Nebula to your organization's LLM providers, Git hosting, cloud accounts, and notification targets](docs/images/readme-components.png)
+![What you deploy: the core platform components (proxy, core, core-db, redis, object-storage, phoenix) run as shipped; the four sidecars (iac, notifications, mapping, authz) each implement an OpenAPI contract and connect Nebula to your organization's LLM providers, Git hosting, cloud accounts, and notification targets](docs/src/modules/main/images/readme-components.png)
 
-*The two dashed regions are the split: core platform components you run as shipped, and the four sidecars behind OpenAPI contracts. Source: [`docs/diagrams/readme-components.architecture.json`](docs/diagrams/readme-components.architecture.json); the detailed view is in [Architecture](docs/architecture.md).*
+*The two dashed regions are the split: core platform components you run as shipped, and the four sidecars behind OpenAPI contracts. Source: [`docs/diagrams/readme-components.architecture.json`](docs/diagrams/readme-components.architecture.json); the detailed view is in [Architecture](https://inditextech.github.io/nebula/prerelease/main/architecture/).*
 
 ### Core platform components
 
@@ -52,7 +52,7 @@ Each implements a contract in [`contracts/openapi/`](contracts/openapi/), and an
 
 A disabled sidecar is never contacted. The compose stack still builds and starts every sidecar container; an exited `notifications` container without `SLACK_WEBHOOK_URL` is expected.
 
-The end-to-end flow, the core's layering, and the data model are described in [Architecture](docs/architecture.md).
+The end-to-end flow, the core's layering, and the data model are described in [Architecture](https://inditextech.github.io/nebula/prerelease/main/architecture/).
 
 ## Choose your deployment model
 
@@ -72,14 +72,14 @@ What you must configure is small and listed here in full:
 - `core/.env` — LLM credentials, Git credentials.
 - `services/iac/.env` — Two separate sets of cloud credentials:
   - Provider credentials: what `plan` and `apply` use to read and create the resources themselves.
-  - State-backend credentials: what `init` uses to read and write the remote state file. See [state backends](docs/terraform-state-backends.md#two-sets-of-credentials-on-the-sidecar) and the minimums in [`services/iac/PROVIDERS.md`](services/iac/PROVIDERS.md).
+  - State-backend credentials: what `init` uses to read and write the remote state file. See [Two sets of credentials on the sidecar](https://inditextech.github.io/nebula/prerelease/main/guides/state-backends/repository-declared/#two-credential-grants) and the minimums in [`services/iac/PROVIDERS.md`](services/iac/PROVIDERS.md).
 - Optionally, to enable notifications: `services.notifications` in `config.yaml`, `services/notifications/.env` with a matching `NEBULA_NOTIFICATIONS_TOKEN`, and `SLACK_WEBHOOK_URL`.
 
 Everything else runs as bundled. On the core side, the sidecar bearer tokens (`NEBULA_IAC_TOKEN` and friends) must be non-empty and already come filled in with sample values. On the sidecar side, the samples ship the matching token blank, which turns that sidecar's own token check off — fine on a private compose network, never in a shared deployment.
 
 **This mode runs with authentication disabled** — every request resolves to a built-in `devops` + panel `admin` identity — and ships well-known credentials (`postgres:postgres`, `rustfsadmin`), no TLS, and an unauthenticated Phoenix console at `/monitoring/`. Never expose this stack beyond a trusted workstation.
 
-**Start here:** [Getting started: local/non-production](docs/getting-started-local.md)
+**Start here:** [Quickstart](https://inditextech.github.io/nebula/prerelease/main/quickstart/)
 
 ### Production
 
@@ -91,7 +91,7 @@ In production, all four sidecars are integration boundaries between Nebula and y
 
 Production should run on an appropriate platform such as Kubernetes. **This repository does not include Kubernetes manifests or Helm charts.**
 
-**Start here:** [Getting started: production](docs/getting-started-production.md)
+**Start here:** [Deploy to production](https://inditextech.github.io/nebula/prerelease/main/guides/deploy-to-production/)
 
 ## Documentation
 
@@ -99,35 +99,35 @@ Production should run on an appropriate platform such as Kubernetes. **This repo
 
 | Guide | Read it when you need to |
 |---|---|
-| [Getting started: local/non-production](docs/getting-started-local.md) | Bring up the full Docker Compose stack on a workstation for evaluation or development. |
-| [Getting started: production](docs/getting-started-production.md) | Plan and configure a hardened, production deployment. |
+| [Quickstart](https://inditextech.github.io/nebula/prerelease/main/quickstart/) | Bring up the full Docker Compose stack on a workstation for evaluation or development. |
+| [Deploy to production](https://inditextech.github.io/nebula/prerelease/main/guides/deploy-to-production/) | Plan and configure a hardened, production deployment. |
 
 **Use Nebula** (end users)
 
 | Guide | Read it when you need to |
 |---|---|
-| [User guide](docs/user-guide.md) | Make a request, write it so it is accepted, follow the session, read the report, handle a lock, open and merge the pull request, apply, and get support. |
-| [FAQ](docs/faq.md) | Quick answers to the questions users ask most. |
-| [Operating modes](docs/modes.md) | Learn precisely what Generate, Partial Drift, Full Drift, and Import Infrastructure do today, and how Nebula finds the Terraform roots in a repository. |
+| [Guides](https://inditextech.github.io/nebula/prerelease/main/guides-overview/) | Make a request, write it so it is accepted, follow the session, read the report, handle a lock, open and merge the pull request, and apply. |
+| [Frequently asked questions](https://inditextech.github.io/nebula/prerelease/main/faq/) | Quick answers to the questions users ask most. |
+| [Comparing the operating modes](https://inditextech.github.io/nebula/prerelease/main/reference/operating-modes/#compare-modes) | Learn precisely what Generate, Partial Drift, Full Drift, and Import Infrastructure do today. How Nebula finds the Terraform roots in a repository is in [Repository layout](https://inditextech.github.io/nebula/prerelease/main/reference/repository-layout/). |
 
 **Operate Nebula**
 
 | Guide | Read it when you need to |
 |---|---|
-| [Admin portal](docs/admin-portal.md) | Review your own sessions, and as a panel user review any user's sessions, lock or unlock applies, and manage roles. |
-| [OIDC setup](docs/oidc-setup.md) | Enable login with Entra ID, Keycloak, Auth0, or Okta and bootstrap the first admin. |
-| [Monitoring with Phoenix](docs/monitoring.md) | Read traces, configure the collector, understand what data is exported. |
-| [Phoenix prompt templates](docs/phoenix-prompt-templates.md) | Customise the prompts that encode your conventions and compliance rules. |
+| [Administer users and locks](https://inditextech.github.io/nebula/prerelease/main/guides/administer-users-and-locks/) | Review your own sessions, and as a panel user review any user's sessions, lock or unlock applies, and manage roles. |
+| [Enable authentication](https://inditextech.github.io/nebula/prerelease/main/guides/enable-authentication/) | Enable login with Entra ID, Keycloak, Auth0, or Okta and bootstrap the first admin. |
+| [Monitor with Phoenix](https://inditextech.github.io/nebula/prerelease/main/guides/monitor-with-phoenix/) | Read traces, configure the collector, understand what data is exported. |
+| [Customize prompts](https://inditextech.github.io/nebula/prerelease/main/guides/customize-prompts/) | Customise the prompts that encode your conventions and compliance rules. |
 
 **Reference**
 
 | Guide | Read it when you need to |
 |---|---|
-| [Configuration reference (`config.yaml`)](docs/configuration.md) | Understand every `config.yaml` field, its default, and its validation rules. |
-| [Environment variables and secrets](docs/environment-variables.md) | Fill in `core/.env` and the sidecar `.env` files; handle credentials safely. |
-| [State backends](docs/terraform-state-backends.md) | Decide where IaC state lives, configure it per provider, and understand keys, locking, and backend changes. |
-| [LiteLLM providers and models](docs/litellm.md) | Choose LLM providers and models, set their credentials, and understand which model handles which step. |
-| [Architecture](docs/architecture.md) | See how the pieces fit: components, the core's layering, and the end-to-end flow from a request to an applied plan. |
+| [Configuration (`config.yaml`)](https://inditextech.github.io/nebula/prerelease/main/reference/configuration/) | Understand every `config.yaml` field, its default, and its validation rules. |
+| [Environment variables and secrets](https://inditextech.github.io/nebula/prerelease/main/reference/environment-variables/) | Fill in `core/.env` and the sidecar `.env` files; handle credentials safely. |
+| [Configure state backends](https://inditextech.github.io/nebula/prerelease/main/guides/configure-state-backends/) | Decide where IaC state lives, configure it per provider, and understand keys, locking, and backend changes. |
+| [LLM providers and models](https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/) | Choose LLM providers and models, set their credentials, and understand which model handles which step. |
+| [Architecture](https://inditextech.github.io/nebula/prerelease/main/architecture/) | See how the pieces fit: components, the core's layering, and the end-to-end flow from a request to an applied plan. |
 | Sidecar OpenAPI contracts | [`contracts/openapi/`](contracts/openapi/) (specs), [`contracts/conformance/`](contracts/conformance/) (Schemathesis suites), and the READMEs of [`services/iac`](services/iac/README.md), [`services/mapping`](services/mapping/README.md), [`services/notifications`](services/notifications/README.md), [`services/authz`](services/authz/README.md). |
 
 ## Contributing

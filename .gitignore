@@ -97,15 +97,28 @@ coverage/
 CLAUDE.md
 AGENTS.md
 
+# Agent tooling installed into the working tree, not source: the vendored
+# docouture skills, the per-tool directories that link to them, the
+# installer's lockfile, and machine-local settings
+.agents/
+agent/
+.claude/skills/
+.claude/settings.local.json
+skills-lock.json
+
 # Local Tests
 local_test/
 
 # Unpublished files
 docs-tmp/
 
+# Pre-migration Markdown guides, kept as a local reference copy until the
+# docouture site under docs/ retires them
+docs-old/
+
 # Unpublished diagrams: interactive HTML exports are generated from the
 # *.architecture.json
 docs/diagrams/*.html
 # Throwaway browser evidence from `archify visual-check`; the published export
-# is docs/images/<diagram>.png
+# is docs/src/modules/main/images/<diagram>.png
 docs/diagrams/*.visual-check.*

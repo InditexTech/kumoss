@@ -1,0 +1,2 @@
+Nebula's readable summary of the plan: what is created, updated, deleted,
+or recreated, the potential impact, and an estimated cost.

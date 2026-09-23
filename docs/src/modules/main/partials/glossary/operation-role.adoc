@@ -1,0 +1,3 @@
+`developer` or `devops`, assigned per user and checked by the API on every
+IaC route; `devops` is above `developer` and is required for drift
+remediation.

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Nebula request flow · Phase 9 — optional pull request and human review",
+    "title": "Nebula request flow · Phase 9",
     "output": "flow-phase-9.html",
     "quality_profile": "showcase",
     "locale": "en",

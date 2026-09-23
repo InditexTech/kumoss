@@ -1,0 +1,3 @@
+The phase where the main-model agent edits Terraform files through tools to
+satisfy the request, committing and pushing the result to the session
+branch.

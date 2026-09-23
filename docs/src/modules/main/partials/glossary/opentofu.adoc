@@ -1,0 +1,2 @@
+The bundled, verified default IaC engine (MPL-2.0). HashiCorp Terraform
+(BUSL-1.1) is also bundled and selectable with `IAC_BINARY`.

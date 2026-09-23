@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Nebula core-db Schema",
+    "output": "database-schema.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "database": {
+          "label": "Table"
+        },
+        "security": {
+          "label": "Identity and roles"
+        }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "cols": 6,
+    "cellW": 196,
+    "cellH": 72,
+    "gapX": 68,
+    "gapY": 60,
+    "origin": [
+      48,
+      48
+    ]
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "security",
+      "label": "users",
+      "sublabel": "issuer + subject, roles",
+      "row": 0,
+      "col": 2,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "sessions",
+      "type": "database",
+      "label": "sessions",
+      "sublabel": "uuid, operation, locks",
+      "row": 1,
+      "col": 2,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "workspaces",
+      "type": "database",
+      "label": "workspaces",
+      "sublabel": "uri, branch, root_path",
+      "row": 2,
+      "col": 0,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "terraform_providers",
+      "type": "database",
+      "label": "terraform_providers",
+      "sublabel": "provider, scope_id",
+      "row": 2,
+      "col": 4,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "rounds",
+      "type": "database",
+      "label": "rounds",
+      "sublabel": "number, query",
+      "row": 2,
+      "col": 2,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "statuses",
+      "type": "database",
+      "label": "statuses",
+      "sublabel": "status, message",
+      "row": 2,
+      "col": 3,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "histories",
+      "type": "database",
+      "label": "histories",
+      "sublabel": "first_query, payload",
+      "row": 2,
+      "col": 1,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "pull_requests",
+      "type": "database",
+      "label": "pull_requests",
+      "sublabel": "provider, number, url",
+      "row": 3,
+      "col": 1,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "terraform_plans",
+      "type": "database",
+      "label": "terraform_plans",
+      "sublabel": "targets (text[])",
+      "row": 3,
+      "col": 2,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "reports",
+      "type": "database",
+      "label": "reports",
+      "sublabel": "type",
+      "row": 3,
+      "col": 3,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "code_changes",
+      "type": "database",
+      "label": "code_changes",
+      "sublabel": "file_name",
+      "row": 3,
+      "col": 4,
+      "size": [
+        196,
+        72
+      ]
+    },
+    {
+      "id": "artifacts",
+      "type": "database",
+      "label": "artifacts",
+      "sublabel": "uri, content_type, size",
+      "row": 4,
+      "col": 3,
+      "size": [
+        196,
+        72
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Deleted with the session",
+      "wraps": [
+        "sessions",
+        "workspaces",
+        "terraform_providers",
+        "rounds",
+        "statuses",
+        "histories",
+        "pull_requests",
+        "terraform_plans",
+        "reports",
+        "code_changes"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-sessions",
+      "from": "users",
+      "to": "sessions"
+    },
+    {
+      "id": "sessions-workspaces",
+      "from": "sessions",
+      "to": "workspaces"
+    },
+    {
+      "id": "sessions-providers",
+      "from": "sessions",
+      "to": "terraform_providers"
+    },
+    {
+      "id": "sessions-rounds",
+      "from": "sessions",
+      "to": "rounds"
+    },
+    {
+      "id": "sessions-statuses",
+      "from": "sessions",
+      "to": "statuses"
+    },
+    {
+      "id": "sessions-histories",
+      "from": "sessions",
+      "to": "histories"
+    },
+    {
+      "id": "rounds-statuses",
+      "from": "rounds",
+      "to": "statuses",
+      "variant": "dashed"
+    },
+    {
+      "id": "rounds-prs",
+      "from": "rounds",
+      "to": "pull_requests"
+    },
+    {
+      "id": "rounds-plans",
+      "from": "rounds",
+      "to": "terraform_plans"
+    },
+    {
+      "id": "rounds-reports",
+      "from": "rounds",
+      "to": "reports"
+    },
+    {
+      "id": "rounds-changes",
+      "from": "rounds",
+      "to": "code_changes",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "artifacts-plans",
+      "from": "artifacts",
+      "to": "terraform_plans"
+    },
+    {
+      "id": "artifacts-reports",
+      "from": "artifacts",
+      "to": "reports"
+    },
+    {
+      "id": "artifacts-changes",
+      "from": "artifacts",
+      "to": "code_changes"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Keys",
+      "items": [
+        "Every table: id, created_at, updated_at",
+        "A child's foreign key is <parent>_id, indexed",
+        "users unique on (issuer, subject)",
+        "rounds unique on (session_id, number)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Ownership",
+      "items": [
+        "One chain: users to sessions to rounds",
+        "statuses hang off both a session and a round",
+        "artifacts are shared, never session-scoped"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Lifecycle",
+      "items": [
+        "Cascades live in the ORM, not in the DDL",
+        "Dashed: the one link that does not cascade",
+        "No migrations; the schema comes from create_all"
+      ]
+    }
+  ]
+}
