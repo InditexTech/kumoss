@@ -1,0 +1,19 @@
+core/prompts/seed/general/compliance/report.yaml
+  s_2cfda9e58f8c0f::t_a9dc85df5a2b83 12-16,18-37,40-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d38f518b5a337db533cc2a79006d65177b52a12",
+  "prompts": {},
+  "sessions": {
+    "s_2cfda9e58f8c0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca624673-d83c-46e5-8498-81694cd6c88e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
