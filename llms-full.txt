@@ -12315,102 +12315,6 @@ AWS_DEFAULT_REGION=us-east-1 \
 
 ---
 
-# Development
-
-Source: /stable/main/guides/development/
-
-This guide covers contributing to Nebula itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Nebula; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
-
-## Prerequisites
-
-Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
-
-## Repository layout
-
-The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
-
-## Running the stack for development
-
-Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide.
-
-`docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload` and does not pick up the change: run `docker compose restart core` after a sync (or `docker compose up -d core`). It does not sync `config.yaml`, which is baked into the image.
-
-## Core tests
-
-Python 3.13, `uv`. `pytest` is **not** declared in `core/pyproject.toml` (its `tooling` dependency group holds `basedpyright`, `debugpy`, `openapi-python-client`, and `ipython`, not `pytest`), so install it explicitly before running the suite:
-
-```
-cd core
-uv pip install --system --prerelease=allow -r pyproject.toml
-uv pip install --system pytest pytest-asyncio
-python -m pytest tests/ --asyncio-mode=auto
-```
-
-Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
-
-## Type checking
-
-`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
-
-```
-cd core
-uv pip install --system --group tooling -r pyproject.toml
-basedpyright
-```
-
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
-
-## Frontend checks
-
-Node 24:
-
-```
-cd client/web
-npm ci
-npm run lint
-npm run test:ci
-npm run build
-```
-
-## Sidecar tests
-
-Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
-
-```
-cd services/<name>
-uv sync --group tooling
-uv run pytest
-```
-
-## Linting and formatting
-
-`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
-
-## Continuous integration
-
-Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
-
-## Regenerating sidecar clients
-
-Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
-
-```
-uv run --group tooling openapi-python-client generate \
-  --path ../contracts/openapi/<service>.v1.yaml \
-  --config ../contracts/openapi-python-client.yaml \
-  --meta none \
-  --output-path src/clients/<service> \
-  --overwrite
-```
-
-Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
-
-## Pull requests
-
-Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
-
----
-
 # Customize prompts
 
 Source: /stable/main/guides/customize-prompts/
@@ -12884,6 +12788,102 @@ Only you and reviewers with a panel role can see your sessions. Nobody else can 
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
+
+---
+
+# Development
+
+Source: /stable/main/guides/development/
+
+This guide covers contributing to Nebula itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Nebula; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
+
+## Prerequisites
+
+Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
+
+## Repository layout
+
+The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
+
+## Running the stack for development
+
+Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide.
+
+`docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload` and does not pick up the change: run `docker compose restart core` after a sync (or `docker compose up -d core`). It does not sync `config.yaml`, which is baked into the image.
+
+## Core tests
+
+Python 3.13, `uv`. `pytest` is **not** declared in `core/pyproject.toml` (its `tooling` dependency group holds `basedpyright`, `debugpy`, `openapi-python-client`, and `ipython`, not `pytest`), so install it explicitly before running the suite:
+
+```
+cd core
+uv pip install --system --prerelease=allow -r pyproject.toml
+uv pip install --system pytest pytest-asyncio
+python -m pytest tests/ --asyncio-mode=auto
+```
+
+Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
+
+## Type checking
+
+`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
+
+```
+cd core
+uv pip install --system --group tooling -r pyproject.toml
+basedpyright
+```
+
+`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+
+## Frontend checks
+
+Node 24:
+
+```
+cd client/web
+npm ci
+npm run lint
+npm run test:ci
+npm run build
+```
+
+## Sidecar tests
+
+Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
+
+```
+cd services/<name>
+uv sync --group tooling
+uv run pytest
+```
+
+## Linting and formatting
+
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
+
+## Continuous integration
+
+Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
+
+## Regenerating sidecar clients
+
+Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
+
+```
+uv run --group tooling openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+```
+
+Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
+
+## Pull requests
+
+Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
 
 ---
 

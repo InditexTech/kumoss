@@ -73,10 +73,10 @@
 - [Data and state](/stable/main/architecture/data-and-state/): What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
 - [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
 - [Configure state backends](/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.
-- [Development](/stable/main/guides/development/): Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 - [Customize prompts](/stable/main/guides/customize-prompts/): Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Enable authentication](/stable/main/guides/enable-authentication/): Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
 - [Follow a session](/stable/main/guides/follow-a-session/): Track a Nebula session's progress and read the results it produces.
+- [Development](/stable/main/guides/development/): Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 - [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [LLM providers and models](/stable/main/reference/llm-providers/): How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
 - [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
