@@ -1,0 +1,47 @@
+docs/src/modules/main/pages/architecture.adoc
+  s_2cfda9e58f8c0f::t_17b13cd65ff7fa 89-91
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_2cfda9e58f8c0f::t_c9b3a96e90b1d4 43-46,155-156,158-160,435-437,461,474-480,712-713,717,756-761,780-788,822-823,829-869
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_2cfda9e58f8c0f::t_fab5ed702a2db5 215-220,298,311-312,319-320,329-330,338-339,348-349,378-381,393-469,497-498
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_2cfda9e58f8c0f::t_78748b060a18cc 392-393,400-407
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_2cfda9e58f8c0f::t_c1f79ca4c07bbe 104-115
+docs/src/modules/main/pages/guides/generate-infrastructure.adoc
+  s_2cfda9e58f8c0f::t_731b8d9b6f654d 49-50,101
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_2cfda9e58f8c0f::t_431830188a5137 60-63
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_2cfda9e58f8c0f::t_0470e9ac3b39ac 162
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_2cfda9e58f8c0f::t_753073f4b9bd46 166-172
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_2cfda9e58f8c0f::t_2aa116d521c903 47-53,59-69,106-110,141-152
+docs/src/modules/main/pages/reference-overview.adoc
+  s_2cfda9e58f8c0f::t_d4e40dc4aa4365 21-25
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_2cfda9e58f8c0f::t_67aefcfb4db978 179-181,293,302,510-512,518-520,524-530
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_2cfda9e58f8c0f::t_40a917a4ee4fc4 429-437
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_2cfda9e58f8c0f::t_c2c69e2a2621c5 36-38,42-43
+docs/src/modules/main/pages/reference/operating-modes.adoc
+  s_2cfda9e58f8c0f::t_22dc297936f4ee 15-16,25-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4956dc4c83b22399107f9638ef46676566963177",
+  "prompts": {},
+  "sessions": {
+    "s_2cfda9e58f8c0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca624673-d83c-46e5-8498-81694cd6c88e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
