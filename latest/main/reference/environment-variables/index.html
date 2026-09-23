@@ -1,0 +1,1937 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Environment variables and secrets | Nebula</title>
+
+    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/environment-variables/">
+    <link rel="prev" href="../configuration/">
+    <link rel="next" href="../llm-providers/">
+    <meta name="description" content="Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.">
+    <meta name="generator" content="Antora 3.2.0">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version" href="../../../../prerelease/main/reference/environment-variables/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-stable.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="stable" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/nebula-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version" href="../../../../prerelease/main/reference/environment-variables/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Environment variables</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Environment variables and secrets</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nebula keeps every secret in environment variables. <code>config.yaml</code> holds
+only non-secret settings and, where a secret is needed, the <em>name</em> of
+the variable that carries it (fields ending in <code>_env</code>). This page
+documents every variable in <code>core/env.sample</code> and in the four sidecar
+<code>env.sample</code> files, plus the variables that the IaC engine and the LLM
+providers read on their own.</p>
+</div>
+<div class="paragraph">
+<p>Each <code>env.sample</code> is a template: copy it to a <code>.env</code> file next to it
+(<code>core/.env</code>, <code>services/&lt;name&gt;/.env</code>). Docker Compose loads those <code>.env</code>
+files per container. <code>core/.env</code> is required for the stack to start;
+the sidecar files are optional and the containers fall back to their
+built-in defaults when a file is missing.</p>
+</div>
+<div class="paragraph">
+<p>All example values in this page are fictitious. Never commit a <code>.env</code>
+file; they are gitignored.</p>
+</div>
+<div class="paragraph">
+<p>Which files you need depends on the deployment model:
+<a href="../../quickstart/" class="xref page">Quickstart</a> needs <code>core/.env</code> and
+<code>services/iac/.env</code> (plus the notifications file when enabled);
+<a href="../../guides/deploy-to-production/" class="xref page">Deploy to production</a>
+replaces the files with a secret store but keeps the same variable
+names.</p>
+</div>
+<div class="paragraph">
+<p>Related guides: <a href="../configuration/" class="xref page">Configuration</a>,
+<a href="../llm-providers/" class="xref page">LLM providers and models</a>,
+<a href="../../guides/enable-authentication/" class="xref page">Enable authentication</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="core-coreenv-sample"><a class="anchor" href="#core-coreenv-sample"></a>Core (<code>core/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The core reads variables through the names configured in
+<code>config.yaml</code>. The table lists the default names; if you rename a
+<code>*_env</code> field, rename the variable accordingly.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LLM provider credentials (<code>AZURE_AI_API_KEY</code> and <code>AZURE_AI_API_BASE</code>
+for the shipped <code>azure_ai/</code> models; for example <code>ANTHROPIC_API_KEY</code>, or
+the <code>VERTEXAI_PROJECT</code> / <code>VERTEXAI_LOCATION</code> / <code>VERTEXAI_CREDENTIALS</code>
+trio for other providers)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory for the provider selected by <code>llm.model</code>, <code>llm.small_model</code>
+or <code>llm.model_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Credentials that LiteLLM reads for the configured provider. Names
+follow LiteLLM conventions; see
+<a href="../llm-providers/" class="xref page">LLM providers and models</a>.
+For <code>anthropic/*</code> models LiteLLM accepts either <code>ANTHROPIC_API_KEY</code> or
+<code>ANTHROPIC_AUTH_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot for providers LiteLLM can validate; otherwise on the first LLM
+call</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory (the IaC sidecar is always called; it has no <code>enabled</code> flag)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-iac-token</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token the core sends to the IaC sidecar. Must equal
+<code>NEBULA_IAC_TOKEN</code> in <code>services/iac/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: an empty token aborts startup</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-mapping-token</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the mapping sidecar, sent when
+<code>services.mapping.enabled</code> is true. Must equal
+<code>NEBULA_MAPPING_TOKEN</code> in <code>services/mapping/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-notifications-token</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the notifications sidecar, sent when
+<code>services.notifications.enabled</code> is true. Must equal
+<code>NEBULA_NOTIFICATIONS_TOKEN</code> in <code>services/notifications/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-authz-token</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the authorization sidecar, sent when
+<code>services.authz.enabled</code> is true. Must equal
+<code>NEBULA_AUTHZ_TOKEN</code> in <code>services/authz/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GIT_USER</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional but needed for pushes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Account username at the Git provider selected by <code>git.provider</code>
+(default <code>GITHUB</code>).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot the core logs a warning when empty; pushes fail later unless
+credentials come from elsewhere</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GIT_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional but needed for pushes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Personal access token for that account. Written with <code>GIT_USER</code> into
+<code>~/.git-credentials</code> inside the core container at boot.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same as <code>GIT_USER</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>rustfsadmin</code> when <code>storage.provider</code> is <code>RUSTFS</code> <strong>and the variable is
+unset</strong>; empty otherwise</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Access key for the S3-compatible store, read when <code>storage.provider</code>
+is <code>RUSTFS</code> (or <code>S3</code> with static keys). Used for the artifacts bucket
+and — where Nebula-managed state is enabled
+(<code>storage.terraform_state_bucket</code> non-blank; that is the shipped
+default) — for the state bucket too, in which case it is also embedded
+into the backend block the IaC sidecar executes. Must match
+<code>RUSTFS_ACCESS_KEY</code> on the <code>object-storage</code> service in
+<code>docker-compose.yml</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: the core creates or checks every configured bucket and aborts
+if the store is unusable</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>rustfsadmin</code> when <code>storage.provider</code> is <code>RUSTFS</code> <strong>and the variable is
+unset</strong>; empty otherwise</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Secret key for the artifact store, matching <code>RUSTFS_SECRET_KEY</code> on
+<code>object-storage</code>. For <code>S3</code>, leave both keys unset to use the AWS SDK
+default credential chain (an instance role or workload identity), or
+set static keys under these same variable names unless you rename
+<code>storage.access_key_env</code> / <code>storage.secret_key_env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>STORAGE_ACCOUNT_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Shared key of the Azure storage account, read when
+<code>storage.provider</code> is <code>STORAGE_ACCOUNT</code>; also signs download URLs.
+The account name is derived from <code>storage.endpoint_url</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: configuration validation fails if empty</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_SQL_DATABASE_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value points at the bundled <code>core-db</code> container</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Connection URL of Nebula&#8217;s PostgreSQL database. Must carry the
+credentials of the <code>core-db</code> service in <code>docker-compose.yml</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: configuration validation fails if empty, and database
+initialisation fails if unreachable</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_REDIS_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>core/env.sample</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>redis://redis:6379/0</code> from <code>redis.default_url</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Redis URL for the session cache. Add it only to point at an external
+Redis — for example when the URL embeds a password or sits outside the
+compose network. Cache operations fail open at runtime, but the
+boot-time ping must succeed.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: Redis initialisation fails if unreachable</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_CONFIG</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>env.sample</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/etc/nebula/config.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path, inside the container, of the configuration file to load. The
+file must exist at that path (for example through a mounted volume); a
+missing file silently falls back to built-in defaults.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>APP_VERSION</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>env.sample</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>0.0.0-dev</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Version string reported by the API&#8217;s OpenAPI document. Set it from
+your release pipeline.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">never</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The <code>rustfsadmin</code> fallback applies only when the variable is <strong>absent
+from the environment</strong>. A variable that is present but blank
+(<code>RUSTFS_ACCESS_KEY=</code> in <code>core/.env</code>) resolves to the empty string, no
+fallback is applied, and under <code>storage.provider: RUSTFS</code> the core
+embeds no static credentials at all: boto3 falls back to the AWS
+default credential chain, which has nothing to find in the container,
+and boot fails at the bucket check. Blank the two keys only for
+<code>storage.provider: S3</code> with an instance profile or IRSA, where an empty
+value is what tells the core to omit them and let the AWS default chain
+resolve.</p>
+</div>
+<div class="paragraph">
+<p><strong>What the boot check actually covers.</strong> The core validates the LLM
+credentials with <code>litellm.validate_environment</code> for every entry in the
+effective model list. For the shipped <code>config.yaml</code> — which selects
+<code>azure_ai/&#8230;&#8203;</code> models — that check verifies <strong>nothing</strong>: LiteLLM has no
+validation mapping for <code>azure_ai</code>, so a missing <code>AZURE_AI_API_KEY</code> or
+<code>AZURE_AI_API_BASE</code> boots cleanly and fails on the first LLM call. For
+<code>vertex_ai/&#8230;&#8203;</code> models the check requires <code>VERTEXAI_PROJECT</code> and
+<code>VERTEXAI_LOCATION</code> only; <code>VERTEXAI_CREDENTIALS</code> is not verified at
+boot. Coverage is per provider (for <code>anthropic/*</code>, either
+<code>ANTHROPIC_API_KEY</code> or <code>ANTHROPIC_AUTH_TOKEN</code> satisfies it), and no
+provider&#8217;s check validates that a credential actually works.</p>
+</div>
+<div class="paragraph">
+<p><strong><code>litellm</code> loads <code>core/.env</code> by itself.</strong> The library calls
+<code>load_dotenv()</code> at import time unless <code>LITELLM_MODE</code> is <code>PRODUCTION</code>,
+so running the core or its test suite <em>outside</em> Docker silently picks
+up <code>core/.env</code> even when you meant to run with a clean environment.
+Running from another directory does <strong>not</strong> avoid it: python-dotenv
+searches upwards from the calling package&#8217;s directory, not from the
+working directory, so a virtual environment at <code>core/.venv</code> finds
+<code>core/.env</code> from anywhere. Variables already set in the environment
+are left alone. To reproduce a missing-credential failure, set
+<code>LITELLM_MODE=PRODUCTION</code>, move <code>core/.env</code> aside, or use a virtual
+environment outside <code>core/</code>.</p>
+</div>
+<div class="paragraph">
+<p>Two related facts about the sample file:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The pre-filled <code>dev-*-token</code> placeholders are accepted because the
+bundled sidecars ship with an empty expected token, which disables
+their bearer check. That is acceptable only on an isolated
+workstation.</p>
+</li>
+<li>
+<p>Nothing OIDC-related goes in <code>core/.env</code>. The single-page application
+is a public client using PKCE (Proof Key for Code Exchange), and the
+core validates tokens with the issuer&#8217;s public keys. All OIDC
+settings live in <code>config.yaml</code>.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="read-by-libraries-not-by-nebula"><a class="anchor" href="#read-by-libraries-not-by-nebula"></a>Read by libraries, not by Nebula</h3>
+<div class="paragraph">
+<p>Two more variables can matter to the core even though no Nebula code
+reads them. Neither is in <code>core/env.sample</code>, and neither is needed for
+the bundled Phoenix.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 22.2222%;">
+<col style="width: 55.5556%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Read by</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OTEL_EXPORTER_OTLP_HEADERS</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">the OpenTelemetry SDK</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated <code>key=value</code> headers added to OTLP exports — the usual
+way to authenticate against a hosted collector. The core builds its
+<code>OTLPSpanExporter</code> with the endpoint only and passes no headers of its own.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>PHOENIX_API_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">the <code>phoenix.client</code> library</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API key for an authenticated Phoenix instance, used when fetching and
+seeding prompt templates. The core constructs <code>AsyncClient(base_url=&#8230;&#8203;)</code>
+and supplies no credential.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Because the core passes the endpoint and base URL programmatically,
+whether each library still picks these variables up from the
+environment in that configuration is <strong>not verified in this
+repository</strong> — consult the OpenTelemetry Python and Phoenix client
+documentation for the version you run before relying on them.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="iac-sidecar-servicesiacenv-sample"><a class="anchor" href="#iac-sidecar-servicesiacenv-sample"></a>IaC sidecar (<code>services/iac/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended; mandatory outside an isolated workstation</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token the sidecar requires on every <code>/v1/*</code> call. Must equal the
+core&#8217;s <code>NEBULA_IAC_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per request: a mismatch returns <code>401</code> to the core</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BINARY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>tofu</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name or absolute path of the IaC engine CLI. <code>tofu</code> runs the bundled
+OpenTofu; <code>terraform</code> runs the bundled HashiCorp Terraform (BUSL-1.1
+licensed; your use is subject to its terms). Any Terraform-compatible
+engine on <code>PATH</code> works.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: the service refuses to start if the binary cannot be found</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>IAC_BACKEND_CONFIG</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (unset)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path to a <code>.hcl</code> or <code>.tfbackend</code> file of state-backend values, passed
+to every <code>init</code> as <code>-backend-config=&lt;path&gt;</code>. Absolute paths resolve
+<strong>inside the sidecar container</strong>, so mount the file there yourself;
+relative paths resolve against the workspace, so the target repository
+can carry the file. It supplies values only — the backend <em>type</em> still
+comes from the workspace&#8217;s own <code>terraform { backend "&#8230;&#8203;" }</code> block.
+Its values take precedence over the core&#8217;s <code>backend_override.tf</code>, which
+in turn beats the repository&#8217;s own block; keys the file does not
+declare fall through, so setting it <em>together with</em> Nebula-managed
+state (<code>storage.terraform_state_bucket</code> set) merges the two backends
+key by key instead of picking one — a misconfiguration to avoid, not a
+layering feature. Blank or whitespace counts as unset. See
+<a href="../../guides/state-backends/sidecar-supplied/" class="xref page">Sidecar-supplied
+backend</a>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No: unlike <code>IAC_BINARY</code> this path is not checked at startup, so a
+wrong one fails on <code>init</code>, in that job&#8217;s stderr</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The job retention period (how long a finished job stays pollable at
+<code>GET /v1/jobs/{job_id}</code>, one hour) is a constant in
+the sidecar&#8217;s own configuration, not an environment variable. Jobs live in
+memory, so a restart also forgets them.</p>
+</div>
+<div class="sect2">
+<h3 id="iac-cloud-credentials"><a class="anchor" href="#iac-cloud-credentials"></a>Cloud credentials for the IaC engine</h3>
+<div class="paragraph">
+<p>The IaC sidecar does not interpret cloud credentials. It launches the
+engine with its <strong>entire container environment inherited and no
+allowlist</strong>, so every variable in <code>services/iac/.env</code> (including
+<code>NEBULA_IAC_TOKEN</code>) is visible to the Terraform and OpenTofu <strong>providers</strong>
+and to any <code>external</code> or <code>local-exec</code> code in the repositories you run.
+The providers read their credentials directly during <code>init</code>, <code>plan</code>,
+and <code>apply</code>. Missing or invalid credentials never stop the container;
+the command runs and the engine&#8217;s own authentication error appears in
+the job&#8217;s <code>stderr</code>, which the session shows to the user. Keep only the
+variables the engine needs in that file, and treat the sidecar&#8217;s
+environment as exposed to the IaC code it executes.</p>
+</div>
+<div class="paragraph">
+<p>The sidecar&#8217;s <code>/v1/import/scope-resource-ids</code> endpoint is the one
+exception to "does not interpret": it launches no engine and instead
+reads the same <code>ARM_*</code>, <code>GOOGLE_*</code>, and <code>AWS_*</code> credential variables
+itself through the clouds' auth libraries to query Azure Resource
+Graph, GCP Cloud Asset Inventory, or AWS Resource Explorer. Two extra
+requirements apply to it only: on AWS <code>AWS_REGION</code> or
+<code>AWS_DEFAULT_REGION</code> must be set and Resource Explorer must be enabled
+for the account; on GCP the
+<code>cloudasset.googleapis.com</code> and <code>cloudresourcemanager.googleapis.com</code>
+APIs must be enabled. The core does not call this endpoint today. See
+<a href="../api/iac/#import-discovery" class="xref page">Import discovery</a> in
+the IaC sidecar reference.</p>
+</div>
+<div class="paragraph">
+<p>The sample file lists no cloud variables; add the ones your modules
+need. <a href="../terraform-providers/" class="xref page">Terraform providers</a>
+gives the minimum set per cloud and authentication method (service
+principal, OIDC federation, managed identity, named profile, and so
+on) plus the state-backend minimums, and its exhaustive section lists
+every variable each provider and backend reads. The table below is a
+short orientation; the sidecar imposes nothing beyond what the
+provider supports.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 30%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Cloud</th>
+<th class="tableblock halign-left valign-top">Typical variables</th>
+<th class="tableblock halign-left valign-top">Provider chain (examples, not a complete list)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure (<code>azurerm</code>, <code>azuread</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_CLIENT_ID</code>, <code>ARM_CLIENT_SECRET</code>, <code>ARM_TENANT_ID</code>,
+<code>ARM_SUBSCRIPTION_ID</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Service principal with client secret. Certificate, OIDC federation,
+and managed identity are other documented provider options.
+<strong><code>ARM_SUBSCRIPTION_ID</code> set here is overwritten</strong> on every <code>init</code>,
+<code>plan</code>, <code>apply</code>, and <code>import</code> with the request&#8217;s scope id, so it only
+takes effect for <code>validate</code>, <code>show</code>, and <code>state pull</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Google Cloud (<code>google</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_APPLICATION_CREDENTIALS</code> or <code>GOOGLE_CREDENTIALS</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_CREDENTIALS</code> holds the service-account key as JSON content;
+<code>GOOGLE_APPLICATION_CREDENTIALS</code> holds a path to a key file readable
+inside the container. Set one of them. <strong><code>GOOGLE_PROJECT</code> set here is
+overwritten</strong> on every <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code> with the
+request&#8217;s scope id, so it only takes effect for <code>validate</code>, <code>show</code>,
+and <code>state pull</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS (<code>aws</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>AWS_ACCESS_KEY_ID</code>, <code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_REGION</code>, or
+<code>AWS_PROFILE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Static keys, or a profile from a mounted credentials file. Instance
+roles and web-identity federation are other documented provider
+options.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Oracle Cloud (<code>oci</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OCI_*</code> or <code>TF_VAR_*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The provider&#8217;s documented mechanisms, for example an OCI configuration
+file mounted into the container, or instance principals.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kubernetes (<code>kubernetes</code>, <code>helm</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUBE_CONFIG_PATH</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A mounted kubeconfig (<code>KUBE_CONFIG_PATHS</code> for several), <code>KUBE_HOST</code><br>
+<code>KUBE_TOKEN</code>, or in-cluster service-account credentials. See
+<a href="../terraform-providers/" class="xref page">Terraform providers</a>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>These are the <strong>provider</strong> credentials, the ones <code>plan</code> and <code>apply</code> use
+on the resources themselves. <code>init</code> needs a second, separate grant on
+the state store, which may be a different account or even a different
+cloud, and which some variables serve exclusively — <code>ARM_ACCESS_KEY</code>,
+<code>ARM_SAS_TOKEN</code>, <code>ARM_USE_AZUREAD</code>, <code>GOOGLE_BACKEND_CREDENTIALS</code>,
+<code>GOOGLE_IMPERSONATE_SERVICE_ACCOUNT</code>. Both grants live in the same
+<code>services/iac/.env</code>; which variables you need for which is in
+<a href="../../guides/state-backends/repository-declared/#two-credential-grants" class="xref page">Two
+sets of credentials on the sidecar</a>.</p>
+</div>
+<div class="paragraph">
+<p>Credential files you mount must be readable by the unprivileged user
+the image runs as (<code>nebula</code>, uid and gid <code>10001</code> by default).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="credentials-for-the-state-backend"><a class="anchor" href="#credentials-for-the-state-backend"></a>Credentials for the state backend</h3>
+<div class="paragraph">
+<p>The sidecar is the process that reads and writes Terraform state, so
+state-backend credentials are always a sidecar concern.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>By default</strong> (<code>storage.terraform_state_bucket</code> non-blank — that is the
+shipped value), Nebula manages state. When the core&#8217;s rendered
+backend block <strong>contains</strong> static keys (<code>RUSTFS</code>, or
+<code>S3</code>/<code>STORAGE_ACCOUNT</code> with keys set in <code>core/.env</code>), the sidecar
+needs nothing extra for state.</p>
+</li>
+<li>
+<p>When Nebula-managed state is on and the block <strong>omits</strong> those keys
+(<code>provider: S3</code> with <code>RUSTFS_ACCESS_KEY</code>/<code>RUSTFS_SECRET_KEY</code> blank),
+the engine resolves credentials from the sidecar&#8217;s own environment:
+<code>AWS_ACCESS_KEY_ID</code>/<code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_PROFILE</code>, or an
+attached instance role or IRSA token. Granting that role to the
+<strong>core</strong> container only is the common mistake — the core creates
+the bucket at boot.</p>
+</li>
+<li>
+<p>With Nebula-managed state on, the sidecar must also reach
+<code>storage.endpoint_url</code>. In the Compose stack <code>core</code> and <code>iac</code> share
+<code>bridge-network</code>, so <code>http://object-storage:9000</code> resolves;
+elsewhere, allow that egress.</p>
+</li>
+<li>
+<p>If a deployment sets <code>storage.terraform_state_bucket</code> to <code>""</code>, the
+backend comes from the target repository instead, and the sidecar
+must hold whatever that backend needs — S3 keys or a role, an Azure
+identity, a GCS service account. Nothing on the core side helps
+here.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Where state lives, and how each provider is configured, is covered in
+<a href="../../guides/configure-state-backends/" class="xref page">Configure state
+backends</a>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="mapping-sidecar-servicesmappingenv-sample"><a class="anchor" href="#mapping-sidecar-servicesmappingenv-sample"></a>Mapping sidecar (<code>services/mapping/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/resolve</code>. Must equal the core&#8217;s
+<code>NEBULA_MAPPING_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The bundled mapping service is an identity passthrough: it returns the
+identifier it receives as both <code>repo_url</code> and <code>identifier</code>, echoes back
+any <code>terraform_provider</code> it was sent, and always answers <code>null</code> for
+<code>scope_id</code> — it knows nothing it was not told, and <code>null</code> means "ask the
+user". While <code>services.mapping.enabled</code> is <code>false</code> (the default) the
+core performs that same mapping itself and never calls the service.
+Once enabled, a sidecar that times out or is unreachable makes the
+wizard&#8217;s resolve step fail with <code>504</code> or <code>502</code>, and so does a response
+the core cannot parse or one naming a provider outside the contract&#8217;s
+enum; there is no silent fallback.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="notifications-sidecar-servicesnotificationsenv-sample"><a class="anchor" href="#notifications-sidecar-servicesnotificationsenv-sample"></a>Notifications sidecar (<code>services/notifications/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/notify</code>. Must equal the core&#8217;s
+<code>NEBULA_NOTIFICATIONS_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SLACK_WEBHOOK_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Mandatory for the bundled container to start</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Slack incoming-webhook URL the service posts to. Treat it as a secret:
+anyone holding it can post to the channel. The service never logs it.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: the container exits with <code>ConfigError</code> when empty</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOG_LEVEL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>INFO</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Root log level (<code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code>).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: an unknown level name aborts startup</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The core sends four kinds of notification on its own:
+<code>iac.compliance.failed</code> and <code>iac.impact.high</code> at the end of a generate
+round, <code>iac.apply.failure</code> when an apply fails, and
+<code>system.exception.failure</code> when a background run raises. Users can
+also send free-form support requests through <code>POST
+/api/v1/notifications</code> (see <a href="../../guides/administer-users-and-locks/" class="xref page">Admin
+portal</a>). The audience of every notification is the session owner (or
+the caller) plus every user with a panel role of <code>editor</code> or higher.
+Delivery is best-effort: the core logs <code>Failed to send '&lt;kind&gt;'
+notification</code> and continues. The bundled sidecar delivers synchronously
+to Slack with a 10-second budget and answers <code>502</code> when Slack rejects
+the message.</p>
+</div>
+<div class="paragraph">
+<p>The bundled notifications container <strong>refuses to start without
+<code>SLACK_WEBHOOK_URL</code>, even when the core integration is disabled</strong>.
+Because Compose starts every sidecar regardless of <code>config.yaml</code>, a
+notifications container that exits immediately is expected and harmless
+while <code>services.notifications.enabled</code> is <code>false</code>. No restart policy is
+set for it (only <code>proxy</code> carries <code>restart: on-failure</code>), so it exits once and then shows as
+<code>Exited</code> in <code>docker compose ps</code> — it is not restarted in a loop. Remove
+the service from your Compose file or provide a webhook URL if you
+would rather not see it.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="authorization-sidecar-servicesauthzenv-sample"><a class="anchor" href="#authorization-sidecar-servicesauthzenv-sample"></a>Authorization sidecar (<code>services/authz/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>/v1/*</code>. Must equal the core&#8217;s <code>NEBULA_AUTHZ_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">When set, the sidecar grants its own <code>admin</code> role to a user record
+keyed by this email at startup.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_PERMISSIVE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> (case-insensitive): <code>POST /v1/check</code> answers
+<code>authorized: true</code> for every request. Any other value: it answers
+<code>authorized: false</code> for every request. Neither value implements a real
+policy.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROLE_STORE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/data/roles.json</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Path of the JSON file holding the sidecar&#8217;s user-to-roles map. The
+path is container-local in the shipped Compose file (no volume is
+mounted), so assignments are lost when the container is recreated;
+point it at a mounted path if you need them to survive.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On first write</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Two things to keep apart:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The bundled authorization sidecar is a <strong>permissive reference
+implementation</strong>. It exists so that the contract in
+<code>contracts/openapi/authz.v1.yaml</code> has a runnable example. The core
+consults it only from <code>POST /v1/auth/authorize</code> (a cloud-project
+access check) and only when <code>services.authz.enabled</code> is <code>true</code>.
+Enabling it without replacing the logic changes nothing about who is
+allowed to do what. While disabled, the core answers "authorized"
+without any call; once enabled, an unreachable or slow sidecar makes
+the preflight fail with <code>502</code> or <code>504</code> rather than allowing the
+request.</p>
+</li>
+<li>
+<p>The sidecar&#8217;s <code>admin</code> and <code>user</code> roles, its root-admin bootstrap, and
+its <code>/v1/users</code> endpoints belong to the sidecar alone. Nebula&#8217;s own
+operation roles (<code>developer</code>, <code>devops</code>) and admin-panel roles
+(<code>viewer</code>, <code>editor</code>, <code>admin</code>) live in the core database and are
+documented in the <a href="../../guides/administer-users-and-locks/" class="xref page">Admin
+portal</a> guide.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="cloud-provider-credentials-at-a-glance"><a class="anchor" href="#cloud-provider-credentials-at-a-glance"></a>Cloud-provider credentials at a glance</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 27.2727%;">
+<col style="width: 27.2727%;">
+<col style="width: 45.4546%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Consumer</th>
+<th class="tableblock halign-left valign-top">Where</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Terraform or OpenTofu providers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/iac/.env</code> (see
+<a href="../terraform-providers/" class="xref page">Terraform providers</a>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code>, <code>validate</code>, <code>plan</code>, <code>show</code>, <code>apply</code> against your cloud</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AWS SDK (boto3) in the core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/.env</code> (<code>RUSTFS_*</code> or the default chain)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Artifact storage when <code>storage.provider</code> is <code>RUSTFS</code> or <code>S3</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Azure Storage shared key in the core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/.env</code> (<code>STORAGE_ACCOUNT_KEY</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Artifact storage when <code>storage.provider</code> is <code>STORAGE_ACCOUNT</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LiteLLM in the core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/.env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud-hosted LLM providers (Vertex AI, Bedrock, Azure OpenAI, and so
+on)</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Cloud credentials for the IaC engine and for the LLM provider are
+independent. A stack that generates AWS infrastructure with an Azure
+OpenAI model needs AWS credentials in <code>services/iac/.env</code> and Azure
+OpenAI credentials in <code>core/.env</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="llm-provider-credentials"><a class="anchor" href="#llm-provider-credentials"></a>LLM-provider credentials</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Variable names follow LiteLLM&#8217;s provider conventions and are selected
+by the <code>llm.model</code> and <code>llm.small_model</code> strings. The complete
+per-provider table, the <code>os.environ/VARIABLE_NAME</code> syntax for custom
+names, and the limits of boot-time validation are documented in
+<a href="../llm-providers/" class="xref page">LLM providers and models</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="credential-handling-and-production-recommendations"><a class="anchor" href="#credential-handling-and-production-recommendations"></a>Credential handling and production recommendations</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Generate bearer tokens with a cryptographic generator.</strong> For example:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">openssl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> rand</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -hex</span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8"> 32</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Paste the output into both <code>core/.env</code> and the matching sidecar
+<code>.env</code>. Generate a distinct value per sidecar. Do not reuse the
+<code>dev-*-token</code> placeholders or an empty sidecar token outside an
+isolated workstation: an empty sidecar token disables its bearer check
+entirely.</p>
+</div>
+</li>
+<li>
+<p><strong>Never put secrets in <code>config.yaml</code>.</strong> It is baked into the core image
+and is meant to be shareable. Use the <code>*_env</code> fields to rename
+variables if your platform imposes naming conventions.</p>
+</li>
+<li>
+<p><strong>Keep sidecars private.</strong> The bundled sidecars compare bearer tokens
+in constant time, but they are still simple services: keep them on a
+private network that only the core can reach, and rotate tokens on a
+schedule.</p>
+</li>
+<li>
+<p><strong>All five Nebula-built images run unprivileged.</strong> The core, IaC,
+mapping, notifications, and authorization Dockerfiles each create and
+switch to the <code>nebula</code> user (uid/gid <code>10001</code> by default, from the
+<code>NEBULA_UID</code> / <code>NEBULA_GID</code> build args). The <code>proxy</code> service is the
+upstream nginx image, which starts as root and drops privileges for
+its worker processes. Apply your platform&#8217;s pod or container security
+defaults on top regardless — the Compose file adds no <code>cap_drop</code>,
+<code>read_only</code>, or resource limits.</p>
+</li>
+<li>
+<p><strong>Prefer a secret manager or orchestrator secrets</strong> (Docker secrets,
+Kubernetes Secrets, a vault) over plaintext <code>.env</code> files in shared and
+production deployments. Mount files with permissions readable only by
+uid <code>10001</code>.</p>
+</li>
+<li>
+<p><strong>Scope Git tokens narrowly.</strong> <code>GIT_TOKEN</code> is single-tenant: one token
+pushes every session&#8217;s branch and opens every pull request. Give it
+the minimum repository permissions your provider offers.</p>
+</li>
+<li>
+<p><strong>Rotate the RustFS keys and database password</strong> from the bundled
+<code>rustfsadmin</code> and <code>postgres</code> defaults in <code>docker-compose.yml</code> before
+exposing the stack beyond a workstation. The same file hard-codes
+<code>PHOENIX_SQL_DATABASE_URL</code> with the <code>phoenix-db</code> password in it,
+and enables the RustFS web console (<code>RUSTFS_CONSOLE_ENABLE=true</code>) —
+change the
+first and disable the second outside a workstation.</p>
+</li>
+<li>
+<p><strong>Restrict who can reach the stack while OIDC is disabled.</strong> With a
+blank <code>oidc.issuer_url</code>, every request is treated as a fully
+privileged local developer. See
+<a href="../../guides/enable-authentication/" class="xref page">Enable authentication</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="example-env-sets"><a class="anchor" href="#example-env-sets"></a>Example <code>.env</code> sets</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>All values below are fictitious. Replace every token and URL.</p>
+</div>
+<div class="sect2">
+<h3 id="core-plus-iac-sidecar-only-anthropic-models"><a class="anchor" href="#core-plus-iac-sidecar-only-anthropic-models"></a>Core plus IaC sidecar only (Anthropic models)</h3>
+<div class="paragraph">
+<p>Only the IaC sidecar is enabled, as in the shipped <code>config.yaml</code> — but
+the model strings below are <strong>not</strong> the shipped ones. The checked-in
+<code>config.yaml</code> selects Azure AI Foundry models
+(<code>azure_ai/claude-sonnet-4-5</code> and <code>azure_ai/claude-haiku-4-5</code>, which
+need <code>AZURE_AI_API_KEY</code> and <code>AZURE_AI_API_BASE</code>); the Vertex AI set is
+shown in the next example; <code>anthropic/*</code> is what the core falls
+back to when no <code>config.yaml</code> is loaded at all. Use this set only if
+you put the excerpt below in your own <code>config.yaml</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>config.yaml</code> excerpt for this example:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>core/.env</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider</span></span>
+<span class="line"><span>ANTHROPIC_API_KEY=sk-example-not-a-real-key</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)</span></span>
+<span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>NEBULA_MAPPING_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>NEBULA_AUTHZ_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Git push credentials</span></span>
+<span class="line"><span>GIT_USER=nebula-bot</span></span>
+<span class="line"><span>GIT_TOKEN=ghp_example_not_a_real_token</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Bundled RustFS and PostgreSQL defaults</span></span>
+<span class="line"><span>RUSTFS_ACCESS_KEY=rustfsadmin</span></span>
+<span class="line"><span>RUSTFS_SECRET_KEY=rustfsadmin</span></span>
+<span class="line"><span>NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>services/iac/.env</code> (AWS example):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>IAC_BINARY=tofu</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Unset: the backend comes from the workspace — the target repository's</span></span>
+<span class="line"><span># own block, or the override the core writes when Nebula-managed state</span></span>
+<span class="line"><span># is on (the shipped default). If set, this file's values win over that</span></span>
+<span class="line"><span># override, key by key (see Terraform/OpenTofu state backends), so set</span></span>
+<span class="line"><span># it only with storage.terraform_state_bucket explicitly blanked to "",</span></span>
+<span class="line"><span># and mount the file in this container.</span></span>
+<span class="line"><span># IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># These credentials serve both the providers and, when the rendered</span></span>
+<span class="line"><span># backend block omits static keys, the S3 state backend.</span></span>
+<span class="line"><span>AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE</span></span>
+<span class="line"><span>AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key</span></span>
+<span class="line"><span>AWS_REGION=eu-west-1</span></span></span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="all-sidecars-enabled-vertex-ai-models-azure-infrastructure"><a class="anchor" href="#all-sidecars-enabled-vertex-ai-models-azure-infrastructure"></a>All sidecars enabled (Vertex AI models, Azure infrastructure)</h3>
+<div class="paragraph">
+<p><code>config.yaml</code> excerpt:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.7-flash"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">services</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  notifications</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  mapping</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  authz</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # No enabled flag: the IaC sidecar is mandatory and always called.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://iac:8082"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>core/.env</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider (Google Vertex AI)</span></span>
+<span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
+<span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
+<span class="line"><span>VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># One distinct token per sidecar</span></span>
+<span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span>
+<span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
+<span class="line"><span>NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>GIT_USER=nebula-bot</span></span>
+<span class="line"><span>GIT_TOKEN=example-not-a-real-gitlab-token</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>RUSTFS_ACCESS_KEY=rustfsadmin</span></span>
+<span class="line"><span>RUSTFS_SECRET_KEY=rustfsadmin</span></span>
+<span class="line"><span>NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>services/iac/.env</code> (Azure example):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>IAC_BINARY=tofu</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># Provider grant: the resources plan and apply create.</span></span>
+<span class="line"><span>ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000</span></span>
+<span class="line"><span>ARM_CLIENT_SECRET=example-not-a-real-client-secret</span></span>
+<span class="line"><span>ARM_TENANT_ID=00000000-0000-0000-0000-000000000001</span></span>
+<span class="line"><span>ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000002</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># State-backend grant: the storage account the target repository's own</span></span>
+<span class="line"><span># azurerm backend block names. Backend-only, and enough on its own.</span></span>
+<span class="line"><span># Drop it and add ARM_USE_AZUREAD=true to reuse the principal above.</span></span>
+<span class="line"><span>ARM_ACCESS_KEY=&#x3C;storage-account-access-key></span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>services/mapping/.env</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>services/notifications/.env</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
+<span class="line"><span>SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example</span></span>
+<span class="line"><span>LOG_LEVEL=INFO</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>services/authz/.env</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
+<span class="line"><span>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid</span></span>
+<span class="line"><span>NEBULA_AUTHZ_PERMISSIVE=true</span></span>
+<span class="line"><span>NEBULA_AUTHZ_ROLE_STORE=/data/roles.json</span></span></span></code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="other-llm-providers-drop-in-replacements-for-the-llm-block"><a class="anchor" href="#other-llm-providers-drop-in-replacements-for-the-llm-block"></a>Other LLM providers (drop-in replacements for the LLM block)</h3>
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-1-tab-1" role="tab" aria-selected="true" aria-controls="tabs-1-panel-1" tabindex="0" data-tab-value="Azure OpenAI"><span class="dt-tabs-item__label">Azure OpenAI</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-2" role="tab" aria-selected="false" aria-controls="tabs-1-panel-2" tabindex="-1" data-tab-value="Self-hosted OpenAI-compatible server"><span class="dt-tabs-item__label">Self-hosted OpenAI-compatible server</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-1-panel-1" role="tabpanel" aria-labelledby="tabs-1-tab-1" tabindex="0" data-tab-value="Azure OpenAI"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>AZURE_API_KEY=sk-example-not-a-real-key</span></span>
+<span class="line"><span>AZURE_API_BASE=https://demo-platform.openai.azure.example.invalid</span></span>
+<span class="line"><span>AZURE_API_VERSION=2025-01-01-preview</span></span></span></code></pre>
+</div>
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-2" role="tabpanel" aria-labelledby="tabs-1-tab-2" tabindex="0" data-tab-value="Self-hosted OpenAI-compatible server"><div class="paragraph">
+<p>Model strings <code>openai/&lt;model&gt;</code>.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>OPENAI_API_KEY=none</span></span>
+<span class="line"><span>OPENAI_API_BASE=https://llm.example.invalid/v1</span></span></span></code></pre>
+</div>
+</div></section></div></div>
+</div>
+<div class="sect2">
+<h3 id="other-cloud-providers-drop-in-replacements-for-the-iac-block"><a class="anchor" href="#other-cloud-providers-drop-in-replacements-for-the-iac-block"></a>Other cloud providers (drop-in replacements for the IaC block)</h3>
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-2-tab-1" role="tab" aria-selected="true" aria-controls="tabs-2-panel-1" tabindex="0" data-tab-value="Google Cloud"><span class="dt-tabs-item__label">Google Cloud</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-2-tab-2" role="tab" aria-selected="false" aria-controls="tabs-2-panel-2" tabindex="-1" data-tab-value="Kubernetes"><span class="dt-tabs-item__label">Kubernetes</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-2-panel-1" role="tabpanel" aria-labelledby="tabs-2-tab-1" tabindex="0" data-tab-value="Google Cloud"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># Provider grant. Also serves the gcs backend, unless you override it below.</span></span>
+<span class="line"><span>GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span># State-backend grant: backend-only, and needed only when the state bucket</span></span>
+<span class="line"><span># lives outside the project above. Omit it and `init` reuses GOOGLE_CREDENTIALS.</span></span>
+<span class="line"><span># GOOGLE_BACKEND_CREDENTIALS={"type":"service_account", ...}</span></span></span></code></pre>
+</div>
+</div></section><section class="docouture-tabs__panel" id="tabs-2-panel-2" role="tabpanel" aria-labelledby="tabs-2-tab-2" tabindex="0" data-tab-value="Kubernetes"><div class="paragraph">
+<p>Kubeconfig mounted into the container.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUBE_CONFIG_PATH=/home/nebula/.kube/config</span></span></span></code></pre>
+</div>
+</div></section></div></div>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../configuration/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Configuration</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../llm-providers/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">LLM providers and models</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/reference/environment-variables.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Nebula</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

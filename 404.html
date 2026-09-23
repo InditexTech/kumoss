@@ -73,6 +73,7 @@
 
 <title>Page Not Found | Nebula</title>
 
+    <link rel="canonical" href="https://inditextech.github.io/nebula/404.html">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -96,7 +97,7 @@
           <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="/nebula/_/img/icons.svg#icon-menu"></use></svg></span>
         </span>
       </button>
-      <a class="header-toolbar__brand" href="prerelease/">
+      <a class="header-toolbar__brand" href="stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="_/product-logo-dark.png" width="24" height="24" alt="">
         <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
@@ -112,9 +113,20 @@
       </button>
 
 <div class="page-versions">
-  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
-    <span class="dt-tag__label">prerelease</span>
-  </span>
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="/nebula/_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version is-missing" href="prerelease/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
 </div>
 
 
@@ -128,7 +140,7 @@
   </div>
 </header>
 
-<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-stable.json">
   <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
     <div class="dt-overlay__content"></div>
     <div class="dt-modal dt-modal--small search-dialog__panel">
@@ -169,7 +181,7 @@
 
 <div class="body">
 
-<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="stable" data-module="main">
   <div class="side-menu__header">
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="_/product-logo.png" width="24" height="24" alt="">
@@ -180,7 +192,7 @@
   </div>
 
 <div class="side-menu__brand">
-  <a class="side-menu__brand-link" href="prerelease/">
+  <a class="side-menu__brand-link" href="stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="_/product-logo-dark.png" width="40" height="40" alt="">
     <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
@@ -201,7 +213,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/about/">
+        href="stable/main/about/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
       </a>
     </div>
@@ -210,7 +222,7 @@
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/architecture/">
+        href="stable/main/architecture/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
       </a>
       <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
@@ -222,7 +234,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/architecture/end-to-end-flow/">
+        href="stable/main/architecture/end-to-end-flow/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
       </a>
     </div>
@@ -231,7 +243,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/architecture/data-and-state/">
+        href="stable/main/architecture/data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
     </div>
@@ -240,7 +252,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/architecture/deployment-view/">
+        href="stable/main/architecture/deployment-view/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
       </a>
     </div>
@@ -251,7 +263,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/glossary/">
+        href="stable/main/glossary/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
       </a>
     </div>
@@ -267,7 +279,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/prerequisites/">
+        href="stable/main/prerequisites/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
       </a>
     </div>
@@ -276,7 +288,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/quickstart/">
+        href="stable/main/quickstart/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
       </a>
     </div>
@@ -292,7 +304,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides-overview/">
+        href="stable/main/guides-overview/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
       </a>
     </div>
@@ -301,7 +313,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/make-a-request/">
+        href="stable/main/guides/make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
     </div>
@@ -310,7 +322,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/generate-infrastructure/">
+        href="stable/main/guides/generate-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
       </a>
     </div>
@@ -319,7 +331,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/follow-a-session/">
+        href="stable/main/guides/follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
     </div>
@@ -328,7 +340,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/merge-and-apply/">
+        href="stable/main/guides/merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
     </div>
@@ -337,7 +349,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/remediate-drift/">
+        href="stable/main/guides/remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
     </div>
@@ -346,7 +358,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/import-infrastructure/">
+        href="stable/main/guides/import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
@@ -355,7 +367,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/enable-authentication/">
+        href="stable/main/guides/enable-authentication/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
       </a>
     </div>
@@ -364,7 +376,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/administer-users-and-locks/">
+        href="stable/main/guides/administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
@@ -373,7 +385,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/monitor-with-phoenix/">
+        href="stable/main/guides/monitor-with-phoenix/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
       </a>
     </div>
@@ -382,7 +394,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/customize-prompts/">
+        href="stable/main/guides/customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
@@ -391,7 +403,7 @@
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/configure-state-backends/">
+        href="stable/main/guides/configure-state-backends/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
       </a>
       <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
@@ -403,7 +415,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/state-backends/repository-declared/">
+        href="stable/main/guides/state-backends/repository-declared/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
       </a>
     </div>
@@ -412,7 +424,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/state-backends/nebula-managed/">
+        href="stable/main/guides/state-backends/nebula-managed/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
       </a>
     </div>
@@ -421,7 +433,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/state-backends/sidecar-supplied/">
+        href="stable/main/guides/state-backends/sidecar-supplied/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
       </a>
     </div>
@@ -432,7 +444,7 @@
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/deploy-to-production/">
+        href="stable/main/guides/deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
       <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
@@ -444,7 +456,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/production/secrets-and-credentials/">
+        href="stable/main/guides/production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
     </div>
@@ -453,7 +465,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/production/networking-and-tls/">
+        href="stable/main/guides/production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
     </div>
@@ -462,7 +474,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/production/hardening/">
+        href="stable/main/guides/production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
     </div>
@@ -471,7 +483,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/guides/production/operations/">
+        href="stable/main/guides/production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
     </div>
@@ -482,7 +494,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/guides/development/">
+        href="stable/main/guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
@@ -498,7 +510,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference-overview/">
+        href="stable/main/reference-overview/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
       </a>
     </div>
@@ -507,7 +519,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/operating-modes/">
+        href="stable/main/reference/operating-modes/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
       </a>
     </div>
@@ -516,7 +528,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/configuration/">
+        href="stable/main/reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
     </div>
@@ -525,7 +537,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/environment-variables/">
+        href="stable/main/reference/environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
     </div>
@@ -534,7 +546,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/llm-providers/">
+        href="stable/main/reference/llm-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
     </div>
@@ -543,7 +555,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/roles-and-permissions/">
+        href="stable/main/reference/roles-and-permissions/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
       </a>
     </div>
@@ -552,7 +564,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/repository-layout/">
+        href="stable/main/reference/repository-layout/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
       </a>
     </div>
@@ -561,7 +573,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/terraform-providers/">
+        href="stable/main/reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
       </a>
     </div>
@@ -570,7 +582,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/database-schema/">
+        href="stable/main/reference/database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
     </div>
@@ -579,7 +591,7 @@
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/reference/api/">
+        href="stable/main/reference/api/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
       <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
@@ -591,7 +603,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/reference/api/core/">
+        href="stable/main/reference/api/core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
     </div>
@@ -600,7 +612,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/reference/api/iac/">
+        href="stable/main/reference/api/iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
     </div>
@@ -609,7 +621,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/reference/api/notifications/">
+        href="stable/main/reference/api/notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
     </div>
@@ -618,7 +630,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/reference/api/mapping/">
+        href="stable/main/reference/api/mapping/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
     </div>
@@ -627,7 +639,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="prerelease/main/reference/api/authz/">
+        href="stable/main/reference/api/authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
@@ -645,7 +657,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/additional-information/">
+        href="stable/main/additional-information/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
       </a>
     </div>
@@ -654,7 +666,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/faq/">
+        href="stable/main/faq/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
       </a>
     </div>
@@ -670,7 +682,7 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="prerelease/main/contributing/">
+        href="stable/main/contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
       </a>
     </div>
@@ -681,9 +693,20 @@
   <div class="side-menu__version">
 
 <div class="page-versions">
-  <span class="dt-tag dt-tag--solid dt-tag--selected dt-tag--read-only header-toolbar__version header-toolbar__version--prerelease" aria-label="Version prerelease">
-    <span class="dt-tag__label">prerelease</span>
-  </span>
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="/nebula/_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version is-missing" href="prerelease/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
 </div>
   </div>
 </div>
@@ -695,7 +718,7 @@
 <article class="doc">
 <h1 class="page">Page Not Found</h1>
 <div class="paragraph">
-<p>The page you&#8217;re looking for does not exist. It may have been moved. You can return to the <a href="prerelease/">start page</a>, or follow one of the links in the navigation to the left.</p>
+<p>The page you&#8217;re looking for does not exist. It may have been moved. You can return to the <a href="stable/">start page</a>, or follow one of the links in the navigation to the left.</p>
 </div>
 <div class="paragraph">
 <p>If you arrived on this page by clicking on a link, please notify the owner of the site that the link is broken.
@@ -709,7 +732,7 @@ If you typed the URL of this page manually, please double check that you entered
 <footer class="site-footer">
   <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
     <div class="dt-grid-layout__item site-footer__col site-footer__brand">
-      <a class="site-footer__brand-link" href="prerelease/">
+      <a class="site-footer__brand-link" href="stable/">
         <img class="site-footer__logo site-footer__logo--light" src="_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="_/product-logo-dark.png" width="24" height="24" alt="">
         <span class="dt-text dt-text--label-l-high">Nebula</span>
@@ -718,21 +741,21 @@ If you typed the URL of this page manually, please double check that you entered
     </div>
     <div class="dt-grid-layout__item site-footer__col site-footer__links">
       <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/">Home</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/quickstart/">Quickstart</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/faq/">FAQ</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/faq/">FAQ</a>
     </div>
     <div class="dt-grid-layout__item site-footer__col site-footer__links">
       <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/guides-overview/">Guides</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/reference-overview/">Reference</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/architecture/">Architecture</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/architecture/">Architecture</a>
     </div>
     <div class="dt-grid-layout__item site-footer__col site-footer__links">
       <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/contributing/">Contributing</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/glossary/">Glossary</a>
-      <a class="dt-text dt-text--body-l site-footer__link" href="prerelease/main/additional-information/">Additional information</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="stable/main/additional-information/">Additional information</a>
     </div>
   </div>
 </footer>
