@@ -19,6 +19,11 @@ Every `config.yaml` section and field: type, default, validation rule,
 and effect.
 
 [card]
+.xref:main:reference/database-schema.adoc[Database schema]
+The twelve tables of core-db, what each records, the enumerated columns,
+and how rows are deleted.
+
+[card]
 .xref:main:reference/environment-variables.adoc[Environment variables and secrets]
 Every variable in `core/env.sample` and the four sidecar `env.sample`
 files, plus the IaC engine and LLM provider variables.

@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
 
+from ..models.terraform_provider import TerraformProvider
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="ResolveRequest")
@@ -22,32 +23,26 @@ class ResolveRequest:
             a project name, a subscription code, a product slug, a full
             repo URL, or anything else the implementation accepts. The
             identity reference impl treats this as the repo URL directly.
-        cloud (None | str | Unset): Optional cloud hint (`azure`, `gcp`, `aws`, …). Implementations
-            MAY use this to disambiguate identifiers that span clouds.
-            May be omitted or sent as null.
-        environment (None | str | Unset): Optional deployment-dimension hint (`dev`, `staging`, `pro`, …).
-            Implementations MAY use this to route to environment-specific
-            mirrors of the same logical repo. May be omitted or sent as null.
+        terraform_provider (None | TerraformProvider | Unset): Provider the caller already knows the deployment targets.
+            Implementations MAY use it to disambiguate identifiers that
+            span clouds, and MUST echo it back in the response when it is
+            sent. May be omitted or sent as null, which means the caller
+            does not know either.
     """
 
     identifier: str
-    cloud: None | str | Unset = UNSET
-    environment: None | str | Unset = UNSET
+    terraform_provider: None | TerraformProvider | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         identifier = self.identifier
 
-        cloud: None | str | Unset
-        if isinstance(self.cloud, Unset):
-            cloud = UNSET
+        terraform_provider: None | str | Unset
+        if isinstance(self.terraform_provider, Unset):
+            terraform_provider = UNSET
+        elif isinstance(self.terraform_provider, TerraformProvider):
+            terraform_provider = self.terraform_provider.value
         else:
-            cloud = self.cloud
-
-        environment: None | str | Unset
-        if isinstance(self.environment, Unset):
-            environment = UNSET
-        else:
-            environment = self.environment
+            terraform_provider = self.terraform_provider
 
         field_dict: dict[str, Any] = {}
 
@@ -56,40 +51,38 @@ class ResolveRequest:
                 "identifier": identifier,
             }
         )
-        if cloud is not UNSET:
-            field_dict["cloud"] = cloud
-        if environment is not UNSET:
-            field_dict["environment"] = environment
+        if terraform_provider is not UNSET:
+            field_dict["terraform_provider"] = terraform_provider
 
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
         identifier = d.pop("identifier")
 
-        def _parse_cloud(data: object) -> None | str | Unset:
+        def _parse_terraform_provider(data: object) -> None | TerraformProvider | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(None | str | Unset, data)
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                terraform_provider_type_0 = TerraformProvider(data)
 
-        cloud = _parse_cloud(d.pop("cloud", UNSET))
+                return terraform_provider_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | TerraformProvider | Unset, data)
 
-        def _parse_environment(data: object) -> None | str | Unset:
-            if data is None:
-                return data
-            if isinstance(data, Unset):
-                return data
-            return cast(None | str | Unset, data)
-
-        environment = _parse_environment(d.pop("environment", UNSET))
+        terraform_provider = _parse_terraform_provider(
+            d.pop("terraform_provider", UNSET)
+        )
 
         resolve_request = cls(
             identifier=identifier,
-            cloud=cloud,
-            environment=environment,
+            terraform_provider=terraform_provider,
         )
 
         return resolve_request

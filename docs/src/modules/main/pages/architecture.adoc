@@ -86,8 +86,9 @@ deployments are expected to supply their own.
 |Shares the `workspaces` volume with the core
 
 |mapping service
-|Resolves a business identifier to a repository URL, branch and path; the
-reference implementation is an identity passthrough.
+|Resolves a business identifier to a repository URL, plus a best-effort
+terraform provider and cloud scope (`null` means unknown, ask the user);
+the reference implementation is an identity passthrough.
 |Called through a core passthrough route
 
 |notifications service

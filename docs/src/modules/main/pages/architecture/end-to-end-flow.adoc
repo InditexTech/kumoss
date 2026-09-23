@@ -40,8 +40,10 @@ xref:#auth[Authentication] and xref:#authz[Authorization and
 ownership].
 
 |Repository reachability
-|The URL must not embed credentials — a request-model validator rejects
-one that does with `422` — and then `git ls-remote` must succeed:
+|The URL may carry a userinfo username (the `<org>@` prefix of an Azure
+DevOps clone URL, or `git@`) but must not embed a password or token —
+a request-model validator rejects one that does with `422`, an empty
+`user:` password included — and then `git ls-remote` must succeed:
 unreachable or rejected → `400`. Either way no session is created.
 
 |Session creation
@@ -150,10 +152,12 @@ workspace — the round's own plan, never a second one — and inverts the
 infrastructure" operations, stored as a drift artifact.
 
 |Split and filter
-|The Drift Task Splitter (small model) turns the differences into
-plain-language operations, and the Reconciliation Filter (small model)
+|The Drift Task Splitter (main model) turns the differences into
+plain-language operations, the Reconciliation Filter (small model)
 reads the branch's `diff_history` and drops every operation that would
-merely undo the session's own intended changes.
+merely undo the session's own intended changes, and the Drift Exception
+Filter (small model) then drops every operation the cloud's
+`drift_exceptions` rules cover, logging what it removed.
 
 |Decide
 |Genuine drift re-enters the generation loop in batches of
@@ -428,7 +432,9 @@ sessions
 
 |Report Generator
 |main
-|`web_search`
+|Plan and apply reports: `web_search`. Drift report: `read_file`,
+`list_dir`, `bulk_grep_search`, `diff_history` (it *must* call
+`diff_history`) and no web search
 |`generate_terraform_plan_report`, `generate_terraform_drift_report`
 or `generate_terraform_apply_report`
 |Phase 7, Phase 10, and dedicated drift sessions
@@ -452,7 +458,7 @@ or `generate_terraform_apply_report`
 |Every status change; its text is what the SSE stream carries
 
 |Drift Task Splitter
-|small
+|main
 |`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`,
 `web_search`
 |`report_decomposed_task_operations`
@@ -464,6 +470,13 @@ or `generate_terraform_apply_report`
 call `diff_history`)
 |`report_decomposed_task_operations`
 |Phase 6 only, generate rounds
+
+|Drift Exception Filter Agent
+|small
+|None besides its sentinel; rendered with the cloud's `drift_exceptions`
+prompt
+|`report_decomposed_task_operations`
+|Phase 6 and dedicated drift sessions, after the reconciliation filter
 
 |Compliance Auditor Agent
 |small
@@ -696,11 +709,12 @@ The generate flow advances through the statuses the progress stream reports
 |Model role |Used by
 
 |`llm.model` (main)
-|Infrastructure generation, target calculation, report writing
+|Infrastructure generation, target calculation, report writing, drift task
+splitting
 
 |`llm.small_model` (small)
 |Request filtering, prompt composition, status messages, pull-request text,
-drift task splitting, the reconciliation filter, the compliance audit
+the reconciliation filter, the drift exception filter, the compliance audit
 |===
 
 === IaC and mapping sidecars
@@ -739,7 +753,12 @@ if that is turned off.
 |===
 
 The *mapping sidecar* translates a business identifier into a repository
-reference; the reference implementation is an identity passthrough.
+reference; the reference implementation is an identity passthrough. It may
+also answer with the terraform provider and cloud scope that identifier
+deploys to, and those answers are best effort: `null` means "unknown, ask
+the user", never "there is none". The wizard skips the step for every
+field the mapper fills, so a guess is a question the user never gets to
+correct — an implementation that does not know must say `null`.
 
 [#drift]
 === Drift detection and remediation
@@ -758,11 +777,15 @@ All drift work runs through one bounded loop:
   result inverted into "make the code match the infrastructure" operations.
   The drift JSON is stored as an artifact; the plan text is stored by the
   validation loop that produced it, one artifact per attempt.
-. *Split and remediate.* A clean plan stops the loop. Otherwise the Drift
-  Task Splitter turns the JSON into plain-language operations, chunked into
-  groups of `drift_group_operations` (8), and each group re-enters the
-  generation and validation loop with the forbidden-actions block omitted,
-  the intent being reconciliation.
+. *Split, filter, and remediate.* A clean plan stops the loop. Otherwise
+  the Drift Task Splitter (main model) turns the JSON into plain-language
+  operations, the Drift Exception Filter drops every operation the cloud's
+  `<cloud>-guidelines-drift_exceptions` rules cover (logging each one), and
+  the survivors, chunked into groups of `drift_group_operations` (8), each
+  re-enter the generation and validation loop with the forbidden-actions
+  block omitted, the intent being reconciliation. When every operation is
+  excluded the loop stops there: re-planning would only rediscover the
+  same drift.
 
 The fingerprint is what makes reading an existing plan safe: any plan the
 working tree has moved past is re-planned, and one naming a different
@@ -796,12 +819,53 @@ planning again.
 takes the targets the Drift Target Generator chooses after the request
 filter.
 |Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
-no intended changes of its own. It writes a DRIFT report and plans for
-itself on the first iteration. The drift handler never touches the session
+no intended changes of its own. It writes a DRIFT report from the branch
+diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
 lock, does not run the compliance audit and does not pin the workspace —
 drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.
 |===
+
+*How the DRIFT report is written.* The drift report is the one report the
+generator does not receive as a text to summarise: it reads the branch for
+itself. The report service gives the drift report the workspace-inspection
+tool set instead of `web_search`, and the drift branch of the report
+layout makes `diff_history` a required first call and the sole source of
+truth for the remediation. That works because every reconciliation group
+commits and pushes inside the validation loop before the report runs, so
+the branch's committed diff against the default branch, plus untracked
+files, *is* the reconciliation; no remediated resource may be named that
+the diff does not show. The drift handler therefore no longer serialises
+the session history into the report query and passes only what the
+remediation left out, in two labelled blocks that map one-to-one onto
+optional report fields:
+
+[cols="2,2,3,2",options="header"]
+|===
+|Block in the report query |Report field |When it appears |Effect on `status`
+
+|"Unreconciled drift"
+|`unreconciled_drift`
+|The loop ended out of sync: genuine drift the iteration ceiling left
+behind, or a drift read that failed outright
+|`Partial`, or `Failed` when nothing was remediated at all
+
+|"Whitelisted exceptions"
+|`whitelisted_exceptions`
+|The Drift Exception Filter excluded operations; one entry per excluded
+change, with the rule that covers it
+|None. Leaving them alone is the intended outcome, so the round can still
+report `Succeeded`
+|===
+
+Both blocks stay out of the schema's top-level `required`, and
+`resource_address` is optional inside them — a failed drift read names no
+resource, and a rule may cover a type or a naming pattern rather than an
+address — so a thin answer cannot fail validation and cost an otherwise
+good report. One consequence of reading the branch rather than a per-round
+record: the diff is branch-wide, so in a multi-round drift session every
+report describes every change on the branch, including the ones earlier
+rounds made.
 
 The pre-check replaced an earlier design in which a *predictive* target
 agent guessed the affected resources and remediated drift *before* any code

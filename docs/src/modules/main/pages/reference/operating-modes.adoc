@@ -12,8 +12,8 @@ and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
 == Session inputs
 
-The first request of a session provides the repository URL (without
-embedded credentials), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
+The first request of a session provides the repository URL (which may
+carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
 `kubernetes`), a scope identifier (for example a subscription, project, or
 account id), an optional path to the Terraform root inside the repository
 (see xref:main:reference/repository-layout.adoc#terraform-roots[Repository
@@ -22,6 +22,10 @@ to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed
 together with the repository URL and the IaC path into the state project
 id when Nebula manages state, and shown in the session detail view. Later
 requests in the same session send only the session id and the new text.
+When the mapping sidecar is enabled and its catalogue knows the
+repository, it may also answer the provider and the scope; the wizard
+then skips those two questions, so a mapper must answer `null` for
+anything it is not sure of.
 
 == How a session runs
 

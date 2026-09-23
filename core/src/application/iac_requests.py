@@ -20,12 +20,20 @@ from src.shared.constants import TerraformProvider
 
 
 def _reject_embedded_credentials(repo_uri: str) -> str:
-    """Reject repository URIs that carry credentials in their userinfo."""
+    """Reject repository URIs that carry a secret in their userinfo.
+
+    A userinfo *username* is not a secret and is passed through untouched:
+    Azure DevOps' portal clone URL carries an `<org>@` prefix and SSH URIs
+    carry `git@`. Only a password component rejects the URI, and it counts as
+    present even when empty (`user:@host`) — that shape is a credential the
+    user failed to paste, not a bare URI.
+    """
     repo_uri = repo_uri.strip()
     parsed = urlparse(repo_uri)
-    if parsed.password or (parsed.username and parsed.scheme in ("http", "https")):
+    if parsed.password is not None:
         raise ValueError(
-            "repo_uri must not embed credentials; pass the bare repository URI."
+            "repo_uri must not embed a password or token; pass the repository URI "
+            "without the `:<secret>` part (a bare `user@host` prefix is fine)."
         )
     return repo_uri
 
@@ -56,7 +64,11 @@ class BaseIacRequest(BaseModel):
     repo_uri: Annotated[
         RepoUri | None,
         Field(
-            description="Repository URI (first call only). Mutually exclusive with session_id. Must not embed credentials.",
+            description=(
+                "Repository URI (first call only). Mutually exclusive with session_id. "
+                "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
+                "but must not embed a password or token."
+            ),
             examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None

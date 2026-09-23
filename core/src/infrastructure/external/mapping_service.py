@@ -13,9 +13,10 @@ is disabled or unconfigured.
 
 Surface:
 
-- `MappingServiceClient.resolve(identifier, cloud, environment)` →
-  `ResolvedRef(repo_url, project, branch, path)`. Returns identity
-  passthrough when mapping is disabled so existing callers keep working.
+- `MappingServiceClient.resolve(identifier, terraform_provider)` →
+  `ResolvedRef(repo_url, identifier, terraform_provider, scope_id)`.
+  Returns identity passthrough when mapping is disabled so existing
+  callers keep working.
 """
 
 from __future__ import annotations
@@ -28,8 +29,12 @@ from src.clients.mapping.api.resolve import resolve as resolve_op
 from src.clients.mapping.client import AuthenticatedClient
 from src.clients.mapping.models.resolve_request import ResolveRequest
 from src.clients.mapping.models.resolve_response import ResolveResponse
+from src.clients.mapping.models.terraform_provider import (
+    TerraformProvider as MappingTerraformProvider,
+)
 from src.clients.mapping.types import UNSET, Unset
 from src.shared.config import system_config
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -37,19 +42,40 @@ from src.shared.exceptions import ExceptionHandler
 class ResolvedRef:
     """Outcome of resolving an identifier.
 
-    `repo_url` is what `git clone` should target; `project` is the canonical
-    name to use for downstream context (auth, tracer, audit). When mapping
-    is disabled, both echo the input identifier.
+    `repo_url` is what `git clone` should target and `identifier` echoes
+    what was asked for. `terraform_provider` and `scope_id` are the
+    mapper's best effort: `None` means "unknown, ask the user", never
+    "there is none". Callers skip the prompt for whatever is filled in,
+    so an unknown value must stay `None`.
     """
 
     repo_url: str
-    project: str
-    branch: str | None = None
-    path: str | None = None
+    identifier: str
+    terraform_provider: TerraformProvider | None = None
+    scope_id: str | None = None
 
 
 def _unwrap(value: str | None | Unset) -> str | None:
     return None if isinstance(value, Unset) else value
+
+
+def _core_provider(
+    value: MappingTerraformProvider | str | None | Unset,
+) -> TerraformProvider | None:
+    """Convert the client's enum to core's, rejecting anything else.
+
+    The contract's `anyOf: [$ref, null]` makes the generated parser
+    swallow the `ValueError` from an out-of-enum value and hand back the
+    raw string, so `"azurerm"` arrives here as a `str`. Passing it on
+    would blow up later as an unhandled 500.
+    """
+    if value is None or isinstance(value, Unset):
+        return None
+    if isinstance(value, MappingTerraformProvider):
+        return TerraformProvider(value.value)
+    raise ExceptionHandler(
+        f"mapping service returned an unknown terraform_provider: {value!r}", 502
+    )
 
 
 class MappingServiceClient:
@@ -59,8 +85,7 @@ class MappingServiceClient:
         self,
         identifier: str,
         *,
-        cloud: str | None = None,
-        environment: str | None = None,
+        terraform_provider: TerraformProvider | None = None,
     ) -> ResolvedRef:
         """Resolve `identifier` via the mapping service, or identity-pass it.
 
@@ -72,12 +97,23 @@ class MappingServiceClient:
         """
         cfg = system_config.services.mapping
         if not cfg.enabled or not cfg.endpoint:
-            return ResolvedRef(repo_url=identifier, project=identifier)
+            # Byte-identical to what the reference service answers, so
+            # toggling `mapping.enabled` changes nothing for a user who
+            # pastes a repo URL.
+            return ResolvedRef(
+                repo_url=identifier,
+                identifier=identifier,
+                terraform_provider=terraform_provider,
+                scope_id=None,
+            )
 
         body = ResolveRequest(
             identifier=identifier,
-            cloud=cloud if cloud is not None else UNSET,
-            environment=environment if environment is not None else UNSET,
+            terraform_provider=(
+                MappingTerraformProvider(terraform_provider.value)
+                if terraform_provider is not None
+                else UNSET
+            ),
         )
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
@@ -91,13 +127,20 @@ class MappingServiceClient:
             raise ExceptionHandler(f"mapping service timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"mapping service unreachable: {e}", 502) from e
+        except (ValueError, TypeError, KeyError) as e:
+            # Deserialising the body: a non-JSON payload raises
+            # JSONDecodeError (a ValueError), a missing required field
+            # raises KeyError. Both mean the response is off-contract.
+            raise ExceptionHandler(
+                f"mapping service returned an unparseable response: {e!r}", 502
+            ) from e
         if not isinstance(response, ResolveResponse):
             raise ExceptionHandler(
                 f"mapping service returned an unexpected response: {response!r}", 502
             )
         return ResolvedRef(
             repo_url=response.repo_url,
-            project=response.project,
-            branch=_unwrap(response.branch),
-            path=_unwrap(response.path),
+            identifier=response.identifier,
+            terraform_provider=_core_provider(response.terraform_provider),
+            scope_id=_unwrap(response.scope_id),
         )

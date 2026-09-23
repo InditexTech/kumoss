@@ -389,13 +389,21 @@ execution environment* are the security decisions you must make:
 === Mapping (optional)
 
 The bundled implementation is a *direct passthrough*: the identifier the
-user types is returned as the repository URL and project name. It adds
-nothing over leaving the integration disabled, in which case the core
+user types is returned as the repository URL, and it answers nothing
+else. It adds nothing over leaving the integration disabled, in which case the core
 performs the same mapping itself. Enable it only with an implementation
 that resolves your business identifiers (CMDB, Backstage, a catalogue)
 against the canonical IaC repository. Once enabled, a slow or
 unreachable sidecar makes the wizard's resolve step fail with
 `504`/`502`.
+
+Your implementation may also answer `terraform_provider` and `scope_id`
+(the cloud subscription, project, account, compartment, or cluster).
+Both are optional and both are a promise: the wizard stops asking the
+user for any field your service fills in, so a value it cannot stand
+behind is a wrong answer nobody gets the chance to correct. Return
+`null` — meaning "I do not know" — whenever the catalogue is silent, and
+never infer a provider from the shape of the repository URL.
 
 === Notifications (optional, recommended)
 

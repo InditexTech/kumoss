@@ -107,8 +107,8 @@ services:
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
-  max_drift_reports: 3
-  max_validation_iteration: 5
+  max_drift_reports: 5
+  max_validation_iteration: 8
   max_tool_chain_executions: 70
   max_session_events_iteration: 2160
   drift_group_operations: 8

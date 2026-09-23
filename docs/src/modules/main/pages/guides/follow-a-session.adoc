@@ -101,7 +101,18 @@ across rounds, as diffs.
 
 For drift sessions the report shows a *Drift Summary*, an outcome
 (Succeeded, Partial, Failed), and a *Remediated Resources* list with the
-file, the change, and the reason for each.
+file, the change, and the reason for each. Two further sections appear
+only when the round left drift behind, and they mean different things:
+
+* *Drift Not Reconciled.* Drift Nebula could *not* fix — the remediation
+  ran out of iterations, or the drift could not be read at all. Each
+  entry gives the reason and what still differs. This is what makes an
+  outcome *Partial*; act on it.
+* *Left Alone by Exception Rules.* Drift Nebula deliberately did not
+  touch, because one of your platform's drift exception rules covers it.
+  Each entry names the change and quotes the rule. This is the intended
+  behaviour and does not lower the outcome, so a report can say
+  *Succeeded* and still list entries here.
 
 *What you do not see.* The compliance audit that runs after the report
 produces rule-level findings, but they are not displayed in the

@@ -11,9 +11,12 @@ import { useMode } from "@/contexts/ModeContext";
 import { STRINGS } from "@/constants/strings";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { useWizardNavigation } from "@/hooks/useWizardNavigation";
+import type { WizardData } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
+import { nextStep } from "@/hooks/wizardFlow";
 import { isDriftSession } from "@/utils/session";
+import type { Session } from "@/types/ui";
 import type { TerraformProvider } from "@/types/api";
 
 const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
@@ -61,6 +64,40 @@ export function useHomeWizard() {
     }
   }, [terraform.state.status, homeView, navigate]);
 
+  /**
+   * Move the wizard on from whatever is now collected.
+   *
+   * Every step that fills a slot funnels through here, because the
+   * wizard no longer becomes complete at exactly one place. Once the
+   * mapper can answer the provider and the scope, resolution itself can
+   * finish it, and so can picking a path or a provider. Deciding that
+   * in one place is what keeps each of those moments authorizing.
+   *
+   * Takes the merged data rather than reading `navigation.data`: the
+   * caller has just written it in this same tick.
+   */
+  const advance = useCallback(
+    (data: WizardData) => {
+      const patch: Partial<Session> = {};
+      if (data.provider) patch.provider = data.provider;
+      if (data.cloudScope) patch.scope_id = data.cloudScope;
+      if (Object.keys(patch).length > 0) updateSession(patch);
+
+      const next = nextStep(data);
+      if (next === "complete") {
+        auth.run({
+          repositoryUrl: data.repositoryUrl,
+          query: data.query,
+          cloud: data.provider,
+          environment: data.iacPath,
+        });
+        return;
+      }
+      navigation.setStep(next);
+    },
+    [navigation, updateSession, auth],
+  );
+
   const handleInput = useCallback(
     async (value: string) => {
       switch (navigation.step) {
@@ -76,24 +113,30 @@ export function useHomeWizard() {
           if (!value.trim()) return;
           try {
             const result = await mapper.resolveAndScan(value.trim());
-            navigation.setData((prev) => ({
-              ...prev,
-              repositoryUrl: result.repoUrl,
-            }));
-            updateSession({ workspace: { uri: result.repoUrl } });
 
             if (result.paths.length === 0) {
+              navigation.applyResolution({ repositoryUrl: result.repoUrl });
+              updateSession({ workspace: { uri: result.repoUrl } });
               mapper.setMapperError(STRINGS.wizard.noIacPaths);
-            } else if (result.paths.length === 1) {
-              const path = result.paths[0];
-              navigation.setData((prev) => ({ ...prev, iacPath: path }));
-              updateSession({
-                workspace: { uri: result.repoUrl, root_path: path },
-              });
-              navigation.setStep("provider");
-            } else {
-              navigation.setStep("iac_path");
+              break;
             }
+
+            // Anything the mapper answered fills its slot, and a filled
+            // slot is a step nobody is asked about.
+            const path = result.paths.length === 1 ? result.paths[0] : "";
+            const resolved = navigation.applyResolution({
+              repositoryUrl: result.repoUrl,
+              ...(path ? { iacPath: path } : {}),
+              ...(result.provider ? { provider: result.provider } : {}),
+              ...(result.scopeId ? { cloudScope: result.scopeId } : {}),
+            });
+            updateSession({
+              workspace: {
+                uri: result.repoUrl,
+                ...(path ? { root_path: path } : {}),
+              },
+            });
+            advance(resolved);
           } catch (err) {
             console.error("Mapper resolution failed:", err);
             mapper.setMapperError(STRINGS.wizard.resolveError);
@@ -104,15 +147,7 @@ export function useHomeWizard() {
         case "cloud_scope": {
           const scope = value.trim().toLowerCase();
           if (!scope || !CLOUD_SCOPE_PATTERN.test(scope)) return;
-          navigation.setData((prev) => ({ ...prev, cloudScope: scope }));
-          updateSession({ scope_id: scope });
-
-          auth.run({
-            repositoryUrl: navigation.data.repositoryUrl,
-            query: navigation.data.query,
-            cloud: navigation.data.provider,
-            environment: navigation.data.iacPath,
-          });
+          advance(navigation.applyResolution({ cloudScope: scope }));
           break;
         }
 
@@ -120,25 +155,22 @@ export function useHomeWizard() {
           break;
       }
     },
-    [navigation, mapper, updateSession, auth],
+    [navigation, mapper, updateSession, advance],
   );
 
   const handlePath = useCallback(
     (path: string) => {
-      navigation.setData((prev) => ({ ...prev, iacPath: path }));
       updateSession({ workspace: { ...session.workspace, root_path: path } });
-      navigation.setStep("provider");
+      advance(navigation.applyResolution({ iacPath: path }));
     },
-    [navigation, updateSession, session.workspace],
+    [navigation, updateSession, session.workspace, advance],
   );
 
   const handleProvider = useCallback(
     (provider: TerraformProvider) => {
-      navigation.setData((prev) => ({ ...prev, provider }));
-      updateSession({ provider });
-      navigation.setStep("cloud_scope");
+      advance(navigation.applyResolution({ provider }));
     },
-    [navigation, updateSession],
+    [navigation, advance],
   );
 
   const handleKeyDown = useCallback(

@@ -46,6 +46,8 @@ bucket for application logs", "open port 443 on the web security group",
   previous step left in the workspace rather than planning again. Drift
   that corresponds to the session's own changes is filtered out; anything
   else is reconciled so that the plan reflects only intended changes.
+  Operations covered by the cloud's `drift_exceptions` rules are then
+  dropped before anything is remediated, and logged.
 . *Report.* The main model turns the plan into a JSON report with a
   change summary (create, update, delete, recreate), detailed changes, an
   impact banner (`low`, `medium`, `high`), and cost estimates.
@@ -96,7 +98,7 @@ create the pull request, merge it, and apply.
 * Validation and plan run against the credentials in
   `services/iac/.env`; missing cloud credentials surface as engine errors
   in the session, not at startup.
-* Every cloud scope needs its six guideline prompts in Phoenix; a missing
+* Every cloud scope needs its seven guideline prompts in Phoenix; a missing
   one aborts the round with `Prompt not found`. See
   xref:main:guides/customize-prompts.adoc#guideline-prompts[Guideline
   prompts] for the list every cloud scope must provide.

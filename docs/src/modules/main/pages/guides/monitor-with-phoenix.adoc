@@ -159,7 +159,7 @@ OpenInference semantic conventions.
   REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain -
   COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
   TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain -
-  STATUS_UPDATE`.
+  FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
 * *Kind:* `AGENT`.
 * *Input:* the query handed to the chain (`input.value`).
 * *Output:* the chain's result, unwrapped to its `summary`,
