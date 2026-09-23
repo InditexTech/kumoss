@@ -98,11 +98,10 @@ must provide:
   per model. Without it the web-search tool falls back to the OpenAI
   Responses API path, which only works on OpenAI-compatible endpoints.
 
-The shipped models (Anthropic Claude on Azure AI Foundry, `azure_ai/`)
-and the code defaults (Anthropic Claude direct, `anthropic/`) satisfy
-all of these, as do the Claude and Gemini models on Vertex AI that the
-core's test suite exercises. Nebula has not tested every provider
-LiteLLM lists.
+The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of
+these, as do the same models on Azure AI Foundry (`azure_ai/`) and the
+Claude and Gemini models on Vertex AI that the core's test suite
+exercises. Nebula has not tested every provider LiteLLM lists.
 
 == The `provider/model-id` notation
 
@@ -196,9 +195,9 @@ The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the `litellm_params` keys you
 would use instead when writing an `llm.model_list` entry. The lists
 come from LiteLLM's documentation. *Nebula has not tested every
-provider listed here*; the checked-in `config.yaml` targets Azure AI
-Foundry (`azure_ai/`), the code defaults target Anthropic directly
-(`anthropic/`), and the core's test suite
+provider listed here*; the checked-in `config.yaml` and the code
+defaults both target Anthropic directly (`anthropic/`), and the core's
+test suite
 (`core/tests/shared/config/test_llm_config.py`) exercises the
 OpenAI-style and Vertex AI validation paths.
 
@@ -409,11 +408,12 @@ if the server does not check it.
 == Minimal configuration example
 
 A single direct provider, both roles on the same vendor, no router
-customisation. This is the simplest working setup.
+customisation. This is the checked-in setup, and the simplest working
+one.
 
 [source,yaml]
 ----
-# config.yaml (fictitious)
+# config.yaml
 llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
@@ -427,9 +427,8 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ----
 
-The checked-in `config.yaml` uses Azure AI Foundry, whose credentials
-LiteLLM cannot validate at boot (a missing value fails on the first
-call):
+An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot
+validate at boot (a missing value fails on the first call):
 
 [source,yaml]
 ----

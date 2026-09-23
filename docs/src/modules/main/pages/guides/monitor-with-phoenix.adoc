@@ -69,8 +69,9 @@ of the configuration reference):
 |`telemetry.collector_url`
 |`\http://phoenix:6006/`
 |Base URL of the OTLP/HTTP collector. The core appends `v1/traces` by
-string concatenation, so the value *must end in* `/`. The code default
-`\http://localhost:6006/` only works when the core runs outside Docker.
+string concatenation, so the value *must end in* `/`. This is also the
+code default; running the core outside Docker needs an explicit
+`\http://localhost:6006/`.
 
 |`telemetry.otel_attribute_count_limit`
 |`1024`
