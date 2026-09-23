@@ -154,8 +154,8 @@ through the round. That is the dashed edge in the diagram.
 [IMPORTANT]
 ====
 These cascades are enforced by the application's object mapper, not by
-`ON DELETE` clauses in the database. A `DELETE` issued directly against
-PostgreSQL bypasses them and leaves orphaned rows behind.
+database `ON DELETE CASCADE` clauses. A direct `DELETE` against PostgreSQL
+must first remove dependent rows (or it fails foreign-key checks), so use the ORM path.
 ====
 
 == Changing the schema

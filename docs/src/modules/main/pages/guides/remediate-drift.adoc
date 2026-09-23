@@ -39,7 +39,7 @@ partial drift request with an empty text.
   Terraform targets from the request, the history, the selected resource
   prompts, and the `general-guidelines-targeting_policies` prompt.
 . *Detect and remediate loop*, up to `orchestration.max_drift_reports`
-  iterations (3 by default). The first iteration runs `init`, `validate`
+  iterations (5 by default). The first iteration runs `init`, `validate`
   and `plan -out` on the targets; each later one reads the plan its
   predecessor's last remediation cycle validated, and only plans for
   itself if that cycle produced nothing. Every iteration then runs

@@ -70,13 +70,13 @@ OpenAPI contracts it consumes as a client.
 |500 characters
 
 |Generate-and-validate attempts per request
-|5
+|8
 
 |Drift check inside a generate round
 |2 passes
 
 |Drift remediation session
-|3 iterations
+|5 iterations
 
 |One operation per session at a time
 |A second request while one is running is ignored until it finishes

@@ -132,7 +132,7 @@ against the shared workspace with the cloud credentials in
 
 |Correct or fail
 |Engine errors go back to the generation agent as the next query and the
-loop repeats. After `orchestration.max_validation_iteration` (5)
+loop repeats. After `orchestration.max_validation_iteration` (8)
 failures the round ends `FAILED`, the branch keeps the last pushed
 attempt, and the session is xref:#terminal-states[closed for good].
 |===
@@ -818,7 +818,7 @@ planning again.
 |Full drift takes the whole root module, an empty target list. Partial drift
 takes the targets the Drift Target Generator chooses after the request
 filter.
-|Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
+|Up to `max_drift_reports` (5) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
 lock, does not run the compliance audit and does not pin the workspace —

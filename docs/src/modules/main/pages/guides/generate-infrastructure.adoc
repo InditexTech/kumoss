@@ -39,7 +39,7 @@ bucket for application logs", "open port 443 on the web security group",
   Terraform targets for this round from the diff history. The IaC sidecar
   runs `init`, `validate`, and `plan -out session.plan` with those
   targets. Validation feedback is fed back to the model for up to
-  `orchestration.max_validation_iteration` attempts (5 by default) before
+  `orchestration.max_validation_iteration` attempts (8 by default) before
   the round fails with `Validation loop exceeded.`
 . *Drift pre-check.* Two detect-and-reconcile iterations run on the
   session targets. The first reads its drift out of the plan artifact the

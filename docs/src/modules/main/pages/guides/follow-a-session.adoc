@@ -33,7 +33,7 @@ these stages:
 |Validating
 |Running `init`, `validate`, and `plan` in the engine; feeding errors back
 to the generator (up to five attempts). The drift pre-check on the touched
-resources (at most two passes) runs here too, cycling through the
+to the generator (up to eight attempts). The drift pre-check on the touched
 Generating and Validating stages again, before the report starts
 |Minutes; longer for large roots
 
@@ -42,8 +42,8 @@ Generating and Validating stages again, before the report starts
 |Minutes
 |===
 
-A session is bounded: five generate-and-validate attempts, then a drift
-check of at most two passes, then the report. Browser notifications
+A session is bounded: eight generate-and-validate attempts, then a drift
+check of at most two passes, then the report.
 ("Pipeline completed", "Request rejected", "Session blocked", "Pipeline
 failed") can be enabled from the *Configuration* icon in the header.
 
