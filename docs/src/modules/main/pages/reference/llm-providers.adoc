@@ -250,9 +250,11 @@ no validation mapping and a missing key fails on the first call.
 |`vertex_ai/<model>`
 |`VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS`
 |`vertex_project`, `vertex_location`, `vertex_credentials`
-|`VERTEXAI_CREDENTIALS` is a service-account JSON, as a file path or
-the raw JSON. Omit it to use Application Default Credentials
-(`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on).
+|`VERTEXAI_CREDENTIALS` holds the service-account key JSON content, on
+one line. A path to a key file also works, but only if you mount that
+file into the core container yourself. Omit it to use Application
+Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload
+identity, and so on).
 
 |Google AI Studio (Gemini API)
 |`gemini/<model>`
@@ -456,8 +458,12 @@ llm:
 ----
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 ----
+
+For how to paste the key, and what the file-path alternative needs, see
+xref:main:reference/environment-variables.adoc#example-all-sidecars[the
+Vertex AI example in Environment variables].
 
 [#advanced-routing-with-llmmodel_list]
 == Advanced routing with `llm.model_list`

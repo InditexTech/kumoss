@@ -48,6 +48,9 @@ or `llm.model_list`
 |Credentials that LiteLLM reads for the configured provider. Names
 follow LiteLLM conventions; see
 xref:main:reference/llm-providers.adoc[LLM providers and models].
+`VERTEXAI_CREDENTIALS` holds the service-account key itself, as
+single-line JSON content (see
+<<example-all-sidecars,the Vertex AI example>>).
 For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
 `ANTHROPIC_AUTH_TOKEN`.
 |At boot for providers LiteLLM can validate; otherwise on the first LLM
@@ -186,7 +189,8 @@ for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE`
 boots cleanly and fails on the first LLM call. For
 `vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and
 `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at
-boot. Coverage is per provider (for `anthropic/*`, either
+boot, and when it is unset LiteLLM falls back to Application Default
+Credentials. Coverage is per provider (for `anthropic/*`, either
 `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no
 provider's check validates that a credential actually works.
 
@@ -695,6 +699,7 @@ AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
 ----
 
+[#example-all-sidecars]
 === All sidecars enabled (Vertex AI models, Azure infrastructure)
 
 `config.yaml` excerpt:
@@ -720,10 +725,10 @@ services:
 
 [source,dotenv]
 ----
-# LLM provider (Google Vertex AI)
+# LLM provider (Google Vertex AI). The service-account key JSON, on one line.
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 
 # One distinct token per sidecar
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
@@ -738,6 +743,17 @@ RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
 NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ----
+
+Paste the downloaded key file's content as the value, collapsed onto one
+line and unquoted. Keep the `\n` escapes inside `private_key` as they
+are: turning them into real line breaks makes the JSON invalid.
+
+NOTE: `VERTEXAI_CREDENTIALS` also accepts a path to the key file instead
+of its content. Nebula does not provide that file: create a secret or
+file mount into the *core* container yourself (the Compose file mounts
+nothing there), readable by uid `10001`. A path that does not exist
+inside the container is not caught at boot. The first LLM call then
+fails with a JSON-parsing error rather than a missing-file error.
 
 `services/iac/.env` (Azure example):
 
