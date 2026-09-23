@@ -917,11 +917,10 @@ Responses API path, which only works on OpenAI-compatible endpoints.</p>
 </ul>
 </div>
 <div class="paragraph">
-<p>The shipped models (Anthropic Claude on Azure AI Foundry, <code>azure_ai/</code>)
-and the code defaults (Anthropic Claude direct, <code>anthropic/</code>) satisfy
-all of these, as do the Claude and Gemini models on Vertex AI that the
-core&#8217;s test suite exercises. Nebula has not tested every provider
-LiteLLM lists.</p>
+<p>The shipped models (Anthropic Claude direct, <code>anthropic/</code>) satisfy all of
+these, as do the same models on Azure AI Foundry (<code>azure_ai/</code>) and the
+Claude and Gemini models on Vertex AI that the core&#8217;s test suite
+exercises. Nebula has not tested every provider LiteLLM lists.</p>
 </div>
 </div>
 </div>
@@ -1053,9 +1052,9 @@ pins <code>litellm&gt;=1.93.0</code>).</p>
 variables LiteLLM reads by default, and the <code>litellm_params</code> keys you
 would use instead when writing an <code>llm.model_list</code> entry. The lists
 come from LiteLLM&#8217;s documentation. <strong>Nebula has not tested every
-provider listed here</strong>; the checked-in <code>config.yaml</code> targets Azure AI
-Foundry (<code>azure_ai/</code>), the code defaults target Anthropic directly
-(<code>anthropic/</code>), and the core&#8217;s test suite
+provider listed here</strong>; the checked-in <code>config.yaml</code> and the code
+defaults both target Anthropic directly (<code>anthropic/</code>), and the core&#8217;s
+test suite
 (<code>core/tests/shared/config/test_llm_config.py</code>) exercises the
 OpenAI-style and Vertex AI validation paths.</p>
 </div>
@@ -1362,11 +1361,12 @@ if the server does not check it.</p></td>
 <div class="sectionbody">
 <div class="paragraph">
 <p>A single direct provider, both roles on the same vendor, no router
-customisation. This is the simplest working setup.</p>
+customisation. This is the checked-in setup, and the simplest working
+one.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml (fictitious)</span></span>
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># config.yaml</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span>
@@ -1381,9 +1381,8 @@ customisation. This is the simplest working setup.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>The checked-in <code>config.yaml</code> uses Azure AI Foundry, whose credentials
-LiteLLM cannot validate at boot (a missing value fails on the first
-call):</p>
+<p>An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot
+validate at boot (a missing value fails on the first call):</p>
 </div>
 <div class="listingblock">
 <div class="content">

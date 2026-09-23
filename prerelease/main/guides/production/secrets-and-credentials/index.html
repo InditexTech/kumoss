@@ -805,14 +805,14 @@ secret injection. Every value below is a secret or credential.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">LLM provider credentials</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Provider-specific, for example <code>ANTHROPIC_API_KEY</code>; <code>AZURE_AI_API_KEY</code>
-+ <code>AZURE_AI_API_BASE</code> (the shipped <code>azure_ai/</code> default); <code>AZURE_API_KEY</code>
-+ <code>AZURE_API_BASE</code> + <code>AZURE_API_VERSION</code> (<code>azure/</code>); <code>VERTEXAI_PROJECT</code>
-+ <code>VERTEXAI_LOCATION</code> + <code>VERTEXAI_CREDENTIALS</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Provider-specific: <code>ANTHROPIC_API_KEY</code> (the shipped <code>anthropic/</code>
+default); <code>AZURE_AI_API_KEY</code> + <code>AZURE_AI_API_BASE</code> (<code>azure_ai/</code>);
+<code>AZURE_API_KEY</code> + <code>AZURE_API_BASE</code> + <code>AZURE_API_VERSION</code> (<code>azure/</code>);
+<code>VERTEXAI_PROJECT</code> + <code>VERTEXAI_LOCATION</code> + <code>VERTEXAI_CREDENTIALS</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Names per provider in
 <a href="../../../reference/llm-providers/" class="xref page">LLM providers and models</a>.
-Checked at boot for most providers — but not for <code>azure_ai/</code>, the
-shipped default, which fails on the first LLM call instead
+Checked at boot for most providers — but not for all of them, and
+<code>azure_ai/</code> in particular fails on the first LLM call instead
 (<a href="../../../reference/llm-providers/#startup-credential-validation" class="xref page">Startup
 credential validation and its limits</a>).</p></td>
 </tr>

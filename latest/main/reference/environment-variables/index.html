@@ -829,10 +829,10 @@ names.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">LLM provider credentials (<code>AZURE_AI_API_KEY</code> and <code>AZURE_AI_API_BASE</code>
-for the shipped <code>azure_ai/</code> models; for example <code>ANTHROPIC_API_KEY</code>, or
-the <code>VERTEXAI_PROJECT</code> / <code>VERTEXAI_LOCATION</code> / <code>VERTEXAI_CREDENTIALS</code>
-trio for other providers)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LLM provider credentials (<code>ANTHROPIC_API_KEY</code> for the shipped
+<code>anthropic/</code> models; for example <code>AZURE_AI_API_KEY</code> and
+<code>AZURE_AI_API_BASE</code>, or the <code>VERTEXAI_PROJECT</code> / <code>VERTEXAI_LOCATION</code> /
+<code>VERTEXAI_CREDENTIALS</code> trio, for other providers)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory for the provider selected by <code>llm.model</code>, <code>llm.small_model</code>
 or <code>llm.model_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
@@ -986,10 +986,11 @@ resolve.</p>
 <div class="paragraph">
 <p><strong>What the boot check actually covers.</strong> The core validates the LLM
 credentials with <code>litellm.validate_environment</code> for every entry in the
-effective model list. For the shipped <code>config.yaml</code> — which selects
-<code>azure_ai/&#8230;&#8203;</code> models — that check verifies <strong>nothing</strong>: LiteLLM has no
-validation mapping for <code>azure_ai</code>, so a missing <code>AZURE_AI_API_KEY</code> or
-<code>AZURE_AI_API_BASE</code> boots cleanly and fails on the first LLM call. For
+effective model list. Coverage depends on the provider. For the shipped
+<code>anthropic/&#8230;&#8203;</code> models a missing key fails the boot. For <code>azure_ai/&#8230;&#8203;</code>
+models the check verifies <strong>nothing</strong>: LiteLLM has no validation mapping
+for that provider, so a missing <code>AZURE_AI_API_KEY</code> or <code>AZURE_AI_API_BASE</code>
+boots cleanly and fails on the first LLM call. For
 <code>vertex_ai/&#8230;&#8203;</code> models the check requires <code>VERTEXAI_PROJECT</code> and
 <code>VERTEXAI_LOCATION</code> only; <code>VERTEXAI_CREDENTIALS</code> is not verified at
 boot. Coverage is per provider (for <code>anthropic/*</code>, either
@@ -1648,14 +1649,10 @@ privileged local developer. See
 <div class="sect2">
 <h3 id="core-plus-iac-sidecar-only-anthropic-models"><a class="anchor" href="#core-plus-iac-sidecar-only-anthropic-models"></a>Core plus IaC sidecar only (Anthropic models)</h3>
 <div class="paragraph">
-<p>Only the IaC sidecar is enabled, as in the shipped <code>config.yaml</code> — but
-the model strings below are <strong>not</strong> the shipped ones. The checked-in
-<code>config.yaml</code> selects Azure AI Foundry models
-(<code>azure_ai/claude-sonnet-4-5</code> and <code>azure_ai/claude-haiku-4-5</code>, which
-need <code>AZURE_AI_API_KEY</code> and <code>AZURE_AI_API_BASE</code>); the Vertex AI set is
-shown in the next example; <code>anthropic/*</code> is what the core falls
-back to when no <code>config.yaml</code> is loaded at all. Use this set only if
-you put the excerpt below in your own <code>config.yaml</code>.</p>
+<p>Only the IaC sidecar is enabled, and the model strings are the shipped
+ones — <code>anthropic/*</code> is both what the checked-in <code>config.yaml</code> selects
+and what the core falls back to when no <code>config.yaml</code> is loaded at all.
+The Vertex AI set is shown in the next example.</p>
 </div>
 <div class="paragraph">
 <p><code>config.yaml</code> excerpt for this example:</p>

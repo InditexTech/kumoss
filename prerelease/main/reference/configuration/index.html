@@ -1386,7 +1386,7 @@ and models</a>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (LiteLLM model string, or a <code>model_name</code> alias when
 <code>model_list</code> is set)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-sonnet-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure_ai/claude-sonnet-4-5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-sonnet-5</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">High-quality model used by the IaC generator, target generator, and
 report generator chains.</p></td>
@@ -1395,7 +1395,7 @@ report generator chains.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-haiku-4-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure_ai/claude-haiku-4-5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-haiku-4-5</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cheaper model used by every other chain and by tool-internal LLM
 calls.</p></td>
@@ -1653,7 +1653,7 @@ address of the Phoenix prompt registry. See
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (base URL <strong>ending in <code>/</code></strong>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost:6006/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the trace collector. The core appends <code>v1/traces</code> by plain
@@ -1661,7 +1661,9 @@ string concatenation, so the value must end with a slash:
 <code>http://phoenix:6006/</code> becomes <code>http://phoenix:6006/v1/traces</code>. The
 <strong>same URL</strong> is used as the Phoenix client base URL for prompt seeding
 and fetching, so today it must point at a Phoenix server even if you
-export traces elsewhere.</p></td>
+export traces elsewhere. The default is the Phoenix service of the
+bundled stack; running the core outside docker needs an explicit
+<code>http://localhost:6006/</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_attribute_count_limit</code></p></td>

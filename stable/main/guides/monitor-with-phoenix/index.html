@@ -878,8 +878,9 @@ of the configuration reference):</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the OTLP/HTTP collector. The core appends <code>v1/traces</code> by
-string concatenation, so the value <strong>must end in</strong> <code>/</code>. The code default
-<code>http://localhost:6006/</code> only works when the core runs outside Docker.</p></td>
+string concatenation, so the value <strong>must end in</strong> <code>/</code>. This is also the
+code default; running the core outside Docker needs an explicit
+<code>http://localhost:6006/</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_attribute_count_limit</code></p></td>
