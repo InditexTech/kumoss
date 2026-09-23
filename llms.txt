@@ -73,8 +73,8 @@
 - [Data and state](/stable/main/architecture/data-and-state/): What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
 - [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
 - [Configure state backends](/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.
-- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Development](/stable/main/guides/development/): Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
+- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Enable authentication](/stable/main/guides/enable-authentication/): Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
 - [Follow a session](/stable/main/guides/follow-a-session/): Track a Nebula session's progress and read the results it produces.
 - [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
@@ -82,11 +82,11 @@
 - [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
 - [Configuration](/stable/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
 - [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
-- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 - [Authorization sidecar API](/stable/main/reference/api/authz/): The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
 - [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
 - [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
 - [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
+- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 - [Sidecar-supplied backend](/stable/main/guides/state-backends/sidecar-supplied/): Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
 - [Core API](/stable/main/reference/api/core/): Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 - [Hardening](/stable/main/guides/production/hardening/): Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.

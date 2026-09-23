@@ -6096,7 +6096,7 @@ The core reads variables through the names configured in `config.yaml`. The tabl
 
 | Variable | Requirement | Default | Meaning | Checked |
 | --- | --- | --- | --- | --- |
-| LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped `anthropic/` models; for example `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS` trio, for other providers) | Mandatory for the provider selected by `llm.model`, `llm.small_model` or `llm.model_list` | none | Credentials that LiteLLM reads for the configured provider. Names follow LiteLLM conventions; see [LLM providers and models](../llm-providers/). For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. | At boot for providers LiteLLM can validate; otherwise on the first LLM call |
+| LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped `anthropic/` models; for example `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS` trio, for other providers) | Mandatory for the provider selected by `llm.model`, `llm.small_model` or `llm.model_list` | none | Credentials that LiteLLM reads for the configured provider. Names follow LiteLLM conventions; see [LLM providers and models](../llm-providers/). `VERTEXAI_CREDENTIALS` holds the service-account key itself, as single-line JSON content (see [the Vertex AI example](#example-all-sidecars)). For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. | At boot for providers LiteLLM can validate; otherwise on the first LLM call |
 | `NEBULA_IAC_TOKEN` | Mandatory (the IaC sidecar is always called; it has no `enabled` flag) | sample value `dev-iac-token` | Bearer token the core sends to the IaC sidecar. Must equal `NEBULA_IAC_TOKEN` in `services/iac/.env`. | At boot: an empty token aborts startup |
 | `NEBULA_MAPPING_TOKEN` | Conditional | sample value `dev-mapping-token` | Bearer token for the mapping sidecar, sent when `services.mapping.enabled` is true. Must equal `NEBULA_MAPPING_TOKEN` in `services/mapping/.env`. | At boot when enabled |
 | `NEBULA_NOTIFICATIONS_TOKEN` | Conditional | sample value `dev-notifications-token` | Bearer token for the notifications sidecar, sent when `services.notifications.enabled` is true. Must equal `NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env`. | At boot when enabled |
@@ -6113,7 +6113,7 @@ The core reads variables through the names configured in `config.yaml`. The tabl
 
 The `rustfsadmin` fallback applies only when the variable is **absent from the environment**. A variable that is present but blank (`RUSTFS_ACCESS_KEY=` in `core/.env`) resolves to the empty string, no fallback is applied, and under `storage.provider: RUSTFS` the core embeds no static credentials at all: boto3 falls back to the AWS default credential chain, which has nothing to find in the container, and boot fails at the bucket check. Blank the two keys only for `storage.provider: S3` with an instance profile or IRSA, where an empty value is what tells the core to omit them and let the AWS default chain resolve.
 
-**What the boot check actually covers.** The core validates the LLM credentials with `litellm.validate_environment` for every entry in the effective model list. Coverage depends on the provider. For the shipped `anthropic/…​` models a missing key fails the boot. For `azure_ai/…​` models the check verifies **nothing**: LiteLLM has no validation mapping for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE` boots cleanly and fails on the first LLM call. For `vertex_ai/…​` models the check requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at boot. Coverage is per provider (for `anthropic/*`, either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no provider’s check validates that a credential actually works.
+**What the boot check actually covers.** The core validates the LLM credentials with `litellm.validate_environment` for every entry in the effective model list. Coverage depends on the provider. For the shipped `anthropic/…​` models a missing key fails the boot. For `azure_ai/…​` models the check verifies **nothing**: LiteLLM has no validation mapping for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE` boots cleanly and fails on the first LLM call. For `vertex_ai/…​` models the check requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at boot, and when it is unset LiteLLM falls back to Application Default Credentials. Coverage is per provider (for `anthropic/*`, either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no provider’s check validates that a credential actually works.
 
 **`litellm` loads `core/.env` by itself.** The library calls `load_dotenv()` at import time unless `LITELLM_MODE` is `PRODUCTION`, so running the core or its test suite *outside* Docker silently picks up `core/.env` even when you meant to run with a clean environment. Running from another directory does **not** avoid it: python-dotenv searches upwards from the calling package’s directory, not from the working directory, so a virtual environment at `core/.venv` finds `core/.env` from anywhere. Variables already set in the environment are left alone. To reproduce a missing-credential failure, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`.
 
@@ -6316,10 +6316,10 @@ services:
 `core/.env`:
 
 ```
-# LLM provider (Google Vertex AI)
+# LLM provider (Google Vertex AI). The service-account key JSON, on one line.
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 
 # One distinct token per sidecar
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
@@ -6334,6 +6334,16 @@ RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
 NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ```
+
+Paste the downloaded key file’s content as the value, collapsed onto one line and unquoted. Keep the `\n` escapes inside `private_key` as they are: turning them into real line breaks makes the JSON invalid.
+
+> **Note**
+> `VERTEXAI_CREDENTIALS` also accepts a path to the key file instead
+> of its content. Nebula does not provide that file: create a secret or
+> file mount into the **core** container yourself (the Compose file mounts
+> nothing there), readable by uid `10001`. A path that does not exist
+> inside the container is not caught at boot. The first LLM call then
+> fails with a JSON-parsing error rather than a missing-file error.
 
 `services/iac/.env` (Azure example):
 
@@ -6521,7 +6531,7 @@ The tables below list the LiteLLM model string format, the environment variables
 
 | Provider | Model string | Default env vars | `litellm_params` keys | Notes |
 | --- | --- | --- | --- | --- |
-| Google Vertex AI | `vertex_ai/<model>` | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS` | `vertex_project`, `vertex_location`, `vertex_credentials` | `VERTEXAI_CREDENTIALS` is a service-account JSON, as a file path or the raw JSON. Omit it to use Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on). |
+| Google Vertex AI | `vertex_ai/<model>` | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS` | `vertex_project`, `vertex_location`, `vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account key JSON content, on one line. A path to a key file also works, but only if you mount that file into the core container yourself. Omit it to use Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on). |
 | Google AI Studio (Gemini API) | `gemini/<model>` | `GEMINI_API_KEY` (LiteLLM also accepts `GOOGLE_API_KEY`) | `api_key` |   |
 | Azure OpenAI | `azure/<deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` | `api_key`, `api_base`, `api_version` | `api_base` is `https://<resource>.openai.azure.com` |
 | Azure AI Foundry | `azure_ai/<model>` | `AZURE_AI_API_KEY`, `AZURE_AI_API_BASE` | `api_key`, `api_base` | No boot-time validation mapping in LiteLLM. |
@@ -6599,8 +6609,10 @@ llm:
 ```
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 ```
+
+For how to paste the key, and what the file-path alternative needs, see [the Vertex AI example in Environment variables](../environment-variables/#example-all-sidecars).
 
 ## Advanced routing with `llm.model_list`
 
@@ -12303,6 +12315,102 @@ AWS_DEFAULT_REGION=us-east-1 \
 
 ---
 
+# Development
+
+Source: /stable/main/guides/development/
+
+This guide covers contributing to Nebula itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Nebula; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
+
+## Prerequisites
+
+Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
+
+## Repository layout
+
+The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
+
+## Running the stack for development
+
+Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide.
+
+`docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload` and does not pick up the change: run `docker compose restart core` after a sync (or `docker compose up -d core`). It does not sync `config.yaml`, which is baked into the image.
+
+## Core tests
+
+Python 3.13, `uv`. `pytest` is **not** declared in `core/pyproject.toml` (its `tooling` dependency group holds `basedpyright`, `debugpy`, `openapi-python-client`, and `ipython`, not `pytest`), so install it explicitly before running the suite:
+
+```
+cd core
+uv pip install --system --prerelease=allow -r pyproject.toml
+uv pip install --system pytest pytest-asyncio
+python -m pytest tests/ --asyncio-mode=auto
+```
+
+Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
+
+## Type checking
+
+`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
+
+```
+cd core
+uv pip install --system --group tooling -r pyproject.toml
+basedpyright
+```
+
+`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+
+## Frontend checks
+
+Node 24:
+
+```
+cd client/web
+npm ci
+npm run lint
+npm run test:ci
+npm run build
+```
+
+## Sidecar tests
+
+Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
+
+```
+cd services/<name>
+uv sync --group tooling
+uv run pytest
+```
+
+## Linting and formatting
+
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
+
+## Continuous integration
+
+Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
+
+## Regenerating sidecar clients
+
+Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
+
+```
+uv run --group tooling openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+```
+
+Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
+
+## Pull requests
+
+Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
+
+---
+
 # Customize prompts
 
 Source: /stable/main/guides/customize-prompts/
@@ -12600,102 +12708,6 @@ To **change** an existing prompt (a naming rule, a security default, a complianc
 - Decide who may edit prompts. Anyone with access to the Phoenix UI can change what the agents generate. Phoenix has no authentication in the default stack.
 - Treat the `environment` value as part of the prompt data model: it is the tag every fetch uses.
 - Back up `phoenix-db`; it holds your curated prompts as well as the traces.
-
----
-
-# Development
-
-Source: /stable/main/guides/development/
-
-This guide covers contributing to Nebula itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Nebula; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
-
-## Prerequisites
-
-Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
-
-## Repository layout
-
-The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
-
-## Running the stack for development
-
-Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide.
-
-`docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload` and does not pick up the change: run `docker compose restart core` after a sync (or `docker compose up -d core`). It does not sync `config.yaml`, which is baked into the image.
-
-## Core tests
-
-Python 3.13, `uv`. `pytest` is **not** declared in `core/pyproject.toml` (its `tooling` dependency group holds `basedpyright`, `debugpy`, `openapi-python-client`, and `ipython`, not `pytest`), so install it explicitly before running the suite:
-
-```
-cd core
-uv pip install --system --prerelease=allow -r pyproject.toml
-uv pip install --system pytest pytest-asyncio
-python -m pytest tests/ --asyncio-mode=auto
-```
-
-Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
-
-## Type checking
-
-`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
-
-```
-cd core
-uv pip install --system --group tooling -r pyproject.toml
-basedpyright
-```
-
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
-
-## Frontend checks
-
-Node 24:
-
-```
-cd client/web
-npm ci
-npm run lint
-npm run test:ci
-npm run build
-```
-
-## Sidecar tests
-
-Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
-
-```
-cd services/<name>
-uv sync --group tooling
-uv run pytest
-```
-
-## Linting and formatting
-
-`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
-
-## Continuous integration
-
-Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
-
-## Regenerating sidecar clients
-
-Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
-
-```
-uv run --group tooling openapi-python-client generate \
-  --path ../contracts/openapi/<service>.v1.yaml \
-  --config ../contracts/openapi-python-client.yaml \
-  --meta none \
-  --output-path src/clients/<service> \
-  --overwrite
-```
-
-Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
-
-## Pull requests
-
-Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
 
 ---
 
@@ -14163,6 +14175,462 @@ Kubeconfig mounted into the container.
 ```
 KUBE_CONFIG_PATH=/home/nebula/.kube/config
 ```
+
+---
+
+# Authorization sidecar API
+
+Source: /stable/main/reference/api/authz/
+
+The authorization service answers **may this user operate on this cloud resource?** — a question about a subscription, a project, or an account, asked before Nebula runs anything against a live environment.
+
+Contract: `contracts/openapi/authz.v1.yaml`. Default endpoint: `http://authz:8083`. Bearer token: the value of the variable named by `services.authz.token_env`, `NEBULA_AUTHZ_TOKEN` by default. The service is **optional** and ships disabled (`services.authz.enabled: false`).
+
+> **Important**
+> **Nebula’s own roles do not live here.** The operation roles (`developer` < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide what a signed-in user can do are rows in the core database, managed from the admin panel. This service has a role store of its own, and it has no effect on any of that. See [Roles and permissions](../../roles-and-permissions/).
+
+## What the core actually calls
+
+The contract describes seven paths. **The core calls one of them.**
+
+`POST /api/v1/auth/authorize` — and nothing else in the core — forwards to `POST /v1/check`. The other five `/v1` paths exist for callers of this service directly, or for an organization building on the bundled implementation, to administer that service’s own user and role store. The generated client contains methods for them; nothing in the core invokes them.
+
+When `services.authz.enabled` is `false`, the shipped default, the core does not call out at all and answers authorized. When it is enabled, the core **never** fails open:
+
+| Situation | What the core answers |
+| --- | --- |
+| Sidecar unreachable, or the call times out | `502` or `504` |
+| Sidecar returns a `4xx` or `5xx` | `502` |
+| Sidecar returns `200` | The decision it computed, passed through |
+
+A `422` from the sidecar is therefore visible at the browser as a `502`, which matters for one specific shape of request — see [The bundled implementation](#the-bundled-implementation).
+
+## Endpoints
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /v1/check` | Decides whether a user may operate on a named cloud resource. **The only endpoint Nebula uses.** |
+| `GET /v1/users/me` | Returns the calling user’s record and roles, creating an empty record if none exists. |
+| `GET /v1/roles` | Lists the role names the service knows. |
+| `GET /v1/users` | Lists all known users. Caller must hold the `admin` role. |
+| `POST /v1/users/{user_id}/roles` | Assigns a role. `204` on success, `404` if the role is not in the catalogue. Caller must hold `admin`. |
+| `DELETE /v1/users/{user_id}/roles/{role}` | Revokes a role. `204` on success, and also `204` if the role was already absent. Caller must hold `admin`. |
+| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
+
+### Asserted identity
+
+The administrative endpoints take identity from **headers**, not from a token this service validates. The two are declared unevenly:
+
+- `X-User-Id` — caller-asserted user identifier. Optional. Declared on four operations: `GET /v1/users/me`, `GET /v1/users`, `POST /v1/users/{user_id}/roles`, and `DELETE /v1/users/{user_id}/roles/{role}`. The contract advertises no maximum length, deliberately, so that a boundary caller does not get a hard `4xx`; an implementation may clamp it instead.
+- `X-User-Email` — caller-asserted email. Optional. Declared on `GET /v1/users/me` alone.
+
+`GET /v1/roles` declares no parameters at all and therefore takes neither header.
+
+OIDC token validation lives entirely in the core, so this service makes no assumption about the upstream identity provider and does not verify the assertion. That is only safe because the service is reachable from the core alone. **The core sends neither header on any live path** — they matter only if you call these endpoints yourself.
+
+## POST /v1/check
+
+```
+{
+  "user_id": "someone@example.com",
+  "cloud": "azure",
+  "project": "my-project",
+  "environment": "dev"
+}
+```
+
+`cloud` and `project` are required; `user_id` and `environment` are nullable. `additionalProperties` is `false`.
+
+| Field | Limits | Meaning |
+| --- | --- | --- |
+| `user_id` | 1-1024 chars, nullable | The user to check. Null for an anonymous flow. The core sends the caller’s email, falling back to the token subject when there is no email. |
+| `cloud` | 1-32 chars, required | `azure`, `gcp`, and so on. |
+| `project` | 1-256 chars, required | The resource being checked. |
+| `environment` | 1-32 chars, nullable | Deployment dimension — `dev`, `pro`. |
+
+The response:
+
+```
+{
+  "authorized": true,
+  "portal_url": null,
+  "reason": "Permissive OSS reference impl: all checks return true. Replace this implementation with real authorization logic (e.g., cloud SPN access check) for production."
+}
+```
+
+That is the bundled implementation’s actual answer. A policy-backed implementation puts its own explanation in `reason` and a console deep link in `portal_url`; the bundled one always leaves `portal_url` null.
+
+| Field | Meaning |
+| --- | --- |
+| `authorized` | Required boolean. The decision. |
+| `portal_url` | Nullable, ≤2048 chars. A link to the cloud console for the resource. Null when the implementation has no portal-URL convention. The core passes it through as `portalUrl`. |
+| `reason` | Nullable, ≤1024 chars. Human-readable explanation, useful in the UI and in debugging. |
+
+A denial is still `200`: the decision was computed, and it was "no". The error statuses are for cases where no decision could be reached.
+
+| Status | Meaning |
+| --- | --- |
+| `200` | A decision was computed, granted or denied. |
+| `400` | The body could not be parsed at the transport layer. |
+| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
+| `422` | Well-formed JSON that failed schema validation. |
+| `502` | The downstream identity or cloud backend returned an error. |
+
+## The bundled implementation
+
+`services/authz/` is **permissive by default**: `POST /v1/check` returns `authorized: true` unconditionally. It exists so a fresh deployment works end to end, and it is the reason the service ships disabled — an enabled permissive authorizer is worse than none, because it looks like a control.
+
+> **Note**
+> **The contract’s description of this implementation is stale.** Both the document summary and the `POST /v1/check` description say the reference implementation answers "based on whether the service’s own Service Principal can resolve the resource". It does not: the handler makes no cloud call, resolves no credentials, and has no Service Principal. It branches on `NEBULA_AUTHZ_PERMISSIVE` alone — true returns `authorized: true`, false returns `authorized: false` with a `reason` naming the cloud and project. This page describes the code’s actual behaviour.
+
+`NEBULA_AUTHZ_PERMISSIVE` is the only knob Nebula’s own flow exercises. Setting it to `false` flips the default to `authorized: false`, which makes a misconfiguration visible instead of silently allowing everything. A production deployment replaces the body of `/v1/check` with real logic — directory groups, a CMDB-driven policy, a cloud IAM query — rather than tuning this flag.
+
+The other endpoints are backed by a JSON file at `NEBULA_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a container-local path, so role assignments are lost when the container is recreated. Point it at a mounted path if they need to survive. When `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set, the record with that email is granted the `admin` role at startup, and that email is also the record’s key and `id`. Again: this store governs only this service’s own administrative endpoints.
+
+> **Warning**
+> **A long IaC path produces a `502`.** The web application sends the repository URL as `project` and the IaC path as `environment`. The contract caps `environment` at 32 characters, so a longer path fails schema validation with `422` — which the core, refusing to fail open, surfaces as `502`. This only bites when `services.authz.enabled` is `true`.
+
+### Configuration
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `NEBULA_AUTHZ_TOKEN` | no | Bearer token clients must present. Blank accepts every request. |
+| `NEBULA_AUTHZ_PERMISSIVE` | no | Default `true` — `/v1/check` answers true unconditionally. Set `false` for an explicit-deny default. |
+| `NEBULA_AUTHZ_ROLE_STORE` | no | Path to the roles JSON file, default `/data/roles.json`. Configures this service’s own store only; Nebula never reads it. |
+| `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` | no | Email granted the `admin` role at startup, in this service’s own store. |
+
+## Conformance
+
+The implementation-agnostic Schemathesis suite at `contracts/conformance/authz/` runs against any implementation of this contract:
+
+```
+cd contracts/conformance/authz
+uv sync
+uv run pytest \
+  --service-url=https://authz.your.example \
+  --service-token=$YOUR_TOKEN
+```
+
+`--service-token` is needed only if the implementation enforces authentication.
+
+The suite checks schema conformance of the responses and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that the decisions are **correct** — a permissive implementation that grants everything passes it. Correctness of the policy is your own test suite’s job.
+
+## Next steps
+
+- [Roles and permissions](../../roles-and-permissions/) for the roles that actually gate Nebula.
+- [Core API](../core/) for the one core route that consults this service.
+- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
+
+---
+
+# HTTP APIs
+
+Source: /stable/main/reference/api/
+
+A Nebula deployment has two kinds of HTTP surface, and they are documented from two different sources.
+
+The **core API** is the browser-facing orchestration API. It is a FastAPI application whose routers live in `core/src/api/v1/`. There is no hand-written specification for it: the routers are the source of truth, and FastAPI derives the OpenAPI document from them at runtime. [Core API](core/) documents every route it exposes.
+
+The **sidecar contracts** are four hand-written OpenAPI 3.1 documents in `contracts/openapi/`. They define what the core expects of the authorization, IaC, mapping, and notifications services. Here the specification is the source of truth and the services under `services/` are reference implementations of it — the core calls them through a generated client and never imports an implementation directly. Each sidecar page below documents its contract and folds in the behaviour of the bundled reference implementation.
+
+[Core API](core/)
+
+Every route under `/api/v1`, grouped by router, with the role each one requires and the shape it returns.
+
+[IaC sidecar API](iac/)
+
+The mandatory sidecar: one IaC engine command per asynchronous job, polled by the core. Scope injection, import discovery, and state backends.
+
+[Notifications sidecar API](notifications/)
+
+Channel-agnostic notification dispatch. The bundled implementation posts to a Slack incoming webhook.
+
+[Mapping sidecar API](mapping/)
+
+Resolves a business identifier into a repository URL, branch, and sub-path. The bundled implementation is an identity passthrough.
+
+[Authorization sidecar API](authz/)
+
+Per-resource cloud access decisions. Consulted from exactly one core route, and disabled by default.
+
+## Where the core API lives
+
+The core mounts every router under `/v1` and runs with `root_path="/api"`, so the reverse proxy publishes the routes as `/api/v1/…​`. Every path in this reference is written with that prefix, because it is the path a browser or an external client uses. Inside the container the same route answers at `/v1/…​`.
+
+FastAPI’s own interactive documentation is generated from the same routers and is reachable at `/api/docs` on a running deployment, with the raw OpenAPI document at `/api/openapi.json`.
+
+## Where the sidecar contracts live
+
+`contracts/` is the source of truth for what every Nebula service — including third-party and enterprise implementations — must satisfy:
+
+- `contracts/openapi/<service>.v1.yaml` — one hand-written OpenAPI 3.1 document per service. The major version is in the file name and in the URL path (`/v1/…​`); a breaking change requires a new major and a new file.
+- `contracts/conformance/<service>/` — a Schemathesis test pack that any implementation must pass to claim conformance. Every sidecar page has a Conformance section with the command.
+
+Three conventions hold across all four contracts:
+
+- **Errors** are RFC 7807 problem documents (`application/problem+json`) on every endpoint.
+- **Authentication** is a per-service bearer token (`Authorization: Bearer <token>`). The core reads the value from the environment variable named by `services.<name>.token_env`; the sidecar reads it from its own variable. The two must match. Every reference implementation treats a blank token as "accept every request", which is acceptable only on an isolated workstation.
+- **Liveness** is `GET /healthz`, which answers `200` with `{"status":"ok"}` on every service and is the only endpoint outside `/v1` and the only one that needs no token.
+
+Each service is addressed through `services.<name>.endpoint`. The checked-in defaults are the compose-network names: `http://iac:8082`, `http://notifications:8080`, `http://mapping:8081`, and `http://authz:8083`. Only the IaC service is mandatory; the other three default to `enabled: false`. See [the `services` section](../configuration/#config-services) of the configuration reference.
+
+## The generated clients
+
+`core/src/clients/{authz,iac,mapping,notifications}/` is **generated code**, produced from the contracts with `openapi-python-client`. Do not hand-edit it.
+
+After changing a contract, regenerate the client for that service or the core keeps speaking the old shape. The command, the reason the generator drops the SPDX headers, and how to put them back are in [Regenerating sidecar clients](../../guides/development/#regenerating-clients).
+
+## Next steps
+
+- [Core API](core/) for the routes a client of Nebula calls.
+- [Deploy to production](../../guides/deploy-to-production/) for which sidecars to enable, replace, or leave off.
+- [Configuration](../configuration/) for the `services` block that wires all four.
+
+---
+
+# Mapping sidecar API
+
+Source: /stable/main/reference/api/mapping/
+
+The mapping service answers one question: **given what my organization calls this thing, which repository holds its IaC?** The identifier can be a project name, a subscription code, a product slug, or a full git URL — whatever the organization already uses. The service returns the clone URL and, when its catalogue knows them, the Terraform provider the identifier deploys with and the cloud scope it deploys into.
+
+Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are best effort, and **`null` means "I do not know, ask the user"** — never "there is none". The wizard skips its provider and scope questions for any field the mapper answers, so a confident wrong answer is worse than `null`: the user is never prompted and never sees it. An implementation returns `null` whenever its catalogue is not authoritative.
+
+Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint: `http://mapping:8081`. Bearer token: the value of the variable named by `services.mapping.token_env`, `NEBULA_MAPPING_TOKEN` by default. The service is **optional** and ships disabled (`services.mapping.enabled: false`).
+
+It is internal-only. The browser never reaches it: the core forwards requests through `POST /api/v1/mapping/resolve`.
+
+## Endpoints
+
+Two paths.
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /v1/resolve` | Translates `identifier` into the repository the rest of Nebula operates on, and optionally into the Terraform provider and cloud scope the caller would otherwise have to ask the user for. |
+| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
+
+## Request
+
+```
+{"identifier": "my-project", "terraform_provider": "azure"}
+```
+
+Only `identifier` is required. `additionalProperties` is `false`.
+
+| Field | Limits | Meaning |
+| --- | --- | --- |
+| `identifier` | 1-1024 chars | The business identifier to resolve. Free-form by design. |
+| `terraform_provider` | enum, nullable | The provider the caller already knows the deployment targets — one of `azure`, `gcp`, `aws`, `oci`, `kubernetes` (the core’s own vocabulary, not Terraform registry names such as `azurerm` or `google`). An implementation may use it to disambiguate an identifier that spans clouds, and must echo it back when it is sent. May be omitted or sent as null, meaning the caller does not know either. |
+
+The wizard never sends `terraform_provider`: resolution runs at the repository step, before a provider has been picked. The field exists for contract completeness and for callers other than the wizard.
+
+## Response
+
+```
+{
+  "repo_url": "https://github.com/me/my-iac.git",
+  "identifier": "my-project",
+  "terraform_provider": "azure",
+  "scope_id": "0000aaaa-11bb-cccc-dd22-eeeeee333333"
+}
+```
+
+| Field | Limits | Meaning |
+| --- | --- | --- |
+| `repo_url` | 1-2048 chars, required | The URL Nebula clones. Free-form because git accepts many URL shapes — `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute path. Returning something the deployment’s git client can actually clone is the implementation’s responsibility. When the identifier already is a repository URL, it is passed through unchanged. |
+| `identifier` | 1-1024 chars, required | The request’s `identifier`, echoed verbatim. Normative rather than conventional: callers correlate responses on it. |
+| `terraform_provider` | enum, nullable | The provider the deployment targets. Echoes the request’s value when one was sent; otherwise the implementation’s best-effort answer, or `null` for "I do not know, ask the user". Never a guess — the caller skips its provider prompt when this is non-null, so a wrong value is never seen or corrected. |
+| `scope_id` | 1-1024 chars, nullable | The cloud scope the deployment targets — Azure: subscription id, GCP: project id, AWS: account id, OCI: compartment OCID — as a best-effort answer, or `null` for "I do not know, ask the user". Same warning as `terraform_provider`: a wrong value sends the user into a plan against the wrong scope with nothing to catch it. The core does not validate the value against the wizard’s typed-scope pattern, so an OCID is accepted here even though it cannot be typed in the wizard. |
+
+`additionalProperties` is `false` on the response too, so a client can rely on these four keys being the whole of it.
+
+### Status codes
+
+| Status | Meaning |
+| --- | --- |
+| `200` | Resolved. |
+| `400` | The body could not be parsed at the transport layer — malformed JSON, non-UTF-8 bytes, no `Content-Type`. May be a problem document or a framework-default body. |
+| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
+| `403` | The token is valid but not authorized for this endpoint. |
+| `404` | The identifier is not in the catalogue. The contract reserves this for a clean negative answer, **distinct** from a transient backend failure, which is a `5xx`. |
+| `422` | Well-formed JSON that failed schema validation, including a `terraform_provider` outside the enum. |
+| `502` | The downstream catalogue or CMDB returned an error. |
+
+The `404`-versus-`502` split is the one design decision a catalogue implementation should get right: it is what lets the core tell a user "no such project" instead of "try again later".
+
+## How the core consumes the answer
+
+The core calls the service from `POST /api/v1/mapping/resolve` and surfaces a timeout as `504` and an unreachable sidecar as `502`. Two more answers are also `502`: a body the core cannot parse, and a `terraform_provider` outside the contract’s enum (the generated client hands the raw string through, and the core refuses it rather than letting it fail later). There is no silent fallback once the sidecar is enabled.
+
+When the sidecar is disabled (the shipped default) the core answers byte-for-byte what the bundled service would: `repo_url` and `identifier` both echo the input, `terraform_provider` echoes whatever was sent, and `scope_id` is `null`. Toggling `services.mapping.enabled` therefore changes nothing for a user who pastes a repository URL.
+
+## The bundled implementation
+
+`services/mapping/` is an **identity passthrough**. Whatever `identifier` arrives comes back as both `repo_url` and `identifier`, `terraform_provider` echoes what the caller sent, and `scope_id` is always `null`. Nothing is truncated and nothing is guessed: sniffing `azure` out of a `dev.azure.com` URL would conflate "hosted on Azure DevOps" with "deploys to Azure", and a guess is a question the user never gets to correct. It exists so a fresh deployment works end to end without anyone writing a real mapper, and it is exactly right for users who pass real git URLs already.
+
+A catalogue-backed implementation replaces it: look the identifier up in a CMDB, Backstage, or a shared spreadsheet and return the canonical IaC repository, plus the provider and scope when the catalogue is authoritative for them. The contract carries the result and says nothing about where the lookup data lives.
+
+### Responses it never produces
+
+The contract documents `400`, `403`, `404`, and `502` for real catalogue backends. The passthrough emits none of them — it has no catalogue to miss in and no authorization concept beyond the bearer token. It only ever answers `200`, `401`, `422`, or `500`. A caller must still handle the full set, because a catalogue implementation will use it.
+
+### Configuration
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `NEBULA_MAPPING_TOKEN` | no | Bearer token clients must present. Blank disables the check entirely and accepts every request. |
+
+## Conformance
+
+The implementation-agnostic Schemathesis suite at `contracts/conformance/mapping/` runs against any implementation of this contract:
+
+```
+cd contracts/conformance/mapping
+uv sync
+uv run pytest \
+  --service-url=https://mapping.your.example \
+  --service-token=$YOUR_TOKEN
+```
+
+`--service-token` is needed only if the implementation enforces authentication.
+
+The suite generates requests from the OpenAPI document and checks schema conformance of the responses. It cannot check that the identifiers your catalogue resolves are the **right** repositories, nor that a provider or scope it answers is true — that is what the implementation’s own tests are for.
+
+## Next steps
+
+- [Core API](../core/) for the core route that wraps this one.
+- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
+- [Make a request](../../../guides/make-a-request/) for which wizard questions a mapper’s answers skip.
+
+---
+
+# Notifications sidecar API
+
+Source: /stable/main/reference/api/notifications/
+
+The notifications service delivers an event the core wants a human to see. The contract is deliberately **channel-agnostic**: a caller never names a channel. It describes an event and identifies an audience, and the implementation decides where that lands — which Slack channel, which Teams group, which mailing list, which pager rotation.
+
+Contract: `contracts/openapi/notifications.v1.yaml`. Default endpoint: `http://notifications:8080`. Bearer token: the value of the variable named by `services.notifications.token_env`, `NEBULA_NOTIFICATIONS_TOKEN` by default. The service is **optional** and ships disabled (`services.notifications.enabled: false`).
+
+## Endpoints
+
+Two paths.
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /v1/notify` | Validates a notification and queues it for delivery. Answers `202 Accepted` as soon as the request is accepted — delivery happens out of band and is not guaranteed to have finished when the call returns. |
+| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. Does not check downstream connectivity, so a `200` here does not mean Slack is reachable. |
+
+Implementations are encouraged, but not required, to be idempotent on `kind` plus `subject` plus `body` within a short window so that a caller retry does not double-post.
+
+## Request
+
+```
+{
+  "kind": "iac.terraform.apply_completed",
+  "severity": "info",
+  "subject": "Apply completed for session a1b2c3",
+  "body": "3 added, 1 changed, 0 destroyed.",
+  "audience": ["someone@example.com"],
+  "links": [{"label": "Pull request", "url": "https://github.com/..."}],
+  "context": {"session_id": "a1b2c3"}
+}
+```
+
+`kind`, `severity`, `subject`, and `body` are required. `additionalProperties` is `false`, so an undeclared field is a `422` rather than a silently ignored one.
+
+| Field | Limits | Meaning |
+| --- | --- | --- |
+| `kind` | 1-128 chars | Event category. Free-form by design; the convention is dotted lowercase — `iac.terraform.plan_completed`, `iac.terraform.apply_completed`, `system.error`. An implementation may route on it. |
+| `severity` | enum | One of `info`, `warning`, `error`, `critical`. |
+| `subject` | 1-256 chars | Single-line summary, suitable as a notification title. |
+| `body` | 1-16384 chars | The message. Markdown is permitted; whether it is rendered or passed through verbatim is the implementation’s choice. |
+| `audience` | ≤256 items | Implementation-specific recipient identifiers — email addresses, Slack handles, Teams group ids. An implementation that routes by other means may ignore it. |
+| `links` | ≤32 items | Structured links to render. Each is `{"label": …​, "url": …​}` with `label` 1-128 characters and `url` a URI of at most 2048. |
+| `context` | free-form | Arbitrary structured context. An implementation must not assume any particular shape. |
+
+## Responses
+
+`202 Accepted` carries the delivery identifier:
+
+```
+{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
+```
+
+It identifies the **delivery attempt**, not a durable record the caller can later query: the contract has no endpoint that takes it back. Its value is correlating a core log line with the sidecar’s own.
+
+| Status | Meaning |
+| --- | --- |
+| `400` | The body could not be parsed at the transport layer — malformed JSON, non-UTF-8 bytes, no `Content-Type`. May be a problem document or a framework-default body. |
+| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
+| `403` | The token is valid but not authorized for this endpoint. |
+| `422` | Well-formed JSON that failed schema validation. |
+| `502` | The downstream channel returned an error or could not be reached. |
+| `503` | The service is running but not configured — no webhook URL, for example. |
+
+## How the core uses it
+
+The core never exposes this contract directly. Its own `POST /api/v1/notifications` route takes the same event description **minus** `audience`, and derives the recipient list server-side from the caller’s identity before forwarding. A client therefore cannot address a notification to somebody else. See [Core API](../core/).
+
+The core also fires notifications of its own accord — an apply failure, for instance, is reported this way rather than raised. When the service is disabled the core’s route answers `503`; when a forward fails it answers `502`.
+
+## The bundled implementation
+
+`services/notifications/` posts to a single Slack channel through an incoming webhook. It exists to be useful out of the box and to be a readable worked example for anyone writing a Teams, email, or PagerDuty implementation of the same contract.
+
+A notification becomes a Slack attachment, colour-coded by severity, with an action button per link. Two limits shape the rendering, one Slack’s and one the service’s own:
+
+- Slack allows five buttons per attachment, so links past the fifth continue in follow-up attachments.
+- The service caps field values at 1000 characters, well under Slack’s own per-field limit, so one oversized value cannot push the rest of the card out of view. A context value over the cap is truncated and ends with an ellipsis; an audience list over it is cut at a recipient boundary and ends with `+N more`.
+
+The bearer token is compared in constant time. If `NEBULA_NOTIFICATIONS_TOKEN` is blank the service accepts every request — acceptable on an isolated workstation, not on a shared network.
+
+A non-2xx answer from Slack, or an unreachable Slack, becomes `502` with an RFC 7807 body whose title is `Downstream channel error` and which carries **no** detail. That is deliberate: the webhook URL is the Slack credential, and the HTTP client embeds it in every error message, so echoing the underlying error would leak it into the core’s logs.
+
+### Responses it never produces
+
+The contract documents `400`, `403`, and `503`; this implementation emits none of them. Request validation runs before the handler, so a bad body is a `422` rather than a `400`. It has no authorization concept beyond the bearer token, so there is nothing to answer `403` with. And `503` is unreachable because the process refuses to boot without a webhook URL. Another implementation of the same contract may use all three, so a caller must still handle them.
+
+### Configuration
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `SLACK_WEBHOOK_URL` | yes | Slack incoming-webhook URL. The service refuses to start without it. |
+| `NEBULA_NOTIFICATIONS_TOKEN` | no | Bearer token clients must present. Blank accepts every request. |
+| `LOG_LEVEL` | no | Root log level, default `INFO`. |
+
+Configuration is asserted at startup: a missing webhook URL or an unknown log level raises a configuration error and the process exits, so a deployment that could not deliver anything fails at boot rather than on the first notification. Under `docker compose` that shows up as the `notifications` container exiting until `services/notifications/.env` sets the URL. The core treats its notifications as best-effort and keeps working.
+
+### Troubleshooting
+
+The service reports a problem in one place only — the `application/problem+json` response to the caller. It writes no log lines of its own, so `docker compose logs -f notifications` shows just the server’s access and error output. It does not trace deliveries.
+
+- **The container exits at boot with a configuration error.** Set `SLACK_WEBHOOK_URL`, and a valid `LOG_LEVEL`, in `services/notifications/.env`.
+- **The core gets `401`.** `NEBULA_NOTIFICATIONS_TOKEN` differs between `core/.env` and `services/notifications/.env`.
+- **`502 Downstream channel error`.** Slack rejected the payload or was unreachable. Check the webhook URL is still valid in Slack.
+- **Nothing arrives and the core logs `Failed to send '<kind>' notification`.** Check the `services.notifications` block in `config.yaml`, and that the core image was rebuilt after the change — `config.yaml` is baked into the image.
+
+## Conformance
+
+The implementation-agnostic Schemathesis suite at `contracts/conformance/notifications/` runs against any implementation of this contract:
+
+```
+cd contracts/conformance/notifications
+uv sync
+uv run pytest \
+  --service-url=https://notifications.your.example \
+  --service-token=$YOUR_TOKEN
+```
+
+`--service-token` is needed only if the implementation enforces authentication.
+
+The suite generates requests from the OpenAPI document and checks that response bodies match the declared schemas and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that a notification actually reached a human, so a green run on an implementation with a stale webhook URL is still possible.
+
+## Next steps
+
+- [Core API](../core/) for the core route that wraps this one.
+- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
+- [Deploy to production](../../../guides/deploy-to-production/) for the decision of whether to run the bundled implementation at all.
 
 ---
 
@@ -16124,462 +16592,6 @@ Status rows are appended to PostgreSQL with a Redis write-through; there is no m
 - Every run installs a per-session tracer exporting OpenInference-annotated spans — LLM, tool, chain, Terraform — to Phoenix over OTLP/HTTP.
 - Prompt templates live in Phoenix as a runtime registry, seeded at boot and fetched per request by environment tag, so prompt edits apply without a redeploy.
 - Notifications are fire-and-forget: the facade no-ops when the sidecar is disabled and logs every send failure instead of failing the pipeline.
-
----
-
-# Authorization sidecar API
-
-Source: /stable/main/reference/api/authz/
-
-The authorization service answers **may this user operate on this cloud resource?** — a question about a subscription, a project, or an account, asked before Nebula runs anything against a live environment.
-
-Contract: `contracts/openapi/authz.v1.yaml`. Default endpoint: `http://authz:8083`. Bearer token: the value of the variable named by `services.authz.token_env`, `NEBULA_AUTHZ_TOKEN` by default. The service is **optional** and ships disabled (`services.authz.enabled: false`).
-
-> **Important**
-> **Nebula’s own roles do not live here.** The operation roles (`developer` < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide what a signed-in user can do are rows in the core database, managed from the admin panel. This service has a role store of its own, and it has no effect on any of that. See [Roles and permissions](../../roles-and-permissions/).
-
-## What the core actually calls
-
-The contract describes seven paths. **The core calls one of them.**
-
-`POST /api/v1/auth/authorize` — and nothing else in the core — forwards to `POST /v1/check`. The other five `/v1` paths exist for callers of this service directly, or for an organization building on the bundled implementation, to administer that service’s own user and role store. The generated client contains methods for them; nothing in the core invokes them.
-
-When `services.authz.enabled` is `false`, the shipped default, the core does not call out at all and answers authorized. When it is enabled, the core **never** fails open:
-
-| Situation | What the core answers |
-| --- | --- |
-| Sidecar unreachable, or the call times out | `502` or `504` |
-| Sidecar returns a `4xx` or `5xx` | `502` |
-| Sidecar returns `200` | The decision it computed, passed through |
-
-A `422` from the sidecar is therefore visible at the browser as a `502`, which matters for one specific shape of request — see [The bundled implementation](#the-bundled-implementation).
-
-## Endpoints
-
-| Endpoint | What it does |
-| --- | --- |
-| `POST /v1/check` | Decides whether a user may operate on a named cloud resource. **The only endpoint Nebula uses.** |
-| `GET /v1/users/me` | Returns the calling user’s record and roles, creating an empty record if none exists. |
-| `GET /v1/roles` | Lists the role names the service knows. |
-| `GET /v1/users` | Lists all known users. Caller must hold the `admin` role. |
-| `POST /v1/users/{user_id}/roles` | Assigns a role. `204` on success, `404` if the role is not in the catalogue. Caller must hold `admin`. |
-| `DELETE /v1/users/{user_id}/roles/{role}` | Revokes a role. `204` on success, and also `204` if the role was already absent. Caller must hold `admin`. |
-| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
-
-### Asserted identity
-
-The administrative endpoints take identity from **headers**, not from a token this service validates. The two are declared unevenly:
-
-- `X-User-Id` — caller-asserted user identifier. Optional. Declared on four operations: `GET /v1/users/me`, `GET /v1/users`, `POST /v1/users/{user_id}/roles`, and `DELETE /v1/users/{user_id}/roles/{role}`. The contract advertises no maximum length, deliberately, so that a boundary caller does not get a hard `4xx`; an implementation may clamp it instead.
-- `X-User-Email` — caller-asserted email. Optional. Declared on `GET /v1/users/me` alone.
-
-`GET /v1/roles` declares no parameters at all and therefore takes neither header.
-
-OIDC token validation lives entirely in the core, so this service makes no assumption about the upstream identity provider and does not verify the assertion. That is only safe because the service is reachable from the core alone. **The core sends neither header on any live path** — they matter only if you call these endpoints yourself.
-
-## POST /v1/check
-
-```
-{
-  "user_id": "someone@example.com",
-  "cloud": "azure",
-  "project": "my-project",
-  "environment": "dev"
-}
-```
-
-`cloud` and `project` are required; `user_id` and `environment` are nullable. `additionalProperties` is `false`.
-
-| Field | Limits | Meaning |
-| --- | --- | --- |
-| `user_id` | 1-1024 chars, nullable | The user to check. Null for an anonymous flow. The core sends the caller’s email, falling back to the token subject when there is no email. |
-| `cloud` | 1-32 chars, required | `azure`, `gcp`, and so on. |
-| `project` | 1-256 chars, required | The resource being checked. |
-| `environment` | 1-32 chars, nullable | Deployment dimension — `dev`, `pro`. |
-
-The response:
-
-```
-{
-  "authorized": true,
-  "portal_url": null,
-  "reason": "Permissive OSS reference impl: all checks return true. Replace this implementation with real authorization logic (e.g., cloud SPN access check) for production."
-}
-```
-
-That is the bundled implementation’s actual answer. A policy-backed implementation puts its own explanation in `reason` and a console deep link in `portal_url`; the bundled one always leaves `portal_url` null.
-
-| Field | Meaning |
-| --- | --- |
-| `authorized` | Required boolean. The decision. |
-| `portal_url` | Nullable, ≤2048 chars. A link to the cloud console for the resource. Null when the implementation has no portal-URL convention. The core passes it through as `portalUrl`. |
-| `reason` | Nullable, ≤1024 chars. Human-readable explanation, useful in the UI and in debugging. |
-
-A denial is still `200`: the decision was computed, and it was "no". The error statuses are for cases where no decision could be reached.
-
-| Status | Meaning |
-| --- | --- |
-| `200` | A decision was computed, granted or denied. |
-| `400` | The body could not be parsed at the transport layer. |
-| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
-| `422` | Well-formed JSON that failed schema validation. |
-| `502` | The downstream identity or cloud backend returned an error. |
-
-## The bundled implementation
-
-`services/authz/` is **permissive by default**: `POST /v1/check` returns `authorized: true` unconditionally. It exists so a fresh deployment works end to end, and it is the reason the service ships disabled — an enabled permissive authorizer is worse than none, because it looks like a control.
-
-> **Note**
-> **The contract’s description of this implementation is stale.** Both the document summary and the `POST /v1/check` description say the reference implementation answers "based on whether the service’s own Service Principal can resolve the resource". It does not: the handler makes no cloud call, resolves no credentials, and has no Service Principal. It branches on `NEBULA_AUTHZ_PERMISSIVE` alone — true returns `authorized: true`, false returns `authorized: false` with a `reason` naming the cloud and project. This page describes the code’s actual behaviour.
-
-`NEBULA_AUTHZ_PERMISSIVE` is the only knob Nebula’s own flow exercises. Setting it to `false` flips the default to `authorized: false`, which makes a misconfiguration visible instead of silently allowing everything. A production deployment replaces the body of `/v1/check` with real logic — directory groups, a CMDB-driven policy, a cloud IAM query — rather than tuning this flag.
-
-The other endpoints are backed by a JSON file at `NEBULA_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a container-local path, so role assignments are lost when the container is recreated. Point it at a mounted path if they need to survive. When `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set, the record with that email is granted the `admin` role at startup, and that email is also the record’s key and `id`. Again: this store governs only this service’s own administrative endpoints.
-
-> **Warning**
-> **A long IaC path produces a `502`.** The web application sends the repository URL as `project` and the IaC path as `environment`. The contract caps `environment` at 32 characters, so a longer path fails schema validation with `422` — which the core, refusing to fail open, surfaces as `502`. This only bites when `services.authz.enabled` is `true`.
-
-### Configuration
-
-| Variable | Required | Meaning |
-| --- | --- | --- |
-| `NEBULA_AUTHZ_TOKEN` | no | Bearer token clients must present. Blank accepts every request. |
-| `NEBULA_AUTHZ_PERMISSIVE` | no | Default `true` — `/v1/check` answers true unconditionally. Set `false` for an explicit-deny default. |
-| `NEBULA_AUTHZ_ROLE_STORE` | no | Path to the roles JSON file, default `/data/roles.json`. Configures this service’s own store only; Nebula never reads it. |
-| `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` | no | Email granted the `admin` role at startup, in this service’s own store. |
-
-## Conformance
-
-The implementation-agnostic Schemathesis suite at `contracts/conformance/authz/` runs against any implementation of this contract:
-
-```
-cd contracts/conformance/authz
-uv sync
-uv run pytest \
-  --service-url=https://authz.your.example \
-  --service-token=$YOUR_TOKEN
-```
-
-`--service-token` is needed only if the implementation enforces authentication.
-
-The suite checks schema conformance of the responses and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that the decisions are **correct** — a permissive implementation that grants everything passes it. Correctness of the policy is your own test suite’s job.
-
-## Next steps
-
-- [Roles and permissions](../../roles-and-permissions/) for the roles that actually gate Nebula.
-- [Core API](../core/) for the one core route that consults this service.
-- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
-
----
-
-# HTTP APIs
-
-Source: /stable/main/reference/api/
-
-A Nebula deployment has two kinds of HTTP surface, and they are documented from two different sources.
-
-The **core API** is the browser-facing orchestration API. It is a FastAPI application whose routers live in `core/src/api/v1/`. There is no hand-written specification for it: the routers are the source of truth, and FastAPI derives the OpenAPI document from them at runtime. [Core API](core/) documents every route it exposes.
-
-The **sidecar contracts** are four hand-written OpenAPI 3.1 documents in `contracts/openapi/`. They define what the core expects of the authorization, IaC, mapping, and notifications services. Here the specification is the source of truth and the services under `services/` are reference implementations of it — the core calls them through a generated client and never imports an implementation directly. Each sidecar page below documents its contract and folds in the behaviour of the bundled reference implementation.
-
-[Core API](core/)
-
-Every route under `/api/v1`, grouped by router, with the role each one requires and the shape it returns.
-
-[IaC sidecar API](iac/)
-
-The mandatory sidecar: one IaC engine command per asynchronous job, polled by the core. Scope injection, import discovery, and state backends.
-
-[Notifications sidecar API](notifications/)
-
-Channel-agnostic notification dispatch. The bundled implementation posts to a Slack incoming webhook.
-
-[Mapping sidecar API](mapping/)
-
-Resolves a business identifier into a repository URL, branch, and sub-path. The bundled implementation is an identity passthrough.
-
-[Authorization sidecar API](authz/)
-
-Per-resource cloud access decisions. Consulted from exactly one core route, and disabled by default.
-
-## Where the core API lives
-
-The core mounts every router under `/v1` and runs with `root_path="/api"`, so the reverse proxy publishes the routes as `/api/v1/…​`. Every path in this reference is written with that prefix, because it is the path a browser or an external client uses. Inside the container the same route answers at `/v1/…​`.
-
-FastAPI’s own interactive documentation is generated from the same routers and is reachable at `/api/docs` on a running deployment, with the raw OpenAPI document at `/api/openapi.json`.
-
-## Where the sidecar contracts live
-
-`contracts/` is the source of truth for what every Nebula service — including third-party and enterprise implementations — must satisfy:
-
-- `contracts/openapi/<service>.v1.yaml` — one hand-written OpenAPI 3.1 document per service. The major version is in the file name and in the URL path (`/v1/…​`); a breaking change requires a new major and a new file.
-- `contracts/conformance/<service>/` — a Schemathesis test pack that any implementation must pass to claim conformance. Every sidecar page has a Conformance section with the command.
-
-Three conventions hold across all four contracts:
-
-- **Errors** are RFC 7807 problem documents (`application/problem+json`) on every endpoint.
-- **Authentication** is a per-service bearer token (`Authorization: Bearer <token>`). The core reads the value from the environment variable named by `services.<name>.token_env`; the sidecar reads it from its own variable. The two must match. Every reference implementation treats a blank token as "accept every request", which is acceptable only on an isolated workstation.
-- **Liveness** is `GET /healthz`, which answers `200` with `{"status":"ok"}` on every service and is the only endpoint outside `/v1` and the only one that needs no token.
-
-Each service is addressed through `services.<name>.endpoint`. The checked-in defaults are the compose-network names: `http://iac:8082`, `http://notifications:8080`, `http://mapping:8081`, and `http://authz:8083`. Only the IaC service is mandatory; the other three default to `enabled: false`. See [the `services` section](../configuration/#config-services) of the configuration reference.
-
-## The generated clients
-
-`core/src/clients/{authz,iac,mapping,notifications}/` is **generated code**, produced from the contracts with `openapi-python-client`. Do not hand-edit it.
-
-After changing a contract, regenerate the client for that service or the core keeps speaking the old shape. The command, the reason the generator drops the SPDX headers, and how to put them back are in [Regenerating sidecar clients](../../guides/development/#regenerating-clients).
-
-## Next steps
-
-- [Core API](core/) for the routes a client of Nebula calls.
-- [Deploy to production](../../guides/deploy-to-production/) for which sidecars to enable, replace, or leave off.
-- [Configuration](../configuration/) for the `services` block that wires all four.
-
----
-
-# Mapping sidecar API
-
-Source: /stable/main/reference/api/mapping/
-
-The mapping service answers one question: **given what my organization calls this thing, which repository holds its IaC?** The identifier can be a project name, a subscription code, a product slug, or a full git URL — whatever the organization already uses. The service returns the clone URL and, when its catalogue knows them, the Terraform provider the identifier deploys with and the cloud scope it deploys into.
-
-Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are best effort, and **`null` means "I do not know, ask the user"** — never "there is none". The wizard skips its provider and scope questions for any field the mapper answers, so a confident wrong answer is worse than `null`: the user is never prompted and never sees it. An implementation returns `null` whenever its catalogue is not authoritative.
-
-Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint: `http://mapping:8081`. Bearer token: the value of the variable named by `services.mapping.token_env`, `NEBULA_MAPPING_TOKEN` by default. The service is **optional** and ships disabled (`services.mapping.enabled: false`).
-
-It is internal-only. The browser never reaches it: the core forwards requests through `POST /api/v1/mapping/resolve`.
-
-## Endpoints
-
-Two paths.
-
-| Endpoint | What it does |
-| --- | --- |
-| `POST /v1/resolve` | Translates `identifier` into the repository the rest of Nebula operates on, and optionally into the Terraform provider and cloud scope the caller would otherwise have to ask the user for. |
-| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
-
-## Request
-
-```
-{"identifier": "my-project", "terraform_provider": "azure"}
-```
-
-Only `identifier` is required. `additionalProperties` is `false`.
-
-| Field | Limits | Meaning |
-| --- | --- | --- |
-| `identifier` | 1-1024 chars | The business identifier to resolve. Free-form by design. |
-| `terraform_provider` | enum, nullable | The provider the caller already knows the deployment targets — one of `azure`, `gcp`, `aws`, `oci`, `kubernetes` (the core’s own vocabulary, not Terraform registry names such as `azurerm` or `google`). An implementation may use it to disambiguate an identifier that spans clouds, and must echo it back when it is sent. May be omitted or sent as null, meaning the caller does not know either. |
-
-The wizard never sends `terraform_provider`: resolution runs at the repository step, before a provider has been picked. The field exists for contract completeness and for callers other than the wizard.
-
-## Response
-
-```
-{
-  "repo_url": "https://github.com/me/my-iac.git",
-  "identifier": "my-project",
-  "terraform_provider": "azure",
-  "scope_id": "0000aaaa-11bb-cccc-dd22-eeeeee333333"
-}
-```
-
-| Field | Limits | Meaning |
-| --- | --- | --- |
-| `repo_url` | 1-2048 chars, required | The URL Nebula clones. Free-form because git accepts many URL shapes — `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute path. Returning something the deployment’s git client can actually clone is the implementation’s responsibility. When the identifier already is a repository URL, it is passed through unchanged. |
-| `identifier` | 1-1024 chars, required | The request’s `identifier`, echoed verbatim. Normative rather than conventional: callers correlate responses on it. |
-| `terraform_provider` | enum, nullable | The provider the deployment targets. Echoes the request’s value when one was sent; otherwise the implementation’s best-effort answer, or `null` for "I do not know, ask the user". Never a guess — the caller skips its provider prompt when this is non-null, so a wrong value is never seen or corrected. |
-| `scope_id` | 1-1024 chars, nullable | The cloud scope the deployment targets — Azure: subscription id, GCP: project id, AWS: account id, OCI: compartment OCID — as a best-effort answer, or `null` for "I do not know, ask the user". Same warning as `terraform_provider`: a wrong value sends the user into a plan against the wrong scope with nothing to catch it. The core does not validate the value against the wizard’s typed-scope pattern, so an OCID is accepted here even though it cannot be typed in the wizard. |
-
-`additionalProperties` is `false` on the response too, so a client can rely on these four keys being the whole of it.
-
-### Status codes
-
-| Status | Meaning |
-| --- | --- |
-| `200` | Resolved. |
-| `400` | The body could not be parsed at the transport layer — malformed JSON, non-UTF-8 bytes, no `Content-Type`. May be a problem document or a framework-default body. |
-| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
-| `403` | The token is valid but not authorized for this endpoint. |
-| `404` | The identifier is not in the catalogue. The contract reserves this for a clean negative answer, **distinct** from a transient backend failure, which is a `5xx`. |
-| `422` | Well-formed JSON that failed schema validation, including a `terraform_provider` outside the enum. |
-| `502` | The downstream catalogue or CMDB returned an error. |
-
-The `404`-versus-`502` split is the one design decision a catalogue implementation should get right: it is what lets the core tell a user "no such project" instead of "try again later".
-
-## How the core consumes the answer
-
-The core calls the service from `POST /api/v1/mapping/resolve` and surfaces a timeout as `504` and an unreachable sidecar as `502`. Two more answers are also `502`: a body the core cannot parse, and a `terraform_provider` outside the contract’s enum (the generated client hands the raw string through, and the core refuses it rather than letting it fail later). There is no silent fallback once the sidecar is enabled.
-
-When the sidecar is disabled (the shipped default) the core answers byte-for-byte what the bundled service would: `repo_url` and `identifier` both echo the input, `terraform_provider` echoes whatever was sent, and `scope_id` is `null`. Toggling `services.mapping.enabled` therefore changes nothing for a user who pastes a repository URL.
-
-## The bundled implementation
-
-`services/mapping/` is an **identity passthrough**. Whatever `identifier` arrives comes back as both `repo_url` and `identifier`, `terraform_provider` echoes what the caller sent, and `scope_id` is always `null`. Nothing is truncated and nothing is guessed: sniffing `azure` out of a `dev.azure.com` URL would conflate "hosted on Azure DevOps" with "deploys to Azure", and a guess is a question the user never gets to correct. It exists so a fresh deployment works end to end without anyone writing a real mapper, and it is exactly right for users who pass real git URLs already.
-
-A catalogue-backed implementation replaces it: look the identifier up in a CMDB, Backstage, or a shared spreadsheet and return the canonical IaC repository, plus the provider and scope when the catalogue is authoritative for them. The contract carries the result and says nothing about where the lookup data lives.
-
-### Responses it never produces
-
-The contract documents `400`, `403`, `404`, and `502` for real catalogue backends. The passthrough emits none of them — it has no catalogue to miss in and no authorization concept beyond the bearer token. It only ever answers `200`, `401`, `422`, or `500`. A caller must still handle the full set, because a catalogue implementation will use it.
-
-### Configuration
-
-| Variable | Required | Meaning |
-| --- | --- | --- |
-| `NEBULA_MAPPING_TOKEN` | no | Bearer token clients must present. Blank disables the check entirely and accepts every request. |
-
-## Conformance
-
-The implementation-agnostic Schemathesis suite at `contracts/conformance/mapping/` runs against any implementation of this contract:
-
-```
-cd contracts/conformance/mapping
-uv sync
-uv run pytest \
-  --service-url=https://mapping.your.example \
-  --service-token=$YOUR_TOKEN
-```
-
-`--service-token` is needed only if the implementation enforces authentication.
-
-The suite generates requests from the OpenAPI document and checks schema conformance of the responses. It cannot check that the identifiers your catalogue resolves are the **right** repositories, nor that a provider or scope it answers is true — that is what the implementation’s own tests are for.
-
-## Next steps
-
-- [Core API](../core/) for the core route that wraps this one.
-- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
-- [Make a request](../../../guides/make-a-request/) for which wizard questions a mapper’s answers skip.
-
----
-
-# Notifications sidecar API
-
-Source: /stable/main/reference/api/notifications/
-
-The notifications service delivers an event the core wants a human to see. The contract is deliberately **channel-agnostic**: a caller never names a channel. It describes an event and identifies an audience, and the implementation decides where that lands — which Slack channel, which Teams group, which mailing list, which pager rotation.
-
-Contract: `contracts/openapi/notifications.v1.yaml`. Default endpoint: `http://notifications:8080`. Bearer token: the value of the variable named by `services.notifications.token_env`, `NEBULA_NOTIFICATIONS_TOKEN` by default. The service is **optional** and ships disabled (`services.notifications.enabled: false`).
-
-## Endpoints
-
-Two paths.
-
-| Endpoint | What it does |
-| --- | --- |
-| `POST /v1/notify` | Validates a notification and queues it for delivery. Answers `202 Accepted` as soon as the request is accepted — delivery happens out of band and is not guaranteed to have finished when the call returns. |
-| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. Does not check downstream connectivity, so a `200` here does not mean Slack is reachable. |
-
-Implementations are encouraged, but not required, to be idempotent on `kind` plus `subject` plus `body` within a short window so that a caller retry does not double-post.
-
-## Request
-
-```
-{
-  "kind": "iac.terraform.apply_completed",
-  "severity": "info",
-  "subject": "Apply completed for session a1b2c3",
-  "body": "3 added, 1 changed, 0 destroyed.",
-  "audience": ["someone@example.com"],
-  "links": [{"label": "Pull request", "url": "https://github.com/..."}],
-  "context": {"session_id": "a1b2c3"}
-}
-```
-
-`kind`, `severity`, `subject`, and `body` are required. `additionalProperties` is `false`, so an undeclared field is a `422` rather than a silently ignored one.
-
-| Field | Limits | Meaning |
-| --- | --- | --- |
-| `kind` | 1-128 chars | Event category. Free-form by design; the convention is dotted lowercase — `iac.terraform.plan_completed`, `iac.terraform.apply_completed`, `system.error`. An implementation may route on it. |
-| `severity` | enum | One of `info`, `warning`, `error`, `critical`. |
-| `subject` | 1-256 chars | Single-line summary, suitable as a notification title. |
-| `body` | 1-16384 chars | The message. Markdown is permitted; whether it is rendered or passed through verbatim is the implementation’s choice. |
-| `audience` | ≤256 items | Implementation-specific recipient identifiers — email addresses, Slack handles, Teams group ids. An implementation that routes by other means may ignore it. |
-| `links` | ≤32 items | Structured links to render. Each is `{"label": …​, "url": …​}` with `label` 1-128 characters and `url` a URI of at most 2048. |
-| `context` | free-form | Arbitrary structured context. An implementation must not assume any particular shape. |
-
-## Responses
-
-`202 Accepted` carries the delivery identifier:
-
-```
-{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
-```
-
-It identifies the **delivery attempt**, not a durable record the caller can later query: the contract has no endpoint that takes it back. Its value is correlating a core log line with the sidecar’s own.
-
-| Status | Meaning |
-| --- | --- |
-| `400` | The body could not be parsed at the transport layer — malformed JSON, non-UTF-8 bytes, no `Content-Type`. May be a problem document or a framework-default body. |
-| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
-| `403` | The token is valid but not authorized for this endpoint. |
-| `422` | Well-formed JSON that failed schema validation. |
-| `502` | The downstream channel returned an error or could not be reached. |
-| `503` | The service is running but not configured — no webhook URL, for example. |
-
-## How the core uses it
-
-The core never exposes this contract directly. Its own `POST /api/v1/notifications` route takes the same event description **minus** `audience`, and derives the recipient list server-side from the caller’s identity before forwarding. A client therefore cannot address a notification to somebody else. See [Core API](../core/).
-
-The core also fires notifications of its own accord — an apply failure, for instance, is reported this way rather than raised. When the service is disabled the core’s route answers `503`; when a forward fails it answers `502`.
-
-## The bundled implementation
-
-`services/notifications/` posts to a single Slack channel through an incoming webhook. It exists to be useful out of the box and to be a readable worked example for anyone writing a Teams, email, or PagerDuty implementation of the same contract.
-
-A notification becomes a Slack attachment, colour-coded by severity, with an action button per link. Two limits shape the rendering, one Slack’s and one the service’s own:
-
-- Slack allows five buttons per attachment, so links past the fifth continue in follow-up attachments.
-- The service caps field values at 1000 characters, well under Slack’s own per-field limit, so one oversized value cannot push the rest of the card out of view. A context value over the cap is truncated and ends with an ellipsis; an audience list over it is cut at a recipient boundary and ends with `+N more`.
-
-The bearer token is compared in constant time. If `NEBULA_NOTIFICATIONS_TOKEN` is blank the service accepts every request — acceptable on an isolated workstation, not on a shared network.
-
-A non-2xx answer from Slack, or an unreachable Slack, becomes `502` with an RFC 7807 body whose title is `Downstream channel error` and which carries **no** detail. That is deliberate: the webhook URL is the Slack credential, and the HTTP client embeds it in every error message, so echoing the underlying error would leak it into the core’s logs.
-
-### Responses it never produces
-
-The contract documents `400`, `403`, and `503`; this implementation emits none of them. Request validation runs before the handler, so a bad body is a `422` rather than a `400`. It has no authorization concept beyond the bearer token, so there is nothing to answer `403` with. And `503` is unreachable because the process refuses to boot without a webhook URL. Another implementation of the same contract may use all three, so a caller must still handle them.
-
-### Configuration
-
-| Variable | Required | Meaning |
-| --- | --- | --- |
-| `SLACK_WEBHOOK_URL` | yes | Slack incoming-webhook URL. The service refuses to start without it. |
-| `NEBULA_NOTIFICATIONS_TOKEN` | no | Bearer token clients must present. Blank accepts every request. |
-| `LOG_LEVEL` | no | Root log level, default `INFO`. |
-
-Configuration is asserted at startup: a missing webhook URL or an unknown log level raises a configuration error and the process exits, so a deployment that could not deliver anything fails at boot rather than on the first notification. Under `docker compose` that shows up as the `notifications` container exiting until `services/notifications/.env` sets the URL. The core treats its notifications as best-effort and keeps working.
-
-### Troubleshooting
-
-The service reports a problem in one place only — the `application/problem+json` response to the caller. It writes no log lines of its own, so `docker compose logs -f notifications` shows just the server’s access and error output. It does not trace deliveries.
-
-- **The container exits at boot with a configuration error.** Set `SLACK_WEBHOOK_URL`, and a valid `LOG_LEVEL`, in `services/notifications/.env`.
-- **The core gets `401`.** `NEBULA_NOTIFICATIONS_TOKEN` differs between `core/.env` and `services/notifications/.env`.
-- **`502 Downstream channel error`.** Slack rejected the payload or was unreachable. Check the webhook URL is still valid in Slack.
-- **Nothing arrives and the core logs `Failed to send '<kind>' notification`.** Check the `services.notifications` block in `config.yaml`, and that the core image was rebuilt after the change — `config.yaml` is baked into the image.
-
-## Conformance
-
-The implementation-agnostic Schemathesis suite at `contracts/conformance/notifications/` runs against any implementation of this contract:
-
-```
-cd contracts/conformance/notifications
-uv sync
-uv run pytest \
-  --service-url=https://notifications.your.example \
-  --service-token=$YOUR_TOKEN
-```
-
-`--service-token` is needed only if the implementation enforces authentication.
-
-The suite generates requests from the OpenAPI document and checks that response bodies match the declared schemas and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that a notification actually reached a human, so a green run on an implementation with a stale webhook URL is still possible.
-
-## Next steps
-
-- [Core API](../core/) for the core route that wraps this one.
-- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
-- [Deploy to production](../../../guides/deploy-to-production/) for the decision of whether to run the bundled implementation at all.
 
 ---
 
