@@ -38,10 +38,10 @@ The core reads variables through the names configured in
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|LLM provider credentials (`AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`
-for the shipped `azure_ai/` models; for example `ANTHROPIC_API_KEY`, or
-the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS`
-trio for other providers)
+|LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped
+`anthropic/` models; for example `AZURE_AI_API_KEY` and
+`AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` /
+`VERTEXAI_CREDENTIALS` trio, for other providers)
 |Mandatory for the provider selected by `llm.model`, `llm.small_model`
 or `llm.model_list`
 |none
@@ -179,10 +179,11 @@ resolve.
 
 *What the boot check actually covers.* The core validates the LLM
 credentials with `litellm.validate_environment` for every entry in the
-effective model list. For the shipped `config.yaml` — which selects
-`azure_ai/...` models — that check verifies *nothing*: LiteLLM has no
-validation mapping for `azure_ai`, so a missing `AZURE_AI_API_KEY` or
-`AZURE_AI_API_BASE` boots cleanly and fails on the first LLM call. For
+effective model list. Coverage depends on the provider. For the shipped
+`anthropic/...` models a missing key fails the boot. For `azure_ai/...`
+models the check verifies *nothing*: LiteLLM has no validation mapping
+for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE`
+boots cleanly and fails on the first LLM call. For
 `vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and
 `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at
 boot. Coverage is per provider (for `anthropic/*`, either
@@ -635,14 +636,10 @@ All values below are fictitious. Replace every token and URL.
 
 === Core plus IaC sidecar only (Anthropic models)
 
-Only the IaC sidecar is enabled, as in the shipped `config.yaml` — but
-the model strings below are *not* the shipped ones. The checked-in
-`config.yaml` selects Azure AI Foundry models
-(`azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`, which
-need `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`); the Vertex AI set is
-shown in the next example; `anthropic/*` is what the core falls
-back to when no `config.yaml` is loaded at all. Use this set only if
-you put the excerpt below in your own `config.yaml`.
+Only the IaC sidecar is enabled, and the model strings are the shipped
+ones — `anthropic/*` is both what the checked-in `config.yaml` selects
+and what the core falls back to when no `config.yaml` is loaded at all.
+The Vertex AI set is shown in the next example.
 
 `config.yaml` excerpt for this example:
 

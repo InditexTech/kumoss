@@ -1,73 +1,42 @@
 = Prerequisites
-:description: What the local Docker Compose deployment is for, what you need before following the quickstart, and what the repository does and does not provide.
+:description: What the local Docker Compose deployment is for and what you need before following the quickstart.
 
 This page lists what the local Docker Compose deployment is for and what
-you need before following xref:main:quickstart.adoc[Quickstart]. It also
-sets expectations about what the repository ships as a reference versus
-what you are expected to build yourself.
+you need before following xref:main:quickstart.adoc[Quickstart].
 
 == When to use this deployment
 
 Use the Compose stack to evaluate Nebula, develop on it, run demos, or test
 changes on a workstation or a throwaway virtual machine that only trusted
-people can reach. The compose file publishes ports 80 and 9000 on every
-interface of the host, so on a shared network bind them to loopback with
-a `docker-compose.override.yml` (`ports: !override` with
-`"127.0.0.1:80:80"` and `"127.0.0.1:9000:9000"` on the `proxy` service)
-or block them with a host firewall.
+people can reach.
 
 Do *not* use it for shared or production environments. As shipped it has no
 TLS, well-known default credentials for PostgreSQL and RustFS, an
 unauthenticated Phoenix console, and, unless you enable OIDC, *no
 authentication at all*: every request runs as a built-in local identity
-that holds the `devops` operation role and the panel `admin` role. For
-anything shared, read
+that holds the `devops` operation role and the panel `admin` role. It
+publishes ports 80 and 9000 on every interface of the host. For anything
+shared, read
 xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 == Requirements
 
-* Git, and Docker Engine with Docker Compose v2.24 or later (the compose
-  file uses `env_file.required` and `develop.watch`).
-* Internet access for the build.
-* As a rough guideline, the full stack (11 containers, two PostgreSQL
-  instances, Phoenix, and a Node build) is comfortable with at least 8 GB
-  RAM and 10 GB free disk.
-* Credentials for one LLM provider supported by LiteLLM.
+* Credentials for one LLM provider supported by LiteLLM. See
+  xref:main:reference/llm-providers.adoc[LLM providers and models].
+* Cloud credentials for the cloud your OpenTofu/Terraform code targets:
+  the variables your providers read to create and change the resources
+  `plan` and `apply` manage. They are given to the IaC sidecar. See
+  xref:main:reference/terraform-providers.adoc[Terraform providers].
 * A personal access token for your Git provider, with permission to push
   branches and open pull requests.
-* Cloud credentials for the cloud your OpenTofu/Terraform code targets, in
-  two grants, both given to the IaC sidecar:
-** Provider credentials — the resources `plan` and `apply` create.
-** State-backend credentials — the remote state file `init` reads and
-   writes. This deployment assumes the default: Nebula manages state
-   itself in the bundled RustFS store, so this grant is the object-storage
-   credentials you configure alongside the stack. If you instead point
-   `storage.terraform_state_bucket` to `""` so that the repository you
-   target declares its own backend (`terraform { backend ... }`), this
-   grant must reach the bucket or container that block names instead. See
-   xref:main:guides/configure-state-backends.adoc[Configure state
-   backends].
+* Git, and Docker Engine with Docker Compose v2.24 or later.
+* As a rough guideline, at least 8 GB RAM and 10 GB free disk.
 
-Git and Docker are the only things you install on the host. Everything the
-first build installs — OpenTofu and Terraform — goes into the `iac`
-container image, and the web application is compiled inside the `proxy`
-image.
-
-[#repo-provides]
-== What the repository does and does not provide
-
-Provided:
-
-* Container images for every Nebula component, built from the Dockerfiles
-  in `core/`, `nginx/`, and `services/*/`.
-* `docker-compose.yml`, which is the *reference topology*: it shows every
-  container, port, volume, and dependency. Use it as the specification of
-  what to deploy, not as the deployment.
-* OpenAPI contracts and Schemathesis conformance suites for the four
-  sidecars, so you can verify your own implementations.
-
-*Not provided:* Kubernetes manifests, Helm charts, Kustomize overlays,
-Terraform modules for the platform itself, database migrations, or a
-multi-replica execution model. Do not look for a `deploy/` or `charts/`
-directory; there is none. You write the platform definition for your
-environment using the requirements on this page.
+Separate state-backend credentials are *optional*. By default Nebula
+manages Terraform state itself in the bundled object store, so the cloud
+credentials above are all the IaC sidecar needs. A second grant is
+required only if you set `storage.terraform_state_bucket` to `""` and let
+each target repository declare its own backend, in which case it must
+reach the store that repository's `terraform { backend ... }` block names.
+See
+xref:main:guides/configure-state-backends.adoc[Configure state backends].
