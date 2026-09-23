@@ -1,0 +1,197 @@
+CONTRIBUTING.md
+  s_2cfda9e58f8c0f::t_53093922bd1301 52
+README.md
+  s_2cfda9e58f8c0f::t_33d942958ce8ec 111
+docs/.tool-versions
+  s_2cfda9e58f8c0f::t_fb0105c2ac3bc6 1
+docs/antora-playbook.local.yml
+  s_2cfda9e58f8c0f::t_9a24c10cc25e97 90-91
+docs/antora-playbook.yml
+  s_2cfda9e58f8c0f::t_024c555e1dd1cb 167-168
+docs/diagrams/database-schema.architecture.json
+  s_707b1ca4b8c65a::t_b8dbcddc451e80 1-302
+docs/diagrams/flow-phase-10.sequence.json
+  s_707b1ca4b8c65a::t_dc4806ff147033 5
+docs/diagrams/flow-phase-9.sequence.json
+  s_707b1ca4b8c65a::t_fdcfea5e428886 5
+docs/diagrams/flow-phases-1-4.sequence.json
+  s_707b1ca4b8c65a::t_752b27b64a079c 5
+docs/diagrams/flow-phases-5-6.sequence.json
+  s_707b1ca4b8c65a::t_4339884b853189 5
+docs/diagrams/flow-phases-7-8.sequence.json
+  s_707b1ca4b8c65a::t_fdb2f5cc81c401 5
+docs/diagrams/system-architecture.architecture.json
+  s_707b1ca4b8c65a::t_0a792adefc3b5d 280,282-284,289,291-293,298,300-303
+docs/package.json
+  s_2cfda9e58f8c0f::t_18de081d891d7e 6,35-37
+docs/src/antora.yml
+  s_2cfda9e58f8c0f::t_d3a82a70b91694 100-101,104-112
+docs/src/modules/main/attachments/database-schema.html
+  s_707b1ca4b8c65a::t_fc687562e6414f 1-15009
+docs/src/modules/main/attachments/deployment-topology.html
+  s_707b1ca4b8c65a::t_3d88736a22288f 1-15021
+docs/src/modules/main/attachments/flow-phase-10.html
+  s_707b1ca4b8c65a::t_622c32452ff772 1-14984
+docs/src/modules/main/attachments/flow-phase-9.html
+  s_707b1ca4b8c65a::t_08421b0aaf377b 1-14935
+docs/src/modules/main/attachments/flow-phases-1-4.html
+  s_707b1ca4b8c65a::t_f3abe7b7aba3ed 1-15001
+docs/src/modules/main/attachments/flow-phases-5-6.html
+  s_707b1ca4b8c65a::t_cb412539857527 1-14971
+docs/src/modules/main/attachments/flow-phases-7-8.html
+  s_707b1ca4b8c65a::t_01c3ab8f3dc44d 1-14970
+docs/src/modules/main/attachments/readme-components.html
+  s_707b1ca4b8c65a::t_4a8c74ee56a5ca 1-15069
+docs/src/modules/main/attachments/system-architecture.html
+  s_707b1ca4b8c65a::t_cf18992b668147 1-15057
+docs/src/modules/main/pages/about.adoc
+  s_707b1ca4b8c65a::t_12f59a2ff3fc41 22-25,34
+docs/src/modules/main/pages/additional-information.adoc
+  s_2cfda9e58f8c0f::t_732f54461889aa 6-7,29,32,138-152
+docs/src/modules/main/pages/architecture.adoc
+  s_2cfda9e58f8c0f::t_a5a8b668c98811 4-6,10-13,15-16,19-26,35-39,42-44,47-51,55-57,61-63,67-70,74-79,82-86,89-91,94-97,100-101,105-107,110-111,116-121,124-127,131-133,136-139,142-144,147-150
+docs/src/modules/main/pages/architecture/deployment-view.adoc
+  s_2cfda9e58f8c0f::t_8255b8a0092ccc 16-19,85-88,100,109,113,118,122,128-131,146,148,153
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_2cfda9e58f8c0f::t_1498892c500980 4-167,171-231,235-264,268-302,305,307-308,323-324,329-330,335-337,340-341,351,354-355,363-364,366,370-372,375-377,380-386,390-392,399,405,432,434,445,466,470-471,473,482-484,486-497,500-503,505,507,509,513-515,518,520,522-524,526,529-549,551,553,555-558,560-571,575-576,580-584,588,592-597,599,602-623,625-637,640,648,650-651,660-663,666-671,675-704,708-713,715-739,741-742,744-745,747-779,781,785-802,806-809,812,815-824,827-852,856-863,867-877
+docs/src/modules/main/pages/contributing.adoc
+  s_2cfda9e58f8c0f::t_6b902de8486e36 31-35,70-73,80
+docs/src/modules/main/pages/faq.adoc
+  s_2cfda9e58f8c0f::t_e4743906254ba2 5-7,160,230,281-283,309
+docs/src/modules/main/pages/glossary.adoc
+  s_2cfda9e58f8c0f::t_b1d4262053163a 40-45,64-69,82-87
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_2cfda9e58f8c0f::t_70079d264fe9bb 104,147-156,160-164
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_2cfda9e58f8c0f::t_4e57be7e72ed05 158,263,394-405,450-453,475-479,483-484
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_2cfda9e58f8c0f::t_2bdf9d68a306df 436-437,446,448-461
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_2cfda9e58f8c0f::t_c988c843e53c52 14,231,365
+docs/src/modules/main/pages/guides/development.adoc
+  s_2cfda9e58f8c0f::t_5d03abf885bc4b 29-33,38-40,59-61,65,69,86-87,121
+docs/src/modules/main/pages/guides/enable-authentication.adoc
+  s_2cfda9e58f8c0f::t_6be1b11f788df4 26,31-32,123-125,221-229,244-266
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_2cfda9e58f8c0f::t_a7bf3bdab2687a 35-37,41,54-59,80-81
+docs/src/modules/main/pages/guides/generate-infrastructure.adoc
+  s_2cfda9e58f8c0f::t_c84d7fd5ff50ba 54-57
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_2cfda9e58f8c0f::t_0b922641f40bc7 20-28,61-70
+docs/src/modules/main/pages/guides/merge-and-apply.adoc
+  s_2cfda9e58f8c0f::t_fbccf4a276d879 67
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_2cfda9e58f8c0f::t_3361c51fe75f3e 13,180,263,289,326
+docs/src/modules/main/pages/guides/production/hardening.adoc
+  s_2cfda9e58f8c0f::t_d0813dd0772e04 32,37-38
+docs/src/modules/main/pages/guides/production/networking-and-tls.adoc
+  s_2cfda9e58f8c0f::t_33a22c8fd30a35 28,30,42,59-60
+docs/src/modules/main/pages/guides/production/operations.adoc
+  s_2cfda9e58f8c0f::t_99982d0c2f9bf4 83-86
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_2cfda9e58f8c0f::t_58578a81a63888 23-26,28-32,123,129-133,230
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_2cfda9e58f8c0f::t_e9890236e7cda4 49-53
+docs/src/modules/main/pages/guides/state-backends/nebula-managed.adoc
+  s_2cfda9e58f8c0f::t_ae28c7a506f574 340
+docs/src/modules/main/pages/guides/state-backends/sidecar-supplied.adoc
+  s_2cfda9e58f8c0f::t_d3e0e291c71f1a 35-40
+docs/src/modules/main/pages/prerequisites.adoc
+  s_2cfda9e58f8c0f::t_26f557b30f0c78 13-17
+docs/src/modules/main/pages/quickstart.adoc
+  s_2cfda9e58f8c0f::t_f4e9dae0b941c0 67,97,254-255,445-446,453-454,457,475-492,542,548,550,553-554,620-621
+docs/src/modules/main/pages/reference-overview.adoc
+  s_2cfda9e58f8c0f::t_e4fac06f738ebe 2,4-7,11-15
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_2cfda9e58f8c0f::t_27102976c38375 16-18,35,38,42-43,134,160-161,233,269,301-302,308,310,312-314,357,367,379,414,416-418,434-435,505,530
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_2cfda9e58f8c0f::t_da1722498e765f 217-222,277-286,295-300,467,630-637,661-666,685,688,812-816
+docs/src/modules/main/pages/reference/api/notifications.adoc
+  s_2cfda9e58f8c0f::t_a2213c29070ddd 160-161,165-169,222-225
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_2cfda9e58f8c0f::t_ae18e7619e61d6 6-8,20,45-50,107,120,238-242,298-300,403,408,594-595,663,704-705
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_2cfda9e58f8c0f::t_e03ac3e6e2d939 28-29,37,39,45-46,50,59-60,66-68,74-76,82-84,90-91,106-107,111-113,121-125,131-132,139-140,175,180,193-202,229,235,289,312-314,339-340,347-349,411,481,579,620-622,627,640
+docs/src/modules/main/pages/reference/roles-and-permissions.adoc
+  s_2cfda9e58f8c0f::t_eb32cec83bd1e2 65-66,167,190,196,200,203-204,207,210
+docs/src/modules/main/pages/reference/terraform-providers.adoc
+  s_2cfda9e58f8c0f::t_05cfbfeb040f41 16-18,50-51,209-245,466-470,657-694
+docs/src/modules/main/partials/glossary/compliance-audit.adoc
+  s_2cfda9e58f8c0f::t_83e8d19517c6de 4
+docs/src/modules/main/partials/glossary/mode.adoc
+  s_2cfda9e58f8c0f::t_55389fd4a92af6 1-4
+docs/src/modules/main/partials/glossary/pinned-plan.adoc
+  s_2cfda9e58f8c0f::t_58234d36f34f47 1-5
+docs/src/modules/main/partials/glossary/round.adoc
+  s_2cfda9e58f8c0f::t_a1acbe30cdfd62 1-5
+docs/src/modules/main/partials/glossary/session-lock.adoc
+  s_2cfda9e58f8c0f::t_965a0056433941 1-5
+docs/src/modules/main/partials/glossary/session.adoc
+  s_2cfda9e58f8c0f::t_503ce6a318151b 2-3
+docs/src/modules/main/partials/glossary/workspace.adoc
+  s_2cfda9e58f8c0f::t_9db3c7d65d14b7 1-3
+.gitignore
+  s_707b1ca4b8c65a::t_6619b82944a186 100-108,115-118
+REUSE.toml
+  s_707b1ca4b8c65a::t_2f64dc1522c8d5 20,38
+docs/diagrams/README.adoc
+  s_707b1ca4b8c65a::t_80240a28b30842 2,5-6,8-110,118-121,125-163
+docs/diagrams/capture-png.mjs
+  s_707b1ca4b8c65a::t_30dc68a6a5b41c 1-233
+docs/src/modules/main/nav.adoc
+  s_707b1ca4b8c65a::t_ac31caa208afa0 14,35,42
+docs/src/modules/main/pages/architecture/data-and-state.adoc
+  s_707b1ca4b8c65a::t_90892e83ba8466 11,19-21,27-30,51,115,128-129
+docs/src/modules/main/pages/guides-overview.adoc
+  s_2cfda9e58f8c0f::t_4b04f93b97eaf8 2,4-9,17-21,29-79,82-90
+docs/src/modules/main/pages/reference/database-schema.adoc
+  s_707b1ca4b8c65a::t_2f856ce7306678 1-175
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_7ac032414854b1::t_34c54df754a490 100-104,165-169,198-202,239-240,638-650
+docs/src/modules/main/pages/reference/operating-modes.adoc
+  s_2cfda9e58f8c0f::t_9f5935485ca7f0 1-154
+docs/src/modules/main/pages/reference/repository-layout.adoc
+  s_75dd9393e5f502::t_ed4d23046696cb 34-37,75-79
+docs/src/modules/main/partials/interactive-diagram.adoc
+  s_707b1ca4b8c65a::t_3573006ce06723 1-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a666e1b0bc75c8889cc1c64182e61ad9559bbf1",
+  "prompts": {},
+  "sessions": {
+    "s_2cfda9e58f8c0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca624673-d83c-46e5-8498-81694cd6c88e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_707b1ca4b8c65a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "341f8f5d-74e6-450a-9c0f-f6a602fa82c8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_75dd9393e5f502": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a120036606cb8ce32",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_7ac032414854b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa1ae5edbcb39641a",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
