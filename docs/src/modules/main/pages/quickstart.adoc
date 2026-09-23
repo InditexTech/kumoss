@@ -32,9 +32,10 @@ is baked into the core image at build time, so every edit needs
 `docker compose build core`.
 
 The minimum is the two model strings for your LLM provider and the two
-orchestration gates. Every other field defaults to a value that matches
-the bundled stack, but those two gates default to `false`, so a file that
-omits them turns off the compliance lock and the high-impact lock.
+orchestration gates. Fields not shown use the core's code defaults; use the
+shipped file or the configuration reference when you need its non-default
+tuning. Those two gates default to `false`, so a file that omits them turns
+off the compliance lock and the high-impact lock.
 
 [source,yaml]
 ----
@@ -149,8 +150,9 @@ With authentication disabled this returns a JSON document with an empty
 RustFS console
 |===
 
-Both published ports serve unauthenticated interfaces on every interface
-of the host, so keep the stack on a machine only you can reach.
+Port 80 serves the unauthenticated Nebula application by default, while
+port 9000 exposes presigned artifact downloads and the RustFS console, on
+every interface of the host. Keep the stack on a machine only you can reach.
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can

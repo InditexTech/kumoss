@@ -427,7 +427,7 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ----
 
-The same models on Azure AI Foundry, whose credentials LiteLLM cannot
+An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot
 validate at boot (a missing value fails on the first call):
 
 [source,yaml]
