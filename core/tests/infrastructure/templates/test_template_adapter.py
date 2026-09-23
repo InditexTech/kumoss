@@ -278,6 +278,8 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             type="compliance",
             tag=system_config.environment,
         )
+        # The plan report reasons about a plan it is given, not the branch.
+        self.assertNotIn("diff_history", prompt)
 
     async def test_render_report_generator_import(self):
         # IMPORT has no dedicated report workflow: no branch is rendered
@@ -285,12 +287,25 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         mock_fetch.assert_not_awaited()
 
     async def test_render_report_generator_drift(self):
-        _, mock_fetch = await self._run_report_generator_test(ReportType.DRIFT, "drift")
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.DRIFT, "drift"
+        )
         mock_fetch.assert_not_awaited()
 
+        self.assertIn("REQUIRED FIRST STEP", prompt)
+        self.assertIn("diff_history", prompt)
+        self.assertIn("sole source of truth", prompt)
+        self.assertIn("unreconciled_drift", prompt)
+        self.assertIn("whitelisted_exceptions", prompt)
+        self.assertIn("belongs in `whitelisted_exceptions` alone", prompt)
+
     async def test_render_report_generator_apply(self):
-        _, mock_fetch = await self._run_report_generator_test(ReportType.APPLY, "apply")
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.APPLY, "apply"
+        )
         mock_fetch.assert_not_awaited()
+
+        self.assertNotIn("diff_history", prompt)
 
     async def test_render_target_generator_session(self):
         adapter = TemplateAdapter(
@@ -326,6 +341,30 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIn("report_decomposed_task_operations", prompt)
         self.assertIn("/test/project", prompt)
         self.assertIn("Trim it", prompt)
+        self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_filter_drift_exceptions(self, mock_fetch: AsyncMock):
+        mock_fetch.return_value = "mocked_drift_exceptions"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AWS, cwd="/test/project"
+        )
+
+        prompt = await adapter.render_filter_drift_exceptions()
+
+        mock_fetch.assert_awaited_once_with(
+            prompt_name="drift_exceptions",
+            scope="aws",
+            type="guidelines",
+            tag=system_config.environment,
+        )
+        self.assertIn("mocked_drift_exceptions", prompt)
+        self.assertIn("<exception_rules>", prompt)
+        self.assertIn("report_decomposed_task_operations", prompt)
+        self.assertIn("Trim it", prompt)
+        # Text-only agent: no workspace tools, no working directory.
+        self.assertNotIn("diff_history", prompt)
+        self.assertNotIn("/test/project", prompt)
         self.assertNotIn("{{", prompt)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)

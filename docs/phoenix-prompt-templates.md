@@ -32,7 +32,7 @@ core/prompts/seed/<scope>/<type>/<name>.yaml
 - `<type>` is one of `guidelines`, `resources`, `compliance`.
 - `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits, underscores).
 
-The loader rejects any other depth, scope, type, or name at startup with a `PromptSeedLoadError`, for example `Invalid prompt name 'Bad-Name' in ...; must match ^[a-z0-9_]+$`.
+The loader rejects any other depth, scope, type, or name at startup with a `PromptSeedLoadError`, for example `Invalid prompt name 'Bad-Name' in ...; must match ^[a-z0-9_]+$`. That check only applies to files it actually loads: the loader globs `*.yaml` only, so a `.yml` file, or any other extension, is silently skipped rather than rejected — a typo in the extension produces no error at all, just a missing prompt.
 
 ### Qualified name
 
@@ -66,7 +66,7 @@ Each seed is a YAML mapping with two keys:
 | `body` | yes | non-empty string | The prompt text, usually Markdown. Stored as a single user message in Phoenix. |
 | `description` | no | string | Shown in the Phoenix UI next to the prompt. |
 
-Every shipped seed provides both keys and starts with the repository's SPDX comment header.
+Every shipped seed provides both keys and starts with the repository's SPDX comment header. The loader reads `body` and `description` and ignores everything else in the mapping — an extra key is neither rejected nor surfaced anywhere; it is simply dead weight in the file.
 
 ## How seeding works
 
@@ -99,6 +99,7 @@ One set per cloud scope, applied across all resources of that cloud:
 | Name | Purpose | Used by |
 |---|---|---|
 | `abbreviations` | Table of short prefixes for resource names; the compositor offers them to the model. | Prompt compositor |
+| `drift_exceptions` | Resources and changes drift remediation must never touch. Ships as a placeholder with no exceptions. | Drift exception filter, in every drift round and every generate round's drift pre-check |
 | `forbidden_actions` | Actions the agents must refuse or avoid (for example destructive operations). | Request filter; IaC generator and compliance checker in generate rounds |
 | `networking` | Networking conventions (address plans, exposure rules, private endpoints). | IaC generator, compliance checker |
 | `permissions` | Identity and access conventions (least privilege, role assignment patterns). | IaC generator, compliance checker |
@@ -126,16 +127,16 @@ One prompt per resource type, holding the default configuration the model should
 
 ## Shipped seed inventory
 
-Every cloud scope ships the same six guideline prompts; the resource prompts differ per cloud.
+Every cloud scope ships the same seven guideline prompts; the resource prompts differ per cloud.
 
 | Scope | `guidelines` | `resources` | `compliance` |
 |---|---|---|---|
 | `general` | `requests`, `targeting_policies`, `terraform` | none | `impact`, `report` |
-| `aws` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`, `internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`, `route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc` | none |
-| `azure` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `application_insights`, `azure_openai`, `container_app`, `cosmosdb`, `function`, `key_vault`, `nat_gateway`, `network_security_group`, `postgres_flexible_server`, `redis_managed`, `resource_group`, `storage_account`, `subnet`, `virtual_machine`, `virtual_network`, `webapp` | none |
-| `gcp` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`, `cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`, `project`, `service_account`, `spanner`, `storage_bucket`, `subnetwork`, `vertex`, `vpc_network` | none |
-| `oci` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `autonomous_database`, `block_volume`, `compute_instance`, `dns_zone`, `file_storage`, `functions`, `iam_policy`, `internet_gateway`, `load_balancer`, `nat_gateway`, `network_security_group`, `object_storage`, `oke_cluster`, `security_list`, `subnet`, `vault`, `vcn` | none |
-| `kubernetes` | `abbreviations`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`, `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`, `namespace`, `network_policy`, `persistent_volume_claim`, `role`, `role_binding`, `secret`, `service`, `service_account`, `stateful_set` | none |
+| `aws` | `abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`, `internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`, `route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc` | none |
+| `azure` | `abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `application_insights`, `azure_openai`, `container_app`, `cosmosdb`, `function`, `key_vault`, `nat_gateway`, `network_security_group`, `postgres_flexible_server`, `redis_managed`, `resource_group`, `storage_account`, `subnet`, `virtual_machine`, `virtual_network`, `webapp` | none |
+| `gcp` | `abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`, `cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`, `project`, `service_account`, `spanner`, `storage_bucket`, `subnetwork`, `vertex`, `vpc_network` | none |
+| `oci` | `abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `autonomous_database`, `block_volume`, `compute_instance`, `dns_zone`, `file_storage`, `functions`, `iam_policy`, `internet_gateway`, `load_balancer`, `nat_gateway`, `network_security_group`, `object_storage`, `oke_cluster`, `security_list`, `subnet`, `vault`, `vcn` | none |
+| `kubernetes` | `abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`, `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`, `namespace`, `network_policy`, `persistent_volume_claim`, `role`, `role_binding`, `secret`, `service`, `service_account`, `stateful_set` | none |
 
 ### Guideline prompts every cloud scope must provide
 
@@ -146,10 +147,49 @@ The core requests these guideline prompts **unconditionally** for the session's 
 | Prompt compositor (every generate and drift round) | `<cloud>-guidelines-abbreviations`, `<cloud>-guidelines-resources_list` |
 | Request filter (every generate round and every partial drift round) | `<cloud>-guidelines-forbidden_actions` |
 | IaC generator and compliance checker | `<cloud>-guidelines-resource_creation`, `<cloud>-guidelines-networking`, `<cloud>-guidelines-permissions`; plus `<cloud>-guidelines-forbidden_actions` in generate rounds |
+| Drift exception filter (every drift round and every generate round's drift pre-check) | `<cloud>-guidelines-drift_exceptions` |
 
 Keep this in mind when you delete a prompt in Phoenix or trim the seed set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and `networking` seeds were missing before 2026-09-11 and have been added; an already seeded Phoenix database does not receive them until the core restarts, because only new names are pushed.)
 
 Also note that the loader's name pattern permits a leading underscore while Phoenix rejects names starting with `_`; avoid them.
+
+## Drift exception rules
+
+`<cloud>-guidelines-drift_exceptions` is the list of things drift remediation must never touch. It is read by a dedicated **drift exception filter**: after the task splitter turns a drift report into operations, and after the reconciliation filter has removed the session's own changes, this agent receives the remaining operations together with the rules and returns the ones no rule covers. Only those are remediated. Whatever it removes is logged as a warning and reported in the drift report's `whitelisted_exceptions` block, one entry per excluded change, naming the change and the rule that covers it. That block is kept apart from `unreconciled_drift`, which is for drift the round genuinely failed to fix, and it does not lower the report's outcome: leaving an excluded change alone is the intended result.
+
+The filter runs on **every** drift round, full or partial, and on the drift pre-check inside every generate round, so a generate round cannot silently "fix" an excluded resource either. That also makes the prompt mandatory for every cloud scope: a missing one aborts the round with `Prompt not found`.
+
+This is not the same brake as `general-guidelines-targeting_policies`. Targeting policies decide which resources a **partial** drift round plans at all; they never reach a full drift round and they never see the operations. Exception rules apply to the operations of every drift round, whatever produced them.
+
+### How to write one
+
+The body is prose, read by a model. Keep each exception on its own bullet, and name the resource address, type, attribute, tag, namespace or naming pattern precisely enough that an agent can match it against a sentence like "In `main.tf`, for `azurerm_key_vault.kvt_001`: update the tag `owner` from `platform` to `payments`." Say what must not be reconciled, and why — the reason is what the agent quotes back in the report.
+
+The shipped seed has three sections, and they are the rule kinds the filter understands:
+
+- **Provider quirks**: a permanent false diff the provider reports on every plan.
+- **Resources managed outside Terraform**: something another system owns and keeps changing on purpose.
+- **Environment, team and naming carve-outs**: whole slices of the estate a workload session must not touch.
+
+The agent may also *trim* an operation: when one instruction bundles an excluded change with a legitimate one, it keeps the legitimate part and drops the rest. Rules that name a single attribute are therefore as useful as rules that name a whole resource.
+
+### Worked examples
+
+```yaml
+  ## Provider quirks (permanent false diffs)
+  - The `azurerm` provider always reports a diff on the `created_at` tag
+    written by the tagging policy; never reconcile that tag.
+
+  ## Resources managed outside Terraform
+  - The values of `azurerm_key_vault_secret` are rotated by the secrets
+    platform; never reconcile them.
+
+  ## Environment, team and naming carve-outs
+  - Never reconcile resources in the `rg-shared-platform` resource
+    group; the platform team owns them.
+```
+
+With those rules in place, a drift round that found "Delete resource `azurerm_storage_account.sta_shared_001` in `rg-shared-platform`" remediates nothing, stops rather than re-planning, and lists the resource under `whitelisted_exceptions` in the report, quoting the carve-out — with the outcome still `Succeeded`, because nothing was left unreconciled involuntarily.
 
 ## How prompts are composed into a system prompt
 
@@ -157,11 +197,11 @@ For a generate or drift round the core builds the conventions in two model passe
 
 1. **First compositor pass.** The `prompt_compositor` layout is rendered with the cloud's `resources_list` (as the list of available templates) and `abbreviations` (as the list of available abbreviations). The small model reads the user's request and calls the `construct_information` tool with the resource template names and abbreviations it considers relevant. Names must match the `resources_list` entries exactly.
 2. **Second compositor pass.** The layout is rendered again, this time including the **full text** of the resource prompts selected in the first pass. The model looks for dependencies (a subnet needs a network, a function needs a storage account, and so on) and returns additional templates and abbreviations. Both passes are merged into the round's *conventions*.
-3. **Rendering the agent layouts.** The IaC generator layout (and the compliance checker layout) receives `general-guidelines-terraform`, the cloud's `resource_creation`, `networking`, and `permissions` guidelines, `forbidden_actions` in generate rounds (drift rounds omit it), and a concrete-implementation section built from the selected `<cloud>-resources-*` prompts and abbreviations. The compliance checker additionally receives `general-compliance-report`; the report generator receives `general-compliance-impact` for generate reports; the drift target generator receives `general-guidelines-targeting_policies`; the request filter receives `general-guidelines-requests` and the cloud's `forbidden_actions`.
+3. **Rendering the agent layouts.** The IaC generator layout (and the compliance checker layout) receives `general-guidelines-terraform`, the cloud's `resource_creation`, `networking`, and `permissions` guidelines, `forbidden_actions` in generate rounds (drift rounds omit it), and a concrete-implementation section built from the selected `<cloud>-resources-*` prompts and abbreviations. The compliance checker additionally receives `general-compliance-report`; the report generator receives `general-compliance-impact` for generate reports; the drift target generator receives `general-guidelines-targeting_policies`; the drift exception filter receives the cloud's `drift_exceptions`; the request filter receives `general-guidelines-requests` and the cloud's `forbidden_actions`.
 
 The layouts also carry fixed content that is not in Phoenix: the agent's role, the tools it may call, output format rules, and the working directory. Those change only with a core rebuild.
 
-**Discovery depends on `resources_list`.** Nothing enumerates the `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can only pick names that appear in `resources_list`, and every name it picks is then fetched, so a name listed there without a matching resource prompt aborts the run.
+**Discovery depends on `resources_list`.** Nothing enumerates the `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can only pick names that appear in `resources_list`, and every name it picks is then fetched, so a name listed there without a matching resource prompt aborts the run. The reverse is just as important: **a resource prompt that exists but is not named in the cloud's `resources_list` is never selected** — the compositor has no other way to discover it, and the loader does no cross-check between the seed files on disk and the `resources_list` catalogue at startup. Whenever you add a resource seed, add its name to `resources_list` in the same change, for every cloud you edit. The Azure `resources_list` now names all 16 shipped Azure resource seeds; keep it that way as you add more.
 
 ## Examples
 
@@ -189,28 +229,31 @@ body: |
 
 ### A resource (component) seed
 
-File `core/prompts/seed/aws/resources/sqs_queue.yaml`, producing `aws-resources-sqs_queue`:
+File `core/prompts/seed/aws/resources/s3_bucket.yaml` (shipped; body shortened here for space — see the file for the full text), producing `aws-resources-s3_bucket`:
 
 ```yaml
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS SQS queue default configuration (encryption, dead-letter queue, retention).
+description: AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).
 body: |
-  # AWS SQS Queue
+  # AWS S3 Bucket
 
-  For an SQS queue, unless explicitly requested otherwise:
+  For an S3 Bucket, unless explicitly requested otherwise, use the
+  following default configuration:
 
-  - Naming convention: `<project>-<purpose>-<environment>`.
-  - Enable server-side encryption with an AWS-managed KMS key.
-  - Attach a dead-letter queue with `maxReceiveCount` of 5.
-  - Set message retention to 4 days.
+  - Naming convention: `<project>-<purpose>-<environment>`. Bucket
+    names are globally unique, lowercase, 3-63 characters.
+  - Versioning must be enabled.
+  - Server-side encryption must use aws:kms with bucket key enabled.
+  - Block Public Access must be fully enabled unless the request
+    explicitly requires a public bucket.
 ```
 
 ### The matching `resources_list` entry
 
-The compositor can only select `sqs_queue` once it appears in `core/prompts/seed/aws/guidelines/resources_list.yaml` (`aws-guidelines-resources_list`). The shipped file is a bulleted catalogue; add one line in the same style:
+The compositor can only select `s3_bucket` because it appears in `core/prompts/seed/aws/guidelines/resources_list.yaml` (`aws-guidelines-resources_list`). The shipped file is a bulleted catalogue; a new resource prompt needs one more line in the same style, for example a hypothetical `sqs_queue` resource that does not ship today:
 
 ```yaml
 description: Names of aws-resources-* prompts the compositor may select from.
@@ -223,7 +266,9 @@ body: |
   ...
 ```
 
-The name in backticks must equal the `<name>` part of the resource prompt exactly.
+The name in backticks must equal the `<name>` part of the resource prompt exactly, and it must exist on both sides: a resource prompt with no `resources_list` entry is never selected, and a `resources_list` entry with no matching resource prompt aborts the run when picked.
+
+**List style is not uniform across clouds.** AWS, Azure, GCP, and OCI name entries in backticks with a trailing description, as above; the Kubernetes `resources_list` uses plain bullets with no backticks at all (` - namespace`, ` - deployment`, and so on). There is no enforced format — the compositor only needs the bare name to appear somewhere in the body. When you edit a `resources_list`, follow the style already used in that specific file rather than copying another cloud's convention.
 
 ### Adding a new component prompt to a fresh deployment
 

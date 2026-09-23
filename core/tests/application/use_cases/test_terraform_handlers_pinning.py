@@ -21,17 +21,39 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
 from src.application.use_cases.terraform_crud_handler import TerraformCRUDHandler
 from src.application.use_cases.terraform_drift_handler import TerraformDriftHandler
-from src.domains.dto import TerraformValidationDTO
+from src.domains.dto import TerraformDriftDTO, TerraformPlanDTO
 from src.domains.services.database_service import DatabaseService
+from src.domains.value_objects import PlanRef
 from src.shared.config import system_config
 
 
-def _dto(validation: bool, targets: list[str] | None = None) -> TerraformValidationDTO:
-    return TerraformValidationDTO(
-        validation=validation,
+def _ref(targets: list[str]) -> PlanRef:
+    return PlanRef(
+        workspace=Path("/workspaces/demo"),
+        plan_file="session.plan",
+        targets=tuple(targets),
+        commit="rev-round",
+        stdout="plan output",
+    )
+
+
+def _dto(validation: bool, targets: list[str] | None = None) -> TerraformPlanDTO:
+    return TerraformPlanDTO(
+        ok=validation,
         feedback="" if validation else "boom",
-        terraform_plan="plan output",
-        terraform_targets=targets or [],
+        stdout="plan output",
+        targets=targets or [],
+        plan=_ref(targets or []) if validation else None,
+    )
+
+
+def _drift_dto(in_sync: bool) -> TerraformDriftDTO:
+    return TerraformDriftDTO(
+        in_sync=in_sync,
+        drift="" if in_sync else "[drift]",
+        feedback="",
+        stdout="plan output",
+        plan=None,
     )
 
 
@@ -96,17 +118,21 @@ class TestCrudHandlerPinning(_CrudHandlerTestCase):
         self.session_svc.save.assert_awaited_once()
 
     async def test_successful_round_runs_filtered_drift_precheck_on_targets(self):
+        targets = ["module.kvt_001", "azurerm_storage_account.sta_001"]
         self.validation_svc.generate_and_validate.return_value = _dto(
-            True, targets=["module.kvt_001", "azurerm_storage_account.sta_001"]
+            True, targets=targets
         )
         self.template_svc.compose_template.return_value = "conventions"
 
         task = await self._handler().handle("create a bucket")
         await task()
 
+        # The round hands its own validated plan to the pre-check, so
+        # reading drift costs no extra plan.
         self.drift_svc.detect_and_resolve_drift.assert_awaited_once_with(
+            plan=_ref(targets),
             filter_session_changes=True,
-            targets=["module.kvt_001", "azurerm_storage_account.sta_001"],
+            targets=targets,
             conventions="conventions",
             max_iterations=2,
         )
@@ -229,13 +255,15 @@ class TestDriftHandlerFlow(_HandlerTestCase):
         )
 
     async def test_full_round_resolves_drift_unfiltered_on_all_resources(self):
-        self.drift_svc.detect_and_resolve_drift.return_value = _dto(True)
+        self.drift_svc.detect_and_resolve_drift.return_value = _drift_dto(True)
         self.template_svc.compose_template.return_value = "conventions"
 
         task = await self._handler().handle("check drift", is_partial=False)
         await task()
 
+        # Nothing has planned this workspace yet, so the check plans.
         self.drift_svc.detect_and_resolve_drift.assert_awaited_once_with(
+            plan=None,
             filter_session_changes=False,
             targets=[],
             conventions="conventions",
@@ -246,7 +274,7 @@ class TestDriftHandlerFlow(_HandlerTestCase):
         self.session_svc.save.assert_awaited_once()
 
     async def test_partial_round_targets_come_from_drift_target_generator(self):
-        self.drift_svc.detect_and_resolve_drift.return_value = _dto(False)
+        self.drift_svc.detect_and_resolve_drift.return_value = _drift_dto(False)
         self.target_svc.generate_drift.return_value = ["module.kvt_001"]
 
         task = await self._handler().handle("fix the key vault", is_partial=True)

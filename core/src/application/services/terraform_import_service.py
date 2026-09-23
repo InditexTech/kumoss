@@ -78,7 +78,7 @@ class TerraformImportService:
                 resource_id=resource_id,
                 error=result.feedback,
             )
-            if result.validation:
+            if result.ok:
                 outcome.imported.append(attempt)
             else:
                 outcome.failed.append(attempt)

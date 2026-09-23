@@ -35,6 +35,7 @@ class TemplateOrchestrationService:
             "requests_filter": self.__templates.render_requests_filter,
             "task_splitter": self.__templates.render_task_splitter,
             "filter_reconciliation": self.__templates.render_filter_reconciliation,
+            "filter_drift_exceptions": self.__templates.render_filter_drift_exceptions,
             "prompt_compositor": self.__templates.render_prompt_compositor,
             "iac_generator": self.__templates.render_iac_generator,
             "import_filter": self.__templates.render_import_filter,

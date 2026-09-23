@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import AsyncMock
 
 from src.application.services.terraform_import_service import TerraformImportService
-from src.domains.dto import TerraformDiscoveryDTO, TerraformValidationDTO
+from src.domains.dto import TerraformDiscoveryDTO, TerraformImportResourceDTO
 from src.shared.constants import TerraformProvider
 
 
@@ -22,13 +22,8 @@ def _discovery(resource_ids: list[str], feedback: str = "") -> TerraformDiscover
     return TerraformDiscoveryDTO(resource_ids=resource_ids, feedback=feedback)
 
 
-def _import_result(validation: bool, feedback: str = "") -> TerraformValidationDTO:
-    return TerraformValidationDTO(
-        validation=validation,
-        feedback=feedback,
-        terraform_plan="",
-        terraform_targets=[],
-    )
+def _import_result(ok: bool, feedback: str = "") -> TerraformImportResourceDTO:
+    return TerraformImportResourceDTO(ok=ok, stdout="", feedback=feedback)
 
 
 class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
@@ -109,7 +104,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         # The service keeps the address/resource id pairing it was given, so
-        # the caller never has to recover it from the raw validations.
+        # the caller never has to recover it from the raw import results.
         self.assertEqual(
             [(a.address, a.resource_id, a.error) for a in outcome.imported],
             [("azurerm_resource_group.main", "res-1", "")],

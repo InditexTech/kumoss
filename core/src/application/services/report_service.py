@@ -5,7 +5,7 @@
 from typing import cast
 
 from src.application.exceptions import ReportGenerationError
-from src.domains.dto import Reports, ToolResultDTO
+from src.domains.dto import Reports, ToolDefinitionDTO, ToolResultDTO
 from src.domains.entities import SessionContext
 from src.domains.entities.history import History
 from src.domains.services import ArtifactStorageService, SessionService
@@ -61,7 +61,7 @@ class ReportService:
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=content,
-            tools=self.__tool_svc.get_available_tools(ToolContext.EXTERNAL_INFORMATION),
+            tools=self.__select_tools(type),
             sentinel_tool=self.__tool_svc.get_available_tools(
                 ToolContext.REPORT_GENERATOR
             )[tool_index],
@@ -86,4 +86,20 @@ class ReportService:
             query=f"The IaC generated could not be validated: {feedback}",
             prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             history=history,
+        )
+
+    def __select_tools(self, type: ReportType) -> list[ToolDefinitionDTO]:
+        """The drift report reads the branch's own changes, not the web.
+
+        A drift round's remediation is what `diff_history` returns, so
+        that report gets the workspace inspection set. The plan and
+        apply reports reason about a plan they already have and only
+        need `web_search`, for pricing.
+        """
+        return self.__tool_svc.get_available_tools(
+            {
+                ReportType.GENERATE: ToolContext.EXTERNAL_INFORMATION,
+                ReportType.DRIFT: ToolContext.WORKSPACE_INSPECTION,
+                ReportType.APPLY: ToolContext.EXTERNAL_INFORMATION,
+            }.get(type, ToolContext.EXTERNAL_INFORMATION)
         )

@@ -75,6 +75,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    async def render_filter_drift_exceptions(self) -> str:
+        pass
+
+    @abstractmethod
     def render_joker(self) -> str:
         pass
 

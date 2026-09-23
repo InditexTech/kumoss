@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.domains.value_objects.plan_ref import PlanRef
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
@@ -81,20 +82,85 @@ class LLMResponseDTO:
 
 
 @dataclass
-class TerraformValidationDTO:
-    validation: bool
+class TerraformPlanDTO:
+    """Result of an ``init`` → ``validate`` → ``plan`` sequence.
+
+    ``feedback`` is terraform's stderr and never drift. ``stdout`` is the
+    plan text and is present even on failure, because a failed plan's
+    output is still worth storing as an artifact; ``plan`` is the
+    reusable artifact and is None exactly when ``ok`` is False.
+    ``targets`` is repeated outside the ref so the failure path, which
+    has no ref, still has it.
+    """
+
+    ok: bool
     feedback: str
-    terraform_plan: str
-    terraform_targets: list[str]
+    stdout: str
+    targets: list[str]
+    plan: "PlanRef | None"
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
+
+
+@dataclass
+class TerraformDriftDTO:
+    """Result of reading drift out of a plan artifact.
+
+    Three states, and consumers must tell them apart:
+
+    - ``in_sync=True`` — no drift; ``drift`` and ``feedback`` both empty.
+    - ``in_sync=False`` with an empty ``feedback`` — genuine drift, in ``drift``.
+    - ``in_sync=False`` with a non-empty ``feedback`` — the read itself
+      failed; ``drift`` is empty and ``plan`` is None.
+
+    Keeping stderr in ``feedback`` and drift in ``drift`` is what stops
+    terraform's error output from reaching the task splitter as though it
+    were drift. ``stdout`` is the plan text the drift was read from.
+
+    ``excluded`` is what the drift exception rules kept out of
+    remediation, one note per iteration that excluded something. It is
+    defaulted so the terraform adapter's construction sites need not know
+    about it: only the drift loop fills it in.
+    """
+
+    in_sync: bool
+    drift: str
+    feedback: str
+    stdout: str
+    plan: "PlanRef | None"
+    excluded: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return self.in_sync
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.in_sync else self.feedback or self.drift
 
     @classmethod
-    def empty(cls):
+    def empty(cls) -> "TerraformDriftDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
         return cls(
-            validation=False,
+            in_sync=False,
+            drift="",
             feedback="",
-            terraform_plan="",
-            terraform_targets=[],
+            stdout="",
+            plan=None,
         )
+
+
+@dataclass
+class TerraformApplyDTO:
+    ok: bool
+    stdout: str
+    feedback: str
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
 
 
 @dataclass
@@ -114,6 +180,25 @@ class TerraformDiscoveryDTO:
 
 
 @dataclass
+class TerraformImportResourceDTO:
+    """Result of importing one resource into the Terraform state.
+
+    One resource at a time is what the engine offers, so a round's
+    outcome is assembled from these: ``feedback`` is the engine's stderr
+    and is what ends up as the rejected attempt's reason, ``stdout`` the
+    import's own output.
+    """
+
+    ok: bool
+    stdout: str
+    feedback: str
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
+
+
+@dataclass
 class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 
@@ -127,7 +212,7 @@ class TerraformImportDTO:
     """Outcome of an import round, partitioned by result.
 
     Callers get the split they need instead of the raw per-resource
-    validations: ``imported`` drives the convergence plan and the report,
+    results: ``imported`` drives the convergence plan and the report,
     ``failed`` carries the reason each import was rejected.
     """
 
@@ -138,6 +223,22 @@ class TerraformImportDTO:
     def addresses(self) -> list[str]:
         """Terraform addresses now tracked in state."""
         return [r.address for r in self.imported]
+
+
+@dataclass
+class FilteredOperationsDTO:
+    """What a drift exception filter pass kept and what it removed.
+
+    ``excluded`` is the flattened input minus the flattened survivors,
+    matched exactly, so an operation the agent trimmed appears on both
+    sides: the original here, its remainder in ``kept``. ``explanation``
+    is the agent's own account of what it removed and why, and is the
+    better source for anything a user reads.
+    """
+
+    kept: list[list[str]]
+    excluded: list[str]
+    explanation: str
 
 
 @dataclass
@@ -244,15 +345,46 @@ class TerraformDriftResource(BaseModel):
     changes: list[TerraformDriftChange]
 
 
+class TerraformDriftUnreconciled(BaseModel):
+    """Drift the round could not reconcile, left in place involuntarily.
+
+    ``resource_address`` is best-effort: a failed drift read names no
+    resource, and the reason is the whole of what can be reported.
+    """
+
+    resource_address: str = ""
+    reason: str
+    details: list[str] = []
+
+
+class TerraformDriftException(BaseModel):
+    """Drift left unreconciled on purpose, covered by a drift exception rule.
+
+    ``rule`` is the rule that covers the change, quoted back from the
+    exception filter's own account of what it removed.
+    """
+
+    resource_address: str = ""
+    change: str
+    rule: str
+
+
 class TerraformDriftReport(BaseModel):
     """
     Structured report summarizing actions taken to remediate Terraform configuration drift.
     Details which files and resources were changed, specific changes made, and remediation reasons.
+
+    The two trailing blocks are optional and empty unless the round left
+    drift behind: ``unreconciled_drift`` for what could not be
+    reconciled, ``whitelisted_exceptions`` for what the cloud's drift
+    exception rules keep out of remediation.
     """
 
     summary: str
     status: Literal["Succeeded", "Partial", "Failed"]
     remediated_resources: list[TerraformDriftResource]
+    unreconciled_drift: list[TerraformDriftUnreconciled] = []
+    whitelisted_exceptions: list[TerraformDriftException] = []
 
 
 class TerraformApplyChange(BaseModel):

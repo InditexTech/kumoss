@@ -5,9 +5,10 @@
 """FastAPI application for the mapping reference implementation.
 
 Identity passthrough: the input ``identifier`` is returned unchanged as
-both the ``repo_url`` and the canonical ``project`` name. This is enough
-for OSS users who clone real repo URLs directly; production deployments
-substitute their own implementation against the same contract.
+the ``repo_url``, ``terraform_provider`` echoes whatever the caller
+sent, and ``scope_id`` is always ``null``. This is enough for OSS users
+who clone real repo URLs directly; production deployments substitute
+their own implementation against the same contract.
 """
 
 from __future__ import annotations
@@ -92,11 +93,14 @@ async def healthz() -> Health:
     dependencies=[Authenticated],
 )
 async def resolve(body: ResolveRequest) -> ResolveResponse:
-    # Identity passthrough: the identifier IS the repo URL. The canonical
-    # project echoes the identifier, truncated to fit the contract's
-    # `project` length cap (which is shorter than `identifier`'s because
-    # project values are used as cloud/resource-group names downstream).
+    # Identity passthrough: the identifier IS the repo URL, and nothing
+    # is guessed. Sniffing `azure` out of a `dev.azure.com` URL would
+    # conflate "hosted on Azure DevOps" with "deploys to Azure", and the
+    # caller skips its prompt for every non-null field — so a wrong
+    # guess is never shown to the user and never corrected.
     return ResolveResponse(
         repo_url=body.identifier,
-        project=body.identifier[:128],
+        identifier=body.identifier,
+        terraform_provider=body.terraform_provider,
+        scope_id=None,
     )

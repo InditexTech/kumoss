@@ -12,7 +12,11 @@ from src.application.services.requests_filter_service import RequestsFilterServi
 from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.application.services.terraform_import_service import TerraformImportService
-from src.domains.dto import TerraformImportDTO, TerraformValidationDTO, ToolResultDTO
+from src.domains.dto import (
+    TerraformImportDTO,
+    TerraformPlanDTO,
+    ToolResultDTO,
+)
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
@@ -158,30 +162,29 @@ class TerraformImportHandler:
                         await self.__report_nothing_to_import(q, msg=filter_explanation)
                         return
 
-                async def validation_callback(
+                async def plan_callback(
                     local_history: History,
-                ) -> TerraformValidationDTO:
-                    return await self.__terraform_svc.validate(
+                ) -> TerraformPlanDTO:
+                    return await self.__terraform_svc.plan(
                         targets=await self.__target_svc.generate_session(local_history),
-                        get_drift=False,
                     )
 
                 q_import = (
                     f"{q}\n\nCreate a Terraform resource block for each of these "
                     + "\n".join(f"- {rid}" for rid in selected_ids)
                 )
-                validation = await self.__validation_svc.generate_and_validate(
+                plan_result = await self.__validation_svc.generate_and_validate(
                     q=q_import,
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
                     operation_type=OperationType.IMPORT,
-                    validator=validation_callback,
+                    validator=plan_callback,
                 )
 
-                if not validation.validation:
+                if not plan_result.ok:
                     fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=validation.feedback,
+                        feedback=plan_result.feedback,
                         history=ctx.history,
                     )
                     raise TerraformValidationFailedError(
@@ -194,8 +197,8 @@ class TerraformImportHandler:
                 )
                 if not imports:
                     logging.warning(
-                        f"There is nothing to import: no generated resource block "
-                        f"was found in the branch diff for selected ids {selected_ids}"
+                        "There is nothing to import: no generated resource block "
+                        + f"was found in the branch diff for selected ids {selected_ids}"
                     )
                 import_results = await self.__import_svc.import_resources(imports)
                 if import_results.failed:
@@ -204,17 +207,24 @@ class TerraformImportHandler:
                     )
 
                 imported_addresses = import_results.addresses
-                plan_after_import = validation.terraform_plan
+                # The report is fed the plan text, not the ref: the ref is
+                # what the drift read consumes, and only the convergence
+                # round that follows the imports sees state as it now is.
+                plan_after_import = plan_result.stdout
                 if imported_addresses:
-                    convergence = await self.__drift_svc.detect_and_resolve_drift(
+                    drift = await self.__drift_svc.detect_and_resolve_drift(
+                        plan=plan_result.plan,
                         filter_session_changes=False,
                         targets=imported_addresses,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )
-                    if not convergence.validation:
+                    # Only a failed read aborts the round: drift the loop
+                    # could not reconcile is an outcome to report, not a
+                    # fault, and it is ``feedback`` that tells them apart.
+                    if drift.feedback:
                         fail_msg = await self.__report_svc.summarize_problem(
-                            feedback=convergence.feedback,
+                            feedback=drift.feedback,
                             history=ctx.history,
                         )
                         raise TerraformValidationFailedError(
@@ -222,7 +232,7 @@ class TerraformImportHandler:
                             error_code=500,
                         )
 
-                    plan_after_import = convergence.terraform_plan or plan_after_import
+                    plan_after_import = drift.stdout or plan_after_import
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
@@ -235,12 +245,6 @@ class TerraformImportHandler:
                         }
                     ),
                 )
-            except Exception as e:
-                logging.error(
-                    f"Import with session id: {ctx.id} aborted with "
-                    f"{type(e).__name__}: {e}"
-                )
-                raise
             finally:
                 await self.__session_svc.save()
 

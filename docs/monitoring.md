@@ -16,7 +16,7 @@ This guide covers tracing only. Phoenix also hosts Nebula's runtime prompt regis
 
 | Component | Role |
 |---|---|
-| `phoenix` (`arizephoenix/phoenix:20.6.0`) | Receives traces over OTLP/HTTP on port 6006 and serves the UI (port 4317, OTLP/gRPC, is also exposed on the Compose network but unused by Nebula). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works behind the proxy prefix. Its MCP server is disabled. |
+| `phoenix` (`arizephoenix/phoenix:20.12.0`) | Receives traces over OTLP/HTTP on port 6006 and serves the UI (port 4317, OTLP/gRPC, is also exposed on the Compose network but unused by Nebula). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works behind the proxy prefix. Its MCP server is disabled. |
 | `phoenix-db` (PostgreSQL 17) | Persistence for Phoenix. Traces and prompts survive restarts in the `phoenix_db_data` volume. |
 | `proxy` (nginx) | Forwards `/monitoring/` to Phoenix. |
 
@@ -39,7 +39,7 @@ All keys are in `config.yaml` under `telemetry` (details in the [configuration r
 
 **Replacing Phoenix as the trace collector.** The exporter is the standard OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts OTLP/HTTP on `<collector_url>v1/traces` (an OpenTelemetry Collector, a vendor endpoint) receives the spans. Two caveats:
 
-- The core sets no headers on the exporter itself, but the OpenTelemetry SDK reads `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) from the core's environment, and the Phoenix client used for prompts reads `PHOENIX_API_KEY`. Set those in the core's environment to reach an authenticated destination, or put an OpenTelemetry Collector in between.
+- The core sets no exporter headers itself (it passes no `headers` argument when it configures the span exporter); OTLP header env vars such as `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) may be honoured by the OpenTelemetry SDK when it reads the core's environment, but this is not verified in this codebase — treat it as unconfirmed. The Phoenix client used for prompts separately reads `PHOENIX_API_KEY`. Put an authenticating proxy or collector in front of Phoenix if you need auth on the trace-export path.
 - Today `telemetry.collector_url` is **also** the base URL of the Phoenix client used for prompt seeding and fetching. Pointing it at a non-Phoenix collector breaks startup. To send traces elsewhere while keeping Phoenix for prompts, forward from Phoenix or place a collector at the same base URL that proxies the prompt API.
 
 ## Projects
@@ -77,7 +77,7 @@ One chain span is opened per orchestration step (filtering, target generation, c
 
 - **Name:** `Async Inference`.
 - **Kind:** `LLM`.
-- **Model and provider:** `llm.model_name`, and `llm.provider` when the LiteLLM prefix maps to an OpenInference provider name.
+- **Model and provider:** `llm.model_name`, and `llm.provider` when the LiteLLM prefix maps to an OpenInference provider name. When `llm.model_list` uses a custom alias (see [LiteLLM providers and models](litellm.md)), `llm.model_name` on the span is that alias rather than the underlying `provider/model-id` string, and `llm.provider` is left unset because the alias carries no recognizable prefix.
 - **Invocation parameters:** `llm.invocation_parameters` with the request arguments minus the bulky message and tool payloads (temperature, max tokens, retries, timeout, reasoning effort).
 - **Messages:** `llm.input_messages.N.message.role` and `.content` for the system prompt, the conversation history (user, assistant, tool results with their `tool_call_id`), and the current message; assistant tool calls appear under `.message.tool_calls.M.*`.
 - **Available tools:** `llm.tools.N.tool.json_schema`.
@@ -94,10 +94,10 @@ One chain span is opened per orchestration step (filtering, target generation, c
 
 ### 4. Terraform evaluator spans
 
-- **Name:** `Terraform - validation True` or `Terraform - validation False`.
+- **Name:** `Terraform <operation> - <outcome>`, where the operation is the verb that ran (`plan`, `drift` or `apply`) and the outcome is `True` or `False` — so `Terraform plan - True`, `Terraform drift - False`, `Terraform apply - True`. The operation comes from the name of the traced method, and the outcome is validation for `plan`, being in sync for `drift`, and success for `apply`.
 - **Kind:** `EVALUATOR`.
-- **Input:** the validation arguments (targets and whether drift was requested; empty for apply).
-- **Output:** the Terraform plan text on success, or the validation feedback (engine errors) on failure. Apply runs also produce one of these spans.
+- **Input:** the keyword arguments of the call: the targets for `plan`, the plan reference being read for `drift` (its workspace, plan file, targets and workspace fingerprint — never the plan text), empty for `apply`.
+- **Output:** the Terraform plan text for a successful `plan`, the drift summary for a drifted workspace, the apply output for a successful `apply`; on any failure, the engine's error feedback instead.
 
 ### Common metadata
 

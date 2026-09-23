@@ -315,14 +315,17 @@ backend where the workspace declares none and replaces one that it
 does declare — any caller can use the same trick.
 
 `IAC_BACKEND_CONFIG` is the escape hatch for a deployment that owns the
-decision instead. Set it to the path (inside this container) of a
-backend configuration file — `.hcl` or `.tfbackend`, mounted in — and
-`init` runs with `-backend-config=<path>`, with the backend *type*
-still coming from the workspace's own `terraform { backend }` block.
-The service checks at startup that the path is a readable file and
-refuses to boot if it is not, for the same reason the engine binary is
-checked there. Note that a `backend_override.tf` in the workspace wins
-over the values in this file: the two are alternatives, not layers.
+decision instead. Set it to the path of a backend configuration file —
+`.hcl` or `.tfbackend` — and `init` runs with `-backend-config=<path>`,
+with the backend *type* still coming from the workspace's own
+`terraform { backend }` block. The path is either absolute, for a file
+mounted into this container, or relative to the workspace, for one the
+target repository carries at a fixed place. The service does not check
+it at startup, unlike the engine binary: under the second form the file
+exists only once a repository has been cloned into a workspace, so a
+wrong path fails on `init`, in that job's `stderr`. Note that a
+`backend_override.tf` in the workspace wins over the values in this
+file: the two are alternatives, not layers.
 
 **Reinitialization.** `init` always runs `-reconfigure`, so a workspace
 whose backend changed between calls is rebound to the new one instead
@@ -338,7 +341,7 @@ manual `init -migrate-state`) if it matters.
 |-----------------------------------------------|----------|--------------------------------------------------------|
 | `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
-| `IAC_BACKEND_CONFIG`                          | no       | Path (inside this container) to a backend configuration file `init` passes to `-backend-config`. Unset, the backend comes from the workspace itself. See "State backend". |
+| `IAC_BACKEND_CONFIG`                          | no       | Path to a backend configuration file `init` passes to `-backend-config` — absolute (inside this container) or relative to the workspace. Not validated at startup. Unset, the backend comes from the workspace itself. See "State backend". |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
 
 Everything else is a property of the service, not of a deployment, and

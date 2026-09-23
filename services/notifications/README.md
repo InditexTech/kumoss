@@ -26,13 +26,22 @@ etc.) of the same contract.
   boundary and ends with `+N more`.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
-  set; otherwise accepts any request (local-dev fallback).
+  set; otherwise accepts any request (local-dev fallback). Leave it
+  blank in a shared network only for local experimentation — set a
+  real token whenever this service is reachable by anyone other than
+  the core.
 - If Slack answers with a non-2xx status or cannot be reached, the
   response is `502 Bad Gateway` (RFC 7807 body, title `Downstream
   channel error`, no detail). The webhook URL is the Slack credential
   and httpx embeds it in every error message, so nothing from the
   underlying error is echoed.
 - Bearer tokens are compared in constant time (`hmac.compare_digest`).
+- The contract documents `400`/`403`/`503` (bad body, forbidden,
+  channel unavailable). This reference never produces any of them:
+  request validation happens before the handler runs (so a bad body is
+  a FastAPI `422`, not `400`), there is no authorization concept beyond
+  the bearer token, and `503` is impossible because the process
+  refuses to boot without `SLACK_WEBHOOK_URL` configured.
 
 ## Configuration
 

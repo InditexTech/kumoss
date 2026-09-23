@@ -167,6 +167,7 @@ class LLMOrchestrationService:
             PromptsLibrary.IAC_GENERATOR.name,
             PromptsLibrary.TARGET_GENERATOR.name,
             PromptsLibrary.REPORT_GENERATOR.name,
+            PromptsLibrary.TASK_SPLITTER.name,
         ]:
             return self.__main_llm
         return self.__small_llm

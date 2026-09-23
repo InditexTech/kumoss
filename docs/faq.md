@@ -28,6 +28,10 @@ Short answers for people using the Nebula web application. The longer explanatio
 
 **Why was my repository URL rejected?** URLs that embed a user name or token are refused; enter the plain HTTPS URL. Azure DevOps users: the portal's clone URL starts with `https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only `github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are supported for pull requests. The repository must also be reachable by Nebula's service account.
 
+**Why does Nebula say it found no IaC paths?** It only sees files committed on the repository's default branch, and it offers a directory only when it contains `.tf` files and no part of its path is `modules`, `examples`, `example`, or `.terraform`. Commit the Terraform files to the default branch, or move them out of an excluded directory. The rules are in [Operating modes](modes.md#how-nebula-finds-terraform-roots).
+
+**Why is my directory not offered as an IaC path?** Either it sits under an excluded directory name, or it is nested under another directory that already qualifies as a root (for example `platform/network/` under a `platform/` that has a `main.tf`); in that case pick the parent, Nebula works from there.
+
 **Why does the scope field not accept my value?** It accepts letters, digits, and hyphens only, up to 64 characters, and lower-cases the value. Underscores, dots, and spaces are not accepted.
 
 ## Sessions
@@ -64,21 +68,25 @@ Short answers for people using the Nebula web application. The longer explanatio
 
 ## Pull requests and apply
 
-**Do I have to open a pull request?** No. You can apply directly after reviewing the report. Opening one is the recommended way to bring your team's review and CI into the decision.
+**Do I have to open a pull request?** The API allows a direct apply, but the web application does not offer a standalone Apply button. In practice you reach apply either through *Approve PR and Apply*, which merges the pull request and then applies, or through the *Import Infrastructure* mode in the header drop-down, which calls the same apply on the current session and is only selectable with the `devops` role. So as a `developer` in the web application, the pull request is the route to apply — which is also the recommended one, because it brings your team's review and CI into the decision.
 
 **Reviewers asked for changes. What now?** Type the changes as a follow-up request in the same session. The new round pushes to the same branch, so the pull request updates.
 
 **What exactly does Approve PR and Apply do?** After you confirm, it merges the pull request into the default branch and executes the plan you reviewed, without re-planning. The apply-results screen shows what happened.
 
-**The apply failed. Will Nebula retry?** No. Read the error in the apply results, fix the cause (often cloud permissions or a resource that changed since the plan), and send a new request, which produces a fresh plan to review.
+**The apply failed. Will Nebula retry?** No. The session still closes as completed, with an apply report whose status is *Failed* and a notification to your reviewers; nothing is rolled back and nothing is re-run. Read the error in the apply results, fix the cause (often cloud permissions or a resource that changed since the plan), and send a new request, which produces a fresh plan to review.
 
 **Does Import Infrastructure import my existing resources?** Not yet. Today it runs the apply of an existing session's reviewed plan. Importing unmanaged resources is a planned capability.
+
+**Where does Terraform state live?** Not in the repository, and not in the working copy Nebula creates. Out of the box, Nebula keeps state for you, in a bucket dedicated to state with one state file per project (repository + cloud scope + path). Your platform team can instead configure Nebula to leave it in the remote backend your repository's own Terraform files declare, exactly as it would if you ran the engine yourself. Either way your pull request contains only your infrastructure code — no state file and no backend file — and there is nothing for you to set per session; the details are in [Terraform/OpenTofu state backends](terraform-state-backends.md).
+
+**My plan wants to create resources that already exist. Why?** The session is planning against empty state. The usual causes are that your platform team turned off Nebula-managed state and your repository declares no remote backend of its own, that the project's identity changed — the root-module path moved, the repository was renamed, or a different cloud scope was selected — or that your platform team changed the state backend, which Nebula never migrates. Report it with the session id; an operator can check the state location.
 
 ## Data and privacy
 
 **What data leaves Nebula when I make a request?** Your request text, the conversation, the repository files the agent reads, the plan, and validation errors are sent to the language model your platform team configured and stored in the tracing system for review. Do not paste secrets into requests or commit them to the repository.
 
-**Which cloud credentials does Nebula use?** The identity your platform team configured for the execution engine, never yours. Whether you may work on a given scope is checked at the start of each session.
+**Which cloud credentials does Nebula use?** The identity your platform team configured for the execution engine, never yours. Your deployment can also plug in an external authorization service that is asked, at the start of each session, whether you may work on that cloud, repository and IaC path; in the shipped configuration that service is switched off and no such check runs.
 
 ## Getting help
 

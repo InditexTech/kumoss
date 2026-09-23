@@ -25,8 +25,7 @@
 
 .list {
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  flex: none;
 }
 
 .entry {
@@ -64,6 +63,30 @@
 
 .description {
   color: var(--color-text-body);
+}
+
+/* ─── Drift left in place (unreconciled, or covered by a rule) ─── */
+
+.leftoverSection {
+  margin-top: 32px;
+}
+
+.leftoverEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.leftoverAddress {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.leftoverRule {
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 /* ─── Detail overlay ─── */

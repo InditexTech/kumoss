@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import final, override
+from typing import Any, final, override
 
 from src.domains.interfaces.template_interface import ITemplate
 from src.infrastructure.templates._fetcher import remote_fetcher
@@ -34,7 +34,7 @@ class TemplateAdapter(ITemplate):
         resources: list[str] | None = None,
     ) -> str:
         t = self._get_template(self._core + f"target_{mode.value}_generator.jinja")
-        context: dict = {}
+        context: dict[str, Any] = {}
         if mode is TargetGenerationMode.DRIFT:
             policies = await remote_fetcher.fetch(
                 prompt_name="targeting_policies",
@@ -54,7 +54,7 @@ class TemplateAdapter(ITemplate):
     @override
     async def render_report_generator(self, report_type: ReportType) -> str:
         t = self._get_template(self._core + "report_generator.jinja")
-        context: dict = {"REPORT_TYPE": report_type.value}
+        context: dict[str, Any] = {"REPORT_TYPE": report_type.value}
         if report_type is ReportType.GENERATE:
             context["IMPACT_ANALYSIS_RULES"] = await remote_fetcher.fetch(
                 prompt_name="impact",
@@ -103,6 +103,12 @@ class TemplateAdapter(ITemplate):
     def render_import_addresses(self, selected_ids: list[str]) -> str:
         t = self._get_template(self._core + "import_addresses.jinja")
         return t.render(CWD=self._cwd, selected_ids=selected_ids)
+
+    @override
+    async def render_filter_drift_exceptions(self) -> str:
+        exceptions = await self._fetch_guidelines("drift_exceptions")
+        t = self._get_template(self._core + "filter_drift_exceptions.jinja")
+        return t.render(DRIFT_EXCEPTIONS=exceptions)
 
     @override
     def render_joker(self) -> str:

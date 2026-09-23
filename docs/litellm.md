@@ -18,8 +18,8 @@ Nebula configures two model roles in `config.yaml`. Both are applied by the core
 
 | Key | Role | Used for |
 |---|---|---|
-| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), and the report generator chain. |
-| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, task splitting, drift reconciliation filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
+| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), the report generator chain, and the task splitter chain (turning a drift report into remediation operations). |
+| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
 
 Two extra settings apply to both roles:
 
@@ -34,8 +34,9 @@ The core passes `drop_params=True` to LiteLLM, so a provider that does not suppo
 
 Nebula's agents are tool-calling loops, so the configuration accepting a model string does not mean the model can run a session. Both roles must provide:
 
-- **OpenAI-style function calling with forced tool choice.** Every agent call sends a `tools` list with `tool_choice: required` and expects well-formed JSON arguments back. Each loop ends only when the model calls its sentinel tool. Models without reliable function calling (many small self-hosted models) fail every session.
+- **OpenAI-style function calling with forced tool choice.** Agent loops send a `tools` list with `tool_choice: required` and expect well-formed JSON arguments back; each loop ends only when the model calls its sentinel tool. This applies to agent loops specifically — the status/summary text calls (`generate_text`) send no tools at all. Models without reliable function calling (many small self-hosted models) fail every agent session.
 - **A completion cap of at least `llm.max_output_tokens`** (32000 by default), or lower that setting to what the provider allows.
+- **A finish reason of `tool_use` or `end_turn`.** Any other finish reason — `length` (the completion was truncated), `content_filter`, and so on — aborts the chain with `UnhandledInferenceFinishReason` instead of being retried or degraded gracefully. In practice this means `max_output_tokens` must comfortably fit within the model's own output limit, or a long response gets truncated and the session fails outright.
 - **Long context.** The generator receives the composed conventions, the repository excerpts it reads, and the plan output; models with short context windows truncate silently.
 - Optional: native `web_search_options` support, which LiteLLM reports per model. Without it the web-search tool falls back to the OpenAI Responses API path, which only works on OpenAI-compatible endpoints.
 
@@ -96,7 +97,7 @@ The tables below list the LiteLLM model string format, the environment variables
 
 | Provider | Model string | Default env vars | `litellm_params` keys | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| Anthropic | `anthropic/<model>` | `ANTHROPIC_API_KEY` | `api_key` | e.g. `anthropic/claude-sonnet-5` |
+| Anthropic | `anthropic/<model>` | `ANTHROPIC_API_KEY` | `api_key` | e.g. `anthropic/claude-sonnet-5`. `ANTHROPIC_AUTH_TOKEN` is also accepted as an alternative to the API key. |
 | OpenAI | `openai/<model>` | `OPENAI_API_KEY`, `OPENAI_API_BASE` | `api_key`, `api_base` | `api_base` defaults to `https://api.openai.com/v1` |
 | xAI | `xai/<model>` | `XAI_API_KEY` | `api_key` | |
 | Mistral AI | `mistral/<model>` | `MISTRAL_API_KEY` | `api_key` | |
@@ -110,7 +111,7 @@ The tables below list the LiteLLM model string format, the environment variables
 | Google AI Studio (Gemini API) | `gemini/<model>` | `GEMINI_API_KEY` (LiteLLM also accepts `GOOGLE_API_KEY`) | `api_key` | |
 | Azure OpenAI | `azure/<deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` | `api_key`, `api_base`, `api_version` | `api_base` is `https://<resource>.openai.azure.com` |
 | Azure AI Foundry | `azure_ai/<model>` | `AZURE_AI_API_KEY`, `AZURE_AI_API_BASE` | `api_key`, `api_base` | No boot-time validation mapping in LiteLLM. |
-| AWS Bedrock | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` | Boot validation checks only the two key variables; the region is still needed at call time. |
+| AWS Bedrock | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` | Boot validation checks only the two key variables; the region is still needed at call time. `AWS_PROFILE`, or `AWS_ROLE_ARN` + `AWS_WEB_IDENTITY_TOKEN_FILE`, are also accepted as alternatives to static keys. |
 | AWS SageMaker | `sagemaker/<endpoint>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` | |
 | Cloudflare Workers AI | `cloudflare/<model>` | `CLOUDFLARE_API_KEY`, `CLOUDFLARE_API_BASE` | `api_key`, `api_base` | |
 
@@ -160,7 +161,20 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ```
 
-Equivalent example on Google Vertex AI, which the checked-in `config.yaml` uses:
+The checked-in `config.yaml` uses Azure AI Foundry, whose credentials LiteLLM cannot validate at boot (a missing value fails on the first call):
+
+```yaml
+llm:
+  model: "azure_ai/claude-sonnet-4-5"
+  small_model: "azure_ai/claude-haiku-4-5"
+```
+
+```dotenv
+AZURE_AI_API_KEY=example-not-a-real-key
+AZURE_AI_API_BASE=https://demo-platform.services.ai.azure.com
+```
+
+Equivalent example on Google Vertex AI:
 
 ```yaml
 llm:
@@ -189,7 +203,7 @@ Rules when `model_list` is non-empty:
 1. `llm.model` and `llm.small_model` **must equal a `model_name`** in the list. They are router aliases now, not provider strings.
 2. Only `litellm_params.model` is required in an entry. **`api_key`, `api_base`, `api_version`, and the other credential keys are optional**: when omitted, LiteLLM reads the provider's default environment variables at call time (for `azure/...`, that is `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION`). Add them only to point an entry at a different endpoint or at a differently named variable.
 3. Boot validation runs against each entry's `litellm_params.model` instead of the two role strings.
-4. Boot validation still checks the provider's **default** variable names. If an entry references `os.environ/MY_CUSTOM_KEY`, the default-named variable (for example `ANTHROPIC_API_KEY`) must also be set, or the core will not boot. This is a LiteLLM limitation; the default-named variable can hold any non-empty value because only the custom one is used at call time.
+4. Boot validation still checks the provider's **default** variable names. If an entry references `os.environ/MY_CUSTOM_KEY`, the default-named variable (for example `ANTHROPIC_API_KEY`) must also be set, or the core will not boot. This is a LiteLLM limitation; `validate_environment` treats an empty-string value as present, so the default-named variable can hold any value, even empty, because only the custom one is used at call time.
 
 If all you want is the default provider credentials from `core/.env`, you do not need `model_list` at all; the two plain model strings are the right configuration.
 
@@ -272,10 +286,14 @@ OPENAI_API_KEY=placeholder-for-boot-validation
 
 **Core boots but the first session fails with an authentication or "model not found" error.** The provider has no boot-time validation mapping (for example `azure_ai`), the key is present but invalid, or the `<model-id>` part of the string is wrong for that provider. Check the model id against <https://models.litellm.ai/> and the provider's own console.
 
-**Boot validation complains about a default variable although you use custom names.** Expected. Set the default-named variable to any non-empty placeholder; only the `os.environ/...` reference in `model_list` is used at call time.
+**Boot validation complains about a default variable although you use custom names.** Expected. Set the default-named variable to any value, even empty (`validate_environment` treats an empty string as present); only the `os.environ/...` reference in `model_list` is used at call time.
 
 **`model` or `small_model` does not match any `model_name`.** When `model_list` is set, the two role strings are aliases. LiteLLM raises an error on the first call for an alias with no matching entry. Make both values equal to a `model_name` from the list.
 
-**Requests time out or the endpoint is unreachable.** Each call has a 120-second timeout and three retries inside LiteLLM. For self-hosted endpoints, remember that the core runs inside the compose network: `localhost` refers to the core container, not to the host. Use the service name or the host's routable address in `api_base`, and make sure any TLS certificate is trusted by the core image.
+**Requests time out or the endpoint is unreachable.** Each chat completion call has a 120-second timeout and `num_retries=3` inside LiteLLM. The web-search Responses API fallback path is different: it retries up to 4 attempts with 30-second sleeps between them and sets no `num_retries`, so a slow or flaky OpenAI-compatible endpoint can stall that path for minutes. For self-hosted endpoints, remember that the core runs inside the compose network: `localhost` refers to the core container, not to the host. Use the service name or the host's routable address in `api_base`, and make sure any TLS certificate is trusted by the core image.
 
 **Provider rejects `temperature` or `max_tokens`.** The core sends `drop_params=True`, so unsupported parameters are dropped. If the provider still rejects a value (for example a completion cap below `32000`), lower `llm.max_output_tokens`.
+
+## Running outside Docker
+
+`litellm` calls `load_dotenv()` at import time. Running the core, or `pytest`, directly from `core/` on your workstation (rather than inside the container) silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Nebula's own code does this. Be aware of this when debugging credential issues locally: a variable you think is unset may actually be coming from `core/.env`.

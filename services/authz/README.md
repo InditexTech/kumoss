@@ -24,27 +24,46 @@ The OSS default for the Nebula authorization contract:
 - **Default root admin** — when `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set,
   the user record with that email is granted the `admin` role on
   startup.
-- **Admin endpoints** — `GET /v1/users`, `POST /v1/users/{id}/roles`,
-  `DELETE /v1/users/{id}/roles/{role}`. Caller must hold the `admin`
-  role (asserted via X-User-Id header + verified against the store).
+- **Admin endpoints** — `GET /v1/roles`, `GET /v1/users`,
+  `POST /v1/users/{id}/roles`, `DELETE /v1/users/{id}/roles/{role}`.
+  Caller must hold the `admin` role (asserted via X-User-Id header +
+  verified against the store).
+- **`GET /healthz`** — liveness probe.
+
+This service's own `/v1/users/me`, `/v1/roles`, `/v1/users`, and role
+admin endpoints are not consulted by Nebula at all — the core never
+calls them. They exist only for callers of this service directly (or
+for enterprises building on this reference impl) to manage this
+service's own user/role store.
 
 ## What about OIDC?
 
-OIDC token validation lives in the **core**, not in this service. The
-core validates upstream OIDC tokens (e.g., from Keycloak / Auth0 / your
-IdP) and forwards the resolved identity as `X-User-Id` /
-`X-User-Email` headers when calling this service. That keeps the
-contract simple and the service implementation independent of any
-particular OIDC provider.
+OIDC token validation lives entirely in the **core**
+(`core/src/infrastructure/auth/oidc.py`), not in this service. The core
+calls this service in exactly one place: `POST /v1/auth/authorize` →
+`POST /v1/check`, with a JSON body `{cloud, project, environment?,
+user_id}` where `user_id` is `user.email or user.subject`. No
+`X-User-Id` / `X-User-Email` headers are ever sent by the core on any
+live path — those headers only matter if you call this service's other
+endpoints directly. Nebula's own operation roles (`developer` <
+`devops`) and panel roles (`viewer` < `editor` < `admin`) live in the
+core database and are managed from the admin panel; this service's
+role store affects only its own `/v1/users*` admin endpoints and has no
+effect on what a user can do in Nebula.
+
+The web app sends the repository URL as `project` and the IaC path as
+`environment`; the contract caps `environment` at 32 characters, so a
+long IaC path is rejected with `422` (surfaced by the core as `502`
+when `/v1/check` is enabled).
 
 ## Configuration
 
 | Env var                          | Required | Description                                           |
 |----------------------------------|----------|-------------------------------------------------------|
 | `NEBULA_AUTHZ_TOKEN`             | no       | Bearer token clients must present.                    |
-| `NEBULA_AUTHZ_ROLE_STORE`        | no       | Path to the roles JSON file. Default `/data/roles.json`. |
-| `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`  | no       | User ID to grant `admin` role on startup.             |
-| `NEBULA_AUTHZ_PERMISSIVE`        | no       | Default `true` — `/v1/check` returns true unconditionally. Set `false` for explicit-deny default. |
+| `NEBULA_AUTHZ_ROLE_STORE`        | no       | Path to the roles JSON file. Default `/data/roles.json`. Configures this service's own user/role store only — Nebula never reads it. |
+| `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`  | no       | Email address granted the `admin` role on startup, in this service's own store. It is also used as that user's record key and `id`. |
+| `NEBULA_AUTHZ_PERMISSIVE`        | no       | The only knob Nebula's own flow exercises. Default `true` — `/v1/check` returns true unconditionally. Set `false` for explicit-deny default. |
 
 ## Run locally
 
@@ -60,6 +79,10 @@ curl -X POST http://localhost:8083/v1/check \
   -H 'Content-Type: application/json' \
   -d '{"cloud":"azure","project":"my-project"}'
 ```
+
+The example above omits the `Authorization` header, so it only works
+while `NEBULA_AUTHZ_TOKEN` is empty; once set, add
+`-H 'Authorization: Bearer <token>'`.
 
 ## Tests
 

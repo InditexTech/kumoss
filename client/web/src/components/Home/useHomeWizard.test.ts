@@ -9,6 +9,7 @@ import { MemoryRouter } from "react-router-dom";
 import { SessionProvider, useSession } from "@/contexts/SessionContext";
 import { ModeProvider } from "@/contexts/ModeContext";
 import { useHomeWizard } from "./useHomeWizard";
+import type { ResolveResult } from "@/hooks/useMapperResolution";
 
 // ─── Dynamic mock controls ────────────────────────────────────
 const mockAuthState = vi.fn<() => { status: string; message?: string; data?: unknown }>(() => ({ status: "idle" }));
@@ -20,7 +21,7 @@ const mockTerraformRun = vi.fn();
 const mockTerraformReset = vi.fn();
 
 const mockResolveAndScan = vi.fn<
-  (identifier: string) => Promise<{ repoUrl: string; project: string | null; paths: string[] }>
+  (identifier: string) => Promise<ResolveResult>
 >();
 const mockScanPathsValue = vi.fn<() => string[]>(() => []);
 const mockMapperLoadingValue = vi.fn(() => false);
@@ -139,7 +140,19 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.step).toBe("query");
   });
 
-  it("handlePath sets iacPath and advances to provider", () => {
+  // Both handlers are reached through the earlier steps rather than
+  // called on a blank wizard: the next step now comes from what is
+  // collected, so a wizard missing its query answers "query" no matter
+  // which handler fired.
+  it("handlePath sets iacPath and advances to provider", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
+      paths: ["environments/dev", "environments/pro"],
+    });
+
     const { result } = renderHook(
       () => ({
         wizard: useHomeWizard(),
@@ -147,6 +160,13 @@ describe("useHomeWizard orchestrator", () => {
       }),
       { wrapper: Wrapper },
     );
+
+    await act(async () => {
+      await result.current.wizard.handleInput("deploy a VM");
+    });
+    await act(async () => {
+      await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
+    });
 
     act(() => {
       result.current.wizard.handlePath("environments/dev");
@@ -159,7 +179,15 @@ describe("useHomeWizard orchestrator", () => {
     );
   });
 
-  it("handleProvider sets provider and advances to cloud_scope", () => {
+  it("handleProvider sets provider and advances to cloud_scope", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
+      paths: ["environments/dev"],
+    });
+
     const { result } = renderHook(
       () => ({
         wizard: useHomeWizard(),
@@ -167,6 +195,13 @@ describe("useHomeWizard orchestrator", () => {
       }),
       { wrapper: Wrapper },
     );
+
+    await act(async () => {
+      await result.current.wizard.handleInput("deploy a VM");
+    });
+    await act(async () => {
+      await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
+    });
 
     act(() => {
       result.current.wizard.handleProvider("azure");
@@ -247,7 +282,9 @@ describe("useHomeWizard — repository resolution", () => {
   it("single IaC path auto-advances to provider", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: "myproj",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -271,7 +308,9 @@ describe("useHomeWizard — repository resolution", () => {
   it("multiple IaC paths go to iac_path step", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: "myproj",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev", "environments/pro"],
     });
 
@@ -286,7 +325,9 @@ describe("useHomeWizard — repository resolution", () => {
   it("zero IaC paths sets mapper error", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: "myproj",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: [],
     });
 
@@ -296,6 +337,160 @@ describe("useHomeWizard — repository resolution", () => {
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
 
     expect(mockSetMapperError).toHaveBeenCalled();
+  });
+
+  // Any slot the mapper fills is a step the user never sees. The matrix
+  // itself is covered by wizardFlow.test.ts; what these add is that the
+  // wizard really does act on it — including authorizing at a moment
+  // that used to be unreachable.
+  it("a mapper-supplied provider skips the provider step", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: null,
+      paths: ["environments/dev"],
+    });
+
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.wizard.handleInput("my-project"); });
+
+    expect(result.current.wizard.step).toBe("cloud_scope");
+    expect(result.current.wizard.data.provider).toBe("azure");
+    // Written whether the value came from the user or the mapper.
+    expect(result.current.session.session.provider).toBe("azure");
+    expect(mockAuthRun).not.toHaveBeenCalled();
+  });
+
+  it("a mapper-supplied scope alone still asks for the provider", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: null,
+      scopeId: "sub-from-catalogue",
+      paths: ["environments/dev"],
+    });
+
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.wizard.handleInput("my-project"); });
+
+    expect(result.current.wizard.step).toBe("provider");
+    expect(result.current.wizard.data.cloudScope).toBe("sub-from-catalogue");
+    expect(result.current.session.session.scope_id).toBe("sub-from-catalogue");
+    expect(mockAuthRun).not.toHaveBeenCalled();
+  });
+
+  it("provider and scope resolved authorizes without rendering either step", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: "sub-from-catalogue",
+      paths: ["environments/dev"],
+    });
+
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.wizard.handleInput("my-project"); });
+
+    expect(result.current.wizard.step).not.toBe("provider");
+    expect(result.current.wizard.step).not.toBe("cloud_scope");
+    expect(mockAuthRun).toHaveBeenCalledWith({
+      repositoryUrl: "https://dev.azure.com/org/repo",
+      query: "deploy a VM",
+      cloud: "azure",
+      environment: "environments/dev",
+    });
+    expect(result.current.session.session.provider).toBe("azure");
+    expect(result.current.session.session.scope_id).toBe("sub-from-catalogue");
+  });
+
+  it("a multi-path repo asks for the path even when the mapper answered both", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: "sub-from-catalogue",
+      paths: ["environments/dev", "environments/pro"],
+    });
+
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput("my-project"); });
+
+    expect(result.current.step).toBe("iac_path");
+    expect(mockAuthRun).not.toHaveBeenCalled();
+
+    // Picking the path is now the moment the wizard completes.
+    act(() => { result.current.handlePath("environments/pro"); });
+
+    expect(mockAuthRun).toHaveBeenCalledWith({
+      repositoryUrl: "https://dev.azure.com/org/repo",
+      query: "deploy a VM",
+      cloud: "azure",
+      environment: "environments/pro",
+    });
+  });
+
+  // The escape hatch for a mapper that answered with a wrong scope.
+  it("retry after an auth error returns to cloud_scope with the scope cleared", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: "wrong-subscription",
+      paths: ["environments/dev"],
+    });
+
+    const { result, rerender } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput("my-project"); });
+    expect(mockAuthRun).toHaveBeenCalled();
+
+    mockAuthState.mockReturnValue({ status: "error", message: "Forbidden" });
+    await act(async () => { rerender(); });
+    act(() => { result.current.retry(); });
+
+    expect(result.current.step).toBe("cloud_scope");
+    expect(result.current.data.cloudScope).toBe("");
+    expect(result.current.data.provider).toBe("azure");
+  });
+
+  // An OCID contains dots, which the typed-scope guard rejects. A
+  // mapper answer must not be run through it.
+  it("does not validate a mapper-supplied scope against the typed-scope pattern", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "oci",
+      scopeId: "ocid1.compartment.oc1..aaaaExample",
+      paths: ["environments/dev"],
+    });
+
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput("my-project"); });
+
+    // Neither rejected nor lowercased.
+    expect(result.current.data.cloudScope).toBe("ocid1.compartment.oc1..aaaaExample");
+    expect(mockAuthRun).toHaveBeenCalled();
   });
 
   it("resolve failure sets mapper error", async () => {
@@ -323,7 +518,9 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
   it("cloud_scope input stores the scope and calls auth.run with correct params", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: "myproj",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -349,7 +546,9 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
   it("auth success triggers terraform.run", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: "myproj",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -377,7 +576,9 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
   it("auth success triggers terraform only once (ref guard)", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: null,
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -398,7 +599,9 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
   it("cloud_scope rejects invalid scope (special chars)", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: null,
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -443,7 +646,9 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
 
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: null,
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 
@@ -484,7 +689,9 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
 
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
-      project: null,
+      identifier: "https://dev.azure.com/org/repo",
+      provider: null,
+      scopeId: null,
       paths: ["environments/dev"],
     });
 

@@ -10,12 +10,12 @@ tests use ``sh`` (always present) as a stand-in binary or patch the
 availability check.
 
 ``IAC_BACKEND_CONFIG`` names a backend configuration file for `init` to
-run with, and is asserted readable for the same reason.
+run with. It is *not* validated at startup: the file normally lives in
+the target repository, which is only cloned into a workspace once a job
+runs.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 import pytest
 
@@ -45,12 +45,6 @@ def test_unresolvable_binary_fails_fast(monkeypatch: pytest.MonkeyPatch) -> None
         _ = Config.from_env()
 
 
-def backend_file(tmp_path: Path) -> Path:
-    path = tmp_path / "backend.hcl"
-    _ = path.write_text('bucket = "somewhere"\n', encoding="utf-8")
-    return path
-
-
 @pytest.mark.parametrize("raw", ["", "   "])
 def test_blank_backend_config_is_unset(
     raw: str, monkeypatch: pytest.MonkeyPatch
@@ -59,22 +53,17 @@ def test_blank_backend_config_is_unset(
     assert Config.from_env().backend_config is None
 
 
-def test_backend_config_from_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    path = backend_file(tmp_path)
-    monkeypatch.setenv("IAC_BACKEND_CONFIG", f"  {path}  ")
-    assert Config.from_env().backend_config == str(path)
+def test_backend_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IAC_BACKEND_CONFIG", "  /etc/nebula/backend.hcl  ")
+    assert Config.from_env().backend_config == "/etc/nebula/backend.hcl"
 
 
-@pytest.mark.parametrize("target", ["does-not-exist.hcl", "a-directory"])
-def test_unreadable_backend_config_fails_fast(
-    target: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("target", ["backend.hcl", "envs/prod/backend.tfbackend"])
+def test_backend_config_need_not_exist_at_startup(
+    target: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Same reason the engine binary is checked at startup: a path that
-    is not there is a mounting mistake, and every `init` would fail on
-    it anyway."""
-    (tmp_path / "a-directory").mkdir()
-    monkeypatch.setenv("IAC_BACKEND_CONFIG", str(tmp_path / target))
-    with pytest.raises(ConfigError, match="IAC_BACKEND_CONFIG"):
-        _ = Config.from_env()
+    """The file usually ships in the target repository, which is only
+    cloned into a workspace once a job runs, so the path is taken as
+    given and a wrong one fails on `init` instead."""
+    monkeypatch.setenv("IAC_BACKEND_CONFIG", target)
+    assert Config.from_env().backend_config == target
