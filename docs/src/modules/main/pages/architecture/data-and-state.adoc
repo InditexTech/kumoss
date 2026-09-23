@@ -8,8 +8,7 @@ filesystem shared between the core and the iac sidecar.
 == core-db
 
 *core-db (PostgreSQL 17)* is the system of record for the application
-domain. Twelve tables
-(`core/src/infrastructure/database/models.py:57-297`): `users` (unique
+domain. Twelve tables: `users` (unique
 on `(issuer, subject)`, with `email`, `display_name`, `operation_role`,
 nullable `panel_role`), `sessions` (owned by a `user_id`, including the
 `in_flight` concurrency flag and the `is_blocked` compliance lock that
@@ -17,11 +16,17 @@ gates apply), `workspaces`, `terraform_providers`, `pull_requests`,
 `histories`, `statuses`, `rounds`, and the artifact-metadata tables
 `artifacts`, `terraform_plans`, `reports`, and `code_changes`. Roles are
 managed from the admin panel or, for the first administrator on IdPs
-that emit no `email_verified` claim, by a one-off SQL update. There is
+that emit no `email_verified` claim, by a one-off SQL update (see
+xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the
+first administrator access]). There is
 no migration tooling: the schema is created with SQLAlchemy
 `create_all`, so a `core_db_data` volume from a pre-auth stack (sessions
 keyed by a `username` column, no `users` table) must be migrated by
 hand or recreated.
+
+For the table-by-table breakdown, the enumerated columns, and how
+deletion cascades, see
+xref:main:reference/database-schema.adoc[Database schema].
 
 == phoenix-db
 
@@ -43,8 +48,7 @@ locks and no pub/sub channels.
 Object storage holds generated artifacts under
 `sessions/<session id>/rounds/<round primary key>/`, as
 `reports/<report type>-<token>.json`, `plans/{plan|drift}-<token>.txt`,
-or `changes/<token>-<sanitized file name>`
-(`core/src/domains/services/artifact_storage_service.py:73-76,113-116,153-156`).
+or `changes/<token>-<sanitized file name>`.
 RustFS is the *default and bundled* implementation: the Compose stack
 starts it as the `object-storage` container, and because it is open
 source (Apache-2.0) the default stack needs no proprietary or
@@ -108,7 +112,7 @@ back to whatever backend the repository's own Terraform files declare.
 A bare `terraform_state_bucket:` key with no value is *not* the same as
 `""` — it parses as YAML null and fails boot with a Pydantic validation
 error — and *deleting* the key entirely also leaves managed state on,
-since the `SystemConfig` field default is the same
+since the configuration default is the same
 `nebula-terraform-state` value.
 
 See xref:main:guides/configure-state-backends.adoc[Configure state
@@ -121,10 +125,8 @@ The `workspaces` volume is per-run: each run clones the repository into
 a unique directory shared with the iac container, and the runner
 removes it in a `finally` block. A *successful generate round* is the
 exception — it renames its directory to `/workspaces/<session>/pinned`
-before the cleanup runs
-(`core/src/infrastructure/filesystem/workspace.py:100-115`,
-`core/src/application/use_cases/terraform_crud_handler.py:155`), so
-that directory survives on the volume until apply's `discard_pinned` or
+before the cleanup runs, so that
+directory survives on the volume until apply's `discard_pinned` or
 the next generate round replaces it. That pinned directory keeps the
 initialized backend and the plan file, which is why apply executes the
 reviewed plan without re-running `init`. Durable outputs otherwise leave

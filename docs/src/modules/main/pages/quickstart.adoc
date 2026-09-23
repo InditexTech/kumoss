@@ -64,7 +64,7 @@ change default settings; the table below is what to review.
 `azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`. Keep them if
 you have an Azure AI Foundry endpoint; otherwise pick another provider and
 model pair from
-xref:main:reference/llm-providers.adoc[LiteLLM providers and models]. The
+xref:main:reference/llm-providers.adoc[LLM providers and models]. The
 provider prefix decides which credential variables the next step
 (`core/.env`) needs.
 
@@ -94,7 +94,7 @@ variable `NEBULA_IAC_TOKEN`.
 |Optional
 |Leave blank to keep authentication disabled on a trusted workstation. Fill
 them to test a real login flow; see
-xref:main:guides/enable-authentication.adoc[OIDC setup].
+xref:main:guides/enable-authentication.adoc[Enable authentication].
 
 |`storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins`
 |Leave as shipped
@@ -251,8 +251,8 @@ See the note on blank values below.
 
 |`IAC_BINARY`
 |Optional, default `tofu`
-|`IAC_BINARY=tofu` (the bundled default) runs OpenTofu 1.12.6 (MPL-2.0).
-`IAC_BINARY=terraform` selects the bundled HashiCorp Terraform 1.16.0,
+|`IAC_BINARY=tofu` (the bundled default) runs OpenTofu {opentofu-version} (MPL-2.0).
+`IAC_BINARY=terraform` selects the bundled HashiCorp Terraform {terraform-version},
 which is BUSL-1.1 licensed; selecting it makes your use subject to that
 license. The service refuses to start if the binary cannot be found.
 
@@ -442,17 +442,19 @@ Wait for the start-up sequence to finish: database initialization, Redis,
 the object-storage artifacts bucket, Phoenix prompt seeding (`Prompt
 seeding complete: N created, M already present`), git credentials, and
 finally `Application startup complete`. Boot is strict: if any of those
-steps fails the container exits with the reason in the log.
+steps fails the container exits with the reason in the log — except git
+credentials, which only log a warning (pushes fail later).
 
 [source,bash]
 ----
 curl http://localhost/api/v1/auth/config
 ----
 
-This is the only unauthenticated `/v1` route; `/api/docs` and
-`/api/openapi.json` are also public. With authentication disabled it
+This is the only unauthenticated `/v1` route; `/api/docs`, `/api/redoc`,
+and `/api/openapi.json` are also public. With authentication disabled it
 returns a JSON document with an empty `issuer_url`.
 
+[#see-it-working]
 == See it working
 
 [cols="1,3",options="header"]
@@ -469,6 +471,24 @@ returns a JSON document with an empty `issuer_url`.
 |Presigned artifact downloads opened by the web application, and the
 RustFS console — trusted workstation only
 |===
+
+[WARNING]
+====
+The compose file publishes ports 80 and 9000 on every interface of the
+host, with authentication disabled and the RustFS console behind
+`rustfsadmin` / `rustfsadmin`. On a shared network, bind both to
+loopback with a `docker-compose.override.yml` (or block them with a
+host firewall):
+
+[source,yaml]
+----
+services:
+  proxy:
+    ports: !override
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:9000:9000"
+----
+====
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
@@ -519,19 +539,19 @@ each repository declares its own backend instead.
 
 == Next steps
 
-* Hand the xref:main:guides/make-a-request.adoc[user guide] and
+* Hand the xref:main:guides/make-a-request.adoc[Make a request] and
   xref:main:faq.adoc[FAQ] to the people who will make requests.
 * Review and adapt the seeded prompts; they encode a generic policy, not
   yours: xref:main:guides/customize-prompts.adoc[Phoenix prompt
   templates].
 * Try a real login flow with your identity provider:
-  xref:main:guides/enable-authentication.adoc[OIDC setup].
+  xref:main:guides/enable-authentication.adoc[Enable authentication].
 * Learn the role model and the admin panel:
-  xref:main:guides/administer-users-and-locks.adoc[Admin portal].
+  xref:main:guides/administer-users-and-locks.adoc[Administer users and locks].
 * Decide where Terraform state should live before you point Nebula at
   anything real:
-  xref:main:guides/configure-state-backends.adoc[Terraform/OpenTofu
-  state backends].
+  xref:main:guides/configure-state-backends.adoc[Configure state
+  backends].
 * Before sharing the instance with anyone, switch to the production
   deployment model: xref:main:guides/deploy-to-production.adoc[Deploy
   to production].
@@ -597,4 +617,5 @@ each repository declares its own backend instead.
 * *RustFS console.* The bundled object storage exposes a web console on
   `\http://localhost:9000` using the compose credentials (`rustfsadmin` /
   `rustfsadmin`). This is fine on a trusted workstation only — never
-  expose it beyond one.
+  expose it beyond one; on a shared network bind the port to loopback as
+  shown in <<see-it-working,See it working>>.

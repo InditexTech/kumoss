@@ -51,7 +51,10 @@ bucket for application logs", "open port 443 on the web security group",
   impact banner (`low`, `medium`, `high`), and cost estimates.
 . *Compliance check* (when `orchestration.enable_compliance_checker` is
   `true`). A small-model auditor checks the plan against the rules in the
-  `general-compliance-report` prompt.
+  `general-compliance-report` prompt. The auditor judges the plan against
+  the session's *first* request, not the current round's, so in a
+  follow-up round `scope_exceeded` and `scope_incomplete` are measured
+  against the original request.
 . *Lock decision.* The session is locked when the compliance check fails
   or, with `orchestration.block_on_high_impact`, when the impact banner is
   `high`. A clean round clears an earlier lock. Notifications are sent for

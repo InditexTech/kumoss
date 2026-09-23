@@ -80,6 +80,10 @@ an isolated workstation:
 * `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` default to `rustfsadmin` /
   `rustfsadmin`. Rotate both to generated values (and update the core's
   `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`) before onboarding real data.
+  Set them explicitly on the core: when `storage.provider` is `RUSTFS`
+  and the variables are absent, the core silently falls back to
+  `rustfsadmin` — deleting them does not remove the default, only
+  setting them does.
 * `RUSTFS_CONSOLE_ENABLE=true` exposes the RustFS web console. Disable
   it, or make sure port 9000's console path is never reachable outside
   the cluster network — only the presigned-URL data path belongs on the

@@ -1,274 +1,311 @@
 = End-to-end flow
 :description: The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 
-The sequence below follows one generate session from the moment a user
-types a request until the reviewed plan is applied. It is split into
-five sequence diagrams, one per group of phases, placed against the
-sections that explain them. All five draw on the same cast of
-participants, left to right: the *user or human reviewer*, the *Nebula
-web UI and core API*, the *control gates* (guards, validators, locks,
-the compliance verdict: code, not models), the *Nebula LLM agents* (each
-a prompt-driven agent loop), *core-db* (the PostgreSQL rows the gates
-read and write), and the *external systems* (Git hosting, the IaC
-engine in the iac sidecar, object storage, Slack, the cloud). Each
-diagram shows only the participants its own phases use. Every step that
-changes state or blocks progress belongs to the control gates on
-purpose: models propose, code decides.
+One generate session, from the request a user types to the applied
+infrastructure. Ten phases, drawn as five sequence diagrams placed
+against the sections that explain them, with messages numbered 1 to 49
+continuously across all five. Each diagram shows only the participants
+its own phases use — see the xref:#legend[legend] for the cast and the
+arrow conventions.
 
-Messages are numbered 1 to 49 continuously across the five diagrams, so
-the numbering never restarts; the phase numbering matches the sections
-below, which explain each phase with the implementation details behind
-the arrows.
+Every step that changes state or blocks progress belongs to the control
+gates on purpose: *models propose, code decides.*
 
-== Phases 1 and 2: request, identity, session
+== Phases 1 and 2: request and session
 
-image::flow-phases-1-4.png[Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose]
+:diagram-name: flow-phases-1-4
+:diagram-alt: Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
 
-Messages 1 to 13. This diagram also covers phases 3 and 4, below.
+Messages 1 to 13; the diagram also covers phases 3 and 4.
 
-* *The user describes the infrastructure* in the wizard: repository
-  URL, target cloud, scope id, optional IaC path, and the request text.
-  The IaC path is chosen from the Terraform roots that
-  `POST /api/v1/repository/parse` detected from a metadata-only clone
-  (`IacRootDetector`, a `git ls-tree` heuristic over `.tf` directories).
-  The UI calls `POST /api/v1/iac/generate` with a bearer token.
-* *Identity and role check.* The `get_current_user` dependency
-  validates the OIDC JWT against the issuer's JWKS, or resolves the
-  fixed local-developer identity when `oidc.issuer_url` is blank.
-  `require_operation_role(developer)` then checks the operation role. A
-  missing or invalid token answers `401`; an insufficient role answers
-  `403`. Nothing else runs until this passes.
-* *Cloud-project preflight.* The wizard's earlier
-  `POST /api/v1/auth/authorize` asked the authz sidecar whether the
-  user may work on that cloud project. With the shipped configuration
-  the sidecar is disabled and the answer is "authorized" without any
-  network call; it is an integration hook, not one of Nebula's own
-  controls.
-* *Repository reachability.* The core runs `git ls-remote` on the URL
-  (which must not embed credentials). An unreachable or rejected
-  repository answers `400` and no session is created.
-* *Session creation.* A session row owned by the caller is created (or,
-  when a `session_id` is sent, the existing session is resolved and
-  ownership asserted), a new round is opened, and the API returns
-  `202 Accepted` with the session id. From here on everything runs as
-  an in-process background task.
-* *Progress stream.* The UI subscribes to
-  `GET /api/v1/events/subscribe/\{session_id}`; ownership is checked
-  once at connect time and status events are streamed every 4-5
-  seconds until a terminal status.
-* *Guard, workspace, tracing.* The runner acquires the in-flight guard,
-  an atomic compare-and-set on the session row
-  (`DatabaseService.acquire_in_flight`,
-  `core/src/domains/services/database_service.py:917-962`). The `202`
-  has already been sent by then, so a concurrent request is never
-  refused with `409`: the runner that loses the compare-and-set logs
-  `runner not started: Session ... already has an operation in flight`
-  and returns without touching the session
-  (`core/src/api/v1/terraform.py:84-88`) — a concurrent call returns
-  `202` and the losing runner exits silently. It then clones the
-  repository into `/workspaces/<session>/<call>` on the volume shared
-  with the iac sidecar, creates and pushes the branch
-  `Nebula/<UTC timestamp>`, and installs the per-session Phoenix
-  tracer.
+[cols="1,3",options="header"]
+|===
+|Step |What happens
 
-== Phases 3 and 4: filter and compose (small model)
+|Request
+|The wizard posts repository URL, target cloud, scope id, optional IaC
+path and request text to `POST /api/v1/iac/generate` with a bearer
+token. The IaC path is one of the Terraform roots
+`POST /api/v1/repository/parse` found in a metadata-only clone
+(a `git ls-tree` heuristic over `.tf` directories).
 
-* *Request Filter Agent* (status `filtering`). The small model, with
-  read-only workspace tools, classifies the request against the
-  `general-guidelines-requests` and
-  `<cloud>-guidelines-forbidden_actions` prompts. A change request
-  proceeds. A question is answered in the conversation, and an
-  out-of-scope, prohibited, or ambiguous request is declined with a
-  rationale; in both cases the round ends `uncompleted` and the user is
-  invited to reformulate. The session itself stays usable.
-* *Prompt Compositor.* Two small-model passes select, from the cloud's
-  `resources_list` and `abbreviations` prompts in Phoenix, the resource
-  templates and abbreviations relevant to the request, then look for
-  dependencies among the selected templates. The result, the round's
-  _conventions_, is what every later agent is rendered with.
+|Identity and role
+|The authentication dependency validates the bearer JWT, or resolves
+the fixed local-developer identity when auth is disabled, and the role
+check requires `developer`: `401` or `403` otherwise. The wizard has separately asked the authz sidecar
+whether the user may work on that cloud project. See
+xref:#auth[Authentication] and xref:#authz[Authorization and
+ownership].
 
-== Phase 5: generate, validate, correct (at most 5 iterations)
+|Repository reachability
+|The URL must not embed credentials — a request-model validator rejects
+one that does with `422` — and then `git ls-remote` must succeed:
+unreachable or rejected → `400`. Either way no session is created.
 
-image::flow-phases-5-6.png[Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check]
+|Session creation
+|A session row owned by the caller is created, or an existing one
+resolved by `session_id` with ownership asserted; a round opens and the
+API answers `202 Accepted` with the session id. Everything from here
+runs as an in-process background task.
 
-Messages 14 to 25. This diagram also covers phase 6, below.
+|Progress stream
+|The UI subscribes to `GET /api/v1/events/subscribe/\{session_id}` and
+receives status events every 4-5 seconds until a terminal status.
 
-* *Infrastructure Generation Agent* (status `generating`). The main
-  model edits Terraform files in the workspace through the tool
-  registry (read, write, list, ripgrep search, web search), bounded by
-  `orchestration.max_tool_chain_executions` (70) tool calls and
-  terminated by the sentinel `task_complete` tool.
-* *Persist and push.* Every changed or new file is uploaded as a
-  code-change artifact and committed and pushed to the session branch,
-  so the work is durable before validation starts.
-* *Session Target Generator.* The main model derives the `-target` list
-  for this round from the branch's diff history, so the plan covers
-  what the round changed rather than the whole root module.
-* *Validation* (status `validating`). The core submits `init` (cached:
-  run once per `Terraform` instance, so once per round, and re-run only
-  when the engine's own output asks for `terraform init` —
-  `core/src/infrastructure/terraform/terraform.py:245-302`), `validate`,
-  and `plan -out session.plan -target ...` as asynchronous jobs to the
-  iac sidecar, polling each every `services.iac.job_poll_interval`
-  seconds within `services.iac.job_timeout`. The engine (OpenTofu by
-  default) runs against the shared workspace with the cloud credentials
-  of `services/iac/.env`.
-* *Correct or fail.* Engine errors are fed back to the generation agent
-  as the next query, and generation through validation repeats. After
-  `orchestration.max_validation_iteration` (5) failures
-  `generate_and_validate` raises `ValidationLoopExceededError` (`422`,
-  `core/src/domains/services/terraform_validation_service.py:159-162`);
-  the runner catches it, marks the session `FAILED` with
-  `runner failed: Validation loop exceeded.` and fires a
-  `system.exception.failure` notification
-  (`core/src/api/v1/terraform.py:112-118`). No LLM problem summary is
-  produced — the `summarize_problem` path in
-  `terraform_crud_handler.py` is unreachable. The branch keeps the last
-  pushed attempt, and because `FAILED` is terminal for the *session*,
-  not just the round, that session can never be resumed:
-  `acquire_in_flight` refuses any session whose latest status is
-  `FAILED` (`database_service.py:105-108,952-958`). Only a new session
-  can carry the work forward.
+|Guard, workspace, tracing
+|The runner takes the in-flight guard, an atomic compare-and-set on the
+session row. The `202` has already been sent, so a concurrent request is
+never refused with `409`: the runner that loses logs
+`runner not started: Session ... already has an operation in flight` and
+returns without touching the session. It then clones into
+`/workspaces/<session>/<call>` on the volume shared with the iac
+sidecar, pushes the branch `Nebula/YYYY-MM-DD_HHMMSS` (UTC), and installs
+the per-session Phoenix tracer.
+|===
 
-== Phase 6: implicit drift pre-check on the validated targets (at most 2 rounds)
+== Phases 3 and 4: filter and compose
 
-* *Inspect the plan.* With the code validated, the core runs
-  `show -json` on the plan artifact validation left in the workspace
-  and diffs each resource's `before` and `after` states. It reads the
-  round's own plan instead of producing a second one: the validation
-  step handed back a `PlanRef` naming that artifact, and the pre-check
-  passes the ref straight to `show`. The differences are inverted into
-  "make the code match the infrastructure" operations, and the drift
-  JSON is stored as an artifact.
-* *Split and filter.* If the plan shows differences, the Drift Task
-  Splitter (small model) turns them into plain-language operations, and
-  the Reconciliation Filter (small model) reads the branch's
-  `diff_history` and drops every operation that would merely undo the
-  session's own intended changes.
-* *Decide.* If genuine drift remains, it re-enters the generation loop
-  in batches of `orchestration.drift_group_operations` (8) with the
-  forbidden-actions block omitted, and the pre-check runs once more —
-  on the ref the last reconciliation round produced, again without
-  planning twice. If only the session's own changes remain, or the plan
-  is clean, the pre-check stops and the last plan is final.
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Request Filter Agent (`filtering`)
+|The small model, with read-only workspace tools, classifies the request
+against the `general-guidelines-requests` and
+`<cloud>-guidelines-forbidden_actions` prompts. A change request
+proceeds; a question is answered in the conversation; an out-of-scope,
+prohibited or ambiguous request is declined with a rationale. In the
+last two cases the round ends `uncompleted` and the user is invited to
+reformulate — the session itself stays usable.
+
+|Prompt Compositor
+|Two small-model passes select the relevant resource templates and
+abbreviations from the cloud's `resources_list` and `abbreviations`
+prompts in Phoenix, then look for dependencies among them. The result is
+the round's _conventions_, which every later agent is rendered with.
+|===
+
+== Phase 5: generate, validate, correct
+
+Up to five generate-and-validate iterations.
+
+:diagram-name: flow-phases-5-6
+:diagram-alt: Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 14 to 25; the diagram also covers phase 6.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Infrastructure Generation Agent (`generating`)
+|The main model edits Terraform files through the tool registry (read,
+write, list, ripgrep search, web search), bounded by
+`orchestration.max_tool_chain_executions` (70) model turns — one
+increment per inference turn after its tool calls run, the same bound
+every agent loop shares; reaching it raises `ToolExecutionsExceeded` and
+the round fails — and terminated by the sentinel `task_complete` tool.
+
+|Persist and push
+|Every changed or new file is uploaded as a code-change artifact and
+committed and pushed to the session branch, so the work is durable
+before validation starts.
+
+|Session Target Generator
+|The main model derives this round's `-target` list from the branch's
+diff history, so the plan covers what the round changed rather than the
+whole root module.
+
+|Validation (`validating`)
+|`init`, `validate` and `plan -out session.plan -target ...` are
+submitted to the iac sidecar as asynchronous jobs, each polled every
+`services.iac.job_poll_interval` seconds within
+`services.iac.job_timeout`. The engine (OpenTofu by default) runs
+against the shared workspace with the cloud credentials in
+`services/iac/.env`.
+
+|Correct or fail
+|Engine errors go back to the generation agent as the next query and the
+loop repeats. After `orchestration.max_validation_iteration` (5)
+failures the round ends `FAILED`, the branch keeps the last pushed
+attempt, and the session is xref:#terminal-states[closed for good].
+|===
+
+== Phase 6: implicit drift pre-check
+
+Runs on the targets validation has just produced, at most twice.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Inspect the plan
+|The core runs `show -json` on the plan artifact validation left in the
+workspace — the round's own plan, never a second one — and inverts the
+`before`/`after` differences into "make the code match the
+infrastructure" operations, stored as a drift artifact.
+
+|Split and filter
+|The Drift Task Splitter (small model) turns the differences into
+plain-language operations, and the Reconciliation Filter (small model)
+reads the branch's `diff_history` and drops every operation that would
+merely undo the session's own intended changes.
+
+|Decide
+|Genuine drift re-enters the generation loop in batches of
+`orchestration.drift_group_operations` (8) with the forbidden-actions
+block omitted, and the pre-check runs once more. If only the session's
+own changes remain, or the plan is clean, the pre-check stops and the
+last plan is final.
+|===
+
+Full mechanism, including the fingerprint that makes reading an
+existing plan safe: xref:#drift[Drift detection and remediation].
 
 == Phase 7: report and artifacts
 
-image::flow-phases-7-8.png[Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit]
+:diagram-name: flow-phases-7-8
+:diagram-alt: Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
 
-Messages 26 to 34. This diagram also covers phase 8, below.
+Messages 26 to 34; the diagram also covers phase 8.
 
-* *Report Generator* (status `report`). The main model turns the final
-  plan into a JSON report: create, update, delete, and recreate counts,
-  detailed changes, an impact banner (`low`, `medium`, `high`) assigned
-  with the `general-compliance-impact` criteria, and cost estimates.
-* *Artifacts.* Report, plans, drift JSON, and code changes are stored
-  in object storage under `sessions/<session>/rounds/<round>/`, where
-  `<round>` is the round's *database primary key*, not its ordinal in
-  the session. The three key patterns are
-  `reports/<report type>-<token>.json`,
-  `plans/{plan|drift}-<token>.txt`, and
-  `changes/<token>-<sanitized file name>`
-  (`core/src/domains/services/artifact_storage_service.py:73-76,113-116,153-156`).
-  Metadata is written to PostgreSQL, and the UI receives presigned URLs
-  signed against the public port-9000 endpoint.
+[cols="1,3",options="header"]
+|===
+|Step |What happens
 
-== Phase 8: independent compliance audit, verdict computed in code
+|Report Generator (`report`)
+|The main model turns the final plan into a JSON report: create, update,
+delete and recreate counts, detailed changes, an impact banner (`low`,
+`medium`, `high`) assigned with the `general-compliance-impact`
+criteria, and cost estimates.
 
-* *Compliance Auditor* (when `orchestration.enable_compliance_checker`
-  is `true`). A second, independent small-model agent receives the
-  session's first request and the raw plan output (not the report
-  JSON) together with the `general-compliance-report` rules and the
-  cloud guidelines. It has no repository tools; its only tool is the
-  sentinel `report_compliance_findings`, through which it must answer
-  with structured findings: rule id, severity, resource, message,
-  suggested fix. When the checker is disabled the step yields an empty
-  passing report.
-* *Verdict in code.* The tool handler recomputes `passed` from the
-  severities: any `error` or `critical` finding fails the audit
-  regardless of the model's own claim. The plan is *pinned* either way:
-  the validated workspace with `session.plan` is kept as the session's
-  pinned plan, replacing any earlier pin.
-* *Lock or release.* The handler writes
-  `is_blocked = (audit failed) or (impact is high and orchestration.block_on_high_impact)`.
-  On failure, a fire-and-forget `iac.compliance.failed` notification or
-  `iac.impact.high` notification goes to the notifications sidecar, and
-  the UI shows that apply and pull-request merge will answer `409`
-  while pull-request creation stays allowed. On pass the lock is
-  cleared and the round completes: generated and validated, awaiting a
-  human decision. A panel `editor` can toggle the session lock from the
-  admin panel.
+|Artifacts
+|Report, plans, drift JSON and code changes go to object storage under
+`sessions/<session>/rounds/<round>/`, where `<round>` is the round's
+*database primary key*, not its ordinal in the session. The key patterns
+are `reports/<report type>-<token>.json`, `plans/plan-<token>.txt`,
+`plans/drift-<token>.txt` and `changes/<token>-<sanitized file name>`.
+Metadata goes to PostgreSQL; the UI receives presigned URLs.
+|===
 
-== Phase 9: optional pull request and human review
+== Phase 8: compliance audit
 
-image::flow-phase-9.png[Nebula request flow, phase 9: optional pull request and human review]
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Compliance Auditor
+|With `orchestration.enable_compliance_checker` on, a second,
+independent small-model agent reads the session's first request and the
+raw plan output — not the report JSON — alongside the
+`general-compliance-report` rules and the cloud guidelines. It has no
+repository tools and must answer through its only tool,
+`report_compliance_findings`: rule id, severity, resource, message,
+suggested fix.
+
+|Verdict in code
+|The tool handler recomputes `passed` from the severities: any `error`
+or `critical` finding fails the audit regardless of the model's own
+claim.
+
+|Lock or release, then pin
+|The handler first writes `is_blocked`, which decides whether apply and
+pull-request merge are available, and notifies on failure; only then does
+the validated workspace with `session.plan` become the session's pinned
+plan, replacing any earlier pin. A failed lock write therefore leaves the
+round unpinned. Configuration, exact formula and effect:
+xref:#compliance[Compliance gate].
+|===
+
+== Phase 9: pull request and review
+
+:diagram-name: flow-phase-9
+:diagram-alt: Nebula request flow, phase 9: optional pull request and human review
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
 
 Messages 35 to 40.
 
-* *Pull request on demand.* `PUT /api/v1/repository/pr` (owner,
-  `developer`) has the PR Title and Description Agent (small model)
-  draft the text, then the Git provider adapter (GitHub, Azure DevOps,
-  or GitLab REST API) opens the pull request from the session branch.
-  Reviewers see the code, the plan, the drift and compliance reports,
-  the cost estimate, and their own CI.
-* *Review outcomes.* Requested changes become a new request in the same
-  session (back to phase 3, a new round on the same branch) — possible
-  while the session is `COMPLETED` or `UNCOMPLETED`, never after a
-  `FAILED` round, which closes the session for good. Approval leads to
-  `PUT /api/v1/repository/pr/merge`, which merges into the default
-  branch unless the session is locked (`409`): a pull-request merge is
-  always lock-checked. A rejected or closed pull request ends
-  delivery; the session history and artifacts are kept.
+[cols="1,3",options="header"]
+|===
+|Step |What happens
 
-== Phase 10: human-triggered apply (never automatic)
+|Pull request on demand
+|`PUT /api/v1/repository/pr` (owner, `developer`) has the PR Title and
+Description Agent (small model) draft the text, then the Git provider
+adapter (GitHub, Azure DevOps or GitLab REST API) opens the pull request
+from the session branch. Reviewers see the code diff, a title and
+description the model derives only from the request and the conversation
+history, and their own CI; the plan, report and cost estimate stay in
+Nebula's results view, and compliance findings reach only the
+notification audience.
 
-image::flow-phase-10.png[Nebula request flow, phase 10: human-triggered apply, never automatic]
+|Review outcomes
+|Requested changes become a new request in the same session — back to
+phase 3, a new round on the same branch — which is possible while the
+session is `COMPLETED` or `UNCOMPLETED`, never after a `FAILED` round.
+Approval leads to `PUT /api/v1/repository/pr/merge`, which merges into
+the default branch unless the session is locked (`409`): a merge is
+always lock-checked. A rejected or closed pull request ends delivery;
+the session history and artifacts are kept.
+|===
+
+== Phase 10: apply
+
+:diagram-name: flow-phase-10
+:diagram-alt: Nebula request flow, phase 10: human-triggered apply, never automatic
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
 
 Messages 41 to 49.
 
-* *Explicit human action.* `POST /api/v1/iac/apply` with the session
-  id. Nothing in the pipeline applies on its own; in the UI this is the
-  "Approve PR and Apply" button after a merge or the Import
-  Infrastructure mode on an existing session.
-* *Gates.* Before answering, the route requires a valid identity, the
-  `developer` role, session ownership, and a session that is not
-  locked (`409 Session ... is blocked`); it then answers `202`. That
-  `409` is the only one a client sees. In the background the runner
-  needs a free in-flight guard (otherwise it logs and exits without
-  changing the session), and the handler needs a pinned plan: without
-  one it raises
-  `No reviewed plan is pinned for this session; run a generate or drift round before applying.`,
-  so the runner marks the session `FAILED`, sends
-  `system.exception.failure`, and the session — being `FAILED` — can no
-  longer be resumed. A drift-only session is exactly that case, because
-  drift rounds never pin.
-* *One apply.* The iac sidecar runs a single `apply session.plan` on
-  the pinned workspace: no re-plan, no retry. Exactly the reviewed plan
-  executes.
-* *Outcome.* On success the Report Generator writes an `apply` report
-  and the session completes; the cloud is in the requested state. A
-  non-zero exit from the engine is *not* an exception:
-  `Terraform.apply()` returns a `TerraformApplyDTO` with `ok=False`
-  (`core/src/infrastructure/terraform/terraform.py`), the handler still
-  writes an `apply` report, sends the `iac.apply.failure` notification,
-  and returns normally
-  (`core/src/application/use_cases/terraform_apply_handler.py:73-86`),
-  so the runner marks the session `COMPLETED` — a failed apply does not
-  raise: the session still ends `COMPLETED`, with an apply report whose
-  status is `Failed` and a failure notification, and the failure is
-  visible only in the report content and the notification. There is no
-  retry; a new generate round is needed to produce a new plan.
-* *Cleanup* (always). The pinned plan is discarded, the run directory
-  is removed from the volume, and the in-flight guard is released in a
-  `finally` block.
+[cols="1,3",options="header"]
+|===
+|Step |What happens
 
-== Reading the diagrams: legend
+|Explicit human action
+|`POST /api/v1/iac/apply` with the session id. Nothing in the pipeline
+applies on its own; in the UI this is the "Approve PR and Apply" button
+after a merge, or Import Infrastructure mode on an existing session.
+
+|Gates
+|A valid identity, the `developer` role, session ownership and an
+unlocked session (`409 Session ... is blocked` — the only `409` a client
+sees), then `202`. In the background the runner needs a free in-flight
+guard, and the handler needs a pinned plan; a drift-only session has
+none, because drift rounds never pin.
+
+|One apply
+|The iac sidecar runs a single `apply session.plan` on the pinned
+workspace: no re-plan, no retry. Exactly the reviewed plan executes.
+
+|Outcome
+|The Report Generator reads the engine output either way and writes an
+`apply` report whose `status` is the model's classification of that
+output — `Success`, `Partial` or `Failed`. A non-zero exit does not
+raise: the deterministic signal is the `iac.apply.failure` notification,
+gated on the exit code, and the session still ends `COMPLETED` — see
+xref:#terminal-states[Terminal states].
+
+|Cleanup (always)
+|The pinned plan is discarded, the run directory is removed from the
+volume, and the in-flight guard is released in a `finally` block.
+|===
+
+[#legend]
+== Diagram legend
 
 Each diagram is an Archify sequence diagram: participants across the
-top, time running downwards, one arrow per message. Its conventions:
+top, time running downwards, one arrow per message.
 
-*Participants* (the boxes at the top; each diagram shows only the ones
-its phases use)
+*Participants* — the boxes at the top; each diagram shows only the ones
+its phases use.
 
 [cols="1,3",options="header"]
 |===
@@ -283,26 +320,25 @@ request, or applies.
 dependency, `202` answers, SSE stream, presigned URLs.
 
 |*Control gates* (red)
-|Application code with no model judgment: session and lock handling,
-the in-flight guard, git operations, drift calculation, the compliance
+|Application code with no model judgment: session and lock handling, the
+in-flight guard, git operations, drift calculation, the compliance
 verdict, artifact storage. Every state change and every blocking
 decision happens here.
 
 |*LLM agents* (green)
-|Prompt-driven agent loops. Each message into this participant names
-the agent and its model role (`main` = `llm.model`, `small` =
+|Prompt-driven agent loops. Each message into this participant names the
+agent and its model role (`main` = `llm.model`, `small` =
 `llm.small_model`); see the xref:#agent-catalogue[agent catalogue].
 
 |*core-db* (purple)
 |The PostgreSQL rows the gates read and write: the session, its status,
-the in-flight guard, `is_blocked`, artifact metadata. Drawn as its own
-participant so that every state change is a visible message rather than
-an invisible side effect.
+the in-flight guard, `is_blocked`, artifact metadata. Its own
+participant, so every state change is a visible message rather than an
+invisible side effect.
 
 |*External* (amber)
-|Systems outside the core: Git hosting, the IaC engine in the iac
-sidecar, object storage, Slack through the notifications sidecar, and
-the cloud platform.
+|Git hosting, the IaC engine in the iac sidecar, object storage, Slack
+through the notifications sidecar, and the cloud platform.
 |===
 
 *Arrows and bands*
@@ -312,12 +348,11 @@ the cloud platform.
 |Element |Meaning
 
 |Solid grey arrow (`default message`)
-|A call or hand-over in the direction of the arrow: a request, a
-command submitted, files handed to the next step.
+|A call or hand-over in the direction of the arrow.
 
 |Dashed grey arrow (`return`)
-|A result or answer flowing back: engine output, structured findings,
-an HTTP status, a message shown to the user.
+|A result flowing back: engine output, structured findings, an HTTP
+status, a message shown to the user.
 
 |Dashed crimson arrow (`security`)
 |A gate or a state change with authority over the flow: identity and
@@ -325,53 +360,49 @@ role checks, refusals, the compliance verdict, the lock flag, the
 in-flight guard, cleanup.
 
 |Dashed purple arrow (`async trace`)
-|A *fire-and-forget* notification to the notifications sidecar. It
-never fails the pipeline.
+|A *fire-and-forget* notification to the notifications sidecar. It never
+fails the pipeline.
 
-|Vertical bar on a participant's lifeline
+|Vertical bar on a lifeline
 |An activation: that participant is busy for the span the bar covers.
 
 |Dashed band labeled `PHASE n · …`
-|One phase of the flow; the numbering matches the sections above. The
-band label also carries the facts that have no arrow of their own,
-such as the conditions under which a bounded loop stops.
+|One phase, numbered as the sections above. The label also carries facts
+that have no arrow of their own, such as the conditions under which a
+bounded loop stops.
 
 |Message numbers
-|Numbered 1 to 49 continuously across the five diagrams. They do not
-correspond one-to-one with the bulleted steps in the sections above,
-which group several messages per step.
+|1 to 49, continuous across the five diagrams. They do not map
+one-to-one onto the steps in the tables above, which group several
+messages per step.
 
 |A number with an `a` / `b` / `c` suffix
-|*Mutually exclusive* arms of the same decision: `32a` and `32b` are
-the two outcomes of the compliance verdict, and only one of them
-happens. Each arm's messages also start with its condition in square
-brackets, for example `[fail]`, `[pass]`, `[approved]`. Because a
-sequence diagram draws messages in one column, the arms of a branch
-appear one after another; the shared number and the bracketed
-condition are what mark them as alternatives rather than consecutive
-steps. Arms can differ in length, so a number may carry only one
-suffix: `13a` with no `13b` means only the first arm still has a
+|*Mutually exclusive* arms of one decision — `32a` and `32b` are the two
+outcomes of the compliance verdict, and only one happens. Each arm's
+messages also start with its condition in brackets: `[fail]`, `[pass]`,
+`[approved]`. A sequence diagram draws one column, so the arms appear
+one after another; the shared number and the bracket are what mark them
+as alternatives rather than consecutive steps. Arms can differ in
+length, so `13a` with no `13b` means only the first arm still has a
 message at that point.
 
 |`[at most n …]` in a label or band
-|A bounded loop with its configured ceiling: 70 tool calls per
-generation agent, 5 validation iterations, 2 drift pre-check rounds, 8
-operations per drift batch.
+|A bounded loop with its ceiling: 70 model turns per agent loop, 5
+validation iterations, 2 drift pre-check rounds, 8 operations per drift
+batch.
 |===
 
 [#agent-catalogue]
 == Agent catalogue
 
 Every message into the agents lane is one of the agents below. Each is
-an `LLMOrchestrationService` loop rendered from a Jinja layout with
+an orchestration loop rendered from a Jinja layout with
 prompts fetched from Phoenix, given a fixed tool set, and ended by a
 *sentinel tool* whose structured arguments are the agent's result.
-Model routing is by prompt type: only the generation, target, and
-report prompts use the main model.
 
 [cols="2,1,3,2,3",options="header"]
 |===
-|Agent |Model role |Tools available |Ends via |Where it appears
+|Agent |Model |Tools available |Ends via |Where it appears
 
 |Infrastructure Generation Agent
 |main
@@ -398,10 +429,9 @@ sessions
 |Report Generator
 |main
 |`web_search`
-|`generate_terraform_plan_report`, `generate_terraform_drift_report`,
+|`generate_terraform_plan_report`, `generate_terraform_drift_report`
 or `generate_terraform_apply_report`
-|Phase 7 (generate report), Phase 10 (apply report), dedicated drift
-sessions (drift report)
+|Phase 7, Phase 10, and dedicated drift sessions
 
 |Request Filter Agent
 |small
@@ -412,7 +442,7 @@ sessions (drift report)
 |Prompt Compositor
 |small
 |none besides its sentinel
-|`construct_information` (called in two passes)
+|`construct_information` (two passes)
 |Phase 4
 
 |Status Message Agent
@@ -433,15 +463,14 @@ sessions (drift report)
 |`read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it *must*
 call `diff_history`)
 |`report_decomposed_task_operations`
-|Phase 6 only (generate rounds)
+|Phase 6 only, generate rounds
 
 |Compliance Auditor Agent
 |small
-|none besides its sentinel (input: the first request and the raw plan
-output)
+|none besides its sentinel; input is the first request and the raw plan
+output
 |`report_compliance_findings`
-|Phase 8, generate rounds only, when
-`orchestration.enable_compliance_checker` is `true`
+|Phase 8, generate rounds, when the checker is enabled
 
 |PR Title & Description Agent
 |small
@@ -450,186 +479,165 @@ output)
 |Phase 9
 |===
 
-*Deterministic (non-LLM) components* that appear in the other lanes:
-the FastAPI routers and use-case handlers; PostgreSQL session,
-ownership, status, `in_flight`, and `is_blocked` controls; the git
-workspace service and the GitHub, Azure DevOps, and GitLab provider
-adapters; the iac sidecar (OpenTofu or Terraform command executor);
-drift calculation (`plan_to_drift`, DeepDiff); the code-computed
-compliance verdict; object storage with presigned URLs; SSE status
-delivery; the notifications sidecar.
-
-Nebula orchestrates these specialized agents through application code.
-Agents do not delegate to one another and there is no supervisor agent:
-the handler classes call each agent in a fixed order, and every loop
-has a configured ceiling (`orchestration.max_tool_chain_executions`,
+Agents never delegate to one another and there is no supervisor agent:
+the handler classes call each in a fixed order, and every loop has a
+configured ceiling (`orchestration.max_tool_chain_executions`,
 `max_validation_iteration`, `max_drift_reports`,
-`drift_group_operations`; the drift pre-check inside a generate round
-is fixed at two iterations).
+`drift_group_operations`; the drift pre-check inside a generate round is
+fixed at two iterations).
 
+*Deterministic, non-LLM components* fill the other lanes: the FastAPI
+routers and use-case handlers; PostgreSQL session, ownership, status,
+`in_flight` and `is_blocked` controls; the git workspace service and the
+GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
+calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
+verdict; object storage with presigned URLs; SSE status delivery; the
+notifications sidecar.
+
+[#terminal-states]
 == Terminal states
 
-Where a generate session can end, what the database records, and which
-phase diagram shows it. In the last column, 🟩 is a successful end
-state, 🟥 a rejection, block, or failure, 🟨 a state waiting on a human
-review, and 🟧 a state waiting on the human to reformulate, or a bounded
-loop that stopped without converging.
+Where a generate session can end. The marker in each end state is the
+diagram's: 🟩 success, 🟥 a rejection, block or failure, 🟨 waiting on a human
+review, 🟧 waiting on the human to reformulate, or a bounded loop that
+stopped without converging.
 
-[cols="3,3,4,2",options="header"]
+[cols="3,4,4",options="header"]
 |===
-|End state |Reached when |Session status and side effects |In the diagram
+|End state |Reached when |Status and side effects
 
-|Infrastructure applied
+|🟩 *Infrastructure applied* — phase 10
 |The human-triggered apply succeeded
 |`COMPLETED` (apply round); pinned plan discarded
-|🟩 Phase 10
 
-|Generated and validated, awaiting human apply
-|The generate round passed the audit (or the checker is disabled) and
-the impact is not `high`
+|🟩 *Validated, awaiting apply* — phase 8
+|The round passed the audit, or the checker is off, and the impact is not
+`high`
 |`COMPLETED`, `is_blocked = false`, plan pinned
-|🟩 Phase 8
 
-|Awaiting pull-request review
+|🟨 *Awaiting pull-request review* — phase 9
 |The user created a pull request
-|`COMPLETED` (unchanged); pull request recorded
-|🟨 Phase 9
+|Status unchanged; pull request recorded
 
-|Changes requested
-|The reviewer asked for changes, or CI or a conflict failed the pull
-request
-|A new round of the same session starts at Phase 3
-|amber loop, Phase 9
+|*Changes requested* — amber loop back to phase 3
+|The reviewer asked for changes, or CI or a conflict failed the pull request
+|A new round of the same session starts at phase 3
 
-|Request declined or answered
+|🟧 *Request declined or answered* — phase 3
 |The Request Filter Agent declined the request or answered a question
 |`UNCOMPLETED`; the session stays usable
-|🟧 Phase 3
 
-|Apply locked
-|Any `error` or `critical` compliance finding, or a `high` impact
-banner with `orchestration.block_on_high_impact`
-|`COMPLETED`, `is_blocked = true`, plan pinned; `iac.compliance.failed`
-or `iac.impact.high` notification
-|🟥 Phase 8
+|🟥 *Apply locked* — phase 8
+|Any `error` or `critical` compliance finding, or a `high` impact banner
+with `orchestration.block_on_high_impact`
+|`COMPLETED`, `is_blocked = true`, plan pinned; `iac.compliance.failed` or
+`iac.impact.high` notification
 
-|Validation failed after the maximum iterations
-|`orchestration.max_validation_iteration` (5) generate-and-validate
-attempts exhausted
-|`FAILED` with `runner failed: Validation loop exceeded.`;
-`system.exception.failure` notification; no LLM problem summary; the
-branch keeps the last pushed attempt
-|🟥 Phase 5
+|🟥 *Validation never converged* — phase 5
+|All five generate-and-validate attempts used
+|`FAILED` with `runner failed: Validation loop exceeded.`, plus
+`system.exception.failure`. No LLM problem summary is produced. The branch
+keeps the last pushed attempt
 
-|Drift pre-check did not converge
-|Two pre-check iterations used and drift remains
-|The drift is re-read from the plan the last remediation batch
-produced, so the report and the pinned `session.plan` describe the
-same plan; the round continues to the report with that drift and a
-warning is logged. If a remediation batch itself exhausts its five
-validation iterations, the round ends `FAILED` instead
-|🟧 Phase 6
+|🟧 *Drift pre-check did not converge* — phase 6
+|Both pre-check iterations used and drift remains
+|The round continues to the report with a warning logged, re-reading the
+drift from the last remediation batch's plan so the report and the pinned
+plan agree. A batch that exhausts its own validation iterations ends the
+round `FAILED` instead
 
-|Pull request rejected or closed
+|🟥 *Pull request rejected or closed* — phase 9
 |The reviewer closed the pull request
-|Session status unchanged; history and artifacts kept
-|🟥 Phase 9
+|Status unchanged; history and artifacts kept
 
-|Apply failed
+|🟥 *Apply failed* — phase 10
 |The engine's apply returned a non-zero exit code
-|`COMPLETED`, with an `apply` report whose status is `Failed`;
-`iac.apply.failure` notification; pinned plan discarded; no automatic
+|Not an exception: the handler writes an `apply` report whose status is
+the model's classification of the engine output (normally `Failed`), sends
+`iac.apply.failure` — the deterministic, exit-code-gated signal — and
+returns, so the session still ends `COMPLETED`. Pinned plan discarded; no
 retry, a new generate round is needed
-|🟥 Phase 10
 
-|Apply requested without a pinned plan
-|Apply on a session whose last round was drift-only, or whose pinned
-plan was already consumed
-|`202` answered, then the session ends `FAILED` with
-`No reviewed plan is pinned for this session; run a generate round before applying.`
-and a `system.exception.failure` notification; the session cannot be
-resumed
-|🟥 Phase 10
+|🟥 *Apply without a pinned plan* — phase 10
+|Apply on a session whose last round was drift-only, or whose pinned plan
+was already consumed
+|`202` answered, then an internal `409`: `No reviewed plan is pinned for
+this session; run a generate or drift round before applying.` — misleading
+wording, since drift rounds never pin. The runner sets `FAILED` and sends
+`system.exception.failure`; the session cannot be resumed
 
-|Pipeline failed
-|An LLM or tool error, a sidecar timeout, a git or storage failure, or
-any other handled exception
+|🟥 *Pipeline failed* — reachable from any phase
+|An LLM or tool error, a sidecar timeout, a git or storage failure, or any
+other handled exception
 |`FAILED`; `system.exception.failure` notification; workspace cleaned;
 in-flight guard released
-|🟥 reachable from any phase
 
-|Run stopped without a status
-|A prompt missing in Phoenix for the deployment's `environment` tag (an
-unhandled `Prompt not found`)
+|*Run stopped without a status* — not shown
+|A prompt missing in Phoenix for the deployment's `environment` tag
 |Last status kept, no failure message, guard released
-|not shown
 |===
 
-`FAILED` is terminal for the *session*, not only for the round:
-`acquire_in_flight` refuses to start a run on a session whose latest
-status is `FAILED`
-(`core/src/domains/services/database_service.py:105-108,952-958`), so
-no follow-up request, apply, or drift round can be attached to it.
-`COMPLETED` and `UNCOMPLETED` sessions accept new rounds normally.
+`FAILED` is terminal for the *session*, not only for the round: the
+in-flight guard refuses to start a run on a session whose latest status is
+`FAILED`, so no follow-up request, apply or drift round can attach to it —
+only a new session carries the work forward. `COMPLETED` and `UNCOMPLETED`
+sessions accept new rounds normally.
 
 == How the architecture works
 
-This section explains the mechanisms behind the flow above, one concern
-per subsection.
+The mechanisms behind the flow above, one concern per subsection.
 
 === Browser delivery and ingress
 
-* The nginx image compiles the SPA in a Node builder stage and serves
-  the static bundle itself; there is no separate frontend container.
-* The SPA uses relative paths, so nginx is the only address the browser
-  knows: `/api` proxies to `core:8000`, a dedicated
-  `location /api/v1/events/subscribe/` disables proxy buffering so
-  Server-Sent Events (SSE) stream immediately, and `/monitoring/`
-  exposes the Phoenix UI.
-* nginx performs no authentication. Bearer tokens pass through to the
-  core; the SSE location is treated like the rest of `/api`.
+The nginx image compiles the SPA in a Node builder stage and serves the
+bundle itself; there is no separate frontend container. The SPA uses
+relative paths, so nginx is the only address the browser knows: `/api`
+proxies to `core:8000`, a dedicated events location disables proxy buffering
+so progress streams immediately, and `/monitoring/` exposes the Phoenix UI.
+nginx authenticates nothing — bearer tokens pass through to the core.
 
+[#auth]
 === Authentication
 
-*Bootstrap.* Before rendering, the SPA (`main.tsx`) fetches the only
-unauthenticated route, `GET /api/v1/auth/config`, which returns the
-OIDC `issuer_url`, `client_id`, optional `audience`, and the resolved
-`scope` from `config.yaml`.
+Before rendering, the SPA fetches the only unauthenticated route,
+`GET /api/v1/auth/config`, which returns the OIDC `issuer_url`,
+`client_id`, optional `audience` and resolved `scope` from `config.yaml`.
 
-*Auth disabled* (blank `issuer_url`, the checked-in default). The SPA
-mounts a dev provider that calls `/users/me`; the core resolves
-every request to a fixed local-developer identity (`urn:nebula:dev` /
-`dev`), provisioned as a real `users` row with the top role of both
-groups.
+[cols="1,3",options="header"]
+|===
+|Mode |Behaviour
 
-*Auth enabled.* The SPA runs the OpenID Connect Authorization Code flow
-with PKCE as a public client (no client secret exists anywhere):
+|*Disabled* — blank `oidc.issuer_url`, the checked-in default
+|The SPA mounts a dev provider, and the core resolves every request to a
+fixed local-developer identity (`urn:nebula:dev` / `dev`), provisioned as a
+real user row with the top role of both groups.
 
-* login redirects to the IdP and returns to `/auth/callback`; tokens
-  are kept by `oidc-client-ts` in `sessionStorage`; renewal is silent;
-  logout is RP-initiated, falling back to a local sign-out when the
-  IdP has no `end_session_endpoint`;
-* every `apiFetch` call and the SSE `fetch` attach
-  `Authorization: Bearer <access_token>`; any `401` fires a window
-  event that flips the UI to a "session expired" login screen.
+|*Enabled*
+|Authorization Code flow with PKCE as a public client — no client secret
+exists anywhere. Login redirects to the identity provider and returns to
+`/auth/callback`; tokens are kept in `sessionStorage`; renewal is silent;
+logout is RP-initiated, falling back to a local sign-out when the provider
+has no `end_session_endpoint`. Every API call and the progress stream attach
+`Authorization: Bearer <access_token>`, and any `401` flips the UI to a
+"session expired" login screen.
+|===
 
-*On the core*, `get_current_user` (`core/src/api/deps.py`) is a
-dependency on every protected route. It validates the JWT signature
-against the issuer's JWKS (discovery fetched lazily on first use and
-cached by PyJWT's `PyJWKClient`, so boot never depends on the IdP),
-checks `iss` (with or without trailing slash), `aud` (`oidc.audience`,
-or `client_id` and `api://<client_id>` when blank), `exp`/`nbf` with
-`clock_skew_seconds` leeway, requires `exp`, `iss`, and `sub`, and
-accepts only asymmetric algorithms (RS*, ES*, PS*). `UserService`
-resolves the claims to a user keyed by `(issuer, subject)`: the first
-request provisions the row, later requests sync e-mail and display
-name, and a token whose `email` matches `admin.default_root_email` with
-`email_verified: true` is elevated one-way to `devops` + `admin` (so a
-newly configured root e-mail takes effect on the user's next request).
+On the core, a bearer-token dependency guards every protected route. It
+validates the token against the issuer's JWKS — fetched lazily on first use
+and cached, so boot never depends on the identity provider — checks `iss`
+(with or without trailing slash), `aud` (`oidc.audience`, or `client_id` and
+`api://<client_id>` when blank) and `exp`/`nbf` within
+`clock_skew_seconds`, requires `exp`, `iss` and `sub`, and accepts only
+asymmetric algorithms. Claims then resolve to a user keyed by issuer and
+subject: the first request provisions the row, later ones sync e-mail and
+display name, and a token whose `email` matches `admin.default_root_email`
+with `email_verified: true` is elevated one-way to `devops` + `admin` from
+that user's next request on.
 
+[#authz]
 === Authorization and ownership
 
-Two independent role groups live on the `users` row:
+Two independent role groups live on the user row:
 
 [cols="1,2,4",options="header"]
 |===
@@ -637,10 +645,10 @@ Two independent role groups live on the `users` row:
 
 |Operation role
 |`developer` < `devops`
-|`generate`, `apply`, repository parse, and pull-request routes need
+|`generate`, `apply`, repository parse and pull-request routes need
 `developer`; `drift` needs `devops`. The SPA mirrors this in the mode
-drop-down, offering drift, partial drift, and import only to `devops`
-users even though the backend accepts `apply` from a `developer`.
+drop-down, offering drift, partial drift and import only to `devops` users
+even though the backend accepts `apply` from a `developer`.
 
 |Panel role
 |`viewer` < `editor` < `admin`, nullable
@@ -649,254 +657,221 @@ users even though the backend accepts `apply` from a `developer`.
 `admin` panel role (`409`).
 |===
 
-Sessions carry a `user_id` owner. The sessions list is always scoped to
-the caller; `assert_session_access` makes writes (iterations, apply,
-pull requests) owner-only and allows reads (detail, SSE) to the owner
-or to anyone with a panel role.
+Every session has an owner. The sessions list is always scoped to the
+caller; writes — iterations, apply, pull requests — are owner-only, and
+reads, including the progress stream, are open to the owner or to anyone
+holding a panel role.
 
 Separately from roles, the wizard's preflight
-`POST /api/v1/auth/authorize` asks the authz sidecar whether the caller
-may touch a given cloud project and environment. While the sidecar is
-disabled (the default) the core answers "authorized" without any call;
-once enabled, a timeout or unreachable sidecar is returned to the
-wizard as `504`/`502`, not as an allow. This is a hook for enterprise
-cloud-access policy, not the access control for Nebula's own data.
+`POST /api/v1/auth/authorize` asks the authz sidecar whether the caller may
+touch a given cloud project and environment. Disabled — the default — the
+core answers "authorized" with no network call; enabled, a timeout or
+unreachable sidecar is returned as `504`/`502`, never as an allow. This is a
+hook for enterprise cloud-access policy, not the access control for
+Nebula's own data.
 
 === Session creation and orchestration
 
-* `POST /api/v1/iac/{generate|drift|apply}` creates or resolves a
-  session row owned by the caller and returns `202 Accepted` with the
-  session id. The `git ls-remote` reachability check is not run on
-  every call: it applies only to requests that actually carry a
-  `repo_uri`, which means the *first* call of a `generate` or `drift`
-  session (`core/src/api/v1/terraform.py:59-64`). Iteration calls send
-  only a session id and the new text, and `ApplyRequest` has no
-  `repo_uri` field at all
-  (`core/src/application/iac_requests.py:36-64,152-153`), so both skip
-  it.
-* The pipeline runs in-process as a FastAPI background task; there is
-  no external job queue. The runner first acquires the in-flight
-  guard, an atomic PostgreSQL compare-and-set; if the session is
-  already running or finished, it logs and exits.
-* For each run, `ApplicationFactory` assembles a fresh object graph
-  around a `SessionContext`: an `LLMOrchestrationService` with two
-  LiteLLM-backed providers (`model` and `small_model`), a
-  `ToolOrchestrationService` with the workspace tool registry (file
-  edits, directory listing, ripgrep search, web search), template
-  services that fetch prompts from Phoenix, and the validation, filter,
-  report, drift, task-splitting, and pull-request services. The
-  repository is cloned into the shared `/workspaces` volume.
+A `POST` to `/api/v1/iac/generate`, `/iac/drift` or `/iac/apply` creates or
+resolves a session owned by the caller and returns `202 Accepted`. The
+`git ls-remote` reachability check runs only on requests carrying a
+repository URI — the *first* call of a generate or drift session. Iteration
+calls send only a session id and the new text, and an apply request has no
+repository field at all, so both skip it.
 
-=== The LLM-assisted pipeline
+The pipeline then runs in-process as a background task; there is no external
+job queue. Each run gets a freshly assembled object graph: the two model
+providers, the workspace tool registry, Phoenix-backed template services,
+and the validation, filter, report, drift, task-splitting and pull-request
+services.
 
-The generate flow advances through the statuses the SSE stream reports:
+=== Model routing
 
-. *FILTERING.* The small model screens the request against the request
-  and forbidden-action prompts and can end the round as `UNCOMPLETED`.
-. *GENERATING / VALIDATING*, up to five iterations. The main model
-  edits Terraform files through tools (at most 70 executions,
-  terminated by the sentinel `task_complete`); files are committed and
-  pushed; the session target generator derives `-target` entries from
-  the history; the iac sidecar runs `init` (cached per round, re-run
-  only if the engine asks for it), `validate`, and `plan -target`.
-. *Drift pre-check* on the validated targets (see Phase 6, above), then
-  *REPORT*, the compliance gate, and the pin.
+The generate flow advances through the statuses the progress stream reports
+— `filtering`, `generating`, `validating`, `report` — as described in phases
+3 to 8. Routing is by prompt type, not by provider:
 
-Model routing is by prompt type: generation, target calculation, and
-report writing use the main model; filtering, status messages,
-pull-request text, task splitting, the reconciliation filter, and the
-compliance audit use the small model.
+[cols="1,3",options="header"]
+|===
+|Model role |Used by
+
+|`llm.model` (main)
+|Infrastructure generation, target calculation, report writing
+
+|`llm.small_model` (small)
+|Request filtering, prompt composition, status messages, pull-request text,
+drift task splitting, the reconciliation filter, the compliance audit
+|===
 
 === IaC and mapping sidecars
 
-The *iac sidecar* is a deliberately thin executor, shipped as a
-reference for non-production installation and meant to be
-re-implemented against the organization's own execution platform in
-production. Each POST enqueues exactly one engine command (OpenTofu by
-default) as an asynchronous job and returns a job id; the core polls it
-(5-second interval, 1-hour budget per job) and does all the sequencing
-itself:
+The *iac sidecar* is a deliberately thin executor: a reference for
+non-production installs, meant to be re-implemented against the
+organization's own execution platform in production. Each POST enqueues
+exactly one engine command (OpenTofu by default) as an asynchronous job and
+returns a job id; the core polls it — 5-second interval, 1-hour budget per
+job — and does all the sequencing itself.
 
-* *Three verbs over the plan artifact.* `plan` runs
-  `init → validate → plan -out` and returns a `PlanRef` naming what it
-  wrote, `drift` runs `show -json` on such a ref, and `apply` runs the
-  artifact already in the workspace.
-* *`init` is cached* per `Terraform` instance, so the retry loops that
-  plan the same workspace repeatedly initialize it once. Both
-  containers read the same `workspaces` volume.
-* *`init` always runs `-reconfigure`*, because the engine runs with
-  `-input=false` and could not answer a "Backend configuration
-  changed" prompt. The consequence is that a changed backend is
-  adopted, never migrated.
-* *The sidecar owns no backend decision of its own* beyond the optional
-  `IAC_BACKEND_CONFIG` file. The backend the engine uses is whatever
-  the workspace contains: the `backend_override.tf` the core writes by
-  default, since Nebula-managed state is on as shipped, or the
-  repository's own block if that is turned off.
+[cols="1,3",options="header"]
+|===
+|Behaviour |Detail
 
-The *mapping sidecar* translates a business identifier into a
-repository reference; the reference implementation is an identity
-passthrough.
+|Three verbs over the plan artifact
+|`plan` runs `init → validate → plan -out` and returns a reference naming
+what it wrote; `drift` runs `show -json` on such a reference; `apply` runs
+the artifact already in the workspace.
 
+|`init` is cached
+|Once per round, and re-run only when the engine's own output asks for it,
+which keeps retry loops from re-initializing the same workspace. Both
+containers read the same `workspaces` volume.
+
+|`init` always runs `-reconfigure`
+|The engine runs with `-input=false` and could not answer a "Backend
+configuration changed" prompt. The consequence: a changed backend is
+adopted, never migrated.
+
+|The sidecar owns no backend decision
+|Beyond the optional `IAC_BACKEND_CONFIG` file, the backend is whatever the
+workspace contains: the `backend_override.tf` the core writes by default,
+since Nebula-managed state is on as shipped, or the repository's own block
+if that is turned off.
+|===
+
+The *mapping sidecar* translates a business identifier into a repository
+reference; the reference implementation is an identity passthrough.
+
+[#drift]
 === Drift detection and remediation
 
-All drift work runs through
-`TerraformDriftService.detect_and_resolve_drift`, a bounded loop:
+All drift work runs through one bounded loop:
 
-. Read the drift out of a plan. Detection is `show -json` on a plan
-  artifact, so the loop takes the plan to start from as a parameter: a
-  `PlanRef` — the workspace, the plan file, the targets the plan was
-  produced with, and a `sha256` of
-  `git status --porcelain=v2 --branch` sampled immediately after the
-  plan job returned. A generate round passes the ref it has just
-  validated and its pre-check costs one `show`; a dedicated drift
-  session passes `None` and the loop plans first. The fingerprint is
-  what makes reading someone else's plan safe: `Terraform.drift`
-  re-plans any ref the working tree has moved past and refuses one
-  naming another workspace, and because it covers uncommitted and
-  untracked files it moves for generated code, while ignoring the
-  engine's own output (a rewritten plan file, a growing provider
-  cache). Every reconciliation group re-plans, and the last of those is
-  what the next iteration reads; an iteration whose split yielded no
-  operations has no ref to hand on, so the next one plans for itself —
-  which is what keeps every iteration that could have changed reading
-  live state.
-. `TerraformUtils.plan_to_drift` DeepDiffs each resource's `before` and
-  `after` and *inverts* the result into "make the code match the
-  infrastructure" operations; the drift JSON is stored as an artifact.
-  The plan text is stored by the validation loop that produced it, one
-  artifact per attempt.
-. If the plan is clean, stop. Otherwise the Drift Task Splitter (small
-  model) turns the JSON into plain-language operations, chunked into
+. *Read the drift out of a plan.* Detection is `show -json` over a plan
+  artifact, so the loop takes the plan to start from as a parameter: the
+  workspace, the plan file, the targets it was produced with, and a
+  fingerprint of the working tree — the SHA-256 of
+  `git status --porcelain=v2 --branch --untracked-files=all` — sampled
+  immediately after the plan job returned. A generate round passes the
+  plan it has just validated, so its pre-check costs one `show`; a
+  dedicated drift session passes nothing and the loop plans first.
+. *Invert it.* Each resource's `before` and `after` are diffed and the
+  result inverted into "make the code match the infrastructure" operations.
+  The drift JSON is stored as an artifact; the plan text is stored by the
+  validation loop that produced it, one artifact per attempt.
+. *Split and remediate.* A clean plan stops the loop. Otherwise the Drift
+  Task Splitter turns the JSON into plain-language operations, chunked into
   groups of `drift_group_operations` (8), and each group re-enters the
-  generation and validation loop with the forbidden-actions block
-  omitted (the intent is reconciliation).
+  generation and validation loop with the forbidden-actions block omitted,
+  the intent being reconciliation.
 
-The loop has two entry points that differ in *what* they target and
-*whether session intent is filtered out*:
+The fingerprint is what makes reading an existing plan safe: any plan the
+working tree has moved past is re-planned, and one naming a different
+workspace is refused. It covers uncommitted and untracked files, so it moves
+for generated code while ignoring the engine's own output. Every
+reconciliation group re-plans and the last of those is what the next
+iteration reads; an iteration whose split yielded no operations has no plan
+to hand on, so the next one plans for itself. Every iteration that could
+have changed therefore reads live state.
 
-[cols="2,3,2,4,3",options="header"]
+The loop has two entry points, differing in *what* they target and
+*whether* session intent is filtered out:
+
+[cols="1,2,3",options="header"]
 |===
-|Entry point |Targets |Iterations |Filtering |Outcome
+|Entry point |Targets |Behaviour
 
 |*Pre-check inside every generate round*
 |The session's own validated targets
-|At most 2
-|Yes. The Reconciliation Filter agent (small model) must call
-`diff_history` (the branch's committed diff against the default branch
-plus untracked files) and drops every operation that would merely
-revert a session change, trims mixed operations to their genuine-drift
-part, and keeps the rest. An empty survivor list ends the loop without
-invoking the generator.
-|The GENERATE report is written from the pre-check's final plan. The
-handler passes the `PlanRef` from its validation loop, so the first
-detection adds no `plan` of its own.
+|At most two iterations, filtered. The Reconciliation Filter agent must call
+`diff_history` — the branch's committed diff against the default branch plus
+untracked files — then drops any operation that would merely revert a
+session change, trims mixed operations to their genuine-drift part, and
+keeps the rest. An empty survivor list ends the loop without invoking the
+generator. The GENERATE report is written from the pre-check's final plan,
+and the first detection reuses the validation loop's plan rather than
+planning again.
 
-|*Dedicated drift session* (`POST /iac/drift`)
-|Full: the whole root module (empty target list). Partial: targets
-chosen by the Drift Target Generator (main model,
-`target_drift_generator.jinja` rendered with the `targeting_policies`
-guideline) after the request filter.
-|Up to `max_drift_reports` (3)
-|No; a drift session has no intended changes of its own.
-|A DRIFT report. The handler passes `plan=None`: nothing has planned
-this workspace yet, so the first iteration plans for itself. The drift
-handler never touches the session lock, does not run the compliance
-audit (removed in `4eebf61`), and does not pin the workspace — drift
-never pins — so an apply after a drift-only round ends `failed` until a
+|*Dedicated drift session* — `POST /api/v1/iac/drift`
+|Full drift takes the whole root module, an empty target list. Partial drift
+takes the targets the Drift Target Generator chooses after the request
+filter.
+|Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
+no intended changes of its own. It writes a DRIFT report and plans for
+itself on the first iteration. The drift handler never touches the session
+lock, does not run the compliance audit and does not pin the workspace —
+drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.
 |===
 
-History note: the pre-check replaced an earlier design in which a
-*predictive* target agent guessed the affected resources and remediated
-drift *before* any code was generated. That agent, its `PREDICTIVE`
-mode, and its template were removed in commit `efe575a`, and the shared
-Phoenix guideline was renamed from `predictive_targets` to
+The pre-check replaced an earlier design in which a *predictive* target
+agent guessed the affected resources and remediated drift *before* any code
+was generated. That agent and its `PREDICTIVE` mode were removed, and the
+shared Phoenix guideline was renamed from `predictive_targets` to
 `targeting_policies`.
 
-=== Apply, reporting, and pull requests
-
-* The apply handler runs the engine's `apply` through the sidecar. A
-  non-zero exit is reported as a `TerraformApplyDTO` with `ok=False`,
-  not raised: the handler writes the `apply` report, sends an
-  `iac.apply.failure` notification, and returns normally, so the
-  runner marks the session `COMPLETED` with an apply report whose
-  status is `Failed`. There is no automatic retry or remediation
-  cycle; a new generate round is needed to produce a new plan. Apply on
-  a session with no pinned plan is the one path that does raise
-  (`409`), which the runner turns into a `FAILED`, unresumable session.
-* Every successful flow ends with an LLM-written report stored as an
-  artifact.
-* Pull requests are created on demand (`PUT /repository/pr`): the small
-  model drafts title and description, then a provider adapter (GitHub,
-  Azure DevOps, or GitLab) calls the hosting REST API. Merge is a
-  separate endpoint and is refused while the session is locked — a
-  pull-request merge is always lock-checked.
-
+[#compliance]
 === Compliance gate
 
-*Where it runs.* Only in the generate handler, after the report is
-written and behind `orchestration.enable_compliance_checker` (`true`
-in the checked-in `config.yaml`; the Pydantic default is `false`). The
-drift handler dropped it in `4eebf61`; the apply handler has the
-service injected but never calls it. When disabled, the check
-short-circuits to an empty passing report. The gate has no SSE status
+[cols="1,3",options="header"]
+|===
+|Aspect |Detail
+
+|Where it runs
+|Only in the generate handler, after the report is written, behind
+`orchestration.enable_compliance_checker` (`true` in the checked-in
+`config.yaml`; the built-in default is `false`). The drift handler no longer
+runs it, and the apply handler never calls it. Disabled, the check
+short-circuits to an empty passing report. The gate has no progress status
 of its own.
 
-*How it audits.* `ComplianceCheckService` runs a second, independent
-agent loop on the small model. The auditor receives the session's
-first user request and the raw plan output as its query, rendered into
-the local `compliance_checker` layout together with the
-`general-compliance-report` rules and the cloud guidelines fetched from
-Phoenix. It has no repository access and no tool other than the
-sentinel `report_compliance_findings`, whose JSON-schema arguments
-(`rule_id`, `severity`, `resource`, `message`, `suggested_fix` per
-violation) are parsed into a typed `ComplianceCheckReport`. The rules
-themselves are applied by the model; only the verdict below is
-computed in code.
+|How it audits
+|A second, independent small-model agent loop. Its query is the session's
+first user request plus the raw plan output, rendered into the local
+compliance-checker layout with the `general-compliance-report` rules and the
+cloud guidelines from Phoenix. It has no repository access and one tool, the
+sentinel `report_compliance_findings`, whose arguments — `rule_id`,
+`severity`, `resource`, `message` and `suggested_fix` per violation — are
+parsed into a typed report. The rules are applied by the model; only the
+verdict is computed in code.
 
-*Verdict in code.* The tool handler recomputes `passed` from the
-reported severities: any `error` or `critical` violation fails the
-check regardless of the model's own claim.
+|Verdict in code
+|The tool handler recomputes `passed` from the reported severities: any
+`error` or `critical` violation fails the check regardless of the model's
+own claim.
 
-*Effect.* On every generate round the handler writes
-`is_blocked = (audit failed) or (high impact)`, where high impact means
-`orchestration.block_on_high_impact` is on and the report's banner is
-`high`. A failure sends `iac.compliance.failed` (or `iac.impact.high`)
-to the notifications sidecar. `POST /iac/apply` and pull-request merge
-refuse blocked sessions with `409`; pull-request creation is not
-lock-checked, and the audited code is already pushed to the working
-branch, so the lock guards the apply boundary specifically. A later
-generate round that passes with a non-high impact clears the lock;
-drift rounds leave it untouched; a panel `editor` can toggle it from
-the admin panel.
+|Effect
+|Every generate round writes `is_blocked = (audit failed) or (high
+impact)`, high impact meaning `orchestration.block_on_high_impact` is on and
+the report's banner is `high`. Failure sends `iac.compliance.failed`, or
+`iac.impact.high`, to the notifications sidecar. Apply and pull-request
+merge refuse blocked sessions with `409`; pull-request *creation* is not
+lock-checked, and the audited code is already on the working branch, so the
+lock guards the apply boundary specifically. A later passing generate round
+with a non-high impact clears the lock, drift rounds leave it untouched, and
+a panel `editor` can toggle it from the admin panel.
+|===
 
 === Progress and persistence
 
-* Status rows are appended to PostgreSQL with a Redis write-through;
-  there is no message broker.
-* The SSE endpoint polls the last status every 4-5 seconds (usually
-  served from Redis) and streams small JSON events until a terminal
-  status.
-* The SPA consumes the stream with `fetch` plus `ReadableStream` (not
-  `EventSource`, which cannot send an `Authorization` header), retrying
-  up to three times with exponential backoff; a `401` is not retried
-  and surfaces as a session-expired event. Token and ownership are
-  checked once, at connect time.
+Status rows are appended to PostgreSQL with a Redis write-through; there is
+no message broker. The stream endpoint polls the last status every 4-5
+seconds — usually from Redis — and sends small JSON events until a terminal
+status. The SPA reads it with `fetch` and a streaming response rather than
+`EventSource`, which cannot carry an `Authorization` header, and retries
+three times with exponential backoff. A `401` is not retried and surfaces as
+a session-expired event. Token and ownership are checked once, at connect
+time.
 
 === Artifacts and telemetry
 
-* Reports, plans, drift JSON, and per-file code changes go to the
-  `nebula-artifacts` bucket; metadata lands in PostgreSQL. The browser
-  fetches them through presigned URLs signed against the public
-  port-9000 endpoint that nginx forwards to RustFS.
-* Every run installs a per-session tracer exporting
-  OpenInference-annotated spans (LLM, tool, chain, Terraform) to
-  Phoenix over OTLP/HTTP.
-* Prompt templates live in Phoenix as a runtime registry, seeded at
-  boot from `core/prompts/seed` and fetched per request by environment
-  tag, so prompt edits apply without redeploys.
-* Notifications go through a thin static facade
-  (`NotificationServiceClient`) over the generated client. They are
-  fire-and-forget: the facade no-ops when the sidecar is disabled and
-  logs every send failure instead of failing the pipeline.
+* Reports, plans, drift JSON and per-file code changes go to the
+  `nebula-artifacts` bucket, metadata to PostgreSQL. The browser fetches
+  them through presigned URLs signed against the public port-9000 endpoint
+  nginx forwards to RustFS.
+* Every run installs a per-session tracer exporting OpenInference-annotated
+  spans — LLM, tool, chain, Terraform — to Phoenix over OTLP/HTTP.
+* Prompt templates live in Phoenix as a runtime registry, seeded at boot and
+  fetched per request by environment tag, so prompt edits apply without a
+  redeploy.
+* Notifications are fire-and-forget: the facade no-ops when the sidecar is
+  disabled and logs every send failure instead of failing the pipeline.

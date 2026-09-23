@@ -337,7 +337,7 @@ provisions no extra infrastructure for it.
 conditional put next to the state. *No DynamoDB table* is used or
 needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 — per those
 engines' release notes — and an S3 implementation that supports
-conditional writes (the bundled engines are 1.12.6 and 1.16.0).
+conditional writes (the bundled engines are {opentofu-version} and {terraform-version}).
 
 |`STORAGE_ACCOUNT`
 |Blob lease

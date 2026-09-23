@@ -13,7 +13,9 @@ None of the tables below carries the variable the request's cloud
 scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT`
 arrive with each request and overwrite whatever the container sets, so
 set the credential variables in each row and leave the scope to the
-request. See
+request. Azure and GCP are the only providers with such a variable;
+AWS, OCI, and Kubernetes commands run on the container's ambient
+credentials alone. See
 xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
 credentials for the IaC engine] for where these files fit in the
 deployment.
@@ -45,6 +47,8 @@ deployment.
 
 |AKS workload identity
 |`ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_CLIENT_ID`, `ARM_TENANT_ID`
+— plus `AZURE_FEDERATED_TOKEN_FILE`, which the AKS workload-identity
+webhook sets on the pod
 
 |Local development (`az login`)
 |none
@@ -201,6 +205,43 @@ by the runtime
 
 Add `TF_VAR_compartment_ocid` in practice — not a provider setting,
 but nearly every resource needs it.
+
+== Kubernetes — provider minimum
+
+Variable names below are the Terraform `kubernetes` provider's own, as
+documented in its registry page; the `helm` provider accepts the same
+set.
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|Kubeconfig file
+|`KUBE_CONFIG_PATH` (`KUBE_CONFIG_PATHS` for several files); add
+`KUBE_CTX` to pick a context other than the current one
+
+|Bearer token
+|`KUBE_HOST`, `KUBE_TOKEN`, `KUBE_CLUSTER_CA_CERT_DATA` (or
+`KUBE_INSECURE=true` to skip server certificate verification)
+
+|In-cluster service account
+|none — the provider reads the projected service-account token and CA
+when the sidecar runs inside the cluster it manages
+|===
+
+No scope variable exists for this provider. The sidecar's scope overlay
+covers `azure` and `gcp` only, so the value the wizard collects as
+`scope_id` is stored with the session and hashed into the state project
+id, but never reaches the engine environment: every command runs
+against whatever cluster the variables above select. A
+mounted kubeconfig must be readable by the unprivileged user the image
+runs as (`nebula`, uid and gid `10001`), and any paths inside it must
+resolve inside the container.
+
+Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
+implementation: it answers exit code `2` with `no scope discovery for
+provider 'kubernetes'`. Importing existing objects therefore needs the
+resource ids supplied by hand.
 
 [#backend-minimums]
 == Backend minimums
@@ -422,6 +463,11 @@ connection
 
 |`ARM_USE_AKS_WORKLOAD_IDENTITY` |AKS |Workload identity in AKS pods
 
+|`AZURE_FEDERATED_TOKEN_FILE` |AKS |Path of the projected
+service-account token, set by the AKS workload-identity webhook. Read
+by the provider and by import discovery
+(`WorkloadIdentityCredential`)
+
 |`ARM_USE_CLI` |Local development |Use the `az login` session (default
 `true`)
 
@@ -607,6 +653,44 @@ Functions runtime
 Compartment OCID is a *resource* argument, not an environment
 variable — commonly passed as `TF_VAR_compartment_ocid`, an ordinary
 Terraform variable rather than a provider setting.
+
+=== Kubernetes (`kubernetes`, `helm`)
+
+Names as documented by the upstream `kubernetes` provider; no scope
+variable is injected for this provider.
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`KUBE_CONFIG_PATH` |Kubeconfig |Path to a kubeconfig file
+
+|`KUBE_CONFIG_PATHS` |Kubeconfig |Several kubeconfig paths, merged
+
+|`KUBE_CTX` |Kubeconfig |Context to use instead of the current one
+
+|`KUBE_CTX_AUTH_INFO` |Kubeconfig |Override the context's user
+
+|`KUBE_CTX_CLUSTER` |Kubeconfig |Override the context's cluster
+
+|`KUBE_HOST` |Direct |API server URL
+
+|`KUBE_TOKEN` |Direct |Bearer token
+
+|`KUBE_USER` / `KUBE_PASSWORD` |Direct |Basic authentication
+
+|`KUBE_CLIENT_CERT_DATA` / `KUBE_CLIENT_KEY_DATA` |Direct |PEM client
+certificate and key
+
+|`KUBE_CLUSTER_CA_CERT_DATA` |Direct |PEM CA bundle of the API server
+
+|`KUBE_INSECURE` |Direct |Skip server certificate verification
+
+|`KUBE_TLS_SERVER_NAME` |Direct |Server name for certificate
+verification
+
+|`KUBE_PROXY_URL` |Behavior |HTTP proxy for API calls
+|===
 
 === Backend storage environment variables
 

@@ -25,9 +25,9 @@ a day — serve `index.html` itself with `Cache-Control: no-cache` (or an
 equivalent short-lived directive) so a new deploy is picked up
 promptly, while still caching hashed static assets aggressively.
 
-|`/api/`
+|`/api`
 |Core, port 8000
-|The core is mounted with `root_path=/api`. Long timeouts (the
+|Prefix match. The core is mounted with `root_path=/api`. Long timeouts (the
 reference uses 600 seconds).
 
 |`/api/v1/events/subscribe/`
@@ -39,7 +39,7 @@ reference; the stream itself lives up to three hours).
 |`/monitoring/`
 |Phoenix, port 6006, with `PHOENIX_HOST_ROOT_PATH=/monitoring`
 |*Restrict access* (identity-aware proxy, VPN, or network policy). The
-admin portal links to `/monitoring/projects`.
+admin panel links to `/monitoring/projects`.
 
 |Object-storage public endpoint
 |The bucket's endpoint (`storage.public_endpoint_url`)
@@ -56,8 +56,8 @@ Other settings that follow from the origin:
   `allow_credentials` and reflects it.
 * The identity provider must have `<origin>/auth/callback` and
   `<origin>` registered.
-* The core's OpenAPI document (`/api/openapi.json`) and Swagger UI
-  (`/api/docs`) are public by design; block them at the ingress if your
+* The core's OpenAPI document (`/api/openapi.json`), Swagger UI
+  (`/api/docs`), and ReDoc (`/api/redoc`) are public by design; block them at the ingress if your
   policy requires it.
 * No component enforces rate limiting; add it at the ingress.
 * The reference nginx config caps request bodies at `client_max_body_size

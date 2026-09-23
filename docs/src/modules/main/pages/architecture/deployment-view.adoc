@@ -13,7 +13,10 @@ in the Compose project, the host ports published by the proxy, and the
 calls between them. The user's browser sits outside the bridge network
 on purpose.
 
-image::deployment-topology.png[Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network]
+:diagram-name: deployment-topology
+:diagram-alt: Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
 
 Named volumes are written into each container's subtitle instead of
 being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
@@ -79,8 +82,10 @@ repository ships no Kubernetes manifests or Helm charts.
   client and the sidecar's inbound validation.
 * Authentication needs no secret: the `oidc` block and
   `admin.default_root_email` are plain configuration that Pydantic
-  validates at load, so a misconfigured issuer fails the boot rather
-  than the first login. Operationally, what matters here is that
+  validates at load, so an `issuer_url` without a `client_id` fails the
+  boot; discovery and JWKS are fetched lazily on the first request, so a
+  wrong or unreachable issuer surfaces as a `401` at first login, not at
+  boot. Operationally, what matters here is that
   enabling or changing OIDC means `docker compose build core`, and that
   the IdP must have `<origin>/auth/callback` registered as the SPA
   redirect URI.
@@ -92,8 +97,7 @@ to plan for before running more than one:
 
 * *Runs are in-process background tasks.* A core crash or restart
   mid-run leaves `sessions.in_flight = true` with no lease and no
-  expiry, and the compare-and-set will refuse the session for ever
-  (`core/src/domains/services/database_service.py:917-978`); recovery
+  expiry, and the compare-and-set will refuse the session for ever; recovery
   is a manual `UPDATE sessions SET in_flight = false`.
 * *The `workspaces` volume must be shared and persistent across
   replicas.* A pinned plan lives on disk at
@@ -102,33 +106,29 @@ to plan for before running more than one:
   session.
 * *Only the PostgreSQL compare-and-set is replica-safe.* Redis holds no
   locks; its single-flight registry is an in-process `asyncio.Lock` per
-  key (`core/src/infrastructure/redis/client.py`), so it de-duplicates
+  key, so it de-duplicates
   cache misses within one process only.
 * *Static storage credentials are rendered in plaintext* into
   `backend_override.tf` on the shared volume when Nebula-managed state
-  is used with access/secret keys or an Azure account key
-  (`core/src/infrastructure/terraform/backend.py:85-89` for the S3
-  access and secret keys, `:116-117` for the Azure account key). Prefer
+  is used with access/secret keys or an Azure account key. Prefer
   credential chains or workload identity where the provider allows it.
 * *One Git identity for every user.* All pushes and pull requests use
   the single PAT in `GIT_TOKEN`, and commits are authored, by default,
   as `Nebula <nebula@noreply.invalid>` (`git.author_name` /
-  `git.author_email`, `core/src/shared/config/system_config.py:303-304`,
-  applied in
-  `core/src/infrastructure/filesystem/git/git_credentials.py`), so
+  `git.author_email`), so
   repository history attributes nothing to the requesting user — the
   session record in core-db is the audit trail.
 * *The artifact proxy on port 9000 answers*
-  `Access-Control-Allow-Origin: *` (`nginx/nginx.conf:90`). Presigned
+  `Access-Control-Allow-Origin: *`. Presigned
   URLs are the only access control on that port.
 
 == Architectural characteristics
 
 * *Ports and adapters.* Domain services depend on interfaces,
-  infrastructure adapters implement them, and a per-session
-  `ApplicationFactory` wires the graph explicitly, so LLM providers, git
-  hosts, Terraform execution, and storage backends are replaceable
-  through configuration alone.
+  infrastructure adapters implement them, and a per-run factory wires
+  the object graph explicitly, so LLM providers, git hosts, Terraform
+  execution, and storage backends are replaceable through configuration
+  alone.
 * *Contract-first sidecars.* OpenAPI specifications are the
   authoritative boundary, with generated clients on one side and
   intentionally minimal reference implementations on the other,
@@ -143,15 +143,14 @@ to plan for before running more than one:
   prompt registry, making prompt management an operational concern
   rather than a code change. No tracing decorator exports anything when
   the wrapped call raises: most of them build the span only *after* the
-  call returns (`core/src/domains/services/tracer_service.py:46-56`),
+  call returns,
   and the chain decorator, which does create its span first, never ends
-  it on an exception (`tracer_service.py:74-78`). Failures are
+  it on an exception. Failures are
   therefore visible in the logs and the session status, not as error
   spans, and the sidecars are not instrumented at all.
 * *LLM audits LLM, code decides.* The compliance auditor is a separate
   agent loop with no repository access at all — its only tool is the
-  sentinel `report_compliance_findings`
-  (`core/src/domains/services/compliance_check_service.py:41-51`); the
+  sentinel `report_compliance_findings`; the
   pass/fail verdict is computed deterministically from the structured
   violations it reports, and the resulting database lock is what
   actually stops a non-compliant plan from being applied.

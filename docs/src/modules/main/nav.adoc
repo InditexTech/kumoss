@@ -11,9 +11,9 @@
 * Guides
 * xref:main:guides-overview.adoc[Overview]
 * xref:main:guides/make-a-request.adoc[Make a request]
+* xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
 * xref:main:guides/follow-a-session.adoc[Follow a session]
 * xref:main:guides/merge-and-apply.adoc[Merge and apply]
-* xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
 * xref:main:guides/remediate-drift.adoc[Remediate drift]
 * xref:main:guides/import-infrastructure.adoc[Import infrastructure]
 * xref:main:guides/enable-authentication.adoc[Enable authentication]
@@ -32,12 +32,14 @@
 * xref:main:guides/development.adoc[Development]
 * Reference
 * xref:main:reference-overview.adoc[Overview]
+* xref:main:reference/operating-modes.adoc[Operating modes]
 * xref:main:reference/configuration.adoc[Configuration]
 * xref:main:reference/environment-variables.adoc[Environment variables]
 * xref:main:reference/llm-providers.adoc[LLM providers and models]
 * xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
 * xref:main:reference/repository-layout.adoc[Repository layout]
 * xref:main:reference/terraform-providers.adoc[Terraform providers]
+* xref:main:reference/database-schema.adoc[Database schema]
 * xref:main:reference/api/index.adoc[HTTP APIs]
 ** xref:main:reference/api/core.adoc[Core API]
 ** xref:main:reference/api/iac.adoc[IaC sidecar API]
@@ -47,7 +49,5 @@
 * Additional information
 * xref:main:additional-information.adoc[Overview]
 * xref:main:faq.adoc[FAQ]
-* xref:main:release-notes/index.adoc[Release notes]
-* xref:main:changelog/index.adoc[Changelog]
 * Contributing
 * xref:main:contributing.adoc[Contributing]

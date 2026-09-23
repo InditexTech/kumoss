@@ -3,9 +3,9 @@
 
 `config.yaml` at the repository root is Nebula's single configuration
 file for the core service. This page documents every supported section
-and field. The authoritative schema is the Pydantic model in
-`core/src/shared/config/system_config.py`; when this page and the code
-disagree, the code wins and this page has a bug.
+and field. The authoritative schema is the `SystemConfig` Pydantic
+model in `core/src/shared/config/system_config.py`; when this page and
+the code disagree, the code wins and this page has a bug.
 
 Which fields you must touch depends on the deployment model: see
 xref:main:quickstart.adoc[Quickstart] and
@@ -17,7 +17,7 @@ providers and models], xref:main:guides/enable-authentication.adoc[OIDC
 setup], xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
 Phoenix], xref:main:guides/customize-prompts.adoc[Phoenix prompt
 templates], xref:main:guides-overview.adoc[Guides], and
-xref:main:guides/administer-users-and-locks.adoc[Admin portal] — and the
+xref:main:guides/administer-users-and-locks.adoc[Administer users and locks] — and the
 sidecar READMEs under `services/`.
 
 == How the file is loaded
@@ -42,8 +42,12 @@ sidecar READMEs under `services/`.
   at all.
 * Validation runs once at startup. A validation error aborts the boot
   with a message containing the `ConfigError` text quoted in the tables
-  below; only the *first* failing configuration section is reported, so
-  fixing one error can reveal another on the next boot attempt.
+  below. Section errors are aggregated: a file with a bad `oidc`, `llm`,
+  and `storage` section reports all three at once, and inside `llm`
+  every missing credential variable is listed together. One check is
+  the exception — the bearer-token check on `services.*` runs on the
+  assembled model, only after every section has validated, so it can
+  surface on the next boot attempt after a section error is fixed.
 * *Secrets never belong in `config.yaml`.* Fields whose name ends in
   `_env` hold the _name_ of an environment variable; the value is read
   from the environment at boot or at use time.
@@ -100,7 +104,7 @@ Operational effect: it selects the Phoenix tracing project prefix
 (`dev-`, `pre-`, `pro-`; see xref:main:guides/monitor-with-phoenix.adoc[Monitoring
 with Phoenix]) and it is the *tag* used both when seeding prompts into
 Phoenix and when fetching them at runtime (see
-xref:main:guides/customize-prompts.adoc[Phoenix prompt templates]). It
+xref:main:guides/customize-prompts.adoc[Customize prompts]). It
 does *not* enable any security control: setting `production` does not
 turn on authentication, authorization, or stricter defaults. Changing
 it after prompts have been seeded requires tagging prompt versions with
@@ -113,7 +117,7 @@ Requires rebuild: yes.
 
 Authentication settings for the single-page application and the API.
 Full per-provider instructions are in
-xref:main:guides/enable-authentication.adoc[OIDC setup].
+xref:main:guides/enable-authentication.adoc[Enable authentication].
 
 [cols="2,1,2,2,4",options="header"]
 |===
@@ -231,6 +235,11 @@ container. An `enabled` key under `services.iac` is ignored.
 `\http://authz:8083`, `\http://iac:8082`
 |Conditional (needed when enabled; always for `iac`)
 |Base URL the core calls, resolvable from inside the core container.
+*An empty `services.iac.endpoint` aborts the boot* with
+`services.iac.endpoint is empty; the IaC service is mandatory. Point it
+at an implementation of the iac contract.` The three optional sidecars
+have no equivalent check: an enabled sidecar with an empty endpoint
+fails on the first call instead.
 
 |`services.<name>.token_env`
 |string (variable name)
@@ -286,7 +295,9 @@ and show when drift is requested), each with its own `job_timeout`.
 *The IaC sidecar is mandatory.* Every operating mode runs engine
 commands through it, so its configuration has no `enabled` flag:
 `endpoint` and `token_env` are always required and the service is
-always contacted.
+always contacted. Each has its own boot check with its own
+`ConfigError`: the empty-endpoint text is quoted in the `endpoint` row
+above, the empty-token text in the `token_env` row.
 
 Related environment variables: the ones named by each `token_env`, in
 `core/.env`, with the same value in the sidecar's `.env`. See
@@ -389,12 +400,12 @@ lock-checked, and the audited code has already been pushed to the
 working branch by then, so the gate guards the apply boundary rather
 than the commit. The lock clears when a later generate round passes
 with a non-`high` banner, or when a panel `editor` toggles it in the
-xref:main:guides/administer-users-and-locks.adoc[admin portal]; drift
+xref:main:guides/administer-users-and-locks.adoc[admin panel]; drift
 rounds never set or clear it. Because both default to `false` in code
 and `true` in the shipped file, an `orchestration` block that omits
 them silently turns both gates off — spell them out in any file you
 write yourself. The full round-by-round flow is in
-xref:main:architecture/end-to-end-flow.adoc#compliance-gate[Compliance gate].
+xref:main:architecture/end-to-end-flow.adoc#compliance[Compliance gate].
 
 Requires rebuild: yes. See xref:main:guides-overview.adoc[Guides] for
 where each limit applies.
@@ -580,8 +591,8 @@ rebuild: yes.
 
 OpenTelemetry export and, in the current implementation, also the
 address of the Phoenix prompt registry. See
-xref:main:guides/monitor-with-phoenix.adoc[Monitoring with Phoenix] and
-xref:main:guides/customize-prompts.adoc[Phoenix prompt templates].
+xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] and
+xref:main:guides/customize-prompts.adoc[Customize prompts].
 
 [cols="2,2,1,1,1,4",options="header"]
 |===
@@ -649,7 +660,7 @@ ships set to `nebula-terraform-state`, so by default Nebula manages
 state in a *second bucket* in the same store, sharing the provider and
 the credentials with artifacts; set it to `""` to opt out and let each
 repository keep its own backend instead. See
-xref:main:guides/configure-state-backends.adoc[Terraform/OpenTofu state
+xref:main:guides/configure-state-backends.adoc[Configure state
 backends] for the state side in full.
 
 [cols="2,2,2,1,4",options="header"]
@@ -690,8 +701,8 @@ created, no override is written, and each repository must declare its
 own remote backend, whose credentials belong to the IaC sidecar. A bare
 `terraform_state_bucket:` with nothing after it is *not* the same as
 `""`: it parses as YAML null and fails boot with a Pydantic validation
-error. See xref:main:guides/configure-state-backends.adoc[Terraform/OpenTofu
-state backends].
+error. See xref:main:guides/configure-state-backends.adoc[Configure state
+backends].
 
 |`storage.endpoint_url`
 |string

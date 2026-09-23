@@ -101,7 +101,7 @@ Controls:
 * *Phoenix.* A link that opens `/monitoring/projects` in a new tab,
   where the traces of every run live. The link is not filtered by
   session; search by session id in Phoenix. See
-  xref:main:guides/monitor-with-phoenix.adoc[Monitoring with Phoenix].
+  xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
 
 The detail panel shows everything the owner sees plus the conversation
 *History* (every user request and answer in the session) and, for
@@ -144,13 +144,23 @@ change it.
 
 Locks are set in two ways:
 
-* *Automatically* at the end of a generate round when the compliance
-  check fails or, with `orchestration.block_on_high_impact`, when the
-  report's impact banner is `high`. A later generate round that passes
-  cleanly clears the lock again. Notifications are sent when the
-  notifications sidecar is enabled.
+* *Automatically* at the end of a generate round, from two independent
+  triggers, each behind its own switch: the compliance check fails (only
+  when `orchestration.enable_compliance_checker` is `true`; a disabled
+  checker always passes), or the report's impact banner is `high` (only
+  when `orchestration.block_on_high_impact` is `true`). Both default to
+  `false` in code and the shipped `config.yaml` turns both on, so a
+  configuration that omits the `orchestration` block disables both
+  triggers. A later generate round that passes cleanly clears the lock
+  again. Notifications are sent when the notifications sidecar is
+  enabled.
 * *Manually* by a panel editor or admin, in either direction, from the
   admin panel.
+
+The lock is recomputed at the end of *every* generate round from that
+round's compliance and impact result, unconditionally. A manual lock or
+unlock therefore lasts only until the owner's next generate round on that
+session, which sets the flag afresh; drift rounds never change it.
 
 == Walkthroughs
 

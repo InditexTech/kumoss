@@ -1,34 +1,29 @@
 = Architecture
 :description: The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.
 
-This page introduces Nebula's runtime components and how they fit
-together. The rest of this section goes deeper: the end-to-end request
-flow, the data and state each component owns, and the deployment
-topology.
+This page introduces Nebula's runtime components and how they fit together.
+The rest of this section goes deeper: the end-to-end request flow, the data
+and state each component owns, and the deployment topology.
 
 == Overview
 
-image::system-architecture.png[Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network]
+:diagram-name: system-architecture
+:diagram-alt: Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
 
-Dashed edges are wiring that exists in code but is not exercised by the
-checked-in `config.yaml`: the identity provider is contacted only once
+Dashed edges are wiring that exists but is not exercised by the checked-in
+`config.yaml`: the identity provider is contacted only once
 `oidc.issuer_url` is set.
 
-The diagram deliberately condenses detail that the rest of this section
-expands:
-
-* The four sidecars share one node (`authz :8083`, `mapping :8081`,
-  `iac :8082`, `notifications :8080`).
-* The core appears as its API layer plus a single "application and
-  adapters" node covering the application, domain, and infrastructure
-  layers.
-* Redis 8, the `workspaces` volume, `phoenix-db`, and the notification
-  webhook and object storage backends are carried in the notes beside the
-  diagram rather than drawn as nodes.
-
-Phoenix is reachable through the proxy at `/monitoring/`, artifacts land
-in the `nebula-artifacts` bucket, and the shipped `config.yaml` routes
-model calls through LiteLLM.
+The diagram condenses some detail. The four sidecars share one node
+(`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`); the
+core appears as its API layer plus a single "application and adapters" node
+covering the other three layers; and Redis, the `workspaces` volume,
+`phoenix-db` and the notification and storage backends are carried in the
+notes beside it rather than drawn. Phoenix is reachable through the proxy at
+`/monitoring/`, artifacts land in the `nebula-artifacts` bucket, and the
+shipped configuration routes model calls through LiteLLM.
 
 == Component responsibilities
 
@@ -37,156 +32,122 @@ model calls through LiteLLM.
 |Component |Responsibility |Main relationships
 
 |React SPA (`client/web`)
-|OIDC public client (Authorization Code + PKCE via `oidc-client-ts` /
-`react-oidc-context`), session wizard, planning/results views, user page,
-admin panel; consumes REST and SSE with relative `/api` paths and a
-bearer token on every call
-|Built into the Nginx image; talks to Nginx for the API and directly to
-the identity provider for login
+|Session wizard, planning and results views, user page and admin panel. An
+OIDC public client: it calls `/api` with a bearer token and streams
+progress over Server-Sent Events.
+|Built into the Nginx image; reaches the API through Nginx, and the
+identity provider directly for login
 
 |Nginx (`proxy`)
-|Sole public entry point (ports 80, 9000); serves the built SPA, proxies
-`/api`, a buffering-disabled SSE location, `/monitoring/`, and port 9000
-to object storage
-|Browser → core, Phoenix, object-storage
+|Sole public entry point, on ports 80 and 9000: serves the built SPA and
+proxies `/api`, the events stream, `/monitoring/` and object storage.
+|Browser → core, Phoenix, object storage
 
 |Core API layer (`core/src/api/v1`)
-|Routers: `terraform` (generate/drift/apply, 202 + session id), `events`
-(SSE), `session` (caller-scoped read models), `repository` (PR
-create/merge, repo parse), `auth` (public OIDC config for the SPA +
-cloud-project authorization), `users` (`/users/me` identity and roles),
-`admin` (cross-user sessions, session locks, role management), `mapping`
-(passthrough), `notifications` (user-originated notifications, 202 +
-delivery id). `core/src/api/deps.py` supplies the `get_current_user`,
-`require_operation_role`, `require_panel_role`, and
-`assert_session_access` dependencies
+|Routes every request: IaC operations, the progress stream, session reads,
+repository and pull-request actions, identity and roles, the admin panel,
+and passthroughs to the mapping and notifications sidecars. One
+authentication dependency guards all of them but the public OIDC
+configuration.
 |Delegates to application handlers
 
 |Application layer (`core/src/application`)
-|`TerraformCRUDHandler`, `TerraformDriftHandler`, `TerraformApplyHandler`;
-the services in `application/services/`: `RequestsFilterService`,
-`TerraformDriftService`, `ReportService`, `PullRequestService`,
-`SessionOrchestrationService`; `ApplicationFactory` builds a per-session
-object graph
+|The generate, drift and apply handlers, and the services they orchestrate
+— filtering, reporting, pull requests, session orchestration. A factory
+builds a fresh object graph per run.
 |Composes domain services
 
 |Domain layer (`core/src/domains`)
-|Entities and ports (including `User` and the `TokenClaims` value object)
-plus every service in `domains/services/`: `LLMOrchestrationService`
-(agent loop), `ToolOrchestrationService`, `TemplateOrchestrationService`,
-`SessionService`, `UserService` (identity resolution, first-login
-provisioning, bootstrap-admin elevation), `TerraformValidationService`,
-`TerraformTargetService`, `TaskService`, `ComplianceCheckService`
-(post-report audit), `ArtifactStorageService`, `DatabaseService`,
-`IacRootDetectionService`, `TracerService`
+|Entities, value objects and ports, and the services holding the behaviour:
+the agent loop, session and user management, validation, targeting, the
+compliance audit, artifact storage, persistence and tracing.
 |Depends only on interfaces
 
 |Infrastructure layer (`core/src/infrastructure`)
-|Adapter packages: `auth/` (OIDC discovery + JWKS bearer-token validator
-built on PyJWT), `llm/` (LiteLLM Router), `filesystem/` (git CLI +
-provider REST, workspace lifecycle), `terraform/` (iac-sidecar driver,
-backend override renderer), `external/` (sidecar facades), `tools/`
-(agent tool registry), `templates/` (Jinja layouts), `storage/`
-(RustFS/S3/Azure), `database/` (async SQLAlchemy), `redis/`,
-`telemetry/` (OpenTelemetry/Phoenix). The generated sidecar clients are
-*not* part of this layer: they live in `core/src/clients`, a sibling
-package of `infrastructure`
+|Adapters behind those ports: OIDC, the LiteLLM router, git and workspaces,
+the iac-sidecar driver, Jinja layouts, object storage, PostgreSQL, Redis
+and OpenTelemetry. The generated sidecar clients are *not* part of this
+layer — they live in `core/src/clients`, a sibling package.
 |Implements domain ports
 
 |authz service
-|Cloud project access checks (`POST /v1/check`); permissive reference
-implementation, disabled by default (the core then answers "authorized"
-without calling it; when enabled, an unreachable sidecar is an error, not
-an allow). Its user/role endpoints are no longer consumed by the core,
-which keeps users and roles in core-db
-|Called from `POST /auth/authorize` with the caller's email or subject;
-container-local JSON role store
+|Cloud project access checks, disabled by default. Disabled, the core
+answers "authorized" without calling it; enabled, an unreachable sidecar is
+an error, never an allow. Its user and role endpoints are unused — Nebula
+keeps those in core-db.
+|Called from the authorize route with the caller's identity; container-local
+JSON role store
 
 |iac service
-|Runs one IaC engine CLI command (OpenTofu by default, selected via
-`IAC_BINARY`) per async job: `init`, `validate`, `plan`, `show`, `apply`;
-the bundled sidecar also implements the contract's `import`,
-`import/state-resource-ids`, and `import/scope-resource-ids` operations,
-but the core calls only the first five
-(`core/src/infrastructure/terraform/terraform.py:48-53`); 202 + job id,
-caller polls. The bundled implementation is a reference for
-non-production installs; production deployments are expected to
-implement the contract to their own requirements
-|Shares `workspaces` volume with core
+|Runs one IaC engine command per asynchronous job — `init`, `validate`,
+`plan`, `show`, `apply` — returning a job id to poll. OpenTofu by default,
+selected with `IAC_BINARY`. A reference implementation; production
+deployments are expected to supply their own.
+|Shares the `workspaces` volume with the core
 
 |mapping service
-|Resolves a business identifier to repo URL/branch/path; identity
-passthrough reference
-|Called via core passthrough endpoint
+|Resolves a business identifier to a repository URL, branch and path; the
+reference implementation is an identity passthrough.
+|Called through a core passthrough route
 
 |notifications service
-|Channel-agnostic notify contract; reference implementation posts
-color-coded Slack webhook messages
-|Invoked fire-and-forget by core on compliance-check, apply, and
-pipeline failures; request/response from the browser-facing
-`POST /notifications` route (support requests from the header's
-chat-bubble modal)
+|Channel-agnostic notify contract; the reference implementation posts
+colour-coded Slack webhook messages.
+|Fire-and-forget from the core on compliance, apply and pipeline failures;
+request/response for the support requests the header's chat bubble sends
 
 |OpenAPI contracts (`contracts/openapi`)
-|Source of truth for the four sidecar APIs; generated httpx clients in
-`core/src/clients`; Schemathesis conformance suites
+|Source of truth for the four sidecar APIs, with Schemathesis conformance
+suites.
 |Contracts → generated clients → sidecars
 
 |core-db (PostgreSQL 17)
-|System of record, twelve tables
-(`core/src/infrastructure/database/models.py:57-297`): `users`,
-`sessions`, `workspaces`, `terraform_providers`, `pull_requests`,
-`histories`, `statuses`, `rounds`, `artifacts`, `terraform_plans`,
-`reports`, `code_changes`
-|Core via asyncpg
+|System of record: twelve tables covering users, sessions, workspaces,
+rounds, plans, pull requests, reports and artifacts.
+|Core, over asyncpg
 
 |Redis 8
-|Fail-open read-through/write-through cache (session facts, last status,
-finished-session aggregates); no pub/sub, no locks
+|Fail-open cache for session facts, the last status and finished-session
+aggregates. No pub/sub, no locks.
 |Core only
 
 |object-storage (RustFS, Apache-2.0)
 |*Default, bundled* artifact store (`nebula-artifacts`): reports, plans,
-drift JSON, code changes; browser access via presigned URLs.
-Alternatives selected by `storage.provider`: AWS S3 (`S3`), Azure Blob
-Storage through a storage account (`STORAGE_ACCOUNT`), or any other
-S3-compatible endpoint (`RUSTFS` with a custom `endpoint_url`). Also
-holds Terraform/OpenTofu state, in the *separate* bucket named by
-`storage.terraform_state_bucket` — on by default as shipped
-|Core (SDK) and browser (via Nginx :9000) for artifacts; iac sidecar
-(engine backend) for state
+drift JSON and code changes, served to the browser by presigned URL.
+`storage.provider` switches to AWS S3, Azure Blob Storage or any other
+S3-compatible endpoint. Engine state lives in the *separate*
+`storage.terraform_state_bucket` — on by default as shipped.
+|Core through the SDK, browser through Nginx :9000, and the iac sidecar for
+state
 
 |`workspaces` volume
-|Per-run git clones under `/workspaces/<session>/<call>`. A failed or
-uncompleted run's directory is removed in a `finally` block, but a
-successful generate round *renames* its directory to
-`/workspaces/<session>/pinned`, which persists on the volume until apply
-discards it or the next generate round replaces it
+|Per-run git clones under `/workspaces/<session>/<call>`. A failed run's
+directory is removed; a successful generate round *renames* its directory
+to `/workspaces/<session>/pinned`, which survives until apply discards it
+or the next generate round replaces it.
 |Mounted by core and iac
 
 |Phoenix + phoenix-db
-|OpenTelemetry trace collector/UI and prompt registry; prompts seeded at
-core boot from `core/prompts/seed`
-|Core via OTLP/HTTP and Prompts API
+|OpenTelemetry trace collector and UI, and the prompt registry seeded at
+core boot.
+|Core, over OTLP/HTTP and the Prompts API
 
 |OIDC identity provider
-|Authenticates users and issues the JWT access tokens the core validates;
-any spec-faithful provider with discovery, JWKS, and JWT access tokens
-(Entra ID, Keycloak, Auth0, and Okta are documented)
-|Browser (login) and core (discovery + JWKS); configured in
-`config.yaml` `oidc`
+|Authenticates users and issues the JWT access tokens the core validates.
+Any provider with discovery, JWKS and JWT access tokens works; Entra ID,
+Keycloak, Auth0 and Okta are documented.
+|Browser for login, core for discovery and JWKS; configured under `oidc`
 
 |LLM providers
-|Model inference behind LiteLLM Router; main + small model roles
-|Selected by `llm.model` and `llm.small_model` in `config.yaml` (optional
-`llm.model_list` for routing); credentials in `core/.env`
+|Model inference behind the LiteLLM router, in a main and a small role.
+|Selected by `llm.model` and `llm.small_model`; credentials in the core's
+environment file
 
 |Git hosting
-|Clone/push via git CLI; PR create/merge via GitHub, Azure DevOps, or
-GitLab REST APIs. The adapters target the public SaaS hosts only
-(`github.com`, `gitlab.com` without subgroups, `dev.azure.com`) and
-require HTTPS repository URLs; GitHub Enterprise Server and self-managed
-GitLab are not supported today
+|Clone and push over the git CLI; pull requests through the GitHub, Azure
+DevOps or GitLab REST APIs. Public SaaS hosts only — `github.com`,
+`gitlab.com` without subgroups, `dev.azure.com` — over HTTPS. GitHub
+Enterprise Server and self-managed GitLab are not supported today.
 |Selected by `git.provider`
 |===
 

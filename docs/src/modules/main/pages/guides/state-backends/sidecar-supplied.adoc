@@ -32,6 +32,12 @@ bucket = "acme-central-tfstate"
 region = "eu-west-1"
 ----
 
+The file names the state store but carries no credentials for it: as
+under the repository-declared model, the sidecar's ambient credentials
+must be granted access to that store as well as to the provider — see
+xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
+two credential grants].
+
 Three constraints follow from how `-backend-config` works:
 
 . *The backend _type_ still comes from the workspace.* The repository

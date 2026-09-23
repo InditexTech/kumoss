@@ -108,7 +108,7 @@ Production should run on an appropriate platform such as Kubernetes. **This repo
 |---|---|
 | [Guides](https://inditextech.github.io/nebula/prerelease/main/guides-overview/) | Make a request, write it so it is accepted, follow the session, read the report, handle a lock, open and merge the pull request, and apply. |
 | [Frequently asked questions](https://inditextech.github.io/nebula/prerelease/main/faq/) | Quick answers to the questions users ask most. |
-| [Comparing the operating modes](https://inditextech.github.io/nebula/prerelease/main/guides-overview/#compare-modes) | Learn precisely what Generate, Partial Drift, Full Drift, and Import Infrastructure do today. How Nebula finds the Terraform roots in a repository is in [Repository layout](https://inditextech.github.io/nebula/prerelease/main/reference/repository-layout/). |
+| [Comparing the operating modes](https://inditextech.github.io/nebula/prerelease/main/reference/operating-modes/#compare-modes) | Learn precisely what Generate, Partial Drift, Full Drift, and Import Infrastructure do today. How Nebula finds the Terraform roots in a repository is in [Repository layout](https://inditextech.github.io/nebula/prerelease/main/reference/repository-layout/). |
 
 **Operate Nebula**
 

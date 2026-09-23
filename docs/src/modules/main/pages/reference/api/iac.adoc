@@ -214,9 +214,12 @@ configuration error and is never running to answer anything. A missing
 or wrong `IAC_BACKEND_CONFIG` path is not checked at all and surfaces
 on `init`, in that job's `stderr`. Its only `503` is a job-level one —
 `Service shut down before the job finished.` in the job's `error` — so
-it appears on `GET /v1/jobs/\{job_id}`, never on a POST. Another
-implementation of the same contract may use the submission-time `503`,
-so a caller must still handle it.
+it appears on `GET /v1/jobs/\{job_id}`, never on a POST. Nor does it
+ever emit the job-level `504`: it puts no time limit on the engine
+command, so a hung command stays `running` instead of ending `failed`
+(see <<job-model>>). Another implementation of the same contract may
+use the submission-time `503` and the `504`, so a caller must still
+handle both.
 ====
 
 [#job-model]
@@ -271,13 +274,16 @@ tell them apart.*
   verbatim — including the engine's own provider authentication
   errors. Failures of the underlying cloud query in a discovery job
   ride this same plane.
-* *Service-level faults* — a subprocess timeout, an unexpected
-  exception, shutdown mid-job — end the job as `failed` with an RFC
-  7807 problem document in `error` and no result. The problem's
-  embedded `status` member is the HTTP status an equivalent
-  synchronous API would have returned: `500` for an unexpected
-  execution failure, `504` for a subprocess timeout, `503` for a
-  shutdown before completion.
+* *Service-level faults* — an unexpected exception, shutdown
+  mid-job, a subprocess timeout where the implementation enforces
+  one — end the job as `failed` with an RFC 7807 problem document in
+  `error` and no result. The problem's embedded `status` member is the
+  HTTP status an equivalent synchronous API would have returned: `500`
+  for an unexpected execution failure, `504` for a subprocess timeout,
+  `503` for a shutdown before completion. The `504` is part of the
+  contract, but the bundled implementation never produces it: it puts
+  no time limit on the engine command, so a hung command keeps the job
+  `running` indefinitely.
 
 Polling an unknown or expired job is `404`, and a `job_id` that is not
 a valid UUID is `422`. The bundled implementation keeps terminal jobs
@@ -286,9 +292,12 @@ restart, so *a client must treat an unexpected `404` as job loss* and
 resubmit if the work still matters.
 
 The core polls every `services.iac.job_poll_interval` seconds and
-gives up after `services.iac.job_timeout`. That timeout has to cover
-both the queue wait and the command itself, so it belongs above the
-service's own subprocess budget.
+gives up after `services.iac.job_timeout` (3600 seconds by default).
+That timeout has to cover both the queue wait and the command itself,
+and against the bundled implementation it is the *only* limit: when an
+engine command hangs, the core stops waiting once the timeout elapses,
+while the job stays `running` and the command keeps running in the
+sidecar until it exits on its own.
 
 [#scope-injection]
 == Scope injection
@@ -455,7 +464,7 @@ provider is unsupported rather than that a cloud call failed.
 
 The contract's own description of this endpoint's `scope_id` field
 enumerates only Azure, GCP, and AWS, omitting both `oci` and
-`kubernetes` even though the `TerraformProvider` enum accepts them.
+`kubernetes` even though the schema's provider enum accepts them.
 The omission is consequential here, unlike in the generic `scope_id`
 description: these are exactly the two providers that produce the exit
 code 2 above, so the field description reads as though they cannot be
@@ -618,10 +627,14 @@ The service, not the caller, decides the identifier shape.
   Azure, 200 for GCP and AWS. A scope large enough to exceed that ends
   the job with exit code 1 rather than truncating the list silently.
   Resource Graph's own `resultTruncated` flag is treated the same way.
-* A cloud call is never retried, throttling included. A single `429`
-  mid-paging ends the job with exit code 1 and discards the pages
-  already collected; Resource Graph's per-tenant quota makes that the
-  most likely failure on a large subscription. Retry the request.
+* The service itself never retries a cloud call, throttling included.
+  On Azure and GCP a single `429` mid-paging ends the job with exit
+  code 1 and discards the pages already collected; Resource Graph's
+  per-tenant quota makes that the most likely failure on a large
+  subscription. Retry the request. AWS is the partial exception: the
+  boto3 client is configured with timeouts only, so botocore's default
+  retry mode still retries throttled and transient calls a few times
+  before the same failure surfaces.
 
 [#state-backend]
 == State backend
@@ -645,8 +658,12 @@ workspace, for one the target repository carries at a fixed place.
 Unlike the engine binary, the service does not check it at startup:
 under the second form the file exists only once a repository has been
 cloned into a workspace, so a wrong path fails on `init`, in that
-job's `stderr`. A `backend_override.tf` in the workspace wins over the
-values in this file — the two are alternatives, not layers.
+job's `stderr`. The values in this file win over the core's
+`backend_override.tf` key by key, and the override's remaining keys
+survive the merge, so do not combine the two: set
+`storage.terraform_state_bucket: ""` whenever `IAC_BACKEND_CONFIG` is
+set. See xref:main:guides/configure-state-backends.adoc[Configure
+state backends].
 
 *Reinitialization.* `init` always runs `-reconfigure`, so a workspace
 whose backend changed between calls is rebound to the new one instead
@@ -665,10 +682,10 @@ backends].
 The bundled image ships both engines and `IAC_BINARY` selects one at
 runtime, with no rebuild needed to switch:
 
-* *OpenTofu 1.12.6* (MPL-2.0) — the default, `IAC_BINARY=tofu`.
+* *OpenTofu {opentofu-version}* (MPL-2.0) — the default, `IAC_BINARY=tofu`.
   Installed from the official minimal OpenTofu image, pinned by
   digest.
-* *HashiCorp Terraform 1.16.0* (BUSL-1.1) — `IAC_BINARY=terraform`.
+* *HashiCorp Terraform {terraform-version}* (BUSL-1.1) — `IAC_BINARY=terraform`.
   Fetched at build time and checksum-verified. Use of it is subject to
   its license terms.
 
@@ -792,10 +809,11 @@ authentication. Both values may also come from `NEBULA_IAC_URL` and
 `NEBULA_IAC_TOKEN`.
 
 The suite generates requests from the OpenAPI document and checks that
-every documented status code is reachable with at least one request
-the contract considers valid, that response bodies match the declared
-schemas, and that random invalid bodies do not produce undocumented
-`5xx` answers. It does *not* check that the commands the jobs run
+every status the service answers is one the contract documents for
+that operation, and that response bodies match the declared schemas.
+It does not check that every documented status is reachable — a status
+the implementation never emits, such as the submission-time `503`,
+leaves the run green. Nor does it check that the commands the jobs run
 produce accurate output for your modules, cloud-provider
 authentication semantics, or behaviour under concurrency.
 

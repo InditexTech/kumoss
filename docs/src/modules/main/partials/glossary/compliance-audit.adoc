@@ -1,4 +1,4 @@
 An independent, second LLM agent that checks a generated plan against the
 organization's compliance rules after a generate round. Failing findings —
 and, optionally, a high-impact verdict — lock the session until a panel
-editor unlocks it.
+editor unlocks it or a later generate round passes clean.

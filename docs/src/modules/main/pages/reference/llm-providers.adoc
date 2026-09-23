@@ -97,9 +97,11 @@ must provide:
   per model. Without it the web-search tool falls back to the OpenAI
   Responses API path, which only works on OpenAI-compatible endpoints.
 
-The shipped and default models (Anthropic Claude and Google Gemini
-families, on Vertex AI or direct) satisfy all of these. Nebula has not
-tested every provider LiteLLM lists.
+The shipped models (Anthropic Claude on Azure AI Foundry, `azure_ai/`)
+and the code defaults (Anthropic Claude direct, `anthropic/`) satisfy
+all of these, as do the Claude and Gemini models on Vertex AI that the
+core's test suite exercises. Nebula has not tested every provider
+LiteLLM lists.
 
 == The `provider/model-id` notation
 
@@ -160,9 +162,11 @@ LLM credentials missing from environment: ANTHROPIC_API_KEY. Set the listed env 
 Treat this check as a convenience, not a guarantee:
 
 * *Some providers have no validation mapping in LiteLLM.* For
-  `azure_ai`, `databricks`, `watsonx`, `sambanova`, `anyscale`, and
-  `snowflake` the check reports nothing missing even with no
-  credentials set; the failure appears on the first LLM call instead.
+  `azure_ai`, `cohere_chat`, `databricks`, `watsonx`, `sambanova`,
+  `anyscale`, and `snowflake` the check reports nothing missing even
+  with no credentials set; the failure appears on the first LLM call
+  instead. The prefix matters, not the vendor: `cohere/<model>` is
+  validated (`COHERE_API_KEY`), `cohere_chat/<model>` is not.
 * *Unknown prefixes pass silently.* A string such as
   `nonexistent_provider/x` or a bare `model-name` without a provider is
   not rejected at boot.
@@ -191,9 +195,11 @@ The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the `litellm_params` keys you
 would use instead when writing an `llm.model_list` entry. The lists
 come from LiteLLM's documentation. *Nebula has not tested every
-provider listed here*; the checked-in `config.yaml` targets Google
-Vertex AI, and the core's test suite exercises the OpenAI-style and
-Vertex AI validation paths.
+provider listed here*; the checked-in `config.yaml` targets Azure AI
+Foundry (`azure_ai/`), the code defaults target Anthropic directly
+(`anthropic/`), and the core's test suite
+(`core/tests/shared/config/test_llm_config.py`) exercises the
+OpenAI-style and Vertex AI validation paths.
 
 === Direct providers (frontier labs)
 
@@ -230,7 +236,8 @@ accepted as an alternative to the API key.
 |`cohere/<model>` or `cohere_chat/<model>`
 |`COHERE_API_KEY`
 |`api_key`
-|
+|Boot validation covers the `cohere/` prefix only; `cohere_chat/` has
+no validation mapping and a missing key fails on the first call.
 |===
 
 === Cloud platforms
@@ -628,10 +635,16 @@ provider still rejects a value (for example a completion cap below
 
 == Running outside Docker
 
-`litellm` calls `load_dotenv()` at import time. Running the core, or
-`pytest`, directly from `core/` on your workstation (rather than inside
-the container) silently loads `core/.env` into the process environment
-— including any real secrets it holds — even though nothing in
-Nebula's own code does this. Be aware of this when debugging credential
-issues locally: a variable you think is unset may actually be coming
-from `core/.env`.
+`litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE`
+is set to `PRODUCTION`. Running the core, or `pytest`, on your
+workstation (rather than inside the container) therefore silently
+loads `core/.env` into the process environment — including any real
+secrets it holds — even though nothing in Nebula's own code does this.
+The working directory does not matter: python-dotenv searches upwards
+from the directory of the *calling package*, so with the virtual
+environment at `core/.venv` the file `core/.env` is found from any
+directory. Variables already present in the environment are not
+overwritten by the file. To reproduce a clean-environment boot, set
+`LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual
+environment outside `core/`; otherwise a variable you think is unset
+may actually be coming from `core/.env`.

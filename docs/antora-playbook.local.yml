@@ -87,8 +87,8 @@ asciidoc:
     source-highlighter: shiki
     page-pagination: '@'
     # Same as the real antora-playbook.yml — see its own comment.
-    kroki-enabled: true
-    kroki-diagram-types: mermaid,plantuml,bpmn,excalidraw
+    # kroki-enabled: true
+    # kroki-diagram-types: mermaid,plantuml,bpmn,excalidraw
   extensions:
     # Same as the real antora-playbook.yml — see its own comment and the
     # writing-docs-pages skill's reference/docouture-blocks.md.

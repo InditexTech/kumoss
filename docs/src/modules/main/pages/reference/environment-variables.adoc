@@ -25,8 +25,8 @@ replaces the files with a secret store but keeps the same variable
 names.
 
 Related guides: xref:main:reference/configuration.adoc[Configuration],
-xref:main:reference/llm-providers.adoc[LiteLLM providers and models],
-xref:main:guides/enable-authentication.adoc[OIDC setup].
+xref:main:reference/llm-providers.adoc[LLM providers and models],
+xref:main:guides/enable-authentication.adoc[Enable authentication].
 
 == Core (`core/env.sample`)
 
@@ -34,65 +34,61 @@ The core reads variables through the names configured in
 `config.yaml`. The table lists the default names; if you rename a
 `*_env` field, rename the variable accordingly.
 
-[cols="2,1,2,4,2,2,2",options="header"]
+[cols="2,2,2,5,2",options="header"]
 |===
-|Variable |Requirement |Default / fallback |Meaning |Activated by |Must match |Checked
+|Variable |Requirement |Default |Meaning |Checked
 
 |LLM provider credentials (`AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`
 for the shipped `azure_ai/` models; for example `ANTHROPIC_API_KEY`, or
 the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS`
 trio for other providers)
-|Mandatory for the provider selected by `llm.model` and
-`llm.small_model`
+|Mandatory for the provider selected by `llm.model`, `llm.small_model`
+or `llm.model_list`
 |none
 |Credentials that LiteLLM reads for the configured provider. Names
 follow LiteLLM conventions; see
-xref:main:reference/llm-providers.adoc[LiteLLM providers and models].
+xref:main:reference/llm-providers.adoc[LLM providers and models].
 For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
 `ANTHROPIC_AUTH_TOKEN`.
-|`llm.model`, `llm.small_model`, `llm.model_list`
-|nothing
 |At boot for providers LiteLLM can validate; otherwise on the first LLM
 call
 
 |`NEBULA_IAC_TOKEN`
 |Mandatory (the IaC sidecar is always called; it has no `enabled` flag)
 |sample value `dev-iac-token`
-|Bearer token the core sends to the IaC sidecar.
-|always
-|`NEBULA_IAC_TOKEN` in `services/iac/.env`
+|Bearer token the core sends to the IaC sidecar. Must equal
+`NEBULA_IAC_TOKEN` in `services/iac/.env`.
 |At boot: an empty token aborts startup
 
 |`NEBULA_MAPPING_TOKEN`
 |Conditional
 |sample value `dev-mapping-token`
-|Bearer token for the mapping sidecar.
-|`services.mapping.enabled: true`
-|`NEBULA_MAPPING_TOKEN` in `services/mapping/.env`
+|Bearer token for the mapping sidecar, sent when
+`services.mapping.enabled` is true. Must equal
+`NEBULA_MAPPING_TOKEN` in `services/mapping/.env`.
 |At boot when enabled
 
 |`NEBULA_NOTIFICATIONS_TOKEN`
 |Conditional
 |sample value `dev-notifications-token`
-|Bearer token for the notifications sidecar.
-|`services.notifications.enabled: true`
-|`NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env`
+|Bearer token for the notifications sidecar, sent when
+`services.notifications.enabled` is true. Must equal
+`NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env`.
 |At boot when enabled
 
 |`NEBULA_AUTHZ_TOKEN`
 |Conditional
 |sample value `dev-authz-token`
-|Bearer token for the authorization sidecar.
-|`services.authz.enabled: true`
-|`NEBULA_AUTHZ_TOKEN` in `services/authz/.env`
+|Bearer token for the authorization sidecar, sent when
+`services.authz.enabled` is true. Must equal
+`NEBULA_AUTHZ_TOKEN` in `services/authz/.env`.
 |At boot when enabled
 
 |`GIT_USER`
 |Optional but needed for pushes
 |empty
-|Account username at the Git provider selected by `git.provider`.
-|`git.provider` (default `GITHUB`)
-|nothing
+|Account username at the Git provider selected by `git.provider`
+(default `GITHUB`).
 |At boot the core logs a warning when empty; pushes fail later unless
 credentials come from elsewhere
 
@@ -101,22 +97,20 @@ credentials come from elsewhere
 |empty
 |Personal access token for that account. Written with `GIT_USER` into
 `~/.git-credentials` inside the core container at boot.
-|`git.provider`
-|nothing
 |Same as `GIT_USER`
 
 |`RUSTFS_ACCESS_KEY`
 |Conditional
 |`rustfsadmin` when `storage.provider` is `RUSTFS` *and the variable is
 unset*; empty otherwise
-|Access key for the S3-compatible store, used for the artifacts bucket
+|Access key for the S3-compatible store, read when `storage.provider`
+is `RUSTFS` (or `S3` with static keys). Used for the artifacts bucket
 and — where Nebula-managed state is enabled
 (`storage.terraform_state_bucket` non-blank; that is the shipped
 default) — for the state bucket too, in which case it is also embedded
-into the backend block the IaC sidecar executes.
-|`storage.provider: RUSTFS` (or `S3` with static keys)
-|`RUSTFS_ACCESS_KEY` on the `object-storage` service in
-`docker-compose.yml`
+into the backend block the IaC sidecar executes. Must match
+`RUSTFS_ACCESS_KEY` on the `object-storage` service in
+`docker-compose.yml`.
 |At boot: the core creates or checks every configured bucket and aborts
 if the store is unusable
 
@@ -124,29 +118,26 @@ if the store is unusable
 |Conditional
 |`rustfsadmin` when `storage.provider` is `RUSTFS` *and the variable is
 unset*; empty otherwise
-|Secret key for the artifact store. For `S3`, leave both keys unset to
-use the AWS SDK default credential chain (an instance role or workload
-identity), or set static keys under these same variable names unless
-you rename `storage.access_key_env` / `storage.secret_key_env`.
-|as above
-|`RUSTFS_SECRET_KEY` on `object-storage`
+|Secret key for the artifact store, matching `RUSTFS_SECRET_KEY` on
+`object-storage`. For `S3`, leave both keys unset to use the AWS SDK
+default credential chain (an instance role or workload identity), or
+set static keys under these same variable names unless you rename
+`storage.access_key_env` / `storage.secret_key_env`.
 |At boot
 
 |`STORAGE_ACCOUNT_KEY`
 |Conditional
 |empty
-|Shared key of the Azure storage account; also signs download URLs.
+|Shared key of the Azure storage account, read when
+`storage.provider` is `STORAGE_ACCOUNT`; also signs download URLs.
 The account name is derived from `storage.endpoint_url`.
-|`storage.provider: STORAGE_ACCOUNT`
-|nothing
 |At boot: configuration validation fails if empty
 
 |`NEBULA_SQL_DATABASE_URL`
 |Mandatory
 |sample value points at the bundled `core-db` container
-|Connection URL of Nebula's PostgreSQL database.
-|`database.nebula_database_url_env`
-|credentials of the `core-db` service in `docker-compose.yml`
+|Connection URL of Nebula's PostgreSQL database. Must carry the
+credentials of the `core-db` service in `docker-compose.yml`.
 |At boot: configuration validation fails if empty, and database
 initialisation fails if unreachable
 
@@ -157,8 +148,6 @@ initialisation fails if unreachable
 Redis — for example when the URL embeds a password or sits outside the
 compose network. Cache operations fail open at runtime, but the
 boot-time ping must succeed.
-|`redis.redis_url_env`
-|nothing
 |At boot: Redis initialisation fails if unreachable
 
 |`NEBULA_CONFIG`
@@ -167,8 +156,6 @@ boot-time ping must succeed.
 |Path, inside the container, of the configuration file to load. The
 file must exist at that path (for example through a mounted volume); a
 missing file silently falls back to built-in defaults.
-|always
-|nothing
 |At boot
 
 |`APP_VERSION`
@@ -176,8 +163,6 @@ missing file silently falls back to built-in defaults.
 |`0.0.0-dev`
 |Version string reported by the API's OpenAPI document. Set it from
 your release pipeline.
-|always
-|nothing
 |never
 |===
 
@@ -187,12 +172,12 @@ from the environment*. A variable that is present but blank
 fallback is applied, and under `storage.provider: RUSTFS` the core
 embeds no static credentials at all: boto3 falls back to the AWS
 default credential chain, which has nothing to find in the container,
-and boot fails at `ensure_bucket()`. Blank the two keys only for
+and boot fails at the bucket check. Blank the two keys only for
 `storage.provider: S3` with an instance profile or IRSA, where an empty
 value is what tells the core to omit them and let the AWS default chain
 resolve.
 
-*What the boot check actually covers.* `SystemConfig` validates the LLM
+*What the boot check actually covers.* The core validates the LLM
 credentials with `litellm.validate_environment` for every entry in the
 effective model list. For the shipped `config.yaml` — which selects
 `azure_ai/...` models — that check verifies *nothing*: LiteLLM has no
@@ -205,11 +190,16 @@ boot. Coverage is per provider (for `anthropic/*`, either
 provider's check validates that a credential actually works.
 
 *`litellm` loads `core/.env` by itself.* The library calls
-`load_dotenv()` at import time, so running the core or its test suite
-from the `core/` directory _outside_ Docker silently picks up
-`core/.env` even when you meant to run with a clean environment. Run
-from another directory if you need to reproduce a missing-credential
-failure.
+`load_dotenv()` at import time unless `LITELLM_MODE` is `PRODUCTION`,
+so running the core or its test suite _outside_ Docker silently picks
+up `core/.env` even when you meant to run with a clean environment.
+Running from another directory does *not* avoid it: python-dotenv
+searches upwards from the calling package's directory, not from the
+working directory, so a virtual environment at `core/.venv` finds
+`core/.env` from anywhere. Variables already set in the environment
+are left alone. To reproduce a missing-credential failure, set
+`LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual
+environment outside `core/`.
 
 Two related facts about the sample file:
 
@@ -236,15 +226,13 @@ the bundled Phoenix.
 |the OpenTelemetry SDK
 |Comma-separated `key=value` headers added to OTLP exports — the usual
 way to authenticate against a hosted collector. The core builds its
-`OTLPSpanExporter` with the endpoint only and passes no headers of its
-own (`core/src/infrastructure/telemetry/_initializer.py:76-82`).
+`OTLPSpanExporter` with the endpoint only and passes no headers of its own.
 
 |`PHOENIX_API_KEY`
 |the `phoenix.client` library
 |API key for an authenticated Phoenix instance, used when fetching and
 seeding prompt templates. The core constructs `AsyncClient(base_url=...)`
-and supplies no credential
-(`core/src/infrastructure/templates/_fetcher.py:17`).
+and supplies no credential.
 |===
 
 Because the core passes the endpoint and base URL programmatically,
@@ -298,7 +286,7 @@ wrong one fails on `init`, in that job's stderr
 
 The job retention period (how long a finished job stays pollable at
 `GET /v1/jobs/\{job_id}`, one hour) is a constant in
-`services/iac/src/config.py`, not an environment variable. Jobs live in
+the sidecar's own configuration, not an environment variable. Jobs live in
 memory, so a restart also forgets them.
 
 [#iac-cloud-credentials]
@@ -321,8 +309,9 @@ exception to "does not interpret": it launches no engine and instead
 reads the same `ARM_*`, `GOOGLE_*`, and `AWS_*` credential variables
 itself through the clouds' auth libraries to query Azure Resource
 Graph, GCP Cloud Asset Inventory, or AWS Resource Explorer. Two extra
-requirements apply to it only: on AWS `AWS_REGION` must be set and
-Resource Explorer must be enabled for the account; on GCP the
+requirements apply to it only: on AWS `AWS_REGION` or
+`AWS_DEFAULT_REGION` must be set and Resource Explorer must be enabled
+for the account; on GCP the
 `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com`
 APIs must be enabled. The core does not call this endpoint today. See
 xref:main:reference/api/iac.adoc#import-discovery[Import discovery] in
@@ -347,18 +336,17 @@ provider supports.
 |Service principal with client secret. Certificate, OIDC federation,
 and managed identity are other documented provider options.
 *`ARM_SUBSCRIPTION_ID` set here is overwritten* on every `init`,
-`plan`, and `apply` with the request's scope id
-(`services/iac/src/engine.py:55-76`), so it only takes effect for
-`validate` and `show`.
+`plan`, `apply`, and `import` with the request's scope id, so it only
+takes effect for `validate`, `show`, and `state pull`.
 
 |Google Cloud (`google`)
 |`GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS`
 |`GOOGLE_CREDENTIALS` holds the service-account key as JSON content;
 `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable
 inside the container. Set one of them. *`GOOGLE_PROJECT` set here is
-overwritten* on every `init`, `plan`, and `apply` with the request's
-scope id (`services/iac/src/engine.py:55-76`), so it only takes effect
-for `validate` and `show`.
+overwritten* on every `init`, `plan`, `apply`, and `import` with the
+request's scope id, so it only takes effect for `validate`, `show`,
+and `state pull`.
 
 |AWS (`aws`)
 |`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, or
@@ -420,7 +408,7 @@ state-backend credentials are always a sidecar concern.
   here.
 
 Where state lives, and how each provider is configured, is covered in
-xref:main:guides/configure-state-backends.adoc[Terraform/OpenTofu state
+xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
 
 == Mapping sidecar (`services/mapping/env.sample`)
@@ -490,8 +478,7 @@ The bundled notifications container *refuses to start without
 Because Compose starts every sidecar regardless of `config.yaml`, a
 notifications container that exits immediately is expected and harmless
 while `services.notifications.enabled` is `false`. No restart policy is
-set for it (only `proxy` carries `restart: on-failure`,
-`docker-compose.yml:12`), so it exits once and then shows as
+set for it (only `proxy` carries `restart: on-failure`), so it exits once and then shows as
 `Exited` in `docker compose ps` — it is not restarted in a loop. Remove
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
@@ -589,7 +576,7 @@ Variable names follow LiteLLM's provider conventions and are selected
 by the `llm.model` and `llm.small_model` strings. The complete
 per-provider table, the `os.environ/VARIABLE_NAME` syntax for custom
 names, and the limits of boot-time validation are documented in
-xref:main:reference/llm-providers.adoc[LiteLLM providers and models].
+xref:main:reference/llm-providers.adoc[LLM providers and models].
 
 == Credential handling and production recommendations
 
@@ -630,14 +617,14 @@ entirely.
 * *Rotate the RustFS keys and database password* from the bundled
   `rustfsadmin` and `postgres` defaults in `docker-compose.yml` before
   exposing the stack beyond a workstation. The same file hard-codes
-  `PHOENIX_SQL_DATABASE_URL` with the `phoenix-db` password in it
-  (`docker-compose.yml:137`) and enables the RustFS web console
-  (`RUSTFS_CONSOLE_ENABLE=true`, `docker-compose.yml:166`) — change the
+  `PHOENIX_SQL_DATABASE_URL` with the `phoenix-db` password in it,
+  and enables the RustFS web console (`RUSTFS_CONSOLE_ENABLE=true`) —
+  change the
   first and disable the second outside a workstation.
 * *Restrict who can reach the stack while OIDC is disabled.* With a
   blank `oidc.issuer_url`, every request is treated as a fully
   privileged local developer. See
-  xref:main:guides/enable-authentication.adoc[OIDC setup].
+  xref:main:guides/enable-authentication.adoc[Enable authentication].
 
 == Example `.env` sets
 
@@ -650,7 +637,7 @@ the model strings below are *not* the shipped ones. The checked-in
 `config.yaml` selects Azure AI Foundry models
 (`azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`, which
 need `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`); the Vertex AI set is
-shown in the next example; `anthropic/*` is what `SystemConfig` falls
+shown in the next example; `anthropic/*` is what the core falls
 back to when no `config.yaml` is loaded at all. Use this set only if
 you put the excerpt below in your own `config.yaml`.
 

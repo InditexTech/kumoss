@@ -157,12 +157,16 @@ readable worked example for anyone writing a Teams, email, or
 PagerDuty implementation of the same contract.
 
 A notification becomes a Slack attachment, colour-coded by severity,
-with an action button per link. Two Slack limits shape the rendering:
+with an action button per link. Two limits shape the rendering, one
+Slack's and one the service's own:
 
 * Slack allows five buttons per attachment, so links past the fifth
   continue in follow-up attachments.
-* Field values are capped at 1000 characters. An audience list over
-  the cap is cut at a recipient boundary and ends with `+N more`.
+* The service caps field values at 1000 characters, well under
+  Slack's own per-field limit, so one oversized value cannot push the
+  rest of the card out of view. A context value over the cap is
+  truncated and ends with an ellipsis; an audience list over it is
+  cut at a recipient boundary and ends with `+N more`.
 
 The bearer token is compared in constant time. If
 `NEBULA_NOTIFICATIONS_TOKEN` is blank the service accepts every
@@ -215,10 +219,10 @@ notifications as best-effort and keeps working.
 
 === Troubleshooting
 
-The service reports problems only twice — as an
-`application/problem+json` response to the caller, and as a warning or
-error on stdout (`docker compose logs -f notifications`). It does not
-trace deliveries.
+The service reports a problem in one place only — the
+`application/problem+json` response to the caller. It writes no log
+lines of its own, so `docker compose logs -f notifications` shows just
+the server's access and error output. It does not trace deliveries.
 
 * *The container exits at boot with a configuration error.* Set
   `SLACK_WEBHOOK_URL`, and a valid `LOG_LEVEL`, in

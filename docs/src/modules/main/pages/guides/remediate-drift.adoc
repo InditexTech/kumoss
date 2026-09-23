@@ -46,8 +46,11 @@ partial drift request with an empty text.
   `show -json` on the plan artifact, derives the drift from it, stores
   the drift report as an artifact, splits the drift into operations in
   groups of `orchestration.drift_group_operations` (8), and runs a
-  generate and validate cycle per group. `init` is submitted only once
-  per session.
+  generate and validate cycle per group. `init` is submitted once per
+  round — the initialized flag lives on the engine client built for that
+  background run — and is re-run automatically when the engine's output
+  asks for `terraform init`, for example after a remediation cycle adds a
+  provider or module block.
 . *Report.* A `drift` JSON report with a summary, an outcome
   (`Succeeded`, `Partial`, `Failed`), the remediated resources, and any
   drift that could not be reconciled.

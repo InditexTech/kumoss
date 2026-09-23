@@ -1,9 +1,0 @@
-= Release notes
-:description: The curated highlights of each Nebula release, and what each one changes for the people using it.
-
-The highlights of each release, newest first, and what they mean for you
-— in contrast to xref:main:changelog/index.adoc[Changelog], which is the
-unabridged commit-level record.
-
-Nebula has not published a tagged release yet. This page lists the
-highlights of every release from the first one onward.

@@ -7,8 +7,8 @@
 :page-action-url: main:quickstart.adoc
 :page-action-secondary: About
 :page-action-secondary-url: main:about.adoc
-:page-hero-image: main:system-architecture.png
-:page-hero-image-alt: Nebula system architecture: the browser and Nginx edge, the layered core, the sidecar services, and the data and observability containers on one Compose network.
+:page-hero-image: main:web-portal-home.jpg
+:page-hero-image-alt: The Nebula web portal's home screen: an operation selector set to Generate Infrastructure, a request box asking what you need, and a row of recent session cards.
 :page-hero-image-bordered:
 
 Nebula turns natural-language infrastructure requests into reviewed,
@@ -24,8 +24,8 @@ decision is computed by application code, never by a model.
 ====
 [card,subheader="Start here"]
 .xref:main:quickstart.adoc[Try Nebula locally]
-Run the checked-in Docker Compose file — service tokens and datastore
-passwords are already filled in; only LLM credentials are yours to supply.
+Run it locally with Docker Compose, only LLM credentials and a Git personal
+access token (`GIT_USER`/`GIT_TOKEN`) are yours to supply.
 
 [card,subheader="Production"]
 .xref:main:guides/deploy-to-production.adoc[Deploy to production]

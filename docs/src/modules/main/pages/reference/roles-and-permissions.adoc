@@ -62,7 +62,8 @@ no panel role and see only their own sessions.
 |Read-only view of every user's sessions in the admin panel.
 
 |`editor`
-|`viewer`, plus lock and unlock the apply of any session (see
+|`viewer`, plus lock and unlock apply and pull-request merge on any
+session (see
 xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
 locks]).
 
@@ -163,7 +164,7 @@ repository link, pull-request links, lock state
 |Receive support requests sent from the web application's header
 |no |no |yes |yes
 
-|Lock or unlock the apply of a session
+|Lock or unlock apply and pull-request merge on a session
 |no |no |yes |yes
 
 |List and search users
@@ -186,26 +187,27 @@ request, apply)
 |not implemented |not implemented |not implemented |not implemented
 |===
 
-Backend routes behind the matrix (all under `/api/v1`):
+Backend routes behind the matrix:
 
 [cols="3,4",options="header"]
 |===
 |Route |Who
 
-|`GET /sessions`, `GET /sessions/\{session_id}`
+|`GET /api/v1/sessions`, `GET /api/v1/sessions/\{session_id}`
 |Any signed-in user; the list is always scoped to the caller, the
 detail is owner or any panel role
 
-|`GET /events/subscribe/\{session_id}`
+|`GET /api/v1/events/subscribe/\{session_id}`
 |Owner or any panel role
 
-|`GET /admin/sessions`, `GET /admin/sessions/\{session_id}`
+|`GET /api/v1/admin/sessions`,
+`GET /api/v1/admin/sessions/\{session_id}`
 |panel `viewer` or higher
 
-|`PATCH /admin/sessions/\{session_id}/toggle_lock`
+|`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock`
 |panel `editor` or higher
 
-|`GET /admin/users`, `PUT /admin/users/\{user_id}/roles`
+|`GET /api/v1/admin/users`, `PUT /api/v1/admin/users/\{user_id}/roles`
 |panel `admin`
 |===
 

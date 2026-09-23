@@ -19,7 +19,10 @@ a human action.
 
 == What you deploy
 
-image::readme-components.png[Nebula components]
+:diagram-name: readme-components
+:diagram-alt: What you deploy: the browser and proxy, the core, the four sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
 
 The core platform components — the `core` orchestration API, the `proxy`
 (nginx), `core-db` (PostgreSQL), `redis`, `object-storage`, and the
@@ -28,7 +31,7 @@ The core platform components — the `core` orchestration API, the `proxy`
 production you replace only the bundled datastores.
 
 Four sidecars are the integration points between Nebula and your
-organization: `iac` (executes the IaC engine; enabled by default),
+organization: `iac` (executes the IaC engine; mandatory, always on),
 `notifications` (posts session outcomes to Slack; disabled by default),
 `mapping` (resolves a repository reference; disabled by default), and
 `authz` (applies cloud-project authorization policy; disabled by default).

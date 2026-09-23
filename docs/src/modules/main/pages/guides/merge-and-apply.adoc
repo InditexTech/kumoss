@@ -64,7 +64,7 @@ send a new request; a fresh plan is produced and reviewed before the next
 apply. *Import Infrastructure* in the mode drop-down currently performs
 this same apply step on an existing session; it does not yet import
 unmanaged resources, see
-xref:main:guides-overview.adoc#compare-modes[Comparing the operating modes].
+xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating modes].
 
 == Next steps
 

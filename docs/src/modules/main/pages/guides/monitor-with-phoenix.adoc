@@ -10,7 +10,7 @@ https://arize.com/docs/phoenix[Arize Phoenix].
 
 This guide covers tracing only. Phoenix also hosts Nebula's runtime
 prompt registry; that is a separate function described in
-xref:main:guides/customize-prompts.adoc[Phoenix prompt templates]. How
+xref:main:guides/customize-prompts.adoc[Customize prompts]. How
 Phoenix is deployed in each model is covered by
 xref:main:quickstart.adoc[Quickstart] and
 xref:main:guides/deploy-to-production.adoc[Deploy to production].
@@ -177,7 +177,7 @@ generation, code generation, reporting, and so on).
 * *Model and provider:* `llm.model_name`, and `llm.provider` when the
   LiteLLM prefix maps to an OpenInference provider name. When
   `llm.model_list` uses a custom alias (see
-  xref:main:reference/llm-providers.adoc[LiteLLM providers and models]),
+  xref:main:reference/llm-providers.adoc[LLM providers and models]),
   `llm.model_name` on the span is that alias rather than the
   underlying `provider/model-id` string, and `llm.provider` is left
   unset because the alias carries no recognizable prefix.
@@ -260,7 +260,7 @@ start time, so durations are correct even though the nesting is flat.
   truncated in Phoenix rather than marked failed. Tool-level failures
   are visible only as `success: false` in the tool span output. Use the
   session status and failure message in the application or the
-  xref:main:guides/administer-users-and-locks.adoc[admin portal] for
+  xref:main:guides/administer-users-and-locks.adoc[admin panel] for
   error triage.
 * *Metrics, dashboards, alerts, evaluations.* Nebula emits traces only.
   Phoenix's evaluation and dataset features are available in the UI but
@@ -286,7 +286,7 @@ start time, so durations are correct even though the nesting is flat.
   prompt seeding: it retries the connection for about 27 seconds and
   then aborts the boot. In the bundled stack that makes Phoenix
   effectively required at startup.
-* On shutdown the lifespan handler calls `shutdown()` on every provider,
+* On shutdown the lifespan handler shuts every provider down,
   which drains pending spans (within a 30-second budget) before the
   process exits.
 
@@ -323,5 +323,5 @@ messages. Raise the limit and rebuild the core image.
 *Traces from a different environment are mixed in.* The project prefix
 comes from `environment` in the core's baked-in `config.yaml`; rebuild
 after changing it. Prompt tags follow the same value, so also read
-xref:main:guides/customize-prompts.adoc[Phoenix prompt templates] before
+xref:main:guides/customize-prompts.adoc[Customize prompts] before
 changing it on an existing deployment.

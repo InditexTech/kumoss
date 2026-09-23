@@ -155,8 +155,7 @@ storage.terraform_state_bucket (core)        IAC_BACKEND_CONFIG (iac sidecar)
 ----
 
 Precedence, highest first: *`-backend-config` values* from
-`IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init`
-(`services/iac/src/engine.py:88-90`), then the core-written
+`IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init`, then the core-written
 *`backend_override.tf`* (model 2), then *the repository's own
 `terraform { backend }` block* (model 1). This was verified empirically
 by running `tofu init` (and `terraform init`) against a local backend
@@ -261,7 +260,7 @@ is yours:
   until you delete it.
 * *No DynamoDB lock table.* Locking uses the S3-native lockfile; there is
   nothing to provision.
-* *No `gcs` backend adapter.* `ObjectStorageProvider` has exactly three
+* *No `gcs` backend adapter.* The storage provider setting has exactly three
   members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). A Google Cloud Storage
   bucket can only be reached through its S3-compatible interoperability
   endpoint with `provider: RUSTFS`, which the repository does not test.
@@ -392,15 +391,18 @@ file is not mounted, or it is not readable by uid `10001`.
 |Fix the mount and ownership, or unset the variable.
 
 |A `backend_override.tf` shows up in a pull request
-|The seeded ignore rules did not reach the workspace's effective
-`.gitignore`. Nebula appends its template to an existing `.gitignore`,
-but the template also ignores `.gitignore` itself
-(`core/src/infrastructure/filesystem/terraform.gitignore:51-52`), so for
-a repository that carried no `.gitignore` the seeded file is never
-committed — it only takes effect in the working copy.
-|Check the `.gitignore` in the workspace (not the branch) and confirm
-`*_override.tf` is present; if the repository has no `.gitignore`,
-commit one that carries the rule.
+|The workspace `.gitignore` write failed, so the seeded rule that
+ignores `*_override.tf` never took effect. The core logs `terraform
+gitignore couldn't be created` and carries on, and the next commit
+(`git add -A`) picks the override file up. A repository that carried no
+`.gitignore` is not the cause: the seeded file is honoured for the
+working tree even though it ignores itself and is never committed. A
+repository that already tracks a `.gitignore` gets Nebula's template
+appended to it, and that modification is committed and pushed to the
+session branch.
+|Look for the warning in the core log and check that the `workspaces`
+volume is writable by uid/gid `10001`. Remove the file from the branch
+and re-run the round once the write succeeds.
 
 |Session fails with a Terraform backend error before `init` runs
 |The core could not write `backend_override.tf` into the workspace.
@@ -445,7 +447,10 @@ account name for `STORAGE_ACCOUNT`; ignored for `S3`. Must be reachable
 |`storage.access_key_env` / `storage.secret_key_env`
 |`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`
 |When *both* resolve non-empty, the keys are embedded in the backend
-block; otherwise the credential lines are omitted.
+block; otherwise the credential lines are omitted. On `RUSTFS` an unset
+or empty variable falls back to `rustfsadmin`, so the credential lines
+are always present there; only `S3` omits them when the variables are
+blank.
 
 |`storage.account_key_env`
 |`STORAGE_ACCOUNT_KEY`
@@ -467,15 +472,16 @@ core image, because `config.yaml` is baked in.
 |`IAC_BACKEND_CONFIG`
 |unset
 |Path *inside the sidecar container* to a `.hcl`/`.tfbackend` backend
-configuration file passed to `init` as `-backend-config`. Validated
-readable at startup. Overrides model 2 values key by key (the file's
-keys win over the core's `backend_override.tf`, the core's remaining
-keys survive); do not combine the two.
+configuration file passed to `init` as `-backend-config`. Not checked
+at startup; a wrong path fails the first `init` job (error in that job's
+stderr). Overrides model 2 values key by key (the file's keys win over
+the core's `backend_override.tf`, the core's remaining keys survive); do
+not combine the two.
 
 |`IAC_BINARY`
 |`tofu`
-|The engine that executes the backend. OpenTofu 1.12.6 or the bundled
-Terraform 1.16.0; both support `use_lockfile`.
+|The engine that executes the backend. OpenTofu {opentofu-version} or the bundled
+Terraform {terraform-version}; both support `use_lockfile`.
 |===
 
 === Related documentation

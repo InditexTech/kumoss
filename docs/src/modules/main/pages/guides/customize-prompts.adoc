@@ -433,7 +433,8 @@ All examples are fictitious and use the repository conventions.
 
 === A provider-wide guideline seed
 
-File `core/prompts/seed/aws/guidelines/networking.yaml`, producing the
+File `core/prompts/seed/aws/guidelines/networking.yaml` (shipped; body
+shortened here for space — see the file for the full text), producing the
 Phoenix prompt `aws-guidelines-networking`:
 
 [source,yaml]
@@ -442,15 +443,22 @@ Phoenix prompt `aws-guidelines-networking`:
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Networking conventions applied to every generated AWS resource.
+description: AWS networking conventions (VPCs, subnets, gateways, security groups).
 body: |
-  # AWS Networking Conventions
+  # AWS Networking Guidelines
 
-  - Place workloads in private subnets; only load balancers and NAT
-    gateways live in public subnets.
-  - Security groups must not allow `0.0.0.0/0` ingress except on
-    ports 80 and 443 of internet-facing load balancers.
-  - Use VPC endpoints for S3 and DynamoDB instead of NAT egress.
+  ## Topology
+  - Default to a multi-AZ VPC with public and private subnets per
+    availability zone.
+  - For multi-environment deployments, use separate VPCs per
+    environment (`dev`, `staging`, `prod`) connected through Transit
+    Gateway or VPC peering.
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs
+    or other VPCs that will be peered.
+  - Allocate `/16` per VPC by default; carve `/24` subnets within.
+  - Spread subnets across at least two availability zones.
 ----
 
 === A resource (component) seed

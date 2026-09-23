@@ -28,7 +28,11 @@ xref:main:guides/development.adoc[].
 == How to contribute
 
 . Open an issue to discuss and gather feedback on the feature or fix
-  you wish to address.
+  you wish to address. Security vulnerabilities are the exception:
+  report them through the https://vdp.inditex.com[disclosure submission
+  program] as described in the
+  https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
+  policy], never through a public issue.
 . Fork the repository and clone it to your local machine.
 . Create a new branch to work on your contribution:
   `git checkout -b your-branch-name`.
@@ -63,9 +67,14 @@ rejects other subjects. Sign your commits (`git commit -S`) — signing
 is required by policy and checked in review, not enforced by any CI
 workflow.
 
+// REUSE-IgnoreStart
+// The paragraph below quotes SPDX tags as prose. Without these markers the
+// REUSE tool reads them as this file's own licensing declaration and fails
+// to parse the trailing backtick as part of the expression.
 Every new file starts with an SPDX header following the
 https://reuse.software/spec-3.3/#licensing-information[REUSE
 Specification] (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO
 TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`).
 CI runs the REUSE check on every pull request, alongside Repolinter and
 the Conventional Commits check above.
+// REUSE-IgnoreEnd

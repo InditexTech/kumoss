@@ -164,8 +164,8 @@ asciidoc:
     # comma-separated subset of kroki.js's `SUPPORTED_TYPES` (e.g. `mermaid`
     # or `mermaid,plantuml,bpmn,excalidraw,structurizr`); omit it to enable
     # every supported type.
-    kroki-enabled: true
-    kroki-diagram-types: mermaid,plantuml,bpmn,excalidraw,structurizr
+    # kroki-enabled: true
+    # kroki-diagram-types: mermaid,plantuml,bpmn,excalidraw,structurizr
   extensions:
     # Authoring blocks with no plain AsciiDoc equivalent — [tabs], [cards],
     # [feature-tabs], [cta], [accordion] grouping, plus the label:[]/mono:[]

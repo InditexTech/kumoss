@@ -11,7 +11,7 @@ them:
   every `config.yaml` field.
 * xref:main:reference/environment-variables.adoc[Environment variables
   and secrets], for every core and sidecar variable.
-* xref:main:reference/llm-providers.adoc[LiteLLM providers and models],
+* xref:main:reference/llm-providers.adoc[LLM providers and models],
   for LLM providers and credentials.
 * xref:main:guides/enable-authentication.adoc[] for authentication.
 * xref:main:guides/monitor-with-phoenix.adoc[] for tracing.
@@ -228,7 +228,7 @@ start-up.
 Phoenix.
 
 |IaC sidecar
-|`services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port
+|`services/iac/Dockerfile` (OpenTofu {opentofu-version}, Terraform {terraform-version}; port
 8082; user `nebula` 10001)
 |Core only
 |Shared workspace volume
@@ -362,7 +362,7 @@ execution environment* are the security decisions you must make:
 * *Jobs are in memory.* A restart forgets queued and finished jobs; run
   one instance per shared workspace and do not scale it horizontally.
 * *Engine choice.* `IAC_BINARY=tofu` (default) runs OpenTofu;
-  `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is
+  `terraform` runs the bundled HashiCorp Terraform {terraform-version}, which is
   BUSL-1.1 licensed and makes your use subject to its terms.
 * *State backend.* The sidecar is always the process that _executes_
   the backend, so it always needs reach to it and credentials for it —

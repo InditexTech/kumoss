@@ -13,10 +13,9 @@ Every router is mounted under `/v1` on an application created with
 == The authentication rule
 
 *Authentication is a per-route dependency, not middleware.* Every
-route under `/v1` except `GET /v1/auth/config` declares
-`Depends(get_current_user)`, or one of the two role wrappers
-`require_operation_role(...)` and `require_panel_role(...)`, all from
-`core/src/api/deps.py`. A router added without one of these is public.
+route under `/v1` except `GET /v1/auth/config` declares the
+authentication dependency, or one of the two role wrappers built on it.
+A router added without one of these is public.
 
 The dependency behaves in one of two ways:
 
@@ -33,16 +32,15 @@ The dependency behaves in one of two ways:
 Two independent role groups gate the routes, and both live in the core
 database:
 
-* `OperationRole` (`developer` < `devops`) gates Infrastructure as
+* The *operation role* (`developer` < `devops`) gates Infrastructure as
   Code work. Falling short is `403 Requires operation role '<role>' or
   higher`.
-* `PanelRole` (`viewer` < `editor` < `admin`, nullable) gates
+* The *panel role* (`viewer` < `editor` < `admin`, nullable) gates
   `/v1/admin/*`. Falling short is `403 Requires admin-panel role
   '<role>' or higher`.
 
-Beyond the role check, `assert_session_access(user, session_id,
-write=...)` decides per-session access: the owner may always read and
-write; a non-owner with any panel role may read only; everyone else
+Beyond the role check, a per-session access check applies: the owner
+may always read and write; a non-owner with any panel role may read only; everyone else
 receives `403 Not the session owner`. See
 xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
 for the full matrix.
@@ -133,7 +131,7 @@ router.
 
 == Infrastructure as Code
 
-Router: `terraform.py`, prefix `/v1/iac`. Three routes, one per
+Prefix `/v1/iac`. Three routes, one per
 operation. All three are *asynchronous*: they validate the request,
 resolve or create the session, schedule the pipeline as a background
 task, and answer `202 Accepted` with nothing but the session id.
@@ -159,8 +157,8 @@ the resources named in the query.
 
 |`POST /api/v1/iac/apply`
 |`developer`
-|Applies the plan pinned by the session's last successful generate or
-drift round. No re-plan happens at apply time.
+|Applies the plan pinned by the session's last successful generate
+round. No re-plan happens at apply time.
 |===
 
 `generate` and `drift` share a request body. Exactly one of `repo_uri`
@@ -232,7 +230,7 @@ is visible only on the event stream and in the session detail.
 
 == Events
 
-Router: `events.py`, prefix `/v1/events`. One route.
+Prefix `/v1/events`. One route.
 
 `GET /api/v1/events/subscribe/\{session_id}` streams a session's
 progress as Server-Sent Events. It requires a signed-in caller with
@@ -268,7 +266,7 @@ xref:main:guides/follow-a-session.adoc[Follow a session].
 
 == Repository operations
 
-Router: `repository.py`, prefix `/v1/repository`. Three routes, all
+Prefix `/v1/repository`. Three routes, all
 requiring operation role `developer`.
 
 `PUT /api/v1/repository/pr` creates a pull request from the session's
@@ -300,17 +298,20 @@ repository URL is entered.
 {"roots": [".", "environments/dev", "environments/prod"]}
 ----
 
-A rejected URI is `400` and a failed clone or scan is `502`. The
+A URI that embeds credentials is `422`, one that `git ls-remote`
+cannot reach is `400`, and a failed clone or scan is `502`. The
 detection rules behind the answer are in
 xref:main:reference/repository-layout.adoc[Repository layout].
 
 == Authentication
 
-Router: `auth.py`, prefix `/v1/auth`. Two routes.
+Prefix `/v1/auth`. Two routes.
 
-`GET /api/v1/auth/config` is *the only public route in the whole API*,
+`GET /api/v1/auth/config` is *the only public route under `/v1`*,
 deliberately so: the single-page application has to read it before it
-can log in at all. It returns the four non-secret OIDC settings, taken
+can log in at all. Outside `/v1`, the framework's interactive
+documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` —
+is served without authentication as well. It returns the four non-secret OIDC settings, taken
 straight from `config.yaml`:
 
 [source,json]
@@ -353,7 +354,7 @@ xref:main:reference/api/authz.adoc[Authorization sidecar API].
 
 == Users
 
-Router: `users.py`, prefix `/v1/users`. One route.
+Prefix `/v1/users`. One route.
 
 `GET /api/v1/users/me` returns the authenticated caller's identity and
 roles, and is what the browser calls to learn what to render:
@@ -363,7 +364,7 @@ roles, and is what the browser calls to learn what to render:
 {
   "id": 1,
   "email": "dev@nebula.local",
-  "display_name": "dev",
+  "display_name": "Local Developer",
   "operation_role": "devops",
   "panel_role": "admin"
 }
@@ -375,7 +376,7 @@ admin-panel access.
 
 == Sessions
 
-Router: `session.py`, prefix `/v1/sessions`. Two routes, both open to
+Prefix `/v1/sessions`. Two routes, both open to
 any signed-in user.
 
 `GET /api/v1/sessions` returns a page of session summaries. The list
@@ -410,9 +411,11 @@ id. Up to 200 characters.
 
 The envelope carries `items`, `total`, `page`, `page_size`, and
 `total_pages`. Each item resolves server-side everything the list view
-renders: `uuid`, `operation`, `provider`, `first_query`,
+renders: `uuid`, `username`, `operation`, `provider`, `first_query`,
 `workspace_uri`, `current_status`, the `in_flight` and `is_blocked`
-flags, and the timestamps.
+flags, and the timestamps. `username` is the owning user's e-mail, or
+`user-<id>` when the user has none; the name is historical, and it is
+a response field only — there is no `username` query parameter.
 
 `GET /api/v1/sessions/\{session_id}` returns the full session
 aggregate: the session facts, its `workspace` (URI, branch, root
@@ -428,9 +431,8 @@ must be the owner or hold a panel role; an unknown session is `404`.
 
 == Admin
 
-Router: `admin.py`, prefix `/v1/admin`. Five routes. The whole router
-carries a `require_panel_role(PanelRole.VIEWER)` dependency, so panel
-`viewer` is the floor for every route in it; three routes raise the
+Prefix `/v1/admin`. Five routes. The whole router
+requires a panel role, so `viewer` is the floor for every route in it; three routes raise the
 floor further.
 
 [cols="3,1,3",options="header"]
@@ -500,7 +502,7 @@ and applying it all remain owner-only.
 
 == Mapping
 
-Router: `mapping.py`, prefix `/v1/mapping`. One route, open to any
+Prefix `/v1/mapping`. One route, open to any
 signed-in user.
 
 `POST /api/v1/mapping/resolve` is a passthrough to the mapping
@@ -525,7 +527,7 @@ xref:main:reference/api/mapping.adoc[Mapping sidecar API].
 
 == Notifications
 
-Router: `notifications.py`, prefix `/v1/notifications`. One route,
+Prefix `/v1/notifications`. One route,
 open to any signed-in user.
 
 `POST /api/v1/notifications` submits a user-originated notification —

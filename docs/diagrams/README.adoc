@@ -1,11 +1,113 @@
 = Diagram sources
-:description: Editable Archify sources for the PNGs the documentation site embeds.
+:description: Editable Archify sources for the diagrams the documentation site publishes.
 
 This directory sits outside `docs/src/`, so Antora does not publish it: it
-holds the editable Archify originals for the PNGs in
-`docs/src/modules/main/images/`.
+holds the editable Archify specifications behind the diagrams the site
+publishes.
 
-== Render recipe
+Each specification produces *two* committed artifacts, in this order:
+
+. `docs/src/modules/main/attachments/<name>.html` — the delivered Archify
+  viewer. This is the real deliverable: a self-contained interactive page with
+  pan, zoom, search, focus, relationship tracing, theme switching, and export.
+  Antora publishes everything under `attachments/` to `_attachments/`.
+. `docs/src/modules/main/images/<name>.png` — a still capture *of* that
+  viewer, which is what a page shows when the viewer cannot load.
+
+The PNG is downstream of the HTML, so always re-deliver first and capture
+second. Changing a specification means redoing both.
+
+== How a page embeds the pair
+
+Pages never reference either artifact directly. They set three attributes and
+include one partial, which ships the still and swaps the live viewer in over
+it:
+
+[source,asciidoc]
+----
+:diagram-name: system-architecture
+:diagram-alt: Nebula system architecture: the browser and Nginx edge, ...
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
+----
+
+`diagram-name` is the base name both artifacts share. `diagram-alt` is the
+image's alt text and the live frame's accessible title, so write it as a
+sentence that stands on its own. `diagram-verb` is the one capability worth
+naming for this diagram — `trace a relationship` for the component and
+topology maps, `follow a message` for the sequence diagrams.
+
+The still is a fallback, not a sharper alternative. A PNG is 2048px wide, but
+those pixels are not extra samples of the same picture: the capture ran in a
+2048px viewport, so the viewer simply drew a *larger* diagram, and scaling the
+result down to the article column hands back exactly the size the viewer would
+have drawn there anyway. Measured on a 1920px screen, the still renders a
+629px diagram with 5.5px text where the live frame renders 916px and 8px. The
+still is never sharper, and for the architecture and topology maps it is
+noticeably smaller — the capture is itself height-bound at 1320px and draws
+only 1363 of its 2048px.
+
+What the live viewer adds is that a reader can do something about the size.
+At article width nothing renders large enough to read at rest; only the viewer
+pans, zooms, searches, and traces. So the partial activates it by default and
+keeps "Open in a new tab" for the full-viewport read, where a 1920px window
+gives 12–13px text.
+
+`partials/interactive-diagram.adoc` carries the mechanism and the reasons
+behind its non-obvious parts:
+
+* It swaps the frame in *inside* the `.imageblock` wrapper, which is what
+  escapes the theme's 820px `.sectionbody` cap, and pins that wrapper's width
+  because an iframe has no intrinsic width to give a shrink-wrapping flex
+  item.
+* It then widens that wrapper to the `.doc` column. Width is the only lever
+  that reliably grows the diagram, and `--doc-inset-cap` otherwise holds
+  `.imageblock` at 1025px however wide the window gets — on a 2560px screen
+  that wastes half the column.
+* It sizes the frame by the same content-bottom measurement `capture-png.mjs`
+  uses, because the viewer expands to fill whatever height it is given, so
+  `scrollHeight` only ever echoes back the height already set.
+* It loads the viewers strictly one at a time, and keeps each still on screen
+  until its own viewer has drawn. Each viewer is a whole application of about
+  800KB and `end-to-end-flow.adoc` holds five, so both halves matter. Putting
+  the frame in place when it is created leaves a blank grey panel where the
+  diagram was until the download lands. Starting them on a fixed interval puts
+  them all in flight together, and five long downloads take nearly all of a
+  browser's ~6 connections per origin — the next click on the navigation
+  sidebar then gets no socket at all and the page appears to stop answering.
+  Serialising bounds the cost to one connection however slow the origin is.
+* Proximity decides the *order* of that queue and never *whether* a diagram
+  joins it. Two earlier versions let it decide whether, and both left the
+  lower diagrams as stills permanently. Antora writes no `width`/`height` on a
+  still, so every image reflows the column as it decodes and a block can be
+  carried into range with no event to announce it — an
+  `IntersectionObserver`'s one-shot entry arrives against a position the block
+  no longer holds, and a rect read on scroll is never stale but nothing
+  re-reads it once the reader stops scrolling. Working through the whole queue
+  retires that failure mode rather than narrowing the window it hides in.
+* It hides the viewer's own title inside the frame. Every page that embeds a
+  diagram already carries that line as the section heading immediately above
+  it, and at column width the repeat wraps into the viewer's toolbar. The
+  title stays in the specification — `meta.title` is required, and the
+  "Open in a new tab" page has no surrounding heading to make it redundant —
+  so this is a stylesheet injected into the same-origin frame, and
+  `capture-png.mjs` hides the same element so the still matches.
+* It drops the 40px the theme insets an image block's contents by, which is
+  what put the diagram 40px right of every heading and paragraph. Those do
+  agree with each other: a heading's box starts 64px further left than its
+  text, because the theme carves that gutter with a negative margin and an
+  equal padding to hold the hover anchor. The column edge is where the text
+  sits, and the diagram was the one thing off it.
+
+One known limit: the viewer picks its reading width from a discrete ladder
+keyed to viewport height, so a frame sized to its own content settles at the
+rung it already fits. A 1490px frame stays at a 930px diagram until it is
+given about 1400px of height, at which point it jumps to 1376px and 12px
+text. Forcing that would mean hard-coding a viewer internal and spending a
+full screen of scroll per diagram, so the embed takes the rung it lands on
+and leaves the full-size read to the new tab.
+
+== 1. Deliver the interactive viewer
 
 Each `*.architecture.json` and `*.sequence.json` file is an Archify
 specification. Render one with the `archify` skill, from its own directory:
@@ -13,25 +115,49 @@ specification. Render one with the `archify` skill, from its own directory:
 [source,bash]
 ----
 node bin/archify.mjs validate <type> <spec.json> --quality showcase --json
-node bin/archify.mjs deliver  <type> <spec.json> <out.html> --quality showcase --json
-node bin/archify.mjs visual-check <out.html> --json
+node bin/archify.mjs deliver  <type> <spec.json> \
+  <nebula>/docs/src/modules/main/attachments/<name>.html \
+  --quality showcase --json
+ARCHIFY_CHROME=<chrome> node bin/archify.mjs visual-check <out.html> --json
 ----
 
 `<type>` is `architecture` for a `*.architecture.json` file and `sequence`
-for a `*.sequence.json` file. The delivered HTML is a build output and is not
-committed; export the PNG from the viewer and replace the file of the same
-name in `docs/src/modules/main/images/`. Changing a specification therefore
-means re-exporting its PNG too.
+for a `*.sequence.json` file. A showcase pass must report all nine artifact
+checks with zero composition errors and zero warnings; `deliver` is the final
+acceptance command and a non-zero exit is never a success.
 
-== Known follow-up
+`visual-check` needs a browser. Without `ARCHIFY_CHROME` pointing at a Chrome
+or Chromium executable it reports `viewer/chrome-unavailable` and checks
+nothing.
 
-`docs/src/modules/main/images/system-architecture.png` — used as the landing
-page's hero and on `architecture.adoc` — is a 2048x1320 diagramming-canvas
-screenshot that still carries the tool's own chrome: a
-"Light / Classic / Present / Export" button row at top right and a
-"PATH MAP LENS ... 100% +" zoom bar at bottom right. It is the most visible
-image on the site and the chrome should not be in it.
+== 2. Capture the PNG
 
-The fix is a re-render from `system-architecture.architecture.json` in this
-directory with the chrome excluded, not a crop. It is recorded here rather
-than done because restoring these sources is what makes it tractable.
+`capture-png.mjs` in this directory drives headless Chrome over the DevTools
+Protocol to screenshot a delivered viewer. It exists because the viewer paints
+its own interactive chrome — a "Light / Classic / Present / Export" toolbar
+and a zoom bar — and a naive screenshot bakes both into the image, which is
+how the earlier PNGs came to carry them.
+
+[source,bash]
+----
+node capture-png.mjs \
+  ../src/modules/main/attachments/<name>.html \
+  ../src/modules/main/images/<name>.png \
+  --width 2048 --theme light
+----
+
+It hides the chrome using the selector list from the viewer's own
+`@media print` stylesheet, pins the colour theme in the page, and crops to the
+lowest visible content edge rather than to the viewport — the viewer is a
+full-viewport application, so measuring `scrollHeight` instead leaves a dead
+band under the shorter sequence diagrams. Chrome is located via
+`ARCHIFY_CHROME`, then `CHROME_PATH`, then the Playwright cache; it needs no
+npm dependency beyond Node 18+.
+
+It also hides the viewer's title, tracked separately from that print list
+because it is not chrome. A still is only ever read embedded in a page, and
+that page's section heading already says the same thing directly above it;
+dropping it here is what keeps the still and the live frame the same picture.
+
+Use `--theme light` for the site: the viewer defaults to dark, but the
+published pages are read light by default.

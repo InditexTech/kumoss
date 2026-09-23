@@ -1,0 +1,4 @@
+The operating mode chosen in the web application header: Generate
+Infrastructure, Partial Drift Remediation, Full Drift Remediation, or
+Import Infrastructure. The drift and import modes require the `devops`
+operation role.

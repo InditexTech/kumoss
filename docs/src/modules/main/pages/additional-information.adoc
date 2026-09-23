@@ -3,8 +3,8 @@
 
 This page gathers what does not fit under Guides or Reference:
 licensing of the default stack, how to reach the people behind a
-Nebula deployment, and where the FAQ, release notes, and changelog
-live.
+Nebula deployment, where release notes and the changelog will be
+published, and where the FAQ lives.
 
 == Licensing of the default stack
 
@@ -26,10 +26,10 @@ ID, Auth0, or Okta without changing a line of code.
 |Apache-2.0
 |REUSE-compliant SPDX headers
 
-|OpenTofu 1.12.6
+|OpenTofu {opentofu-version}
 |Default IaC engine in the iac sidecar
 |MPL-2.0 (Linux Foundation)
-|Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0
+|Digest-pinned. The same image also bundles HashiCorp Terraform {terraform-version}
 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and
 selectable via `IAC_BINARY=terraform`; running it makes your use
 subject to its licence terms
@@ -135,6 +135,21 @@ https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
 policy] for the full process and the safe-harbor terms covering
 researchers who report in good faith.
 
+== Release notes
+
+Nebula has not published a tagged release yet. When it does, the curated
+highlights of each release — what is new and what it changes for the
+people using it — will be listed here and on the project's
+https://github.com/InditexTech/nebula/releases[GitHub Releases] page.
+
+== Changelog
+
+The unabridged, commit-level record of changes is the repository's
+https://github.com/InditexTech/nebula/commits/main[commit history];
+it is not duplicated here. Once releases exist, each GitHub Release
+carries the complete list of additions, changes, fixes, and
+deprecations since the previous one.
+
 == Sections
 
 [cards,columns="1 s:2 m:3"]
@@ -143,12 +158,4 @@ researchers who report in good faith.
 .xref:main:faq.adoc[FAQ]
 Answers to common questions about roles, requests, sessions, locks,
 and getting help.
-
-[card]
-.xref:main:release-notes/index.adoc[Release notes]
-The curated highlights of each release.
-
-[card]
-.xref:main:changelog/index.adoc[Changelog]
-The complete, commit-level record of every change.
 ====

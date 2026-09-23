@@ -29,12 +29,13 @@ options:
 * *Restarts interrupt runs.* A session that was running when the core
   restarted keeps its last status; its in-flight flag is released only
   by the process that set it. Expect to inspect such sessions in the
-  admin portal after a rolling restart.
+  admin panel after a rolling restart.
 * *Start-up is strict* and ordered: database, Redis, the object-storage
   artifacts bucket, the Terraform state bucket (created by default,
   since `storage.terraform_state_bucket` ships non-blank; skipped only
   if you blank it explicitly to `""`), Phoenix prompt seeding, then git
-  credentials. Readiness should be derived from the API answering `GET
+  credentials — the last only logs a warning on failure; every other
+  step exits the process. Readiness should be derived from the API answering `GET
   /api/v1/auth/config`; the core has no dedicated health route.
 * *The checked-in compose has no healthchecks and no restart policies*
   for `core`, its dependencies, or the sidecars (only `proxy` sets

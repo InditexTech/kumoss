@@ -1,4 +1,5 @@
-A flag on the session that blocks apply and pull-request merge until an
-admin-panel editor unlocks it. It is set automatically when the compliance
-audit fails or, where the deployment enables it, when the impact is High.
-Some internal material calls this a plan lock.
+A flag on the session that blocks apply and pull-request merge. It is set
+automatically when the compliance audit fails or, where the deployment
+enables it, when the impact is High, and cleared either by an admin-panel
+editor or by a later generate round whose audit passes without a
+high-impact verdict. Some internal material calls this a plan lock.

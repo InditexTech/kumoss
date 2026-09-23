@@ -26,16 +26,18 @@ required), set the two model strings in `config.yaml`, and run `docker
 compose up --build`. xref:main:quickstart.adoc[] is the step-by-step
 guide.
 
-`docker compose up --watch` hot-reloads the core: compose watch syncs
-`core/` into the running container so changes take effect without a
-rebuild.
+`docker compose up --watch` syncs `core/` into the running container,
+but the server runs without `--reload` and does not pick up the change:
+run `docker compose restart core` after a sync (or `docker compose up
+-d core`). It does not sync `config.yaml`, which is baked into the
+image.
 
 == Core tests
 
 Python 3.13, `uv`. `pytest` is *not* declared in `core/pyproject.toml`
-(its `tooling` dependency group holds `basedpyright`, `debugpy`, and
-`openapi-python-client`, not `pytest`), so install it explicitly before
-running the suite:
+(its `tooling` dependency group holds `basedpyright`, `debugpy`,
+`openapi-python-client`, and `ipython`, not `pytest`), so install it
+explicitly before running the suite:
 
 [source,bash]
 ----
@@ -54,14 +56,17 @@ instances).
 
 == Type checking
 
+`basedpyright` lives in the `tooling` dependency group, which the
+project install above does not include; install the group first:
+
 [source,bash]
 ----
 cd core
+uv pip install --system --group tooling -r pyproject.toml
 basedpyright
 ----
 
-`basedpyright` is a dev dependency, and `pyrightconfig.json` only
-includes `src/` — tests are not type-checked.
+`pyrightconfig.json` only includes `src/` — tests are not type-checked.
 
 == Frontend checks
 
@@ -78,8 +83,8 @@ npm run build
 
 == Sidecar tests
 
-Each sidecar service has its own `tooling` dependency group (`pytest`,
-`pytest-asyncio`, `httpx`):
+Each sidecar service has its own `tooling` dependency group with
+`pytest` and its test helpers (the exact set differs per service):
 
 [source,bash]
 ----
@@ -113,7 +118,7 @@ per service:
 
 [source,bash]
 ----
-uv run openapi-python-client generate \
+uv run --group tooling openapi-python-client generate \
   --path ../contracts/openapi/<service>.v1.yaml \
   --config ../contracts/openapi-python-client.yaml \
   --meta none \

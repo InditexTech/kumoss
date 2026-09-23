@@ -1,0 +1,175 @@
+= Database schema
+:description: The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
+
+core-db is Nebula's system of record: who the users are, what they asked
+for, and what each run produced. Twelve tables hold it. Everything else —
+traces, cached session facts, the generated files themselves — lives
+outside this database.
+
+:diagram-name: database-schema
+:diagram-alt: The twelve tables of core-db: users above sessions, the five tables owned by a session, the four artifact-metadata tables owned by a round, and the shared artifacts table
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
+
+== Conventions
+
+Every table follows the same three rules, so they are stated once here
+rather than repeated per table:
+
+* Each table has an auto-incrementing integer `id` primary key, plus
+  `created_at` and `updated_at` timestamps that carry a time zone.
+* A child's foreign key is named after its parent — `session_id`,
+  `round_id`, `user_id`, `artifact_id` — and is indexed.
+* Two uniqueness rules exist: `users` is unique on `(issuer, subject)`,
+  and `rounds` is unique on `(session_id, number)`.
+
+== The tables
+
+[cols="2,2,4",options="header"]
+|===
+|Table |Belongs to |What it records
+
+|`users`
+|—
+|One row per identity, keyed by the OIDC `(issuer, subject)` pair, with
+`email`, `display_name`, and the two role columns.
+
+|`sessions`
+|`users`
+|One request from creation to completion: a public `uuid`, the
+`operation`, and the `in_flight` and `is_blocked` flags.
+
+|`rounds`
+|`sessions`
+|One turn within a session — its `number` and the `query` that drove it.
+Numbers restart at each session.
+
+|`workspaces`
+|`sessions`
+|The repository the session works against: `uri`, `branch`, and the
+`root_path` within it.
+
+|`terraform_providers`
+|`sessions`
+|Which clouds the session targets, and the `scope_id` (subscription,
+project, or account) for each.
+
+|`histories`
+|`sessions`
+|The conversation carried across rounds: the `first_query` and a JSON
+`payload` of what followed.
+
+|`statuses`
+|`sessions` and `rounds`
+|The progress trail. Each row is one `status` value and an optional
+`message`; this is what the browser sees streaming.
+
+|`pull_requests`
+|`rounds`
+|A pull request the round opened: the git `provider`, its `number`, and
+its `url`.
+
+|`artifacts`
+|—
+|Metadata for one stored object: its `uri` in object storage, its
+`content_type`, and its `file_size_bytes`. Shared, not session-scoped.
+
+|`terraform_plans`
+|`rounds` and `artifacts`
+|A plan produced by a round, with the `targets` it was narrowed to.
+
+|`reports`
+|`rounds` and `artifacts`
+|A report produced by a round, tagged with its `type`.
+
+|`code_changes`
+|`rounds` and `artifacts`
+|One generated or modified file, by `file_name`.
+|===
+
+The three artifact-metadata tables — `terraform_plans`, `reports`, and
+`code_changes` — each point at both a round and an artifact. The round
+says which turn produced it; the artifact says where the bytes are. The
+bytes themselves are never in the database.
+
+== Enumerated columns
+
+Seven columns are constrained to a fixed set of values:
+
+[cols="2,2,4",options="header"]
+|===
+|Column |Table |Values
+
+|`operation_role`
+|`users`
+|`developer`, `devops`
+
+|`panel_role`
+|`users`
+|`viewer`, `editor`, `admin` — nullable; no panel access when unset
+
+|`operation`
+|`sessions`
+|`generate`, `drift`, `import`
+
+|`status`
+|`statuses`
+|`started`, `filtering`, `generating`, `validating`, `report`, `apply`,
+`completed`, `uncompleted`, `failed`
+
+|`type`
+|`reports`
+|`generate`, `drift`, `import`, `apply`
+
+|`provider`
+|`terraform_providers`
+|`aws`, `azure`, `gcp`, `oci`, `kubernetes`
+
+|`provider`
+|`pull_requests`
+|`github.com`, `dev.azure.com`, `gitlab.com`
+|===
+
+Note that `apply` is a report type and a progress status, but not a
+session operation: an apply runs inside the session that generated the
+plan rather than starting one of its own.
+
+For what the two role columns actually permit, see
+xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+
+== Deleting a session
+
+Deleting a session removes the five tables that hang off it — its
+workspaces, terraform providers, histories, statuses, and rounds — and,
+through the rounds, their pull requests, plans, reports, and code
+changes. Deleting a user removes that user's sessions the same way. This
+is the dashed region in the diagram.
+
+Two things stay behind. `artifacts` rows are shared and are never removed
+with a session; the objects they describe are managed in object storage
+on their own schedule. And the link from a round to its statuses does not
+cascade — statuses are cleaned up through the session that owns them, not
+through the round. That is the dashed edge in the diagram.
+
+[IMPORTANT]
+====
+These cascades are enforced by the application's object mapper, not by
+`ON DELETE` clauses in the database. A `DELETE` issued directly against
+PostgreSQL bypasses them and leaves orphaned rows behind.
+====
+
+== Changing the schema
+
+There is no migration tooling. The schema is created from the application's
+model definitions at startup, which creates missing tables but never alters
+existing ones. A column added to a model will not appear in a database that
+was created before it.
+
+In practice this means an existing `core_db_data` volume has to be migrated
+by hand or recreated whenever the model changes. The upgrade that introduced
+authentication is the case most deployments hit: sessions used to be keyed by
+a `username` column and there was no `users` table at all.
+
+For the other stores — Phoenix, Redis, object storage, and the workspaces
+volume — see
+xref:main:architecture/data-and-state.adoc[Data and state].

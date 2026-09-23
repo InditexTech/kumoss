@@ -1,2 +1,3 @@
-The per-session directory, shared with the `iac` sidecar, where Nebula
-clones the repository and the IaC engine runs its commands.
+The per-run directory, shared with the `iac` sidecar, where Nebula clones
+the repository and the IaC engine runs its commands. Each run gets its own
+directory under the session's path; only the `pinned` plan is per session.

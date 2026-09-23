@@ -31,7 +31,10 @@ the temporary clone is deleted afterwards.
   qualifying root are absorbed into it and are not offered separately.
 . The result is the sorted list of repository-relative paths. `.tf`
   files at the repository top level make the repository root itself a
-  root, offered as `.`.
+  root, offered as `.`. The repository root absorbs nothing, though:
+  the nesting test compares path prefixes, and no path begins with
+  `./`, so a repository with top-level `.tf` files *and* a qualifying
+  `envs/dev/main.tf` offers both `.` and `envs/dev`.
 
 With no result the wizard shows "No IaC paths found in this
 repository."; with exactly one it skips the "Which IaC path?" step;
@@ -69,6 +72,11 @@ qualifies.
 |`main.tf`, `variables.tf`, `modules/net/vpc.tf`
 |`.`
 |Top-level `.tf` files make the repository root the only root.
+
+|`main.tf`, `envs/dev/main.tf`
+|`.`, `envs/dev`
+|The repository root is a root, but it absorbs no subdirectory, so
+`envs/dev` is offered as well and the wizard asks the user to pick.
 |===
 
 If a directory is missing from the offered list, check that its `.tf`

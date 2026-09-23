@@ -17,6 +17,7 @@ path = [
     "**/*Dockerfile",
     "**/*.pyc",
     "**/*.png",
+    "**/*.jpg",
     "**/*.mp4",
     "**/*.lottie",
     "**/*.svg",
@@ -34,6 +35,7 @@ path = [
     "docs/**/*.adoc",
     "docs/**/*.yml",
     "docs/**/*.mjs",
+    "docs/src/modules/*/attachments/*.html",
     "docs/.tool-versions",
     ".github/workflows/docouture-*.yml",
 ]

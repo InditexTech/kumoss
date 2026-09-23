@@ -17,10 +17,15 @@ so the filter accepts it as a change.
 * *A repository URL* that holds Terraform-compatible code and that
   Nebula's service account can clone and push to. Enter the plain URL;
   URLs with a user name or token embedded are rejected.
-* *The cloud scope* your change targets: the Azure subscription id, Google
-  Cloud project id, AWS account id, or OCI compartment OCID. Kubernetes has
-  no cloud scope of its own — the API asks for "any stable identifier", so
-  use whatever your team agreed on (a cluster or namespace name works).
+* *The cloud scope* your change targets. The wizard asks for it in the
+  provider's own terms: "What is the Azure subscription ID?", "What is the
+  GCP project ID?", "What is the AWS account ID?", "What is the OCI
+  compartment name?", or "Which Kubernetes namespace?". For OCI the wizard
+  wants the compartment *name* (placeholder `my-compartment`), not its
+  OCID: the value is lowercased and limited to letters, digits, and
+  hyphens, which an OCID never passes. Kubernetes has no cloud scope of
+  its own — the API asks for "any stable identifier", so use whatever your
+  team agreed on (a namespace name works).
 
 Nebula never asks you for cloud or Git credentials. It uses the identity
 your platform team configured.
@@ -53,10 +58,16 @@ your platform team configured.
   offered as the path `.`.
 . *"Which cloud provider?"* Pick Microsoft Azure, Google Cloud, Amazon Web
   Services, Oracle Cloud Infrastructure, or Kubernetes.
-. *Cloud scope.* Enter the subscription id, project id, account id, or
-  compartment OCID — for Kubernetes, any stable identifier your team uses.
-  Only letters, digits, and hyphens are accepted (up to 64 characters); the
-  field does not advance until the value is valid.
+. *Cloud scope.* The question depends on the provider you picked: "What
+  is the Azure subscription ID?", "What is the GCP project ID?", "What is
+  the AWS account ID?", "What is the OCI compartment name?", or "Which
+  Kubernetes namespace?". The value is trimmed and lowercased, and only
+  letters, digits, and hyphens are accepted (up to 64 characters); the
+  field does not advance until the value is valid. For OCI this means the
+  compartment *name*, not its OCID — an OCID contains dots and is never
+  accepted here. The API's own description of `scope_id` still says
+  "compartment OCID", so an OCID can only be sent by calling the API
+  directly.
 . *Permissions check.* Nebula asks your organization's authorization
   service whether you may work there, sending the cloud, the repository
   URL, and the IaC path — not the scope you just typed ("Checking

@@ -32,11 +32,13 @@ these stages:
 
 |Validating
 |Running `init`, `validate`, and `plan` in the engine; feeding errors back
-to the generator (up to five attempts)
+to the generator (up to five attempts). The drift pre-check on the touched
+resources (at most two passes) runs here too, cycling through the
+Generating and Validating stages again, before the report starts
 |Minutes; longer for large roots
 
 |Report
-|Checking for drift on the touched resources and writing the report
+|Writing the report and, when enabled, running the compliance audit
 |Minutes
 |===
 
@@ -49,12 +51,12 @@ You can close the tab. The session continues on the server; reopen it from
 the *Sessions* panel in the footer or from your user page.
 
 *If it fails.* The round is marked failed with a reason: most often
-"Validation loop exceeded." when the engine kept rejecting the code after
-five attempts, or an engine or repository error. A failed session cannot
-be resumed ("This session failed and can't be resumed"); start a new one,
-usually with a more specific request. Long inactivity shows "Connection
-timed out — no response from server"; reload the page and open the session
-from the footer.
+"runner failed: Validation loop exceeded." when the engine kept rejecting
+the code after five attempts, or an engine or repository error. A failed
+session cannot be resumed ("This session failed and can't be resumed");
+start a new one, usually with a more specific request. Long inactivity
+shows "Connection timed out — no response from server"; reload the page
+and open the session from the footer.
 
 *If your login expires* you see "Your session has expired. Please sign in
 again." The Nebula session keeps running; sign in and reopen it.
@@ -75,7 +77,8 @@ the right.
 *Plan tab.* The engine's plan text as produced by `plan`. This is the
 authoritative description of what would change.
 
-*Code tab.* The files Nebula created or modified in this round, as diffs.
+*Code tab.* Every file the session has created or modified so far,
+across rounds, as diffs.
 
 *Report tab.* Nebula's summary of the plan:
 

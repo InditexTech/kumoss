@@ -1,10 +1,12 @@
 = Guides
-:description: Step-by-step guides to make a request, follow a session, and merge and apply the result in Nebula.
+:description: Task guides for using, operating, and developing Nebula, grouped by what you want to do.
 
-These guides show how to accomplish specific tasks with the Nebula web
-application: making a request, following the session it opens, and
-merging and applying the reviewed result. Each guide states the goal and
-the steps to follow.
+These guides show how to accomplish specific tasks with Nebula. Pick the
+group that matches your role, then the guide that states your goal. For
+what each operating mode does today, side by side, see
+xref:main:reference/operating-modes.adoc[Operating modes].
+
+== Use Nebula
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -13,153 +15,76 @@ the steps to follow.
 Open a session and phrase a request the filter accepts.
 
 [card]
+.xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+Turn a request into validated Terraform code, reviewed as a plan and
+report before you apply it.
+
+[card]
 .xref:main:guides/follow-a-session.adoc[Follow a session]
 Track progress and read the plan, code, and report.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Merge and apply]
 Handle a session lock, then open, merge, and apply the pull request.
+
+[card]
+.xref:main:guides/remediate-drift.adoc[Remediate drift]
+Detect and reconcile drift for a set of resources or a whole Terraform
+root.
+
+[card]
+.xref:main:guides/import-infrastructure.adoc[Import infrastructure]
+What the Import Infrastructure mode does today, and what it does not yet
+do.
 ====
 
-== Session inputs
+== Operate Nebula
 
-The first request of a session provides the repository URL (without
-embedded credentials), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
-`kubernetes`), a scope identifier (for example a subscription, project, or
-account id), an optional path to the Terraform root inside the repository
-(see xref:main:reference/repository-layout.adoc#terraform-roots[Repository
-layout]), and the request text. The scope is stored with the session, sent
-to the iac sidecar on every `init`, `plan`, and `apply`, hashed together
-with the repository URL and the IaC path into the state project id when
-Nebula manages state, and shown in the session detail view. Later
-requests in the same session send only the session id and the new text.
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/enable-authentication.adoc[Enable authentication]
+Connect an OIDC identity provider and grant the first administrator
+access.
 
-== How a session runs
+[card]
+.xref:main:guides/administer-users-and-locks.adoc[Administer users and locks]
+Review any user's sessions, and manage session locks and roles from the
+admin panel.
 
-*Authorization preflight.* Before the first request is sent, the wizard
-calls `POST /api/v1/auth/authorize`. With the shipped configuration
-(`services.authz.enabled: false`) no external check runs at all: the core
-answers "authorized" without contacting anything. When the sidecar is
-enabled, the core sends the cloud, the *repository URL* as the project
-name, and the *IaC path* as the environment — the scope id is never part
-of that check.
+[card]
+.xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
+Read Nebula's traces in Arize Phoenix, and know what a trace contains and
+omits.
 
-*Asynchronous execution.* Every IaC route answers `202 Accepted` with a
-session id immediately and runs in the background. Progress arrives
-through server-sent events (`GET /api/v1/events/subscribe/\{session_id}`),
-which the web application streams; a subscription closes after roughly
-three hours (`orchestration.max_session_events_iteration` polls of 4-5
-seconds).
+[card]
+.xref:main:guides/customize-prompts.adoc[Customize prompts]
+Manage the prompt registry that encodes your conventions and compliance
+rules.
 
-*One operation per session.* The API accepts every request with `202`
-before the background run starts. If the session already has an operation
-in flight, or its last round failed, the run never starts: the core logs
-`Session ... already has an operation in flight.` or `Session ... is
-finished and cannot be resumed.` and nothing changes in the session. The
-web application prevents this in practice by disabling submission while a
-run is in progress; a failed session must be replaced by a new one.
+[card]
+.xref:main:guides/configure-state-backends.adoc[Configure state backends]
+Choose who owns Terraform and OpenTofu state:
+xref:main:guides/state-backends/repository-declared.adoc[the repository],
+xref:main:guides/state-backends/nebula-managed.adoc[Nebula], or
+xref:main:guides/state-backends/sidecar-supplied.adoc[the deployment].
 
-*Statuses.* A round moves through `started`, `filtering`, `generating`,
-`validating`, `report`, `apply`, and ends in `completed`, `uncompleted`
-(the request was declined or answered without changes), or `failed`.
+[card]
+.xref:main:guides/deploy-to-production.adoc[Deploy to production]
+Plan a production deployment, then work through
+xref:main:guides/production/secrets-and-credentials.adoc[secrets and
+credentials],
+xref:main:guides/production/networking-and-tls.adoc[networking and TLS],
+xref:main:guides/production/hardening.adoc[hardening], and
+xref:main:guides/production/operations.adoc[operations].
+====
 
-*Artifacts.* The core uploads artifacts to object storage under
-`sessions/<session>/rounds/<round>/` and the session detail view offers
-them as download links: code-change files, plan text, drift reports, and
-JSON reports. Everything is also visible to admin-panel users in the admin
-panel (see
-xref:main:guides/administer-users-and-locks.adoc[Administer users and
-locks]).
+== Develop Nebula
 
-*Pull requests.* Creating a pull request is a separate action ("Create
-Pull Request" in the results view). The core writes a title and
-description with the small model and opens the pull request from the
-session branch using the `GIT_TOKEN` credentials. Merging it from the web
-application calls the merge route, which is blocked while the session is
-locked.
-
-[#compare-modes]
-== Comparing the operating modes
-
-[cols="2,3,3,3,3",options="header"]
-|===
-| |Generate Infrastructure |Partial Drift Remediation |Full Drift Remediation |Import Infrastructure (today)
-
-|Core route
-|`POST /iac/generate`
-|`POST /iac/drift` with `is_partial: true`
-|`POST /iac/drift` with `is_partial: false`
-|`POST /iac/apply`
-
-|Minimum operation role (API)
-|`developer`
-|`devops`
-|`devops`
-|`developer` + owner
-
-|Selectable by roles below `devops` in the UI
-|yes
-|no (shown disabled)
-|no (shown disabled)
-|no (shown disabled)
-
-|Request text
-|required, classified by the filter
-|required, classified by the drift filter
-|required by the API, not used for filtering
-|not sent
-
-|Reads existing code and state
-|yes
-|yes
-|yes
-|applies the pinned plan only
-
-|Terraform targets
-|generated from the diff history
-|generated from the request
-|none (whole root)
-|fixed by the pinned plan
-
-|Drift handling
-|two-iteration pre-check on session targets
-|up to `max_drift_reports` iterations
-|up to `max_drift_reports` iterations
-|none
-
-|Compliance check
-|yes, when enabled
-|no
-|no
-|no
-
-|Can lock the session
-|yes (high impact or failed compliance)
-|no
-|no
-|no
-
-|Report type
-|`generate`
-|`drift`
-|`drift`
-|`apply`
-
-|Pins a plan
-|yes
-|no
-|no
-|consumes it
-
-|Enables apply
-|yes
-|no
-|no
-|is the apply
-
-|Pull request
-|create and merge from the branch
-|create and merge from the branch
-|create and merge from the branch
-|typically after merge
-|===
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/development.adoc[Development]
+Run the stack for development, test, type-check, lint, and regenerate the
+sidecar clients.
+====

@@ -23,10 +23,12 @@ acts as a local developer with top roles. `config.yaml` is baked into the
 * A spec-faithful OIDC provider that supports the authorization code flow
   with PKCE for public SPA clients, publishes a discovery document with a
   JWKS endpoint, and issues JWT access tokens (RS*/ES*/PS* signed)
-  carrying `iss`, `aud`, and `exp`.
+  carrying `iss`, `sub`, `aud`, and `exp`.
 * The ability to rebuild and redeploy the core image, since
   `config.yaml` changes take effect only after `docker compose build
   core`.
+
+== Steps
 
 === 1. Check that your provider is supported
 
@@ -118,8 +120,9 @@ which requests the exposed scope(s) without needing their names. Leave
 accepted as the token audience, covering both Entra access-token
 versions.
 
-*Gotchas.* The auto-scope only triggers when `scope` is left unset; set
-it explicitly to request specific scopes (`scope: "openid profile email
+*Gotchas.* The auto-scope only triggers when `scope` is left at its
+default value (`openid profile email`); set it explicitly to request
+specific scopes (`scope: "openid profile email
 api://\{client_id}/access_as_user"` — `\{client_id}` is expanded
 automatically). Sovereign clouds (`login.microsoftonline.us`, …) are not
 auto-detected: set `scope` explicitly there too. Without any `api://…`
@@ -215,10 +218,15 @@ user — see <<bootstrap-admin,Grant the first administrator access>>.
 === 4. Grant the first administrator access
 
 `admin.default_root_email` elevates a user to the top role of both role
-groups at login only when the access token carries a matching `email`
-claim and `email_verified: true`. A `preferred_username` fallback or a
-missing `email_verified` never elevates. Of the providers above only
-Keycloak emits both claims in access tokens.
+groups only when the access token carries a matching `email` claim and
+`email_verified: true`. A `preferred_username` fallback or a missing
+`email_verified` never elevates. Of the providers above only Keycloak
+emits both claims in access tokens.
+
+The elevation is re-applied on every authenticated request, not only at
+login: demoting that user in the admin panel reverts on their next
+request. To demote them, clear `admin.default_root_email` and rebuild
+the core image.
 
 For every other IdP, grant the first admin's roles directly in the
 database after their first login (role labels are the enum names):
@@ -233,6 +241,29 @@ WHERE email = '<email>';
 
 Everyone else is then managed from the admin panel's Users tab.
 
+== Verify
+
+. Check what the core serves to the SPA:
++
+[source,bash]
+----
+curl http://localhost/api/v1/auth/config
+----
++
+The response carries your `issuer_url` and `client_id` (and `scope`
+with `\{client_id}` already expanded) — the exact values the frontend
+receives. An empty `issuer_url` means the running image predates the
+change.
+
+. Open the web application at `<origin>`. It redirects to your identity
+  provider and back to `<origin>/auth/callback`; after signing in you
+  land in the wizard.
+
+. `GET /api/v1/users/me` — which the SPA calls on load, with the bearer
+  token it obtained — returns your `operation_role` and `panel_role`:
+  `devops` and `admin` for the bootstrap administrator, `developer` and
+  `null` for anyone else.
+
 == Troubleshooting
 
 * *401 "Token validation failed … audience".* The access token's `aud`
@@ -246,9 +277,6 @@ Everyone else is then managed from the admin panel's Users tab.
   port).
 * *Config changes have no effect.* Rebuild the core image (`docker
   compose build core`); the file is baked in.
-* *Check what the SPA received.* `curl \http://localhost/api/v1/auth/config`
-  returns the exact values served to the frontend (with `\{client_id}`
-  already expanded).
 * *A `core_db_data` volume predates authentication.* A volume created
   before OIDC support was added keyed sessions by `username` instead of
   the current `users` table; migrate it by hand or drop it before

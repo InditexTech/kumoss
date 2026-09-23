@@ -49,7 +49,7 @@ and its purpose.
 
 The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](https://inditextech.github.io/nebula/prerelease/main/architecture/) explains how they fit together.
 
-**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](https://inditextech.github.io/nebula/prerelease/main/quickstart/) is the step-by-step guide; `docker compose up --watch` hot-reloads the core.
+**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](https://inditextech.github.io/nebula/prerelease/main/quickstart/) is the step-by-step guide. `docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload`, so run `docker compose restart core` after a sync.
 
 **Core tests** (Python 3.13, `uv`):
 

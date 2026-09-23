@@ -97,7 +97,16 @@ footer:
       links:
         - text: Contributing
           url: main:contributing.adoc
-        - text: Release notes
-          url: main:release-notes/index.adoc
+        - text: Glossary
+          url: main:glossary.adoc
         - text: Additional information
           url: main:additional-information.adoc
+
+# Version literals referenced from pages as {opentofu-version} and
+# {terraform-version}. Source of truth: services/iac/Dockerfile (the
+# digest-pinned OpenTofu release and the checksum-verified Terraform
+# release it bundles). Bump here when that Dockerfile changes.
+asciidoc:
+  attributes:
+    opentofu-version: '1.12.6'
+    terraform-version: '1.16.0'
