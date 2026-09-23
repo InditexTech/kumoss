@@ -1,12 +1,10 @@
 = End-to-end flow
 :description: The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 
-One generate session, from the request a user types to the applied
-infrastructure. Ten phases, drawn as five sequence diagrams placed
-against the sections that explain them, with messages numbered 1 to 49
-continuously across all five. Each diagram shows only the participants
-its own phases use — see the xref:#legend[legend] for the cast and the
-arrow conventions.
+One generate session, from request to applied infrastructure, in ten
+phases across five sequence diagrams. Each diagram shows only the
+participants its phases use; the xref:#legend[legend] lists them and
+the arrow conventions.
 
 Every step that changes state or blocks progress belongs to the control
 gates on purpose: *models propose, code decides.*
