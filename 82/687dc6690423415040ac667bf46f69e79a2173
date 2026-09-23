@@ -1,0 +1,21 @@
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_d5b37615fd4713::t_30bbe3ecc7984a 51-53,192-193,702,728,731,747-757
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_d5b37615fd4713::t_cdd6feedd41325 253-257,461,464-467
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82687dc6690423415040ac667bf46f69e79a2173",
+  "prompts": {},
+  "sessions": {
+    "s_d5b37615fd4713": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2aa5f20f-3d74-491e-a301-8002055b7fc0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
