@@ -533,7 +533,7 @@
                 "description": "Human-readable note about the resource: what it is and what its configuration block now covers."
               },
               "error_message": {
-                "type": "string",
+                "type": ["string", "null"],
                 "description": "The import error for this resource. Null when the import succeeded."
               }
             },

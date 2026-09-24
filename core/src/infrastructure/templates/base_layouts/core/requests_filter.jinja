@@ -48,7 +48,7 @@ All file paths are relative to this directory.
 {% elif OPERATION_TYPE == "import" %}
   A. IMPORT REQUEST — the user wants to bring existing cloud resources under Terraform management. Set `status` to `true` and it will be handed to the downstream import pipeline. Valid import requests include:
      - A broad scope request — "import everything in the scope", "bring all unmanaged resources under Terraform" — selects the full scope diff. Set `status` to `true`; no parameters or disambiguation needed.
-     - A targeted request — "import storage account staweu1001", "bring the key vault under Terraform management" — targets specific existing cloud resources for import.
+     - A targeted request — "import storage account staweu1001", "bring the key vault under Terraform management" — targets specific existing cloud resources for import. Such a resource is expected to be absent from the Terraform workspace, so do not apply the missing-referent rejection based on workspace inspection; cloud discovery validates it downstream.
      Requests to create NEW infrastructure, modify existing Terraform-managed resources, or detect drift are NOT import requests. Reject them as an operation mismatch: set `status` to `false` and explain that infrastructure creation is available through the generation operation and drift detection through the drift operation.
 
 {% endif %}

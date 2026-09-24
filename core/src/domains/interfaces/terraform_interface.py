@@ -132,7 +132,7 @@ class ITerraform(ABC):
         Submits a ``state pull`` job via ``POST /v1/import/state-resource-ids``
         and parses the result. On exit code 0, ``stdout`` is a JSON array of
         resource ID strings extracted from the state's managed resource
-        instances (the ``attributes.id`` of each instance). An empty state
+        instances (``attributes.arn`` when present, otherwise ``attributes.id``).
         reads as no resource IDs. The workspace must already be initialised.
 
         Returns:

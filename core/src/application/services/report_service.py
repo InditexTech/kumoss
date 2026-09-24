@@ -52,8 +52,7 @@ class ReportService:
         _ = await self.__session_svc.update_status(
             msg={
                 ReportType.APPLY: "Terraform apply finished. Generating report",
-                ReportType.IMPORT: "Resources imported into Terraform state. "
-                "Generating report",
+                ReportType.IMPORT: "Terraform import processing finished. Generating report",
             }.get(type, "Infrastructure successfully validated. Generating report"),
             prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             status=SessionStatus.REPORT,
