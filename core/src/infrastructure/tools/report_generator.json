@@ -545,6 +545,27 @@
             ]
           }
         },
+        "excluded_resources": {
+          "type": "array",
+          "description": "One entry per unmanaged resource the import exception list withheld, taken from `excluded_resource_ids` in the input. These resources were skipped on purpose and never attempted: they are not failures. Pass an empty array when the input lists none.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_id": {
+                "type": "string",
+                "description": "The provider-native resource ID, exactly as the input lists it."
+              },
+              "details": {
+                "type": "string",
+                "description": "Human-readable note on what the resource is (e.g., 'Storage account staweu1001 in rg-shared-platform')."
+              }
+            },
+            "required": [
+              "resource_id",
+              "details"
+            ]
+          }
+        },
         "state_alignment": {
           "type": "string",
           "description": "Whether the generated configuration matches the imported state, based on the plan produced after the import. State an explicit 'no changes' when the plan is clean; otherwise describe the remaining differences and the risk of applying them."
@@ -562,6 +583,7 @@
         "status",
         "execution_summary",
         "imported_resources",
+        "excluded_resources",
         "state_alignment",
         "recommendations"
       ]

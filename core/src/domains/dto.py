@@ -463,6 +463,13 @@ class TerraformImportedResource(BaseModel):
     error_message: str | None = None
 
 
+class TerraformExcludedResource(BaseModel):
+    """Unmanaged resource the import exception list withheld on purpose"""
+
+    resource_id: str
+    details: str
+
+
 class TerraformImportSummary(BaseModel):
     """Summary statistics of the import operation"""
 
@@ -478,12 +485,16 @@ class TerraformImportReport(BaseModel):
     already exist and already cost money: nothing is created, so the value
     is in what is now tracked in state and whether the generated
     configuration matches it.
+
+    ``excluded_resources`` lists what the import exception list withheld:
+    skipped on purpose, never attempted, and not counted in ``summary``.
     """
 
     summary: TerraformImportSummary
     status: Literal["Succeeded", "Partial", "Failed"]
     execution_summary: str
     imported_resources: list[TerraformImportedResource]
+    excluded_resources: list[TerraformExcludedResource]
     state_alignment: str
     recommendations: list[str]
 

@@ -276,6 +276,7 @@ class ToolRegistryStatic(IToolRegistry):
         status = parameters["status"]
         execution_summary = parameters["execution_summary"]
         imported_resources = parameters["imported_resources"]
+        excluded_resources = parameters["excluded_resources"]
         state_alignment = parameters["state_alignment"]
         recommendations = parameters["recommendations"]
         try:
@@ -284,6 +285,7 @@ class ToolRegistryStatic(IToolRegistry):
                 status=status,
                 execution_summary=execution_summary,
                 imported_resources=imported_resources,
+                excluded_resources=excluded_resources,
                 state_alignment=state_alignment,
                 recommendations=recommendations,
             )
