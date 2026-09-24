@@ -4,6 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/mocks/server";
 import userEvent from "@testing-library/user-event";
 import React, { useEffect, useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -89,6 +91,43 @@ describe("ChatActionBar", () => {
 
     await waitFor(() => expect(mockCreatePr).toHaveBeenCalledWith({ session_id: "sess-1" }));
     expect(await screen.findByText("Continue with Pull Request")).toBeInTheDocument();
+  });
+
+  it("re-reads the lock before continuing with the PR", async () => {
+    const user = userEvent.setup();
+    let reads = 0;
+    server.use(
+      http.get("/api/v1/sessions/:sessionId", () => {
+        reads += 1;
+        return HttpResponse.json({ is_blocked: false });
+      }),
+    );
+    renderBar({ number: 42, url: "https://dev.azure.com/pr/42" });
+
+    await user.click(screen.getByText("Continue with Pull Request"));
+
+    await waitFor(() => expect(reads).toBe(1));
+  });
+
+  it("re-reads the lock after creating the PR", async () => {
+    const user = userEvent.setup();
+    let reads = 0;
+    server.use(
+      http.get("/api/v1/sessions/:sessionId", () => {
+        reads += 1;
+        return HttpResponse.json({ is_blocked: true });
+      }),
+    );
+    mockCreatePr.mockResolvedValue({
+      id: 42,
+      url: "https://dev.azure.com/pr/42",
+      status: "active",
+    });
+    renderBar();
+
+    await user.click(screen.getByText("Create PR"));
+
+    await waitFor(() => expect(reads).toBe(1));
   });
 
   it("renders nothing on the apply result view", () => {

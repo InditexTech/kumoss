@@ -4,33 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* ─── Summary card (mirrors PotentialImpact's compact card) ─── */
+/* ─── Verdict and summary ─── */
 
 .summaryCard {
   display: flex;
   flex-direction: column;
-  padding: 12px;
   gap: 12px;
-  border-top: 1px solid var(--color-border);
+  padding: 4px 0 24px;
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: 32px;
 }
 
-.summaryLabel {
+.verdict {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  color: var(--color-content-primary);
-  margin: 0;
-}
-
-.summaryBadge {
-  vertical-align: middle;
-}
-
-.summaryText {
-  color: var(--color-content-primary);
-  margin: 0;
 }
 
 .summaryCounts {
@@ -38,35 +26,93 @@
   margin: 0;
 }
 
-/* ─── Violations list (mirrors DriftReport's list) ─── */
-
-.listHeader {
+.summaryBody {
   display: flex;
-  border-bottom: 1px solid var(--color-border);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 80ch;
 }
 
-.listTitle {
-  padding: 8px 0 10px;
+.summaryText {
+  color: var(--color-content-primary);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.textToggle {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.textToggle:hover {
+  opacity: 0.7;
+}
+
+/* ─── Sections ─── */
+
+.section {
+  margin-top: 28px;
+}
+
+.sectionTitle {
+  margin: 0 0 12px;
   color: var(--color-heading);
-  white-space: nowrap;
 }
 
-.listCount {
+.sectionCount {
   vertical-align: super;
   margin-left: 2px;
   opacity: 0.7;
 }
 
+/* ─── Violations ─── */
+
 .list {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .entry {
+  --severity-color: var(--color-text-muted);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--severity-color);
+  border-radius: var(--radius-sm);
+}
+
+.critical,
+.error {
+  --severity-color: var(--color-danger);
+}
+
+.warning {
+  --severity-color: var(--color-warning);
+}
+
+.info {
+  --severity-color: var(--color-info);
 }
 
 .entryHeader {
@@ -79,20 +125,7 @@
 .severity {
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-.severity.critical,
-.severity.error {
-  color: var(--color-danger);
-}
-
-.severity.warning {
-  color: var(--color-warning);
-}
-
-.severity.info {
-  color: var(--color-info);
+  color: var(--severity-color);
 }
 
 .ruleId {
@@ -115,5 +148,45 @@
 
 .suggestedFix {
   color: var(--color-text-muted);
+  margin: 4px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+/* ─── Rules checked ─── */
+
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-content-primary);
+}
+
+.rule.critical,
+.rule.error,
+.rule.warning,
+.rule.info {
+  border-color: var(--severity-color);
+  color: var(--severity-color);
+}
+
+.passedRule {
+  color: var(--color-text-muted);
+}
+
+.ruleIcon {
+  font-size: 11px;
+  line-height: 1;
 }

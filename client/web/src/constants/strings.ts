@@ -78,6 +78,11 @@ export const STRINGS = {
     complianceReason: "Compliance",
     showAllFindings: "Show all findings",
     hideFindings: "Hide findings",
+    checkAgain: "Check again",
+    checkingLock: "Checking…",
+    stillBlocked: "The deployment is still blocked.",
+    blockedOnMerge:
+      "This deployment was blocked before the merge. A specialist will review it.",
   },
 
   applyResults: {

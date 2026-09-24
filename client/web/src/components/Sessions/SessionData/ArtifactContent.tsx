@@ -19,6 +19,7 @@ import type { ComplianceReport, TerraformReport } from "@/types";
 import {
   ChangesTable,
   ChangeDetail,
+  ComplianceRules,
   ComplianceSummaryCard,
   ComplianceViolations,
   PotentialImpactCard,
@@ -314,6 +315,10 @@ export default function ArtifactContent({
       <div className={styles.reportContainer}>
         <ComplianceSummaryCard report={complianceData} />
         <ComplianceViolations violations={complianceData.violations} />
+        <ComplianceRules
+          rules={complianceData.checked_rules}
+          violations={complianceData.violations}
+        />
       </div>
     );
   }

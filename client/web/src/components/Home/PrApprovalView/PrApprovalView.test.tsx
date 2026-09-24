@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/mocks/server";
 import userEvent from "@testing-library/user-event";
 import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -56,6 +58,14 @@ function renderPr(
     : component;
 
   return { ...renderWithProviders(ui, { withNotifications: true }), props: defaultProps };
+}
+
+function lockOnServer(isBlocked: boolean) {
+  server.use(
+    http.get("/api/v1/sessions/:sessionId", () =>
+      HttpResponse.json({ is_blocked: isBlocked }),
+    ),
+  );
 }
 
 describe("PrApprovalView", () => {
@@ -276,7 +286,69 @@ describe("PrApprovalView", () => {
 
     await user.click(screen.getByText("Confirm and Apply"));
     expect(mockMergePr).toHaveBeenCalled();
-    expect(props.onStepChange).toHaveBeenCalledWith("initial");
+    await waitFor(() => expect(props.onStepChange).toHaveBeenCalledWith("initial"));
+    expect(screen.getByText(/Failed to approve pull request/)).toBeInTheDocument();
+  });
+
+  it("switches to the blocked view when the merge fails on a session locked meanwhile", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockRejectedValue(new Error("Session is blocked"));
+    lockOnServer(true);
+    renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", is_blocked: false },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Confirm and Apply"));
+
+    expect(await screen.findByText("Deployment Blocked")).toBeInTheDocument();
+    expect(
+      screen.getByText("This deployment was blocked before the merge. A specialist will review it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to approve pull request/)).not.toBeInTheDocument();
+  });
+
+  it("Check again leaves the blocked view once an admin unlocked the session", async () => {
+    const user = userEvent.setup();
+    lockOnServer(false);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Check again"));
+
+    expect(await screen.findByText("Approve PR and Apply")).toBeInTheDocument();
+    expect(screen.queryByText("Deployment Blocked")).not.toBeInTheDocument();
+  });
+
+  it("Check again warns when the session is still locked", async () => {
+    const user = userEvent.setup();
+    lockOnServer(true);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Check again"));
+
+    expect(await screen.findByText("The deployment is still blocked.")).toBeInTheDocument();
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+  });
+
+  it("re-reads the lock when the window regains focus while blocked", async () => {
+    lockOnServer(false);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+    expect(await screen.findByText("Deployment Blocked")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(await screen.findByText("Approve PR and Apply")).toBeInTheDocument();
   });
 
   it("Approve button is disabled without prDetails.number", () => {

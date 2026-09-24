@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
@@ -276,7 +276,8 @@ describe("ArtifactContent compliance checks", () => {
     ).toBeInTheDocument();
 
     // Severest first, whatever order the checker emitted them in.
-    const ruleIds = screen
+    const violationsSection = screen.getByText("Violations").closest("section")!;
+    const ruleIds = within(violationsSection)
       .getAllByText(/^(NET-001|TAG-002)$/)
       .map((el) => el.textContent);
     expect(ruleIds).toEqual(["NET-001", "TAG-002"]);
@@ -292,5 +293,51 @@ describe("ArtifactContent compliance checks", () => {
     expect(await screen.findByText("PASSED")).toBeInTheDocument();
     expect(screen.getByText("0 violations")).toBeInTheDocument();
     expect(screen.queryByText("Violations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rules checked")).not.toBeInTheDocument();
+  });
+
+  it("lists the checked rules, violated ones first", async () => {
+    renderCompliance({
+      passed: false,
+      summary: "Standalone deletion",
+      checked_rules: ["scope_exceeded", "critical_deletion", "scope_incomplete"],
+      violations: [
+        {
+          rule_id: "critical_deletion",
+          severity: "critical",
+          resource: "azurerm_storage_account.sttestdev004",
+          message: "Standalone destruction with no recreate",
+        },
+      ],
+    });
+
+    expect(await screen.findByText("Rules checked")).toBeInTheDocument();
+    expect(screen.queryByText("Compliance Check")).not.toBeInTheDocument();
+    const chips = screen.getAllByRole("listitem").filter((li) => li.title);
+    expect(chips.map((li) => [li.textContent, li.title])).toEqual([
+      ["✕critical_deletion", "Violated (critical)"],
+      ["✓scope_exceeded", "Passed"],
+      ["✓scope_incomplete", "Passed"],
+    ]);
+  });
+
+  it("clamps a long summary behind a toggle", async () => {
+    const summary = "Inventory entry. ".repeat(40).trim();
+    renderCompliance({ passed: true, summary, violations: [] });
+
+    const toggle = await screen.findByRole("button", { name: "Show more" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("shows a short summary without a toggle", async () => {
+    renderCompliance({ passed: true, summary: "All rules satisfied", violations: [] });
+
+    expect(await screen.findByText("All rules satisfied")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show more" })).not.toBeInTheDocument();
   });
 });
