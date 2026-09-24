@@ -1109,6 +1109,15 @@ placeholder with no exceptions.</p></td>
 drift pre-check</p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import_exceptions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Resource IDs an import round must never bring under Terraform, one
+Markdown bullet per ID. Parsed by the core, not read by a model; see
+<a href="#import-exception-list">Import exception list</a>. Ships as a placeholder with no exceptions,
+for every cloud except <code>kubernetes</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff, in every import round that finds unmanaged
+resources</p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>forbidden_actions</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Actions the agents must refuse or avoid (for example destructive
 operations).</p></td>
@@ -1227,8 +1236,9 @@ today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_accou
 <h2 id="shipped-seed-inventory"><a class="anchor" href="#shipped-seed-inventory"></a>Shipped seed inventory</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Every cloud scope ships the same seven guideline prompts; the resource
-prompts differ per cloud.</p>
+<p>The <code>aws</code>, <code>azure</code>, <code>gcp</code> and <code>oci</code> scopes ship the same eight guideline
+prompts; <code>kubernetes</code> ships seven, without <code>import_exceptions</code>. The
+resource prompts differ per cloud.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1254,8 +1264,9 @@ prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
+<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
+<code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>, <code>ec2</code>, <code>iam_role</code>,
 <code>internet_gateway</code>, <code>lambda</code>, <code>nat_gateway</code>, <code>rds</code>, <code>redshift</code>,
 <code>route53</code>, <code>s3_bucket</code>, <code>sagemaker</code>, <code>security_group</code>, <code>subnet</code>, <code>vpc</code></p></td>
@@ -1263,8 +1274,9 @@ prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
+<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
+<code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>application_insights</code>, <code>azure_openai</code>, <code>container_app</code>, <code>cosmosdb</code>,
 <code>function</code>, <code>key_vault</code>, <code>nat_gateway</code>, <code>network_security_group</code>,
 <code>postgres_flexible_server</code>, <code>redis_managed</code>, <code>resource_group</code>,
@@ -1274,8 +1286,9 @@ prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
+<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
+<code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>bigquery</code>, <code>cloud_nat</code>, <code>cloud_router</code>, <code>cloud_run</code>,
 <code>cloud_sql_postgres</code>, <code>firewall</code>, <code>gke_autopilot</code>, <code>load_balancer</code>,
 <code>project</code>, <code>service_account</code>, <code>spanner</code>, <code>storage_bucket</code>,
@@ -1284,8 +1297,9 @@ prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
+<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
+<code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>block_volume</code>, <code>compute_instance</code>,
 <code>dns_zone</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
 <code>internet_gateway</code>, <code>load_balancer</code>, <code>nat_gateway</code>,
@@ -1343,8 +1357,19 @@ sessions abort with <code>Prompt not found</code>:</p>
 drift pre-check)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-drift_exceptions</code></p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff (every import round that finds unmanaged resources)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-import_exceptions</code></p></td>
+</tr>
 </tbody>
 </table></div></div>
+<div class="paragraph">
+<p>The import exception list is only read once the scope listing has
+returned resources that the state does not track. Only Azure, GCP and
+AWS have a scope listing, so an <code>oci</code> or <code>kubernetes</code> import round
+stops before it would ask for the prompt, and <code>kubernetes</code> ships
+without one.</p>
+</div>
 <div class="paragraph">
 <p>Keep this in mind when you delete a prompt in Phoenix or trim the seed
 set for a deployment. (The GCP <code>abbreviations</code>, <code>forbidden_actions</code>, and
@@ -1457,6 +1482,99 @@ involuntarily.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="import-exception-list"><a class="anchor" href="#import-exception-list"></a>Import exception list</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>&lt;cloud&gt;-guidelines-import_exceptions</code> names the resources an import
+round must never bring under Terraform, even when they exist in the
+cloud scope and the state does not track them. Unlike every other
+prompt, it is not written for a model. The core parses the body itself
+and removes the listed IDs from the scope diff before anything else
+sees it:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The list applies on <strong>every</strong> import round, full scope or partial. A
+withheld resource never reaches the <code>import_filter</code> selection agent,
+the IaC generator, or <code>terraform import</code>, so neither a broad request
+nor a model&#8217;s selection can bring it back.</p>
+</li>
+<li>
+<p>The comparison follows the same rule as the diff against the state.
+Azure ARM IDs match case-insensitively, so
+<code>/subscriptions/&#8230;&#8203;/resourceGroups/rg-a</code> also withholds a scope entry
+spelled <code>/resourcegroups/RG-A</code>. GCP and AWS IDs match exactly, because
+two of their resources can differ only by case.</p>
+</li>
+<li>
+<p>What was withheld is not an error. The import report receives it as
+<code>excluded_resource_ids</code> and names each one as skipped on purpose. When
+every unmanaged resource in the scope is withheld, the round ends with
+<code>Every unmanaged resource in the scope &lt;scope&gt; is on the import
+exception list.</code> and an empty report.</p>
+</li>
+<li>
+<p>An ID on the list that is not in the scope, or is already managed,
+has no effect and is not reported.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This is not the same brake as
+<a href="#drift-exception-rules"><code>drift_exceptions</code></a>. Drift exception rules are
+prose that an agent matches against drift operations. The import
+exception list is a list of exact IDs, enforced in code.</p>
+</div>
+<div class="sect2">
+<h3 id="how-to-write-one-2"><a class="anchor" href="#how-to-write-one-2"></a>How to write one</h3>
+<div class="paragraph">
+<p>Put each resource ID on its own Markdown bullet (<code>-</code> or <code>*</code>), exactly
+as the cloud&#8217;s scope listing returns it: the full ARM ID for Azure, the
+asset name without the <code>//service.googleapis.com/</code> prefix for GCP (for
+project IAM, the space-separated <code>&lt;project-id&gt; &lt;role&gt; &lt;member&gt;</code> entry),
+and the ARN for AWS. See
+<a href="../../reference/api/iac/" class="xref page">IaC sidecar API</a> for the exact shapes.
+Backticks around the ID are optional. Every line that is not a bullet
+is ignored, so headings and explanations stay readable in Phoenix, but
+keep them in plain paragraphs: a bullet of prose would be read as an ID.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # Import Exception List — Azure</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  The shared platform resources are owned by the platform team and</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  must stay out of workload repositories.</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform/providers/Microsoft.KeyVault/vaults/kvt-shared-001`</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each ID withholds that one resource only. Listing a resource group does
+not withhold the resources inside it, which appear in the scope listing
+under their own IDs.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Before this list was parsed by the core, the <code>import_filter</code>
+agent read it as prose. Seeding never overwrites, so a deployment whose
+list was curated in free text keeps that text: any ID not written as a
+bullet is now silently ignored. Rewrite such lists as bullets.
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="how-prompts-are-composed-into-a-system-prompt"><a class="anchor" href="#how-prompts-are-composed-into-a-system-prompt"></a>How prompts are composed into a system prompt</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1502,6 +1620,12 @@ receives the cloud&#8217;s <code>drift_exceptions</code>; the request filter rec
 <p>The layouts also carry fixed content that is not in Phoenix: the
 agent&#8217;s role, the tools it may call, output format rules, and the
 working directory. Those change only with a core rebuild.</p>
+</div>
+<div class="paragraph">
+<p><code>&lt;cloud&gt;-guidelines-import_exceptions</code> is the one prompt that is never
+rendered into a layout: the core reads the IDs out of it, and the
+<code>import_filter</code> layout only receives what is left after they are
+removed.</p>
 </div>
 <div class="paragraph">
 <p><strong>Discovery depends on <code>resources_list</code>.</strong> Nothing enumerates the
