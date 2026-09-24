@@ -831,6 +831,22 @@ the models you prefer. Model strings per provider:
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  block_on_high_impact</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span></span></code></pre>
 </div>
 </div>
+<div class="paragraph">
+<p>Apart from the Git credentials you set in the next step, you may need to
+change the Git provider. <code>git.provider</code> must name the host of your
+repository and defaults to <code>GITHUB</code>; for Azure DevOps or GitLab, add it to
+the file:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">git</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"GITLAB"</span><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # or "AZURE_DEVOPS"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Accepted values and the supported hosts:
+<a href="../reference/configuration/#config-git" class="xref page"><code>git</code> configuration</a>.</p>
+</div>
 </div>
 <div class="sect2">
 <h3 id="3-fill-in-core-env"><a class="anchor" href="#3-fill-in-core-env"></a>3. Fill in core/.env</h3>
@@ -847,7 +863,7 @@ credential variables</a>. The core will not run without them.</p>
 </li>
 <li>
 <p><code>GIT_USER</code>, <code>GIT_TOKEN</code> — the account and personal access token for the
-provider named by <code>git.provider</code> (GitHub, Azure DevOps or GitLab).</p>
+provider named by <code>git.provider</code> defined in above in <code>config.yaml</code>.</p>
 </li>
 </ul>
 </div>
