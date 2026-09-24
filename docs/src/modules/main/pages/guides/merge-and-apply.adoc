@@ -1,0 +1,72 @@
+= Merge and apply
+:description: Handle a locked session, then open, merge, and apply a Nebula pull request.
+
+Once you have reviewed a session's results, this guide covers what a
+session lock means for you and how to open the pull request, merge it,
+and apply the reviewed plan.
+
+== Prerequisites
+
+* A session with results, reached by following
+  xref:main:guides/follow-a-session.adoc[Follow a session].
+* The `developer` role to open, merge, and apply; drift-remediation
+  sessions end at the merge and never apply.
+
+[#session-locked]
+== If the session is locked
+
+A session is locked automatically when the compliance audit fails or,
+where your deployment enables it, when the impact is *High*. You are
+notified ("Session blocked") and, when you try to continue with a pull
+request, you see the *High Impact Deployment* screen: the changes have
+been blocked, the support team has been notified, and a specialist will
+review your request. Two buttons: *Back to Report* and *Contact Team*.
+
+While locked you can still read everything, continue the conversation, and
+create the pull request so reviewers can read the diff. You cannot merge
+it or apply: the server answers that the session is blocked. A reviewer
+with the appropriate panel role unlocks the
+xref:main:guides/administer-users-and-locks.adoc#session-locks[session
+lock], or you send a new request whose result passes cleanly, which
+clears the lock. Your own sessions list shows the lock state in the
+*Apply* column.
+
+== Steps
+
+. *Create PR.* In the results view choose *Create PR*. Nebula writes the
+  title and description and opens the pull request from the session
+  branch on your Git provider. Creating it can take a minute.
+. *Review.* "Here is your Pull Request." Use *View Pull Request* to open
+  it (the button appears when the link points at a recognized host;
+  otherwise copy the link from the session details). Your team's normal
+  review and CI apply. If reviewers ask for changes, type them as a
+  follow-up request; the new round pushes to the same branch and updates
+  the pull request.
+. *Approve PR and Apply.* When the review is done, choose *Approve PR and
+  Apply*. A confirmation asks you to confirm that you read and understood
+  the report and the proposed changes; *Request Review* sends a support
+  request instead, *Confirm and Apply* merges the pull request into the
+  default branch and starts the apply. In a drift-remediation session the
+  button only merges: the merge is the remediation, no apply follows, and
+  you return to the report.
+. *Apply.* The engine executes exactly the plan you reviewed; it is not
+  re-planned. The report's own status is `Success`, `Partial`, or
+  `Failed`, shown on the apply-results screen as *Succeeded*, *Partially
+  Applied*, or *Failed*, together with the execution summary, the
+  resources created, updated, destroyed, or failed, and recommendations. A
+  failed apply still closes the session normally — it is not retried and
+  nothing is rolled back; read the error and start a new request.
+
+== Verify
+
+After an apply the reviewed plan is consumed. To change something else,
+send a new request; a fresh plan is produced and reviewed before the next
+apply. *Import Infrastructure* in the mode drop-down currently performs
+this same apply step on an existing session; it does not yet import
+unmanaged resources, see
+xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating modes].
+
+== Next steps
+
+* xref:main:guides/make-a-request.adoc[Make a request] to start a new
+  session for the next change.

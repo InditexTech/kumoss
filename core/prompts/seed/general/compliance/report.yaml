@@ -9,14 +9,40 @@ body: |
   Business rules the reported operation must satisfy. Each rule declares the
   `rule_id` to use when reporting a violation and the severity it carries.
 
+  The unit of audit is the individual change, not the resource. A resource
+  updated in-place (`~`) is a bundle of attribute-level changes; each `+`,
+  `-` and `~` line inside it is audited on its own. "Unchanged attributes
+  hidden" lines are not changes and need no justification.
+
   ## scope_exceeded (severity: error)
-  Every operation in the report must be traceable to the user's request,
-  either directly asked for or a necessary auxiliary change. Any operation
-  that is not is a violation.
+  Every individual change in the plan must be traceable to the user's
+  request: either explicitly asked for, or strictly required for a requested
+  change to apply (a dependency the requested change cannot exist without,
+  named in the finding). Any other change is a violation, reported per
+  resource with the offending attribute or block in the message.
+
+  Two things never count as required auxiliary changes:
+  - A removal. Adding or allowing something never requires removing or
+    disallowing something else. A removed nested block (`- block_name {`),
+    an attribute set to null (`-> null`), or an element dropped from a list
+    or set is always a change in its own right.
+  - A change to a security boundary the request did not mention: network
+    or IP access rules, firewall rules, CORS, TLS and client-certificate
+    settings, authentication, identity, roles and permissions, encryption,
+    public exposure. When such a change appears alongside a requested one
+    in the same resource, report it even if the requested one is correct.
+
+  Treat as a strong signal of an unintended change: a value the request
+  names (an address, origin, name or identifier) that the plan also removes
+  or alters anywhere the request did not target.
 
   ## scope_incomplete (severity: error)
-  Every part of the user's request must be addressed by the report. Each
-  unaddressed part is a violation.
+  Every part of the user's request must be addressed by the plan with a
+  concrete change on the resource the request refers to. Split the request
+  into its parts first (a conjunction such as "and" or "y" usually
+  separates two parts); each part with no matching change is a violation.
+  A part is not addressed by a change on a different resource of the same
+  kind, nor by a change that merely mentions the same value.
 
   ## critical_deletion (severity: critical)
   A resource may only be destroyed as part of a recreate — the same resource
@@ -24,4 +50,3 @@ body: |
   delete — a resource destroyed without being recreated — is always a
   violation, even when the user explicitly requested the deletion; user
   intent does NOT authorize deletions.
-

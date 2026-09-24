@@ -1,0 +1,161 @@
+= Deployment view
+:description: The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
+
+This page describes how Nebula's containers are deployed on one Docker
+Compose stack, the operational notes that follow from that topology,
+and the architectural characteristics that result from the decisions
+described across this section.
+
+== Infrastructure diagram
+
+The block diagram below shows the deployment topology: every container
+in the Compose project, the host ports published by the proxy, and the
+calls between them. The user's browser sits outside the bridge network
+on purpose.
+
+:diagram-name: deployment-topology
+:diagram-alt: Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
+
+Named volumes are written into each container's subtitle instead of
+being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
+`object_storage_data`, and `workspaces`), and `phoenix-db` is folded
+into the phoenix node, so the eleventh container of the stack is not a
+box of its own. Two edges are left out because the
+xref:main:architecture.adoc[system architecture diagram] already
+carries them — the core's OTLP traces and prompt calls to Phoenix, and
+the proxy's port 9000 path to object storage — and the connections that
+leave the stack (LLM and git provider APIs from the core, the Slack
+webhook from notifications) appear in the notes beside the diagram
+rather than as external nodes.
+
+Only the proxy publishes host ports; all other containers are reachable
+solely on the internal network. The `workspaces` volume is the one
+mount shared by two containers (core and iac), which is what lets the
+iac service run the IaC engine against the core's git clones. Both
+containers run as the same unprivileged user (`nebula`, uid/gid 10001,
+fixed by the `NEBULA_UID`/`NEBULA_GID` build args) so files either one
+creates are writable by the other. Additional Compose hardening for the
+iac container (dropping all capabilities, `no-new-privileges`, a
+read-only root filesystem, and CPU/memory/pid limits) was prototyped
+but is not present in the checked-in `docker-compose.yml`; it remains a
+recommended deployment hardening because the container executes
+provider code from generated HCL.
+
+== Operational notes
+
+The Compose stack described here is the *local/non-production*
+deployment model and the reference topology for production; the
+repository ships no Kubernetes manifests or Helm charts.
+
+=== Topology
+
+* All eleven containers share one Docker bridge network. Only `proxy`
+  publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
+  (presigned object-storage access); every other service is
+  internal-only via `expose`.
+* Compose `depends_on` orders start-up (it does not health-check): core
+  waits for core-db, Redis, object storage, and all four sidecars; the
+  proxy waits for core, Phoenix, and object storage. The core has no
+  Compose dependency on Phoenix, which is why its prompt seeder
+  retries.
+* Four named volumes persist state: `core_db_data`, `phoenix_db_data`,
+  `object_storage_data`, and `workspaces`. The authz sidecar's JSON
+  role store has no volume and does not survive container recreation.
+
+=== Core start-up
+
+* The FastAPI lifespan enforces a strict order: database, then Redis,
+  then object-storage bucket creation, then Phoenix prompt seeding.
+  Failure of any step aborts boot. Git credential configuration follows
+  and is best-effort.
+* Configuration comes from a single `config.yaml`, baked into the image
+  at `/etc/nebula/config.yaml` by the core Dockerfile, so changes
+  require an image rebuild unless `NEBULA_CONFIG` points at a file
+  mounted elsewhere in the container.
+* Secrets never appear in the file: `*_env` fields name environment
+  variables (database URL, service bearer tokens, storage keys, git
+  personal access token), and the core validates at boot that every
+  enabled service's token and every referenced LLM credential resolves.
+  Each `NEBULA_<SERVICE>_TOKEN` must match between the core's outbound
+  client and the sidecar's inbound validation.
+* Authentication needs no secret: the `oidc` block and
+  `admin.default_root_email` are plain configuration that Pydantic
+  validates at load, so an `issuer_url` without a `client_id` fails the
+  boot; discovery and JWKS are fetched lazily on the first request, so a
+  wrong or unreachable issuer surfaces as a `401` at first login, not at
+  boot. Operationally, what matters here is that
+  enabling or changing OIDC means `docker compose build core`, and that
+  the IdP must have `<origin>/auth/callback` registered as the SPA
+  redirect URI.
+
+== Operational limits and single-instance assumptions
+
+The stack is designed as one core process. These are the consequences
+to plan for before running more than one:
+
+* *Runs are in-process background tasks.* A core crash or restart
+  mid-run leaves `sessions.in_flight = true` with no lease and no
+  expiry, and the compare-and-set will refuse the session for ever; recovery
+  is a manual `UPDATE sessions SET in_flight = false`.
+* *The `workspaces` volume must be shared and persistent across
+  replicas.* A pinned plan lives on disk at
+  `/workspaces/<session>/pinned`, so an apply routed to a replica that
+  did not run the generate round finds no pinned plan and fails the
+  session.
+* *Only the PostgreSQL compare-and-set is replica-safe.* Redis holds no
+  locks; its single-flight registry is an in-process `asyncio.Lock` per
+  key, so it de-duplicates
+  cache misses within one process only.
+* *Static storage credentials are rendered in plaintext* into
+  `backend_override.tf` on the shared volume when Nebula-managed state
+  is used with access/secret keys or an Azure account key. Prefer
+  credential chains or workload identity where the provider allows it.
+* *One Git identity for every user.* All pushes and pull requests use
+  the single PAT in `GIT_TOKEN`, and commits are authored, by default,
+  as `Nebula <nebula@noreply.invalid>` (`git.author_name` /
+  `git.author_email`), so
+  repository history attributes nothing to the requesting user — the
+  session record in core-db is the audit trail.
+* *The artifact proxy on port 9000 answers*
+  `Access-Control-Allow-Origin: *`. Presigned
+  URLs are the only access control on that port.
+
+== Architectural characteristics
+
+* *Ports and adapters.* Domain services depend on interfaces,
+  infrastructure adapters implement them, and a per-run factory wires
+  the object graph explicitly, so LLM providers, git hosts, Terraform
+  execution, and storage backends are replaceable through configuration
+  alone.
+* *Contract-first sidecars.* OpenAPI specifications are the
+  authoritative boundary, with generated clients on one side and
+  intentionally minimal reference implementations on the other,
+  inviting substitution in enterprise deployments.
+* *Deliberately direct execution.* Pipelines run as in-process
+  background tasks with a database compare-and-set as the only
+  concurrency control; sidecar calls are synchronous HTTP with job
+  polling rather than event-driven messaging; SSE progress derives from
+  status polling. These are visible trade-offs, not accidents.
+* *Deep, centralized telemetry.* Model calls, tool executions, and
+  engine runs are traced to Phoenix, which doubles as the runtime
+  prompt registry, making prompt management an operational concern
+  rather than a code change. No tracing decorator exports anything when
+  the wrapped call raises: most of them build the span only *after* the
+  call returns,
+  and the chain decorator, which does create its span first, never ends
+  it on an exception. Failures are
+  therefore visible in the logs and the session status, not as error
+  spans, and the sidecars are not instrumented at all.
+* *LLM audits LLM, code decides.* The compliance auditor is a separate
+  agent loop with no repository access at all — its only tool is the
+  sentinel `report_compliance_findings`; the
+  pass/fail verdict is computed deterministically from the structured
+  violations it reports, and the resulting database lock is what
+  actually stops a non-compliant plan from being applied.
+* *Stateless, local identity.* The core trusts only a signed JWT from
+  the single configured issuer, validates it on every request without
+  an introspection round-trip, and keeps users, roles, and session
+  ownership in its own database, so federation, MFA, and session policy
+  stay the identity provider's concern.

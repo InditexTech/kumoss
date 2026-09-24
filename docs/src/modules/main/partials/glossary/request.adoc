@@ -1,0 +1,3 @@
+The natural-language text a user submits describing the infrastructure
+change, the drift to reconcile, or the question to ask. Each request within
+a session opens a round.

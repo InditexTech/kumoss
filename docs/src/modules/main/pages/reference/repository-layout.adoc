@@ -1,0 +1,92 @@
+= Repository layout
+:description: How Nebula finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
+
+When a repository URL is entered, Nebula looks inside it for the
+directories that hold Terraform-compatible code and offers them as the
+session's *IaC path*. This page is the complete reference for that
+detection.
+
+[#terraform-roots]
+== How Nebula finds Terraform roots
+
+After the repository URL is entered, the wizard calls `POST
+/api/v1/repository/parse`. The core validates the URL with `git
+ls-remote`, clones only the repository metadata (`--filter=blob:none
+--no-checkout`, 60-second limit), lists every file committed on the
+*default branch* with `git ls-tree -r HEAD --name-only`, and applies
+these rules to the directory paths. File contents are never read, and
+the temporary clone is deleted afterwards.
+
+. A directory is a *candidate* when it contains at least one `.tf`
+  file.
+. A candidate is *dropped* when any segment of its path is `modules`,
+  `examples`, `example`, or `.terraform`.
+. A candidate is a *root* when it contains a marker file —
+  `main.tf`, `provider.tf`, `providers.tf`, `backend.tf`,
+  `terraform.tf`, `versions.tf` — or any `.tfvars` / `.tfvars.json`
+  file.
+. A candidate without a marker is still a root when it is the deepest
+  `.tf` directory on its branch of the tree and does not sit under a
+  directory that already qualified. Directories nested under a
+  qualifying root are absorbed into it and are not offered separately.
+. The result is the sorted list of repository-relative paths. `.tf`
+  files at the repository top level make the repository root itself a
+  root, offered as `.`. The repository root absorbs nothing, though:
+  the nesting test compares path prefixes, and no path begins with
+  `./`, so a repository with top-level `.tf` files *and* a qualifying
+  `envs/dev/main.tf` offers both `.` and `envs/dev`.
+
+With no result the wizard shows "No IaC paths found in this
+repository."; with exactly one it skips the "Which IaC path?" step;
+with several it asks the user to pick. The chosen path becomes the
+session's IaC path: it is fixed on the first request, the engine runs
+`init`, `validate`, `plan`, and `apply` inside that directory, and it
+is one of the three inputs that identify the project's state when
+Nebula manages state (see
+xref:main:guides/state-backends/nebula-managed.adoc#state-keys[State
+keys]). The web application offers only detected paths; API callers
+may pass any repository-relative `iac_path` that contains no `..`
+segment, and an omitted `iac_path` means the repository root.
+
+[cols="3,2,4",options="header"]
+|===
+|Repository files (default branch) |Offered IaC paths |Why
+
+|`envs/dev/main.tf`, `envs/prod/main.tf`,
+`modules/network/vpc.tf`, `modules/network/examples/basic/main.tf`
+|`envs/dev`, `envs/prod`
+|Both `envs/*` directories have a marker; everything under `modules/`
+is skipped as shared module code.
+
+|`platform/main.tf`, `platform/network/subnets.tf`,
+`platform/storage/buckets.tf`
+|`platform`
+|`platform` has a marker, so its two subdirectories are absorbed. The
+wizard skips the path step.
+
+|`lib/iam/policies.tf`, `lib/iam/roles.tf`, `README.md`
+|`lib/iam`
+|No marker, but it is the deepest `.tf` directory and nothing above it
+qualifies.
+
+|`main.tf`, `variables.tf`, `modules/net/vpc.tf`
+|`.`
+|Top-level `.tf` files make the repository root the only root.
+
+|`main.tf`, `envs/dev/main.tf`
+|`.`, `envs/dev`
+|The repository root is a root, but it absorbs no subdirectory, so
+`envs/dev` is offered as well and the wizard asks the user to pick.
+|===
+
+If a directory is missing from the offered list, check that its `.tf`
+files are committed on the default branch and that no parent directory
+is named `modules`, `examples`, `example`, or `.terraform`. The rules
+live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
+
+== Next steps
+
+* xref:main:guides/make-a-request.adoc[Make a request] to see this
+  detection from the wizard's side.
+* xref:main:guides-overview.adoc[Guides] for the rest of the session
+  inputs.

@@ -277,30 +277,30 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Edge and identity",
+      "title": "Edge",
       "items": [
-        "Nginx is the only container publishing host ports, and it builds and serves the SPA",
-        "Every /v1 route except GET /v1/auth/config requires a bearer token",
-        "A blank oidc.issuer_url disables auth and resolves a fixed dev identity"
+        "Nginx alone publishes ports",
+        "Bearer token on every /v1 route but one",
+        "Blank oidc.issuer_url: auth off"
       ]
     },
     {
       "dot": "emerald",
-      "title": "Core layers and sidecars",
+      "title": "Core",
       "items": [
-        "API to application to domain to adapters, wired by ApplicationFactory",
-        "authz :8083, mapping :8081, iac :8082 and notifications :8080 each own an OpenAPI contract",
-        "core and iac share the workspaces volume, so the engine runs on the core's git clones"
+        "API → application → domain → adapters",
+        "One OpenAPI contract per sidecar",
+        "core and iac share /workspaces"
       ]
     },
     {
       "dot": "amber",
-      "title": "State and configuration",
+      "title": "State",
       "items": [
-        "Roles and sessions live in core-db, not in the authz sidecar",
-        "Redis 8 backs the read-through cache in front of core-db",
-        "storage.provider selects RustFS, AWS S3 or an Azure Storage Account",
-        "Dashed edges exist in code but are not exercised by the checked-in config.yaml"
+        "Roles and sessions: core-db, not authz",
+        "Redis 8 caches core-db reads",
+        "Artifacts: RustFS, S3 or Azure",
+        "Dashed edges: unused as shipped"
       ]
     }
   ]

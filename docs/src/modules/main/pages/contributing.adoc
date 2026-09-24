@@ -1,0 +1,80 @@
+= Contributing
+:description: Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Nebula's checks.
+
+Thank you for your interest in contributing to Nebula. Any contribution
+is valued and appreciated; the guidelines below keep the project
+collaborative and respectful. For the local development loop —
+running the stack, the test suites, type checking, and linting — see
+xref:main:guides/development.adoc[].
+
+== Prerequisites
+
+* Before contributing code, sign the Contributor License Agreement
+  (CLA). Instructions are at
+  https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md[InditexTech/foss].
+* By participating in the project you agree to abide by the rules and
+  principles set out in the
+  https://github.com/InditexTech/nebula/blob/main/CODE_OF_CONDUCT.md[code
+  of conduct]. Nebula adheres to the general
+  https://github.com/InditexTech/foss/blob/main/CODE_OF_CONDUCT.md[Inditex
+  Tech Code of Conduct]; direct any inquiry about it to oso@inditex.com.
+* Check existing https://github.com/InditexTech/nebula/issues[issues]
+  and https://github.com/InditexTech/nebula/pulls[pull requests] before
+  starting work, to avoid duplication. If you take on an existing issue,
+  comment on it so other contributors know it is in progress.
+* Discuss and gather feedback from the community before making
+  significant changes to the project's structure or architecture.
+
+== How to contribute
+
+. Open an issue to discuss and gather feedback on the feature or fix
+  you wish to address. Security vulnerabilities are the exception:
+  report them through the https://vdp.inditex.com[disclosure submission
+  program] as described in the
+  https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
+  policy], never through a public issue.
+. Fork the repository and clone it to your local machine.
+. Create a new branch to work on your contribution:
+  `git checkout -b your-branch-name`.
+. Make the necessary changes in your local branch, following
+  xref:main:guides/development.adoc[] to run the stack and its checks.
+. Ensure that your code follows the established project style and
+  formatting guidelines.
+. Perform testing to ensure your changes do not introduce errors.
+. Make clear and descriptive commits that explain your changes.
+. Push your branch to the remote repository:
+  `git push origin your-branch-name`.
+. Open a pull request describing your changes and linking the
+  corresponding issue.
+. Await comments and discussions on your pull request. Make any
+  necessary modifications based on the feedback you receive.
+. Once your pull request is approved, your contribution is merged into
+  the main branch.
+
+== Pull requests
+
+Fill in the pull-request template
+(https://github.com/InditexTech/nebula/blob/main/.github/PULL_REQUEST_TEMPLATE.md[.github/PULL_REQUEST_TEMPLATE.md])
+and link the issue it addresses. Include UI screenshots for visible
+changes. Document any new changes or features you add, so other
+contributors and users understand your work and its purpose.
+
+Keep the commit history clean and organized: divide your changes into
+logical, descriptive commits. Commit subjects must follow the
+https://www.conventionalcommits.org/en/v1.0.0/[Conventional Commits
+Specification] (for example `fix(core): release session lock`); CI
+rejects other subjects. Sign your commits (`git commit -S`) — signing
+is required by policy and checked in review, not enforced by any CI
+workflow.
+
+// REUSE-IgnoreStart
+// The paragraph below quotes SPDX tags as prose. Without these markers the
+// REUSE tool reads them as this file's own licensing declaration and fails
+// to parse the trailing backtick as part of the expression.
+Every new file starts with an SPDX header following the
+https://reuse.software/spec-3.3/#licensing-information[REUSE
+Specification] (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO
+TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`).
+CI runs the REUSE check on every pull request, alongside Repolinter and
+the Conventional Commits check above.
+// REUSE-IgnoreEnd
