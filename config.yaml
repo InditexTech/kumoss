@@ -62,7 +62,7 @@ admin:
 # flip `enabled: false` to skip an optional service entirely.
 services:
   notifications:
-    enabled: false
+    enabled: true
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
     timeout: 30.0
@@ -135,9 +135,9 @@ orchestration:
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
   # Complex tasks model
-  model: "anthropic/claude-sonnet-5"
+  model: "vertex_ai/claude-sonnet-5"
   # Simple tasks model
-  small_model: "anthropic/claude-haiku-4-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000

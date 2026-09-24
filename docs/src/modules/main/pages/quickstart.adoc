@@ -34,23 +34,22 @@ is baked into the core image at build time, so every edit needs
 The minimum is the two model strings for your LLM provider and the two
 orchestration gates. Fields not shown use the core's code defaults; use the
 shipped file or the configuration reference when you need its non-default
-tuning. Those two gates default to `false`, so a file that omits them turns
-off the compliance lock and the high-impact lock.
+tuning.
+
+The `llm` values below are only an example: replace both model strings with
+the models you prefer. Model strings per provider:
+xref:main:reference/llm-providers.adoc[LLM providers and models].
 
 [source,yaml]
 ----
 llm:
-  model: "anthropic/claude-sonnet-5"
-  small_model: "anthropic/claude-haiku-4-5"
+  model: "vertex_ai/claude-sonnet-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
 
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
 ----
-
-Model strings per provider:
-xref:main:reference/llm-providers.adoc[LLM providers and models]. Every
-field: xref:main:reference/configuration.adoc[Configuration].
 
 === 3. Fill in core/.env
 
@@ -60,10 +59,8 @@ Set:
   provider prefix of `llm.model` and `llm.small_model`. See
   xref:main:reference/llm-providers.adoc#provider-credentials[provider
   credential variables]. The core will not run without them.
-* `NEBULA_IAC_TOKEN` — any non-empty value. The same value goes in
-  `services/iac/.env`.
 * `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
-  provider named by `git.provider`.
+  provider named by `git.provider` (GitHub, Azure DevOps or GitLab).
 
 Keep the remaining sample values: they match the bundled containers. Every
 variable: xref:main:reference/environment-variables.adoc[Environment
@@ -73,7 +70,6 @@ variables and secrets].
 
 Set:
 
-* `NEBULA_IAC_TOKEN` — the same value as in `core/.env`.
 * *Cloud provider credentials* — the variables your OpenTofu or Terraform
   providers read. See
   xref:main:reference/terraform-providers.adoc[Terraform providers] for
@@ -145,9 +141,6 @@ With authentication disabled this returns a JSON document with an empty
 |`\http://localhost/monitoring/`
 |Phoenix: traces of every run and the prompt registry
 
-|`\http://localhost:9000`
-|Presigned artifact downloads opened by the web application, and the
-RustFS console
 |===
 
 Port 80 serves the unauthenticated Nebula application by default, while
