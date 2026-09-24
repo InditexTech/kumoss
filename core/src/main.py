@@ -19,12 +19,17 @@ from src.api.v1 import (
     users,
     notifications,
 )
+from src.scheduler.api import operations_router, schedules_router
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.storage import default_object_storage, terraform_state_storage
 from src.infrastructure.telemetry._initializer import shutdown_tracer_providers
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
+from src.scheduler.config import SchedulerConfig
+from src.scheduler.executor import OperationExecutor
+from src.scheduler.queue_service import OperationQueueService
+from src.scheduler.scheduler import OperationScheduler
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
 
@@ -69,7 +74,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.warning(f"Failed to configure git credentials: {e}")
 
+    scheduler_config = system_config.scheduler
+    scheduler: OperationScheduler | None = None
+    if scheduler_config.enabled:
+        queue = OperationQueueService(scheduler_config)
+        executor = OperationExecutor(queue, scheduler_config)
+        scheduler = OperationScheduler(queue, executor, scheduler_config)
+        await scheduler.start()
+        logging.info("Operation scheduler started")
+    else:
+        logging.info("Operation scheduler disabled (scheduler.enabled=false)")
+
     yield
+
+    if scheduler is not None:
+        await scheduler.stop()
+        logging.info("Operation scheduler stopped")
 
     # Shutdown
     logging.info("Shutting down Nebula application...")
@@ -158,3 +178,5 @@ app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+app.include_router(schedules_router, prefix="/v1")
+app.include_router(operations_router, prefix="/v1")

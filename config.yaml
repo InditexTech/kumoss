@@ -253,4 +253,28 @@ git:
   author_name: "Nebula"
   author_email: "nebula@noreply.invalid"
 
+# Durable operations scheduler. All terraform operations (generate, drift,
+# apply, import) are enqueued as Postgres rows, claimed by scheduler loops
+# via FOR UPDATE SKIP LOCKED, and tracked end to end.
+#
+# `concurrency` — parallel claim→execute asyncio tasks (pipelines are
+# I/O-bound: LLM, iac polling, git). Raise only if the host has headroom.
+# `lease_seconds` — if a worker doesn't heartbeat within this window the
+# reaper considers it dead and requeues the operation.
+# `default_max_attempts` — APPLY is hard-capped to 1 in code regardless.
+# `default_timeout_seconds` — matches the SSE ~3h budget.
+scheduler:
+  enabled: false
+  concurrency: 4
+  claim_interval: 2.0
+  heartbeat_interval: 30.0
+  lease_seconds: 120.0
+  reaper_interval: 60.0
+  schedule_poll_interval: 30.0
+  default_max_attempts: 2
+  retry_backoff_seconds: 60.0
+  retry_backoff_cap: 3600.0
+  default_timeout_seconds: 10800
+  shutdown_grace_seconds: 60.0
+
 

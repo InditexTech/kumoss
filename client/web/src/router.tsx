@@ -6,6 +6,7 @@ import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import HomeLayout from "@/components/Home/HomeLayout";
 import AdminPage from "@/pages/AdminPage";
+import SchedulerPage from "@/pages/SchedulerPage";
 import SessionsPage from "@/pages/SessionsPage";
 import AuthCallback from "@/components/auth/AuthCallback";
 
@@ -32,6 +33,7 @@ export default function AppRouter() {
       </Route>
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/admin/*" element={<AdminPage />} />
+      <Route path="/scheduler" element={<SchedulerPage />} />
       <Route path="/user" element={<UserPage />} />
       <Route path="/user/sessions" element={<SessionsPage />} />
       <Route path="/sessions" element={<Navigate to="/user/sessions" replace />} />

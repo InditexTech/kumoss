@@ -34,6 +34,7 @@ from src.shared.constants import (
     GitProviderName,
     ObjectStorageProvider,
 )
+from src.scheduler.config import SchedulerConfig
 
 
 class ConfigError(ValueError):
@@ -506,6 +507,7 @@ class SystemConfig(BaseModel, frozen=True):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":
