@@ -781,13 +781,14 @@ filesystem shared between the core and the iac sidecar.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p><strong>core-db (PostgreSQL 17)</strong> is the system of record for the application
-domain. Twelve tables: <code>users</code> (unique
+domain. Thirteen tables: <code>users</code> (unique
 on <code>(issuer, subject)</code>, with <code>email</code>, <code>display_name</code>, <code>operation_role</code>,
 nullable <code>panel_role</code>), <code>sessions</code> (owned by a <code>user_id</code>, including the
 <code>in_flight</code> concurrency flag and the <code>is_blocked</code> compliance lock that
 gates apply), <code>workspaces</code>, <code>terraform_providers</code>, <code>pull_requests</code>,
 <code>histories</code>, <code>statuses</code>, <code>rounds</code>, and the artifact-metadata tables
-<code>artifacts</code>, <code>terraform_plans</code>, <code>reports</code>, and <code>code_changes</code>. Roles are
+<code>artifacts</code>, <code>terraform_plans</code>, <code>reports</code>, <code>compliance_checks</code> (the
+audit verdict plus its stored findings), and <code>code_changes</code>. Roles are
 managed from the admin panel or, for the first administrator on IdPs
 that emit no <code>email_verified</code> claim, by a one-off SQL update (see
 <a href="../../guides/enable-authentication/#bootstrap-admin" class="xref page">Grant the
@@ -833,8 +834,8 @@ locks and no pub/sub channels.</p>
 <div class="paragraph">
 <p>Object storage holds generated artifacts under
 <code>sessions/&lt;session id&gt;/rounds/&lt;round primary key&gt;/</code>, as
-<code>reports/&lt;report type&gt;-&lt;token&gt;.json</code>, <code>plans/{plan|drift}-&lt;token&gt;.txt</code>,
-or <code>changes/&lt;token&gt;-&lt;sanitized file name&gt;</code>.
+<code>reports/&lt;report type&gt;-&lt;token&gt;.json</code>, <code>compliance/check-&lt;token&gt;.json</code>,
+<code>plans/{plan|drift}-&lt;token&gt;.txt</code>, or <code>changes/&lt;token&gt;-&lt;sanitized file name&gt;</code>.
 RustFS is the <strong>default and bundled</strong> implementation: the Compose stack
 starts it as the <code>object-storage</code> container, and because it is open
 source (Apache-2.0) the default stack needs no proprietary or

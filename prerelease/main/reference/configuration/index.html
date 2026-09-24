@@ -1255,11 +1255,12 @@ and its report written: a second, independent small-model agent reads
 the session&#8217;s first request and the raw plan, and checks them against
 the rules in the <code>general-compliance-report</code> prompt. The session is
 <strong>locked</strong> if any finding comes back with severity <code>error</code> or <code>critical</code>;
-<code>warning</code> findings are recorded in the report but do not lock. A lock
+<code>warning</code> findings are recorded in the report but do not lock. The
+report is stored as a round artifact and shown in the portal. A lock
 also sends an <code>iac.compliance.failed</code> notification. When <code>false</code> the
 audit is skipped entirely and reported as an empty passing result, so
-it can never lock. Generate rounds only — drift rounds do not audit,
-and apply does not re-audit.</p></td>
+it can never lock and nothing is stored. Generate rounds only — drift
+rounds do not audit, and apply does not re-audit.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.block_on_high_impact</code></p></td>
@@ -1416,6 +1417,16 @@ thinking).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>32000</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Completion cap sent on every call.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.timeout</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">float (seconds, must be <code>&gt; 0</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>600.0</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>600</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per-request budget LiteLLM enforces on a single inference call, chat
+completions and the web-search Responses path alike. Each of the three
+internal retries gets a fresh budget.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.model_list</code></p></td>

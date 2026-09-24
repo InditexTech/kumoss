@@ -29,7 +29,7 @@
 - [Monitor with Phoenix](/prerelease/main/guides/monitor-with-phoenix/): Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [Remediate drift](/prerelease/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
 - [Configuration](/prerelease/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
-- [Database schema](/prerelease/main/reference/database-schema/): The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
+- [Database schema](/prerelease/main/reference/database-schema/): The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
 - [Environment variables and secrets](/prerelease/main/reference/environment-variables/): Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
 - [LLM providers and models](/prerelease/main/reference/llm-providers/): How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
 - [Operating modes](/prerelease/main/reference/operating-modes/): What each Nebula operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
@@ -51,48 +51,48 @@
 - [Notifications sidecar API](/prerelease/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
 - [About Nebula](/stable/main/about/): What Nebula is, who it is for, and why it exists.
 - [Additional information](/stable/main/additional-information/): Nebula's licensing, support channels, and how to report a security vulnerability.
-- [Architecture](/stable/main/architecture/): The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.
 - [Contributing](/stable/main/contributing/): Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Nebula's checks.
+- [Architecture](/stable/main/architecture/): The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.
 - [Glossary](/stable/main/glossary/): Terms and abbreviations used across the Nebula documentation.
 - [Guides](/stable/main/guides-overview/): Task guides for using, operating, and developing Nebula, grouped by what you want to do.
 - [Reference](/stable/main/reference-overview/): Lookup material for Nebula: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
-- [Administer users and locks](/stable/main/guides/administer-users-and-locks/): Sign in and reach the admin panel, review any user's sessions, and manage session locks and roles.
+- [Data and state](/stable/main/architecture/data-and-state/): What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
+- [Database schema](/stable/main/reference/database-schema/): The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
+- [Operating modes](/stable/main/reference/operating-modes/): What each Nebula operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
+- [Repository layout](/stable/main/reference/repository-layout/): How Nebula finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
+- [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Nebula — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+- [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
 - [Generate infrastructure](/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
 - [Import infrastructure](/stable/main/guides/import-infrastructure/): Understand what the Import Infrastructure mode does today, and what it does not yet do.
 - [Make a request](/stable/main/guides/make-a-request/): Open a Nebula session and phrase a request that the filter accepts.
 - [Merge and apply](/stable/main/guides/merge-and-apply/): Handle a locked session, then open, merge, and apply a Nebula pull request.
 - [Remediate drift](/stable/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
-- [Data and state](/stable/main/architecture/data-and-state/): What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
-- [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
+- [Administer users and locks](/stable/main/guides/administer-users-and-locks/): Sign in and reach the admin panel, review any user's sessions, and manage session locks and roles.
+- [LLM providers and models](/stable/main/reference/llm-providers/): How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
+- [Terraform providers](/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
 - [Development](/stable/main/guides/development/): Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 - [Enable authentication](/stable/main/guides/enable-authentication/): Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
 - [Follow a session](/stable/main/guides/follow-a-session/): Track a Nebula session's progress and read the results it produces.
 - [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
-- [Database schema](/stable/main/reference/database-schema/): The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
-- [Operating modes](/stable/main/reference/operating-modes/): What each Nebula operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
-- [Repository layout](/stable/main/reference/repository-layout/): How Nebula finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
-- [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Nebula — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
-- [Frequently asked questions](/stable/main/faq/): Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
+- [Configuration](/stable/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
 - [Customize prompts](/stable/main/guides/customize-prompts/): Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
-- [Terraform providers](/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
+- [Frequently asked questions](/stable/main/faq/): Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
+- [Authorization sidecar API](/stable/main/reference/api/authz/): The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
+- [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
+- [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
+- [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
+- [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
 - [Quickstart](/stable/main/quickstart/): Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.
+- [Core API](/stable/main/reference/api/core/): Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 - [Sidecar-supplied backend](/stable/main/guides/state-backends/sidecar-supplied/): Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
-- [Configuration](/stable/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
-- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
-- [LLM providers and models](/stable/main/reference/llm-providers/): How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
 - [Hardening](/stable/main/guides/production/hardening/): Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.
 - [Networking and TLS](/stable/main/guides/production/networking-and-tls/): Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.
 - [Operations](/stable/main/guides/production/operations/): Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.
-- [Nebula-managed state](/stable/main/guides/state-backends/nebula-managed/): The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 - [Prerequisites](/stable/main/prerequisites/): What the local Docker Compose deployment is for and what you need before following the quickstart.
-- [Authorization sidecar API](/stable/main/reference/api/authz/): The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
-- [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
-- [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
-- [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
-- [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
-- [Core API](/stable/main/reference/api/core/): Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 - [IaC sidecar API](/stable/main/reference/api/iac/): The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
+- [Nebula-managed state](/stable/main/guides/state-backends/nebula-managed/): The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 - [Configure state backends](/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.
 - [Repository-declared backend](/stable/main/guides/state-backends/repository-declared/): Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.
 - [Secrets and credentials](/stable/main/guides/production/secrets-and-credentials/): Every secret Nebula consumes, plus authentication, project-level authorization, LLM, Git, and cloud-engine credentials for a production deployment.
+- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.

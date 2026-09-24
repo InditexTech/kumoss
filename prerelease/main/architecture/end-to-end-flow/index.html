@@ -2089,7 +2089,9 @@ raw plan output — not the report JSON — alongside the
 <code>general-compliance-report</code> rules and the cloud guidelines. It has no
 repository tools and must answer through its only tool,
 <code>report_compliance_findings</code>: rule id, severity, resource, message,
-suggested fix.</p></td>
+suggested fix. The findings are stored like any other artifact, at
+<code>compliance/check-&lt;token&gt;.json</code> with a <code>compliance_checks</code> row holding
+the verdict, so the session detail and the portal can show them.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>
@@ -3691,8 +3693,8 @@ shared Phoenix guideline was renamed from <code>predictive_targets</code> to
 <code>orchestration.enable_compliance_checker</code> (<code>true</code> in the checked-in
 <code>config.yaml</code>; the built-in default is <code>false</code>). The drift handler no longer
 runs it, and the apply handler never calls it. Disabled, the check
-short-circuits to an empty passing report. The gate has no progress status
-of its own.</p></td>
+short-circuits to an empty passing report and stores nothing. The gate has
+no progress status of its own.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">How it audits</p></td>
@@ -3704,6 +3706,14 @@ sentinel <code>report_compliance_findings</code>, whose arguments — <code>rule
 <code>severity</code>, <code>resource</code>, <code>message</code> and <code>suggested_fix</code> per violation — are
 parsed into a typed report. The rules are applied by the model; only the
 verdict is computed in code.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Persistence</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The report is stored in object storage under the round, as
+<code>compliance/check-&lt;token&gt;.json</code>, with a <code>compliance_checks</code> row holding the
+<code>passed</code> verdict. The session detail returns it as the round&#8217;s <code>compliance</code>
+artifact, and the portal renders it in the session view and, when the
+session is locked, in the blocked pull-request view.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>

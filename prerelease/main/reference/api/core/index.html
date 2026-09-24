@@ -1350,8 +1350,10 @@ a response field only — there is no <code>username</code> query parameter.</p>
 aggregate: the session facts, its <code>workspace</code> (URI, branch, root
 path), its <code>scope_id</code>, the complete <code>statuses</code> timeline, and one entry
 in <code>rounds</code> per generation round. Each round carries its own statuses,
-its <code>report</code>, <code>plan</code>, and <code>code_changes</code> artifacts as
-client-fetchable URLs, and its <code>pull_requests</code>.</p>
+its <code>report</code>, <code>compliance</code>, <code>plan</code>, and <code>code_changes</code> artifacts as
+client-fetchable URLs, and its <code>pull_requests</code>. <code>compliance</code> also carries
+the audit&#8217;s <code>passed</code> verdict, and is <code>null</code> when the round was not
+audited.</p>
 </div>
 <div class="paragraph">
 <p>Pass <code>include_history=true</code> to also populate <code>history</code> with the

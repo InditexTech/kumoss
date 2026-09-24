@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/database-schema/">
     <link rel="prev" href="../terraform-providers/">
     <link rel="next" href="../api/">
-    <meta name="description" content="The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.">
+    <meta name="description" content="The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -747,7 +747,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Database schema</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Database schema</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -770,7 +770,7 @@
 <div class="sectionbody">
 <div class="paragraph">
 <p>core-db is Nebula&#8217;s system of record: who the users are, what they asked
-for, and what each run produced. Twelve tables hold it. Everything else —
+for, and what each run produced. Thirteen tables hold it. Everything else —
 traces, cached session facts, the generated files themselves — lives
 outside this database.</p>
 </div>
@@ -1226,6 +1226,12 @@ its <code>url</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A report produced by a round, tagged with its <code>type</code>.</p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compliance_checks</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>rounds</code> and <code>artifacts</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The compliance audit of a generate round: its <code>passed</code> verdict, with the
+full findings in the stored object.</p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>code_changes</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>rounds</code> and <code>artifacts</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">One generated or modified file, by <code>file_name</code>.</p></td>
@@ -1233,10 +1239,10 @@ its <code>url</code>.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The three artifact-metadata tables — <code>terraform_plans</code>, <code>reports</code>, and
-<code>code_changes</code> — each point at both a round and an artifact. The round
-says which turn produced it; the artifact says where the bytes are. The
-bytes themselves are never in the database.</p>
+<p>The four artifact-metadata tables — <code>terraform_plans</code>, <code>reports</code>,
+<code>compliance_checks</code>, and <code>code_changes</code> — each point at both a round and
+an artifact. The round says which turn produced it; the artifact says
+where the bytes are. The bytes themselves are never in the database.</p>
 </div>
 </div>
 </div>
@@ -1315,9 +1321,9 @@ plan rather than starting one of its own.</p>
 <div class="paragraph">
 <p>Deleting a session removes the five tables that hang off it — its
 workspaces, terraform providers, histories, statuses, and rounds — and,
-through the rounds, their pull requests, plans, reports, and code
-changes. Deleting a user removes that user&#8217;s sessions the same way. This
-is the dashed region in the diagram.</p>
+through the rounds, their pull requests, plans, reports, compliance
+checks, and code changes. Deleting a user removes that user&#8217;s sessions
+the same way. This is the dashed region in the diagram.</p>
 </div>
 <div class="paragraph">
 <p>Two things stay behind. <code>artifacts</code> rows are shared and are never removed
