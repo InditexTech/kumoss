@@ -1,8 +1,8 @@
 = Database schema
-:description: The twelve tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
+:description: The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
 
 core-db is Nebula's system of record: who the users are, what they asked
-for, and what each run produced. Twelve tables hold it. Everything else —
+for, and what each run produced. Thirteen tables hold it. Everything else —
 traces, cached session facts, the generated files themselves — lives
 outside this database.
 
@@ -82,15 +82,20 @@ its `url`.
 |`rounds` and `artifacts`
 |A report produced by a round, tagged with its `type`.
 
+|`compliance_checks`
+|`rounds` and `artifacts`
+|The compliance audit of a generate round: its `passed` verdict, with the
+full findings in the stored object.
+
 |`code_changes`
 |`rounds` and `artifacts`
 |One generated or modified file, by `file_name`.
 |===
 
-The three artifact-metadata tables — `terraform_plans`, `reports`, and
-`code_changes` — each point at both a round and an artifact. The round
-says which turn produced it; the artifact says where the bytes are. The
-bytes themselves are never in the database.
+The four artifact-metadata tables — `terraform_plans`, `reports`,
+`compliance_checks`, and `code_changes` — each point at both a round and
+an artifact. The round says which turn produced it; the artifact says
+where the bytes are. The bytes themselves are never in the database.
 
 == Enumerated columns
 
@@ -141,9 +146,9 @@ xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 
 Deleting a session removes the five tables that hang off it — its
 workspaces, terraform providers, histories, statuses, and rounds — and,
-through the rounds, their pull requests, plans, reports, and code
-changes. Deleting a user removes that user's sessions the same way. This
-is the dashed region in the diagram.
+through the rounds, their pull requests, plans, reports, compliance
+checks, and code changes. Deleting a user removes that user's sessions
+the same way. This is the dashed region in the diagram.
 
 Two things stay behind. `artifacts` rows are shared and are never removed
 with a session; the objects they describe are managed in object storage

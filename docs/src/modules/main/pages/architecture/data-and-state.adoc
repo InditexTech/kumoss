@@ -8,13 +8,14 @@ filesystem shared between the core and the iac sidecar.
 == core-db
 
 *core-db (PostgreSQL 17)* is the system of record for the application
-domain. Twelve tables: `users` (unique
+domain. Thirteen tables: `users` (unique
 on `(issuer, subject)`, with `email`, `display_name`, `operation_role`,
 nullable `panel_role`), `sessions` (owned by a `user_id`, including the
 `in_flight` concurrency flag and the `is_blocked` compliance lock that
 gates apply), `workspaces`, `terraform_providers`, `pull_requests`,
 `histories`, `statuses`, `rounds`, and the artifact-metadata tables
-`artifacts`, `terraform_plans`, `reports`, and `code_changes`. Roles are
+`artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the
+audit verdict plus its stored findings), and `code_changes`. Roles are
 managed from the admin panel or, for the first administrator on IdPs
 that emit no `email_verified` claim, by a one-off SQL update (see
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the
@@ -47,8 +48,8 @@ locks and no pub/sub channels.
 
 Object storage holds generated artifacts under
 `sessions/<session id>/rounds/<round primary key>/`, as
-`reports/<report type>-<token>.json`, `plans/{plan|drift}-<token>.txt`,
-or `changes/<token>-<sanitized file name>`.
+`reports/<report type>-<token>.json`, `compliance/check-<token>.json`,
+`plans/{plan|drift}-<token>.txt`, or `changes/<token>-<sanitized file name>`.
 RustFS is the *default and bundled* implementation: the Compose stack
 starts it as the `object-storage` container, and because it is open
 source (Apache-2.0) the default stack needs no proprietary or

@@ -324,11 +324,12 @@ and its report written: a second, independent small-model agent reads
 the session's first request and the raw plan, and checks them against
 the rules in the `general-compliance-report` prompt. The session is
 *locked* if any finding comes back with severity `error` or `critical`;
-`warning` findings are recorded in the report but do not lock. A lock
+`warning` findings are recorded in the report but do not lock. The
+report is stored as a round artifact and shown in the portal. A lock
 also sends an `iac.compliance.failed` notification. When `false` the
 audit is skipped entirely and reported as an empty passing result, so
-it can never lock. Generate rounds only — drift rounds do not audit,
-and apply does not re-audit.
+it can never lock and nothing is stored. Generate rounds only — drift
+rounds do not audit, and apply does not re-audit.
 
 |`orchestration.block_on_high_impact`
 |boolean
