@@ -83,6 +83,9 @@ function roundArtifacts(
 ): { kind: ArtifactKind; artifact: ArtifactRef }[] {
   const rows: { kind: ArtifactKind; artifact: ArtifactRef }[] = [];
   if (round.report) rows.push({ kind: "report", artifact: round.report });
+  if (round.compliance) {
+    rows.push({ kind: "compliance", artifact: round.compliance });
+  }
   if (round.plan) rows.push({ kind: "plan", artifact: round.plan });
   for (const change of round.code_changes) {
     rows.push({ kind: "change", artifact: change });

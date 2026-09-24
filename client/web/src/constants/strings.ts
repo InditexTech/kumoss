@@ -70,9 +70,19 @@ export const STRINGS = {
       "Pull Request merged. Your infrastructure is being updated to its declared state.",
     importMergeSuccess:
       "Pull Request merged. The imported resources are now managed from your repository.",
-    highImpactTitle: "High Impact Deployment",
-    highImpactMessage:
-      "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",
+    blockedTitle: "Deployment Blocked",
+    blockedMessage:
+      "A specialist has been notified and will review this deployment before it can proceed.",
+    blockedWhy: "Why",
+    highImpactReason: "High impact",
+    complianceReason: "Compliance",
+    showAllFindings: "Show all findings",
+    hideFindings: "Hide findings",
+    checkAgain: "Check again",
+    checkingLock: "Checking…",
+    stillBlocked: "The deployment is still blocked.",
+    blockedOnMerge:
+      "This deployment was blocked before the merge. A specialist will review it.",
   },
 
   applyResults: {

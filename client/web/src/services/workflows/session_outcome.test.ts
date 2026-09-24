@@ -73,6 +73,39 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
   });
 
+  it("hydrates the round's compliance check", async () => {
+    const check = {
+      passed: false,
+      summary: "Public ingress is not allowed",
+      violations: [
+        {
+          rule_id: "NET-001",
+          severity: "critical",
+          message: "0.0.0.0/0 on port 22",
+        },
+      ],
+    };
+    mockState.addSession(
+      makeSessionDetail({
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            compliance: { ...artifactRef(1, "compliance.json"), passed: false },
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/compliance.json`, () => HttpResponse.json(check)),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.compliance).toEqual(check);
+  });
+
   it("merges code changes across rounds, with later rounds winning", async () => {
     mockState.addSession(
       makeSessionDetail({
@@ -430,6 +463,7 @@ describe("buildSessionPatch", () => {
       detail,
       round: detail.rounds[0],
       report: null,
+      compliance: null,
       code: "<main.tf>\nx\n</main.tf>",
       targets: ["a.b"],
     });
@@ -469,6 +503,7 @@ describe("buildSessionPatch", () => {
       rationale: "Off-topic",
       prior: {
         report: { status: "ok" },
+        compliance: { passed: false, summary: "Two rules broken" },
         code: "<main.tf>\nx\n</main.tf>",
         targets: ["a.b"],
       },
@@ -478,6 +513,35 @@ describe("buildSessionPatch", () => {
       current_status: "uncompleted",
       code: "<main.tf>\nx\n</main.tf>",
       terraform_report: { status: "ok" },
+      compliance_report: { passed: false, summary: "Two rules broken" },
+    });
+  });
+
+  it("carries the compliance check of a results outcome", () => {
+    const detail = makeSessionDetail({ is_blocked: true });
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: {
+        passed: false,
+        summary: "Public ingress is not allowed",
+        violations: [
+          {
+            rule_id: "NET-001",
+            severity: "critical",
+            message: "0.0.0.0/0 on port 22",
+          },
+        ],
+      },
+      code: "",
+      targets: undefined,
+    });
+
+    expect(patch.compliance_report).toMatchObject({
+      passed: false,
+      violations: [{ rule_id: "NET-001" }],
     });
   });
 });
@@ -513,6 +577,7 @@ describe("buildAssistantMessage", () => {
         detail,
         round: detail.rounds[0],
         report: { potential_impact: { summary: "Adds one VM" } },
+        compliance: null,
         code: "",
         targets: undefined,
       }),
@@ -526,6 +591,7 @@ describe("buildAssistantMessage", () => {
         detail,
         round: detail.rounds[0],
         report: { summary: { create: 2, update: 1, delete: 0, recreate: 0 } },
+        compliance: null,
         code: "",
         targets: undefined,
       }),
@@ -539,6 +605,7 @@ describe("buildAssistantMessage", () => {
         detail: makeSessionDetail({ operation: "drift" }),
         round: detail.rounds[0],
         report: { summary: "One resource drifted" },
+        compliance: null,
         code: "",
         targets: undefined,
       }),
@@ -555,6 +622,7 @@ describe("buildAssistantMessage", () => {
           summary: { selected: 1, imported: 1, failed: 0 },
           execution_summary: "One storage account is now managed",
         },
+        compliance: null,
         code: "",
         targets: undefined,
       }),

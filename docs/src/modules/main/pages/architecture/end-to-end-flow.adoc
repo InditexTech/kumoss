@@ -209,7 +209,9 @@ raw plan output — not the report JSON — alongside the
 `general-compliance-report` rules and the cloud guidelines. It has no
 repository tools and must answer through its only tool,
 `report_compliance_findings`: rule id, severity, resource, message,
-suggested fix.
+suggested fix. The findings are stored like any other artifact, at
+`compliance/check-<token>.json` with a `compliance_checks` row holding
+the verdict, so the session detail and the portal can show them.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the severities: any `error`
@@ -883,8 +885,8 @@ shared Phoenix guideline was renamed from `predictive_targets` to
 `orchestration.enable_compliance_checker` (`true` in the checked-in
 `config.yaml`; the built-in default is `false`). The drift handler no longer
 runs it, and the apply handler never calls it. Disabled, the check
-short-circuits to an empty passing report. The gate has no progress status
-of its own.
+short-circuits to an empty passing report and stores nothing. The gate has
+no progress status of its own.
 
 |How it audits
 |A second, independent small-model agent loop. Its query is the session's
@@ -895,6 +897,13 @@ sentinel `report_compliance_findings`, whose arguments — `rule_id`,
 `severity`, `resource`, `message` and `suggested_fix` per violation — are
 parsed into a typed report. The rules are applied by the model; only the
 verdict is computed in code.
+
+|Persistence
+|The report is stored in object storage under the round, as
+`compliance/check-<token>.json`, with a `compliance_checks` row holding the
+`passed` verdict. The session detail returns it as the round's `compliance`
+artifact, and the portal renders it in the session view and, when the
+session is locked, in the blocked pull-request view.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the reported severities: any

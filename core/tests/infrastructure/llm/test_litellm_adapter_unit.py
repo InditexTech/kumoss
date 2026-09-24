@@ -45,6 +45,7 @@ def _make_adapter(**overrides) -> tuple[LiteLLMAdapter, MagicMock]:
         model="vertex_ai/claude-sonnet-4-6",
         temperature=0.1,
         max_tokens=4096,
+        timeout=600.0,
         router=router,
     )
     defaults.update(overrides)
@@ -132,6 +133,14 @@ class TestInferencePlainText(unittest.IsolatedAsyncioTestCase):
         messages = call_kwargs["messages"]
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]["role"], "user")
+
+    async def test_configured_timeout_is_sent(self):
+        adapter, router = _make_adapter(timeout=42.0)
+        router.acompletion.return_value = _model_response()
+
+        await adapter.inference(msg="hi")
+
+        self.assertEqual(router.acompletion.call_args[1]["timeout"], 42.0)
 
 
 class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
@@ -315,12 +324,13 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         mock_usage.total_tokens = 20
         mock_resp.usage = mock_usage
 
-        adapter, router = _make_adapter(model="openai/gpt-5")
+        adapter, router = _make_adapter(model="openai/gpt-5", timeout=42.0)
         router.aresponses.return_value = mock_resp
 
         result = await adapter.inference(msg="search something", web_search=True)
 
         router.aresponses.assert_awaited_once()
+        self.assertEqual(router.aresponses.call_args[1]["timeout"], 42.0)
         self.assertEqual(result.text, "search result")
 
     async def test_web_search_with_tools_raises(self):

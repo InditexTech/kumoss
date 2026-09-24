@@ -103,8 +103,8 @@ suites.
 |Contracts → generated clients → sidecars
 
 |core-db (PostgreSQL 17)
-|System of record: twelve tables covering users, sessions, workspaces,
-rounds, plans, pull requests, reports and artifacts.
+|System of record: thirteen tables covering users, sessions, workspaces,
+rounds, plans, pull requests, reports, compliance checks and artifacts.
 |Core, over asyncpg
 
 |Redis 8

@@ -20,7 +20,7 @@ and effect.
 
 [card]
 .xref:main:reference/database-schema.adoc[Database schema]
-The twelve tables of core-db, what each records, the enumerated columns,
+The thirteen tables of core-db, what each records, the enumerated columns,
 and how rows are deleted.
 
 [card]

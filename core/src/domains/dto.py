@@ -580,6 +580,12 @@ class ReportRef(ArtifactRef):
     type: ReportType
 
 
+class ComplianceCheckRef(ArtifactRef):
+    """Read model: a compliance check artifact plus its verdict."""
+
+    passed: bool
+
+
 class TerraformPlanRef(ArtifactRef):
     """Read model: a terraform plan artifact plus its resource targets."""
 
@@ -612,6 +618,7 @@ class RoundDetail(BaseModel):
     query: str
     statuses: list[StatusEntry]
     report: ReportRef | None
+    compliance: ComplianceCheckRef | None = None
     plan: TerraformPlanRef | None
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]

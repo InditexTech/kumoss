@@ -422,8 +422,10 @@ a response field only — there is no `username` query parameter.
 aggregate: the session facts, its `workspace` (URI, branch, root
 path), its `scope_id`, the complete `statuses` timeline, and one entry
 in `rounds` per generation round. Each round carries its own statuses,
-its `report`, `plan`, and `code_changes` artifacts as
-client-fetchable URLs, and its `pull_requests`.
+its `report`, `compliance`, `plan`, and `code_changes` artifacts as
+client-fetchable URLs, and its `pull_requests`. `compliance` also carries
+the audit's `passed` verdict, and is `null` when the round was not
+audited.
 
 Pass `include_history=true` to also populate `history` with the
 session's conversation turns. That variant always reads fresh from the
