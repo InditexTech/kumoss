@@ -13,7 +13,12 @@ from src.domains.services import (
     TaskService,
 )
 from src.domains.value_objects import Conventions, PlanRef
-from src.shared.constants import ContentType, PromptsLibrary, SessionStatus
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    PromptsLibrary,
+    SessionStatus,
+)
 from src.shared.logger import logging
 
 # Status copy. None of these embeds raw terraform output, so none is
@@ -143,7 +148,7 @@ class TerraformDriftService:
             if operations and not filtered.kept:
                 logging.warning(
                     "Drift remediation stopped, every operation is covered by the "
-                    f"drift exception rules: {exclusions}"
+                    + f"drift exception rules: {exclusions}"
                 )
                 await self.__announce(_EXCLUDED)
                 return resolved(drift)
@@ -157,6 +162,7 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
+                    operation_type=OperationType.DRIFT,
                     validator=validator,
                 )
                 plan = result.plan

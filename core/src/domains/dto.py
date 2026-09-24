@@ -164,6 +164,84 @@ class TerraformApplyDTO:
 
 
 @dataclass
+class TerraformDiscoveryDTO:
+    """Resource IDs an import round can work with, and why when it has none.
+
+    Both reads a round makes answer with this — the Terraform state and
+    the cloud scope — and so does the diff between them.
+
+    A discovery query that finds nothing is a normal outcome, so the
+    reason rides with the result instead of being raised: ``feedback`` is
+    empty only when ``resource_ids`` is usable, and otherwise says which
+    dead end was reached — the cloud query failed (carrying its own
+    diagnostics), the scope holds nothing importable, or everything in it
+    is already managed. The state read has no tolerated failure of its
+    own: it either answers with an empty ``feedback`` or raises.
+
+    On the diff, ``excluded`` holds the unmanaged IDs the import exception
+    list withheld, so the round can report what it skipped on purpose.
+    """
+
+    resource_ids: list[str]
+    feedback: str = ""
+    excluded: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.feedback
+
+    @property
+    def summary(self) -> str:
+        return "\n".join(self.resource_ids) if self.ok else self.feedback
+
+
+@dataclass
+class TerraformImportResourceDTO:
+    """Result of importing one resource into the Terraform state.
+
+    One resource at a time is what the engine offers, so a round's
+    outcome is assembled from these: ``feedback`` is the engine's stderr
+    and is what ends up as the rejected attempt's reason, ``stdout`` the
+    import's own output.
+    """
+
+    ok: bool
+    stdout: str
+    feedback: str
+
+    @property
+    def summary(self) -> str:
+        return self.stdout if self.ok else self.feedback
+
+
+@dataclass
+class TerraformImportAttempt:
+    """One resource an import round tried to bring under Terraform management"""
+
+    address: str
+    resource_id: str
+    error: str = ""
+
+
+@dataclass
+class TerraformImportDTO:
+    """Outcome of an import round, partitioned by result.
+
+    Callers get the split they need instead of the raw per-resource
+    results: ``imported`` drives the convergence plan and the report,
+    ``failed`` carries the reason each import was rejected.
+    """
+
+    imported: list[TerraformImportAttempt]
+    failed: list[TerraformImportAttempt]
+
+    @property
+    def addresses(self) -> list[str]:
+        """Terraform addresses now tracked in state."""
+        return [r.address for r in self.imported]
+
+
+@dataclass
 class FilteredOperationsDTO:
     """What a drift exception filter pass kept and what it removed.
 
@@ -176,6 +254,21 @@ class FilteredOperationsDTO:
 
     kept: list[list[str]]
     excluded: list[str]
+    explanation: str
+
+
+@dataclass
+class FilteredImportsDTO:
+    """Which of a scope's unmanaged resources an import request asks for.
+
+    ``selected`` stays flat, unlike the other filter passes: imports run
+    one resource at a time, so there is nothing to group. ``explanation``
+    is the agent's own account of the selection and is what a caller
+    reports when ``selected`` comes back empty — the request matched
+    nothing, which is an outcome rather than a failure.
+    """
+
+    selected: list[str]
     explanation: str
 
 
@@ -360,7 +453,58 @@ class TerraformApplyReport(BaseModel):
     recommendations: list[str]
 
 
-Reports = TerraformPlanReport | TerraformApplyReport | TerraformDriftReport
+class TerraformImportedResource(BaseModel):
+    """Cloud resource an import round tried to bring under Terraform management"""
+
+    resource_address: str
+    resource_id: str
+    status: Literal["imported", "failed"]
+    details: str
+    error_message: str | None = None
+
+
+class TerraformExcludedResource(BaseModel):
+    """Unmanaged resource the import exception list withheld on purpose"""
+
+    resource_id: str
+    details: str
+
+
+class TerraformImportSummary(BaseModel):
+    """Summary statistics of the import operation"""
+
+    selected: int
+    imported: int
+    failed: int
+
+
+class TerraformImportReport(BaseModel):
+    """
+    Report describing which unmanaged cloud resources were brought under
+    Terraform management. Unlike a plan report it describes resources that
+    already exist and already cost money: nothing is created, so the value
+    is in what is now tracked in state and whether the generated
+    configuration matches it.
+
+    ``excluded_resources`` lists what the import exception list withheld:
+    skipped on purpose, never attempted, and not counted in ``summary``.
+    """
+
+    summary: TerraformImportSummary
+    status: Literal["Succeeded", "Partial", "Failed"]
+    execution_summary: str
+    imported_resources: list[TerraformImportedResource]
+    excluded_resources: list[TerraformExcludedResource]
+    state_alignment: str
+    recommendations: list[str]
+
+
+Reports = (
+    TerraformPlanReport
+    | TerraformApplyReport
+    | TerraformDriftReport
+    | TerraformImportReport
+)
 
 
 class ComplianceViolation(BaseModel):

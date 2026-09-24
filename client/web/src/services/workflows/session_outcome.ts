@@ -355,6 +355,9 @@ export function buildAssistantMessage(outcome: SessionOutcome): string {
       if (outcome.detail.operation === "drift") {
         if (typeof report?.summary === "string") return report.summary;
       }
+      if (outcome.detail.operation === "import") {
+        if (report?.execution_summary) return report.execution_summary;
+      }
       if (report?.potential_impact?.summary) {
         return report.potential_impact.summary;
       }

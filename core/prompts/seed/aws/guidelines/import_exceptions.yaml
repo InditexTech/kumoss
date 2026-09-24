@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS resource IDs that must never be imported into Terraform, regardless of query.
+body: |
+  # Import Exception List — AWS
+
+  Resource IDs listed here are excluded from every import operation.
+  Nebula removes them in code before any selection, and the import
+  report lists them as skipped.
+
+  Write one resource ID per markdown bullet, exactly as the cloud
+  scope listing returns it (backticks optional), for example:
+  `- arn:aws:s3:::<bucket-name>`.
+  Every line that is not a bullet is ignored, so keep prose in
+  plain paragraphs.
+
+  This placeholder is deliberately empty. Curate the real exception
+  list in the Phoenix UI; the seeder never overwrites it.

@@ -59,14 +59,17 @@ export const STRINGS = {
     showCode: "Show Code",
     confirmApply: "Confirm and Apply",
     requestReview: "Request Review",
-    // Drift wording: merging the PR *is* the remediation, so nothing is
-    // applied afterwards and the labels must not promise it.
+    // Drift/import wording: merging the PR ends the flow (it *is* the
+    // remediation; an import is already in state), so nothing is applied
+    // afterwards and the labels must not promise it.
     mergePrompt: "",
     approveAndMerge: "Approve and Merge PR",
     confirmMerge: "Confirm and Merge",
     merging: "Merging…",
     mergeSuccess:
       "Pull Request merged. Your infrastructure is being updated to its declared state.",
+    importMergeSuccess:
+      "Pull Request merged. The imported resources are now managed from your repository.",
     highImpactTitle: "High Impact Deployment",
     highImpactMessage:
       "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",
@@ -219,14 +222,14 @@ export const STRINGS = {
      */
     artifactOpen: "View",
     /**
-     * Labels for an artifact row. Apply and drift reports announce
-     * themselves; generate and import ones fall back to the generic
-     * `report`, so there is deliberately no key for those two.
+     * Labels for an artifact row. Generate reports fall back to the generic
+     * `report`; the other report kinds announce themselves explicitly.
      */
     artifactLabels: {
       report: "Report",
       applyReport: "Apply Report",
       driftReport: "Drift Report",
+      importReport: "Import Report",
       terraformPlan: "Terraform Plan",
       driftOperation: "Drift Operation",
     },

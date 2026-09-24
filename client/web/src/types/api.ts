@@ -74,6 +74,11 @@ export interface DriftRequest extends BaseIacRequest {
   is_partial?: boolean;
 }
 
+/** A partial import requires a non-empty `q` naming what to import. */
+export interface ImportRequest extends BaseIacRequest {
+  is_partial?: boolean;
+}
+
 /** Apply reuses the session's stored plan; it takes no query or targets. */
 export interface ApplyRequest {
   session_id: string;

@@ -375,10 +375,12 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       return;
     }
 
+    // The API has no partial operations, so a reloaded session resumes in
+    // the full mode of its operation.
     setMode(
       detail.operation === "drift"
         ? "drift"
-        : outcome.kind === "apply-results"
+        : detail.operation === "import"
           ? "import"
           : "generate",
     );

@@ -49,7 +49,8 @@ const mockGetSessionDetail = vi.fn<(id: string) => Promise<{ rounds: unknown[] }
   .mockResolvedValue({ rounds: [{}] });
 const mockNotifyIfHidden = vi.fn();
 
-vi.mock("@/services/workflows/terraform_action", () => ({
+vi.mock("@/services/workflows/terraform_action", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/workflows/terraform_action")>()),
   runTerraformActionWorkflow: (...args: unknown[]) => mockRunWorkflow(...(args as [TerraformActionParams, AbortSignal])),
 }));
 

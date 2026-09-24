@@ -98,11 +98,10 @@ must provide:
   per model. Without it the web-search tool falls back to the OpenAI
   Responses API path, which only works on OpenAI-compatible endpoints.
 
-The shipped models (Anthropic Claude on Azure AI Foundry, `azure_ai/`)
-and the code defaults (Anthropic Claude direct, `anthropic/`) satisfy
-all of these, as do the Claude and Gemini models on Vertex AI that the
-core's test suite exercises. Nebula has not tested every provider
-LiteLLM lists.
+The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of
+these, as do the same models on Azure AI Foundry (`azure_ai/`) and the
+Claude and Gemini models on Vertex AI that the core's test suite
+exercises. Nebula has not tested every provider LiteLLM lists.
 
 == The `provider/model-id` notation
 
@@ -196,9 +195,9 @@ The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the `litellm_params` keys you
 would use instead when writing an `llm.model_list` entry. The lists
 come from LiteLLM's documentation. *Nebula has not tested every
-provider listed here*; the checked-in `config.yaml` targets Azure AI
-Foundry (`azure_ai/`), the code defaults target Anthropic directly
-(`anthropic/`), and the core's test suite
+provider listed here*; the checked-in `config.yaml` and the code
+defaults both target Anthropic directly (`anthropic/`), and the core's
+test suite
 (`core/tests/shared/config/test_llm_config.py`) exercises the
 OpenAI-style and Vertex AI validation paths.
 
@@ -251,9 +250,11 @@ no validation mapping and a missing key fails on the first call.
 |`vertex_ai/<model>`
 |`VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS`
 |`vertex_project`, `vertex_location`, `vertex_credentials`
-|`VERTEXAI_CREDENTIALS` is a service-account JSON, as a file path or
-the raw JSON. Omit it to use Application Default Credentials
-(`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on).
+|`VERTEXAI_CREDENTIALS` holds the service-account key JSON content, on
+one line. A path to a key file also works, but only if you mount that
+file into the core container yourself. Omit it to use Application
+Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload
+identity, and so on).
 
 |Google AI Studio (Gemini API)
 |`gemini/<model>`
@@ -409,11 +410,12 @@ if the server does not check it.
 == Minimal configuration example
 
 A single direct provider, both roles on the same vendor, no router
-customisation. This is the simplest working setup.
+customisation. This is the checked-in setup, and the simplest working
+one.
 
 [source,yaml]
 ----
-# config.yaml (fictitious)
+# config.yaml
 llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
@@ -427,9 +429,8 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ----
 
-The checked-in `config.yaml` uses Azure AI Foundry, whose credentials
-LiteLLM cannot validate at boot (a missing value fails on the first
-call):
+An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot
+validate at boot (a missing value fails on the first call):
 
 [source,yaml]
 ----
@@ -457,8 +458,12 @@ llm:
 ----
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 ----
+
+For how to paste the key, and what the file-path alternative needs, see
+xref:main:reference/environment-variables.adoc#example-all-sidecars[the
+Vertex AI example in Environment variables].
 
 [#advanced-routing-with-llmmodel_list]
 == Advanced routing with `llm.model_list`

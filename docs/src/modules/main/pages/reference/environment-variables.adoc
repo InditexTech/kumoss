@@ -38,16 +38,19 @@ The core reads variables through the names configured in
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|LLM provider credentials (`AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`
-for the shipped `azure_ai/` models; for example `ANTHROPIC_API_KEY`, or
-the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` / `VERTEXAI_CREDENTIALS`
-trio for other providers)
+|LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped
+`anthropic/` models; for example `AZURE_AI_API_KEY` and
+`AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` /
+`VERTEXAI_CREDENTIALS` trio, for other providers)
 |Mandatory for the provider selected by `llm.model`, `llm.small_model`
 or `llm.model_list`
 |none
 |Credentials that LiteLLM reads for the configured provider. Names
 follow LiteLLM conventions; see
 xref:main:reference/llm-providers.adoc[LLM providers and models].
+`VERTEXAI_CREDENTIALS` holds the service-account key itself, as
+single-line JSON content (see
+<<example-all-sidecars,the Vertex AI example>>).
 For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
 `ANTHROPIC_AUTH_TOKEN`.
 |At boot for providers LiteLLM can validate; otherwise on the first LLM
@@ -179,13 +182,15 @@ resolve.
 
 *What the boot check actually covers.* The core validates the LLM
 credentials with `litellm.validate_environment` for every entry in the
-effective model list. For the shipped `config.yaml` — which selects
-`azure_ai/...` models — that check verifies *nothing*: LiteLLM has no
-validation mapping for `azure_ai`, so a missing `AZURE_AI_API_KEY` or
-`AZURE_AI_API_BASE` boots cleanly and fails on the first LLM call. For
+effective model list. Coverage depends on the provider. For the shipped
+`anthropic/...` models a missing key fails the boot. For `azure_ai/...`
+models the check verifies *nothing*: LiteLLM has no validation mapping
+for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE`
+boots cleanly and fails on the first LLM call. For
 `vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and
 `VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at
-boot. Coverage is per provider (for `anthropic/*`, either
+boot, and when it is unset LiteLLM falls back to Application Default
+Credentials. Coverage is per provider (for `anthropic/*`, either
 `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no
 provider's check validates that a credential actually works.
 
@@ -635,14 +640,10 @@ All values below are fictitious. Replace every token and URL.
 
 === Core plus IaC sidecar only (Anthropic models)
 
-Only the IaC sidecar is enabled, as in the shipped `config.yaml` — but
-the model strings below are *not* the shipped ones. The checked-in
-`config.yaml` selects Azure AI Foundry models
-(`azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`, which
-need `AZURE_AI_API_KEY` and `AZURE_AI_API_BASE`); the Vertex AI set is
-shown in the next example; `anthropic/*` is what the core falls
-back to when no `config.yaml` is loaded at all. Use this set only if
-you put the excerpt below in your own `config.yaml`.
+Only the IaC sidecar is enabled, and the model strings are the shipped
+ones — `anthropic/*` is both what the checked-in `config.yaml` selects
+and what the core falls back to when no `config.yaml` is loaded at all.
+The Vertex AI set is shown in the next example.
 
 `config.yaml` excerpt for this example:
 
@@ -698,6 +699,7 @@ AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
 AWS_REGION=eu-west-1
 ----
 
+[#example-all-sidecars]
 === All sidecars enabled (Vertex AI models, Azure infrastructure)
 
 `config.yaml` excerpt:
@@ -723,10 +725,10 @@ services:
 
 [source,dotenv]
 ----
-# LLM provider (Google Vertex AI)
+# LLM provider (Google Vertex AI). The service-account key JSON, on one line.
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
 
 # One distinct token per sidecar
 NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
@@ -741,6 +743,17 @@ RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
 NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
 ----
+
+Paste the downloaded key file's content as the value, collapsed onto one
+line and unquoted. Keep the `\n` escapes inside `private_key` as they
+are: turning them into real line breaks makes the JSON invalid.
+
+NOTE: `VERTEXAI_CREDENTIALS` also accepts a path to the key file instead
+of its content. Nebula does not provide that file: create a secret or
+file mount into the *core* container yourself (the Compose file mounts
+nothing there), readable by uid `10001`. A path that does not exist
+inside the container is not caught at boot. The first LLM call then
+fails with a JSON-parsing error rather than a missing-file error.
 
 `services/iac/.env` (Azure example):
 

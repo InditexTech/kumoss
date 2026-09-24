@@ -37,6 +37,13 @@ so the service injects it into the engine's environment for those three
 commands where the provider has a variable that names a scope (Azure
 and GCP). ``validate`` and ``show`` reach no cloud API and are
 submitted unscoped.
+
+Import discovery follows the same planes: a ``state pull`` that exits
+non-zero leaves the managed set unknown, so it is raised, while a
+failed cloud query in ``scope-resource-ids`` is a normal outcome of
+that endpoint (unknown scope, credentials, a provider with no
+inventory query) and comes back as an empty scope whose feedback is the
+command's ``stderr`` — nothing to import, not a broken session.
 """
 
 from __future__ import annotations
@@ -59,6 +66,9 @@ from src.clients.iac.api.jobs import get_job as get_job_op
 from src.clients.iac.api.plan import plan as plan_op
 from src.clients.iac.api.show import show as show_op
 from src.clients.iac.api.validate import validate as validate_op
+from src.clients.iac.api.import_ import state_resource_ids as state_op
+from src.clients.iac.api.import_ import scope_resource_ids as scope_op
+from src.clients.iac.api.import_ import import_resource as import_op
 from src.clients.iac.client import AuthenticatedClient
 from src.clients.iac.models.apply_request import ApplyRequest
 from src.clients.iac.models.init_request import InitRequest
@@ -73,8 +83,17 @@ from src.clients.iac.models.terraform_provider import (
     TerraformProvider as IacTerraformProvider,
 )
 from src.clients.iac.models.validate_request import ValidateRequest
+from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
+from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
+from src.clients.iac.models.import_request import ImportRequest
 from src.clients.iac.types import UNSET
-from src.domains.dto import TerraformApplyDTO, TerraformDriftDTO, TerraformPlanDTO
+from src.domains.dto import (
+    TerraformApplyDTO,
+    TerraformDiscoveryDTO,
+    TerraformDriftDTO,
+    TerraformImportResourceDTO,
+    TerraformPlanDTO,
+)
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
@@ -87,7 +106,14 @@ from src.shared.logger import logging
 
 
 OperationRequest = (
-    InitRequest | ValidateRequest | PlanRequest | ShowRequest | ApplyRequest
+    InitRequest
+    | ValidateRequest
+    | PlanRequest
+    | ShowRequest
+    | ApplyRequest
+    | StateResourceIdsRequest
+    | ScopeResourceIdsRequest
+    | ImportRequest
 )
 
 
@@ -366,6 +392,164 @@ class Terraform(ITerraform):
     @staticmethod
     def __needs_init(res: OperationResult) -> bool:
         return "terraform init" in f"{res.stderr}\n{res.stdout}".lower()
+
+    @trace_terraform
+    @override
+    async def state_resource_ids(self) -> TerraformDiscoveryDTO:
+        cfg = system_config.services.iac
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                state_res = await self.__run_initialized_op(
+                    c,
+                    state_op,
+                    StateResourceIdsRequest(
+                        workspace_path=workspace,
+                    ),
+                    cfg,
+                )
+                if state_res.exit_code != 0:
+                    raise ExceptionHandler(
+                        f"terraform state pull failed: {state_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                try:
+                    resource_ids = json.loads(state_res.stdout)
+                except json.JSONDecodeError as e:
+                    raise ExceptionHandler(
+                        f"IaC service returned invalid state resource IDs: {e}", 502
+                    ) from e
+                if not isinstance(resource_ids, list) or not all(
+                    isinstance(resource_id, str) for resource_id in resource_ids
+                ):
+                    raise ExceptionHandler(
+                        "IaC service returned invalid state resource IDs.", 502
+                    )
+                return TerraformDiscoveryDTO(resource_ids=resource_ids)
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    @trace_terraform
+    @override
+    async def scope_resource_ids(
+        self,
+        scope_id: str,
+        terraform_provider: TerraformProvider,
+    ) -> TerraformDiscoveryDTO:
+        cfg = system_config.services.iac
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                scope_res = await self.__run_initialized_op(
+                    c,
+                    scope_op,
+                    ScopeResourceIdsRequest(
+                        workspace_path=workspace,
+                        scope_id=scope_id,
+                        terraform_provider=terraform_provider,
+                    ),
+                    cfg,
+                )
+                if scope_res.exit_code != 0:
+                    return TerraformDiscoveryDTO(
+                        resource_ids=[],
+                        feedback=scope_res.stderr or "unknown error",
+                    )
+                try:
+                    resource_ids = json.loads(scope_res.stdout)
+
+                except json.JSONDecodeError as e:
+                    raise ExceptionHandler(
+                        f"IaC service returned invalid scope resource IDs: {e}", 502
+                    ) from e
+                if not isinstance(resource_ids, list) or not all(
+                    isinstance(resource_id, str) for resource_id in resource_ids
+                ):
+                    raise ExceptionHandler(
+                        "IaC service returned invalid scope resource IDs.", 502
+                    )
+                return TerraformDiscoveryDTO(resource_ids=resource_ids)
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    @trace_terraform
+    @override
+    async def import_resource(
+        self,
+        address: str,
+        resource_id: str,
+    ) -> TerraformImportResourceDTO:
+        cfg = system_config.services.iac
+        client = AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+        )
+        workspace = str(self.__workspace_path)
+        try:
+            async with client as c:
+                init_res = await self.__ensure_init(c, cfg)
+                if init_res is not None:
+                    raise ExceptionHandler(
+                        f"terraform init failed: {init_res.stderr or 'unknown error'}",
+                        502,
+                    )
+                import_res = await self.__run_initialized_op(
+                    c,
+                    import_op,
+                    ImportRequest(
+                        workspace_path=workspace,
+                        scope_id=self.__scope_id,
+                        terraform_provider=self.__terraform_provider,
+                        address=address,
+                        resource_id=resource_id,
+                    ),
+                    cfg,
+                )
+                if import_res.exit_code != 0:
+                    return TerraformImportResourceDTO(
+                        ok=False,
+                        stdout=import_res.stdout,
+                        feedback=import_res.stderr or "terraform import failed",
+                    )
+                return TerraformImportResourceDTO(
+                    ok=True,
+                    stdout=import_res.stdout,
+                    feedback="",
+                )
+
+        except httpx.TimeoutException as e:
+            raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
+        except httpx.RequestError as e:
+            raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
     async def __run_op(
         self,
