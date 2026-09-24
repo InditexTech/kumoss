@@ -1,0 +1,19 @@
+docs/src/modules/main/pages/quickstart.adoc
+  s_341684ddccced5::t_afe62a3f1f90ee 37-41,46-47,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "22c49b7b1b01a8421f9c6e433e92921cd2e02683",
+  "prompts": {},
+  "sessions": {
+    "s_341684ddccced5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ee88374-e26b-47ce-b6b6-fd9c8cc403ef",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
