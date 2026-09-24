@@ -813,24 +813,23 @@ is baked into the core image at build time, so every edit needs
 <p>The minimum is the two model strings for your LLM provider and the two
 orchestration gates. Fields not shown use the core&#8217;s code defaults; use the
 shipped file or the configuration reference when you need its non-default
-tuning. Those two gates default to <code>false</code>, so a file that omits them turns
-off the compliance lock and the high-impact lock.</p>
+tuning.</p>
+</div>
+<div class="paragraph">
+<p>The <code>llm</code> values below are only an example: replace both model strings with
+the models you prefer. Model strings per provider:
+<a href="../reference/llm-providers/" class="xref page">LLM providers and models</a>.</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.8-flash"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  enable_compliance_checker</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  block_on_high_impact</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span></span></code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p>Model strings per provider:
-<a href="../reference/llm-providers/" class="xref page">LLM providers and models</a>. Every
-field: <a href="../reference/configuration/" class="xref page">Configuration</a>.</p>
 </div>
 </div>
 <div class="sect2">
@@ -847,12 +846,8 @@ provider prefix of <code>llm.model</code> and <code>llm.small_model</code>. See
 credential variables</a>. The core will not run without them.</p>
 </li>
 <li>
-<p><code>NEBULA_IAC_TOKEN</code> — any non-empty value. The same value goes in
-<code>services/iac/.env</code>.</p>
-</li>
-<li>
 <p><code>GIT_USER</code>, <code>GIT_TOKEN</code> — the account and personal access token for the
-provider named by <code>git.provider</code>.</p>
+provider named by <code>git.provider</code> (GitHub, Azure DevOps or GitLab).</p>
 </li>
 </ul>
 </div>
@@ -869,9 +864,6 @@ variables and secrets</a>.</p>
 </div>
 <div class="ulist">
 <ul>
-<li>
-<p><code>NEBULA_IAC_TOKEN</code> — the same value as in <code>core/.env</code>.</p>
-</li>
 <li>
 <p><strong>Cloud provider credentials</strong> — the variables your OpenTofu or Terraform
 providers read. See
@@ -967,11 +959,6 @@ optional sidecar is unconfigured.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost/monitoring/</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix: traces of every run and the prompt registry</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost:9000</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Presigned artifact downloads opened by the web application, and the
-RustFS console</p></td>
 </tr>
 </tbody>
 </table></div></div>
