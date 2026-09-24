@@ -72,6 +72,7 @@ function mapStatusToPhase(statusMsg: string) {
     case "FILTERING":
       return PHASE.INIT;
     case "GENERATING":
+    case "RECONCILING":
     case "VALIDATING":
     case "APPLY":
       return PHASE.RUNNING;
@@ -244,10 +245,10 @@ export function useTerraformActions() {
               }
 
               if (
-                  data.status_msg === EVENT_STATUS.COMPLETED ||
-                  data.status_msg === EVENT_STATUS.UNCOMPLETED
+                data.status_msg === EVENT_STATUS.COMPLETED ||
+                data.status_msg === EVENT_STATUS.UNCOMPLETED
               ) {
-                  finishRound();
+                finishRound();
               }
               if (data.status_msg === EVENT_STATUS.FAILED) {
                 es.close();

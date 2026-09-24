@@ -17,7 +17,6 @@ from uuid import uuid4
 import boto3
 import httpx
 from botocore.client import Config as BotoConfig
-
 from src.domains.exceptions import ObjectNotFound, ObjectStorageUnavailable
 from src.infrastructure.storage._s3 import S3ObjectStorage
 
@@ -67,16 +66,16 @@ class TestS3ObjectStorage(unittest.IsolatedAsyncioTestCase):
         await self.storage.ensure_bucket()  # second call must not raise
 
     async def test_put_get_roundtrip(self):
-        await self.storage.put("dir/a.txt", b"payload", "text/plain")
+        await self.storage.put("dir/a.txt", b"payload", "text/plain", {})
         self.assertEqual(await self.storage.get("dir/a.txt"), b"payload")
 
     async def test_exists_true_and_false(self):
-        await self.storage.put("here.txt", b"x", "text/plain")
+        await self.storage.put("here.txt", b"x", "text/plain", {})
         self.assertTrue(await self.storage.exists("here.txt"))
         self.assertFalse(await self.storage.exists("not-here.txt"))
 
     async def test_delete_is_idempotent(self):
-        await self.storage.put("gone.txt", b"x", "text/plain")
+        await self.storage.put("gone.txt", b"x", "text/plain", {})
         await self.storage.delete("gone.txt")
         await self.storage.delete("gone.txt")  # second delete must not raise
         self.assertFalse(await self.storage.exists("gone.txt"))
@@ -119,7 +118,7 @@ class TestS3ObjectStorage(unittest.IsolatedAsyncioTestCase):
             max_attempts=1,
         )
         with self.assertRaises(ObjectStorageUnavailable):
-            await down.put("x.txt", b"x", "text/plain")
+            await down.put("x.txt", b"x", "text/plain", {})
 
 
 if __name__ == "__main__":
