@@ -199,8 +199,8 @@ export const STRINGS = {
       filtering: "Request acceptance",
       generating: "Generating Infrastructure as Code",
       validating: "Validating infrastructure configuration",
-      reconciling: "Reconciling drift state",
-      report: "Constructing a final report",
+      reconciling: "Remediating drift state",
+      report: "Generating report",
     },
     /**
      * Appended to a round heading for non-success resting states; success
