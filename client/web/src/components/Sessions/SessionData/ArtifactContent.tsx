@@ -2,19 +2,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Typography from "@mui/material/Typography";
 import { useSearchParams } from "react-router-dom";
-import { fetchArtifactContent } from "@/services/core/sessions";
+import { fetchArtifact, fetchArtifactContent } from "@/services/core/sessions";
 import { useMode } from "@/contexts/ModeContext";
 import type {
   ArtifactRef,
   CodeChangeRef,
   OperationType,
+  PlanType,
   ReportRef,
   ReportType,
   RoundDetail,
-  TerraformPlanRef,
 } from "@/types/api";
 import type { TerraformReport } from "@/types";
 import { STRINGS } from "@/constants/strings";
@@ -46,6 +46,12 @@ interface ArtifactContentProps {
   artifact: ArtifactRef;
   round: RoundDetail;
   operation: OperationType;
+  /**
+   * Reports the flavour that came back with the plan body. Opening a
+   * plan answers the question the timeline was asking anyway, so the
+   * answer goes back up rather than being re-fetched per row.
+   */
+  onPlanType?: (id: number, type: PlanType) => void;
 }
 
 const LABELS = STRINGS.sessions.artifactLabels;
@@ -57,15 +63,21 @@ const REPORT_LABELS: Partial<Record<ReportType, string>> = {
   drift: LABELS.driftReport,
 };
 
-export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string {
+export function artifactLabel(
+  kind: ArtifactKind,
+  artifact: ArtifactRef,
+  planType?: PlanType | null,
+): string {
   switch (kind) {
     case "report":
       return REPORT_LABELS[(artifact as ReportRef).type] ?? LABELS.report;
     case "plan":
       // A drift round stores two plans — the diff and the plan it
-      // produced — and `type` is what tells them apart. It used to be
-      // read back out of the object key embedded in the signed URL.
-      return (artifact as TerraformPlanRef).type === "drift"
+      // produced — and only the object's `type` metadata tells them
+      // apart, so the caller resolves it (`usePlanTypes`) and passes it
+      // in. Unresolved reads the neutral way round: an unlabelled drift
+      // diff is a smaller lie than a plan announced as drift.
+      return planType === "drift"
         ? LABELS.driftOperation
         : LABELS.terraformPlan;
     case "change":
@@ -87,6 +99,7 @@ export default function ArtifactContent({
   artifact,
   round,
   operation,
+  onPlanType,
 }: Readonly<ArtifactContentProps>) {
   const [content, setContent] = useState<string | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
@@ -161,6 +174,13 @@ export default function ArtifactContent({
     [setSearchParams],
   );
 
+  // A notification sink, not a fetch input: kept in a ref so an
+  // unmemoized prop from a caller cannot re-trigger the download.
+  const onPlanTypeRef = useRef(onPlanType);
+  useEffect(() => {
+    onPlanTypeRef.current = onPlanType;
+  });
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -192,9 +212,13 @@ export default function ArtifactContent({
           }
           setFiles(record);
         } else {
-          const text = await fetchArtifactContent(artifact.url);
+          // Body and metadata come from the same response, so the plan's
+          // flavour is free here — no ranged follow-up for an artifact
+          // already on screen.
+          const { text, planType } = await fetchArtifact(artifact.url);
           if (cancelled) return;
           setContent(text);
+          if (planType) onPlanTypeRef.current?.(artifact.id, planType);
         }
       } catch {
         // leave content/files null → error state
@@ -206,7 +230,7 @@ export default function ArtifactContent({
     return () => {
       cancelled = true;
     };
-  }, [kind, artifact.url, round]);
+  }, [kind, artifact.id, artifact.url, round]);
 
   useEffect(() => {
     if (kind === "report") {

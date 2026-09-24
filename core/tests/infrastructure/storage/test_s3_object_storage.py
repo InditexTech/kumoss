@@ -86,13 +86,30 @@ class TestS3ObjectStorage(unittest.IsolatedAsyncioTestCase):
 
     async def test_presigned_get_fetches_via_plain_http(self):
         """The browser path: a raw fetch with no auth headers."""
-        await self.storage.put("signed.json", b'{"ok": true}', "application/json")
+        await self.storage.put("signed.json", b'{"ok": true}', "application/json", {})
         url = self.storage.presigned_get_url("signed.json")
         async with httpx.AsyncClient() as http:
             response = await http.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b'{"ok": true}')
         self.assertEqual(response.headers.get("content-type"), "application/json")
+
+    async def test_ranged_get_returns_206_with_the_type_metadata(self):
+        """The timeline's label path: one byte back, metadata intact.
+
+        ``fetchPlanType`` in the web client reads a plan's flavour without
+        downloading it, which only works if a ranged read still carries
+        the object's metadata headers.
+        """
+        key = "sessions/s/rounds/1/plans/drift-abc12345.txt"
+        await self.storage.put(key, b"a diff", "text/plain", {"type": "drift"})
+        url = self.storage.presigned_get_url(key)
+
+        async with httpx.AsyncClient() as http:
+            response = await http.get(url, headers={"Range": "bytes=0-0"})
+
+        self.assertEqual(response.status_code, 206)
+        self.assertEqual(response.headers["x-amz-meta-type"], "drift")
 
     async def test_presigned_url_shape(self):
         url = self.storage.presigned_get_url("some/key.txt")

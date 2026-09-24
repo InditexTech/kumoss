@@ -51,7 +51,6 @@ function interleavedSession() {
         plans: [
           {
             id: 2,
-            type: "plan",
             targets: [],
             url: "https://storage.example.com/plan",
             content_type: "text/plain",
@@ -127,7 +126,6 @@ describe("SessionData timeline", () => {
               // An artifact stored after the reconciling entry: the
               // drift diff the assessment read, which is what the phase
               // owns before remediation re-plans.
-              type: "plan",
               targets: [],
               url: "https://storage.example.com/plan",
               content_type: "text/plain",
@@ -190,6 +188,72 @@ describe("SessionData terminal state", () => {
     const last = container.querySelectorAll('[class*="timelineEntryLast"]');
     expect(last).toHaveLength(1);
     expect(last[0].textContent).toContain("Generating");
+  });
+});
+
+/**
+ * The window between `create_round` and the new round's first status:
+ * the round row exists and is deliberately kept visible, but carries no
+ * events yet, while `current_status` still reports the resting state the
+ * *previous* round reached.
+ */
+function reopenedSession(status: "completed" | "failed") {
+  return makeSessionDetail({
+    current_status: status,
+    in_flight: true,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        query: "deploy a VM",
+        statuses: [
+          makeStatus("generating", null, at(0)),
+          makeStatus(status, null, at(20)),
+        ],
+      }),
+      makeRound({ number: 2, query: "now add a key vault", statuses: [] }),
+    ],
+  });
+}
+
+describe("SessionData terminal state with a round already reopened", () => {
+  it("keeps the resting status marked on the round that reached it", () => {
+    // Anchoring the marker on the last round by index put it on the empty
+    // one, where no event row exists to carry it, so the Completed row
+    // silently lost its terminal styling every time work resumed.
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("completed")} />,
+    );
+
+    const terminal = container.querySelectorAll(
+      '[class*="timelineOpRowTerminal"]',
+    );
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0].textContent).toContain("Completed");
+  });
+
+  it("leaves the connector line running while the new round is empty", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("completed")} />,
+    );
+
+    // A round opened after the closing one means work resumed; the
+    // trailing line is what says so, so nothing ends the timeline.
+    expect(
+      container.querySelectorAll('[class*="timelineEntryLast"]'),
+    ).toHaveLength(0);
+  });
+
+  it("reddens the round that failed, not the one that followed it", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("failed")} />,
+    );
+
+    const failed = container.querySelectorAll(
+      '[class*="timelineEntryFailed"]',
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0].textContent).toContain("deploy a VM");
+    expect(failed[0].textContent).not.toContain("now add a key vault");
   });
 });
 
@@ -275,7 +339,6 @@ function targetedSession(targets: string[]) {
         plans: [
           {
             id: 11,
-            type: "plan",
             targets,
             url: "https://storage.example.com/plans/plan-abc.txt",
             content_type: "text/plain",

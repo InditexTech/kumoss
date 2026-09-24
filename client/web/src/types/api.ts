@@ -165,11 +165,16 @@ export interface ReportRef extends ArtifactRef {
   type: ReportType;
 }
 
-/** The stored plan flavour: a drift diff, or the plan it produced. */
+/**
+ * The stored plan flavour: a drift diff, or the plan it produced.
+ *
+ * Not a field of `TerraformPlanRef` — the backend keeps it on the stored
+ * object's `type` metadata and never in the database, so it is read with
+ * `fetchPlanType(url)` rather than served in the read model.
+ */
 export type PlanType = "plan" | "drift";
 
 export interface TerraformPlanRef extends ArtifactRef {
-  type: PlanType;
   targets: string[];
 }
 
@@ -193,7 +198,8 @@ export interface PullRequestRef {
  * Every artifact list is ordered oldest to newest. A round can hold
  * several reports and several plans — a drift pass stores the drift
  * diff and the plan it produced, plus one plan per validation
- * iteration — so each plan carries its own `type` to tell them apart.
+ * iteration — and telling those apart means reading each object's
+ * `type` metadata; the payload does not carry it.
  */
 export interface RoundDetail {
   id: number;

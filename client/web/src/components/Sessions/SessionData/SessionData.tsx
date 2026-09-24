@@ -28,6 +28,7 @@ import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
+import { usePlanTypes } from "./usePlanTypes";
 import {
   formatDateParts,
   formatDateTime,
@@ -85,6 +86,12 @@ export default function SessionData({
       return next;
     });
   }, []);
+
+  // A plan's flavour lives on the stored object, not in the payload, so
+  // labelling a row means fetching it. Resolved here, once for the whole
+  // panel, rather than per row: both the timeline and the breadcrumb of
+  // the opened artifact read the same map.
+  const planTypes = usePlanTypes(session.rounds);
 
   const selected: SelectedArtifact | null = useMemo(() => {
     if (!artifactParam) return null;
@@ -156,6 +163,21 @@ export default function SessionData({
       }),
     [timelineRounds],
   );
+
+  // The round holding the session's resting state is the last one *with
+  // events*, not simply the last one. `create_round` opens the next round
+  // before its first status lands, and such a round stays visible on
+  // purpose (see `isBootstrapRound`); during that window `current_status`
+  // still reports the previous round's terminal value, so anchoring on
+  // index alone put the marker on a round with no rows to carry it and
+  // dropped it entirely.
+  const closingIndex = useMemo(() => {
+    if (!isTerminal) return -1;
+    for (let i = roundViews.length - 1; i >= 0; i--) {
+      if (roundViews[i].events.length > 0) return i;
+    }
+    return -1;
+  }, [isTerminal, roundViews]);
 
   const started = formatDateParts(session.created_at);
   // Not `updated_at`: that column has `onupdate`, so releasing the apply
@@ -287,15 +309,18 @@ export default function SessionData({
               {/* Rounds */}
               {roundViews.map(({ round, events, meta }, roundIndex) => {
                 // The session's resting state lives on the event row that
-                // recorded it, so the last round closes the timeline: it
-                // terminates the connector line and carries the failure
+                // recorded it, so the closing round carries the failure
                 // colour that a separate trailing entry used to.
-                const closing =
-                  isTerminal && roundIndex === roundViews.length - 1;
+                const closing = roundIndex === closingIndex;
+                // The connector line stops only when that round is also
+                // the last thing rendered. A round opened after it means
+                // work resumed, and the trailing line is what says so.
+                const endsTimeline =
+                  closing && roundIndex === roundViews.length - 1;
                 return (
                   <div
                     key={round.id}
-                    className={`${styles.timelineEntry}${closing ? ` ${styles.timelineEntryLast}` : ""}${closing && hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
+                    className={`${styles.timelineEntry}${endsTimeline ? ` ${styles.timelineEntryLast}` : ""}${closing && hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
                   >
                     <div className={styles.timelineDot} />
                     <div className={styles.timelineContent}>
@@ -417,7 +442,11 @@ export default function SessionData({
                                         round,
                                         artifact as CodeChangeRef,
                                       )
-                                    : artifactLabel(kind, artifact);
+                                    : artifactLabel(
+                                        kind,
+                                        artifact,
+                                        planTypes.get(artifact.id),
+                                      );
                                 return (
                                   <div
                                     key={`${kind}:${artifact.id}`}
@@ -646,7 +675,11 @@ export default function SessionData({
                 <span>{roundTitle(selected.round, session)}</span>
               </span>
               <span className={styles.breadcrumbCurrent}>
-                {artifactLabel(selected.kind, selected.artifact)}
+                {artifactLabel(
+                  selected.kind,
+                  selected.artifact,
+                  planTypes.get(selected.artifact.id),
+                )}
               </span>
             </span>
           }
@@ -656,6 +689,7 @@ export default function SessionData({
             artifact={selected.artifact}
             round={selected.round}
             operation={session.operation}
+            onPlanType={planTypes.record}
           />
         </PageOverlay>
       )}

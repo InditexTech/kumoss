@@ -50,7 +50,6 @@ function plan(id: number, second: number): TerraformPlanRef {
   return {
     ...artifactBase,
     id,
-    type: "plan",
     targets: [],
     created_at: at(second),
   };

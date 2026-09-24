@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { createWrapper } from "@/test/render";
+import { useAssistantMsg } from "@/contexts/AssistantMsgContext";
+import { PHASE } from "@/types/ui";
 import type { SseConnection } from "@/services/core/events";
 import type { TerraformActionParams } from "@/services/workflows/terraform_action";
 import type { SessionOutcome } from "@/services/workflows/session_outcome";
@@ -613,6 +615,35 @@ describe("useTerraformActions", () => {
 
     // Still streaming (not completed/failed)
     expect(result.current.state.status).toBe("streaming");
+  });
+
+  it("RECONCILING drives the running phase", async () => {
+    // The smoke test above cannot catch a missing `case "RECONCILING"`:
+    // an unmapped status returns null, the hook skips the state write,
+    // and `state` stays "streaming" either way while the assistant sits
+    // on the previous step. The context is where that difference shows.
+    const useTerraformActions = await importHook();
+    const wrapper = createWrapper({ withAssistantMsg: true });
+    const { result } = renderHook(
+      () => ({ actions: useTerraformActions(), assistant: useAssistantMsg() }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.actions.run(defaultParams);
+    });
+    await act(async () => {
+      mockSseConnection.onmessage?.(
+        sseEvent("RECONCILING", "Reconciling drift state"),
+      );
+    });
+
+    expect(result.current.assistant.assistantMsgState).toMatchObject({
+      pipelineStep: PHASE.RUNNING,
+      sseStatus: "RECONCILING",
+      msg: "Reconciling drift state",
+    });
+    expect(result.current.actions.state.status).toBe("streaming");
   });
 });
 

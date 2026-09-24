@@ -48,6 +48,13 @@ adds an unconditional `Access-Control-Allow-Origin: *` header. Do not
 reproduce the wildcard CORS header in production — scope it to your
 real origin. With S3 or Azure this is the provider's own endpoint and
 its own CORS configuration applies instead.
+
+The endpoint must also expose the object's `type` metadata header, or
+the session timeline cannot tell a drift diff from the plan that
+resolved it and labels both as plain plans. The reference proxy sets
+`Access-Control-Expose-Headers: x-amz-meta-type`; a swapped-in S3
+bucket needs `ExposeHeaders: ["x-amz-meta-type"]` in its CORS rule, and
+Azure Blob needs `ExposedHeaders: x-ms-meta-type`.
 |===
 
 Other settings that follow from the origin:

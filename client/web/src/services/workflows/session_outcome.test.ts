@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
 import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
-import type { PlanType, ReportRef, TerraformPlanRef } from "@/types/api";
+import type { ReportRef, TerraformPlanRef } from "@/types/api";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
@@ -37,9 +37,8 @@ function planRef(
   id: number,
   path: string,
   targets: string[],
-  type: PlanType = "plan",
 ): TerraformPlanRef {
-  return { ...artifactRef(id, path), type, targets };
+  return { ...artifactRef(id, path), targets };
 }
 
 beforeEach(() => {
@@ -91,7 +90,10 @@ describe("resolveSessionOutcome", () => {
             statuses: [makeStatus("started"), makeStatus("completed")],
             reports: [reportRef(10, "report.json")],
             plans: [
-              planRef(11, "drift.txt", ["a.b"], "drift"),
+              // The drift diff, then the plan that resolved it. Which is
+              // which is object metadata the read model never carries, so
+              // `resolveSessionOutcome` can only go by order.
+              planRef(11, "drift.txt", ["a.b"]),
               planRef(12, "final.txt", ["c.d"]),
             ],
           }),

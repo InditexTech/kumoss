@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
@@ -168,16 +168,54 @@ describe("ArtifactContent apply reports", () => {
   });
 });
 
+describe("ArtifactContent plan metadata", () => {
+  it("reports the flavour that came back with the plan body", async () => {
+    // The point of the merged read: one request yields the plan and the
+    // `type` metadata the timeline needed, so opening a plan costs no
+    // extra round trip to learn what it is.
+    let requests = 0;
+    const ref: TerraformPlanRef = {
+      id: 42,
+      url: `${STORAGE}/plan.txt`,
+      content_type: "text/plain",
+      file_size_bytes: 10,
+      created_at: "2026-01-01T00:00:00Z",
+      targets: [],
+    };
+    server.use(
+      http.get(`${STORAGE}/plan.txt`, () => {
+        requests += 1;
+        return HttpResponse.text("# drift diff", {
+          headers: { "x-amz-meta-type": "drift" },
+        });
+      }),
+    );
+    const onPlanType = vi.fn();
+
+    renderWithProviders(
+      <ArtifactContent
+        kind="plan"
+        artifact={ref}
+        round={makeRound({ plans: [ref] })}
+        operation="drift"
+        onPlanType={onPlanType}
+      />,
+    );
+
+    await waitFor(() => expect(onPlanType).toHaveBeenCalledWith(42, "drift"));
+    expect(requests).toBe(1);
+  });
+});
+
 describe("artifactLabel for plans", () => {
   const SIG = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123";
   const KEYED = (flavour: string) =>
     `${STORAGE}/nebula-artifacts/sessions/s1/rounds/8/plans/${flavour}-ee05fba7.txt?${SIG}`;
 
-  function planRef(type: PlanType, url = KEYED(type)): TerraformPlanRef {
+  function planRef(url = KEYED("plan")): TerraformPlanRef {
     return {
       id: 7,
       url,
-      type,
       content_type: "text/plain",
       file_size_bytes: 8633,
       created_at: "2026-01-01T00:00:00Z",
@@ -186,22 +224,34 @@ describe("artifactLabel for plans", () => {
   }
 
   it("labels a drift plan as a drift operation", () => {
-    expect(artifactLabel("plan", planRef("drift"))).toBe("Drift Operation");
+    expect(artifactLabel("plan", planRef(), "drift")).toBe("Drift Operation");
   });
 
   it("labels a plain plan as a terraform plan", () => {
-    expect(artifactLabel("plan", planRef("plan"))).toBe("Terraform Plan");
+    expect(artifactLabel("plan", planRef(), "plan")).toBe("Terraform Plan");
   });
 
-  it("reads the flavour from the payload, not the signed URL", () => {
+  it("reads the flavour from the resolved metadata, not the signed URL", () => {
     // The label used to be recovered by parsing the object key out of the
-    // presigned URL. `type` is the contract now, so a URL that disagrees
-    // with it — a renamed key, a proxied download — must not win.
-    expect(artifactLabel("plan", planRef("drift", KEYED("plan")))).toBe(
+    // presigned URL. The object's `type` metadata is the source now — the
+    // caller resolves it and passes it in — so a URL that disagrees with
+    // it (a renamed key, a proxied download) must not win.
+    expect(artifactLabel("plan", planRef(KEYED("plan")), "drift")).toBe(
       "Drift Operation",
     );
-    expect(artifactLabel("plan", planRef("plan", KEYED("drift")))).toBe(
+    expect(artifactLabel("plan", planRef(KEYED("drift")), "plan")).toBe(
       "Terraform Plan",
     );
   });
+
+  it.each([undefined, null] as const)(
+    "falls back to the neutral label when the flavour is %s",
+    (flavour: PlanType | null | undefined) => {
+      // An unreadable object must not be announced as drift: an unlabelled
+      // diff is a smaller lie than a plan presented as one.
+      expect(artifactLabel("plan", planRef(KEYED("drift")), flavour)).toBe(
+        "Terraform Plan",
+      );
+    },
+  );
 });

@@ -107,19 +107,18 @@ class ArtifactStorageService:
             round_id: Round pk the plan belongs to.
             targets: Terraform targets the plan covers.
             content: Plan body; str is stored utf-8 encoded.
-            content_type: MIME type served on reads (max 20 chars).
+            content_type: MIME type served on reads (max 64 chars).
             metadata: Metadata attached to the object.
             is_drift: Whether ``content`` is a drift diff rather than a
-                plan. Recorded in the object key prefix (``drift-`` vs
-                ``plan-``) and under the object's ``type`` metadata key;
-                the read model still returns a round's plans unlabelled,
-                in order.
+                plan. Recorded on the stored object only — in its key
+                prefix (``drift-`` vs ``plan-``) and under its ``type``
+                metadata key. The ``terraform_plans`` row holds no
+                flavour, so a client that needs one reads the object.
         """
         data = self.__encode(content)
         kind = "drift" if is_drift else "plan"
         key = (
-            f"sessions/{session_id}/rounds/{round_id}"
-            + f"/plans/{kind}-{_token()}.txt"
+            f"sessions/{session_id}/rounds/{round_id}" + f"/plans/{kind}-{_token()}.txt"
         )
         return await self.__store(
             key=key,
@@ -155,7 +154,7 @@ class ArtifactStorageService:
             file_name: Original (possibly nested) file path; stored
                 verbatim in the DB, sanitized inside the object key.
             content: File body; str is stored utf-8 encoded.
-            content_type: MIME type served on reads (max 20 chars).
+            content_type: MIME type served on reads (max 64 chars).
             metadata: Metadata attached to the object.
         """
         data = self.__encode(content)

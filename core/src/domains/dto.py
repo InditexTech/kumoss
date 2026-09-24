@@ -437,7 +437,12 @@ class ReportRef(ArtifactRef):
 
 
 class TerraformPlanRef(ArtifactRef):
-    """Read model: a terraform plan artifact plus its resource targets."""
+    """Read model: a terraform plan artifact plus its resource targets.
+
+    Carries no flavour: whether a row is a drift diff or the plan that
+    resolved it lives on the stored object, under its ``type`` metadata
+    key, and is read from there by the client.
+    """
 
     targets: list[str]
 
@@ -466,8 +471,8 @@ class RoundDetail(BaseModel):
     ``reports`` and ``plans`` hold *every* artifact of the round, oldest
     first by ``(created_at, id)``. A drift pass stores its diff and the
     plan that resolved it, and each validation iteration adds another, so
-    a round routinely holds several of both. Drift plans carry no label:
-    clients tell them apart by order.
+    a round routinely holds several of both. Plans carry no flavour here:
+    a client that needs one reads the object's ``type`` metadata.
     """
 
     id: int
