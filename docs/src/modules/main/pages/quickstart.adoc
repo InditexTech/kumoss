@@ -51,6 +51,20 @@ orchestration:
   block_on_high_impact: true
 ----
 
+Apart from the Git credentials you set in the next step, you may need to
+change the Git provider. `git.provider` must name the host of your
+repository and defaults to `GITHUB`; for Azure DevOps or GitLab, add it to
+the file:
+
+[source,yaml]
+----
+git:
+  provider: "GITLAB"  # or "AZURE_DEVOPS"
+----
+
+Accepted values and the supported hosts:
+xref:main:reference/configuration.adoc#config-git[`git` configuration].
+
 === 3. Fill in core/.env
 
 Set:
@@ -60,7 +74,7 @@ Set:
   xref:main:reference/llm-providers.adoc#provider-credentials[provider
   credential variables]. The core will not run without them.
 * `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
-  provider named by `git.provider` (GitHub, Azure DevOps or GitLab).
+  provider named by `git.provider` defined in above in `config.yaml`.
 
 Keep the remaining sample values: they match the bundled containers. Every
 variable: xref:main:reference/environment-variables.adoc[Environment
