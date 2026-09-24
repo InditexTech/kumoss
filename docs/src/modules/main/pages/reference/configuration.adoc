@@ -454,6 +454,15 @@ thinking).
 |Optional
 |Completion cap sent on every call.
 
+|`llm.timeout`
+|float (seconds, must be `> 0`)
+|`600.0`
+|`600`
+|Optional
+|Per-request budget LiteLLM enforces on a single inference call, chat
+completions and the web-search Responses path alike. Each of the three
+internal retries gets a fresh budget.
+
 |`llm.model_list`
 |list of LiteLLM Router entries
 |`[]`

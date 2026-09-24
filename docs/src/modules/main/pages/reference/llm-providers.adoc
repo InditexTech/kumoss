@@ -45,7 +45,7 @@ compliance checker, status messages, and the LLM calls that some tools
 make internally (for example web search).
 |===
 
-Two extra settings apply to both roles:
+Three extra settings apply to both roles:
 
 [cols="1,1,4",options="header"]
 |===
@@ -63,6 +63,13 @@ fixed `0.5`.
 |Sent as `max_tokens` (or `max_output_tokens` for the web-search path)
 on every call. Lower it if your provider caps completions below this
 value.
+
+|`llm.timeout`
+|`600`
+|Seconds LiteLLM waits for a single inference call before aborting it.
+Each of the three internal retries gets a fresh budget, so the worst
+case for one inference is four times this value. Raise it for slow
+reasoning models, lower it to fail faster on a stalled provider.
 |===
 
 The core passes `drop_params=True` to LiteLLM, so a provider that does
@@ -624,11 +631,12 @@ an error on the first call for an alias with no matching entry. Make
 both values equal to a `model_name` from the list.
 
 *Requests time out or the endpoint is unreachable.* Each chat
-completion call has a 120-second timeout and `num_retries=3` inside
-LiteLLM. The web-search Responses API fallback path is different: it
+completion call has an `llm.timeout` budget (600 seconds by default)
+and `num_retries=3` inside LiteLLM. The web-search Responses API
+fallback path uses the same timeout but is otherwise different: it
 retries up to 4 attempts with 30-second sleeps between them and sets no
 `num_retries`, so a slow or flaky OpenAI-compatible endpoint can stall
-that path for minutes. For self-hosted endpoints, remember that the
+that path for a long time. For self-hosted endpoints, remember that the
 core runs inside the compose network: `localhost` refers to the core
 container, not to the host. Use the service name or the host's
 routable address in `api_base`, and make sure any TLS certificate is
