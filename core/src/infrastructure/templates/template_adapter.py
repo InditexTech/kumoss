@@ -138,20 +138,17 @@ class TemplateAdapter(ITemplate):
                 f"{resource}:\n{content}"
                 for resource, content in resources_content.items()
             )
-        import_exceptions: str = await remote_fetcher.fetch(
-            prompt_name="import_exceptions",
-            scope=self._scope,
-            type="guidelines",
-            tag=system_config.environment,
-        )
         t = self._get_template(self._core + "import_filter.jinja")
         return t.render(
             UNMANAGED_IDS=unmanaged_ids,
-            IMPORT_EXCEPTIONS=import_exceptions,
             CONCRETE_IMPLEMENTATION="\n".join(concrete_implementations)
             if concrete_implementations
             else None,
         )
+
+    @override
+    async def render_import_exceptions(self) -> str:
+        return await self._fetch_guidelines("import_exceptions")
 
     @override
     async def render_iac_generator(

@@ -28,6 +28,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    async def render_import_exceptions(self) -> str:
+        pass
+
+    @abstractmethod
     async def render_target_generator(
         self,
         mode: TargetGenerationMode,

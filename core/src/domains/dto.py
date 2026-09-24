@@ -177,10 +177,14 @@ class TerraformDiscoveryDTO:
     diagnostics), the scope holds nothing importable, or everything in it
     is already managed. The state read has no tolerated failure of its
     own: it either answers with an empty ``feedback`` or raises.
+
+    On the diff, ``excluded`` holds the unmanaged IDs the import exception
+    list withheld, so the round can report what it skipped on purpose.
     """
 
     resource_ids: list[str]
     feedback: str = ""
+    excluded: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:

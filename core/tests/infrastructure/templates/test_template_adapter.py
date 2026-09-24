@@ -368,6 +368,42 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("{{", prompt)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_import_exceptions_returns_the_scope_list(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.return_value = "- /subscriptions/s/resourceGroups/rg-a"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+
+        body = await adapter.render_import_exceptions()
+
+        mock_fetch.assert_awaited_once_with(
+            prompt_name="import_exceptions",
+            scope="azure",
+            type="guidelines",
+            tag=system_config.environment,
+        )
+        # Returned verbatim: reading the IDs out of it is the caller's job.
+        self.assertEqual(body, "- /subscriptions/s/resourceGroups/rg-a")
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_import_filter_leaves_exceptions_to_code(
+        self, mock_fetch: AsyncMock
+    ):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+
+        prompt = await adapter.render_import_filter(
+            unmanaged_ids=["res-1"], resources=[], abbreviations=[]
+        )
+
+        self.assertIn("- res-1", prompt)
+        self.assertNotIn("exception", prompt.lower())
+        mock_fetch.assert_not_awaited()
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):
         mock_fetch.return_value = "mocked_drift_guidelines"
         adapter = TemplateAdapter(

@@ -218,6 +218,14 @@ placeholder with no exceptions.
 |Drift exception filter, in every drift round and every generate round's
 drift pre-check
 
+|`import_exceptions`
+|Resource IDs an import round must never bring under Terraform, one
+Markdown bullet per ID. Parsed by the core, not read by a model; see
+<<import-exception-list>>. Ships as a placeholder with no exceptions,
+for every cloud except `kubernetes`.
+|Import scope diff, in every import round that finds unmanaged
+resources
+
 |`forbidden_actions`
 |Actions the agents must refuse or avoid (for example destructive
 operations).
@@ -295,8 +303,9 @@ today: `aws-resources-s3_bucket`, `azure-resources-storage_account`,
 
 == Shipped seed inventory
 
-Every cloud scope ships the same seven guideline prompts; the resource
-prompts differ per cloud.
+The `aws`, `azure`, `gcp` and `oci` scopes ship the same eight guideline
+prompts; `kubernetes` ships seven, without `import_exceptions`. The
+resource prompts differ per cloud.
 
 [cols="1,3,4,1",options="header"]
 |===
@@ -308,16 +317,18 @@ prompts differ per cloud.
 |`impact`, `report`
 
 |`aws`
-|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
-`permissions`, `resource_creation`, `resources_list`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
 |`aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`,
 `internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`,
 `route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc`
 |none
 
 |`azure`
-|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
-`permissions`, `resource_creation`, `resources_list`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
 |`application_insights`, `azure_openai`, `container_app`, `cosmosdb`,
 `function`, `key_vault`, `nat_gateway`, `network_security_group`,
 `postgres_flexible_server`, `redis_managed`, `resource_group`,
@@ -326,8 +337,9 @@ prompts differ per cloud.
 |none
 
 |`gcp`
-|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
-`permissions`, `resource_creation`, `resources_list`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
 |`bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`,
 `cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`,
 `project`, `service_account`, `spanner`, `storage_bucket`,
@@ -335,8 +347,9 @@ prompts differ per cloud.
 |none
 
 |`oci`
-|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
-`permissions`, `resource_creation`, `resources_list`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
 |`autonomous_database`, `block_volume`, `compute_instance`,
 `dns_zone`, `file_storage`, `functions`, `iam_policy`,
 `internet_gateway`, `load_balancer`, `nat_gateway`,
@@ -379,7 +392,16 @@ sessions abort with `Prompt not found`:
 |Drift exception filter (every drift round and every generate round's
 drift pre-check)
 |`<cloud>-guidelines-drift_exceptions`
+
+|Import scope diff (every import round that finds unmanaged resources)
+|`<cloud>-guidelines-import_exceptions`
 |===
+
+The import exception list is only read once the scope listing has
+returned resources that the state does not track. Only Azure, GCP and
+AWS have a scope listing, so an `oci` or `kubernetes` import round
+stops before it would ask for the prompt, and `kubernetes` ships
+without one.
 
 Keep this in mind when you delete a prompt in Phoenix or trim the seed
 set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
@@ -467,6 +489,71 @@ under `whitelisted_exceptions` in the report, quoting the carve-out — with
 the outcome still `Succeeded`, because nothing was left unreconciled
 involuntarily.
 
+[#import-exception-list]
+== Import exception list
+
+`<cloud>-guidelines-import_exceptions` names the resources an import
+round must never bring under Terraform, even when they exist in the
+cloud scope and the state does not track them. Unlike every other
+prompt, it is not written for a model. The core parses the body itself
+and removes the listed IDs from the scope diff before anything else
+sees it:
+
+* The list applies on *every* import round, full scope or partial. A
+  withheld resource never reaches the `import_filter` selection agent,
+  the IaC generator, or `terraform import`, so neither a broad request
+  nor a model's selection can bring it back.
+* The comparison follows the same rule as the diff against the state.
+  Azure ARM IDs match case-insensitively, so
+  `/subscriptions/.../resourceGroups/rg-a` also withholds a scope entry
+  spelled `/resourcegroups/RG-A`. GCP and AWS IDs match exactly, because
+  two of their resources can differ only by case.
+* What was withheld is not an error. The import report receives it as
+  `excluded_resource_ids` and names each one as skipped on purpose. When
+  every unmanaged resource in the scope is withheld, the round ends with
+  `Every unmanaged resource in the scope <scope> is on the import
+  exception list.` and an empty report.
+* An ID on the list that is not in the scope, or is already managed,
+  has no effect and is not reported.
+
+This is not the same brake as
+<<drift-exception-rules,`drift_exceptions`>>. Drift exception rules are
+prose that an agent matches against drift operations. The import
+exception list is a list of exact IDs, enforced in code.
+
+=== How to write one
+
+Put each resource ID on its own Markdown bullet (`-` or `*`), exactly
+as the cloud's scope listing returns it: the full ARM ID for Azure, the
+asset name without the `//service.googleapis.com/` prefix for GCP (for
+project IAM, the space-separated `<project-id> <role> <member>` entry),
+and the ARN for AWS. See
+xref:main:reference/api/iac.adoc[IaC sidecar API] for the exact shapes.
+Backticks around the ID are optional. Every line that is not a bullet
+is ignored, so headings and explanations stay readable in Phoenix, but
+keep them in plain paragraphs: a bullet of prose would be read as an ID.
+
+[source,yaml]
+----
+body: |
+  # Import Exception List — Azure
+
+  The shared platform resources are owned by the platform team and
+  must stay out of workload repositories.
+
+  - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform
+  - `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform/providers/Microsoft.KeyVault/vaults/kvt-shared-001`
+----
+
+Each ID withholds that one resource only. Listing a resource group does
+not withhold the resources inside it, which appear in the scope listing
+under their own IDs.
+
+NOTE: Before this list was parsed by the core, the `import_filter`
+agent read it as prose. Seeding never overwrites, so a deployment whose
+list was curated in free text keeps that text: any ID not written as a
+bullet is now silently ignored. Rewrite such lists as bullets.
+
 == How prompts are composed into a system prompt
 
 For a generate or drift round the core builds the conventions in two
@@ -501,6 +588,11 @@ model passes and then renders the layouts:
 The layouts also carry fixed content that is not in Phoenix: the
 agent's role, the tools it may call, output format rules, and the
 working directory. Those change only with a core rebuild.
+
+`<cloud>-guidelines-import_exceptions` is the one prompt that is never
+rendered into a layout: the core reads the IDs out of it, and the
+`import_filter` layout only receives what is left after they are
+removed.
 
 *Discovery depends on `resources_list`.* Nothing enumerates the
 `<cloud>-resources-*` prompts that exist in Phoenix. The compositor can

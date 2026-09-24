@@ -168,7 +168,10 @@ class ImportRequest(BaseIacRequest):
         Field(
             min_length=1,
             description="User query for this call.",
-            examples=["Import the storage account staweu1001"],
+            examples=[
+                "Import every unmanaged resource in the subscription",
+                "Import the storage account staweu1001",
+            ],
         ),
     ]
 

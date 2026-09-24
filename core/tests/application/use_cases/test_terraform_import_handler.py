@@ -35,9 +35,13 @@ from src.shared.constants import (
 )
 
 
-def _discovery(resource_ids: list[str], feedback: str = "") -> TerraformDiscoveryDTO:
+def _discovery(
+    resource_ids: list[str], feedback: str = "", excluded: list[str] | None = None
+) -> TerraformDiscoveryDTO:
     """Build a discovery outcome: ids to import, or the reason there are none."""
-    return TerraformDiscoveryDTO(resource_ids=resource_ids, feedback=feedback)
+    return TerraformDiscoveryDTO(
+        resource_ids=resource_ids, feedback=feedback, excluded=excluded or []
+    )
 
 
 def _plan_dto(
@@ -288,6 +292,45 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.requests_filter_svc.filter.assert_not_awaited()
         self.validation_svc.generate_and_validate.assert_not_awaited()
         self.session_svc.save.assert_awaited_once()
+
+    async def test_fully_withheld_scope_reports_the_excluded_ids(self):
+        self.import_svc.get_unmanaged_resources.return_value = _discovery(
+            [],
+            "Every unmanaged resource in the scope scope-123 is on the "
+            + "import exception list.",
+            excluded=["res-9"],
+        )
+
+        task = await self.handler.handle("import everything", is_partial=False)
+        await task()
+
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(payload["excluded_resource_ids"], ["res-9"])
+        self.assertIn("import exception list", payload["summary"])
+        self.validation_svc.generate_and_validate.assert_not_awaited()
+
+    async def test_full_round_reports_the_ids_the_exception_list_withheld(self):
+        self.import_svc.get_unmanaged_resources.return_value = _discovery(
+            ["res-1"], excluded=["res-9"]
+        )
+        self.validation_svc.generate_and_validate.return_value = _plan_dto(True)
+        self.import_address_svc.get_import_addresses.return_value = []
+        self.import_svc.import_resources.return_value = _import_outcome()
+
+        task = await self.handler.handle("import everything", is_partial=False)
+        await task()
+
+        # The withheld id never reaches generation, but the report names it
+        # so the user knows it was skipped on purpose.
+        gen_q = self.validation_svc.generate_and_validate.await_args.kwargs["q"]
+        self.assertNotIn("res-9", gen_q)
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(payload["selected_resource_ids"], ["res-1"])
+        self.assertEqual(payload["excluded_resource_ids"], ["res-9"])
 
     # --- Step 3: Config generation ---
 

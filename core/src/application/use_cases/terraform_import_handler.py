@@ -66,14 +66,18 @@ class TerraformImportHandler:
         self.__task_svc = task_service
         self.__ctx = session_ctx
 
-    async def __report_nothing_to_import(self, q: str, msg: str) -> None:
+    async def __report_nothing_to_import(
+        self, q: str, msg: str, excluded: list[str]
+    ) -> None:
         """Close a round that found nothing to import with an empty report.
 
-        The scope could not be listed, holds nothing importable or is
-        already fully managed, or the request targets nothing unmanaged —
-        ``msg`` says which. Reporting instead of dead-ending leaves the session
-        completed: the runner marks any handler that returns without setting
-        UNCOMPLETED as completed.
+        The scope could not be listed, holds nothing importable, is already
+        fully managed or withheld by the import exception list, or the
+        request targets nothing unmanaged — ``msg`` says which, and
+        ``excluded`` names what the exception list withheld. Reporting
+        instead of dead-ending leaves the session completed: the runner
+        marks any handler that returns without setting UNCOMPLETED as
+        completed.
         """
         ctx = self.__ctx
         ctx.history.append_turn(q, msg)
@@ -83,6 +87,7 @@ class TerraformImportHandler:
             content=json.dumps(
                 {
                     "selected_resource_ids": [],
+                    "excluded_resource_ids": excluded,
                     "import_results": asdict(
                         TerraformImportDTO(imported=[], failed=[])
                     ),
@@ -127,7 +132,9 @@ class TerraformImportHandler:
                 )
                 unmanaged_ids = discovery.resource_ids
                 if not unmanaged_ids:
-                    await self.__report_nothing_to_import(q, discovery.feedback)
+                    await self.__report_nothing_to_import(
+                        q, discovery.feedback, discovery.excluded
+                    )
                     return
 
                 selected_ids: list[str] = unmanaged_ids
@@ -145,6 +152,7 @@ class TerraformImportHandler:
                             q,
                             msg=filtered.explanation
                             or "No unmanaged resource matched the request.",
+                            excluded=discovery.excluded,
                         )
                         return
 
@@ -219,6 +227,7 @@ class TerraformImportHandler:
                     content=json.dumps(
                         {
                             "selected_resource_ids": selected_ids,
+                            "excluded_resource_ids": discovery.excluded,
                             "import_results": asdict(import_results),
                             "plan_after_import": plan_after_import,
                         }

@@ -327,9 +327,11 @@ class ApplicationFactory:
     @staticmethod
     def _get_import_service(
         import_provider: ITerraform,
+        template_service: TemplateOrchestrationService,
     ) -> TerraformImportService:
         return TerraformImportService(
             import_provider=import_provider,
+            template_service=template_service,
         )
 
     # --- Providers for Top-Level Use Cases ---
@@ -520,6 +522,7 @@ class ApplicationFactory:
         )
         import_svc = self._get_import_service(
             import_provider=terraform_prv,
+            template_service=template_svc,
         )
         import_address_svc = self._get_terraform_import_address_service(
             tool_svc, llm_svc, template_svc
