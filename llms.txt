@@ -56,12 +56,11 @@
 - [Glossary](/stable/main/glossary/): Terms and abbreviations used across the Nebula documentation.
 - [Guides](/stable/main/guides-overview/): Task guides for using, operating, and developing Nebula, grouped by what you want to do.
 - [Reference](/stable/main/reference-overview/): Lookup material for Nebula: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
-- [Quickstart](/stable/main/quickstart/): Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [Administer users and locks](/stable/main/guides/administer-users-and-locks/): Sign in and reach the admin panel, review any user's sessions, and manage session locks and roles.
 - [Generate infrastructure](/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
 - [Import infrastructure](/stable/main/guides/import-infrastructure/): Understand what the Import Infrastructure mode does today, and what it does not yet do.
-- [Merge and apply](/stable/main/guides/merge-and-apply/): Handle a locked session, then open, merge, and apply a Nebula pull request.
 - [Make a request](/stable/main/guides/make-a-request/): Open a Nebula session and phrase a request that the filter accepts.
+- [Merge and apply](/stable/main/guides/merge-and-apply/): Handle a locked session, then open, merge, and apply a Nebula pull request.
 - [Remediate drift](/stable/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
 - [Data and state](/stable/main/architecture/data-and-state/): What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
 - [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
@@ -74,22 +73,23 @@
 - [Repository layout](/stable/main/reference/repository-layout/): How Nebula finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
 - [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Nebula — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
 - [Frequently asked questions](/stable/main/faq/): Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
-- [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
 - [Customize prompts](/stable/main/guides/customize-prompts/): Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+- [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
 - [Terraform providers](/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
-- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
+- [Quickstart](/stable/main/quickstart/): Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [Sidecar-supplied backend](/stable/main/guides/state-backends/sidecar-supplied/): Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
 - [Configuration](/stable/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
+- [End-to-end flow](/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 - [LLM providers and models](/stable/main/reference/llm-providers/): How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
 - [Hardening](/stable/main/guides/production/hardening/): Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.
-- [Operations](/stable/main/guides/production/operations/): Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.
 - [Networking and TLS](/stable/main/guides/production/networking-and-tls/): Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.
+- [Operations](/stable/main/guides/production/operations/): Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.
 - [Nebula-managed state](/stable/main/guides/state-backends/nebula-managed/): The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 - [Prerequisites](/stable/main/prerequisites/): What the local Docker Compose deployment is for and what you need before following the quickstart.
 - [Authorization sidecar API](/stable/main/reference/api/authz/): The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
 - [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
-- [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
 - [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
+- [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
 - [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
 - [Core API](/stable/main/reference/api/core/): Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 - [IaC sidecar API](/stable/main/reference/api/iac/): The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
