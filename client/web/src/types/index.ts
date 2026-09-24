@@ -139,6 +139,25 @@ export interface TerraformReport {
   [key: string]: unknown;
 }
 
+// ─── Compliance Check ───────────────────────────────────────
+
+export type ComplianceSeverity = "info" | "warning" | "error" | "critical";
+
+export interface ComplianceViolation {
+  rule_id: string;
+  severity: ComplianceSeverity;
+  resource?: string | null;
+  message: string;
+  suggested_fix?: string | null;
+}
+
+export interface ComplianceReport {
+  passed: boolean;
+  violations?: ComplianceViolation[];
+  summary?: string;
+  checked_rules?: string[];
+}
+
 // ─── Events ─────────────────────────────────────────────────
 
 export interface EventMessage {

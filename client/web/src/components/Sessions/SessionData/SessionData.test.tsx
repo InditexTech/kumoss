@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeSessionDetail } from "@/mocks/state";
+import { makeRound, makeSessionDetail } from "@/mocks/state";
 import { renderWithProviders } from "@/test/render";
 import SessionData from "./SessionData";
 
@@ -16,6 +16,28 @@ describe("SessionData additional info", () => {
 
     expect(screen.getByText("Session ID")).toBeInTheDocument();
     expect(screen.getByText(uuid)).toBeInTheDocument();
+  });
+});
+
+describe("SessionData artifacts", () => {
+  it("lists the round's compliance check alongside the other artifacts", () => {
+    const session = makeSessionDetail({
+      rounds: [
+        makeRound({
+          compliance: {
+            id: 7,
+            url: "https://storage.test/compliance.json",
+            content_type: "application/json",
+            file_size_bytes: 10,
+            created_at: "2026-01-01T00:00:00Z",
+            passed: false,
+          },
+        }),
+      ],
+    });
+    renderWithProviders(<SessionData session={session} />);
+
+    expect(screen.getByText("Compliance Check")).toBeInTheDocument();
   });
 });
 

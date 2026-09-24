@@ -19,7 +19,7 @@ import {
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
 import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
-import type { TerraformReport, PlanSummary } from "@/types";
+import type { ComplianceReport, TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
 // ─── Outcome model ─────────────────────────────────────────────
@@ -30,6 +30,7 @@ export type SessionOutcome =
       detail: SessionDetail;
       round: RoundDetail;
       report: TerraformReport | null;
+      compliance: ComplianceReport | null;
       code: string;
       targets: string[] | undefined;
     }
@@ -109,6 +110,7 @@ export async function waitForNewRound(
 
 export interface RoundArtifacts {
   report: TerraformReport | null;
+  compliance: ComplianceReport | null;
   code: string;
   targets: string[] | undefined;
 }
@@ -143,18 +145,22 @@ async function fetchRoundArtifacts(
   rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
   const codeChanges = collectCodeChanges(rounds);
-  const [reportContent, planContent, ...fileContents] = await Promise.all([
-    round.report
-      ? fetchArtifactContent(round.report.url)
-      : Promise.resolve(null),
-    round.plan ? fetchArtifactContent(round.plan.url) : Promise.resolve(null),
-    ...codeChanges.map(async ([fileName, changes]) => {
-      const contents = await Promise.all(
-        changes.map((c) => fetchArtifactContent(c.url)),
-      );
-      return composeFileArtifacts(fileName, contents);
-    }),
-  ]);
+  const [reportContent, complianceContent, planContent, ...fileContents] =
+    await Promise.all([
+      round.report
+        ? fetchArtifactContent(round.report.url)
+        : Promise.resolve(null),
+      round.compliance
+        ? fetchArtifactContent(round.compliance.url)
+        : Promise.resolve(null),
+      round.plan ? fetchArtifactContent(round.plan.url) : Promise.resolve(null),
+      ...codeChanges.map(async ([fileName, changes]) => {
+        const contents = await Promise.all(
+          changes.map((c) => fetchArtifactContent(c.url)),
+        );
+        return composeFileArtifacts(fileName, contents);
+      }),
+    ]);
 
   let report: TerraformReport | null = null;
   if (reportContent) {
@@ -162,6 +168,15 @@ async function fetchRoundArtifacts(
       report = JSON.parse(reportContent);
     } catch {
       // ignore malformed report
+    }
+  }
+
+  let compliance: ComplianceReport | null = null;
+  if (complianceContent) {
+    try {
+      compliance = JSON.parse(complianceContent);
+    } catch {
+      // ignore malformed compliance check
     }
   }
 
@@ -173,7 +188,12 @@ async function fetchRoundArtifacts(
     parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
   });
 
-  return { report, code: parts.join("\n"), targets: round.plan?.targets };
+  return {
+    report,
+    compliance,
+    code: parts.join("\n"),
+    targets: round.plan?.targets,
+  };
 }
 
 /**
@@ -284,11 +304,13 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
 
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
+    patch.compliance_report = outcome.compliance ?? undefined;
     patch.code = outcome.code;
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
+    patch.compliance_report = outcome.prior.compliance ?? undefined;
     patch.code = outcome.prior.code;
   }
 

@@ -11,6 +11,7 @@ import { getApiErrorMessage } from "@/services/api";
 import { isAllowedUrl } from "@/utils/sanitize";
 import { isMergeOnlySession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
+import BlockedReasons from "./BlockedReasons";
 import type { PrApprovalStep } from "@/types/ui";
 import styles from "./PrApprovalView.module.css";
 
@@ -75,29 +76,23 @@ export default function PrApprovalView({
   ]);
 
   if (session.is_blocked) {
+    const compliance = session.compliance_report;
+    const banner = session.terraform_report?.potential_impact?.banner;
     const impactDetail =
-      session.terraform_report?.potential_impact?.banner?.description;
+      banner?.level === "high" ? banner.description || banner.title : undefined;
     return (
       <div className={styles.blockedContainer}>
         <Typography variant="h1" className={styles.heading}>
-          {STRINGS.pr.highImpactTitle}
+          {STRINGS.pr.blockedTitle}
         </Typography>
         <Typography variant="bodyText" className={styles.blockedText}>
-          {STRINGS.pr.highImpactMessage}
+          {STRINGS.pr.blockedMessage}
         </Typography>
 
-        {impactDetail && (
-          <div className={styles.warningBanner}>
-            <span className={styles.warningIcon}>⚠</span>
-            <Typography
-              variant="body2"
-              component="span"
-              className={styles.warningText}
-            >
-              {impactDetail}
-            </Typography>
-          </div>
-        )}
+        <BlockedReasons
+          impactDetail={impactDetail}
+          compliance={compliance?.passed === false ? compliance : undefined}
+        />
 
         <div className={styles.buttonRow}>
           <button

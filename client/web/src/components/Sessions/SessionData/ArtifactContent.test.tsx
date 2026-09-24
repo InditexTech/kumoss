@@ -9,7 +9,11 @@ import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { makeRound } from "@/mocks/state";
 import { renderWithProviders } from "@/test/render";
-import type { OperationType, ReportRef } from "@/types/api";
+import type {
+  ComplianceCheckRef,
+  OperationType,
+  ReportRef,
+} from "@/types/api";
 import ArtifactContent from "./ArtifactContent";
 
 const STORAGE = "https://storage.test";
@@ -211,5 +215,82 @@ describe("ArtifactContent import reports", () => {
       await screen.findByText("azurerm_storage_account.sta_001"),
     );
     expect(screen.getByText("Storage account sta001 in rg.")).toBeInTheDocument();
+  });
+});
+
+describe("ArtifactContent compliance checks", () => {
+  const complianceRef: ComplianceCheckRef = {
+    id: 2,
+    url: `${STORAGE}/compliance.json`,
+    content_type: "application/json",
+    file_size_bytes: 10,
+    created_at: "2026-01-01T00:00:00Z",
+    passed: false,
+  };
+
+  function renderCompliance(payload: Record<string, unknown>) {
+    server.use(
+      http.get(`${STORAGE}/compliance.json`, () => HttpResponse.json(payload)),
+    );
+    renderWithProviders(
+      <ArtifactContent
+        kind="compliance"
+        artifact={complianceRef}
+        round={makeRound({ compliance: complianceRef })}
+        operation="generate"
+      />,
+    );
+  }
+
+  it("renders the verdict, summary and violations", async () => {
+    renderCompliance({
+      passed: false,
+      summary: "Public ingress is not allowed",
+      checked_rules: ["NET-001", "TAG-002"],
+      violations: [
+        {
+          rule_id: "TAG-002",
+          severity: "warning",
+          message: "Missing owner tag",
+        },
+        {
+          rule_id: "NET-001",
+          severity: "critical",
+          resource: "azurerm_network_security_rule.ssh",
+          message: "0.0.0.0/0 on port 22",
+          suggested_fix: "Restrict the source address prefix",
+        },
+      ],
+    });
+
+    expect(
+      await screen.findByText("Public ingress is not allowed"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("FAILED")).toBeInTheDocument();
+    expect(screen.getByText("2 violations · 2 rules checked")).toBeInTheDocument();
+    expect(
+      screen.getByText("azurerm_network_security_rule.ssh"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Suggested fix: Restrict the source address prefix"),
+    ).toBeInTheDocument();
+
+    // Severest first, whatever order the checker emitted them in.
+    const ruleIds = screen
+      .getAllByText(/^(NET-001|TAG-002)$/)
+      .map((el) => el.textContent);
+    expect(ruleIds).toEqual(["NET-001", "TAG-002"]);
+  });
+
+  it("renders a passed check without a violations list", async () => {
+    renderCompliance({
+      passed: true,
+      summary: "All rules satisfied",
+      violations: [],
+    });
+
+    expect(await screen.findByText("PASSED")).toBeInTheDocument();
+    expect(screen.getByText("0 violations")).toBeInTheDocument();
+    expect(screen.queryByText("Violations")).not.toBeInTheDocument();
   });
 });

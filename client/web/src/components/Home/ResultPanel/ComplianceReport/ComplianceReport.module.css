@@ -1,0 +1,119 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── Summary card (mirrors PotentialImpact's compact card) ─── */
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 12px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 32px;
+}
+
+.summaryLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-content-primary);
+  margin: 0;
+}
+
+.summaryBadge {
+  vertical-align: middle;
+}
+
+.summaryText {
+  color: var(--color-content-primary);
+  margin: 0;
+}
+
+.summaryCounts {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ─── Violations list (mirrors DriftReport's list) ─── */
+
+.listHeader {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.listTitle {
+  padding: 8px 0 10px;
+  color: var(--color-heading);
+  white-space: nowrap;
+}
+
+.listCount {
+  vertical-align: super;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+.list {
+  width: 100%;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.entryHeader {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.severity {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.severity.critical,
+.severity.error {
+  color: var(--color-danger);
+}
+
+.severity.warning {
+  color: var(--color-warning);
+}
+
+.severity.info {
+  color: var(--color-info);
+}
+
+.ruleId {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.resource {
+  color: var(--color-text-muted);
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.message {
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.suggestedFix {
+  color: var(--color-text-muted);
+  margin: 0;
+}

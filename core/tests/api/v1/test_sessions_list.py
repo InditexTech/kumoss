@@ -99,6 +99,13 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             content_type="text/plain",
             file_size_bytes=128,
         )
+        _ = await DatabaseService.add_compliance_check(
+            round_id=round_id,
+            passed=False,
+            uri="https://blob.example.com/check.json",
+            content_type="application/json",
+            file_size_bytes=256,
+        )
         await DatabaseService.add_pull_request(
             self.sid, "https://github.com/org/repo/pull/42", 42
         )
@@ -137,6 +144,11 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rnd["plan"]["targets"], ["azurerm_resource_group.main"])
         self.assertEqual(rnd["code_changes"][0]["file_name"], "main.tf")
         self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
+        self.assertIn("check.json", rnd["compliance"]["url"])
+        self.assertFalse(rnd["compliance"]["passed"])
+        # Rounds without a check (the compliance checker is optional)
+        # expose it as null.
+        self.assertIsNone(first["compliance"])
         self.assertEqual(
             rnd["pull_requests"],
             [

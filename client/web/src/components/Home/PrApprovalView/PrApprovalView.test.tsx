@@ -81,14 +81,15 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Why")).not.toBeInTheDocument();
     expect(screen.getByText("Back to Report")).toBeInTheDocument();
     expect(screen.getByText("Contact Team")).toBeInTheDocument();
     expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
   });
 
-  it("blocked state shows the report's impact banner description", () => {
+  it("blocked state lists the high impact reason", () => {
     renderPr("confirming", {
       sessionPatch: {
         is_blocked: true,
@@ -99,9 +100,111 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.getByText("High impact")).toBeInTheDocument();
     expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.queryByText("Compliance")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("blocked state lists only the blocking violations until expanded", async () => {
+    const user = userEvent.setup();
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: {
+          passed: false,
+          summary: "Public ingress is not allowed",
+          violations: [
+            { rule_id: "TAG-002", severity: "warning", message: "Missing owner tag" },
+            {
+              rule_id: "NET-001",
+              severity: "critical",
+              resource: "azurerm_network_security_rule.ssh",
+              message: "0.0.0.0/0 on port 22",
+              suggested_fix: "Restrict the source address prefix",
+            },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Compliance")).toBeInTheDocument();
+    expect(screen.queryByText("High impact")).not.toBeInTheDocument();
+    expect(screen.getByText("1 blocking violation")).toBeInTheDocument();
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+    expect(screen.getByText("azurerm_network_security_rule.ssh")).toBeInTheDocument();
+    expect(screen.getByText("0.0.0.0/0 on port 22")).toBeInTheDocument();
+    expect(screen.queryByText("TAG-002")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Suggested fix: Restrict the source address prefix"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show all findings (2)" }));
+
+    expect(screen.getByText("TAG-002")).toBeInTheDocument();
+    expect(
+      screen.getByText("Suggested fix: Restrict the source address prefix"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide findings" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("blocked state omits the toggle when every finding is already shown", () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: {
+          passed: false,
+          violations: [
+            { rule_id: "NET-001", severity: "critical", message: "0.0.0.0/0 on port 22" },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Show all findings/ })).not.toBeInTheDocument();
+  });
+
+  it("blocked state lists both reasons when the plan is high impact and compliance failed", () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        terraform_report: {
+          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
+        },
+        compliance_report: {
+          passed: false,
+          summary: "Public ingress is not allowed",
+          violations: [
+            { rule_id: "NET-001", severity: "critical", message: "0.0.0.0/0 on port 22" },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+  });
+
+  it("blocked state hides a passed compliance check", () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: { passed: true, summary: "All rules satisfied", violations: [] },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Compliance")).not.toBeInTheDocument();
+    expect(screen.queryByText("All rules satisfied")).not.toBeInTheDocument();
   });
 
   it("calls onBackToReport when Back to Report clicked in blocked state", async () => {

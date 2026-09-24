@@ -115,28 +115,6 @@
   max-width: 520px;
 }
 
-.warningBanner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border: 1px solid light-dark(#d4a017, #e6b422);
-  border-radius: var(--radius-sm);
-  background: light-dark(#fef9e7, rgba(230, 180, 34, 0.08));
-  margin-top: 24px;
-  max-width: 520px;
-}
-
-.warningIcon {
-  flex-shrink: 0;
-  font-size: 22px;
-  line-height: 1;
-}
-
-.warningText {
-  color: light-dark(var(--text-color-light), var(--text-color-dark));
-}
-
 @media screen and (max-width: 768px) {
   .buttonRow {
     flex-direction: column;

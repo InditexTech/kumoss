@@ -15,10 +15,12 @@ import type {
   ReportType,
   RoundDetail,
 } from "@/types/api";
-import type { TerraformReport } from "@/types";
+import type { ComplianceReport, TerraformReport } from "@/types";
 import {
   ChangesTable,
   ChangeDetail,
+  ComplianceSummaryCard,
+  ComplianceViolations,
   PotentialImpactCard,
   ImpactDetail,
   EstimatedCostsCard,
@@ -46,7 +48,7 @@ import { CodeBlock, StatusBadge } from "@/components/ui";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
-export type ArtifactKind = "report" | "plan" | "change";
+export type ArtifactKind = "report" | "plan" | "change" | "compliance";
 
 interface ArtifactContentProps {
   kind: ArtifactKind;
@@ -67,6 +69,8 @@ export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string
   switch (kind) {
     case "report":
       return REPORT_LABELS[(artifact as ReportRef).type] ?? "Report";
+    case "compliance":
+      return "Compliance Check";
     case "plan":
       return "Terraform Plan";
     case "change":
@@ -231,6 +235,15 @@ export default function ArtifactContent({
     }
   }, [kind, content]);
 
+  const complianceData: ComplianceReport | null = useMemo(() => {
+    if (kind !== "compliance" || !content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }, [kind, content]);
+
   const selectedChange = useMemo(() => {
     if (activeDetail !== "change" || !resourceParam || !reportData?.detailed_changes) return null;
     return reportData.detailed_changes.find((c) => c.name === resourceParam) ?? null;
@@ -294,6 +307,15 @@ export default function ArtifactContent({
 
   if (content === null) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
+  }
+
+  if (kind === "compliance" && complianceData) {
+    return (
+      <div className={styles.reportContainer}>
+        <ComplianceSummaryCard report={complianceData} />
+        <ComplianceViolations violations={complianceData.violations} />
+      </div>
+    );
   }
 
   const summaryText =
