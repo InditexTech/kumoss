@@ -11,10 +11,24 @@ class ITemplate(ABC):
     @abstractmethod
     async def render_iac_generator(
         self,
+        operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
         include_forbidden_actions: bool,
     ) -> str:
+        pass
+
+    @abstractmethod
+    async def render_import_filter(
+        self,
+        unmanaged_ids: list[str],
+        resources: list[str],
+        abbreviations: list[str],
+    ) -> str:
+        pass
+
+    @abstractmethod
+    async def render_import_exceptions(self) -> str:
         pass
 
     @abstractmethod
@@ -61,6 +75,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    def render_import_addresses(self, selected_ids: list[str]) -> str:
+        pass
+
+    @abstractmethod
     async def render_filter_drift_exceptions(self) -> str:
         pass
 
@@ -70,10 +88,6 @@ class ITemplate(ABC):
 
     @abstractmethod
     def render_status_update(self) -> str:
-        pass
-
-    @abstractmethod
-    def render_iac_import(self) -> str:
         pass
 
     @abstractmethod

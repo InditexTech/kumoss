@@ -11,7 +11,7 @@ from src.domains.services import (
     TaskService,
 )
 from src.domains.value_objects import Conventions, PlanRef
-from src.shared.constants import ContentType
+from src.shared.constants import ContentType, OperationType
 from src.shared.logger import logging
 
 
@@ -111,7 +111,7 @@ class TerraformDriftService:
             if operations and not filtered.kept:
                 logging.warning(
                     "Drift remediation stopped, every operation is covered by the "
-                    f"drift exception rules: {exclusions}"
+                    + f"drift exception rules: {exclusions}"
                 )
                 return resolved(drift)
             operations = filtered.kept
@@ -124,6 +124,7 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
+                    operation_type=OperationType.DRIFT,
                     validator=validator,
                 )
                 plan = result.plan

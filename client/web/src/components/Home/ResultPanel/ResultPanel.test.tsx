@@ -96,8 +96,7 @@ describe("ResultPanel", () => {
     expect(screen.getByText("No terraform plan available to display.")).toBeInTheDocument();
   });
 
-  it("code tab hidden in import mode", () => {
-    // For import mode we'd need to set ModeContext, but by default it's "generate"
+  it("always offers the code tab", () => {
     renderResultPanel(undefined, { terraform_report: mockReport });
     expect(screen.getByRole("button", { name: "Code" })).toBeInTheDocument();
   });
@@ -136,6 +135,92 @@ describe("ResultPanel", () => {
     renderResultPanel(undefined, { terraform_report: mockReport });
     expect(screen.getByText("azurerm_resource_group.main")).toBeInTheDocument();
     expect(screen.getByText("azurerm_vm.web")).toBeInTheDocument();
+  });
+
+  describe("import reports", () => {
+    const importReport: TerraformReport = {
+      status: "Partial",
+      summary: { selected: 2, imported: 1, failed: 1 },
+      execution_summary: "One storage account is now managed by Terraform.",
+      imported_resources: [
+        {
+          resource_address: "azurerm_storage_account.sta_001",
+          resource_id: "/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.Storage/storageAccounts/sta001",
+          status: "imported",
+          details: "Storage account sta001 in rg.",
+          error_message: null,
+        },
+        {
+          resource_address: "azurerm_key_vault.kv_001",
+          resource_id: "/subscriptions/sub-123/resourceGroups/rg/providers/Microsoft.KeyVault/vaults/kv001",
+          status: "failed",
+          details: "Key vault kv001 in rg.",
+          error_message: "Error: resource already managed by Terraform",
+        },
+      ],
+      excluded_resources: [
+        {
+          resource_id: "/subscriptions/sub-123/resourceGroups/rg-shared/providers/Microsoft.Storage/storageAccounts/shared",
+          details: "Shared platform storage account.",
+        },
+      ],
+      state_alignment: "No changes: the configuration matches the imported state.",
+      recommendations: ["Retry the key vault import."],
+    };
+
+    it("renders the import summary, status and resources", () => {
+      renderResultPanel(undefined, { terraform_report: importReport });
+
+      expect(screen.getByText("Import Summary")).toBeInTheDocument();
+      expect(screen.getByText("PARTIAL")).toBeInTheDocument();
+      expect(
+        screen.getByText("One storage account is now managed by Terraform."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("azurerm_storage_account.sta_001")).toBeInTheDocument();
+      expect(screen.getByText("azurerm_key_vault.kv_001")).toBeInTheDocument();
+      // The plan report's action filters make no sense for an import.
+      expect(screen.queryByText("Recreated")).not.toBeInTheDocument();
+    });
+
+    it("lists exclusions, state alignment and recommendations", () => {
+      renderResultPanel(undefined, { terraform_report: importReport });
+
+      expect(screen.getByText("Excluded by Import Exceptions")).toBeInTheDocument();
+      expect(screen.getByText("Shared platform storage account.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No changes: the configuration matches the imported state."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Retry the key vault import.")).toBeInTheDocument();
+    });
+
+    it("hides the exclusions section when nothing was withheld", () => {
+      renderResultPanel(undefined, {
+        terraform_report: { ...importReport, excluded_resources: [] },
+      });
+      expect(
+        screen.queryByText("Excluded by Import Exceptions"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("filters to the failed imports", async () => {
+      const user = userEvent.setup();
+      renderResultPanel(undefined, { terraform_report: importReport });
+
+      await user.click(screen.getByRole("button", { name: /^Failed/ }));
+      expect(screen.queryByText("azurerm_storage_account.sta_001")).not.toBeInTheDocument();
+      expect(screen.getByText("azurerm_key_vault.kv_001")).toBeInTheDocument();
+    });
+
+    it("opens the resource detail with its import error", async () => {
+      const user = userEvent.setup();
+      renderResultPanel(undefined, { terraform_report: importReport });
+
+      await user.click(screen.getByText("azurerm_key_vault.kv_001"));
+      expect(
+        screen.getByText("Error: resource already managed by Terraform"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Key vault kv001 in rg.")).toBeInTheDocument();
+    });
   });
 
   describe("drift reports", () => {

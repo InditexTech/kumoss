@@ -27,6 +27,7 @@ export function ModeProvider({ children }: Readonly<{ children: React.ReactNode 
       if (prevMode === MODE.GENERATE) return MODE.DRIFT;
       if (prevMode === MODE.DRIFT) return MODE.PARTIAL_DRIFT;
       if (prevMode === MODE.PARTIAL_DRIFT) return MODE.IMPORT;
+      if (prevMode === MODE.IMPORT) return MODE.PARTIAL_IMPORT;
       return MODE.GENERATE;
     });
   }, []);
@@ -40,7 +41,9 @@ export function ModeProvider({ children }: Readonly<{ children: React.ReactNode 
     isDriftMode: mode === MODE.DRIFT,
     isPartialDriftMode: mode === MODE.PARTIAL_DRIFT,
     isImportMode: mode === MODE.IMPORT,
+    isPartialImportMode: mode === MODE.PARTIAL_IMPORT,
     isAnyDriftMode: mode === MODE.DRIFT || mode === MODE.PARTIAL_DRIFT,
+    isAnyImportMode: mode === MODE.IMPORT || mode === MODE.PARTIAL_IMPORT,
   }), [mode, setMode, cycleMode]);
 
   return (

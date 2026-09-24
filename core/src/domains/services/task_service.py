@@ -4,10 +4,12 @@
 
 import json
 
-from src.domains.dto import FilteredOperationsDTO
+from src.domains.dto import FilteredImportsDTO, FilteredOperationsDTO
+from src.domains.entities import History
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
+from src.domains.value_objects import Conventions
 from src.shared.constants import PromptsLibrary, ToolContext
 from src.shared.config import system_config
 
@@ -74,6 +76,38 @@ class TaskService:
         return FilteredOperationsDTO(
             kept=self.__group(kept),
             excluded=[op for op in flat_operations if op not in kept],
+            explanation=response.result.get("explanation", ""),
+        )
+
+    async def filter_imports(
+        self,
+        query: str,
+        unmanaged_ids: list[str],
+        conventions: Conventions,
+        history: History,
+    ) -> FilteredImportsDTO:
+        """Narrow a scope's unmanaged resources to the ones a request asks for.
+
+        The conventions travel with the query because the agent matches a
+        request phrased in the repository's own vocabulary — template
+        names and resource name abbreviations — against provider-native
+        resource ids, which carry none of it.
+        """
+        if not unmanaged_ids:
+            return FilteredImportsDTO(selected=[], explanation="")
+        response = await self.__llm_svc.generate(
+            query=query,
+            tools=[self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER)],
+            prompt=await self.__template_svc.render(
+                prompt=PromptsLibrary.IMPORT_FILTER,
+                unmanaged_ids=unmanaged_ids,
+                resources=conventions.templates,
+                abbreviations=conventions.abbreviations,
+            ),
+            history=history,
+        )
+        return FilteredImportsDTO(
+            selected=response.result["operations"],
             explanation=response.result.get("explanation", ""),
         )
 

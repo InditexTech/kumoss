@@ -17,7 +17,13 @@ from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import TerraformPlanDTO, ToolResultDTO
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import ContentType, PromptsLibrary, SessionStatus, ToolContext
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    PromptsLibrary,
+    SessionStatus,
+    ToolContext,
+)
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
 
@@ -85,6 +91,7 @@ class TerraformValidationService:
         ctx: SessionContext,
         conventions: Conventions,
         include_forbidden_actions: bool,
+        operation_type: OperationType,
         validator: Callable[[History], Awaitable[TerraformPlanDTO]],
     ) -> TerraformPlanDTO:
         """
@@ -121,6 +128,7 @@ class TerraformValidationService:
                 ),
                 prompt=await self.__template_svc.render(
                     prompt=PromptsLibrary.IAC_GENERATOR,
+                    operation_type=operation_type,
                     resources=conventions.templates,
                     abbreviations=conventions.abbreviations,
                     include_forbidden_actions=include_forbidden_actions,

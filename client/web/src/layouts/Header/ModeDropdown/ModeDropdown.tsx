@@ -12,7 +12,12 @@ import { MODE } from "@/types/ui";
 import type { SelectChangeEvent } from "@mui/material";
 import styles from "./ModeDropdown.module.css";
 
-const DEVOPS_ONLY_MODES: Mode[] = [MODE.DRIFT, MODE.PARTIAL_DRIFT, MODE.IMPORT];
+const DEVOPS_ONLY_MODES: Mode[] = [
+  MODE.DRIFT,
+  MODE.PARTIAL_DRIFT,
+  MODE.IMPORT,
+  MODE.PARTIAL_IMPORT,
+];
 const DEVOPS_HINT = "Requires the devops operation role.";
 
 const selectSx = {
@@ -26,6 +31,7 @@ const selectSx = {
   },
   "& .MuiSelect-select": {
     padding: "8px 12px",
+    textAlign: "right",
   },
   "& .MuiSelect-icon": {
     color: "light-dark(var(--text-color-light), var(--text-color-dark))",
