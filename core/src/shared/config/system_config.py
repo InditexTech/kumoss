@@ -266,9 +266,10 @@ class TelemetryConfig(BaseModel):
     """Generic OTel telemetry knobs.
 
     ``collector_url`` is a base URL; the OTLP endpoint is computed from
-    it at use time as ``f"{collector_url}v1/traces"``. The OSS-default
-    deploy bundles Phoenix as the collector but anything that speaks
-    OTLP/HTTP works.
+    it at use time as ``f"{collector_url}v1/traces"``. The default is the
+    Phoenix service of the bundled docker-compose stack; anything that
+    speaks OTLP/HTTP works. Running the core outside docker needs an
+    explicit ``http://localhost:6006/``.
     """
 
     collector_url: str = "http://phoenix:6006/"

@@ -118,13 +118,12 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars, set in core/.env. The azure_ai
-# models below read AZURE_AI_API_KEY and AZURE_AI_API_BASE; LiteLLM has no
-# boot-time validation mapping for azure_ai, so a missing or invalid
-# credential is only detected on the first LLM call, not at boot. For
-# providers LiteLLM can validate (anthropic/..., vertex_ai/..., openai/...,
-# azure/...) the core fails boot when the required env vars are missing;
-# the in-code defaults (anthropic/...) need ANTHROPIC_API_KEY.
+# from the provider's standard env vars, set in core/.env — the models
+# below need ANTHROPIC_API_KEY. For providers LiteLLM can validate
+# (anthropic/..., vertex_ai/..., openai/..., azure/...) the core fails
+# boot when the required env vars are missing; for the rest (azure_ai/...
+# among them) a missing or invalid credential is only detected on the
+# first LLM call.
 # Advanced routing (load balancing, custom credential env var names,
 # per-entry endpoints) is available via an optional `model_list` key.
 # The core passes only that list to the Router, so router-level
@@ -136,9 +135,9 @@ orchestration:
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-5"
+  model: "anthropic/claude-sonnet-5"
   # Simple tasks model
-  small_model: "vertex_ai/gemini-3.8-flash"
+  small_model: "anthropic/claude-haiku-4-5"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
@@ -177,9 +176,9 @@ redis:
   pool_timeout: 2.0
 
 # OTel telemetry. `collector_url` is a base URL; the OTLP endpoint is
-# computed at use time as `f"{collector_url}v1/traces"`. Phoenix is
-# reachable as `phoenix:6006` on the docker network; the in-code default
-# (http://localhost:6006/) only works when running the core outside docker.
+# computed at use time as `f"{collector_url}v1/traces"`. The value below
+# is also the in-code default: Phoenix as reachable on the docker
+# network. Running the core outside docker needs http://localhost:6006/.
 telemetry:
   collector_url: "http://phoenix:6006/"
   otel_attribute_count_limit: 1024

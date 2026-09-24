@@ -3,8 +3,6 @@
 
 In this quickstart, you install Nebula on one machine with Docker Compose,
 using the bundled stack as shipped, and open the running web application.
-Follow the steps in order; each one states whether a setting is mandatory
-or optional.
 
 == Prerequisites
 
@@ -13,400 +11,95 @@ xref:main:prerequisites.adoc[prerequisites].
 
 == Step by step
 
-=== 1. Copy the required environment files
+=== 1. Clone the repository and create the environment files
 
 [source,bash]
 ----
 git clone https://github.com/InditexTech/nebula.git
 cd nebula
 
-# Mandatory: the core and the IaC sidecar
 cp core/env.sample core/.env
 cp services/iac/env.sample services/iac/.env
-
-# Optional: only if you enable notifications in a later step
-cp services/notifications/env.sample services/notifications/.env
 ----
 
-`core/.env` is mandatory: Compose refuses to start the `core` service
-without it. The sidecar `.env` files are optional for Compose, but the IaC
-one is needed in practice. Every `.env` file is gitignored; never commit
-one.
+Each `env.sample` documents its own variables and is the source of truth
+for their names. Every `.env` file is gitignored; never commit one.
 
-Copying the sample as-is is not enough: LLM credentials (step 3) are
-mandatory before you run `docker compose up`. The shipped `config.yaml`
-selects Azure AI Foundry models (`azure_ai/...`), and `core/env.sample` has
-no active LLM variable. LiteLLM has no boot-time check for that provider,
-so a verbatim copy of the samples boots cleanly and then fails on the first
-request with an authentication error from the model call; set
-`AZURE_AI_API_KEY` and `AZURE_AI_API_BASE` first. Providers LiteLLM can
-validate (`anthropic/`, `vertex_ai/`, `openai/`, `azure/`) fail at boot
-instead, with `LLM credentials missing from environment: ...`.
-
-You do not need `services/mapping/.env` or `services/authz/.env` for this
-deployment model.
-
-=== 2. Configure the mandatory config.yaml values
+=== 2. Write config.yaml
 
 `config.yaml` at the repository root is the single configuration file. It
 is baked into the core image at build time, so every edit needs
-`docker compose build core`. All fields are documented in the
-xref:main:reference/configuration.adoc[configuration reference]. Do not
-change default settings; the table below is what to review.
+`docker compose build core`.
 
-[cols="2,2,5",options="header"]
-|===
-|Setting |Requirement |What to do
-
-|`llm.model`, `llm.small_model`
-|*Mandatory review*
-|LiteLLM model strings (`provider/model-id`). The shipped file selects
-`azure_ai/claude-sonnet-4-5` and `azure_ai/claude-haiku-4-5`. Keep them if
-you have an Azure AI Foundry endpoint; otherwise pick another provider and
-model pair from
-xref:main:reference/llm-providers.adoc[LLM providers and models]. The
-provider prefix decides which credential variables the next step
-(`core/.env`) needs.
-
-|`git.provider`
-|Optional (default `GITHUB`)
-|`GITHUB`, `AZURE_DEVOPS`, or `GITLAB`. It must match the host of the
-repositories you will use, because it selects the pull-request API and the
-host written into the git credential store. Only the public SaaS hosts are
-supported (`github.com`, `gitlab.com` without subgroups, `dev.azure.com`),
-and repository URLs must be HTTPS.
-
-|`services.iac`
-|*Always on* (no `enabled` flag)
-|Every mode runs engine commands through the IaC sidecar, so it cannot be
-disabled. The shipped file points it at `\http://iac:8082` with token
-variable `NEBULA_IAC_TOKEN`.
-
-|`services.iac.endpoint`, `services.iac.token_env`
-|Optional
-|Change only if you rename the Compose service or the token variable.
-
-|`services.notifications.enabled`
-|Optional
-|Set to `true` only when you complete the notifications step below.
-
-|`oidc.issuer_url`, `oidc.client_id`
-|Optional
-|Leave blank to keep authentication disabled on a trusted workstation. Fill
-them to test a real login flow; see
-xref:main:guides/enable-authentication.adoc[Enable authentication].
-
-|`storage.*`, `telemetry.*`, `redis.*`, `database.*`, `http.cors_origins`
-|Leave as shipped
-|They already point at the bundled containers (`object-storage:9000`,
-`phoenix:6006`, `redis:6379`, `core-db`, origin `\http://localhost`). Change
-them only if the defaults are unsuitable, for example when the browser
-reaches the host under another name (then update
-`storage.public_endpoint_url` and `http.cors_origins`).
-
-|`storage.terraform_state_bucket`
-|Leave as shipped (`nebula-terraform-state`)
-|As shipped, Nebula owns state on the bundled RustFS, which is what this
-guide assumes. Set it to `""` only if you want each repository to declare
-its own backend instead, and rebuild the core image afterwards:
-xref:main:guides/configure-state-backends.adoc[state backends].
-
-|`orchestration.*`
-|Leave as shipped
-|Iteration limits and the compliance and high-impact locks.
-|===
-
-A minimal local file that keeps everything else at its default. It repeats
-the two `orchestration` flags on purpose: their code defaults are `false`,
-so a file that omits them silently turns off the compliance lock and the
-high-impact lock that the shipped `config.yaml` enables.
+The minimum is the two model strings for your LLM provider and the two
+orchestration gates. Fields not shown use the core's code defaults; use the
+shipped file or the configuration reference when you need its non-default
+tuning. Those two gates default to `false`, so a file that omits them turns
+off the compliance lock and the high-impact lock.
 
 [source,yaml]
 ----
-environment: "development"
-
-services:
-  iac:
-    endpoint: "http://iac:8082"
-    token_env: "NEBULA_IAC_TOKEN"
-
-orchestration:
-  enable_compliance_checker: true
-  block_on_high_impact: true
-
 llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
 
-telemetry:
-  collector_url: "http://phoenix:6006/"
-
-storage:
-  provider: "RUSTFS"
-  endpoint_url: "http://object-storage:9000"
-  public_endpoint_url: "http://localhost:9000"
-  # As shipped: Nebula manages state itself. Set to "" (not a bare
-  # key, which fails at boot) to have each repository declare its
-  # own backend instead.
-  terraform_state_bucket: "nebula-terraform-state"
-
-git:
-  provider: "GITHUB"
+orchestration:
+  enable_compliance_checker: true
+  block_on_high_impact: true
 ----
 
-Note that the three optional sidecars default to `enabled: false`,
-`endpoint: ""`, and `token_env: ""`, while `services.iac` has no such flag:
-it is always called, and its `endpoint` and `token_env` default in code to
-`\http://iac:8082` and `NEBULA_IAC_TOKEN`. Likewise,
-`orchestration.enable_compliance_checker` and
-`orchestration.block_on_high_impact` default to `false` in code and to
-`true` in the shipped file.
+Model strings per provider:
+xref:main:reference/llm-providers.adoc[LLM providers and models]. Every
+field: xref:main:reference/configuration.adoc[Configuration].
 
-=== 3. Configure core/.env
+=== 3. Fill in core/.env
 
-Every variable is documented in
-xref:main:reference/environment-variables.adoc[Environment variables and
-secrets]. The effective minimum for this deployment:
+Set:
 
-[cols="2,2,5",options="header"]
-|===
-|Variable |Requirement |Notes
+* *LLM provider credentials* — the variables LiteLLM reads for the
+  provider prefix of `llm.model` and `llm.small_model`. See
+  xref:main:reference/llm-providers.adoc#provider-credentials[provider
+  credential variables]. The core will not run without them.
+* `NEBULA_IAC_TOKEN` — any non-empty value. The same value goes in
+  `services/iac/.env`.
+* `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
+  provider named by `git.provider`.
 
-|LLM provider credentials
-|*Mandatory*
-|The variables LiteLLM requires for the provider prefix of `llm.model` and
-`llm.small_model` — for the shipped `azure_ai/` models `AZURE_AI_API_KEY`
-and `AZURE_AI_API_BASE`; for others, for example `ANTHROPIC_API_KEY`, or
-`VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, and `VERTEXAI_CREDENTIALS`. The
-core refuses to boot with `LLM credentials missing from environment: ...`
-when LiteLLM can detect a missing variable; it cannot for `azure_ai/`,
-which fails on the first call instead. Names per provider:
-xref:main:reference/llm-providers.adoc#provider-credentials[LiteLLM
-providers and models].
+Keep the remaining sample values: they match the bundled containers. Every
+variable: xref:main:reference/environment-variables.adoc[Environment
+variables and secrets].
 
-|`NEBULA_IAC_TOKEN`
-|*Mandatory, non-empty*
-|Bearer token the core sends to the IaC sidecar. Must equal the value in
-`services/iac/.env`. An empty value aborts the boot.
+=== 4. Fill in services/iac/.env
 
-|`GIT_USER`, `GIT_TOKEN`
-|Mandatory for pushes and pull requests
-|Account and personal access token at the provider in `git.provider`. When
-either is empty the core boots with a warning and pushes fail later.
+Set:
 
-|`NEBULA_SQL_DATABASE_URL`
-|Mandatory (keep the sample value)
-|The sample `postgresql://postgres:postgres@core-db:5432/nebula` matches
-the bundled `core-db` container.
+* `NEBULA_IAC_TOKEN` — the same value as in `core/.env`.
+* *Cloud provider credentials* — the variables your OpenTofu or Terraform
+  providers read. See
+  xref:main:reference/terraform-providers.adoc[Terraform providers] for
+  the minimum set per cloud and authentication method.
 
-|`RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`
-|Keep the sample values
-|`rustfsadmin` / `rustfsadmin` match the bundled `object-storage`
-container. They serve the artifacts bucket and, as shipped, the
-Nebula-managed state bucket too. Change both here and in
-`docker-compose.yml` together, or not at all.
+The sidecar runs OpenTofu {opentofu-version} by default. Set
+`IAC_BINARY=terraform` to use the bundled HashiCorp Terraform
+{terraform-version} instead; it is BUSL-1.1 licensed, and selecting it
+makes your use subject to that license.
 
-|`NEBULA_NOTIFICATIONS_TOKEN`
-|Only when notifications are enabled
-|Must equal the value in `services/notifications/.env`.
+Invalid or missing cloud credentials do not stop the container. The engine
+runs anyway and its own authentication error appears in the session as a
+failed `init`, `plan`, or `apply`.
 
-|`NEBULA_MAPPING_TOKEN`, `NEBULA_AUTHZ_TOKEN`
-|Ignored while those sidecars are disabled
-|The sample placeholders can stay.
-|===
-
-Redis needs no variable: the core falls back to `redis://redis:6379/0`.
-Nothing OIDC-related goes in this file.
-
-Fictitious example for Anthropic models:
-
-[source,dotenv]
-----
-ANTHROPIC_API_KEY=sk-example-not-a-real-key
-
-NEBULA_IAC_TOKEN=local-example-token-not-for-production
-NEBULA_NOTIFICATIONS_TOKEN=dev-notifications-token
-NEBULA_MAPPING_TOKEN=dev-mapping-token
-NEBULA_AUTHZ_TOKEN=dev-authz-token
-
-GIT_USER=nebula-bot
-GIT_TOKEN=ghp_example_not_a_real_token
-
-RUSTFS_ACCESS_KEY=rustfsadmin
-RUSTFS_SECRET_KEY=rustfsadmin
-NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
-----
-
-=== 4. Configure services/iac/.env
-
-[cols="2,2,5",options="header"]
-|===
-|Variable |Requirement |Notes
-
-|`NEBULA_IAC_TOKEN`
-|*Must match `core/.env`*
-|The sidecar checks the bearer on every `/v1/*` call when this is set; a
-mismatch returns `401` to the core and every session fails at validation.
-See the note on blank values below.
-
-|`IAC_BINARY`
-|Optional, default `tofu`
-|`IAC_BINARY=tofu` (the bundled default) runs OpenTofu {opentofu-version} (MPL-2.0).
-`IAC_BINARY=terraform` selects the bundled HashiCorp Terraform {terraform-version},
-which is BUSL-1.1 licensed; selecting it makes your use subject to that
-license. The service refuses to start if the binary cannot be found.
-
-|`IAC_BACKEND_CONFIG`
-|Leave unset
-|Only for deployments that supply the backend's *values* from a file,
-either mounted in this container or carried by the target repository,
-instead of the repository's own backend block:
-xref:main:guides/state-backends/sidecar-supplied.adoc[state backends].
-
-|*Provider credentials*
-|Mandatory for `plan` and `apply`
-|The variables your Terraform providers read: `ARM_CLIENT_ID`,
-`ARM_CLIENT_SECRET`, `ARM_TENANT_ID` (and usually
-`ARM_SUBSCRIPTION_ID`) for Azure; `GOOGLE_CREDENTIALS` or
-`GOOGLE_APPLICATION_CREDENTIALS` for Google Cloud; `AWS_ACCESS_KEY_ID` plus
-`AWS_SECRET_ACCESS_KEY` and `AWS_REGION`, or `AWS_PROFILE`, for AWS.
-xref:main:reference/terraform-providers.adoc[Terraform providers] lists
-the minimum set per cloud and authentication method.
-
-|*State-backend credentials*
-|Mandatory for `init`
-|As shipped, Nebula manages state itself, so this is the
-`RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` already set in the previous step —
-nothing extra to add here. If you set `storage.terraform_state_bucket` to
-`""` so the repository declares its own backend instead, this becomes
-access to the state store that repository's `terraform { backend ... }`
-block names — see
-xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
-minimums] and
-xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[Two
-sets of credentials on the sidecar].
-|===
-
-Missing or invalid cloud credentials do *not* stop the container. The
-engine runs anyway, and its own authentication error appears in the
-session as a failed `init` (state backend) or `plan`/`apply` (providers).
-
-`NEBULA_IAC_TOKEN` is checked on both sides but treated differently: on the
-core side (previous step) it must be non-empty, and `core/env.sample` ships
-it filled in (`dev-iac-token`). On the sidecar side, `services/iac/env.sample`
-ships it *blank*, which turns that sidecar's own bearer check off — the
-mismatch between the two samples is harmless on an isolated workstation
-because the sidecar stops checking. In any deployment reachable by
-more than you, set the same non-empty value in both files.
-
-Each tab below shows both grants, using the simplest authentication method
-for that cloud. For OIDC, managed identity, named profiles, or workload
-identity federation, see
-xref:main:reference/terraform-providers.adoc[Terraform providers].
-
-[tabs]
---
-[tab,label="AWS"]
-****
-[source,dotenv]
-----
-# The resources the modules create and the S3 bucket the repository's
-# backend block names.
-AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-AWS_SECRET_ACCESS_KEY=example-not-a-real-secret-access-key
-AWS_REGION=eu-west-1
-----
-****
-
-[tab,label="Azure"]
-****
-[source,dotenv]
-----
-# Provider grant: a service principal with a client secret.
-ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000
-ARM_TENANT_ID=11111111-1111-1111-1111-111111111111
-ARM_CLIENT_ID=22222222-2222-2222-2222-222222222222
-ARM_CLIENT_SECRET=example-not-a-real-client-secret
-
-# State-backend grant: access key of the storage account the
-# repository's azurerm backend block names. Backend-only, and enough on
-# its own, so the principal above needs no role on that account.
-# Drop it and add ARM_USE_AZUREAD=true instead to let the principal
-# itself authenticate to the state container over Entra ID RBAC.
-ARM_ACCESS_KEY=<storage-account-access-key>
-----
-****
-
-[tab,label="GCP"]
-****
-Targeting Google Cloud, with the state bucket in a second project:
-
-[source,dotenv]
-----
-# Provider grant: a service-account key as inline JSON.
-GOOGLE_PROJECT=demo-platform-project
-GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
-
-# State-backend grant: backend-only, and needed only because the gcs
-# bucket lives elsewhere. Omit it and `init` reuses GOOGLE_CREDENTIALS.
-GOOGLE_BACKEND_CREDENTIALS={"type":"service_account","project_id":"demo-state-project","private_key":"<state-account-private-key-pem>","client_email":"nebula-state@demo-state-project.iam.gserviceaccount.example.invalid"}
-----
-
-`GOOGLE_CREDENTIALS` and `GOOGLE_BACKEND_CREDENTIALS` take either the key
-JSON, as above, or a path to it; `GOOGLE_APPLICATION_CREDENTIALS` takes
-only a path. A path has to resolve *inside* the container, which means
-adding a bind mount to the `iac` service — the shipped `docker-compose.yml`
-gives it only the `workspaces` volume. Inline JSON needs no Compose
-change.
-****
---
-
-=== 5. Optionally configure notifications
-
-Skip this step unless you want Slack messages when a compliance check
-fails, a report is classified as high impact, an apply fails, or a user
-sends a support request from the web application's header.
-
-. In `config.yaml`, set `services.notifications.enabled: true`. Keep the
-  shipped endpoint `\http://notifications:8080` and token variable
-  `NEBULA_NOTIFICATIONS_TOKEN`.
-. In `core/.env`, set `NEBULA_NOTIFICATIONS_TOKEN` to a non-empty value.
-. In `services/notifications/.env`, set the *same*
-  `NEBULA_NOTIFICATIONS_TOKEN` and a `SLACK_WEBHOOK_URL`. The container
-  refuses to start without the webhook URL.
-. Rebuild the core image (the next step does this).
-
-[source,dotenv]
-----
-NEBULA_NOTIFICATIONS_TOKEN=local-example-notifications-token
-SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example
-LOG_LEVEL=INFO
-----
-
-Treat the webhook URL as a secret: anyone holding it can post to the
-channel. Notifications are best-effort; a failed delivery is logged by the
-core and never fails a session.
-
-=== 6. Build and start Nebula
-
-Step 3 (LLM credentials) must be done before this step. If you copy
-`core/env.sample` verbatim without filling in credentials for the provider
-selected in `config.yaml`, the outcome depends on the provider: with the
-shipped `azure_ai/` models the core boots and the first request fails with
-an authentication error; with a provider LiteLLM can validate it exits
-during boot with `LLM credentials missing from environment: ...`.
+=== 5. Build and start Nebula
 
 [source,bash]
 ----
 docker compose up --build
 ----
 
-Add `-d` to run in the background. The first build downloads base images,
-installs the Python dependencies of the core and sidecars, downloads both
-IaC engines, and compiles the React application inside the nginx image.
+Add `-d` to run in the background. The first build downloads the base
+images, installs the Python dependencies, downloads both IaC engines, and
+compiles the web application.
 
-After any later change to `config.yaml`, rebuild the core image and
-restart it:
+After a later change to `config.yaml`, rebuild and restart the core:
 
 [source,bash]
 ----
@@ -414,45 +107,30 @@ docker compose build core
 docker compose up -d core
 ----
 
-Changes to a `.env` file only need the affected container recreated
-(`docker compose up -d core`, `docker compose up -d iac`) — a plain
-`restart` does not reload `env_file`. During core development,
-`docker compose up --watch` syncs `core/` into the running container, but
-the server runs without `--reload` and does not pick up the change: run
-`docker compose restart core` after a sync (or `docker compose up -d
-core`). It does not sync `config.yaml` either way.
+A change to a `.env` file needs the affected container recreated
+(`docker compose up -d core`, `docker compose up -d iac`); `docker compose
+restart` does not reload it.
 
-=== 7. Verify the services
+=== 6. Verify the services
 
 [source,bash]
 ----
 docker compose ps
-----
-
-Expected: `proxy`, `core`, `core-db`, `redis`, `object-storage`, `phoenix`,
-`phoenix-db`, `iac`, `mapping`, and `authz` running. A `notifications`
-container that has exited is normal while the integration is disabled.
-
-[source,bash]
-----
 docker compose logs -f core
 ----
 
-Wait for the start-up sequence to finish: database initialization, Redis,
-the object-storage artifacts bucket, Phoenix prompt seeding (`Prompt
-seeding complete: N created, M already present`), git credentials, and
-finally `Application startup complete`. Boot is strict: if any of those
-steps fails the container exits with the reason in the log — except git
-credentials, which only log a warning (pushes fail later).
+Wait for `Application startup complete` in the core log. Boot is strict:
+if a start-up step fails, the container exits with the reason in the log.
+A `notifications` container that has exited is expected while that
+optional sidecar is unconfigured.
 
 [source,bash]
 ----
 curl http://localhost/api/v1/auth/config
 ----
 
-This is the only unauthenticated `/v1` route; `/api/docs`, `/api/redoc`,
-and `/api/openapi.json` are also public. With authentication disabled it
-returns a JSON document with an empty `issuer_url`.
+With authentication disabled this returns a JSON document with an empty
+`issuer_url`.
 
 [#see-it-working]
 == See it working
@@ -469,26 +147,12 @@ returns a JSON document with an empty `issuer_url`.
 
 |`\http://localhost:9000`
 |Presigned artifact downloads opened by the web application, and the
-RustFS console — trusted workstation only
+RustFS console
 |===
 
-[WARNING]
-====
-The compose file publishes ports 80 and 9000 on every interface of the
-host, with authentication disabled and the RustFS console behind
-`rustfsadmin` / `rustfsadmin`. On a shared network, bind both to
-loopback with a `docker-compose.override.yml` (or block them with a
-host firewall):
-
-[source,yaml]
-----
-services:
-  proxy:
-    ports: !override
-      - "127.0.0.1:80:80"
-      - "127.0.0.1:9000:9000"
-----
-====
+Port 80 serves the unauthenticated Nebula application by default, while
+port 9000 exposes presigned artifact downloads and the RustFS console, on
+every interface of the host. Keep the stack on a machine only you can reach.
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
@@ -499,123 +163,82 @@ are described in
 xref:main:guides/administer-users-and-locks.adoc[Administer users and
 locks].
 
-Open `\http://localhost/monitoring/` to see the traces of the run under the
-`dev-terraform-day2` project and the seeded prompts under *Prompts*.
-Phoenix receives prompts, plans, and generated code in clear text and has
-no authentication of its own in this stack; see
-xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
+Open `\http://localhost/monitoring/` to see the traces of the run and the
+seeded prompts under *Prompts*. Phoenix receives prompts, plans, and
+generated code in clear text and has no authentication of its own in this
+stack; see xref:main:guides/monitor-with-phoenix.adoc[Monitor with
+Phoenix].
 
 == Stop or reset the stack
-
-=== Stop Nebula
 
 [source,bash]
 ----
 docker compose down            # stop; named volumes are kept
-----
-
-This keeps the named volumes (databases, artifacts, workspaces), so
-sessions and prompts survive a restart. The authz sidecar's own JSON role
-store is container-local and is lost when that container is recreated; it
-is unrelated to Nebula's operation and panel roles, which live in
-`core-db`. See
-xref:main:reference/api/authz.adoc#the-bundled-implementation[the
-bundled implementation] in the authorization sidecar reference if you
-need the sidecar's roles to persist.
-
-=== Delete Nebula volumes
-
-[source,bash]
-----
 docker compose down -v         # stop and delete all volumes
 ----
 
-*Deleting the volumes removes the session database, the artifacts, the
-Phoenix traces and the prompts you edited in Phoenix, and any in-progress
-workspaces* — and, as shipped, the Terraform state too, since Nebula
-manages it in that same object-storage volume by default. State is
-untouched only if you set `storage.terraform_state_bucket` to `""` so that
-each repository declares its own backend instead.
+`down` keeps the databases, artifacts, and workspaces, so sessions and
+prompts survive a restart.
+
+*`down -v` deletes the session database, the artifacts, the Phoenix traces
+and prompts, and any in-progress workspaces* — and, by default, the
+Terraform state too, since Nebula manages it in that same object-storage
+volume. State survives only if you set `storage.terraform_state_bucket` to
+`""` so that each repository declares its own backend instead.
 
 == Next steps
 
 * Hand the xref:main:guides/make-a-request.adoc[Make a request] and
   xref:main:faq.adoc[FAQ] to the people who will make requests.
 * Review and adapt the seeded prompts; they encode a generic policy, not
-  yours: xref:main:guides/customize-prompts.adoc[Phoenix prompt
-  templates].
+  yours: xref:main:guides/customize-prompts.adoc[Customize prompts].
 * Try a real login flow with your identity provider:
   xref:main:guides/enable-authentication.adoc[Enable authentication].
 * Learn the role model and the admin panel:
   xref:main:guides/administer-users-and-locks.adoc[Administer users and locks].
 * Decide where Terraform state should live before you point Nebula at
   anything real:
-  xref:main:guides/configure-state-backends.adoc[Configure state
-  backends].
+  xref:main:guides/configure-state-backends.adoc[Configure state backends].
+* Turn on the optional sidecars — Slack notifications, resource mapping,
+  external authorization — from
+  xref:main:reference/configuration.adoc#config-services[`services`] and
+  xref:main:reference/environment-variables.adoc[Environment variables and
+  secrets].
 * Before sharing the instance with anyone, switch to the production
-  deployment model: xref:main:guides/deploy-to-production.adoc[Deploy
-  to production].
+  deployment model: xref:main:guides/deploy-to-production.adoc[Deploy to
+  production].
 
 == Troubleshooting
 
-* *Core exits with `LLM credentials missing from environment`.* The
-  variables for the provider prefix in `llm.model` or `llm.small_model` are
-  not in `core/.env`. See
-  xref:main:reference/llm-providers.adoc#llm-troubleshooting[LiteLLM
-  troubleshooting].
-* *Core exits with `Services the core calls have no bearer token`.*
-  `NEBULA_IAC_TOKEN`, or the `NEBULA_*_TOKEN` of an enabled optional
-  sidecar, is empty in `core/.env`.
-* *Core exits with `Missing env variable for nebula database`.*
-  `NEBULA_SQL_DATABASE_URL` is empty in `core/.env`.
-* *Core exits with `Phoenix unreachable after 8 attempts`.* Prompt seeding
-  could not reach `telemetry.collector_url`. Check that `phoenix` is
-  running and restart the core.
+* *The core exits during boot.* Boot is strict and the reason is in
+  `docker compose logs core` — most often missing LLM credentials, an
+  empty `NEBULA_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not
+  yet reachable. The stack has no healthchecks, so a dependency that was
+  simply slower to start leaves the core stopped rather than retrying: run
+  `docker compose up -d core` again.
 * *Every session fails at validation with a `401` from the IaC sidecar.*
   `NEBULA_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
-* *`iac` container exits at start-up.* `IAC_BINARY` names a binary that is
-  not in the image; use `tofu` or `terraform`.
-* *`notifications` container exits immediately.* Expected while the
-  sidecar is disabled. If you enabled it, set `SLACK_WEBHOOK_URL`.
 * *A `config.yaml` change has no effect.* Rebuild the core image with
-  `docker compose build core`; `curl \http://localhost/api/v1/auth/config`
-  shows what the core actually serves.
-* *Plan or apply fails with a provider authentication error.* Cloud
-  credentials in `services/iac/.env` are absent or invalid.
-* *`plan` fails with `permission denied` on a state or plan file.* The
-  `workspaces` volume was created by an older stack that ran as root. Run
+  `docker compose build core`.
+* *`plan` or `apply` fails with a provider authentication error.* The cloud
+  credentials in `services/iac/.env` are absent, invalid, or insufficient.
+* *`plan` fails with `permission denied` on a file in the workspace.* The
+  `workspaces` volume predates the current non-root containers. Run
   `docker compose down`, then `docker run --rm -v nebula_workspaces:/workspaces
   alpine chown -R 10001:10001 /workspaces`, and start again.
+* *`init` fails on the state backend, or every plan wants to recreate
+  existing resources.*
+  xref:main:guides/configure-state-backends.adoc#state-troubleshooting[Troubleshooting
+  state backends].
 * *Push or pull-request creation fails.* Check `GIT_USER`, `GIT_TOKEN`,
   that `git.provider` matches the repository host, and the token's
   permissions.
-* *A session aborts with `Prompt not found: <name>`.* The prompt is
-  missing in Phoenix or has no version tagged with the `environment`
-  value. See xref:main:guides/customize-prompts.adoc[Customize prompts].
+* *A session aborts because a prompt is missing.* The prompt is absent from
+  Phoenix or has no version tagged with the `environment` value. See
+  xref:main:guides/customize-prompts.adoc[Customize prompts].
 * *The browser cannot download an artifact.* Port 9000 must be reachable
-  from the browser under the host in `storage.public_endpoint_url`
-  (`\http://localhost:9000` by default).
-* *`init` fails on the state backend, or every plan wants to recreate
-  existing resources.* As shipped, Nebula manages state itself, so check
-  the `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` credentials first. If you set
-  `storage.terraform_state_bucket` to `""`, the backend is the
-  repository's own instead: one that declares a backend needs that
-  backend's credentials in `services/iac/.env`, and one that declares none
-  plans against local state that dies with the workspace. Other causes are
-  in
-  xref:main:guides/configure-state-backends.adoc#state-troubleshooting[Troubleshooting
-  state backends].
-* *`init` fails on a missing backend configuration file.*
-  `IAC_BACKEND_CONFIG` is not checked at startup, so the sidecar boots
-  normally and a wrong path only appears in the failing job's stderr.
-  Mount the file at that path inside the container and make it readable by
-  uid `10001`, or unset the variable.
-* *`core` exited on first boot before `core-db`, `redis`, or
-  `object-storage` were ready.* The compose file has no healthchecks and
-  no restart policy on `core`, so a startup race leaves it stopped rather
-  than retrying. Run `docker compose up -d core` again.
-* *RustFS console.* The bundled object storage exposes a web console on
-  `\http://localhost:9000` using the compose credentials (`rustfsadmin` /
-  `rustfsadmin`). This is fine on a trusted workstation only — never
-  expose it beyond one; on a shared network bind the port to loopback as
-  shown in <<see-it-working,See it working>>.
+  from the browser under the host in `storage.public_endpoint_url`.
+* *LLM calls fail although the core booted.* Not every provider can be
+  validated at boot. See
+  xref:main:reference/llm-providers.adoc#llm-troubleshooting[LiteLLM
+  troubleshooting].
