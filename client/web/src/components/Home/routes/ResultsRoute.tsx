@@ -7,7 +7,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { useSessionLoader } from "@/hooks/useSessionLoader";
-import { isDriftSession } from "@/utils/session";
+import { isImportSession, isMergeOnlySession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
 import { AssistantAnimation } from "@/components/ui";
 import { useHomeLayoutContext } from "../HomeLayout";
@@ -37,7 +37,7 @@ export default function ResultsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab") as TabId | null;
   const resultTab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : "report";
-  // A merged drift PR has nothing left to approve, so a hand-edited ?view=
+  // A merged drift/import PR has nothing left to approve, so a hand-edited ?view=
   // must not reopen the flow and let the user merge twice.
   const isPrMerged = !!prDetails.merged;
   const prStep = isPrMerged ? null : parsePrStep(searchParams.get("view"));
@@ -83,14 +83,19 @@ export default function ResultsRoute() {
 
   /**
    * Runs once `PrApprovalView` has merged the PR. For a drift session the merge
-   * is the whole remediation, so the flow ends here; only a generate session
-   * goes on to apply the plan.
+   * is the whole remediation, and an import is already in Terraform state, so
+   * the flow ends here; only a generate session goes on to apply the plan.
    */
   const handlePrApproved = useCallback(() => {
     updatePrDetails({ merged: true });
 
-    if (isDriftSession(session)) {
-      showNotification("success", STRINGS.pr.mergeSuccess);
+    if (isMergeOnlySession(session)) {
+      showNotification(
+        "success",
+        isImportSession(session)
+          ? STRINGS.pr.importMergeSuccess
+          : STRINGS.pr.mergeSuccess,
+      );
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.delete("view");

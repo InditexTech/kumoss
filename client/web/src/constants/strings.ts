@@ -59,14 +59,17 @@ export const STRINGS = {
     showCode: "Show Code",
     confirmApply: "Confirm and Apply",
     requestReview: "Request Review",
-    // Drift wording: merging the PR *is* the remediation, so nothing is
-    // applied afterwards and the labels must not promise it.
+    // Drift/import wording: merging the PR ends the flow (it *is* the
+    // remediation; an import is already in state), so nothing is applied
+    // afterwards and the labels must not promise it.
     mergePrompt: "",
     approveAndMerge: "Approve and Merge PR",
     confirmMerge: "Confirm and Merge",
     merging: "Merging…",
     mergeSuccess:
       "Pull Request merged. Your infrastructure is being updated to its declared state.",
+    importMergeSuccess:
+      "Pull Request merged. The imported resources are now managed from your repository.",
     highImpactTitle: "High Impact Deployment",
     highImpactMessage:
       "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",

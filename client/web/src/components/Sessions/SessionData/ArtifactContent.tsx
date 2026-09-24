@@ -29,10 +29,19 @@ import {
   ApplyChangesList,
   ApplyResourceDetail,
   ApplyRecommendations,
+  ImportedResourcesList,
+  ImportExclusions,
+  ImportStateAlignment,
+  ImportedResourceDetail,
   hasStructuredCosts,
   reportStatusVariant,
 } from "@/components/Home";
-import type { FilterId, DetailView, ApplyFilterId } from "@/components/Home";
+import type {
+  FilterId,
+  DetailView,
+  ApplyFilterId,
+  ImportFilterId,
+} from "@/components/Home";
 import { CodeBlock, StatusBadge } from "@/components/ui";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
@@ -46,11 +55,12 @@ interface ArtifactContentProps {
   operation: OperationType;
 }
 
-// Apply and drift reports announce themselves; generate/import ones are
+// Apply, drift and import reports announce themselves; generate ones are
 // just "Report".
 const REPORT_LABELS: Partial<Record<ReportType, string>> = {
   apply: "Apply Report",
   drift: "Drift Report",
+  import: "Import Report",
 };
 
 export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string {
@@ -82,6 +92,7 @@ export default function ArtifactContent({
   const [files, setFiles] = useState<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(true);
   const [applyFilter, setApplyFilter] = useState<ApplyFilterId>("all");
+  const [importFilter, setImportFilter] = useState<ImportFilterId>("all");
   const { setMode } = useMode();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -227,7 +238,7 @@ export default function ArtifactContent({
 
   // The report ref's `type` (the reports.type column, surfaced by the
   // session detail read model) decides which renderer handles it;
-  // generate/import go through the plan table.
+  // generate goes through the plan table.
   const reportType = kind === "report" ? (artifact as ReportRef).type : null;
 
   // Drift reports carry `remediated_resources` and a prose `summary`
@@ -245,6 +256,16 @@ export default function ArtifactContent({
     if (activeDetail !== "change" || !resourceParam || !applyChanges) return null;
     return applyChanges.find((c) => c.resource_name === resourceParam) ?? null;
   }, [activeDetail, resourceParam, applyChanges]);
+
+  // Import reports carry `imported_resources` (one per attempted import),
+  // the `excluded_resources` the exception list withheld, and a
+  // `state_alignment` note.
+  const importedResources =
+    reportType === "import" ? reportData?.imported_resources : undefined;
+  const selectedImportedResource = useMemo(() => {
+    if (activeDetail !== "change" || !resourceParam || !importedResources) return null;
+    return importedResources.find((r) => r.resource_address === resourceParam) ?? null;
+  }, [activeDetail, resourceParam, importedResources]);
 
   const fileNames = files ? Object.keys(files) : [];
   const clickedFileName =
@@ -279,10 +300,10 @@ export default function ArtifactContent({
     reportData?.execution_summary ??
     (typeof reportData?.summary === "string" ? reportData.summary : undefined);
 
-  // Apply and drift reports badge the round's overall outcome next to
-  // the summary label; generate/import ones carry no such status.
+  // Apply, drift and import reports badge the round's overall outcome
+  // next to the summary label; generate ones carry no such status.
   const reportStatus =
-    reportType === "apply" || reportType === "drift"
+    reportType === "apply" || reportType === "drift" || reportType === "import"
       ? reportStatusVariant(reportData?.status)
       : null;
 
@@ -320,6 +341,24 @@ export default function ArtifactContent({
               />
             </>
           );
+        case "import":
+          return (
+            <>
+              <ImportedResourcesList
+                resources={report.imported_resources ?? []}
+                activeFilter={importFilter}
+                setActiveFilter={setImportFilter}
+                onSelect={(resource) => {
+                  setActiveDetail("change", resource.resource_address);
+                }}
+              />
+              <ImportExclusions excluded={report.excluded_resources} />
+              <ImportStateAlignment text={report.state_alignment} />
+              <ApplyRecommendations
+                recommendations={report.recommendations ?? []}
+              />
+            </>
+          );
         default:
           return (
             <ChangesTable
@@ -339,7 +378,11 @@ export default function ArtifactContent({
         {summaryText && (
           <div className={styles.executionSummary}>
             <Typography variant="label" className={styles.executionSummaryLabel}>
-              {reportType === "drift" ? "Drift Summary" : "Execution Summary"}
+              {reportType === "drift"
+                ? "Drift Summary"
+                : reportType === "import"
+                  ? "Import Summary"
+                  : "Execution Summary"}
               {reportStatus && (
                 <StatusBadge
                   variant={reportStatus}
@@ -401,6 +444,12 @@ export default function ArtifactContent({
         {activeDetail === "change" && selectedDriftResource && (
           <DriftResourceDetail
             resource={selectedDriftResource}
+            onClose={() => setActiveDetail(null)}
+          />
+        )}
+        {activeDetail === "change" && selectedImportedResource && (
+          <ImportedResourceDetail
+            resource={selectedImportedResource}
             onClose={() => setActiveDetail(null)}
           />
         )}

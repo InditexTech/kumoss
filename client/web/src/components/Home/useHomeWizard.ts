@@ -9,13 +9,14 @@ import { useTerraformActions } from "@/hooks/use_terraform_actions";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { STRINGS } from "@/constants/strings";
+import { FIXED_MODE_QUERIES, isFixedModeQuery } from "@/constants/modes";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { useWizardNavigation } from "@/hooks/useWizardNavigation";
 import type { WizardData } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
 import { nextStep } from "@/hooks/wizardFlow";
-import { isDriftSession } from "@/utils/session";
+import { isMergeOnlySession } from "@/utils/session";
 import type { Session } from "@/types/ui";
 import type { TerraformProvider } from "@/types/api";
 
@@ -98,14 +99,33 @@ export function useHomeWizard() {
     [navigation, updateSession, auth],
   );
 
+  // Full modes skip the query step and send a fixed query. The mode can
+  // change mid-wizard, so keep the query slot in sync with it: a full mode
+  // overrides whatever is there, and leaving one for a partial mode drops
+  // the fixed query and asks the user for theirs.
+  useEffect(() => {
+    const fixed = FIXED_MODE_QUERIES[mode];
+    const { query } = navigation.data;
+    if (fixed) {
+      if (query === fixed) return;
+      const merged = navigation.applyResolution({ query: fixed });
+      updateSession({ first_query: fixed });
+      if (navigation.step === "query") advance(merged);
+    } else if (isFixedModeQuery(query)) {
+      navigation.applyResolution({ query: "" });
+      navigation.setStep("query");
+    }
+  }, [mode, navigation, updateSession, advance]);
+
   const handleInput = useCallback(
     async (value: string) => {
       switch (navigation.step) {
         case "query": {
           if (!value.trim() || value.length > 500) return;
-          navigation.setData((prev) => ({ ...prev, query: value.trim() }));
           updateSession({ first_query: value.trim() });
-          navigation.setStep("repository_url");
+          // The rest may already be filled when the user switched from a
+          // full mode mid-wizard, so move on from what is collected.
+          advance(navigation.applyResolution({ query: value.trim() }));
           break;
         }
 
@@ -203,21 +223,15 @@ export function useHomeWizard() {
 
   const applyAfterPr = useCallback(() => {
     if (!session.uuid) return;
-    // Drift is remediated by merging the PR; applying afterwards would re-run
-    // work the merge just completed. ResultsRoute already declines to call
-    // this, but the callback is reachable through the outlet context.
-    if (isDriftSession(session)) return;
+    // Drift is remediated by merging the PR and an import is already in
+    // state; applying afterwards would re-run work that is done.
+    // ResultsRoute already declines to call this, but the callback is
+    // reachable through the outlet context.
+    if (isMergeOnlySession(session)) return;
 
     navigate("/home/planning");
 
-    terraform.run(
-      {
-        sessionId: session.uuid,
-        query: "",
-        mode: "import" as const,
-      },
-      handleOutcome,
-    );
+    terraform.run({ kind: "apply", sessionId: session.uuid }, handleOutcome);
   }, [session, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {

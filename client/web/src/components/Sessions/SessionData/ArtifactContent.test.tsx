@@ -162,3 +162,54 @@ describe("ArtifactContent apply reports", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("ArtifactContent import reports", () => {
+  const importRef: ReportRef = { ...applyRef, type: "import" };
+  const importReport = {
+    status: "Succeeded",
+    summary: { selected: 1, imported: 1, failed: 0 },
+    execution_summary: "The storage account is now managed by Terraform.",
+    imported_resources: [
+      {
+        resource_address: "azurerm_storage_account.sta_001",
+        resource_id: "/subscriptions/sub-123/storageAccounts/sta001",
+        status: "imported",
+        details: "Storage account sta001 in rg.",
+        error_message: null,
+      },
+    ],
+    excluded_resources: [
+      {
+        resource_id: "/subscriptions/sub-123/storageAccounts/shared",
+        details: "Shared platform storage account.",
+      },
+    ],
+    state_alignment: "No changes: the configuration matches the imported state.",
+    recommendations: ["Review the generated block."],
+  };
+
+  it("renders the import report for a ref typed import", async () => {
+    renderReport(importReport, importRef, "import");
+
+    expect(await screen.findByText("Import Summary")).toBeInTheDocument();
+    expect(screen.getByText("SUCCEEDED")).toBeInTheDocument();
+    expect(
+      screen.getByText("The storage account is now managed by Terraform."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("azurerm_storage_account.sta_001")).toBeInTheDocument();
+    expect(screen.getByText("Excluded by Import Exceptions")).toBeInTheDocument();
+    expect(
+      screen.getByText("No changes: the configuration matches the imported state."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Review the generated block.")).toBeInTheDocument();
+  });
+
+  it("opens the imported resource detail from a row", async () => {
+    renderReport(importReport, importRef, "import");
+
+    await userEvent.click(
+      await screen.findByText("azurerm_storage_account.sta_001"),
+    );
+    expect(screen.getByText("Storage account sta001 in rg.")).toBeInTheDocument();
+  });
+});

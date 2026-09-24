@@ -112,6 +112,7 @@ export const MODE = {
   DRIFT: "drift",
   PARTIAL_DRIFT: "partial_drift",
   IMPORT: "import",
+  PARTIAL_IMPORT: "partial_import",
 } as const;
 
 export type Mode = (typeof MODE)[keyof typeof MODE];
@@ -125,7 +126,9 @@ export interface ModeContextValue {
   isDriftMode: boolean;
   isPartialDriftMode: boolean;
   isImportMode: boolean;
+  isPartialImportMode: boolean;
   isAnyDriftMode: boolean;
+  isAnyImportMode: boolean;
 }
 
 // ─── Notifications ─────────────────────────────────────────

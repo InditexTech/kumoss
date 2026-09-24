@@ -5,7 +5,7 @@
 /**
  * HOOK: useTerraformActions
  *
- * Triggers a mode-based IaC endpoint, subscribes to SSE events,
+ * Triggers a mode-based IaC endpoint (or an apply), subscribes to SSE events,
  * updates pipeline progress via AssistantMsgContext, and resolves the
  * finished round into a SessionOutcome for the completion callback.
  */
@@ -13,6 +13,7 @@
 import { useReducer, useRef, useCallback, useEffect } from "react";
 import {
   runTerraformActionWorkflow,
+  isApplyAction,
   type TerraformActionParams,
 } from "@/services/workflows/terraform_action";
 import {
@@ -142,7 +143,7 @@ export function useTerraformActions() {
       setAssistantMsgState((prev) => ({
         ...prev,
         pipelineStep: PHASE.INIT,
-        isApplyMode: params.mode === "import",
+        isApplyMode: isApplyAction(params),
       }));
 
       const settleOutcome = (outcome: SessionOutcome, sessionId: string) => {
