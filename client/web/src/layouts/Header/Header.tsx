@@ -11,8 +11,11 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import PersonIcon from "@mui/icons-material/Person";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
-import { Authenticated } from "@/contexts/AuthContext";
+import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import { Authenticated, useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
+import { panelRoleAtLeast } from "@/types/api";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import ConfigurationModal from "@/components/ConfigurationModal/ConfigurationModal";
 import SupportModal from "@/components/SupportModal/SupportModal";
@@ -22,11 +25,13 @@ import styles from "./Header.module.css";
 function Header() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { panelRole } = useAuth();
   const view = useCurrentView();
   const { resetSession } = useSession();
   const [configOpen, setConfigOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const modeDisabled = view !== null && view !== "wizard";
+  const isAdmin = panelRoleAtLeast(panelRole, "admin");
 
   return (
     <>
@@ -60,6 +65,19 @@ function Header() {
           <Authenticated>
             <ModeDropdown disabled={modeDisabled} />
             <div className={styles.separator} />
+            {isAdmin && (
+              <ButtonBase
+                onClick={() => navigate("/scheduler")}
+                className={styles.iconButton}
+                aria-label="Scheduler"
+              >
+                {location.pathname === "/scheduler" ? (
+                  <ScheduleIcon className={styles.headerIcon} />
+                ) : (
+                  <ScheduleOutlinedIcon className={styles.headerIcon} />
+                )}
+              </ButtonBase>
+            )}
             <ButtonBase
               onClick={() => setConfigOpen(true)}
               className={styles.iconButton}
