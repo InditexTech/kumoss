@@ -393,8 +393,9 @@ class Terraform(ITerraform):
     def __needs_init(res: OperationResult) -> bool:
         return "terraform init" in f"{res.stderr}\n{res.stdout}".lower()
 
+    @trace_terraform
     @override
-    async def state_resource_ids(self) -> list[str]:
+    async def state_resource_ids(self) -> TerraformDiscoveryDTO:
         cfg = system_config.services.iac
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
@@ -423,13 +424,16 @@ class Terraform(ITerraform):
                         f"terraform state pull failed: {state_res.stderr or 'unknown error'}",
                         502,
                     )
-                return json.loads(state_res.stdout)
+                return TerraformDiscoveryDTO(
+                    resource_ids=json.loads(state_res.stdout),
+                )
 
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
+    @trace_terraform
     @override
     async def scope_resource_ids(
         self,

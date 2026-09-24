@@ -52,7 +52,6 @@ Create a Terraform resource block for each cloud resource id in the user's messa
 
 - Explore the existing Terraform codebase first and follow its file organization and naming conventions.
 - Scaffold each block with the configuration the rules above require, deriving values from the cloud resource id where it carries them (name, resource group, location). Use `web_search` for provider documentation when a required argument is not obvious.
-- Place the blocks in a `.tf` file of the root module (the working directory) so `terraform import` can find them.
 - Never modify or delete Terraform configuration that existed before this task.
 - Writing the blocks twice must produce the same code: leave a block that already exists for an id as it is.
 </objective>

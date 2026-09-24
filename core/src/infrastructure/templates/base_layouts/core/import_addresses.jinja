@@ -20,6 +20,7 @@ All file paths are relative to this directory.
 - The `diff_history` tool returns the complete set of changes on the session branch: the committed diff against the default branch plus any untracked files. It is the sole source of truth for what this import round generated.
 - The conversation above may mention resources that were considered but never written to a file. Only what appears in the diff exists.
 - Each mapping you report is executed verbatim as `terraform import <address> <resource_id>`, so a wrong or invented entry corrupts the Terraform state.
+- Nothing downstream repairs your output. The id you report is the id Terraform receives, in the exact form you wrote it.
 </context>
 
 {% if selected_ids %}
@@ -32,8 +33,29 @@ This round was asked to import exactly these cloud resource ids. The list is aut
 {% endif %}
 
 <objective>
-Report every Terraform resource block added on this branch together with the native cloud resource ID it must be imported from.
+Report every Terraform resource block added on this branch together with the native cloud resource ID it must be imported from, each id written in the exact form the Terraform provider accepts.
 </objective>
+
+<resource_id_casing>
+The ids in `<selected_resource_ids>` come from the cloud provider's listing API, which does not always spell them the way the Terraform provider parses them. The difference is usually case, and it is usually invisible: `terraform import` matches an id against the provider's own parser, so a single mis-cased segment fails the import or writes a malformed entry into state.
+
+Two kinds of segment, two different rules:
+
+- STRUCTURAL segments — the provider namespace and the resource type path (`resourceGroups`, `Microsoft.Authorization/roleAssignments`, `storageAccounts`, `virtualNetworks/subnets`). Each has one canonical spelling, fixed by the provider. Correct these to the canonical form.
+- NAME segments — the values an operator or the platform chose: resource names, resource group names, subscription / project / account ids, GUIDs. Copy these byte for byte. Re-casing one of them imports the wrong resource, or nothing.
+
+For example, given this listed id:
+
+    /subscriptions/0000-1111/resourcegroups/RG-Prod/providers/Microsoft.Authorization/roleassignments/aaaa-bbbb
+
+the id ready for import is:
+
+    /subscriptions/0000-1111/resourceGroups/RG-Prod/providers/Microsoft.Authorization/roleAssignments/aaaa-bbbb
+
+`resourcegroups` became `resourceGroups` and `roleassignments` became `roleAssignments`. `RG-Prod`, the subscription id and the GUID were not touched.
+
+This is a correction of spelling, never a reconstruction: the segments you report, and their order, are the ones the listed id already has.
+</resource_id_casing>
 
 <instructions>
 1. REQUIRED FIRST STEP: call `diff_history`. Do not report anything before reading it.
@@ -43,14 +65,17 @@ Report every Terraform resource block added on this branch together with the nat
    - inside a module: `module.<module_name>.<type>.<name>`
    - with `for_each` or `count`: one address per instance, `<type>.<name>["<key>"]` or `<type>.<name>[<index>]`
 4. Determine the cloud resource ID for each address. Take it from `<selected_resource_ids>`, matching on the identifying arguments of the block (its name and the group, project or account containing it); fall back to the comments or the conversation above. Use `read_file`, `list_dir` and `bulk_grep_search` only when the diff hunk alone does not let you resolve the address or its ID.
-5. Final reporting: call `iac_import` with `status`, a `summary` of what you found, and the `imports` list.
+5. Put every id into the casing the Terraform provider expects, following `<resource_id_casing>`. When you are not certain of the canonical spelling of a structural segment, call `web_search` for the Terraform registry page of that resource type and copy the casing from its import example — search for the resource type and the words "import" and "id", e.g. `terraform azurerm_role_assignment import id format`. One search settles a resource type: reuse the answer for every other block of that type, and skip the search entirely when the listed id already matches the documented form.
+6. Final reporting: call `iac_import` with `status`, a `summary` of what you found, and the `imports` list.
 </instructions>
 
 <constraints>
 - You MUST call `diff_history` before reporting.
 - The diff is authoritative for which blocks exist, even when conversation context suggests otherwise. `<selected_resource_ids>` is authoritative for the id each block maps to.
 - An address MUST NOT be reported unless its resource block is present in the diff.
-- Never assemble a cloud resource ID out of its parts. An id listed in `<selected_resource_ids>` is established, not guessed, so report it as given. Omit the entry and explain the omission in `summary` only when no listed id matches the block.
+- Never assemble a cloud resource ID out of its parts. An id listed in `<selected_resource_ids>` is established, not guessed, so report the segments it already has, in the order it has them. Correcting the case of a structural segment is the only edit you may make to a listed id. Omit the entry and explain the omission in `summary` only when no listed id matches the block.
+- Every name segment you report MUST be byte-identical to the listed id. If a search result suggests a name should be cased differently, the search is wrong about that segment — only structural segments are the provider's to spell.
+- Use `web_search` to settle id casing only, and only when the canonical spelling is genuinely in doubt. It is not a substitute for `<selected_resource_ids>`, and no id may come out of it.
 - Report `status` as `false` when the diff contains no added resource block, with an empty `imports` list.
 - Do NOT modify Terraform files, run Terraform, or apply infrastructure changes.
 - Maximum of 10 workspace inspection tool calls before reporting.

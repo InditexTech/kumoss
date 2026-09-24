@@ -16,6 +16,12 @@ class TerraformImportAddressService:
     The generation agent writes the blocks; this service reads them back
     from the session branch diff and pairs each Terraform address with the
     cloud resource id it must be imported from.
+
+    The pair goes straight to ``terraform import``, so the id has to be
+    spelled the way the provider parses it — a cloud listing API and a
+    Terraform provider do not always agree on the case of a resource type
+    segment. Web search rides along with the workspace tools for that:
+    the registry's import example is what settles the canonical spelling.
     """
 
     def __init__(
@@ -32,7 +38,10 @@ class TerraformImportAddressService:
         self, history: History, selected_ids: list[str]
     ) -> list[tuple[str, str]]:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
-            contexts=[ToolContext.WORKSPACE_INSPECTION]
+            contexts=[
+                ToolContext.WORKSPACE_INSPECTION,
+                ToolContext.EXTERNAL_INFORMATION,
+            ]
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
             query="Map the generated Terraform blocks to their cloud resource ids.",

@@ -32,7 +32,8 @@ class TerraformImportService:
         resource in it is already managed — stay separate outcomes for
         the caller to report, not one empty list.
         """
-        managed_res = await self.__import_prv.state_resource_ids()
+        state = await self.__import_prv.state_resource_ids()
+        managed_res = state.resource_ids
 
         logging.debug(f"Managed resources for scope {scope_id}: {managed_res}")
 

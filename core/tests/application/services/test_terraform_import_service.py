@@ -34,7 +34,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
     # --- Discovery ---
 
     async def test_unmanaged_resources_are_the_sorted_scope_diff(self):
-        self.import_prv.state_resource_ids.return_value = ["res-b"]
+        self.import_prv.state_resource_ids.return_value = _discovery(["res-b"])
         self.import_prv.scope_resource_ids.return_value = _discovery(
             ["res-c", "res-a", "res-b"]
         )
@@ -50,7 +50,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
     async def test_failed_scope_query_reports_the_provider_diagnostics(self):
         # The three ways a round finds nothing to import stay apart: here
         # the query failed, so its stderr reaches the caller verbatim.
-        self.import_prv.state_resource_ids.return_value = []
+        self.import_prv.state_resource_ids.return_value = _discovery([])
         self.import_prv.scope_resource_ids.return_value = _discovery(
             [], "Error: invalid token"
         )
@@ -65,7 +65,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Error: invalid token", discovery.feedback)
 
     async def test_empty_scope_is_reported_apart_from_a_failed_query(self):
-        self.import_prv.state_resource_ids.return_value = []
+        self.import_prv.state_resource_ids.return_value = _discovery([])
         self.import_prv.scope_resource_ids.return_value = _discovery([])
 
         discovery = await self.service.get_unmanaged_resources(
@@ -77,7 +77,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("holds no importable resource", discovery.feedback)
 
     async def test_fully_managed_scope_is_reported_apart_from_an_empty_one(self):
-        self.import_prv.state_resource_ids.return_value = ["res-a", "res-b"]
+        self.import_prv.state_resource_ids.return_value = _discovery(["res-a", "res-b"])
         self.import_prv.scope_resource_ids.return_value = _discovery(["res-a", "res-b"])
 
         discovery = await self.service.get_unmanaged_resources(

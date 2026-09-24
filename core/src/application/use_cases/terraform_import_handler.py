@@ -5,7 +5,7 @@
 import json
 from collections.abc import Coroutine
 from dataclasses import asdict
-from typing import Callable, Any, cast
+from typing import Callable, Any
 
 from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
@@ -15,27 +15,24 @@ from src.application.services.terraform_import_service import TerraformImportSer
 from src.domains.dto import (
     TerraformImportDTO,
     TerraformPlanDTO,
-    ToolResultDTO,
 )
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     SessionService,
+    TaskService,
     TemplateOrchestrationService,
     TerraformImportAddressService,
     TerraformTargetService,
     TerraformValidationService,
 )
-from src.domains.services.llm_service import LLMOrchestrationService
-from src.domains.services.tool_service import ToolOrchestrationService
 from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
     ReportType,
     SessionStatus,
-    ToolContext,
 )
 from src.shared.logger import logging
 
@@ -54,8 +51,7 @@ class TerraformImportHandler:
         target_service: TerraformTargetService,
         drift_service: TerraformDriftService,
         report_service: ReportService,
-        llm_service: LLMOrchestrationService,
-        tool_service: ToolOrchestrationService,
+        task_service: TaskService,
     ):
         self.__terraform_svc = terraform_service
         self.__validation_svc = validation_service
@@ -67,8 +63,7 @@ class TerraformImportHandler:
         self.__import_address_svc = import_address_service
         self.__target_svc = target_service
         self.__drift_svc = drift_service
-        self.__llm_svc = llm_service
-        self.__tool_svc = tool_service
+        self.__task_svc = task_service
         self.__ctx = session_ctx
 
     async def __report_nothing_to_import(self, q: str, msg: str) -> None:
@@ -137,29 +132,20 @@ class TerraformImportHandler:
 
                 selected_ids: list[str] = unmanaged_ids
                 if is_partial:
-                    filter_result: ToolResultDTO = await self.__llm_svc.generate(
+                    filtered = await self.__task_svc.filter_imports(
                         query=q,
-                        tools=[
-                            self.__tool_svc.get_sentinel_tool(
-                                context=ToolContext.TASK_SPLITTER,
-                            )
-                        ],
-                        prompt=await self.__template_svc.render(
-                            prompt=PromptsLibrary.IMPORT_FILTER,
-                            unmanaged_ids=unmanaged_ids,
-                            resources=conventions.templates,
-                            abbreviations=conventions.abbreviations,
-                        ),
+                        unmanaged_ids=unmanaged_ids,
+                        conventions=conventions,
                         history=ctx.history,
                     )
-                    selected_ids = cast(list[str], filter_result.result["operations"])
+                    selected_ids = filtered.selected
 
                     if not selected_ids:
-                        filter_explanation: str = (
-                            cast(str, filter_result.result.get("explanation", ""))
-                            or "No unmanaged resource matched the request."
+                        await self.__report_nothing_to_import(
+                            q,
+                            msg=filtered.explanation
+                            or "No unmanaged resource matched the request.",
                         )
-                        await self.__report_nothing_to_import(q, msg=filter_explanation)
                         return
 
                 async def plan_callback(
@@ -170,7 +156,7 @@ class TerraformImportHandler:
                     )
 
                 q_import = (
-                    f"{q}\n\nCreate a Terraform resource block for each of these "
+                    "Create a Terraform resource block for each of these "
                     + "\n".join(f"- {rid}" for rid in selected_ids)
                 )
                 plan_result = await self.__validation_svc.generate_and_validate(
@@ -206,22 +192,15 @@ class TerraformImportHandler:
                         f"{len(import_results.failed)}/{len(imports)} imports failed"
                     )
 
-                imported_addresses = import_results.addresses
-                # The report is fed the plan text, not the ref: the ref is
-                # what the drift read consumes, and only the convergence
-                # round that follows the imports sees state as it now is.
                 plan_after_import = plan_result.stdout
-                if imported_addresses:
+                if import_results.addresses:
                     drift = await self.__drift_svc.detect_and_resolve_drift(
-                        plan=plan_result.plan,
+                        plan=None,
                         filter_session_changes=False,
-                        targets=imported_addresses,
+                        targets=plan_result.targets,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )
-                    # Only a failed read aborts the round: drift the loop
-                    # could not reconcile is an outcome to report, not a
-                    # fault, and it is ``feedback`` that tells them apart.
                     if drift.feedback:
                         fail_msg = await self.__report_svc.summarize_problem(
                             feedback=drift.feedback,

@@ -544,6 +544,5 @@ class ApplicationFactory:
             target_service=target_svc,
             drift_service=drift_svc,
             report_service=report_svc,
-            llm_service=llm_svc,
-            tool_service=tool_svc,
+            task_service=split_svc,
         )

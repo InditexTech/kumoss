@@ -37,7 +37,9 @@ from src.clients.iac.models.job_kind import JobKind
 from src.clients.iac.models.job_status import JobStatus
 from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
+from src.domains.dto import TerraformDiscoveryDTO
 from src.domains.interfaces.git_interface import IGit
+from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import TracerService
 from src.domains.value_objects import PlanRef
 from src.infrastructure.terraform import terraform as tv
@@ -630,9 +632,15 @@ class TestTerraformStateResourceIds(_ImportTestCase):
             ),
         )
 
-        ids = await self.terraform.state_resource_ids()
+        dto = await self.terraform.state_resource_ids()
 
-        self.assertEqual(ids, ["azurerm_resource_group.main", "azurerm_vnet.v1"])
+        self.assertEqual(
+            dto.resource_ids, ["azurerm_resource_group.main", "azurerm_vnet.v1"]
+        )
+        # The read has no tolerated failure of its own, so a result that
+        # came back at all is a clean one.
+        self.assertEqual(dto.feedback, "")
+        self.assertTrue(dto.ok)
         # The state read reaches no cloud API, so only the init that
         # precedes it runs under the session scope.
         state_body = submit_mocks["state"].await_args.kwargs["body"]
@@ -713,6 +721,9 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
 
         self.assertEqual(discovery.resource_ids, [])
         self.assertIn("scope retrieval failed", discovery.feedback)
+        # The diagnostics are what the span reports as the failed outcome.
+        self.assertFalse(discovery.ok)
+        self.assertEqual(discovery.summary, discovery.feedback)
 
 
 class TestTerraformImportResource(_ImportTestCase):
@@ -916,6 +927,40 @@ class TestTerraformApply(_TerraformTestCase):
             await self.terraform.apply()
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("state lock held", ctx.exception.message)
+
+
+class TestTerraformTracing(unittest.TestCase):
+    """Every operation the adapter exposes opens a span.
+
+    Stated over the interface rather than a hand-written list so a verb
+    added later has to be traced too, or this fails.
+    """
+
+    def test_every_operation_is_traced(self):
+        operations = [
+            name
+            for name, attr in vars(ITerraform).items()
+            if getattr(attr, "__isabstractmethod__", False)
+        ]
+        self.assertEqual(len(operations), 6, operations)
+        for name in operations:
+            with self.subTest(operation=name):
+                # @trace_terraform wraps with functools.wraps; @override
+                # leaves the function untouched.
+                self.assertTrue(
+                    hasattr(getattr(tv.Terraform, name), "__wrapped__"),
+                    f"{name} is not decorated with @trace_terraform",
+                )
+
+    def test_every_traced_result_reports_an_outcome_and_a_summary(self):
+        # What the tracer reads off whatever the verb returned.
+        for dto in (
+            TerraformDiscoveryDTO(resource_ids=["res-1"]),
+            TerraformDiscoveryDTO(resource_ids=[], feedback="Error: no such scope"),
+        ):
+            with self.subTest(dto=dto):
+                self.assertIsInstance(dto.ok, bool)
+                self.assertIsInstance(dto.summary, str)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ from src.domains.dto import ToolResultDTO
 from src.domains.services.terraform_import_address_service import (
     TerraformImportAddressService,
 )
-from src.shared.constants import PromptsLibrary
+from src.shared.constants import PromptsLibrary, ToolContext
 
 SELECTED_IDS = [
     "/subscriptions/sub-1/resourceGroups/rg/providers/"
@@ -53,6 +53,19 @@ class TestTerraformImportAddressService(unittest.IsolatedAsyncioTestCase):
         self.template_svc.render.assert_awaited_once_with(
             PromptsLibrary.IMPORT_ADDRESSES, selected_ids=SELECTED_IDS
         )
+
+    async def test_the_agent_can_look_up_canonical_id_casing(self):
+        self.__answer([])
+
+        _ = await self.service.get_import_addresses(self.history, SELECTED_IDS)
+
+        # The ids it reports go straight to `terraform import`, and a
+        # listing API does not always case a resource type the way the
+        # provider parses it. Settling that needs the registry, so the
+        # workspace tools are not enough on their own.
+        contexts = self.tool_svc.get_available_tools.call_args.kwargs["contexts"]
+        self.assertIn(ToolContext.WORKSPACE_INSPECTION, contexts)
+        self.assertIn(ToolContext.EXTERNAL_INFORMATION, contexts)
 
     async def test_reported_imports_become_address_id_pairs(self):
         self.__answer(

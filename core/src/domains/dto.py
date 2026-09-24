@@ -167,16 +167,28 @@ class TerraformApplyDTO:
 class TerraformDiscoveryDTO:
     """Resource IDs an import round can work with, and why when it has none.
 
+    Both reads a round makes answer with this — the Terraform state and
+    the cloud scope — and so does the diff between them.
+
     A discovery query that finds nothing is a normal outcome, so the
     reason rides with the result instead of being raised: ``feedback`` is
     empty only when ``resource_ids`` is usable, and otherwise says which
     dead end was reached — the cloud query failed (carrying its own
     diagnostics), the scope holds nothing importable, or everything in it
-    is already managed.
+    is already managed. The state read has no tolerated failure of its
+    own: it either answers with an empty ``feedback`` or raises.
     """
 
     resource_ids: list[str]
     feedback: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return not self.feedback
+
+    @property
+    def summary(self) -> str:
+        return "\n".join(self.resource_ids) if self.ok else self.feedback
 
 
 @dataclass
@@ -238,6 +250,21 @@ class FilteredOperationsDTO:
 
     kept: list[list[str]]
     excluded: list[str]
+    explanation: str
+
+
+@dataclass
+class FilteredImportsDTO:
+    """Which of a scope's unmanaged resources an import request asks for.
+
+    ``selected`` stays flat, unlike the other filter passes: imports run
+    one resource at a time, so there is nothing to group. ``explanation``
+    is the agent's own account of the selection and is what a caller
+    reports when ``selected`` comes back empty — the request matched
+    nothing, which is an outcome rather than a failure.
+    """
+
+    selected: list[str]
     explanation: str
 
 

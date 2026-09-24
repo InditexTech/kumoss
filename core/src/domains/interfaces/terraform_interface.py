@@ -124,7 +124,7 @@ class ITerraform(ABC):
     @abstractmethod
     async def state_resource_ids(
         self,
-    ) -> list[str]:
+    ) -> TerraformDiscoveryDTO:
         """
         Retrieves the provider-assigned IDs of every managed resource
         instance currently tracked in the Terraform state.
@@ -133,12 +133,14 @@ class ITerraform(ABC):
         and parses the result. On exit code 0, ``stdout`` is a JSON array of
         resource ID strings extracted from the state's managed resource
         instances (the ``attributes.id`` of each instance). An empty state
-        returns ``[]``. The workspace must already be initialised.
+        reads as no resource IDs. The workspace must already be initialised.
 
         Returns:
-            list[str]: Provider-assigned resource IDs of all managed
-                resources in the state (e.g. Azure resource IDs, AWS ARNs,
-                GCP self-links). Empty when the state tracks nothing.
+            TerraformDiscoveryDTO: ``resource_ids`` are the provider-assigned
+                resource IDs of all managed resources in the state (e.g. Azure
+                resource IDs, AWS ARNs, GCP self-links), empty when the state
+                tracks nothing. Unlike the scope query this read has no
+                tolerated failure, so ``feedback`` is always empty.
 
         Raises:
             ExceptionHandler: When the IaC service is disabled, unreachable,

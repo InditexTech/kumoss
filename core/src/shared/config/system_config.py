@@ -269,7 +269,7 @@ class TelemetryConfig(BaseModel):
     OTLP/HTTP works.
     """
 
-    collector_url: str = "http://localhost:6006/"
+    collector_url: str = "http://phoenix:6006/"
     otel_attribute_count_limit: int = 1024
     otel_console_exporter: bool = False
 
