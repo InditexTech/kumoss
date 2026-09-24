@@ -9,7 +9,7 @@ import { useNotification } from "@/contexts/NotificationContext";
 import { mergePullRequest } from "@/services/core/iac_code";
 import { getApiErrorMessage } from "@/services/api";
 import { isAllowedUrl } from "@/utils/sanitize";
-import { isDriftSession } from "@/utils/session";
+import { isMergeOnlySession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
 import type { PrApprovalStep } from "@/types/ui";
 import styles from "./PrApprovalView.module.css";
@@ -35,10 +35,9 @@ export default function PrApprovalView({
 
   const confirming = step === "confirming";
 
-  // Drift ends at the merge, so only the wording differs — the merge itself
-  // below is identical for both flows.
-  const isDrift = isDriftSession(session);
-  const labels = isDrift
+  // Drift and import end at the merge, so only the wording differs — the
+  // merge itself below is identical for every flow.
+  const labels = isMergeOnlySession(session)
     ? {
         prompt: STRINGS.pr.mergePrompt,
         approve: STRINGS.pr.approveAndMerge,

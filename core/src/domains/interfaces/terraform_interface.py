@@ -167,7 +167,7 @@ class ITerraform(ABC):
         - ``gcp``: Cloud Asset Inventory — asset names of the project's
           resources plus the IAM role names bound in the project.
         - ``aws``: Resource Groups Tagging API — resource ARNs across the
-          account's enabled regions.
+          account's enabled regions (Resource Explorer must be enabled).
 
         On exit code 0, ``stdout`` is a JSON array of provider-native resource
         ID strings. Non-zero ``exit_code`` with diagnostics in ``stderr`` is a

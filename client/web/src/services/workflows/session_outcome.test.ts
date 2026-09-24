@@ -545,6 +545,22 @@ describe("buildAssistantMessage", () => {
     ).toBe("One resource drifted");
   });
 
+  it("uses the import report's execution summary for import sessions", () => {
+    expect(
+      buildAssistantMessage({
+        kind: "results",
+        detail: makeSessionDetail({ operation: "import" }),
+        round: detail.rounds[0],
+        report: {
+          summary: { selected: 1, imported: 1, failed: 0 },
+          execution_summary: "One storage account is now managed",
+        },
+        code: "",
+        targets: undefined,
+      }),
+    ).toBe("One storage account is now managed");
+  });
+
   it("uses execution_summary for apply results and rationale for rejections", () => {
     expect(
       buildAssistantMessage({

@@ -24,6 +24,13 @@ export {
 } from "./ResultPanel/ApplyReport/ApplyReport";
 export type { ApplyFilterId } from "./ResultPanel/ApplyReport/ApplyReport";
 export {
+  ImportedResourcesList,
+  ImportExclusions,
+  ImportStateAlignment,
+  ImportedResourceDetail,
+} from "./ResultPanel/ImportReport/ImportReport";
+export type { ImportFilterId } from "./ResultPanel/ImportReport/ImportReport";
+export {
   hasStructuredCosts,
   reportStatusVariant,
 } from "./ResultPanel/resultPanelUtils";
