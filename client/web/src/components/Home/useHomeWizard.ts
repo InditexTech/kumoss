@@ -102,7 +102,10 @@ export function useHomeWizard() {
   // Full modes skip the query step and send a fixed query. The mode can
   // change mid-wizard, so keep the query slot in sync with it: a full mode
   // overrides whatever is there, and leaving one for a partial mode drops
-  // the fixed query and asks the user for theirs.
+  // the fixed query and asks the user for theirs. The dropdown stays open
+  // while authorization runs, so that also drops an authorization in
+  // flight: it would otherwise trigger the action with the query emptied.
+  const resetAuth = auth.reset;
   useEffect(() => {
     const fixed = FIXED_MODE_QUERIES[mode];
     const { query } = navigation.data;
@@ -114,8 +117,9 @@ export function useHomeWizard() {
     } else if (isFixedModeQuery(query)) {
       navigation.applyResolution({ query: "" });
       navigation.setStep("query");
+      resetAuth();
     }
-  }, [mode, navigation, updateSession, advance]);
+  }, [mode, navigation, updateSession, advance, resetAuth]);
 
   const handleInput = useCallback(
     async (value: string) => {

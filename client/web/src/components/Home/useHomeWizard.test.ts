@@ -677,6 +677,16 @@ describe("useHomeWizard — full modes skip the query", () => {
     expect(result.current.wizard.data.query).toBe("");
   });
 
+  it("leaving a full mode drops an authorization in flight", () => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+    mockAuthState.mockReturnValue({ status: "loading" });
+    act(() => { result.current.mode.setMode(MODE.PARTIAL_IMPORT); });
+
+    expect(mockAuthReset).toHaveBeenCalled();
+  });
+
   it("sends the fixed query to the API", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
