@@ -87,10 +87,8 @@ export default function SessionData({
     });
   }, []);
 
-  // A plan's flavour lives on the stored object, not in the payload, so
-  // labelling a row means fetching it. Resolved here, once for the whole
-  // panel, rather than per row: both the timeline and the breadcrumb of
-  // the opened artifact read the same map.
+  // Once for the whole panel, not per row: the timeline and the opened
+  // artifact's breadcrumb read the same map.
   const planTypes = usePlanTypes(session.rounds);
 
   const selected: SelectedArtifact | null = useMemo(() => {
@@ -164,13 +162,11 @@ export default function SessionData({
     [timelineRounds],
   );
 
-  // The round holding the session's resting state is the last one *with
-  // events*, not simply the last one. `create_round` opens the next round
-  // before its first status lands, and such a round stays visible on
-  // purpose (see `isBootstrapRound`); during that window `current_status`
-  // still reports the previous round's terminal value, so anchoring on
-  // index alone put the marker on a round with no rows to carry it and
-  // dropped it entirely.
+  // The last round *with events*, not simply the last one: `create_round`
+  // opens the next round before its first status lands, and that round stays
+  // visible on purpose (see `isBootstrapRound`) while `current_status` still
+  // reports the previous round's terminal value. Indexing alone would put
+  // the marker on a round with no row to carry it.
   const closingIndex = useMemo(() => {
     if (!isTerminal) return -1;
     for (let i = roundViews.length - 1; i >= 0; i--) {
@@ -180,10 +176,9 @@ export default function SessionData({
   }, [isTerminal, roundViews]);
 
   const started = formatDateParts(session.created_at);
-  // Not `updated_at`: that column has `onupdate`, so releasing the apply
-  // lock on a session that finished hours ago would stretch its duration.
-  // Falls back to it only for a session with no status at all, which the
-  // `isTerminal` guard on the duration row already rules out.
+  // `updated_at` is the fallback only for a session with no status at all,
+  // which the duration row's `isTerminal` guard already rules out. See
+  // `lastStatusAt` for why it is not the primary source.
   const finishedAt = lastStatusAt(session) ?? session.updated_at;
   const hasTimeline = session.rounds.length > 0;
   const lockIcon = session.is_blocked ? (
@@ -308,13 +303,10 @@ export default function SessionData({
 
               {/* Rounds */}
               {roundViews.map(({ round, events, meta }, roundIndex) => {
-                // The session's resting state lives on the event row that
-                // recorded it, so the closing round carries the failure
-                // colour that a separate trailing entry used to.
                 const closing = roundIndex === closingIndex;
-                // The connector line stops only when that round is also
-                // the last thing rendered. A round opened after it means
-                // work resumed, and the trailing line is what says so.
+                // The connector line stops only when the closing round is
+                // also the last thing rendered: a round opened after it
+                // means work resumed, and the trailing line says so.
                 const endsTimeline =
                   closing && roundIndex === roundViews.length - 1;
                 return (
@@ -374,9 +366,8 @@ export default function SessionData({
                                 onKeyDown={
                                   expandable
                                     ? (e) => {
-                                        // `role="button"` promises both
-                                        // keys; Space scrolls the page
-                                        // unless it is claimed here.
+                                        // `role="button"` promises both keys;
+                                        // Space scrolls unless claimed here.
                                         if (
                                           e.key === "Enter" ||
                                           e.key === " "
@@ -414,9 +405,7 @@ export default function SessionData({
                               </div>
                               {/* Outside the row: a status message can
                                   contain links, and interactive content
-                                  nested in `role="button"` is invalid —
-                                  clicking such a link both navigated and
-                                  toggled the row. */}
+                                  nested in `role="button"` is invalid. */}
                               {expanded && event.message && (
                                 <div className={styles.timelineOpMessage}>
                                   <MarkdownText content={event.message} />
@@ -424,18 +413,12 @@ export default function SessionData({
                               )}
                               {event.artifacts.map(({ kind, artifact }) => {
                                 // `roundArtifacts` widens every row to
-                                // `ArtifactRef`, so `kind` is the discriminant
-                                // that narrows it back — same as the
-                                // `CodeChangeRef` cast below. Only plans carry
-                                // targets, and usually only partial-drift ones:
-                                // a validation-loop plan's are typically empty.
+                                // `ArtifactRef`, so `kind` narrows it back —
+                                // same as the `CodeChangeRef` cast below.
                                 const targets =
                                   kind === "plan"
                                     ? (artifact as TerraformPlanRef).targets
                                     : [];
-                                // The row's only text is this label, and a
-                                // screen reader would announce it without
-                                // saying what activating the row does.
                                 const label =
                                   kind === "change"
                                     ? codeChangeLabel(

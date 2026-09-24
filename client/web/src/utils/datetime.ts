@@ -3,15 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Timestamp and duration formatting for the whole client.
- *
- * Every view renders dates day-first (`dd.mm.yyyy`) in the browser's local
- * zone. These lived beside their callers until four near-identical copies had
- * accumulated — in `SessionData`, `SessionsTable` and `SessionCard` — each
- * with its own zero-padding and its own answer for a missing timestamp.
+ * Timestamp and duration formatting for the whole client. Every view renders
+ * dates day-first (`dd.mm.yyyy`) in the browser's local zone.
  */
 
-/** What every formatter renders when it has no timestamp to render. */
 const PLACEHOLDER = "-";
 
 function pad(value: number): string {
@@ -28,10 +23,8 @@ function timePart(d: Date): string {
 
 /**
  * `null` for anything `Date` cannot parse, so callers reach the placeholder.
- *
  * An absent timestamp and an unparseable one are the same thing to a reader,
- * but only the first was caught: `new Date("garbage")` is an Invalid Date
- * whose getters all return `NaN`, which rendered as `NaN.NaN.NaN`.
+ * and `new Date("garbage")` is an Invalid Date whose getters return `NaN`.
  */
 function parse(iso: string | null | undefined): Date | null {
   if (!iso) return null;
@@ -83,8 +76,7 @@ export function formatDuration(startIso: string, endIso: string): string {
   const millis = end.getTime() - start.getTime();
   if (millis < 0) return PLACEHOLDER;
   // Round to whole seconds *first*: splitting an unrounded value lets the
-  // remainder round up to 60 while the minute count stays floored, which is
-  // how 359.771 s rendered as "5m 60s".
+  // remainder round up to 60 while the minute count stays floored ("5m 60s").
   const total = Math.round(millis / 1000);
   if (total < 60) return `${total}s`;
   return `${Math.floor(total / 60)}m ${total % 60}s`;

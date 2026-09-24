@@ -56,8 +56,6 @@ interface ArtifactContentProps {
 
 const LABELS = STRINGS.sessions.artifactLabels;
 
-// Apply and drift reports announce themselves; generate/import ones are
-// just "Report", so the map is deliberately partial.
 const REPORT_LABELS: Partial<Record<ReportType, string>> = {
   apply: LABELS.applyReport,
   drift: LABELS.driftReport,
@@ -72,11 +70,10 @@ export function artifactLabel(
     case "report":
       return REPORT_LABELS[(artifact as ReportRef).type] ?? LABELS.report;
     case "plan":
-      // A drift round stores two plans — the diff and the plan it
-      // produced — and only the object's `type` metadata tells them
-      // apart, so the caller resolves it (`usePlanTypes`) and passes it
-      // in. Unresolved reads the neutral way round: an unlabelled drift
-      // diff is a smaller lie than a plan announced as drift.
+      // A drift round stores both the diff and the plan it produced, and
+      // only the object's `type` metadata tells them apart — so the caller
+      // resolves it (`usePlanTypes`) and passes it in. Unresolved falls to
+      // the neutral label rather than announcing a plan as drift.
       return planType === "drift"
         ? LABELS.driftOperation
         : LABELS.terraformPlan;

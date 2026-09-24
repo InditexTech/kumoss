@@ -17,30 +17,19 @@ import type { ArtifactKind } from "./ArtifactContent";
 /**
  * What a round did. A round is one *operation invocation* — `next_round()`
  * is called once at the top of each background task — not one iteration of
- * the generate/validate loop, which runs *inside* a round. So the ordinal
- * the timeline used to show conveyed nothing the user thinks in.
+ * the generate/validate loop, which runs *inside* a round.
  */
 export type RoundKind = "generate" | "drift" | "import" | "apply";
 
 export type ArtifactRow = { kind: ArtifactKind; artifact: ArtifactRef };
 
-/**
- * Copy lives in `STRINGS`; the annotations stay here. `Record<RoundKind, _>`
- * is total, so adding a member to `RoundKind` fails this assignment until
- * the label exists.
- */
+/** Total on purpose: a new `RoundKind` fails here until its label exists. */
 const KIND_LABELS: Record<RoundKind, string> = STRINGS.sessions.roundKinds;
 
-/** Only non-success resting states earn a suffix; success needs no words. */
 const OUTCOME_SUFFIXES: Partial<Record<SessionStatus, string>> =
   STRINGS.sessions.roundOutcomeSuffixes;
 
-/**
- * Copy for a timeline row. The map is partial on purpose — the statuses it
- * omits (`started`, `apply`, `completed`, `uncompleted`, `failed`) are
- * already the words a reader wants, so they fall through to the status name
- * capitalised rather than needing a hand-written phrase each.
- */
+/** Partial: omitted statuses fall through to their capitalised name. */
 const STATUS_LABELS: Partial<Record<SessionStatus, string>> =
   STRINGS.sessions.statusLabels;
 
@@ -70,15 +59,13 @@ export function roundKind(
 /**
  * Partial drift is the only flow that populates `targets`: the drift handler
  * sets `targets = []` and fills it only under `if is_partial`. Generation
- * plans carry targets too, so this is meaningful only once the kind is known
- * to be drift.
+ * plans carry targets too, so this is meaningful only once the kind is drift.
  *
- * Checked across every plan, not just the newest. A remediating drift round
- * writes the drift diff and its plan with the handler's targets
+ * Canonical rule for reading drift targets — check *every* plan, not the
+ * newest. A remediating round writes its plan with the handler's targets
  * (`terraform_drift_service.__upload_artifacts`), then the nested validation
  * service appends one plan per iteration carrying the validator's
- * `terraform_targets`, which are usually empty. The newest plan is therefore
- * the wrong one to ask.
+ * `terraform_targets`, which are usually empty.
  */
 function isPartialDrift(round: RoundDetail, kind: RoundKind): boolean {
   return kind === "drift" && round.plans.some((p) => p.targets.length > 0);
@@ -134,22 +121,18 @@ export type TimelineEvent = {
  * per changed file, `validating` by at most one plan, `report` by one report.
  * So an artifact belongs to the last status at or before its own instant.
  *
- * Two consequences worth knowing:
+ * Two consequences fall out of that rule rather than being hardcoded:
  *  - `started`, `filtering`, `apply`, `completed`, `uncompleted` and `failed`
- *    never carry artifacts. That falls out of the rule; it is not hardcoded.
- *  - The read model returns *every* plan and report of a round, oldest
- *    first, so each pass carries the artifact it actually produced: a
- *    `reconciling` entry carries the drift diff stored right after it,
- *    and the remediation plan lands under the `validating` that follows.
- *    Under the old latest-wins read model the earlier passes were bare,
- *    and a drift diff could never be shown next to the plan it produced.
+ *    never carry artifacts.
+ *  - Each pass carries the artifact it produced: a `reconciling` entry gets
+ *    the drift diff stored right after it, and the remediation plan lands
+ *    under the `validating` that follows.
  *
  * A round with no statuses yet (INSERTed, first status still unwritten) has
- * no events. It cannot own artifacts either, since every writer statuses
+ * no events, and cannot own artifacts either, since every writer statuses
  * first.
  */
 export function roundEvents(round: RoundDetail): TimelineEvent[] {
-  // Statuses arrive sorted by (created_at, id), so this is already ordered.
   const events: TimelineEvent[] = round.statuses.map((st) => ({
     status: st.status,
     message: st.message,
@@ -184,13 +167,8 @@ export function roundEvents(round: RoundDetail): TimelineEvent[] {
 }
 
 /**
- * Dot-separated meta parts, zero-valued ones omitted.
- *
- * The count is of *events* — what the section below it actually lists. File
- * and artifact counts used to live here, but they double-counted what the
- * rows already show: artifacts are now nested under the event that produced
- * them, and `code_changes` holds one row per write, so a file rewritten on a
- * later validation pass was inflating the total either way.
+ * Dot-separated meta parts, zero-valued ones omitted. The count is of
+ * *events* — what the section below it actually lists.
  *
  * Takes the events rather than the round so the caller derives them once:
  * `roundEvents` parses and sorts every status and artifact, and the render
@@ -249,16 +227,14 @@ export function codeChangeLabel(
  * When the session actually last did something, or `null` if nothing has
  * been recorded yet.
  *
- * `updated_at` is a last-modified column carrying `onupdate` (see
- * `core/src/infrastructure/database/models.py`), so *any* write to the row
- * moves it — `set_lock`, the `in_flight` release. Toggling the apply lock on
- * a session that finished hours earlier would inflate its duration and drag
- * its "Completed" timestamp forward. The newest status is the real one.
+ * Canonical end point for a session — deliberately not `updated_at`, which
+ * carries `onupdate` (see `core/src/infrastructure/database/models.py`), so
+ * *any* write moves it: toggling the apply lock on a session that finished
+ * hours earlier would inflate its duration and drag its "Completed"
+ * timestamp forward.
  *
- * Takes the last status of each round rather than flattening every status:
- * a round's statuses are already chronological. The comparison is a plain
- * string compare because these are ISO-8601 UTC instants, which sort
- * lexicographically — the timeline's own ordering relies on the same thing.
+ * Compares as plain strings because these are ISO-8601 UTC instants, which
+ * sort lexicographically — the timeline's ordering relies on the same thing.
  */
 export function lastStatusAt(session: SessionDetail): string | null {
   let newest: string | null = null;

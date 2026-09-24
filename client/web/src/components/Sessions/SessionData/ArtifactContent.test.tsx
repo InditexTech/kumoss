@@ -232,10 +232,8 @@ describe("artifactLabel for plans", () => {
   });
 
   it("reads the flavour from the resolved metadata, not the signed URL", () => {
-    // The label used to be recovered by parsing the object key out of the
-    // presigned URL. The object's `type` metadata is the source now — the
-    // caller resolves it and passes it in — so a URL that disagrees with
-    // it (a renamed key, a proxied download) must not win.
+    // The object's `type` metadata is the source, so a URL whose key
+    // disagrees (a renamed key, a proxied download) must not win.
     expect(artifactLabel("plan", planRef(KEYED("plan")), "drift")).toBe(
       "Drift Operation",
     );

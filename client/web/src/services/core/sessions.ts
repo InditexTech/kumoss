@@ -58,11 +58,8 @@ export async function checkApplyAllowed(sessionId: string): Promise<boolean> {
 }
 
 /**
- * One artifact read: the body, plus what the store said about it.
- *
- * Body and metadata arrive in the same response, so a caller that needs
- * both must not pay for two — hence one return value rather than a
- * second lookup keyed on the same URL.
+ * One artifact read: the body, plus what the store said about it. Both
+ * arrive in the same response, so a caller needing both must not pay twice.
  */
 export interface ArtifactPayload {
   text: string;
@@ -81,9 +78,11 @@ export interface ArtifactPayload {
  * `x-amz-meta-type`, Azure Blob answers `x-ms-meta-type`. The backend
  * writes one metadata key and each store renames it on the way out.
  *
- * Null when absent or unrecognised — the header is also null when a
- * proxy drops `Access-Control-Expose-Headers`, which is indistinguishable
- * from here and lands on the same neutral fallback either way.
+ * Null when absent or unrecognised — also when the store's CORS rules
+ * do not expose it: the reference proxy's `Access-Control-Expose-Headers`,
+ * or `ExposedHeaders` on an S3 bucket or Azure storage account. All of
+ * these are indistinguishable from here and land on the same neutral
+ * fallback.
  */
 function readPlanType(response: Response): PlanType | null {
   const value =
@@ -112,15 +111,18 @@ export async function fetchArtifactContent(url: string): Promise<string> {
  * The object is the only place it lives: `terraform_plans` holds no
  * flavour column and the read model does not synthesise one, so asking
  * means fetching. Use `fetchArtifact` when the body is wanted too — it
- * returns both from one response. This exists for the case where it is
- * not: labelling timeline rows the user has not opened, where
- * downloading every plan to read one header would be absurd.
+ * returns both from one response. This is for labelling timeline rows
+ * nobody has opened yet.
  *
- * `Range: bytes=0-0` keeps that to a single byte — the store answers 206
- * with the full metadata header set — and a simple byte range is
- * CORS-safelisted, so it costs no preflight. A HEAD would be cheaper
- * still and is not an option: the URL is presigned for GET and SigV4
- * covers the method, so HEAD returns 403.
+ * `Range: bytes=0-0` keeps that to a single byte, and a simple byte
+ * range is CORS-safelisted, so it costs no preflight. RustFS answers 206
+ * with the object's metadata headers intact; Azure answers 206 for the
+ * same request.
+ *
+ * A HEAD would be cheaper still and is not portable: an Azure read-SAS
+ * serves one, but an S3 or RustFS URL is presigned for GET and SigV4
+ * covers the method, so HEAD is 403 there. The ranged GET is the one
+ * shape both backends answer.
  *
  * Returns null rather than throwing when the flavour is unreadable.
  * Callers fall back to the neutral label; a plan row is still openable
