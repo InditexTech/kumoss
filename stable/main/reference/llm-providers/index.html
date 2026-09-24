@@ -1143,9 +1143,11 @@ no validation mapping and a missing key fails on the first call.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/&lt;model&gt;</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>VERTEXAI_PROJECT</code>, <code>VERTEXAI_LOCATION</code>, <code>VERTEXAI_CREDENTIALS</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_project</code>, <code>vertex_location</code>, <code>vertex_credentials</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VERTEXAI_CREDENTIALS</code> is a service-account JSON, as a file path or
-the raw JSON. Omit it to use Application Default Credentials
-(<code>GOOGLE_APPLICATION_CREDENTIALS</code>, workload identity, and so on).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VERTEXAI_CREDENTIALS</code> holds the service-account key JSON content, on
+one line. A path to a key file also works, but only if you mount that
+file into the core container yourself. Omit it to use Application
+Default Credentials (<code>GOOGLE_APPLICATION_CREDENTIALS</code>, workload
+identity, and so on).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Google AI Studio (Gemini API)</p></td>
@@ -1411,8 +1413,13 @@ validate at boot (a missing value fails on the first call):</p>
 <div class="content">
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
 <span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
-<span class="line"><span>VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json</span></span></span></code></pre>
+<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span></span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>For how to paste the key, and what the file-path alternative needs, see
+<a href="../environment-variables/#example-all-sidecars" class="xref page">the
+Vertex AI example in Environment variables</a>.</p>
 </div>
 </div>
 </div>

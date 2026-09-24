@@ -839,6 +839,9 @@ or <code>llm.model_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Credentials that LiteLLM reads for the configured provider. Names
 follow LiteLLM conventions; see
 <a href="../llm-providers/" class="xref page">LLM providers and models</a>.
+<code>VERTEXAI_CREDENTIALS</code> holds the service-account key itself, as
+single-line JSON content (see
+<a href="#example-all-sidecars">the Vertex AI example</a>).
 For <code>anthropic/*</code> models LiteLLM accepts either <code>ANTHROPIC_API_KEY</code> or
 <code>ANTHROPIC_AUTH_TOKEN</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot for providers LiteLLM can validate; otherwise on the first LLM
@@ -993,7 +996,8 @@ for that provider, so a missing <code>AZURE_AI_API_KEY</code> or <code>AZURE_AI_
 boots cleanly and fails on the first LLM call. For
 <code>vertex_ai/&#8230;&#8203;</code> models the check requires <code>VERTEXAI_PROJECT</code> and
 <code>VERTEXAI_LOCATION</code> only; <code>VERTEXAI_CREDENTIALS</code> is not verified at
-boot. Coverage is per provider (for <code>anthropic/*</code>, either
+boot, and when it is unset LiteLLM falls back to Application Default
+Credentials. Coverage is per provider (for <code>anthropic/*</code>, either
 <code>ANTHROPIC_API_KEY</code> or <code>ANTHROPIC_AUTH_TOKEN</code> satisfies it), and no
 provider&#8217;s check validates that a credential actually works.</p>
 </div>
@@ -1713,7 +1717,7 @@ The Vertex AI set is shown in the next example.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="all-sidecars-enabled-vertex-ai-models-azure-infrastructure"><a class="anchor" href="#all-sidecars-enabled-vertex-ai-models-azure-infrastructure"></a>All sidecars enabled (Vertex AI models, Azure infrastructure)</h3>
+<h3 id="example-all-sidecars"><a class="anchor" href="#example-all-sidecars"></a>All sidecars enabled (Vertex AI models, Azure infrastructure)</h3>
 <div class="paragraph">
 <p><code>config.yaml</code> excerpt:</p>
 </div>
@@ -1739,10 +1743,10 @@ The Vertex AI set is shown in the next example.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider (Google Vertex AI)</span></span>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider (Google Vertex AI). The service-account key JSON, on one line.</span></span>
 <span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
 <span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
-<span class="line"><span>VERTEXAI_CREDENTIALS=/run/secrets/vertex-sa.json</span></span>
+<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># One distinct token per sidecar</span></span>
 <span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
@@ -1757,6 +1761,28 @@ The Vertex AI set is shown in the next example.</p>
 <span class="line"><span>RUSTFS_SECRET_KEY=rustfsadmin</span></span>
 <span class="line"><span>NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula</span></span></span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Paste the downloaded key file&#8217;s content as the value, collapsed onto one
+line and unquoted. Keep the <code>\n</code> escapes inside <code>private_key</code> as they
+are: turning them into real line breaks makes the JSON invalid.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<code>VERTEXAI_CREDENTIALS</code> also accepts a path to the key file instead
+of its content. Nebula does not provide that file: create a secret or
+file mount into the <strong>core</strong> container yourself (the Compose file mounts
+nothing there), readable by uid <code>10001</code>. A path that does not exist
+inside the container is not caught at boot. The first LLM call then
+fails with a JSON-parsing error rather than a missing-file error.
+</td>
+</tr>
+</table>
 </div>
 <div class="paragraph">
 <p><code>services/iac/.env</code> (Azure example):</p>
