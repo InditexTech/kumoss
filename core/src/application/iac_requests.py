@@ -161,5 +161,34 @@ class DriftRequest(BaseIacRequest):
         return self
 
 
+class ImportRequest(BaseIacRequest):
+    is_partial: bool = False
+    q: Annotated[
+        str,
+        Field(
+            min_length=1,
+            description="User query for this call.",
+            examples=[
+                "Import every unmanaged resource in the subscription",
+                "Import the storage account staweu1001",
+            ],
+        ),
+    ]
+
+    @model_validator(mode="after")
+    def _scope_id_exist_if_repo_uri(self):
+        if self.repo_uri is not None and (
+            self.scope_id is None or self.scope_id.strip() == ""
+        ):
+            raise ValueError("The `scope_id` must be provided when `repo_uri` is set.")
+        return self
+
+    @model_validator(mode="after")
+    def _partial_requires_query(self):
+        if self.is_partial and (not self.q or not self.q.strip()):
+            raise ValueError("Partial import requires a non-empty `q`.")
+        return self
+
+
 class ApplyRequest(SessionRequest):
     pass

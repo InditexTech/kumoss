@@ -16,6 +16,11 @@ owned by the core, and the mapping of the two failure planes — a
 succeeded job with a non-zero exit_code maps to a DTO with ok=False,
 while failed/lost/rejected jobs raise ExceptionHandler with the
 equivalent HTTP code.
+
+The import trio is covered alongside them: ``state_resource_ids`` and
+``import_resource`` follow the planes above, while a failed cloud query
+in ``scope_resource_ids`` is a normal outcome that reads as an empty
+scope carrying the command's diagnostics.
 """
 
 import json
@@ -32,7 +37,9 @@ from src.clients.iac.models.job_kind import JobKind
 from src.clients.iac.models.job_status import JobStatus
 from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
+from src.domains.dto import TerraformDiscoveryDTO
 from src.domains.interfaces.git_interface import IGit
+from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import TracerService
 from src.domains.value_objects import PlanRef
 from src.infrastructure.terraform import terraform as tv
@@ -258,6 +265,10 @@ class TestTerraformPlan(_TerraformTestCase):
         self.assertEqual(plan_body.plan_file, SESSION_PLAN_FILENAME)
         # The IaC contract restricts plan_file to a single path segment.
         self.assertRegex(plan_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
+        # Only the commands that reach a cloud API carry the scope.
+        for name in ("init", "plan"):
+            body = submit_mocks[name].await_args.kwargs["body"]
+            self.assertEqual(body.scope_id, SCOPE_ID, f"{name} body")
 
     async def test_the_revision_is_sampled_after_the_plan_job(self):
         self._use_config()
@@ -563,6 +574,228 @@ class TestTerraformDrift(_TerraformTestCase):
         self.assertEqual(ctx.exception.error_code, 502)
 
 
+class _ImportTestCase(_TerraformTestCase):
+    """Extends _TerraformTestCase with import op patching."""
+
+    def _patch_import_ops(self, **outcomes) -> tuple[dict[str, AsyncMock], AsyncMock]:
+        """Patch init + import op modules and the job poll.
+
+        ``outcomes`` maps op name (init/state/scope/import) to either an
+        OperationResult, a Job, or a non-JobAccepted response.
+        """
+        jobs_by_id: dict[uuid.UUID, Job] = {}
+        submit_mocks: dict[str, AsyncMock] = {}
+        kind_map = {
+            "init": (tv.init_op, JobKind.INIT),
+            "state": (tv.state_op, JobKind.STATE_RESOURCE_IDS),
+            "scope": (tv.scope_op, JobKind.SCOPE_RESOURCE_IDS),
+            "import": (tv.import_op, JobKind.IMPORT),
+        }
+        for name, (module, kind) in kind_map.items():
+            if name not in outcomes:
+                mock = AsyncMock(
+                    side_effect=AssertionError(f"{name} op should not be submitted")
+                )
+            else:
+                outcome = outcomes[name]
+                if isinstance(outcome, OperationResult):
+                    outcome = _job(JobStatus.SUCCEEDED, kind=kind, result=outcome)
+                if isinstance(outcome, Job):
+                    job_id = uuid.uuid4()
+                    jobs_by_id[job_id] = outcome
+                    accepted = JobAccepted(job_id=job_id, status=JobStatus.QUEUED)
+                    mock = AsyncMock(return_value=accepted)
+                else:
+                    mock = AsyncMock(return_value=outcome)
+            submit_mocks[name] = mock
+            patcher = patch.object(module, "asyncio", mock)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+        async def poll(job_id, client):
+            return jobs_by_id[job_id]
+
+        poll_mock = AsyncMock(side_effect=poll)
+        patcher = patch.object(tv.get_job_op, "asyncio", poll_mock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return submit_mocks, poll_mock
+
+
+class TestTerraformStateResourceIds(_ImportTestCase):
+    async def test_returns_parsed_resource_ids(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_import_ops(
+            init=_ok(),
+            state=_ok(
+                stdout=json.dumps(["azurerm_resource_group.main", "azurerm_vnet.v1"])
+            ),
+        )
+
+        dto = await self.terraform.state_resource_ids()
+
+        self.assertEqual(
+            dto.resource_ids, ["azurerm_resource_group.main", "azurerm_vnet.v1"]
+        )
+        # The read has no tolerated failure of its own, so a result that
+        # came back at all is a clean one.
+        self.assertEqual(dto.feedback, "")
+        self.assertTrue(dto.ok)
+        # The state read reaches no cloud API, so only the init that
+        # precedes it runs under the session scope.
+        state_body = submit_mocks["state"].await_args.kwargs["body"]
+        self.assertEqual(state_body.workspace_path, "/workspaces/demo")
+        init_body = submit_mocks["init"].await_args.kwargs["body"]
+        self.assertEqual(init_body.scope_id, SCOPE_ID)
+
+    async def test_init_failure_raises(self):
+        self._use_config()
+        self._patch_import_ops(init=_failed_cmd("Error: backend init failed"))
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.state_resource_ids()
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("init failed", ctx.exception.message)
+
+    async def test_state_op_failure_raises(self):
+        self._use_config()
+        self._patch_import_ops(
+            init=_ok(),
+            state=_failed_cmd("Error: state pull failed"),
+        )
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.state_resource_ids()
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("state pull failed", ctx.exception.message)
+
+
+class TestTerraformScopeResourceIds(_ImportTestCase):
+    async def test_returns_parsed_scope_ids(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_import_ops(
+            init=_ok(),
+            scope=_ok(stdout=json.dumps(["res-1", "res-2", "res-3"])),
+        )
+
+        discovery = await self.terraform.scope_resource_ids(
+            scope_id="scope-123",
+            terraform_provider="azure",
+        )
+
+        self.assertEqual(discovery.resource_ids, ["res-1", "res-2", "res-3"])
+        self.assertEqual(discovery.feedback, "")
+        scope_body = submit_mocks["scope"].await_args.kwargs["body"]
+        # Here scope_id names the scope being listed, so it comes from the
+        # argument; the init that precedes it runs under the session scope.
+        self.assertEqual(scope_body.scope_id, "scope-123")
+        self.assertEqual(scope_body.terraform_provider, "azure")
+        init_body = submit_mocks["init"].await_args.kwargs["body"]
+        self.assertEqual(init_body.scope_id, SCOPE_ID)
+
+    async def test_init_failure_raises(self):
+        self._use_config()
+        self._patch_import_ops(init=_failed_cmd("Error: backend init failed"))
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.scope_resource_ids(
+                scope_id="scope-123",
+                terraform_provider="azure",
+            )
+        self.assertEqual(ctx.exception.error_code, 502)
+
+    async def test_scope_op_failure_returns_no_ids_with_diagnostics(self):
+        # A failed cloud query is a succeeded job with diagnostics under the
+        # IaC contract, so the scope reads as empty and the stderr travels
+        # back with it instead of aborting the import session.
+        self._use_config()
+        self._patch_import_ops(
+            init=_ok(),
+            scope=_failed_cmd("Error: scope retrieval failed"),
+        )
+
+        discovery = await self.terraform.scope_resource_ids(
+            scope_id="scope-123",
+            terraform_provider="azure",
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("scope retrieval failed", discovery.feedback)
+        # The diagnostics are what the span reports as the failed outcome.
+        self.assertFalse(discovery.ok)
+        self.assertEqual(discovery.summary, discovery.feedback)
+
+
+class TestTerraformImportResource(_ImportTestCase):
+    async def test_import_success(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_import_ops(
+            init=_ok(),
+            **{"import": _ok(stdout="import output")},
+        )
+
+        dto = await self.terraform.import_resource(
+            address="azurerm_resource_group.main",
+            resource_id="/subscriptions/.../rg/main",
+        )
+
+        self.assertTrue(dto.ok)
+        self.assertEqual(dto.feedback, "")
+        self.assertEqual(dto.stdout, "import output")
+        import_body = submit_mocks["import"].await_args.kwargs["body"]
+        self.assertEqual(import_body.address, "azurerm_resource_group.main")
+        self.assertEqual(import_body.resource_id, "/subscriptions/.../rg/main")
+        self.assertEqual(import_body.scope_id, SCOPE_ID)
+
+    async def test_import_failure_maps_to_ok_false(self):
+        self._use_config()
+        self._patch_import_ops(
+            init=_ok(),
+            **{"import": _failed_cmd("Error: cannot import", stdout="partial output")},
+        )
+
+        dto = await self.terraform.import_resource(
+            address="azurerm_resource_group.main",
+            resource_id="/subscriptions/.../rg/main",
+        )
+
+        self.assertFalse(dto.ok)
+        self.assertEqual(dto.feedback, "Error: cannot import")
+        self.assertEqual(dto.stdout, "partial output")
+        # The rejected attempt's reason is the engine's stderr, never its
+        # partial output.
+        self.assertEqual(dto.summary, "Error: cannot import")
+
+    async def test_init_failure_raises(self):
+        self._use_config()
+        self._patch_import_ops(init=_failed_cmd("Error: backend init failed"))
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.import_resource(
+                address="azurerm_resource_group.main",
+                resource_id="res-1",
+            )
+        self.assertEqual(ctx.exception.error_code, 502)
+
+    async def test_failed_job_raises_502(self):
+        self._use_config()
+        error = Problem(
+            title="Internal Server Error", status=500, detail="state lock held"
+        )
+        self._patch_import_ops(
+            init=_ok(),
+            **{"import": _job(JobStatus.FAILED, kind=JobKind.IMPORT, error=error)},
+        )
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.import_resource(
+                address="azurerm_resource_group.main",
+                resource_id="res-1",
+            )
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("state lock held", ctx.exception.message)
+
+
 class TestTerraformInitCache(_TerraformTestCase):
     async def test_init_runs_once_across_two_plans(self):
         self._use_config()
@@ -665,6 +898,7 @@ class TestTerraformApply(_TerraformTestCase):
 
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
+        self.assertEqual(apply_body.scope_id, SCOPE_ID)
         self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
         self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 
@@ -693,6 +927,40 @@ class TestTerraformApply(_TerraformTestCase):
             await self.terraform.apply()
         self.assertEqual(ctx.exception.error_code, 502)
         self.assertIn("state lock held", ctx.exception.message)
+
+
+class TestTerraformTracing(unittest.TestCase):
+    """Every operation the adapter exposes opens a span.
+
+    Stated over the interface rather than a hand-written list so a verb
+    added later has to be traced too, or this fails.
+    """
+
+    def test_every_operation_is_traced(self):
+        operations = [
+            name
+            for name, attr in vars(ITerraform).items()
+            if getattr(attr, "__isabstractmethod__", False)
+        ]
+        self.assertEqual(len(operations), 6, operations)
+        for name in operations:
+            with self.subTest(operation=name):
+                # @trace_terraform wraps with functools.wraps; @override
+                # leaves the function untouched.
+                self.assertTrue(
+                    hasattr(getattr(tv.Terraform, name), "__wrapped__"),
+                    f"{name} is not decorated with @trace_terraform",
+                )
+
+    def test_every_traced_result_reports_an_outcome_and_a_summary(self):
+        # What the tracer reads off whatever the verb returned.
+        for dto in (
+            TerraformDiscoveryDTO(resource_ids=["res-1"]),
+            TerraformDiscoveryDTO(resource_ids=[], feedback="Error: no such scope"),
+        ):
+            with self.subTest(dto=dto):
+                self.assertIsInstance(dto.ok, bool)
+                self.assertIsInstance(dto.summary, str)
 
 
 if __name__ == "__main__":
