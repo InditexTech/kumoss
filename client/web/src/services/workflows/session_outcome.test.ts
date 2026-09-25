@@ -41,6 +41,20 @@ function planRef(
   return { ...artifactRef(id, path), targets };
 }
 
+/**
+ * A store serving a plan object: its body, and its flavour under the
+ * metadata header. The same handler answers the ranged flavour probe and
+ * the full read — a real store distinguishes them by the `Range` header,
+ * and neither caller here cares which bytes come back with the metadata.
+ */
+function servePlan(path: string, type: string | null, body: string) {
+  return http.get(`${STORAGE}/${path}`, () =>
+    HttpResponse.text(body, {
+      headers: type ? { "x-amz-meta-type": type } : {},
+    }),
+  );
+}
+
 beforeEach(() => {
   mockState.clear();
 });
@@ -80,21 +94,21 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
   });
 
-  it("uses the newest plan when a drift round stored several", async () => {
+  it("takes the newest plan-flavoured artifact, not the newest artifact", async () => {
+    // The shape every generate round has: the validation loop's plans,
+    // then the drift pre-check's diff stored after them. Order alone
+    // would hand the panel the diff.
     mockState.addSession(
       makeSessionDetail({
         uuid: "sess-multi",
-        operation: "drift",
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
             reports: [reportRef(10, "report.json")],
             plans: [
-              // The drift diff, then the plan that resolved it. Which is
-              // which is object metadata the read model never carries, so
-              // `resolveSessionOutcome` can only go by order.
-              planRef(11, "drift.txt", ["a.b"]),
+              planRef(11, "first.txt", []),
               planRef(12, "final.txt", ["c.d"]),
+              planRef(13, "drift.txt", ["a.b"]),
             ],
           }),
         ],
@@ -104,8 +118,9 @@ describe("resolveSessionOutcome", () => {
       http.get(`${STORAGE}/report.json`, () =>
         HttpResponse.json({ status: "ok" }),
       ),
-      http.get(`${STORAGE}/drift.txt`, () => HttpResponse.text("drift diff")),
-      http.get(`${STORAGE}/final.txt`, () => HttpResponse.text("final plan")),
+      servePlan("first.txt", "plan", "early plan"),
+      servePlan("final.txt", "plan", "final plan"),
+      servePlan("drift.txt", "drift", "drift diff"),
     );
 
     const outcome = await resolveSessionOutcome("sess-multi");
@@ -114,6 +129,63 @@ describe("resolveSessionOutcome", () => {
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.code).toContain("final plan");
     expect(outcome.code).not.toContain("drift diff");
+    expect(outcome.code).not.toContain("early plan");
+  });
+
+  it("leaves the plan empty for a round that stored only drift diffs", async () => {
+    // Drift detected, nothing remediated: the round holds diffs and no
+    // plan. The Plan tab shows its empty state rather than a diff.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-drift-only",
+        operation: "drift",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [planRef(21, "drift-1.txt", []), planRef(22, "drift-2.txt", [])],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      servePlan("drift-1.txt", "drift", "first diff"),
+      servePlan("drift-2.txt", "drift", "second diff"),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-drift-only");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).not.toContain("Terraform_Plan");
+    expect(outcome.code).not.toContain("diff");
+  });
+
+  it("falls back to the newest plan when the store exposes no flavour", async () => {
+    // Objects stored before the backend wrote the metadata, or a store
+    // whose CORS rules hide it. Unreadable everywhere is not the same as
+    // "every plan is a drift diff", so the old order rule still applies.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-no-meta",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [planRef(31, "old-1.txt", []), planRef(32, "old-2.txt", [])],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      servePlan("old-1.txt", null, "older plan"),
+      servePlan("old-2.txt", null, "newest plan"),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-no-meta");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("newest plan");
+    expect(outcome.code).not.toContain("older plan");
   });
 
   it("merges code changes across rounds, with later rounds winning", async () => {

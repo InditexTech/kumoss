@@ -5,6 +5,7 @@
 import { Fragment, useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Typography from "@mui/material/Typography";
+import Tooltip from "@mui/material/Tooltip";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import ReplayIcon from "@mui/icons-material/Replay";
@@ -61,6 +62,15 @@ interface SelectedArtifact {
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/**
+ * The chip on a plan row. It stands in for the resource list itself, so it
+ * names the unit rather than showing a bare number next to a timestamp.
+ */
+function targetCountLabel(count: number): string {
+  const { one, other } = STRINGS.sessions.artifactTargetCount;
+  return `${count} ${count === 1 ? one : other}`;
 }
 
 export default function SessionData({
@@ -348,7 +358,9 @@ export default function SessionData({
                             styles.timelineOpRow,
                             expandable && styles.timelineOpRowClickable,
                             isClosing && styles.timelineOpRowTerminal,
-                            isClosing && hasFailure && styles.timelineOpRowFailed,
+                            isClosing &&
+                              hasFailure &&
+                              styles.timelineOpRowFailed,
                           ]
                             .filter(Boolean)
                             .join(" ");
@@ -432,7 +444,6 @@ export default function SessionData({
                                       );
                                 return (
                                   <div
-                                    key={`${kind}:${artifact.id}`}
                                     className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
                                     onClick={() =>
                                       setArtifactParam({ kind, artifact })
@@ -441,10 +452,7 @@ export default function SessionData({
                                     tabIndex={0}
                                     aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
                                     onKeyDown={(e) => {
-                                      if (
-                                        e.key === "Enter" ||
-                                        e.key === " "
-                                      ) {
+                                      if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
                                         setArtifactParam({ kind, artifact });
                                       }
@@ -459,15 +467,14 @@ export default function SessionData({
                                         className={styles.artifactFileIcon}
                                       />
                                       {label}
-                                      {targets.length > 0 && (
-                                        <span
-                                          className={styles.timelineOpTargets}
-                                          title={targets.join(", ")}
-                                        >
-                                          {`${STRINGS.sessions.artifactTargets}: ${targets.join(", ")}`}
-                                        </span>
-                                      )}
                                     </Typography>
+                                    {targets.length > 0 && (
+                                      <span
+                                        className={styles.timelineOpTargetChip}
+                                      >
+                                        {targetCountLabel(targets.length)}
+                                      </span>
+                                    )}
                                     <span className={styles.timelineOpDate}>
                                       {formatDateTime(artifact.created_at)}
                                       <VisibilityIcon
@@ -485,7 +492,6 @@ export default function SessionData({
                   </div>
                 );
               })}
-
             </>
           )}
         </div>

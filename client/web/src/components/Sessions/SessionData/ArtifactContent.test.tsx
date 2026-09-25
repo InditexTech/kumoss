@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
@@ -15,7 +15,29 @@ import type {
   ReportRef,
   TerraformPlanRef,
 } from "@/types/api";
-import ArtifactContent, { artifactLabel } from "./ArtifactContent";
+import ArtifactContent, {
+  artifactLabel,
+  prettyPrintJson,
+} from "./ArtifactContent";
+
+// Monaco is lazy-loaded and unmocked in jsdom, so asserting on editor DOM
+// would be slow and flaky. What this change actually decides is the pair of
+// props handed to the viewer, so record those and render nothing. The
+// factory returns null rather than JSX: vi.mock is hoisted above the
+// automatic JSX runtime import.
+const viewer = vi.hoisted(() => ({
+  code: undefined as string | undefined,
+  language: undefined as string | undefined,
+}));
+
+vi.mock("@/components/ui", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/ui")>()),
+  CodeBlock: ({ code, language }: { code?: string; language?: string }) => {
+    viewer.code = code;
+    viewer.language = language;
+    return null;
+  },
+}));
 
 const STORAGE = "https://storage.test";
 
@@ -207,6 +229,67 @@ describe("ArtifactContent plan metadata", () => {
   });
 });
 
+describe("ArtifactContent plan targets", () => {
+  const TARGETS = [
+    "aws_s3_bucket.s3-003",
+    "aws_s3_bucket_versioning.s3-003",
+    "aws_s3_bucket_server_side_encryption_configuration.s3-003",
+  ];
+
+  function renderPlan(targets: string[]) {
+    const ref: TerraformPlanRef = {
+      id: 7,
+      url: `${STORAGE}/plan.txt`,
+      content_type: "text/plain",
+      file_size_bytes: 10,
+      created_at: "2026-01-01T00:00:00Z",
+      targets,
+    };
+    server.use(
+      http.get(`${STORAGE}/plan.txt`, () => HttpResponse.text("# plan")),
+    );
+    renderWithProviders(
+      <ArtifactContent
+        kind="plan"
+        artifact={ref}
+        round={makeRound({ plans: [ref] })}
+        operation="generate"
+      />,
+    );
+  }
+
+  it("lists every target, open by default", async () => {
+    // The timeline row only had room for a count, so nothing may be
+    // elided here — this is where the addresses become readable.
+    renderPlan(TARGETS);
+
+    expect(await screen.findByText("Targets (3)")).toBeInTheDocument();
+    for (const target of TARGETS) {
+      expect(screen.getByText(target)).toBeInTheDocument();
+    }
+  });
+
+  it("collapses the list on toggle", async () => {
+    const user = userEvent.setup();
+    renderPlan(TARGETS);
+
+    const toggle = await screen.findByRole("button", { name: /Targets \(3\)/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(TARGETS[0])).toBeNull();
+  });
+
+  it("renders no targets block for a plan that carries none", async () => {
+    renderPlan([]);
+
+    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+    expect(screen.queryByText(/^Targets/)).toBeNull();
+  });
+});
+
 describe("artifactLabel for plans", () => {
   const SIG = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123";
   const KEYED = (flavour: string) =>
@@ -302,5 +385,169 @@ describe("ArtifactContent import reports", () => {
       await screen.findByText("azurerm_storage_account.sta_001"),
     );
     expect(screen.getByText("Storage account sta001 in rg.")).toBeInTheDocument();
+  });
+});
+
+describe("prettyPrintJson", () => {
+  it("indents the single-line resource-action array from a plan artifact", () => {
+    const body =
+      '[{"address": "aws_s3_bucket.s3-003", "action": "delete resource"}, ' +
+      '{"address": "aws_s3_bucket_versioning.s3-003", "action": "delete resource"}]';
+
+    expect(prettyPrintJson(body)).toBe(
+      `[
+  {
+    "address": "aws_s3_bucket.s3-003",
+    "action": "delete resource"
+  },
+  {
+    "address": "aws_s3_bucket_versioning.s3-003",
+    "action": "delete resource"
+  }
+]`,
+    );
+  });
+
+  it("indents a top-level object", () => {
+    expect(prettyPrintJson('{"status":"Succeeded","imported":1}')).toBe(
+      `{
+  "status": "Succeeded",
+  "imported": 1
+}`,
+    );
+  });
+
+  it("leaves an already-indented body readable", () => {
+    // Review Focus 1: a producer that already pretty-printed must not be
+    // skipped (it would then be at the mercy of getLanguage saying "hcl"),
+    // and must not come back mangled.
+    const body = '{\n  "action": "delete resource"\n}';
+    expect(prettyPrintJson(body)).toBe('{\n  "action": "delete resource"\n}');
+  });
+
+  it("tolerates leading whitespace before the opening brace", () => {
+    expect(prettyPrintJson('\n  {"a":1}')).toBe('{\n  "a": 1\n}');
+  });
+
+  it.each([
+    ["HCL plan output", 'resource "aws_s3_bucket" "b" {\n  bucket = "x"\n}'],
+    ["a bare number", "42"],
+    ["a bare boolean", "true"],
+    ["a quoted string", '"delete resource"'],
+    ["the JSON literal null", "null"],
+  ])("returns null for %s", (_label: string, body: string) => {
+    // All of these are rejected by the opening-character gate, before the
+    // parse. Scalars are left alone deliberately: re-quoting a bare number
+    // gains nothing, and a body that is literally `null` must fall back
+    // rather than print the word in the viewer.
+    expect(prettyPrintJson(body)).toBeNull();
+  });
+
+  it.each([
+    ["an empty body", ""],
+    ["a whitespace-only body", "   \n\t "],
+  ])("returns null for %s", (_label: string, body: string) => {
+    expect(prettyPrintJson(body)).toBeNull();
+  });
+
+  it("returns null for malformed JSON that starts like an object", () => {
+    // Review Focus 4: the gate lets this reach JSON.parse, so the catch is
+    // what keeps a truncated upload rendering as raw text.
+    expect(prettyPrintJson('{"address": "aws_s3_bucket.s3-003"')).toBeNull();
+  });
+
+  it("returns null past the size cap rather than tripling the string", () => {
+    const huge = `[${'{"a":1},'.repeat(80_000)}{"a":1}]`;
+    expect(huge.length).toBeGreaterThan(512 * 1024);
+    expect(prettyPrintJson(huge)).toBeNull();
+  });
+});
+
+describe("ArtifactContent JSON bodies in the raw viewer", () => {
+  // Named apart from the `planRef` helper in the `artifactLabel for plans`
+  // suite above — sibling scopes, but two different things under one name
+  // in one file is a trap for the next reader.
+  const jsonPlanRef: TerraformPlanRef = {
+    id: 9,
+    url: `${STORAGE}/plan.txt`,
+    content_type: "text/plain",
+    file_size_bytes: 160,
+    created_at: "2026-01-01T00:00:00Z",
+    targets: [],
+  };
+
+  const ONE_LINE =
+    '[{"address": "aws_s3_bucket.s3-003", "action": "delete resource"}]';
+
+  function renderPlan(body: string, ref: TerraformPlanRef = jsonPlanRef) {
+    server.use(http.get(`${STORAGE}/plan.txt`, () => HttpResponse.text(body)));
+    renderWithProviders(
+      <ArtifactContent
+        kind="plan"
+        artifact={ref}
+        round={makeRound({ plans: [ref] })}
+        operation="generate"
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    viewer.code = undefined;
+    viewer.language = undefined;
+  });
+
+  it("indents a JSON plan body and hands Monaco the json language", async () => {
+    renderPlan(ONE_LINE);
+
+    await waitFor(() => expect(viewer.code).toBeDefined());
+    expect(viewer.code).toBe(
+      `[
+  {
+    "address": "aws_s3_bucket.s3-003",
+    "action": "delete resource"
+  }
+]`,
+    );
+    expect(viewer.language).toBe("json");
+  });
+
+  it("indents a body already declared as json", async () => {
+    // Review Focus 2: getLanguage already returned "json" for this ref, so
+    // highlighting was never the missing piece — the body still needs
+    // re-serializing or the artifact stays on one line.
+    renderPlan(ONE_LINE, { ...jsonPlanRef, content_type: "application/json" });
+
+    await waitFor(() => expect(viewer.code).toBeDefined());
+    expect(viewer.code).toContain("\n");
+    expect(viewer.language).toBe("json");
+  });
+
+  it("leaves an HCL plan body and its language untouched", async () => {
+    const hcl = 'resource "aws_s3_bucket" "b" {\n  bucket = "x"\n}';
+    renderPlan(hcl);
+
+    await waitFor(() => expect(viewer.code).toBeDefined());
+    expect(viewer.code).toBe(hcl);
+    expect(viewer.language).toBe("hcl");
+  });
+
+  it("falls back to the raw body when the JSON is malformed", async () => {
+    // Review Focus 4: a truncated upload must still be inspectable.
+    const broken = '{"address": "aws_s3_bucket.s3-003"';
+    renderPlan(broken);
+
+    await waitFor(() => expect(viewer.code).toBeDefined());
+    expect(viewer.code).toBe(broken);
+    expect(viewer.language).toBe("hcl");
+  });
+
+  it("does not divert a report body away from the report renderer", async () => {
+    // Review Focus 3: applyReport parses as JSON, so an ungated memo would
+    // parse it a second time — and if the viewer ever won, the tables would
+    // vanish. Assert the tables still render and the viewer was never used.
+    renderReport(applyReport);
+
+    expect(await screen.findByText("rg-main")).toBeInTheDocument();
+    expect(viewer.code).toBeUndefined();
   });
 });

@@ -352,7 +352,7 @@ function targetedSession(targets: string[]) {
 }
 
 describe("SessionData plan targets", () => {
-  it("lists a plan's targets beneath its label", () => {
+  it("counts a plan's targets on its row", () => {
     const session = targetedSession([
       "azurerm_storage_account.main",
       "azurerm_resource_group.rg",
@@ -360,27 +360,49 @@ describe("SessionData plan targets", () => {
     renderWithProviders(<SessionData session={session} />);
 
     const label = screen.getByText("Terraform Plan");
-    const targets = screen.getByText(
-      "Targets: azurerm_storage_account.main, azurerm_resource_group.rg",
-    );
-    expect(isBefore(label, targets)).toBe(true);
+    const chip = screen.getByText("2 targets");
+    expect(isBefore(label, chip)).toBe(true);
   });
 
-  it("keeps the full list reachable when the line is clamped", () => {
-    const session = targetedSession(["a.one", "b.two"]);
-    renderWithProviders(<SessionData session={session} />);
+  it("names the unit in the singular for a single target", () => {
+    renderWithProviders(<SessionData session={targetedSession(["a.one"])} />);
 
-    expect(screen.getByText("Targets: a.one, b.two")).toHaveAttribute(
-      "title",
-      "a.one, b.two",
-    );
+    expect(screen.getByText("1 target")).toBeInTheDocument();
   });
 
-  it("renders no targets line for a plan that carries none", () => {
+  it("reveals the full list when the row is hovered", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SessionData session={targetedSession(["a.one", "b.two"])} />);
+
+    await user.hover(screen.getByRole("button", { name: "View Terraform Plan" }));
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("a.one");
+    expect(tooltip).toHaveTextContent("b.two");
+  });
+
+  it("anchors the list to the focusable row, not to the chip", async () => {
+    // Why it hangs off the row: the row is already keyboard-reachable, so
+    // focus reveals the list without nesting a control inside a
+    // `role="button"`. jsdom never reports `:focus-visible`, which is what
+    // MUI gates focus-opening on, so the binding is asserted rather than
+    // the keystroke — hence `aria-describedby` on the row itself.
+    const user = userEvent.setup();
+    renderWithProviders(<SessionData session={targetedSession(["a.one"])} />);
+
+    const row = screen.getByRole("button", { name: "View Terraform Plan" });
+    await user.hover(row);
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(row).toHaveAttribute("tabIndex", "0");
+    expect(row.getAttribute("aria-describedby")).toBe(tooltip.id);
+  });
+
+  it("renders no chip for a plan that carries no targets", () => {
     renderWithProviders(<SessionData session={interleavedSession()} />);
 
     expect(screen.getByText("Terraform Plan")).toBeInTheDocument();
-    expect(screen.queryByText(/^Targets:/)).toBeNull();
+    expect(screen.queryByText(/target/)).toBeNull();
   });
 });
 

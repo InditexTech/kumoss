@@ -213,8 +213,10 @@ export const STRINGS = {
     },
     /** Marks a drift round that targeted named resources. */
     roundPartialSuffix: " (partial)",
-    /** Prefixes the resource list on a plan artifact's secondary line. */
+    /** Heads the resource list in an opened plan artifact. */
     artifactTargets: "Targets",
+    /** Pluralised noun for a plan row's count chip: "3 targets", "1 target". */
+    artifactTargetCount: { one: "target", other: "targets" },
     /**
      * Verb prefixing an artifact row's `aria-label`. The row is a button
      * whose only text is the artifact's name, so the label has to say

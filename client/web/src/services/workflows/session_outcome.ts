@@ -15,6 +15,7 @@
 import {
   getSessionDetail,
   fetchArtifactContent,
+  fetchPlanType,
 } from "@/services/core/sessions";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
@@ -143,20 +144,58 @@ function collectCodeChanges(
   return [...byName.entries()];
 }
 
+/**
+ * The round's terraform plan body, or null when it stored none.
+ *
+ * Position cannot pick it. A round's `plans` interleaves both flavours —
+ * the validation loop appends one plan per iteration, the drift pass its
+ * diff — and the *newest* entry is routinely a diff: every generate round
+ * runs the drift pre-check after validating, and that check stores its
+ * diff before it decides there is nothing to remediate
+ * (`terraform_drift_service.__store_drift`). Import rounds check drift the
+ * same way. So the newest plan-flavoured artifact has to be found, and the
+ * flavour is object metadata the read model does not carry.
+ *
+ * Resolved with ranged probes (`fetchPlanType`, one byte each, all in
+ * flight at once) rather than by downloading bodies newest-first: a
+ * backward walk would pull a whole drift diff down just to discard it.
+ *
+ * A round whose plans are all diffs yields null — the Plan tab's empty
+ * state, since the diff is already the Report tab's subject. But a round
+ * where *no* flavour was readable at all falls back to the newest plan:
+ * unreadable metadata (an object stored before the backend wrote it, or a
+ * store whose CORS rules hide the header) is not evidence of drift, and
+ * blanking the tab across such a deployment would be worse than the
+ * pre-existing order guess.
+ */
+async function fetchPlanContent(plans: TerraformPlanRef[]): Promise<string | null> {
+  if (plans.length === 0) return null;
+  const types = await Promise.all(plans.map((p) => fetchPlanType(p.url)));
+  let chosen: TerraformPlanRef | null = null;
+  for (let i = plans.length - 1; i >= 0; i--) {
+    if (types[i] === "plan") {
+      chosen = plans[i];
+      break;
+    }
+  }
+  if (!chosen && types.every((t) => t === null)) {
+    chosen = plans[plans.length - 1];
+  }
+  return chosen ? fetchArtifactContent(chosen.url) : null;
+}
+
 async function fetchRoundArtifacts(
   round: RoundDetail,
   rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
   const codeChanges = collectCodeChanges(rounds);
-  // The outcome panel wants the round's final plan, not the drift diff a
-  // drift round stores first. Oldest-first, so the newest is last.
+  // Oldest-first, and a round holds exactly one report, so the newest is
+  // the round's own — unlike its plans (see `fetchPlanContent`).
   const reportRef: ReportRef | null =
     round.reports[round.reports.length - 1] ?? null;
-  const planRef: TerraformPlanRef | null =
-    round.plans[round.plans.length - 1] ?? null;
   const [reportContent, planContent, ...fileContents] = await Promise.all([
     reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
-    planRef ? fetchArtifactContent(planRef.url) : Promise.resolve(null),
+    fetchPlanContent(round.plans),
     ...codeChanges.map(async ([fileName, changes]) => {
       const contents = await Promise.all(
         changes.map((c) => fetchArtifactContent(c.url)),

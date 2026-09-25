@@ -4,6 +4,8 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Typography from "@mui/material/Typography";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useSearchParams } from "react-router-dom";
 import { fetchArtifact, fetchArtifactContent } from "@/services/core/sessions";
 import { useMode } from "@/contexts/ModeContext";
@@ -15,6 +17,7 @@ import type {
   ReportRef,
   ReportType,
   RoundDetail,
+  TerraformPlanRef,
 } from "@/types/api";
 import type { TerraformReport } from "@/types";
 import { STRINGS } from "@/constants/strings";
@@ -64,6 +67,17 @@ interface ArtifactContentProps {
 }
 
 const LABELS = STRINGS.sessions.artifactLabels;
+const LABELS_TARGETS = STRINGS.sessions.artifactTargets;
+
+/**
+ * The editor takes a fixed height, so the targets block above it reserves
+ * its own: one line for the toggle, plus the list's bounded height when
+ * it is open. Constant either way — the list scrolls rather than growing
+ * with the target count.
+ */
+const EDITOR_HEIGHT = "calc(100vh - 200px)";
+const EDITOR_HEIGHT_TARGETS_CLOSED = "calc(100vh - 248px)";
+const EDITOR_HEIGHT_TARGETS_OPEN = "calc(100vh - 376px)";
 
 const REPORT_LABELS: Partial<Record<ReportType, string>> = {
   apply: LABELS.applyReport,
@@ -101,6 +115,38 @@ function getLanguage(kind: ArtifactKind, artifact: ArtifactRef): string {
   return "plaintext";
 }
 
+/**
+ * Past this, indenting costs more than the horizontal scrolling it saves:
+ * the re-serialized copy plus Monaco's tokenization of it is the expense,
+ * not the parse.
+ */
+const MAX_PRETTY_JSON_BYTES = 512 * 1024;
+
+/**
+ * Re-emits a JSON body indented, or null if the body isn't JSON.
+ *
+ * Plans are uploaded as `text/plain` whatever the producer actually wrote,
+ * so `content_type` can't be asked and the body has to be sniffed. Written
+ * without indentation, a list of resource actions arrives as one unwrapped
+ * line that no amount of syntax highlighting makes readable — parsing and
+ * re-printing is what puts the line breaks in.
+ *
+ * Returning null means "render it the way we always did".
+ */
+export function prettyPrintJson(text: string): string | null {
+  // The cheap gate, and the only type check needed: a body starting with
+  // `{` or `[` either parses to an object/array or throws, so scalars are
+  // rejected here rather than after the parse. HCL plans, the common case,
+  // never reach JSON.parse at all. Testing the untrimmed string avoids
+  // copying the whole body; JSON.parse tolerates the leading whitespace.
+  if (text.length > MAX_PRETTY_JSON_BYTES || !/^\s*[{[]/.test(text)) return null;
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return null;
+  }
+}
+
 export default function ArtifactContent({
   kind,
   artifact,
@@ -113,6 +159,9 @@ export default function ArtifactContent({
   const [loading, setLoading] = useState(true);
   const [applyFilter, setApplyFilter] = useState<ApplyFilterId>("all");
   const [importFilter, setImportFilter] = useState<ImportFilterId>("all");
+  // Open by default: the targets answer "what is this plan scoped to?",
+  // which is the question that brought the user here from the timeline.
+  const [targetsOpen, setTargetsOpen] = useState(true);
   const { setMode } = useMode();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -261,6 +310,17 @@ export default function ArtifactContent({
       return null;
     }
   }, [kind, content]);
+
+  // Everything that reaches the raw viewer: plans, and reports whose body
+  // isn't the shape the report renderers expect. Keyed on `content`, which
+  // the fetch effect writes once per artifact — so the parse does not
+  // re-run when a filter tab or a detail overlay changes `searchParams`.
+  // Gated on `reportData` so a body the tables already claimed is never
+  // parsed twice; that second pass would be the expensive one.
+  const prettyContent = useMemo(
+    () => (content && !reportData ? prettyPrintJson(content) : null),
+    [content, reportData],
+  );
 
   const selectedChange = useMemo(() => {
     if (activeDetail !== "change" || !resourceParam || !reportData?.detailed_changes) return null;
@@ -494,12 +554,54 @@ export default function ArtifactContent({
     );
   }
 
+  // The timeline row only had room for a count, so the addresses
+  // themselves land here, where they can be read and copied.
+  const planTargets =
+    kind === "plan" ? ((artifact as TerraformPlanRef).targets ?? []) : [];
+
   return (
-    <CodeBlock
-      code={content}
-      language={getLanguage(kind, artifact)}
-      showLineNumbers
-      height="calc(100vh - 200px)"
-    />
+    <>
+      {planTargets.length > 0 && (
+        <div className={styles.targets}>
+          <button
+            type="button"
+            className={styles.targetsToggle}
+            onClick={() => setTargetsOpen((open) => !open)}
+            aria-expanded={targetsOpen}
+          >
+            {targetsOpen ? (
+              <ExpandLessIcon className={styles.targetsToggleIcon} />
+            ) : (
+              <ExpandMoreIcon className={styles.targetsToggleIcon} />
+            )}
+            {`${LABELS_TARGETS} (${planTargets.length})`}
+          </button>
+          {targetsOpen && (
+            <ul className={styles.targetsList}>
+              {planTargets.map((target) => (
+                <li key={target} className={styles.targetsItem}>
+                  {target}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <CodeBlock
+        code={prettyContent ?? content}
+        // The sniffed result overrides the declared one here rather than
+        // being threaded into getLanguage, which stays pure and
+        // metadata-only.
+        language={prettyContent ? "json" : getLanguage(kind, artifact)}
+        showLineNumbers
+        height={
+          planTargets.length === 0
+            ? EDITOR_HEIGHT
+            : targetsOpen
+              ? EDITOR_HEIGHT_TARGETS_OPEN
+              : EDITOR_HEIGHT_TARGETS_CLOSED
+        }
+      />
+    </>
   );
 }
