@@ -130,6 +130,11 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain("final plan");
     expect(outcome.code).not.toContain("drift diff");
     expect(outcome.code).not.toContain("early plan");
+    // Targets ride with the *selected* plan, so they must be `final.txt`'s —
+    // not the newest artifact's (`a.b`, the drift diff) and not the first
+    // plan's (none). Reading them off the wrong ref is invisible in the body
+    // but mislabels the panel.
+    expect(outcome.planTargets).toEqual(["c.d"]);
   });
 
   it("leaves the plan empty for a round that stored only drift diffs", async () => {
@@ -158,6 +163,9 @@ describe("resolveSessionOutcome", () => {
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.code).not.toContain("Terraform_Plan");
     expect(outcome.code).not.toContain("diff");
+    // No plan on screen, so no targets to describe — even though both
+    // diffs are plan-flavoured artifacts that could have carried some.
+    expect(outcome.planTargets).toEqual([]);
   });
 
   it("falls back to the newest plan when the store exposes no flavour", async () => {
@@ -186,6 +194,31 @@ describe("resolveSessionOutcome", () => {
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.code).toContain("newest plan");
     expect(outcome.code).not.toContain("older plan");
+  });
+
+  it("treats a plan with no targets field as having none", async () => {
+    // `targets` is declared `string[]`, but the read model has already
+    // served it absent (a plan stored before the column existed), and an
+    // undefined array reaches the panel as a crash rather than an empty list.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-no-targets",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [artifactRef(41, "bare.txt") as TerraformPlanRef],
+          }),
+        ],
+      }),
+    );
+    server.use(servePlan("bare.txt", "plan", "bare plan"));
+
+    const outcome = await resolveSessionOutcome("sess-no-targets");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("bare plan");
+    expect(outcome.planTargets).toEqual([]);
   });
 
   it("merges code changes across rounds, with later rounds winning", async () => {
@@ -562,11 +595,44 @@ describe("buildSessionPatch", () => {
       is_blocked: true,
       current_status: "completed",
       code: "<main.tf>\nx\n</main.tf>",
+      planTargets: [],
     });
     expect(patch.history).toEqual([
       { role: "user", content: "deploy a VM" },
       { role: "assistant", content: "Here is your VM" },
     ]);
+  });
+
+  it("carries the plan's targets onto the session", () => {
+    const detail = makeSessionDetail();
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      code: "",
+      planTargets: ["azurerm_key_vault.a", "azurerm_key_vault.b"],
+    });
+
+    expect(patch.planTargets).toEqual([
+      "azurerm_key_vault.a",
+      "azurerm_key_vault.b",
+    ]);
+  });
+
+  it("clears the targets when the new round's plan has none", () => {
+    // `updateSession` merges, so an omitted key would leave the previous
+    // round's addresses labelling a plan they have nothing to do with.
+    const detail = makeSessionDetail();
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      code: "",
+    });
+
+    expect(patch.planTargets).toEqual([]);
   });
 
   it("marks failed outcomes with current_status failed only", () => {
@@ -583,6 +649,7 @@ describe("buildSessionPatch", () => {
       prior: {
         report: { status: "ok" },
         code: "<main.tf>\nx\n</main.tf>",
+        planTargets: ["azurerm_vm.web"],
       },
     });
 
@@ -590,6 +657,7 @@ describe("buildSessionPatch", () => {
       current_status: "uncompleted",
       code: "<main.tf>\nx\n</main.tf>",
       terraform_report: { status: "ok" },
+      planTargets: ["azurerm_vm.web"],
     });
   });
 });
@@ -665,7 +733,6 @@ describe("buildAssistantMessage", () => {
           execution_summary: "One storage account is now managed",
         },
         code: "",
-        targets: undefined,
       }),
     ).toBe("One storage account is now managed");
   });

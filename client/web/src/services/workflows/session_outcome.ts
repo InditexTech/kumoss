@@ -39,6 +39,7 @@ export type SessionOutcome =
       round: RoundDetail;
       report: TerraformReport | null;
       code: string;
+      planTargets?: string[];
     }
   | {
       kind: "apply-results";
@@ -117,6 +118,7 @@ export async function waitForNewRound(
 export interface RoundArtifacts {
   report: TerraformReport | null;
   code: string;
+  planTargets?: string[];
 }
 
 /**
@@ -167,8 +169,19 @@ function collectCodeChanges(
  * store whose CORS rules hide the header) is not evidence of drift, and
  * blanking the tab across such a deployment would be worse than the
  * pre-existing order guess.
+ *
+ * `targets` is read off the chosen ref — a sibling of the `url` the body came
+ * from — so the addresses always describe the plan actually on screen. That is
+ * narrower than "what this round targeted": a remediating drift round writes
+ * its targets on the remediation plan, and the validation loop then appends a
+ * plan per iteration carrying the validator's usually-empty `terraform_targets`
+ * (see `isPartialDrift` in `roundSummary.ts`). When the selected plan is one of
+ * those, this yields `[]` rather than the round's addresses, which is the
+ * honest answer for a per-artifact label.
  */
-async function fetchPlanContent(plans: TerraformPlanRef[]): Promise<string | null> {
+async function fetchPlanContent(
+  plans: TerraformPlanRef[],
+): Promise<{ content: string; targets: string[] } | null> {
   if (plans.length === 0) return null;
   const types = await Promise.all(plans.map((p) => fetchPlanType(p.url)));
   let chosen: TerraformPlanRef | null = null;
@@ -181,7 +194,11 @@ async function fetchPlanContent(plans: TerraformPlanRef[]): Promise<string | nul
   if (!chosen && types.every((t) => t === null)) {
     chosen = plans[plans.length - 1];
   }
-  return chosen ? fetchArtifactContent(chosen.url) : null;
+  if (!chosen) return null;
+  return {
+    content: await fetchArtifactContent(chosen.url),
+    targets: chosen.targets ?? [],
+  };
 }
 
 async function fetchRoundArtifacts(
@@ -193,7 +210,7 @@ async function fetchRoundArtifacts(
   // the round's own — unlike its plans (see `fetchPlanContent`).
   const reportRef: ReportRef | null =
     round.reports[round.reports.length - 1] ?? null;
-  const [reportContent, planContent, ...fileContents] = await Promise.all([
+  const [reportContent, plan, ...fileContents] = await Promise.all([
     reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
     fetchPlanContent(round.plans),
     ...codeChanges.map(async ([fileName, changes]) => {
@@ -214,17 +231,16 @@ async function fetchRoundArtifacts(
   }
 
   const parts: string[] = [];
-  if (planContent) {
-    parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);
+  if (plan) {
+    parts.push(`<Terraform_Plan>\n${plan.content}\n</Terraform_Plan>`);
   }
   codeChanges.forEach(([fileName], i) => {
     parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
   });
 
-  // No `targets`: nothing reads them here, and the newest plan's are the
-  // wrong ones anyway. Copy `isPartialDrift` in `roundSummary.ts` if a
-  // consumer ever needs them.
-  return { report, code: parts.join("\n") };
+  // A round with no plan on screen has no addresses to label it with, even
+  // when its drift diffs carried some.
+  return { report, code: parts.join("\n"), planTargets: plan?.targets ?? [] };
 }
 
 /**
@@ -338,14 +354,19 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     history: normalizeHistory(detail.history),
   };
 
+  // `planTargets` is assigned whenever `code` is, never omitted: the patch is
+  // merged into the existing session, so leaving the key out would keep the
+  // previous round's addresses labelling this round's plan.
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
     patch.code = outcome.code;
+    patch.planTargets = outcome.planTargets ?? [];
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
     patch.code = outcome.prior.code;
+    patch.planTargets = outcome.prior.planTargets ?? [];
   }
 
   return patch;

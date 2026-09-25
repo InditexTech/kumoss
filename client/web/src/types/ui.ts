@@ -89,6 +89,7 @@ export interface Session {
   history?: HistoryEntry[];
   terraform_report?: TerraformReport;
   code?: string;
+  planTargets?: string[];
   applyResults?: ApplyResultsData;
 }
 
