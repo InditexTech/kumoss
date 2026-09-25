@@ -245,7 +245,7 @@ class TerraformImportResourceDTO:
         return self.stdout if self.ok else self.feedback
 
 
-@dataclass
+@dataclass(frozen=True)
 class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 

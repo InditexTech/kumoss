@@ -1,0 +1,8 @@
+1. Cross check cloud resources against state
+2. Filter list exception or target resources
+3. (generate and validate) generate empty blocks with generic information based on unmanaged ids (OperationType.IMPORT)
+    - Iterate feedback loops until the blocks have the needed att (terraform plan validation)
+4. Final list ids (normalization inference)
+5. (generate and validate) validate agains terraform import
+    - Iterate feedback loops until all resources have been imported (terraform import validation)
+

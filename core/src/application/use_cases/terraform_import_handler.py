@@ -15,6 +15,7 @@ from src.application.services.terraform_import_service import TerraformImportSer
 from src.domains.dto import (
     TerraformImportAttempt,
     TerraformImportDTO,
+    TerraformPlanDTO,
 )
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
@@ -136,7 +137,6 @@ class TerraformImportHandler:
                     )
                     return
 
-                selected_ids: list[str] = unmanaged_ids
                 if is_partial:
                     filtered = await self.__task_svc.filter_imports(
                         query=q,
@@ -144,9 +144,9 @@ class TerraformImportHandler:
                         conventions=conventions,
                         history=ctx.history,
                     )
-                    selected_ids = filtered.selected
+                    unmanaged_ids = filtered.selected
 
-                    if not selected_ids:
+                    if not unmanaged_ids:
                         await self.__report_nothing_to_import(
                             q,
                             msg=filtered.explanation
@@ -155,14 +155,45 @@ class TerraformImportHandler:
                         )
                         return
 
-                imported: list[TerraformImportAttempt] = []
-                failed: list[TerraformImportAttempt] = []
+                async def plan_callback(
+                    local_history: History,
+                ) -> TerraformPlanDTO:
+                    return await self.__terraform_svc.plan(
+                        targets=await self.__target_svc.generate_session(local_history),
+                    )
+
+                plan_result = await self.__validation_svc.generate_and_validate(
+                    q="Create a Terraform resource block for each of these "
+                    + "\n".join(f"- {rid}" for rid in unmanaged_ids),
+                    ctx=ctx,
+                    conventions=conventions,
+                    include_forbidden_actions=False,
+                    operation_type=OperationType.IMPORT,
+                    validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_import_iteration,
+                )
+
+                import_cmds: set[
+                    TerraformImportAttempt
+                ] = await self.__import_address_svc.get_import_addresses(unmanaged_ids)
+                imported: set[TerraformImportAttempt] = set()
+                failed: set[TerraformImportAttempt] = set()
+                import_targets: list[str] = plan_result.targets
 
                 async def import_callback(
                     local_history: History,
                 ) -> TerraformImportDTO:
+                    outcome = await self.__import_svc.import_resources(import_cmds)
+                    import_cmds.difference_update(outcome.imported)
+                    imported.update(outcome.imported)
+                    failed.update(outcome.failed)
+                    for r in failed:
+                        if r.resource_id in {r.resource_id for r in imported}:
+                            logging.debug(f"discarded {r} from failed list")
+                            failed.discard(r)
+
                     plan_result = await self.__terraform_svc.plan(
-                        targets=await self.__target_svc.generate_session(local_history),
+                        targets=import_targets,
                     )
                     if not plan_result.ok:
                         return TerraformImportDTO(
@@ -170,23 +201,6 @@ class TerraformImportHandler:
                             failed=list(failed),
                             plan_result=plan_result,
                         )
-
-                    done = {a.resource_id for a in imported}
-                    pending_ids = [rid for rid in selected_ids if rid not in done]
-                    logging.debug(f"done: {done}")
-                    logging.debug(f"pending_ids: {pending_ids}")
-                    imports = await self.__import_address_svc.get_import_addresses(
-                        local_history, pending_ids
-                    )
-                    if not imports:
-                        logging.warning("There is nothing to import")
-                    outcome = await self.__import_svc.import_resources(imports)
-                    imported.extend(outcome.imported)
-                    if outcome.failed:
-                        logging.warning(
-                            f"{len(outcome.failed)}/{len(imports)} imports failed"
-                        )
-                        failed.extend(outcome.failed)
                     return TerraformImportDTO(
                         imported=list(imported),
                         failed=list(failed),
@@ -196,7 +210,7 @@ class TerraformImportHandler:
                 try:
                     import_results = await self.__validation_svc.generate_and_validate(
                         q="Create a Terraform resource block for each of these "
-                        + "\n".join(f"- {rid}" for rid in selected_ids),
+                        + "\n".join(f"- {rid}" for rid in unmanaged_ids),
                         ctx=ctx,
                         conventions=conventions,
                         include_forbidden_actions=False,
@@ -212,8 +226,8 @@ class TerraformImportHandler:
                 plan_after_import = import_results.plan_result.stdout
                 if import_results.addresses:
                     drift = await self.__drift_svc.detect_and_resolve_drift(
-                        plan=import_results.plan_result.plan,
-                        filter_session_changes=True,
+                        plan=None,
+                        filter_session_changes=False,
                         targets=import_results.plan_result.targets,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
@@ -235,7 +249,7 @@ class TerraformImportHandler:
                     type=ReportType.IMPORT,
                     content=json.dumps(
                         {
-                            "selected_resource_ids": selected_ids,
+                            "selected_resource_ids": unmanaged_ids,
                             "excluded_resource_ids": discovery.excluded,
                             "import_results": {
                                 "imported": [
