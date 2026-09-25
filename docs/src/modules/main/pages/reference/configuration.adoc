@@ -347,14 +347,14 @@ condition fires.
 |`orchestration.max_drift_reports`
 |integer
 |`3`
-|`3`
+|`5`
 |Optional
 |Maximum detect-and-remediate iterations in a drift session.
 
 |`orchestration.max_validation_iteration`
 |integer
 |`5`
-|`5`
+|`8`
 |Optional
 |Maximum generate-then-validate attempts per generation task before the
 round fails with `Validation loop exceeded.`
