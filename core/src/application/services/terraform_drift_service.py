@@ -11,6 +11,7 @@ from src.domains.services import (
     TaskService,
 )
 from src.domains.value_objects import Conventions, PlanRef
+from src.shared.config import system_config
 from src.shared.constants import ContentType, OperationType
 from src.shared.logger import logging
 
@@ -126,6 +127,7 @@ class TerraformDriftService:
                     include_forbidden_actions=False,
                     operation_type=OperationType.DRIFT,
                     validator=validator,
+                    max_iterations=system_config.orchestration.max_validation_iteration,
                 )
                 plan = result.plan
 

@@ -172,21 +172,13 @@ class TerraformImportHandler:
 
                     done = {a.resource_id for a in imported}
                     pending_ids = [rid for rid in selected_ids if rid not in done]
-                    imports = [
-                        (address, rid)
-                        for address, rid in (
-                            await self.__import_address_svc.get_import_addresses(
-                                local_history, pending_ids
-                            )
-                        )
-                        if rid not in done
-                    ]
+                    logging.debug(f"done: {done}")
+                    logging.debug(f"pending_ids: {pending_ids}")
+                    imports = await self.__import_address_svc.get_import_addresses(
+                        local_history, pending_ids
+                    )
                     if not imports:
-                        logging.warning(
-                            "There is nothing to import: no generated resource "
-                            + "block was found in the branch diff for selected "
-                            + f"ids {pending_ids}"
-                        )
+                        logging.warning("There is nothing to import")
                     outcome = await self.__import_svc.import_resources(imports)
                     imported.extend(outcome.imported)
                     if outcome.failed:
@@ -199,13 +191,10 @@ class TerraformImportHandler:
                         plan_result=plan_result,
                     )
 
-                q_import = (
-                    "Create a Terraform resource block for each of these "
-                    + "\n".join(f"- {rid}" for rid in selected_ids)
-                )
                 try:
                     import_results = await self.__validation_svc.generate_and_validate(
-                        q=q_import,
+                        q="Create a Terraform resource block for each of these "
+                        + "\n".join(f"- {rid}" for rid in selected_ids),
                         ctx=ctx,
                         conventions=conventions,
                         include_forbidden_actions=False,
@@ -218,23 +207,12 @@ class TerraformImportHandler:
                         raise
                     import_results = e.result
 
-                plan_result = import_results.plan_result
-                if plan_result is None or not plan_result.ok:
-                    fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=import_results.feedback,
-                        history=ctx.history,
-                    )
-                    raise TerraformValidationFailedError(
-                        message=fail_msg,
-                        error_code=500,
-                    )
-
-                plan_after_import = plan_result.stdout
+                plan_after_import = import_results.plan_result.stdout
                 if import_results.addresses:
                     drift = await self.__drift_svc.detect_and_resolve_drift(
-                        plan=None,
-                        filter_session_changes=False,
-                        targets=plan_result.targets,
+                        plan=import_results.plan_result.plan,
+                        filter_session_changes=True,
+                        targets=import_results.plan_result.targets,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )

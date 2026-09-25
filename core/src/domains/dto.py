@@ -123,6 +123,17 @@ class TerraformPlanDTO:
     def summary(self) -> str:
         return self.stdout if self.ok else self.feedback
 
+    @classmethod
+    def empty(cls) -> "TerraformPlanDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
+        return cls(
+            ok=True,
+            feedback="",
+            stdout="",
+            targets=[],
+            plan=None,
+        )
+
 
 @dataclass
 class TerraformDriftDTO:
@@ -248,8 +259,7 @@ class TerraformImportDTO:
     """Outcome of an import round, partitioned by result.
 
     Callers get the split they need instead of the raw per-resource
-    results: ``imported`` drives the convergence plan and the report,
-    ``failed`` carries the reason each import was rejected.
+    results.
 
     ``plan_result`` is the plan the imports ran after, so an import round
     answers the generation loop the way a plan does: ``ok`` only when the
@@ -259,7 +269,7 @@ class TerraformImportDTO:
 
     imported: list[TerraformImportAttempt]
     failed: list[TerraformImportAttempt]
-    plan_result: TerraformPlanDTO | None = None
+    plan_result: TerraformPlanDTO
 
     @property
     def addresses(self) -> list[str]:
@@ -268,20 +278,16 @@ class TerraformImportDTO:
 
     @property
     def ok(self) -> bool:
-        return not self.failed and (self.plan_result is None or self.plan_result.ok)
+        return not self.failed and self.plan_result.ok
 
     @property
     def feedback(self) -> str:
-        if self.plan_result is not None and not self.plan_result.ok:
+        if not self.plan_result.ok:
             return self.plan_result.feedback
-        if not self.failed:
-            return ""
-        lines = [
-            "These resources could not be imported into the Terraform state. "
-            + "Fix their resource blocks so each one matches the cloud resource "
-            + "it is imported from:"
-        ]
-        lines += [f"- `{a.address}` ({a.resource_id}): {a.error}" for a in self.failed]
+        if self.failed:
+            lines = [
+                f"- `{a.address}` ({a.resource_id}): {a.error}" for a in self.failed
+            ]
         if self.imported:
             lines.append(
                 "These are already imported; keep their resource blocks "
@@ -297,6 +303,15 @@ class TerraformImportDTO:
     @property
     def targets(self) -> list[str]:
         return self.plan_result.targets if self.plan_result else []
+
+    @classmethod
+    def empty(cls) -> "TerraformImportDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
+        return cls(
+            imported=[],
+            failed=[],
+            plan_result=TerraformPlanDTO.empty(),
+        )
 
 
 @dataclass

@@ -16,7 +16,6 @@ from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.dto import ToolResultDTO, ValidationResultDTO
 from src.domains.value_objects import Conventions
-from src.shared.config import system_config
 from src.shared.constants import (
     ContentType,
     OperationType,
@@ -89,11 +88,12 @@ class TerraformValidationService:
         self,
         q: str,
         ctx: SessionContext,
+        *,
+        validator: Callable[[History], Awaitable[T]],
         conventions: Conventions,
         include_forbidden_actions: bool,
         operation_type: OperationType,
-        validator: Callable[[History], Awaitable[T]],
-        max_iterations: int | None = None,
+        max_iterations: int,
     ) -> T:
         """
         Execute the terraform generation and validation cycle using tool calls
@@ -108,12 +108,9 @@ class TerraformValidationService:
         """
         first_q = q
         local_history = ctx.history.deepcopy()
-        max_tries = (
-            max_iterations or system_config.orchestration.max_validation_iteration
-        )
         result: T | None = None
-        for i in range(max_tries):
-            logging.debug(f"Validation service {i}/{max_tries}")
+        for i in range(max_iterations):
+            logging.debug(f"Validation service {i + 1}/{max_iterations}")
             _ = await self.__session_svc.update_status(
                 msg=q,
                 prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),

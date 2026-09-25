@@ -125,7 +125,7 @@ class TerraformImportService:
         self,
         imports: list[tuple[str, str]],
     ) -> TerraformImportDTO:
-        outcome = TerraformImportDTO(imported=[], failed=[])
+        outcome = TerraformImportDTO.empty()
         for address, resource_id in imports:
             result = await self.__import_prv.import_resource(
                 address=address,
