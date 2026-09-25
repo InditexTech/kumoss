@@ -38,6 +38,10 @@
   padding-top: var(--assistant-top-offset);
 }
 
+.fullPageScroll {
+  overflow-y: auto;
+}
+
 /* ─── Left side (split layout panel) ─── */
 
 .leftSide {

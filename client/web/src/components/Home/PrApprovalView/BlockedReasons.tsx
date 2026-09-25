@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import Typography from "@mui/material/Typography";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { STRINGS } from "@/constants/strings";
 import {
   ComplianceViolations,
@@ -52,6 +53,7 @@ export default function BlockedReasons({
   impactDetail,
   compliance,
 }: BlockedReasonsProps) {
+  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const violations = sortedViolations(compliance?.violations ?? []);
@@ -62,64 +64,85 @@ export default function BlockedReasons({
 
   if (!impactDetail && !compliance) return null;
 
+  const complianceSummary = plural(
+    shown.length,
+    blocking.length > 0 ? "blocking violation" : "violation",
+  );
+  const summary = [
+    impactDetail && STRINGS.pr.highImpactReason,
+    compliance && complianceSummary,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className={styles.panel}>
-      <Typography variant="subtitleSemiBold" component="h3" className={styles.heading}>
-        {STRINGS.pr.blockedWhy}
-      </Typography>
-      <ul className={styles.reasons}>
-        {impactDetail && (
-          <li className={styles.reason}>
-            <Typography variant="subtitleSemiBold" component="span" className={styles.label}>
-              {STRINGS.pr.highImpactReason}
-            </Typography>
-            <Typography variant="body2" component="span">
-              {impactDetail}
-            </Typography>
-          </li>
-        )}
-        {compliance && (
-          <li className={styles.reason}>
-            <Typography variant="subtitleSemiBold" component="span" className={styles.label}>
-              {STRINGS.pr.complianceReason}
-            </Typography>
-            <div className={styles.detail}>
-              <Typography variant="body2" component="span">
-                {plural(
-                  shown.length,
-                  blocking.length > 0 ? "blocking violation" : "violation",
-                )}
+      <button
+        type="button"
+        className={styles.heading}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <ExpandMoreIcon
+          fontSize="small"
+          className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}
+        />
+        <Typography variant="subtitleSemiBold" component="span" className={styles.title}>
+          {STRINGS.pr.blockedWhy}
+        </Typography>
+        <Typography variant="body2" component="span" className={styles.summary}>
+          {summary}
+        </Typography>
+      </button>
+      {open && (
+        <ul className={styles.reasons}>
+          {impactDetail && (
+            <li className={styles.reason}>
+              <Typography variant="subtitleSemiBold" component="span" className={styles.label}>
+                {STRINGS.pr.highImpactReason}
               </Typography>
-              {expanded ? (
-                <div className={styles.full}>
-                  <ComplianceViolations violations={violations} />
-                </div>
-              ) : (
-                <ul className={styles.violations}>
-                  {shown.map((violation, i) => (
-                    <CompactViolation
-                      key={`${violation.rule_id}-${i}`}
-                      violation={violation}
-                    />
-                  ))}
-                </ul>
-              )}
-              {hasMore && (
-                <button
-                  type="button"
-                  className={styles.toggle}
-                  aria-expanded={expanded}
-                  onClick={() => setExpanded((open) => !open)}
-                >
-                  {expanded
-                    ? STRINGS.pr.hideFindings
-                    : `${STRINGS.pr.showAllFindings} (${violations.length})`}
-                </button>
-              )}
-            </div>
-          </li>
-        )}
-      </ul>
+              <Typography variant="body2" component="span">
+                {impactDetail}
+              </Typography>
+            </li>
+          )}
+          {compliance && (
+            <li className={styles.reason}>
+              <Typography variant="subtitleSemiBold" component="span" className={styles.label}>
+                {STRINGS.pr.complianceReason}
+              </Typography>
+              <div className={styles.detail}>
+                {expanded ? (
+                  <div className={styles.full}>
+                    <ComplianceViolations violations={violations} />
+                  </div>
+                ) : (
+                  <ul className={styles.violations}>
+                    {shown.map((violation, i) => (
+                      <CompactViolation
+                        key={`${violation.rule_id}-${i}`}
+                        violation={violation}
+                      />
+                    ))}
+                  </ul>
+                )}
+                {hasMore && (
+                  <button
+                    type="button"
+                    className={styles.toggle}
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded((open) => !open)}
+                  >
+                    {expanded
+                      ? STRINGS.pr.hideFindings
+                      : `${STRINGS.pr.showAllFindings} (${violations.length})`}
+                  </button>
+                )}
+              </div>
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

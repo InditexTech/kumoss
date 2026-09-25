@@ -115,7 +115,7 @@ export default function ResultsRoute() {
   if (prStep) {
     const isApplyBlocked = !!session.is_blocked;
     return (
-      <div className={styles.fullPage}>
+      <div className={`${styles.fullPage} ${styles.fullPageScroll}`}>
         <AssistantAnimation
           type={isApplyBlocked ? "error" : "standby"}
           size={isApplyBlocked ? 220 : 180}

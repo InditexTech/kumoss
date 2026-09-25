@@ -72,17 +72,13 @@ jspm_packages/
 # Typescript v1 declaration files
 typings/
 
-# Optional npm cache directory
+# Optional cache directories 
 .npm
-
-# Optional eslint cache
 .eslintcache
+*.tgz
 
 # Optional REPL history
 .node_repl_history
-
-# Output of 'npm pack'
-*.tgz
 
 # Yarn Integrity file
 .yarn-integrity
@@ -97,9 +93,7 @@ coverage/
 CLAUDE.md
 AGENTS.md
 
-# Agent tooling installed into the working tree, not source: the vendored
-# docouture skills, the per-tool directories that link to them, the
-# installer's lockfile, and machine-local settings
+# Agent tooling
 .agents/
 agent/
 .claude/skills/
@@ -108,6 +102,7 @@ skills-lock.json
 
 # Local Tests
 local_test/
+.playwright-mcp
 
 # Unpublished files
 docs-tmp/
