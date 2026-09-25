@@ -97,7 +97,8 @@
   text-underline-offset: 4px;
 }
 
-.backLink:disabled {
+.backLink:disabled,
+.backLink:disabled:hover {
   opacity: 0.5;
   cursor: default;
 }
