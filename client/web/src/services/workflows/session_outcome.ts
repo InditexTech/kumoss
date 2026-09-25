@@ -14,6 +14,7 @@
 
 import {
   getSessionDetail,
+  fetchArtifact,
   fetchArtifactContent,
   fetchPlanType,
 } from "@/services/core/sessions";
@@ -40,6 +41,7 @@ export type SessionOutcome =
       report: TerraformReport | null;
       code: string;
       planTargets?: string[];
+      newFiles?: string[];
     }
   | {
       kind: "apply-results";
@@ -119,6 +121,8 @@ export interface RoundArtifacts {
   report: TerraformReport | null;
   code: string;
   planTargets?: string[];
+  /** Names in `code` whose body is raw content rather than a diff. */
+  newFiles?: string[];
 }
 
 /**
@@ -210,15 +214,22 @@ async function fetchRoundArtifacts(
   // the round's own — unlike its plans (see `fetchPlanContent`).
   const reportRef: ReportRef | null =
     round.reports[round.reports.length - 1] ?? null;
-  const [reportContent, plan, ...fileContents] = await Promise.all([
+  const [reportContent, plan, composed] = await Promise.all([
     reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
     fetchPlanContent(round.plans),
-    ...codeChanges.map(async ([fileName, changes]) => {
-      const contents = await Promise.all(
-        changes.map((c) => fetchArtifactContent(c.url)),
-      );
-      return composeFileArtifacts(fileName, contents);
-    }),
+    // fetchArtifact, not fetchArtifactContent: composing a file's chain
+    // needs each artifact's shape, and it rides the same response.
+    Promise.all(
+      codeChanges.map(async ([fileName, changes]) => {
+        const payloads = await Promise.all(
+          changes.map((c) => fetchArtifact(c.url)),
+        );
+        return composeFileArtifacts(
+          fileName,
+          payloads.map(({ text, isNewFile }) => ({ text, isNewFile })),
+        );
+      }),
+    ),
   ]);
 
   let report: TerraformReport | null = null;
@@ -234,13 +245,22 @@ async function fetchRoundArtifacts(
   if (plan) {
     parts.push(`<Terraform_Plan>\n${plan.content}\n</Terraform_Plan>`);
   }
+  // The blob flattens each file to text, so the shape has to travel
+  // alongside it — `extractCodeFiles` on the other end cannot recover it.
+  const newFiles: string[] = [];
   codeChanges.forEach(([fileName], i) => {
-    parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
+    parts.push(`<${fileName}>\n${composed[i].text}\n</${fileName}>`);
+    if (composed[i].isNewFile) newFiles.push(fileName);
   });
 
   // A round with no plan on screen has no addresses to label it with, even
   // when its drift diffs carried some.
-  return { report, code: parts.join("\n"), planTargets: plan?.targets ?? [] };
+  return {
+    report,
+    code: parts.join("\n"),
+    planTargets: plan?.targets ?? [],
+    newFiles,
+  };
 }
 
 /**
@@ -354,19 +374,22 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     history: normalizeHistory(detail.history),
   };
 
-  // `planTargets` is assigned whenever `code` is, never omitted: the patch is
-  // merged into the existing session, so leaving the key out would keep the
-  // previous round's addresses labelling this round's plan.
+  // `planTargets` and `newFiles` are assigned whenever `code` is, never
+  // omitted: the patch is merged into the existing session, so leaving a key
+  // out would keep the previous round's addresses labelling this round's
+  // plan, or tint the wrong file as new.
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
     patch.code = outcome.code;
     patch.planTargets = outcome.planTargets ?? [];
+    patch.newFiles = outcome.newFiles ?? [];
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
     patch.code = outcome.prior.code;
     patch.planTargets = outcome.prior.planTargets ?? [];
+    patch.newFiles = outcome.prior.newFiles ?? [];
   }
 
   return patch;

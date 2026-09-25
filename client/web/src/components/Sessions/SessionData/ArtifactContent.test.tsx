@@ -10,6 +10,7 @@ import { server } from "@/test/server";
 import { makeRound } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import type {
+  CodeChangeRef,
   OperationType,
   PlanType,
   ReportRef,
@@ -28,13 +29,27 @@ import ArtifactContent, {
 const viewer = vi.hoisted(() => ({
   code: undefined as string | undefined,
   language: undefined as string | undefined,
+  files: undefined as Record<string, string> | undefined,
+  newFiles: undefined as ReadonlySet<string> | undefined,
 }));
 
 vi.mock("@/components/ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/components/ui")>()),
-  CodeBlock: ({ code, language }: { code?: string; language?: string }) => {
+  CodeBlock: ({
+    code,
+    language,
+    files,
+    newFiles,
+  }: {
+    code?: string;
+    language?: string;
+    files?: Record<string, string>;
+    newFiles?: ReadonlySet<string>;
+  }) => {
     viewer.code = code;
     viewer.language = language;
+    viewer.files = files;
+    viewer.newFiles = newFiles;
     return null;
   },
 }));
@@ -549,5 +564,92 @@ describe("ArtifactContent JSON bodies in the raw viewer", () => {
 
     expect(await screen.findByText("rg-main")).toBeInTheDocument();
     expect(viewer.code).toBeUndefined();
+  });
+});
+
+describe("ArtifactContent code changes", () => {
+  const MAIN_DIFF = [
+    "diff --git main.tf main.tf",
+    "--- main.tf",
+    "+++ main.tf",
+    "@@ -1,1 +1,1 @@",
+    '-resource "a" {}',
+    '+resource "b" {}',
+  ].join("\n");
+
+  function changeRef(id: number, fileName: string): CodeChangeRef {
+    return {
+      id,
+      url: `${STORAGE}/${fileName}`,
+      content_type: "text/plain",
+      file_size_bytes: 20,
+      created_at: "2026-01-01T00:00:00Z",
+      file_name: fileName,
+    };
+  }
+
+  /** Serve a code-change object with its `new_file` metadata tag. */
+  function serveChange(fileName: string, isNewFile: boolean, body: string) {
+    return http.get(`${STORAGE}/${fileName}`, () =>
+      HttpResponse.text(body, {
+        headers: { "x-amz-meta-new_file": String(isNewFile) },
+      }),
+    );
+  }
+
+  function renderChanges(refs: CodeChangeRef[]) {
+    renderWithProviders(
+      <ArtifactContent
+        kind="change"
+        artifact={refs[0]}
+        round={makeRound({ code_changes: refs })}
+        operation="generate"
+      />,
+    );
+  }
+
+  beforeEach(() => {
+    viewer.files = undefined;
+    viewer.newFiles = undefined;
+  });
+
+  it("tells the viewer which files are raw rather than diffs", async () => {
+    // The guard against forgetting the prop: `newFiles` is optional, so a
+    // dropped call site is silent and every new file renders blank.
+    server.use(
+      serveChange("vars.tf", true, 'variable "a" {}'),
+      serveChange("main.tf", false, MAIN_DIFF),
+    );
+    renderChanges([changeRef(1, "vars.tf"), changeRef(2, "main.tf")]);
+
+    await waitFor(() => expect(viewer.files).toBeDefined());
+    expect(Object.keys(viewer.files!)).toEqual(["vars.tf", "main.tf"]);
+    expect(viewer.files!["vars.tf"]).toBe('variable "a" {}');
+    expect([...viewer.newFiles!]).toEqual(["vars.tf"]);
+  });
+
+  it("carries the composed shape of a file touched several times", async () => {
+    // Raw snapshot then a diff on top: the composition is still an addition
+    // relative to the session base, so it must stay in `newFiles`.
+    const followUp = [
+      "diff --git vars.tf vars.tf",
+      "--- vars.tf",
+      "+++ vars.tf",
+      "@@ -1,2 +1,1 @@",
+      ' variable "a" {}',
+      '-variable "b" {}',
+    ].join("\n");
+    server.use(
+      serveChange("vars.tf", true, 'variable "a" {}\nvariable "b" {}'),
+      serveChange("vars-2.tf", false, followUp),
+    );
+    renderChanges([
+      changeRef(1, "vars.tf"),
+      { ...changeRef(2, "vars-2.tf"), file_name: "vars.tf" },
+    ]);
+
+    await waitFor(() => expect(viewer.files).toBeDefined());
+    expect(viewer.files!["vars.tf"]).toBe('variable "a" {}');
+    expect([...viewer.newFiles!]).toEqual(["vars.tf"]);
   });
 });

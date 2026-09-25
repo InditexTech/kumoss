@@ -312,8 +312,9 @@ Prefix `/v1/auth`. Two routes.
 deliberately so: the single-page application has to read it before it
 can log in at all. Outside `/v1`, the framework's interactive
 documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` —
-is served without authentication as well. It returns the four non-secret OIDC settings, taken
-straight from `config.yaml`:
+is served without authentication as well. It returns the four
+non-secret OIDC settings, taken straight from `config.yaml`, plus the
+object store's metadata header prefix:
 
 [source,json]
 ----
@@ -321,13 +322,23 @@ straight from `config.yaml`:
   "issuer_url": "",
   "client_id": "",
   "audience": "",
-  "scope": "openid profile email"
+  "scope": "openid profile email",
+  "artifact_metadata_header_prefix": "x-amz-meta-"
 }
 ----
 
 A blank `issuer_url` tells the browser that authentication is disabled
 and it should use the local development identity. See
 xref:main:guides/enable-authentication.adoc[Enable authentication].
+
+`artifact_metadata_header_prefix` is not configurable. It is derived
+from `storage.provider` — `x-amz-meta-` for S3 and RustFS,
+`x-ms-meta-` for an Azure storage account — and is how the browser
+knows which header names carry an artifact's metadata when it reads one
+from a pre-signed URL. The core never reads that metadata itself, so
+this is the only way the client can learn it. See
+xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
+for the CORS rules that must expose those headers.
 
 `POST /api/v1/auth/authorize` asks whether the caller may operate on a
 cloud project. It requires a signed-in user and takes `cloud`,

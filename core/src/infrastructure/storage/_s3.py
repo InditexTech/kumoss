@@ -44,6 +44,7 @@ class S3ObjectStorage(IObjectStorage):
 
     _NOT_FOUND_CODES = frozenset({"404", "NoSuchKey", "NoSuchBucket"})
     _ALREADY_OWNED_CODES = frozenset({"BucketAlreadyOwnedByYou", "BucketAlreadyExists"})
+    _METADATA_HEADER_PREFIX = "x-amz-meta-"
 
     def __init__(
         self,
@@ -192,6 +193,11 @@ class S3ObjectStorage(IObjectStorage):
         self.__client.delete_object(Bucket=self.__bucket, Key=key)
 
     # --- port surface --------------------------------------------------------
+
+    @property
+    @override
+    def metadata_header_prefix(self) -> str:
+        return self._METADATA_HEADER_PREFIX
 
     @override
     async def ensure_bucket(self) -> None:

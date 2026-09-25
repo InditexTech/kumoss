@@ -18,7 +18,7 @@ import ThumbUpAltOutlined from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlined from "@mui/icons-material/ThumbDownAltOutlined";
 import { useShell } from "@/contexts/ShellContext";
 import { registerHclLanguage } from "@/utils/hclTokenizer";
-import { isGitDiff, parseGitDiff } from "@/utils/diffUtils";
+import { parseGitDiff } from "@/utils/diffUtils";
 import { STORAGE_KEYS, THEME } from "@/constants";
 import { getLocalItem } from "@/services";
 import EditorSkeleton from "../EditorSkeleton";
@@ -145,6 +145,8 @@ interface MonacoEditorProps {
   onChange?: OnChange;
   options?: editor.IStandaloneEditorConstructionOptions;
   files?: Record<string, string> | null;
+  /** Names in `files` holding raw content rather than `git diff` output. */
+  newFiles?: ReadonlySet<string> | null;
   activeFile?: string | null;
   onFileChange?: ((fileName: string) => void) | null;
   stickyScroll?: boolean;
@@ -161,6 +163,7 @@ const MonacoEditor = ({
   onChange,
   options = {},
   files = null,
+  newFiles = null,
   activeFile = null,
   onFileChange = null,
   stickyScroll = false,
@@ -192,15 +195,21 @@ const MonacoEditor = ({
   const showTabs = files && fileNames.length > 1;
 
   // Updated-file artifacts hold `git diff` output; new files hold raw
-  // content (backend tags them new_file=true/false). Diffs render in the
-  // diff editor; new files render whole-line "added" decorations — a diff
-  // against an empty original would show a spurious deleted-line marker.
+  // content. Which is which is object metadata the backend wrote
+  // (`new_file`), carried down as `newFiles` — so the shape is the input
+  // here and the diff is derived from it, not the other way round. Diffs
+  // render in the diff editor; new files render whole-line "added"
+  // decorations, because a diff against an empty original would show a
+  // spurious deleted-line marker.
   const activeContent = files && activeFile ? files[activeFile] : undefined;
+  const activeIsNewFile =
+    activeContent !== undefined &&
+    activeFile !== null &&
+    (newFiles?.has(activeFile) ?? false);
   const activeDiff =
-    activeContent !== undefined && isGitDiff(activeContent)
+    activeContent !== undefined && !activeIsNewFile
       ? parseGitDiff(activeContent)
       : null;
-  const activeIsNewFile = activeContent !== undefined && activeDiff === null;
   const activeLanguage = getMonacoLanguage(
     getLanguageFromFileName(activeFile ?? ""),
   );

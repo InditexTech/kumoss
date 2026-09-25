@@ -274,12 +274,19 @@ export interface SessionEventData {
 
 // ─── Auth (/api/v1/auth/*) ──────────────────────────────────
 
-/** Public OIDC settings; blank issuer_url = auth disabled (dev mode). */
+/** Public bootstrap settings; blank issuer_url = auth disabled (dev mode). */
 export interface AuthConfigResponse {
   issuer_url: string;
   client_id: string;
   audience: string;
   scope: string;
+  /**
+   * Prefix the deployed object store puts on metadata keys when serving
+   * an object — `x-amz-meta-` for S3-API stores, `x-ms-meta-` for Azure
+   * Blob. Backend-computed from `storage.provider`: the SPA never learns
+   * which store is behind it, only how to address its metadata.
+   */
+  artifact_metadata_header_prefix: string;
 }
 
 // ─── Users & Roles (/api/v1/users/*, /api/v1/admin/*) ───────

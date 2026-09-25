@@ -49,6 +49,11 @@ class _RecordingStorage(IObjectStorage):
         self.metas: list[dict[str, str]] = []
         self.deletes: list[str] = []
 
+    @property
+    @override
+    def metadata_header_prefix(self) -> str:
+        return "x-fake-meta-"
+
     @override
     async def ensure_bucket(self) -> None:
         pass

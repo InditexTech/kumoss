@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { apiFetch } from "@/services/api";
+import { metadataHeaderPrefix } from "@/services/auth";
 import type {
   OperationType,
   PaginatedSessionSummary,
@@ -69,26 +70,49 @@ export interface ArtifactPayload {
    * the backend began writing it.
    */
   planType: PlanType | null;
+  /** See `readIsNewFile`. Meaningless for reports and plans. */
+  isNewFile: boolean;
 }
 
 /**
- * The `type` metadata the store returns alongside an object.
+ * One user-metadata value the store returned alongside an object.
  *
- * Two spellings because two vendors: S3 and RustFS answer
- * `x-amz-meta-type`, Azure Blob answers `x-ms-meta-type`. The backend
- * writes one metadata key and each store renames it on the way out.
+ * The backend writes bare keys (`type`, `new_file`) and each store
+ * renames them on the way out — S3 and RustFS to `x-amz-meta-`, Azure
+ * Blob to `x-ms-meta-`. Nothing is guessed here: `GET /api/v1/auth/config`
+ * tells the SPA which prefix the deployed store uses. `Headers.get` is
+ * case-insensitive, so the prefix's casing costs nothing.
  *
- * Null when absent or unrecognised — also when the store's CORS rules
- * do not expose it: the reference proxy's `Access-Control-Expose-Headers`,
- * or `ExposedHeaders` on an S3 bucket or Azure storage account. All of
- * these are indistinguishable from here and land on the same neutral
- * fallback.
+ * Null when the key is absent — and also when the store's CORS rules do
+ * not expose it: the reference proxy's `Access-Control-Expose-Headers`,
+ * or `ExposeHeaders`/`ExposedHeaders` on an S3 bucket or Azure storage
+ * account. Indistinguishable from here; see the networking guide.
  */
+function readMeta(response: Response, key: string): string | null {
+  return response.headers.get(`${metadataHeaderPrefix()}${key}`);
+}
+
+/** The plan flavour, or null when absent or unrecognised. */
 function readPlanType(response: Response): PlanType | null {
-  const value =
-    response.headers.get("x-amz-meta-type") ??
-    response.headers.get("x-ms-meta-type");
+  const value = readMeta(response, "type");
   return value === "drift" || value === "plan" ? value : null;
+}
+
+/**
+ * Whether a code change's body is a whole file rather than `git diff`
+ * output.
+ *
+ * The backend tags tracked-file diffs `new_file=false` — including newly
+ * *added* tracked files, whose diff carries `new file mode` — and
+ * untracked files `new_file=true`. So this is the artifact's SHAPE, not
+ * its novelty, which is exactly what the viewer needs.
+ *
+ * Only an explicit `"false"` means diff. An unreadable tag then renders
+ * the body verbatim, which is the legible failure: parsing raw content as
+ * a diff yields an empty original *and* modified, i.e. a blank editor.
+ */
+function readIsNewFile(response: Response): boolean {
+  return readMeta(response, "new_file") !== "false";
 }
 
 /** Fetch an artifact's body and metadata from its (pre-signed) storage URL. */
@@ -97,7 +121,11 @@ export async function fetchArtifact(url: string): Promise<ArtifactPayload> {
   if (!response.ok) {
     throw new Error(`Failed to fetch artifact: ${response.status}`);
   }
-  return { text: await response.text(), planType: readPlanType(response) };
+  return {
+    text: await response.text(),
+    planType: readPlanType(response),
+    isNewFile: readIsNewFile(response),
+  };
 }
 
 /** Fetch artifact content directly from its (pre-signed) storage URL */

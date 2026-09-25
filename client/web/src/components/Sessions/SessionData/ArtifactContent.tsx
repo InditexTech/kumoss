@@ -7,7 +7,7 @@ import Typography from "@mui/material/Typography";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useSearchParams } from "react-router-dom";
-import { fetchArtifact, fetchArtifactContent } from "@/services/core/sessions";
+import { fetchArtifact } from "@/services/core/sessions";
 import { useMode } from "@/contexts/ModeContext";
 import type {
   ArtifactRef,
@@ -49,6 +49,7 @@ import type {
 } from "@/components/Home";
 import { CodeBlock, StatusBadge } from "@/components/ui";
 import { composeFileArtifacts } from "@/utils/diffUtils";
+import type { CodeChangeArtifact } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
 export type ArtifactKind = "report" | "plan" | "change";
@@ -156,6 +157,9 @@ export default function ArtifactContent({
 }: Readonly<ArtifactContentProps>) {
   const [content, setContent] = useState<string | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
+  // Names in `files` whose body is raw content, not a diff — the viewer
+  // cannot tell from the text, so the store's metadata is carried across.
+  const [newFiles, setNewFiles] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [applyFilter, setApplyFilter] = useState<ApplyFilterId>("all");
   const [importFilter, setImportFilter] = useState<ImportFilterId>("all");
@@ -243,31 +247,42 @@ export default function ArtifactContent({
     setLoading(true);
     setContent(null);
     setFiles(null);
+    setNewFiles(new Set());
 
     (async () => {
       try {
         if (kind === "change") {
-          const contents = await Promise.all(
-            round.code_changes.map((c) => fetchArtifactContent(c.url)),
+          // fetchArtifact, not fetchArtifactContent: the shape metadata
+          // rides on the same response as the body.
+          const payloads = await Promise.all(
+            round.code_changes.map((c) => fetchArtifact(c.url)),
           );
           if (cancelled) return;
           // A round can carry several sequential-diff artifacts for the
           // same file — collapse each file's group into one cumulative
           // artifact instead of letting the last overwrite the rest.
-          const grouped = new Map<string, string[]>();
+          const grouped = new Map<string, CodeChangeArtifact[]>();
           round.code_changes.forEach((c, i) => {
+            const artifact = {
+              text: payloads[i].text,
+              isNewFile: payloads[i].isNewFile,
+            };
             const group = grouped.get(c.file_name);
             if (group) {
-              group.push(contents[i]);
+              group.push(artifact);
             } else {
-              grouped.set(c.file_name, [contents[i]]);
+              grouped.set(c.file_name, [artifact]);
             }
           });
           const record: Record<string, string> = {};
+          const raw = new Set<string>();
           for (const [fileName, group] of grouped) {
-            record[fileName] = composeFileArtifacts(fileName, group);
+            const composed = composeFileArtifacts(fileName, group);
+            record[fileName] = composed.text;
+            if (composed.isNewFile) raw.add(fileName);
           }
           setFiles(record);
+          setNewFiles(raw);
         } else {
           // Body and metadata come from the same response, so the plan's
           // flavour is free here — no ranged follow-up for an artifact
@@ -375,6 +390,7 @@ export default function ArtifactContent({
     return (
       <CodeBlock
         files={files}
+        newFiles={newFiles}
         activeFile={effectiveActiveFile}
         onFileChange={setActiveFile}
         showLineNumbers

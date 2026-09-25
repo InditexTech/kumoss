@@ -20,12 +20,6 @@ from src.shared.constants import (
 )
 from src.shared.logger import logging
 
-# Status copy. None of these embeds raw terraform output, so none is
-# paraphrased: the unresolved-drift message is built inline and is the
-# only one the model rewrites before the UI renders it verbatim.
-_ASSESSING = "Assessing drift on the targeted infrastructure."
-_IN_SYNC = "No drift found; the targeted infrastructure is synchronized."
-
 
 class TerraformDriftService:
     def __init__(
@@ -81,7 +75,7 @@ class TerraformDriftService:
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
             _ = await self.__session_svc.update_status(
-                msg=_ASSESSING,
+                msg="Assessing drift on the targeted infrastructure.",
                 status=SessionStatus.RECONCILING,
             )
 

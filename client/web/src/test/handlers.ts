@@ -4,18 +4,39 @@
 
 /**
  * The only default handlers the suite relies on: the /api/v1/sessions
- * list and detail pair, served out of `mockState`. Anything else a test
- * needs, it registers itself with `server.use(...)` — there are ~54 such
- * overrides across the suite, which is the intended pattern.
+ * list and detail pair served out of `mockState`, plus /api/v1/auth/config
+ * (see `authConfigHandler`). Anything else a test needs, it registers
+ * itself with `server.use(...)` — there are ~54 such overrides across the
+ * suite, which is the intended pattern.
  */
 
 import { http, HttpResponse } from "msw";
 import { mockState } from "./factories";
 import type {
+  AuthConfigResponse,
   PaginatedSessionSummary,
   SessionDetail,
   SessionSummary,
 } from "@/types/api";
+
+/** What the SPA bootstrap reads. S3/RustFS prefix, auth disabled. */
+export const DEFAULT_AUTH_CONFIG: AuthConfigResponse = {
+  issuer_url: "",
+  client_id: "",
+  audience: "",
+  scope: "openid profile email",
+  artifact_metadata_header_prefix: "x-amz-meta-",
+};
+
+/**
+ * `setup.ts` loads this into the real `services/auth` singleton before the
+ * suite runs, so metadata reads go through production code rather than the
+ * fallback prefix. A blank `issuer_url` keeps `isOidcEnabled()` false,
+ * which every existing test already assumes.
+ */
+export function authConfigHandler(config: AuthConfigResponse) {
+  return http.get("/api/v1/auth/config", () => HttpResponse.json(config));
+}
 
 export function toSummary(detail: SessionDetail): SessionSummary {
   return {
@@ -112,6 +133,8 @@ export function projectDetail(
 }
 
 export const sessionHandlers = [
+  authConfigHandler(DEFAULT_AUTH_CONFIG),
+
   http.get("/api/v1/sessions", ({ request }) => {
     const query = readListQuery(request);
     return HttpResponse.json(

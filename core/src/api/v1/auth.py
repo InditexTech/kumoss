@@ -11,6 +11,7 @@ from src.api.deps import get_current_user
 from src.api.dtos import AuthConfigResponse
 from src.domains.entities import User
 from src.infrastructure.external.authz_service import AuthzServiceClient
+from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.exceptions import ExceptionHandler
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # Deliberately unauthenticated: the SPA must read this before it can log in.
 @router.get(
     path="/config",
-    summary="Public OIDC settings for the SPA login flow.",
+    summary="Public settings the SPA needs before it can render.",
 )
 async def auth_config() -> AuthConfigResponse:
     oidc = system_config.oidc
@@ -29,6 +30,12 @@ async def auth_config() -> AuthConfigResponse:
         client_id=oidc.client_id,
         audience=oidc.audience,
         scope=oidc.scope,
+        # The SPA reads artifact metadata off presigned-URL responses and
+        # cannot know which store renamed the keys. Cheap to ask: the
+        # factory is cached and the lifespan already built this adapter.
+        artifact_metadata_header_prefix=(
+            default_object_storage().metadata_header_prefix
+        ),
     )
 
 

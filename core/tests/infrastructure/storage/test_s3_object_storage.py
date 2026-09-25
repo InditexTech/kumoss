@@ -111,6 +111,41 @@ class TestS3ObjectStorage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 206)
         self.assertEqual(response.headers["x-amz-meta-type"], "drift")
 
+    async def test_metadata_key_with_an_underscore_survives_the_round_trip(self):
+        """``new_file`` is the one metadata key that is not a bare word.
+
+        Underscores are legal in HTTP header names but routinely stripped
+        by proxies, and this one decides whether the viewer renders a diff
+        or a whole file. Pin the round trip against a live store.
+        """
+        key = "sessions/s/rounds/1/code_changes/vars-abc12345.tf"
+        await self.storage.put(
+            key, b'variable "a" {}', "text/plain", {"new_file": "true"}
+        )
+        url = self.storage.presigned_get_url(key)
+
+        async with httpx.AsyncClient() as http:
+            response = await http.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["x-amz-meta-new_file"], "true")
+
+    async def test_metadata_header_prefix_matches_what_the_store_returns(self):
+        """The value served on ``GET /v1/auth/config``.
+
+        Asserted against a real response rather than a literal, so the
+        constant cannot drift away from the store's actual behaviour.
+        """
+        key = "prefix/probe.txt"
+        await self.storage.put(key, b"x", "text/plain", {"type": "plan"})
+
+        async with httpx.AsyncClient() as http:
+            response = await http.get(self.storage.presigned_get_url(key))
+
+        prefix = self.storage.metadata_header_prefix
+        self.assertEqual(prefix, "x-amz-meta-")
+        self.assertEqual(response.headers[f"{prefix}type"], "plan")
+
     async def test_presigned_url_shape(self):
         url = self.storage.presigned_get_url("some/key.txt")
         self.assertTrue(url.startswith(f"{_ENDPOINT}/{self.bucket}/some/key.txt?"))

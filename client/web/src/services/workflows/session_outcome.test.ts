@@ -55,6 +55,19 @@ function servePlan(path: string, type: string | null, body: string) {
   );
 }
 
+/**
+ * A store serving a code-change object. `new_file=false` marks the body
+ * as `git diff` output; `true` (or no tag at all) marks it as whole-file
+ * content. The composer reads only this, never the body's shape.
+ */
+function serveCodeChange(path: string, isNewFile: boolean, body: string) {
+  return http.get(`${STORAGE}/${path}`, () =>
+    HttpResponse.text(body, {
+      headers: { "x-amz-meta-new_file": String(isNewFile) },
+    }),
+  );
+}
+
 beforeEach(() => {
   mockState.clear();
 });
@@ -298,8 +311,8 @@ describe("resolveSessionOutcome", () => {
       }),
     );
     server.use(
-      http.get(`${STORAGE}/diff1`, () => HttpResponse.text(diff1)),
-      http.get(`${STORAGE}/diff2`, () => HttpResponse.text(diff2)),
+      serveCodeChange("diff1", false, diff1),
+      serveCodeChange("diff2", false, diff2),
     );
 
     const outcome = await resolveSessionOutcome("sess-1");
@@ -311,6 +324,48 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain('-output "b" {}');
     expect(outcome.code).toContain('-output "c" {}');
     expect(outcome.code).toContain('+output "a" {}');
+    // Both artifacts are diffs, so the composed result is one too.
+    expect(outcome.newFiles).toEqual([]);
+  });
+
+  it("reports which files the code blob holds raw rather than as diffs", async () => {
+    // The blob flattens every file to text, so the viewer can only learn
+    // a file's shape from this list.
+    mockState.addSession(
+      makeSessionDetail({
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            code_changes: [
+              { ...artifactRef(3, "vars.tf"), file_name: "vars.tf" },
+              { ...artifactRef(4, "main.tf"), file_name: "main.tf" },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      serveCodeChange("vars.tf", true, 'variable "a" {}'),
+      serveCodeChange(
+        "main.tf",
+        false,
+        [
+          "diff --git main.tf main.tf",
+          "--- main.tf",
+          "+++ main.tf",
+          "@@ -1,1 +1,1 @@",
+          '-resource "a" {}',
+          '+resource "b" {}',
+        ].join("\n"),
+      ),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.newFiles).toEqual(["vars.tf"]);
+    expect(buildSessionPatch(outcome).newFiles).toEqual(["vars.tf"]);
   });
 
   it("requests the conversation history when given a session id", async () => {
