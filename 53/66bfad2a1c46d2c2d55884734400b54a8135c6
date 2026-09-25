@@ -1,0 +1,31 @@
+docs/diagrams/flow-phases-5-6.sequence.json
+  s_41f6677bbefbde::t_303e529bdb07ed 41,103
+docs/src/modules/main/attachments/flow-phases-5-6.html
+  s_41f6677bbefbde::t_c6ac6c715be673 5232,5236,5285
+docs/src/modules/main/pages/faq.adoc
+  s_41f6677bbefbde::t_4208be0189530b 130
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_41f6677bbefbde::t_30c003c0dddf3d 35,55
+docs/src/modules/main/pages/guides/generate-infrastructure.adoc
+  s_41f6677bbefbde::t_bb1dc33cec811f 42
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_41f6677bbefbde::t_81726eed3e6954 350,357
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_41f6677bbefbde::t_8efb79ad8e5acb 92-93,134,136,166-170,303,399-401,515-516,518-526,528-556,559,561-563,565-569,571-588,590-593,595,597-606,608,610-641
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5366bfad2a1c46d2c2d55884734400b54a8135c6",
+  "prompts": {},
+  "sessions": {
+    "s_41f6677bbefbde": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3aca735-3dee-4c1b-863a-24960c5a0c1d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
