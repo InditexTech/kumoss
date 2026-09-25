@@ -156,6 +156,7 @@ class TerraformImportHandler:
                         return
 
                 imported: list[TerraformImportAttempt] = []
+                failed: list[TerraformImportAttempt] = []
 
                 async def import_callback(
                     local_history: History,
@@ -166,7 +167,7 @@ class TerraformImportHandler:
                     if not plan_result.ok:
                         return TerraformImportDTO(
                             imported=list(imported),
-                            failed=[],
+                            failed=list(failed),
                             plan_result=plan_result,
                         )
 
@@ -185,9 +186,10 @@ class TerraformImportHandler:
                         logging.warning(
                             f"{len(outcome.failed)}/{len(imports)} imports failed"
                         )
+                        failed.extend(outcome.failed)
                     return TerraformImportDTO(
                         imported=list(imported),
-                        failed=outcome.failed,
+                        failed=list(failed),
                         plan_result=plan_result,
                     )
 
