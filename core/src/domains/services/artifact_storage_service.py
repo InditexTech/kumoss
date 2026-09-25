@@ -98,7 +98,6 @@ class ArtifactStorageService:
         content: str | bytes,
         content_type: ContentType,
         metadata: dict[str, str] = None,
-        is_drift: bool = False,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -108,25 +107,19 @@ class ArtifactStorageService:
             targets: Terraform targets the plan covers.
             content: Plan body; str is stored utf-8 encoded.
             content_type: MIME type served on reads (max 64 chars).
-            metadata: Metadata attached to the object.
-            is_drift: Whether ``content`` is a drift diff rather than a
-                plan. Recorded on the stored object only — in its key
-                prefix (``drift-`` vs ``plan-``) and under its ``type``
-                metadata key. The ``terraform_plans`` row holds no
-                flavour, so a client that needs one reads the object.
+            metadata: Metadata attached to the object. The
+                ``terraform_plans`` row holds no flavour, so callers that
+                store more than one kind of plan (a drift diff and a
+                validation plan) label it here and a consumer reads it
+                off the object.
         """
         data = self.__encode(content)
-        kind = "drift" if is_drift else "plan"
-        key = (
-            f"sessions/{session_id}/rounds/{round_id}" + f"/plans/{kind}-{_token()}.txt"
-        )
+        key = f"sessions/{session_id}/rounds/{round_id}" + f"/plans/{_token()}.txt"
         return await self.__store(
             key=key,
             data=data,
             content_type=content_type.value,
-            # Copied, never mutated in place: the caller may reuse its
-            # dict across the several plans one round stores.
-            metadata={**metadata, "type": kind} if metadata else {"type": kind},
+            metadata=metadata if metadata else {},
             context=f"session {session_id} round {round_id}",
             db_write=lambda: DatabaseService.add_terraform_plan(
                 round_id=round_id,

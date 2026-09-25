@@ -320,7 +320,7 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         # per attempt; this loop only owns the drift report.
         self.artifact_svc.store_terraform_plan.assert_awaited_once()
         kwargs = self.artifact_svc.store_terraform_plan.await_args.kwargs
-        self.assertTrue(kwargs["is_drift"])
+        self.assertEqual(kwargs["metadata"], {"type": "drift"})
         self.assertEqual(kwargs["content"], "[drift]")
         self.assertEqual(kwargs["targets"], self.targets)
 

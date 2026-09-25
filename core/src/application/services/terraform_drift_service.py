@@ -8,15 +8,14 @@ from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
     SessionService,
+    TaskService,
     TemplateOrchestrationService,
     TerraformValidationService,
-    TaskService,
 )
 from src.domains.value_objects import Conventions, PlanRef
 from src.shared.constants import (
     ContentType,
     OperationType,
-    PromptsLibrary,
     SessionStatus,
 )
 from src.shared.logger import logging
@@ -26,13 +25,6 @@ from src.shared.logger import logging
 # only one the model rewrites before the UI renders it verbatim.
 _ASSESSING = "Assessing drift on the targeted infrastructure."
 _IN_SYNC = "No drift found; the targeted infrastructure is synchronized."
-_SESSION_CHANGES = (
-    "Drift check completed; the remaining differences are this session's own changes."
-)
-_EXCLUDED = (
-    "Drift check completed; the remaining differences are covered "
-    "by the drift exception rules."
-)
 
 
 class TerraformDriftService:
@@ -88,13 +80,6 @@ class TerraformDriftService:
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
-            # Above the plan on purpose. A dedicated drift session plans
-            # its own workspace below and that plan is part of the
-            # assessment; the drift diff stored below only renders under
-            # this entry if the status precedes it (the read model links
-            # artifacts to statuses by time); and an in-sync round breaks
-            # out without storing anything, so this is the only record
-            # that the check ran at all.
             _ = await self.__session_svc.update_status(
                 msg=_ASSESSING,
                 status=SessionStatus.RECONCILING,
@@ -137,7 +122,6 @@ class TerraformDriftService:
                     logging.warning(
                         "Drift pre-check completed, remaining drift corresponds to session changes"
                     )
-                    await self.__announce(_SESSION_CHANGES)
                     return resolved(drift)
 
             filtered = await self.__split_svc.filter_exceptions(operations=operations)
@@ -150,7 +134,6 @@ class TerraformDriftService:
                     "Drift remediation stopped, every operation is covered by the "
                     + f"drift exception rules: {exclusions}"
                 )
-                await self.__announce(_EXCLUDED)
                 return resolved(drift)
             operations = filtered.kept
 
@@ -172,11 +155,9 @@ class TerraformDriftService:
 
         if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
-            await self.__announce(_IN_SYNC)
         else:
             remaining = f"Drift resolution completed but issues remain: {drift.drift}"
             logging.warning(remaining)
-            await self.__announce(remaining, rewrite=True)
 
         return resolved(drift)
 
@@ -192,23 +173,5 @@ class TerraformDriftService:
                 targets=targets,
                 content=drift.drift,
                 content_type=ContentType.TEXT,
-                is_drift=True,
+                metadata={"type": "drift"},
             )
-
-    async def __announce(self, msg: str, rewrite: bool = False) -> None:
-        """Persist the phase's conclusion as a status entry.
-
-        ``rewrite`` routes the message through the small model, which is
-        needed only when it embeds raw terraform output: the UI renders
-        status messages verbatim. The literals are already prose, and the
-        pre-check runs on every generate round, so paraphrasing them
-        would cost an LLM call per round for nothing.
-        """
-        _ = await self.__session_svc.update_status(
-            msg=msg,
-            prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE)
-            if rewrite
-            else None,
-            status=SessionStatus.RECONCILING,
-            history=self.__ctx.history if rewrite else None,
-        )

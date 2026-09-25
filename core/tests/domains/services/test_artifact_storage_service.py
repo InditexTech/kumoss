@@ -179,7 +179,7 @@ class TestStoreArtifacts(_RoundBase):
 
         artifact: Artifact | None = await db.get_by(Artifact, id=plan.artifact_id)
         assert artifact is not None
-        self.assertIn(f"/rounds/{self.round_id}/plans/plan-", artifact.uri)
+        self.assertIn(f"/rounds/{self.round_id}/plans/", artifact.uri)
         self.assertEqual(artifact.content_type, "text/plain")
         self.assertEqual(await self.storage.get(artifact.uri), b"plan output")
 
@@ -311,11 +311,11 @@ class TestStoreFailureModes(_RoundBase):
 
 
 class TestPlanTypeMetadata(_RoundBase):
-    """``is_drift`` reaches the object's metadata, not only its key.
+    """The caller's metadata is what labels a plan object.
 
     The read model returns a round's plans unlabelled and in order, so
     the object metadata is the only place a consumer can ask what a
-    given plan artifact actually is.
+    given plan artifact actually is — the key carries no flavour.
     """
 
     async def asyncSetUp(self):
@@ -325,7 +325,7 @@ class TestPlanTypeMetadata(_RoundBase):
         self.recorder = _RecordingStorage()
         self.service = ArtifactStorageService(self.recorder)
 
-    async def __store(self, is_drift: bool, metadata: dict[str, str] = None) -> None:
+    async def __store(self, metadata: dict[str, str] = None) -> None:
         _ = await self.service.store_terraform_plan(
             self.sid,
             self.round_id,
@@ -333,35 +333,30 @@ class TestPlanTypeMetadata(_RoundBase):
             "plan output",
             content_type=ContentType.TEXT,
             metadata=metadata,
-            is_drift=is_drift,
         )
 
-    async def test_drift_diff_is_tagged_drift(self):
-        await self.__store(is_drift=True)
-        self.assertEqual(self.recorder.metas[-1]["type"], "drift")
-        self.assertIn("/plans/drift-", self.recorder.puts[-1])
-
-    async def test_plan_is_tagged_plan(self):
-        await self.__store(is_drift=False)
-        self.assertEqual(self.recorder.metas[-1]["type"], "plan")
-        self.assertIn("/plans/plan-", self.recorder.puts[-1])
-
-    async def test_caller_metadata_survives_alongside_the_type(self):
-        await self.__store(is_drift=True, metadata={"origin": "validation"})
+    async def test_caller_metadata_reaches_the_object_verbatim(self):
+        await self.__store(metadata={"type": "drift", "origin": "validation"})
         self.assertEqual(
-            self.recorder.metas[-1], {"origin": "validation", "type": "drift"}
+            self.recorder.metas[-1], {"type": "drift", "origin": "validation"}
         )
 
-    async def test_callers_dict_is_not_mutated(self):
-        # One round stores several plans; a caller reusing its dict must
-        # not find the previous plan's type stamped onto it.
-        supplied = {"origin": "validation"}
-        await self.__store(is_drift=True, metadata=supplied)
-        await self.__store(is_drift=False, metadata=supplied)
+    async def test_an_unlabelled_plan_carries_no_metadata(self):
+        await self.__store()
+        self.assertEqual(self.recorder.metas[-1], {})
 
-        self.assertEqual(supplied, {"origin": "validation"})
-        self.assertEqual(self.recorder.metas[-2]["type"], "drift")
-        self.assertEqual(self.recorder.metas[-1]["type"], "plan")
+    async def test_the_key_carries_no_flavour(self):
+        # Two plans of different kinds land under the same prefix, so no
+        # consumer can classify one by parsing its key.
+        await self.__store(metadata={"type": "drift"})
+        await self.__store(metadata={"type": "plan"})
+
+        prefix = f"sessions/{self.sid}/rounds/{self.round_id}/plans/"
+        for key in self.recorder.puts[-2:]:
+            self.assertTrue(key.startswith(prefix), key)
+            self.assertNotIn("drift", key)
+            self.assertNotIn("plan-", key)
+        self.assertNotEqual(self.recorder.puts[-2], self.recorder.puts[-1])
 
 
 if __name__ == "__main__":
