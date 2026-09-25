@@ -1234,7 +1234,8 @@ the round&#8217;s <em>conventions</em>, which every later agent is rendered with
 <h2 id="phase-5-generate-validate-correct"><a class="anchor" href="#phase-5-generate-validate-correct"></a>Phase 5: generate, validate, correct</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Up to five generate-and-validate iterations.</p>
+<p>Up to <code>orchestration.max_validation_iteration</code> generate-and-validate
+iterations: 8 in the shipped <code>config.yaml</code>, 5 built in.</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -1627,9 +1628,9 @@ against the shared workspace with the cloud credentials in
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Correct or fail</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Engine errors go back to the generation agent as the next query and the
-loop repeats. After <code>orchestration.max_validation_iteration</code> (8)
+loop repeats. After <code>orchestration.max_validation_iteration</code> (8 shipped)
 failures the round ends <code>FAILED</code>, the branch keeps the last pushed
-attempt, and the session is <a href="#terminal-states">closed for good</a>.</p></td>
+attempt, and the session is <a href="#how-a-session-ends">closed for good</a>.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1675,7 +1676,11 @@ Filter (small model) then drops every operation the cloud&#8217;s
 <code>orchestration.drift_group_operations</code> (8) with the forbidden-actions
 block omitted, and the pre-check runs once more. If only the session&#8217;s
 own changes remain, or the plan is clean, the pre-check stops and the
-last plan is final.</p></td>
+last plan is final. If genuine drift is still there after the second
+iteration, the round continues to the report anyway: a warning is logged
+and the drift is re-read from the last remediation batch&#8217;s plan, so the
+report and the pinned plan agree. A remediation batch that exhausts its own
+validation attempts fails the round instead.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -2885,7 +2890,7 @@ workspace: no re-plan, no retry. Exactly the reviewed plan executes.</p></td>
 output — <code>Success</code>, <code>Partial</code> or <code>Failed</code>. A non-zero exit does not
 raise: the deterministic signal is the <code>iac.apply.failure</code> notification,
 gated on the exit code, and the session still ends <code>COMPLETED</code> — see
-<a href="#terminal-states">Terminal states</a>.</p></td>
+<a href="#how-a-session-ends">How a session ends</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cleanup (always)</p></td>
@@ -3020,9 +3025,9 @@ message at that point.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>[at most n …]</code> in a label or band</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A bounded loop with its ceiling: 70 model turns per agent loop, 5
-validation iterations, 2 drift pre-check rounds, 8 operations per drift
-batch.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A bounded loop with its ceiling, at the shipped values: 70 model turns
+per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+operations per drift batch.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -3172,119 +3177,185 @@ notifications sidecar.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="terminal-states"><a class="anchor" href="#terminal-states"></a>Terminal states</h2>
+<h2 id="how-a-session-ends"><a class="anchor" href="#how-a-session-ends"></a>How a session ends</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Where a generate session can end. The marker in each end state is the
-diagram&#8217;s: 🟩 success, 🟥 a rejection, block or failure, 🟨 waiting on a human
-review, 🟧 waiting on the human to reformulate, or a bounded loop that
-stopped without converging.</p>
+<p>A round leaves the session in one of three statuses, or writes none at all.
+Only <code>FAILED</code> is terminal, and it is terminal for the <strong>session</strong>, not only for
+the round: the in-flight guard refuses to start a run on a session whose
+latest status is <code>FAILED</code>. A follow-up request, apply or drift round sent to
+it is still answered <code>202</code>, and its runner then logs
+<code>runner not started: Session &#8230;&#8203; is finished and cannot be resumed</code> and
+exits, so only a new session carries the work forward. <code>COMPLETED</code> and
+<code>UNCOMPLETED</code> are resting states that accept a new round whenever the owner
+sends one. The progress stream closes on any of the three.</p>
 </div>
+<div class="sect2">
+<h3 id="failed-the-session-is-closed"><a class="anchor" href="#failed-the-session-is-closed"></a><code>FAILED</code>: the session is closed</h3>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 27.2727%;">
-<col style="width: 36.3636%;">
-<col style="width: 36.3637%;">
+<col style="width: 22.2222%;">
+<col style="width: 33.3333%;">
+<col style="width: 44.4445%;">
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top">End state</th>
+<th class="tableblock halign-left valign-top">Outcome</th>
 <th class="tableblock halign-left valign-top">Reached when</th>
-<th class="tableblock halign-left valign-top">Status and side effects</th>
+<th class="tableblock halign-left valign-top">Status message and side effects</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟩 <strong>Infrastructure applied</strong> — phase 10</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The human-triggered apply succeeded</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>COMPLETED</code> (apply round); pinned plan discarded</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validation never converged</strong> — phase 5</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All <code>orchestration.max_validation_iteration</code> attempts are used: 8 in the
+shipped <code>config.yaml</code>, 5 built in</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>runner failed: Validation loop exceeded.</code> and a <code>system.exception.failure</code>
+notification. No LLM problem summary is produced. The branch keeps the last
+pushed attempt.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟩 <strong>Validated, awaiting apply</strong> — phase 8</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The round passed the audit, or the checker is off, and the impact is not
-<code>high</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>COMPLETED</code>, <code>is_blocked = false</code>, plan pinned</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Apply without a pinned plan</strong> — phase 10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The session&#8217;s last round was drift-only, or an earlier apply already
+consumed the pin. Every apply discards the pin, whether it succeeded or not,
+so a second apply on the same session always ends here</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>202</code> answered, then an internal <code>409</code>: <code>No reviewed plan is pinned for this
+session; run a generate or drift round before applying.</code> The wording
+misleads, since drift rounds never pin. The runner sets <code>FAILED</code> and sends
+<code>system.exception.failure</code>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟨 <strong>Awaiting pull-request review</strong> — phase 9</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The user created a pull request</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Status unchanged; pull request recorded</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Pipeline failed</strong> — any phase</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Any error the core raises as one of its own typed exceptions: a model or
+tool error, a drift remediation batch that exhausts its own validation
+attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+cannot return</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>runner failed: &lt;reason&gt;</code> and <code>system.exception.failure</code>; run directory
+removed; in-flight guard released.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="completed-the-round-finished-the-session-stays-open"><a class="anchor" href="#completed-the-round-finished-the-session-stays-open"></a><code>COMPLETED</code>: the round finished, the session stays open</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 33.3333%;">
+<col style="width: 44.4445%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Outcome</th>
+<th class="tableblock halign-left valign-top">Reached when</th>
+<th class="tableblock halign-left valign-top">Side effects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validated, unlocked</strong> — phase 8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The audit passed or the checker is off, and the report&#8217;s impact banner is
+not <code>high</code> or <code>orchestration.block_on_high_impact</code> is off</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>is_blocked = false</code>, plan pinned. Apply and pull-request merge are
+available.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Changes requested</strong> — amber loop back to phase 3</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The reviewer asked for changes, or CI or a conflict failed the pull request</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A new round of the same session starts at phase 3</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟧 <strong>Request declined or answered</strong> — phase 3</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The Request Filter Agent declined the request or answered a question</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>UNCOMPLETED</code>; the session stays usable</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Apply locked</strong> — phase 8</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validated, locked</strong> — phase 8</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Any <code>error</code> or <code>critical</code> compliance finding, or a <code>high</code> impact banner
-with <code>orchestration.block_on_high_impact</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>COMPLETED</code>, <code>is_blocked = true</code>, plan pinned; <code>iac.compliance.failed</code> or
-<code>iac.impact.high</code> notification</p></td>
+with <code>orchestration.block_on_high_impact</code> on</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>is_blocked = true</code>, plan pinned; <code>iac.compliance.failed</code> or
+<code>iac.impact.high</code> notification. Apply and merge answer <code>409</code> until a later
+passing, non-high round clears the lock or a panel <code>editor</code> toggles it.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Validation never converged</strong> — phase 5</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">All five generate-and-validate attempts used</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>FAILED</code> with <code>runner failed: Validation loop exceeded.</code>, plus
-<code>system.exception.failure</code>. No LLM problem summary is produced. The branch
-keeps the last pushed attempt</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Applied</strong> — phase 10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The engine&#8217;s apply exited with code zero</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>apply</code> report written; pinned plan discarded.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟧 <strong>Drift pre-check did not converge</strong> — phase 6</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Both pre-check iterations used and drift remains</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The round continues to the report with a warning logged, re-reading the
-drift from the last remediation batch&#8217;s plan so the report and the pinned
-plan agree. A batch that exhausts its own validation iterations ends the
-round <code>FAILED</code> instead</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Pull request rejected or closed</strong> — phase 9</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The reviewer closed the pull request</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Status unchanged; history and artifacts kept</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Apply failed</strong> — phase 10</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The engine&#8217;s apply returned a non-zero exit code</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Not an exception: the handler writes an <code>apply</code> report whose status is
-the model&#8217;s classification of the engine output (normally <code>Failed</code>), sends
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Apply failed</strong> — phase 10</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The engine&#8217;s apply exited with a non-zero code</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Not an exception: the handler writes an <code>apply</code> report whose status is the
+model&#8217;s classification of the engine output (normally <code>Failed</code>), sends
 <code>iac.apply.failure</code> — the deterministic, exit-code-gated signal — and
-returns, so the session still ends <code>COMPLETED</code>. Pinned plan discarded; no
-retry, a new generate round is needed</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Apply without a pinned plan</strong> — phase 10</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Apply on a session whose last round was drift-only, or whose pinned plan
-was already consumed</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>202</code> answered, then an internal <code>409</code>: <code>No reviewed plan is pinned for
-this session; run a generate or drift round before applying.</code> — misleading
-wording, since drift rounds never pin. The runner sets <code>FAILED</code> and sends
-<code>system.exception.failure</code>; the session cannot be resumed</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">🟥 <strong>Pipeline failed</strong> — reachable from any phase</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">An LLM or tool error, a sidecar timeout, a git or storage failure, or any
-other handled exception</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>FAILED</code>; <code>system.exception.failure</code> notification; workspace cleaned;
-in-flight guard released</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Run stopped without a status</strong> — not shown</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A prompt missing in Phoenix for the deployment&#8217;s <code>environment</code> tag</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Last status kept, no failure message, guard released</p></td>
+returns. Pinned plan discarded; no retry.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>FAILED</code> is terminal for the <strong>session</strong>, not only for the round: the
-in-flight guard refuses to start a run on a session whose latest status is
-<code>FAILED</code>, so no follow-up request, apply or drift round can attach to it —
-only a new session carries the work forward. <code>COMPLETED</code> and <code>UNCOMPLETED</code>
-sessions accept new rounds normally.</p>
+<p>A failed apply and a successful one leave the same <code>COMPLETED</code> status. The
+<code>apply</code> report and the <code>iac.apply.failure</code> notification are the only places
+the difference shows, and the next step after a failure is a new generate
+round, never a second apply.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="uncompleted-the-request-needs-reformulating"><a class="anchor" href="#uncompleted-the-request-needs-reformulating"></a><code>UNCOMPLETED</code>: the request needs reformulating</h3>
+<div class="paragraph">
+<p>The Request Filter Agent declined the request in phase 3 as out of scope,
+prohibited or ambiguous, or answered it as a question. The rationale is
+added to the conversation, and the owner&#8217;s next request opens a new round of
+the same session.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="no-status-written"><a class="anchor" href="#no-status-written"></a>No status written</h3>
+<div class="paragraph">
+<p>These outcomes leave the latest status as it was.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 33.3333%;">
+<col style="width: 44.4445%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Outcome</th>
+<th class="tableblock halign-left valign-top">Reached when</th>
+<th class="tableblock halign-left valign-top">Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Pull request open</strong> — phase 9</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The owner created a pull request</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Pull request recorded. Pull-request creation is not lock-checked; the merge
+is.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Changes requested</strong> — phase 9</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A reviewer asked for changes, or the pull request&#8217;s own CI or a merge
+conflict failed it. Nebula does not watch the pull request: the owner
+relays the problem as a new request</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A new round of the same session starts at phase 3, on the same branch.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Pull request rejected or closed</strong> — phase 9</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The reviewer closed the pull request</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">History and artifacts kept; the session still accepts new rounds.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Concurrent run dropped</strong> — phase 2</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A generate, drift or apply request reached a session with a run already in
+flight</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>202</code> answered, then the runner logs <code>runner not started: Session &#8230;&#8203;
+already has an operation in flight</code> and returns without touching the
+session.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Run ended without a status</strong> — any phase</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An error outside the core&#8217;s own exception types, such as an unexpected
+library or runtime error. The runner converts only its own typed exceptions
+into <code>FAILED</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Run directory removed and guard released, but no status and no
+notification are written. The latest status stays at an in-progress value
+such as <code>generating</code>, and the progress stream keeps reporting it until its
+<code>orchestration.max_session_events_iteration</code> cap, about three hours. The
+session is not terminal and accepts a new round.</p></td>
+</tr>
+</tbody>
+</table></div></div>
 </div>
 </div>
 </div>

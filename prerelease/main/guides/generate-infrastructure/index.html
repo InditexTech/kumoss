@@ -831,7 +831,7 @@ committed to the session branch. The target generator picks the
 Terraform targets for this round from the diff history. The IaC sidecar
 runs <code>init</code>, <code>validate</code>, and <code>plan -out session.plan</code> with those
 targets. Validation feedback is fed back to the model for up to
-<code>orchestration.max_validation_iteration</code> attempts (8 by default) before
+<code>orchestration.max_validation_iteration</code> attempts (8 in the shipped <code>config.yaml</code>) before
 the round fails with <code>Validation loop exceeded.</code></p>
 </li>
 <li>
