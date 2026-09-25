@@ -34,8 +34,8 @@ root.
 
 [card]
 .xref:main:guides/import-infrastructure.adoc[Import infrastructure]
-What the Import Infrastructure mode does today, and what it does not yet
-do.
+Bring existing, unmanaged cloud resources under Terraform management,
+for a specific set of resources or across a whole scope.
 ====
 
 == Operate Nebula

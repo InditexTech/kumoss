@@ -249,6 +249,7 @@ class OrchestrationConfig(BaseModel):
 
     max_drift_reports: int = 3
     max_validation_iteration: int = 5
+    max_import_iteration: int = 5
     max_tool_chain_executions: int = 70
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8

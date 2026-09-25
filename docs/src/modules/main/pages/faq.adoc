@@ -15,7 +15,7 @@ xref:main:additional-information.adoc#support-requests[Support requests].
 
 [accordion,aria-label="Access and roles frequently asked questions"]
 --
-.Why are the drift modes and Import Infrastructure greyed out?
+.Why are the drift and import modes greyed out?
 [%collapsible]
 ====
 They require the `devops` operation role. New users start as
@@ -249,14 +249,11 @@ looking at it, and your organization can adapt the rule.
 [%collapsible]
 ====
 The API allows a direct apply, but the web application does not offer
-a standalone Apply button. In practice you reach apply either through
-*Approve PR and Apply*, which merges the pull request and then
-applies, or through the *Import Infrastructure* mode in the header
-drop-down, which calls the same apply on the current session and is
-only selectable with the `devops` role. So as a `developer` in the web
-application, the pull request is the route to apply — which is also
-the recommended one, because it brings your team's review and CI into
-the decision.
+a standalone Apply button. You reach apply through *Approve PR and
+Apply*, which merges the pull request and then applies, so in the web
+application the pull request is the route to apply — which is also the
+recommended one, because it brings your team's review and CI into the
+decision.
 ====
 
 .Reviewers asked for changes. What now?
@@ -287,11 +284,16 @@ changed since the plan), and send a new request, which produces a
 fresh plan to review.
 ====
 
-.Does Import Infrastructure import my existing resources?
+.Do the import modes import my existing resources?
 [%collapsible]
 ====
-Not yet. Today it runs the apply of an existing session's reviewed
-plan. Importing unmanaged resources is a planned capability.
+Yes. Partial Import and Full Import find the resources in your scope
+that Terraform does not manage, write resource blocks for them, and run
+`terraform import` during the round, so they are in the state before the
+pull request is reviewed. Rejected imports are fed back to the generator
+and retried. Merging the pull request ends the session; nothing is
+applied. See xref:main:guides/import-infrastructure.adoc[Import
+infrastructure].
 ====
 
 .Where does Terraform state live?

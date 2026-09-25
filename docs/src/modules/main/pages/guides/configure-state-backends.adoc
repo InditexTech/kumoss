@@ -273,11 +273,10 @@ is yours:
 * *No state encryption beyond the store's own.* State contains resource
   attributes and can contain secrets; rely on bucket-level encryption at
   rest and restrict access accordingly.
-* *No import of existing resources into managed state.* The bundled IaC
-  sidecar implements the contract's `/v1/import*` endpoints
-  (single-address import, state inventory, cloud-scope inventory), but
-  the core never calls them: nothing in a session adopts pre-existing
-  resources into the state Nebula manages. See
+* *Import writes to managed state during the round.* The import modes
+  run `terraform import` through the IaC sidecar's `/v1/import` while
+  the round is still running, so imported resources enter the state
+  Nebula manages before any pull request is reviewed. See
   xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
 == Operations

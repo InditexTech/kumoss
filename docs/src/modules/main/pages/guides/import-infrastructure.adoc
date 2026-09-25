@@ -1,90 +1,185 @@
 = Import infrastructure
-:description: Understand what the Import Infrastructure mode does today, and what it does not yet do.
+:description: Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
 
-Import Infrastructure, in the mode drop-down, is labelled "Adds existing
-resources to manage them from the tool". Today it does something
-narrower: it runs the apply step of an existing session's reviewed plan.
-This guide describes exactly what that apply does and what a real
-resource-import workflow would still need.
+The Nebula web application offers two import modes: Partial Import, for
+the unmanaged resources your request names, and Full Import, for every
+unmanaged resource in the session's scope. Both find the resources the
+cloud holds but the Terraform state does not, write a resource block for
+each, run `terraform import` on them, and reconcile the imported
+configuration with the real resources. They differ only in how the
+resources are selected. This guide covers both.
 
 == Prerequisites
 
-* The web application requires the `devops` operation role to select the
-  mode; the API itself requires only `developer` plus ownership of the
-  session. See
+* The `devops` operation role to select either mode in the web
+  application; below `devops` both are shown disabled with the hint
+  "Requires the devops operation role." The API itself,
+  `POST /api/v1/iac/import`, requires only `developer`, plus ownership
+  when it continues an existing session. See
   xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
   for the complete role matrix.
-* An existing session with a pinned plan from a completed generate round.
-  Submitting the mode from a fresh wizard with no session sends an empty
-  session id, which the API rejects with `422`.
+* A repository URL, the target cloud, and a scope id, as covered in
+  xref:main:guides/make-a-request.adoc[Make a request]. The scope is what
+  discovery lists: an Azure subscription, a GCP project, or an AWS
+  account. OCI and Kubernetes have no scope listing, so an import round
+  on them finds nothing to import (see <<limitations>>).
+* The IaC sidecar's credentials must be able to read the cloud inventory
+  for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an
+  AWS Resource Explorer aggregator index. See
+  xref:main:reference/terraform-providers.adoc[Terraform providers].
 
-== What the UI does today
+[#partial-import]
+== Partial import
 
-Selecting Import Infrastructure and submitting calls
-`POST /api/v1/iac/apply` with the current session id. No request text or
-targets are sent. The same apply is what the *Approve PR and Apply*
-button triggers after a pull request is merged, as covered in
-xref:main:guides/merge-and-apply.adoc[Merge and apply]. Apply:
+*Use case.* Some resources were created by hand, or by another tool, and
+you want only some of them managed from the repository: "import the key
+vault and its private endpoint".
 
-. Requires `developer` and session ownership and a session that is not
-  locked; these are checked before the `202` answer.
-. Opens a new round with the text "Terraform apply.", sets the status
-  `apply`, and checks that a pinned plan exists. Without one it fails
-  with `No reviewed plan is pinned for this session; run a generate or
-  drift round before applying.`, sends `system.exception.failure`, and
-  leaves the session `FAILED` and unresumable. With one it runs a single
-  `apply session.plan` job on the pinned workspace. No `init` or `plan`
-  is re-run, so what executes is exactly the plan that was reviewed.
-. Produces an `apply` JSON report with an outcome (`Success`, `Partial`,
-  `Failed`), an execution summary, the resource changes, and
-  recommendations. An engine failure is *not* an exception: the report is
-  written with status `Failed`, a notification of kind
-  `iac.apply.failure` is sent when notifications are enabled, and the
-  session still ends `completed` — there is no retry, and a new generate
-  round is needed to produce a new plan. Any *unexpected* error in a
-  background run of any mode is different: it marks the session `failed`
-  and sends `system.exception.failure`.
-. Discards the pinned workspace whatever the outcome; a new generate
-  round is needed before another apply.
+*Required inputs.* Repository URL, cloud, scope id, and a *non-empty*
+request naming what to import. The API rejects a partial import with an
+empty text.
 
-== What import produces
+*Workflow.*
 
-* *Inspects existing state.* Only through the apply itself.
-* *Targets.* None; the pinned plan already fixes them.
-* *Artifacts and reports.* An `apply` JSON report and a history entry
-  with the execution summary.
-* *Plan pinned.* Consumed.
-* *Compliance and locks.* No new compliance check; a locked session is
-  refused with `409 Session ... is blocked; apply is not allowed.`
+. *Filtering.* The request filter runs in import mode and declines
+  requests that are not about importing. A declined request ends the
+  round `uncompleted` with the filter's rationale.
+. *Prompt composition*, as in generate.
+. *Discovery.* The core lists what the Terraform state tracks
+  (`/v1/import/state-resource-ids`) and what the cloud scope holds
+  (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state
+  does not track. Azure IDs are compared case-insensitively; every other
+  provider compares them exactly. The IaC sidecar already leaves out
+  resources another control plane owns, such as AKS-managed resource
+  groups or GKE nodes.
+. *Import exception list.* IDs on the cloud's
+  `<cloud>-guidelines-import_exceptions` list are withheld from the rest
+  of the round, whatever the request says. See
+  xref:main:guides/customize-prompts.adoc#import-exception-list[Import
+  exception list].
+. *Selection.* The `import_filter` agent narrows the remaining unmanaged
+  IDs to the ones your request names.
+. *Generate, validate and import loop*, up to
+  `orchestration.max_import_iteration` attempts (5 by default). Each
+  attempt:
+.. generates or corrects the resource blocks for the selected IDs,
+   without modifying configuration that was already there, and commits
+   and pushes them to the session branch;
+.. runs `init`, `validate` and `plan` on the session's targets;
+.. has an agent read the branch diff and pair each generated block's
+   Terraform address with the cloud resource ID it must be imported
+   from, in the spelling the provider expects;
+.. runs `terraform import` for each pair, one address at a time, through
+   the IaC sidecar's `/v1/import`.
++
+If the plan fails, its error is fed back to the generator as the next
+attempt's request. If any import is rejected, the generator is given
+every rejected address with the engine's error, plus the addresses
+already imported, which it must leave unchanged. The next attempt
+corrects the blocks and retries only the resources that are still not
+imported; resources imported by an earlier attempt stay in the state. A
+failed plan and a rejected import each count as one attempt.
+. *Convergence.* When at least one resource was imported, the round runs
+  the drift loop of
+  xref:main:guides/remediate-drift.adoc[Remediate drift] over the plan's
+  targets, up to `orchestration.max_drift_reports` iterations, so the
+  generated configuration matches what was imported. Its final plan is
+  what the report judges state alignment from.
+. *Report.* An `import` JSON report: the selected, imported and failed
+  counts, an outcome, an execution summary, one entry per resource with
+  its address, ID, status and error, the resources the exception list
+  withheld, the state alignment, and recommendations. The outcome is
+  `Succeeded` when every selected resource was imported, `Partial` when
+  some failed, and `Failed` when none was imported. Withheld resources
+  are not failures and do not lower the outcome.
 
-== What is not implemented
+*When there is nothing to import.* The round still completes with an
+`import` report that says why: the scope could not be listed (with the
+IaC sidecar's diagnostics), the scope holds no importable resource, every
+resource in it is already managed, every unmanaged resource is on the
+import exception list, or no unmanaged resource matched the request.
 
-Despite the label "Adds existing resources to manage them from the
-tool", the core has no route that discovers cloud resources, generates
-`import` blocks, or runs the engine's `import` command as part of a
-browser-facing workflow. Related building blocks exist at a lower level:
+*When the attempts run out.* If the last attempt's plan passed, the round
+goes on with what did import: convergence runs for the imported
+resources, and the report lists the ones that still failed, with the
+engine's error for each, and reports `Partial` or `Failed`. If the last
+plan itself failed, the round fails and the session ends `failed`.
 
-* The IaC contract defines `POST /v1/import`,
-  `POST /v1/import/state-resource-ids`, and
-  `POST /v1/import/scope-resource-ids`, and the bundled sidecar
-  implements all three: it imports a single address, lists what the
-  workspace's state tracks, and lists what exists in an Azure
-  subscription, GCP project, or AWS account through those clouds'
-  inventory APIs. See
-  xref:main:reference/api/iac.adoc[IaC sidecar API].
-* The core's generated IaC client contains these operations, and the
-  core defines an `import` operation type, `import` report type, and
-  `*-terraform-import` Phoenix projects.
+*Inspects existing IaC and state.* Yes: the state inventory, the cloud
+scope inventory, and the configuration the plan runs on.
 
-== Example
+*Targets.* Generated from the session's changes, so the plan covers the
+imported resources.
 
-After the example pull request in
-xref:main:guides/generate-infrastructure.adoc[Generate infrastructure] is
-merged, choose Import Infrastructure and submit. Nebula applies the
-pinned plan, creates the bucket, and shows an `apply` report with
-`Success`.
+*Artifacts and reports.* Plans per attempt, code-change files, drift
+reports from convergence, an `import` JSON report, a pushed branch.
+
+*State.* Changed *during the round*. `terraform import` writes to the
+state as soon as each import succeeds, before any pull request exists; a
+resource imported in a round stays in the state even if the round later
+fails.
+
+*Plan pinned, apply, pull requests, compliance, locks.* No plan is pinned
+and no apply follows. You can create a pull request from the branch; in
+the web application the merge button is labelled for merging only, and
+merging ends the session with "Pull Request merged. The imported
+resources are now managed from your repository." Import rounds run no
+compliance audit and never set the lock.
+
+*Example.* "Import the storage account `stappdev001` and the key vault
+`kv-app-dev`." Nebula finds both among the unmanaged resources in the
+subscription, writes an `azurerm_storage_account` and an
+`azurerm_key_vault` block, and imports them. The storage account
+imports; the key vault is rejected because the ID was paired in a
+spelling the provider does not parse. The engine's error goes back to
+the generator, which leaves the storage account's block untouched, the
+address agent pairs the key vault again with the corrected ID, and the
+next attempt imports only the key vault.
+The report shows both resources imported and `Succeeded`.
+
+== Full import
+
+*Use case.* Adopt everything in a scope that Terraform does not yet
+manage, for example when bringing an existing subscription into a
+repository.
+
+*Required inputs.* Repository URL, cloud, and scope id. The web
+application asks for no request text and sends the fixed request "Import
+all the infrastructure".
+
+*Workflow.* Identical to <<partial-import,partial import>> except that
+the request filter and the `import_filter` selection are skipped: every
+unmanaged resource in the scope that is not on the import exception list
+is selected.
+
+*Inspects existing IaC and state, targets, artifacts, state, apply,
+compliance, locks.* As for partial import.
+
+*Example.* "Import all the infrastructure" on a GCP project with a
+bucket, a service account and one IAM binding that Terraform does not
+track. Nebula selects all three, generates the blocks, imports them, and
+reports `Succeeded`.
+
+[#limitations]
+== Limitations
+
+* Scope discovery exists only for Azure, GCP and AWS. On OCI and
+  Kubernetes the scope cannot be listed, and the round ends with a report
+  that says so and imports nothing.
+* The import exception list is matched against the exact IDs the scope
+  listing returns (case-insensitively on Azure), so an entry must be
+  spelled the way discovery spells it.
+* Imports are bounded by `orchestration.max_import_iteration`. Resources
+  still rejected when the attempts run out stay out of the state; their
+  resource blocks stay on the branch, so review them before merging.
+* A resource the address agent cannot pair with a generated block is not
+  imported and is not fed back to the generator.
+* Import rounds run no compliance check, show no impact banner, and pin
+  no plan.
 
 == Next steps
 
-* xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
-  to start a session that produces a plan to apply.
+* xref:main:guides/merge-and-apply.adoc[Merge and apply] to open and
+  merge the pull request; an import session ends there.
+* xref:main:guides/customize-prompts.adoc#import-exception-list[Import
+  exception list] to keep resources out of every import round.

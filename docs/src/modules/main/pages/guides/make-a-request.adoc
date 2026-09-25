@@ -33,7 +33,7 @@ your platform team configured.
 == Steps
 
 . *Choose the mode* in the header drop-down. Most work uses *Generate
-  Infrastructure*. The drift modes and *Import Infrastructure* are shown
+  Infrastructure*. The drift and import modes are shown
   greyed out with the hint "Requires the devops operation role." if you do
   not hold that role.
 . *"What do you need?"* Type your request (up to 500 characters) and press

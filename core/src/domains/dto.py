@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -79,6 +79,26 @@ class LLMResponseDTO:
             ),
             tool_calls=[],
         )
+
+
+class ValidationResultDTO(Protocol):
+    """What a generation loop validator answers, whichever step it ran.
+
+    ``feedback`` is what the next generation attempt is asked to fix;
+    ``stdout`` and ``targets`` are the plan the attempt was checked with.
+    """
+
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def feedback(self) -> str: ...
+
+    @property
+    def stdout(self) -> str: ...
+
+    @property
+    def targets(self) -> list[str]: ...
 
 
 @dataclass
@@ -230,15 +250,53 @@ class TerraformImportDTO:
     Callers get the split they need instead of the raw per-resource
     results: ``imported`` drives the convergence plan and the report,
     ``failed`` carries the reason each import was rejected.
+
+    ``plan_result`` is the plan the imports ran after, so an import round
+    answers the generation loop the way a plan does: ``ok`` only when the
+    plan passed and nothing failed, ``feedback`` the plan's stderr or the
+    rejected imports, ``stdout`` and ``targets`` the plan's own.
     """
 
     imported: list[TerraformImportAttempt]
     failed: list[TerraformImportAttempt]
+    plan_result: TerraformPlanDTO | None = None
 
     @property
     def addresses(self) -> list[str]:
         """Terraform addresses now tracked in state."""
         return [r.address for r in self.imported]
+
+    @property
+    def ok(self) -> bool:
+        return not self.failed and (self.plan_result is None or self.plan_result.ok)
+
+    @property
+    def feedback(self) -> str:
+        if self.plan_result is not None and not self.plan_result.ok:
+            return self.plan_result.feedback
+        if not self.failed:
+            return ""
+        lines = [
+            "These resources could not be imported into the Terraform state. "
+            + "Fix their resource blocks so each one matches the cloud resource "
+            + "it is imported from:"
+        ]
+        lines += [f"- `{a.address}` ({a.resource_id}): {a.error}" for a in self.failed]
+        if self.imported:
+            lines.append(
+                "These are already imported; keep their resource blocks "
+                + "and addresses unchanged:"
+            )
+            lines += [f"- `{a.address}` ({a.resource_id})" for a in self.imported]
+        return "\n".join(lines)
+
+    @property
+    def stdout(self) -> str:
+        return self.plan_result.stdout if self.plan_result else ""
+
+    @property
+    def targets(self) -> list[str]:
+        return self.plan_result.targets if self.plan_result else []
 
 
 @dataclass
