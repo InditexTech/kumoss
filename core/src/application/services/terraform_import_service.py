@@ -137,9 +137,9 @@ class TerraformImportService:
                 error=result.feedback,
             )
             if result.ok:
-                outcome.imported.append(attempt)
+                outcome.imported.add(attempt)
             else:
-                outcome.failed.append(attempt)
+                outcome.failed.add(attempt)
                 logging.warning(
                     f"Import failed for {r.address} ({r.resource_id}): {result.feedback}"
                 )

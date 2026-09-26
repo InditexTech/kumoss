@@ -5,7 +5,7 @@
 import json
 from collections.abc import Coroutine
 from dataclasses import asdict
-from typing import Callable, Any
+from typing import Callable, Any, cast
 
 from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
@@ -191,44 +191,33 @@ class TerraformImportHandler:
                         if r.resource_id in {r.resource_id for r in imported}:
                             logging.debug(f"discarded {r} from failed list")
                             failed.discard(r)
-
-                    plan_result = await self.__terraform_svc.plan(
-                        targets=import_targets,
-                    )
-                    if not plan_result.ok:
-                        return TerraformImportDTO(
-                            imported=list(imported),
-                            failed=list(failed),
-                            plan_result=plan_result,
-                        )
                     return TerraformImportDTO(
-                        imported=list(imported),
-                        failed=list(failed),
-                        plan_result=plan_result,
+                        imported=imported,
+                        failed=failed,
                     )
 
-                try:
-                    import_results = await self.__validation_svc.generate_and_validate(
-                        q="Create a Terraform resource block for each of these "
-                        + "\n".join(f"- {rid}" for rid in unmanaged_ids),
-                        ctx=ctx,
-                        conventions=conventions,
-                        include_forbidden_actions=False,
-                        operation_type=OperationType.IMPORT,
-                        validator=import_callback,
-                        max_iterations=system_config.orchestration.max_import_iteration,
-                    )
-                except ValidationLoopExceededError as e:
-                    if not isinstance(e.result, TerraformImportDTO):
-                        raise
-                    import_results = e.result
+                import_results: TerraformImportDTO = await import_callback(ctx.history)
+                if import_results.feedback:
+                    try:
+                        import_results = await self.__validation_svc.generate_and_validate(
+                            q=import_results.feedback,
+                            ctx=ctx,
+                            conventions=conventions,
+                            include_forbidden_actions=False,
+                            operation_type=OperationType.GENERATE,
+                            validator=import_callback,
+                            max_iterations=system_config.orchestration.max_import_iteration,
+                        )
+                    except ValidationLoopExceededError as e:
+                        if not isinstance(e.result, TerraformImportDTO):
+                            raise
+                        import_results = e.result
 
-                plan_after_import = import_results.plan_result.stdout
-                if import_results.addresses:
+                if import_results.imported:
                     drift = await self.__drift_svc.detect_and_resolve_drift(
                         plan=None,
                         filter_session_changes=False,
-                        targets=import_results.plan_result.targets,
+                        targets=import_targets,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )
@@ -241,8 +230,6 @@ class TerraformImportHandler:
                             message=fail_msg,
                             error_code=500,
                         )
-
-                    plan_after_import = drift.stdout or plan_after_import
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
@@ -257,7 +244,6 @@ class TerraformImportHandler:
                                 ],
                                 "failed": [asdict(a) for a in import_results.failed],
                             },
-                            "plan_after_import": plan_after_import,
                         }
                     ),
                 )

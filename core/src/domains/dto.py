@@ -260,49 +260,26 @@ class TerraformImportDTO:
 
     Callers get the split they need instead of the raw per-resource
     results.
-
-    ``plan_result`` is the plan the imports ran after, so an import round
-    answers the generation loop the way a plan does: ``ok`` only when the
-    plan passed and nothing failed, ``feedback`` the plan's stderr or the
-    rejected imports, ``stdout`` and ``targets`` the plan's own.
     """
 
-    imported: list[TerraformImportAttempt]
-    failed: list[TerraformImportAttempt]
-    plan_result: TerraformPlanDTO
-
-    @property
-    def addresses(self) -> list[str]:
-        """Terraform addresses now tracked in state."""
-        return [r.address for r in self.imported]
+    imported: set[TerraformImportAttempt]
+    failed: set[TerraformImportAttempt]
 
     @property
     def ok(self) -> bool:
-        return not self.failed and self.plan_result.ok
+        return not self.failed
 
     @property
     def feedback(self) -> str:
-        if not self.plan_result.ok:
-            return self.plan_result.feedback
-        if self.failed:
-            lines = [
-                f"- `{a.address}` ({a.resource_id}): {a.error}" for a in self.failed
-            ]
-        if self.imported:
-            lines.append(
-                "These are already imported; keep their resource blocks "
-                + "and addresses unchanged:"
-            )
-            lines += [f"- `{a.address}` ({a.resource_id})" for a in self.imported]
-        return "\n".join(lines)
+        return str(self.failed)
 
     @property
     def stdout(self) -> str:
-        return self.plan_result.stdout if self.plan_result else ""
+        return ""
 
     @property
     def targets(self) -> list[str]:
-        return self.plan_result.targets if self.plan_result else []
+        return []
 
     @classmethod
     def empty(cls) -> "TerraformImportDTO":
@@ -310,7 +287,6 @@ class TerraformImportDTO:
         return cls(
             imported=[],
             failed=[],
-            plan_result=TerraformPlanDTO.empty(),
         )
 
 
