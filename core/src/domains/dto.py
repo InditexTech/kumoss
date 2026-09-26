@@ -267,7 +267,7 @@ class TerraformImportDTO:
 
     @property
     def ok(self) -> bool:
-        return not self.failed
+        return len(self.failed) == 0
 
     @property
     def feedback(self) -> str:
@@ -275,7 +275,7 @@ class TerraformImportDTO:
 
     @property
     def stdout(self) -> str:
-        return ""
+        return str(self.imported) if len(self.imported) > 1 else ""
 
     @property
     def targets(self) -> list[str]:
@@ -283,10 +283,9 @@ class TerraformImportDTO:
 
     @classmethod
     def empty(cls) -> "TerraformImportDTO":
-        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
         return cls(
-            imported=[],
-            failed=[],
+            imported=set(),
+            failed=set(),
         )
 
 
