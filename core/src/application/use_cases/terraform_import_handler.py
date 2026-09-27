@@ -193,9 +193,7 @@ class TerraformImportHandler:
                     imported.update(outcome.imported)
                     failed.update(outcome.failed)
                     for r in failed.copy():
-                        if r.resource_id.lower() in {
-                            r.resource_id.lower() for r in imported
-                        }:
+                        if r.address.lower() in {r.address.lower() for r in imported}:
                             logging.debug(f"discarded {r.resource_id} from failed list")
                             failed.discard(r)
                     logging.debug(

@@ -66,7 +66,7 @@ This is a correction of spelling, never a reconstruction: the segments you repor
    - with `for_each` or `count`: one address per instance, `<type>.<name>["<key>"]` or `<type>.<name>[<index>]`
 4. Determine the cloud resource ID for each address. Take it from `<selected_resource_ids>`, matching on the identifying arguments of the block (its name and the group, project or account containing it); fall back to the comments or the conversation above. Use `read_file`, `list_dir` and `bulk_grep_search` only when the diff hunk alone does not let you resolve the address or its ID.
 5. Put every id into the casing the Terraform provider expects, following `<resource_id_casing>`. When you are not certain of the canonical spelling of a structural segment, call `web_search` for the Terraform registry page of that resource type and copy the casing from its import example — search for the resource type and the words "import" and "id", e.g. `terraform azurerm_role_assignment import id format`. One search settles a resource type: reuse the answer for every other block of that type, and skip the search entirely when the listed id already matches the documented form.
-6. Final reporting: call `iac_import` with `status`, a `summary` of what you found, and the `imports` list.
+6. Final reporting: call `import_addresses` with `status`, a `summary` of what you found, and the `imports` list.
 </instructions>
 
 <constraints>
@@ -79,5 +79,5 @@ This is a correction of spelling, never a reconstruction: the segments you repor
 - Report `status` as `false` when the diff contains no added resource block, with an empty `imports` list.
 - Do NOT modify Terraform files, run Terraform, or apply infrastructure changes.
 - Maximum of 10 workspace inspection tool calls before reporting.
-- Your final and only concluding action MUST be a single call to `iac_import`.
+- Your final and only concluding action MUST be a single call to `import_addresses`.
 </constraints>

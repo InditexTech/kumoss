@@ -46,7 +46,9 @@ class TerraformImportAddressService:
         response: ToolResultDTO = await self.__llm_svc.generate(
             query="Map the generated Terraform blocks to their cloud resource ids.",
             tools=tools_definition,
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.IAC_IMPORT),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                ToolContext.IMPORT_ADDRESSES
+            ),
             prompt=await self.__template_svc.render(
                 PromptsLibrary.IMPORT_ADDRESSES, selected_ids=selected_ids
             ),

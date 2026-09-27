@@ -39,7 +39,7 @@ class TestTerraformImportAddressService(unittest.IsolatedAsyncioTestCase):
 
     def __answer(self, imports: list[dict[str, str]]) -> None:
         self.llm_svc.generate.return_value = ToolResultDTO(
-            name="iac_import",
+            name="import_addresses",
             tool_call_id="call-1",
             success=True,
             result={"status": bool(imports), "imports": imports},

@@ -271,7 +271,7 @@ class TerraformImportDTO:
 
     @property
     def feedback(self) -> str:
-        return str(self.failed)
+        return "\n".join([f"- {f}" for f in self.failed])
 
     @property
     def stdout(self) -> str:
