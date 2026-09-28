@@ -60,6 +60,11 @@ function renderPr(
   return { ...renderWithProviders(ui, { withNotifications: true }), props: defaultProps };
 }
 
+async function openWhy(user = userEvent.setup()) {
+  await user.click(screen.getByRole("button", { name: /^Why/ }));
+  return user;
+}
+
 function lockOnServer(isBlocked: boolean) {
   server.use(
     http.get("/api/v1/sessions/:sessionId", () =>
@@ -99,7 +104,7 @@ describe("PrApprovalView", () => {
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
   });
 
-  it("blocked state lists the high impact reason", () => {
+  it("blocked state lists the high impact reason", async () => {
     renderPr("confirming", {
       sessionPatch: {
         is_blocked: true,
@@ -110,7 +115,10 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High impact")).toBeInTheDocument();
+    expect(screen.queryByText("Destroys production resources")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Why/ })).toHaveTextContent("High impact");
+    await openWhy();
+
     expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
     expect(screen.queryByText("Compliance")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
@@ -139,9 +147,15 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
+    const why = screen.getByRole("button", { name: /^Why/ });
+    expect(why).toHaveAttribute("aria-expanded", "false");
+    expect(why).toHaveTextContent("1 blocking violation");
+    expect(screen.queryByText("NET-001")).not.toBeInTheDocument();
+    await openWhy(user);
+    expect(why).toHaveAttribute("aria-expanded", "true");
+
     expect(screen.getByText("Compliance")).toBeInTheDocument();
     expect(screen.queryByText("High impact")).not.toBeInTheDocument();
-    expect(screen.getByText("1 blocking violation")).toBeInTheDocument();
     expect(screen.getByText("NET-001")).toBeInTheDocument();
     expect(screen.getByText("azurerm_network_security_rule.ssh")).toBeInTheDocument();
     expect(screen.getByText("0.0.0.0/0 on port 22")).toBeInTheDocument();
@@ -162,7 +176,7 @@ describe("PrApprovalView", () => {
     );
   });
 
-  it("blocked state omits the toggle when every finding is already shown", () => {
+  it("blocked state omits the toggle when every finding is already shown", async () => {
     renderPr("initial", {
       sessionPatch: {
         is_blocked: true,
@@ -176,11 +190,12 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
+    await openWhy();
     expect(screen.getByText("NET-001")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Show all findings/ })).not.toBeInTheDocument();
   });
 
-  it("blocked state lists both reasons when the plan is high impact and compliance failed", () => {
+  it("blocked state lists both reasons when the plan is high impact and compliance failed", async () => {
     renderPr("initial", {
       sessionPatch: {
         is_blocked: true,
@@ -199,6 +214,10 @@ describe("PrApprovalView", () => {
     });
 
     expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Why/ })).toHaveTextContent(
+      "High impact · 1 blocking violation",
+    );
+    await openWhy();
     expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
     expect(screen.getByText("NET-001")).toBeInTheDocument();
   });

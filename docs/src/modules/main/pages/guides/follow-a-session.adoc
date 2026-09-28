@@ -32,7 +32,7 @@ these stages:
 
 |Validating
 |Running `init`, `validate`, and `plan` in the engine; feeding errors back
-to the generator (up to five attempts). The drift pre-check on the touched
+to the generator (up to eight attempts). The drift pre-check on the touched
 to the generator (up to eight attempts). The drift pre-check on the touched
 Generating and Validating stages again, before the report starts
 |Minutes; longer for large roots
@@ -52,7 +52,7 @@ the *Sessions* panel in the footer or from your user page.
 
 *If it fails.* The round is marked failed with a reason: most often
 "runner failed: Validation loop exceeded." when the engine kept rejecting
-the code after five attempts, or an engine or repository error. A failed
+the code after eight attempts, or an engine or repository error. A failed
 session cannot be resumed ("This session failed and can't be resumed");
 start a new one, usually with a more specific request. Long inactivity
 shows "Connection timed out — no response from server"; reload the page

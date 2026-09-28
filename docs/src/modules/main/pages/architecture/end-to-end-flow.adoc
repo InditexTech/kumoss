@@ -89,7 +89,8 @@ the round's _conventions_, which every later agent is rendered with.
 
 == Phase 5: generate, validate, correct
 
-Up to five generate-and-validate iterations.
+Up to `orchestration.max_validation_iteration` generate-and-validate
+iterations: 8 in the shipped `config.yaml`, 5 built in.
 
 :diagram-name: flow-phases-5-6
 :diagram-alt: Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
@@ -130,9 +131,9 @@ against the shared workspace with the cloud credentials in
 
 |Correct or fail
 |Engine errors go back to the generation agent as the next query and the
-loop repeats. After `orchestration.max_validation_iteration` (8)
+loop repeats. After `orchestration.max_validation_iteration` (8 shipped)
 failures the round ends `FAILED`, the branch keeps the last pushed
-attempt, and the session is xref:#terminal-states[closed for good].
+attempt, and the session is xref:#how-a-session-ends[closed for good].
 |===
 
 == Phase 6: implicit drift pre-check
@@ -162,7 +163,11 @@ Filter (small model) then drops every operation the cloud's
 `orchestration.drift_group_operations` (8) with the forbidden-actions
 block omitted, and the pre-check runs once more. If only the session's
 own changes remain, or the plan is clean, the pre-check stops and the
-last plan is final.
+last plan is final. If genuine drift is still there after the second
+iteration, the round continues to the report anyway: a warning is logged
+and the drift is re-read from the last remediation batch's plan, so the
+report and the pinned plan agree. A remediation batch that exhausts its own
+validation attempts fails the round instead.
 |===
 
 Full mechanism, including the fingerprint that makes reading an
@@ -295,7 +300,7 @@ workspace: no re-plan, no retry. Exactly the reviewed plan executes.
 output — `Success`, `Partial` or `Failed`. A non-zero exit does not
 raise: the deterministic signal is the `iac.apply.failure` notification,
 gated on the exit code, and the session still ends `COMPLETED` — see
-xref:#terminal-states[Terminal states].
+xref:#how-a-session-ends[How a session ends].
 
 |Cleanup (always)
 |The pinned plan is discarded, the run directory is removed from the
@@ -391,9 +396,9 @@ length, so `13a` with no `13b` means only the first arm still has a
 message at that point.
 
 |`[at most n …]` in a label or band
-|A bounded loop with its ceiling: 70 model turns per agent loop, 5
-validation iterations, 2 drift pre-check rounds, 8 operations per drift
-batch.
+|A bounded loop with its ceiling, at the shipped values: 70 model turns
+per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+operations per drift batch.
 |===
 
 [#agent-catalogue]
@@ -507,94 +512,133 @@ calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
 verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.
 
-[#terminal-states]
-== Terminal states
+[#how-a-session-ends]
+== How a session ends
 
-Where a generate session can end. The marker in each end state is the
-diagram's: 🟩 success, 🟥 a rejection, block or failure, 🟨 waiting on a human
-review, 🟧 waiting on the human to reformulate, or a bounded loop that
-stopped without converging.
+A round leaves the session in one of three statuses, or writes none at all.
+Only `FAILED` is terminal, and it is terminal for the *session*, not only for
+the round: the in-flight guard refuses to start a run on a session whose
+latest status is `FAILED`. A follow-up request, apply or drift round sent to
+it is still answered `202`, and its runner then logs
+`runner not started: Session ... is finished and cannot be resumed` and
+exits, so only a new session carries the work forward. `COMPLETED` and
+`UNCOMPLETED` are resting states that accept a new round whenever the owner
+sends one. The progress stream closes on any of the three.
 
-[cols="3,4,4",options="header"]
+=== `FAILED`: the session is closed
+
+[cols="2,3,4",options="header"]
 |===
-|End state |Reached when |Status and side effects
+|Outcome |Reached when |Status message and side effects
 
-|🟩 *Infrastructure applied* — phase 10
-|The human-triggered apply succeeded
-|`COMPLETED` (apply round); pinned plan discarded
+|*Validation never converged* — phase 5
+|All `orchestration.max_validation_iteration` attempts are used: 8 in the
+shipped `config.yaml`, 5 built in
+|`runner failed: Validation loop exceeded.` and a `system.exception.failure`
+notification. No LLM problem summary is produced. The branch keeps the last
+pushed attempt.
 
-|🟩 *Validated, awaiting apply* — phase 8
-|The round passed the audit, or the checker is off, and the impact is not
-`high`
-|`COMPLETED`, `is_blocked = false`, plan pinned
+|*Apply without a pinned plan* — phase 10
+|The session's last round was drift-only, or an earlier apply already
+consumed the pin. Every apply discards the pin, whether it succeeded or not,
+so a second apply on the same session always ends here
+|`202` answered, then an internal `409`: `No reviewed plan is pinned for this
+session; run a generate or drift round before applying.` The wording
+misleads, since drift rounds never pin. The runner sets `FAILED` and sends
+`system.exception.failure`.
 
-|🟨 *Awaiting pull-request review* — phase 9
-|The user created a pull request
-|Status unchanged; pull request recorded
+|*Pipeline failed* — any phase
+|Any error the core raises as one of its own typed exceptions: a model or
+tool error, a drift remediation batch that exhausts its own validation
+attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+cannot return
+|`runner failed: <reason>` and `system.exception.failure`; run directory
+removed; in-flight guard released.
+|===
 
-|*Changes requested* — amber loop back to phase 3
-|The reviewer asked for changes, or CI or a conflict failed the pull request
-|A new round of the same session starts at phase 3
+=== `COMPLETED`: the round finished, the session stays open
 
-|🟧 *Request declined or answered* — phase 3
-|The Request Filter Agent declined the request or answered a question
-|`UNCOMPLETED`; the session stays usable
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Side effects
 
-|🟥 *Apply locked* — phase 8
+|*Validated, unlocked* — phase 8
+|The audit passed or the checker is off, and the report's impact banner is
+not `high` or `orchestration.block_on_high_impact` is off
+|`is_blocked = false`, plan pinned. Apply and pull-request merge are
+available.
+
+|*Validated, locked* — phase 8
 |Any `error` or `critical` compliance finding, or a `high` impact banner
-with `orchestration.block_on_high_impact`
-|`COMPLETED`, `is_blocked = true`, plan pinned; `iac.compliance.failed` or
-`iac.impact.high` notification
+with `orchestration.block_on_high_impact` on
+|`is_blocked = true`, plan pinned; `iac.compliance.failed` or
+`iac.impact.high` notification. Apply and merge answer `409` until a later
+passing, non-high round clears the lock or a panel `editor` toggles it.
 
-|🟥 *Validation never converged* — phase 5
-|All five generate-and-validate attempts used
-|`FAILED` with `runner failed: Validation loop exceeded.`, plus
-`system.exception.failure`. No LLM problem summary is produced. The branch
-keeps the last pushed attempt
+|*Applied* — phase 10
+|The engine's apply exited with code zero
+|`apply` report written; pinned plan discarded.
 
-|🟧 *Drift pre-check did not converge* — phase 6
-|Both pre-check iterations used and drift remains
-|The round continues to the report with a warning logged, re-reading the
-drift from the last remediation batch's plan so the report and the pinned
-plan agree. A batch that exhausts its own validation iterations ends the
-round `FAILED` instead
-
-|🟥 *Pull request rejected or closed* — phase 9
-|The reviewer closed the pull request
-|Status unchanged; history and artifacts kept
-
-|🟥 *Apply failed* — phase 10
-|The engine's apply returned a non-zero exit code
-|Not an exception: the handler writes an `apply` report whose status is
-the model's classification of the engine output (normally `Failed`), sends
+|*Apply failed* — phase 10
+|The engine's apply exited with a non-zero code
+|Not an exception: the handler writes an `apply` report whose status is the
+model's classification of the engine output (normally `Failed`), sends
 `iac.apply.failure` — the deterministic, exit-code-gated signal — and
-returns, so the session still ends `COMPLETED`. Pinned plan discarded; no
-retry, a new generate round is needed
-
-|🟥 *Apply without a pinned plan* — phase 10
-|Apply on a session whose last round was drift-only, or whose pinned plan
-was already consumed
-|`202` answered, then an internal `409`: `No reviewed plan is pinned for
-this session; run a generate or drift round before applying.` — misleading
-wording, since drift rounds never pin. The runner sets `FAILED` and sends
-`system.exception.failure`; the session cannot be resumed
-
-|🟥 *Pipeline failed* — reachable from any phase
-|An LLM or tool error, a sidecar timeout, a git or storage failure, or any
-other handled exception
-|`FAILED`; `system.exception.failure` notification; workspace cleaned;
-in-flight guard released
-
-|*Run stopped without a status* — not shown
-|A prompt missing in Phoenix for the deployment's `environment` tag
-|Last status kept, no failure message, guard released
+returns. Pinned plan discarded; no retry.
 |===
 
-`FAILED` is terminal for the *session*, not only for the round: the
-in-flight guard refuses to start a run on a session whose latest status is
-`FAILED`, so no follow-up request, apply or drift round can attach to it —
-only a new session carries the work forward. `COMPLETED` and `UNCOMPLETED`
-sessions accept new rounds normally.
+A failed apply and a successful one leave the same `COMPLETED` status. The
+`apply` report and the `iac.apply.failure` notification are the only places
+the difference shows, and the next step after a failure is a new generate
+round, never a second apply.
+
+=== `UNCOMPLETED`: the request needs reformulating
+
+The Request Filter Agent declined the request in phase 3 as out of scope,
+prohibited or ambiguous, or answered it as a question. The rationale is
+added to the conversation, and the owner's next request opens a new round of
+the same session.
+
+=== No status written
+
+These outcomes leave the latest status as it was.
+
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Effect
+
+|*Pull request open* — phase 9
+|The owner created a pull request
+|Pull request recorded. Pull-request creation is not lock-checked; the merge
+is.
+
+|*Changes requested* — phase 9
+|A reviewer asked for changes, or the pull request's own CI or a merge
+conflict failed it. Nebula does not watch the pull request: the owner
+relays the problem as a new request
+|A new round of the same session starts at phase 3, on the same branch.
+
+|*Pull request rejected or closed* — phase 9
+|The reviewer closed the pull request
+|History and artifacts kept; the session still accepts new rounds.
+
+|*Concurrent run dropped* — phase 2
+|A generate, drift or apply request reached a session with a run already in
+flight
+|`202` answered, then the runner logs `runner not started: Session ...
+already has an operation in flight` and returns without touching the
+session.
+
+|*Run ended without a status* — any phase
+|An error outside the core's own exception types, such as an unexpected
+library or runtime error. The runner converts only its own typed exceptions
+into `FAILED`
+|Run directory removed and guard released, but no status and no
+notification are written. The latest status stays at an in-progress value
+such as `generating`, and the progress stream keeps reporting it until its
+`orchestration.max_session_events_iteration` cap, about three hours. The
+session is not terminal and accepts a new round.
+|===
 
 == How the architecture works
 
