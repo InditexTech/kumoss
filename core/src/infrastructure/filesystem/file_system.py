@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import override
 
 from src.domains.interfaces.filesystem_interface import IFileSystem
-from src.infrastructure.exceptions import RipgrepError
+from src.infrastructure.exceptions import RipgrepError, SearchReplaceBlockError
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -90,6 +90,9 @@ class FileSystemUtils(IFileSystem):
             logging.info(f"Successfully replaced content in file {target_file}")
             return True
 
+        except SearchReplaceBlockError as e:
+            logging.warning(f"Rejected search/replace blocks for {target_file}: {e}")
+            raise
         except Exception as e:
             logging.error(f"Error replacing content in file {target_file}: {str(e)}")
             raise ExceptionHandler(
@@ -261,14 +264,125 @@ class FileSystemUtils(IFileSystem):
     def __process_search_replace_blocks(self, content: str, blocks: str) -> str:
         """Process search/replace blocks in a specific format (refer to tool definition)
         :param content: previous file content
+        :param blocks: raw search/replace blocks
+        :returns: modified file content
+        :raises SearchReplaceBlockError: if the blocks are malformed or don't match exactly once
         """
-        parts = blocks.split(">>>>>>> REPLACE")
-
-        parse_blocks = [part.split("=======") for part in parts if part.strip()]
-
-        for block in parse_blocks:
-            search = block[0].replace("<<<<<<< SEARCH", "").strip()
-            replace = block[1].strip()
+        for index, (search, replace) in enumerate(
+            self.__parse_search_replace_blocks(blocks), start=1
+        ):
+            occurrences = content.count(search)
+            if occurrences == 0:
+                raise SearchReplaceBlockError(
+                    error_code=404,
+                    message=f"Block {index}: SEARCH content not found in file: "
+                    + f"{self.__snippet(search)}. It must match the current file "
+                    + "content exactly; re-read the file if unsure.",
+                )
+            if occurrences > 1:
+                raise SearchReplaceBlockError(
+                    error_code=400,
+                    message=f"Block {index}: SEARCH content matches {occurrences} "
+                    + f"locations in file: {self.__snippet(search)}. Include more "
+                    + "surrounding lines so it matches exactly one location.",
+                )
             content = content.replace(search, replace, 1)
 
         return content
+
+    def __parse_search_replace_blocks(self, blocks: str) -> list[tuple[str, str]]:
+        """Parse raw search/replace blocks into (search, replace) pairs
+        :param blocks: raw search/replace blocks
+        :returns: list of stripped (search, replace) pairs
+        :raises SearchReplaceBlockError: if the blocks are structurally malformed
+        """
+        search_marker = "<<<<<<< SEARCH"
+        separator_marker = "======="
+        replace_marker = ">>>>>>> REPLACE"
+        parsed: list[tuple[str, str]] = []
+        search_lines: list[str] = []
+        replace_lines: list[str] = []
+        section: str | None = None
+
+        def malformed(line_no: int, reason: str) -> SearchReplaceBlockError:
+            return SearchReplaceBlockError(
+                error_code=400,
+                message=f"Block {len(parsed) + 1} (diff line {line_no}): {reason}",
+            )
+
+        for line_no, line in enumerate(blocks.splitlines(), start=1):
+            marker = line.strip()
+            if marker == search_marker:
+                if section is not None:
+                    raise malformed(
+                        line_no,
+                        f"'{search_marker}' found before the previous block "
+                        + f"was closed with '{replace_marker}'.",
+                    )
+                section, search_lines, replace_lines = "search", [], []
+            elif marker == separator_marker:
+                if section is None:
+                    raise malformed(
+                        line_no,
+                        f"'{separator_marker}' found outside a block; "
+                        + f"blocks must start with '{search_marker}'.",
+                    )
+                if section == "replace":
+                    raise malformed(
+                        line_no,
+                        f"more than one '{separator_marker}' separator in "
+                        + "the same block.",
+                    )
+                section = "replace"
+            elif marker == replace_marker:
+                if section is None:
+                    raise malformed(
+                        line_no,
+                        f"'{replace_marker}' found outside a block; "
+                        + f"blocks must start with '{search_marker}'.",
+                    )
+                if section == "search":
+                    raise malformed(
+                        line_no,
+                        f"missing '{separator_marker}' separator between "
+                        + "SEARCH and REPLACE sections.",
+                    )
+                search = "\n".join(search_lines).strip()
+                if not search:
+                    raise malformed(line_no, "SEARCH section is empty.")
+                parsed.append((search, "\n".join(replace_lines).strip()))
+                section = None
+            elif section == "search":
+                search_lines.append(line)
+            elif section == "replace":
+                replace_lines.append(line)
+            elif marker and not marker.startswith("```"):
+                raise malformed(
+                    line_no,
+                    f"unexpected text outside a block: {self.__snippet(line)}. "
+                    + f"Blocks must start with '{search_marker}'.",
+                )
+
+        if section is not None:
+            raise malformed(
+                len(blocks.splitlines()),
+                f"block is not closed with '{replace_marker}'.",
+            )
+        if not parsed:
+            raise SearchReplaceBlockError(
+                error_code=400,
+                message="No SEARCH/REPLACE blocks found in diff.",
+            )
+        return parsed
+
+    @staticmethod
+    def __snippet(text: str, max_length: int = 80) -> str:
+        """Build a short single-line preview of a text for error messages
+        :param text: text to preview
+        :param max_length: maximum preview length
+        :returns: quoted preview
+        """
+        first_line = text.strip().splitlines()[0] if text.strip() else ""
+        if len(first_line) > max_length:
+            first_line = first_line[:max_length] + "..."
+        return repr(first_line)
