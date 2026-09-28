@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  isGitDiff,
   parseGitDiff,
   buildUnifiedDiff,
   composeFileArtifacts,
@@ -41,6 +42,21 @@ const NEW_FILE_MODE_DIFF = [
   "+}",
   "\\ No newline at end of file",
 ].join("\n");
+
+// Only reached when the store did not expose `new_file`; see readIsNewFile.
+describe("isGitDiff", () => {
+  it("detects unified git diff output", () => {
+    expect(isGitDiff(UPDATED_FILE_DIFF)).toBe(true);
+    expect(isGitDiff(NEW_FILE_MODE_DIFF)).toBe(true);
+  });
+
+  it("rejects raw file content (new_file=true artifacts)", () => {
+    expect(isGitDiff('resource "aws_s3_bucket" "b" {}\n')).toBe(false);
+    expect(isGitDiff("")).toBe(false);
+    // mentions of diffs inside a file aren't headers
+    expect(isGitDiff('# run: git diff --git main.tf\n@@ -1 +1 @@')).toBe(false);
+  });
+});
 
 describe("parseGitDiff", () => {
   it("rebuilds original and modified sides from an update diff", () => {

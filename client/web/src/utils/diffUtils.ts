@@ -6,8 +6,9 @@
 // `git diff` output, new files carry the raw file content with no diff at
 // all. The backend tags each with `new_file=true/false` metadata and the
 // store serves that back as a response header (see `readIsNewFile` in
-// services/core/sessions.ts), so the shape is read, never inferred from
-// the content.
+// services/core/sessions.ts), so the shape is read rather than inferred —
+// but only when the store's CORS rules expose that header. `isGitDiff`
+// covers the case where they do not.
 
 export interface ParsedGitDiff {
   original: string;
@@ -18,6 +19,23 @@ export interface ParsedGitDiff {
 export interface CodeChangeArtifact {
   text: string;
   isNewFile: boolean;
+}
+
+/**
+ * True when `content` is unified git-diff output rather than raw file content.
+ *
+ * A fallback, never the primary: `new_file` metadata wins whenever the
+ * store exposes it. Sniffing cannot distinguish a file created in-session
+ * from a tracked file that was added — both bodies open `diff --git` with
+ * `new file mode` — which is precisely the ambiguity the metadata removed.
+ * It is still far better than a fixed guess, so it carries deployments
+ * whose bucket CORS rules predate the `new_file` header.
+ */
+export function isGitDiff(content: string): boolean {
+  return (
+    content.startsWith("diff --git ") &&
+    /^@@ -\d+(,\d+)? \+\d+(,\d+)? @@/m.test(content)
+  );
 }
 
 /**

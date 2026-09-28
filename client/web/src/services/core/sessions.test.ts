@@ -156,15 +156,50 @@ describe("fetchArtifact", () => {
     );
   });
 
-  it("treats an unreadable new_file tag as a raw file", async () => {
-    // A store whose CORS omits the header is indistinguishable from one
-    // that never wrote it. Rendering a diff verbatim is legible; parsing
-    // raw content as a diff yields a blank editor.
+  // A store whose CORS omits the header is indistinguishable from one that
+  // never wrote it — the case every deployment is in until its bucket rules
+  // are updated. The shape is sniffed from the body rather than guessed, so
+  // neither kind of artifact is mislabelled wholesale.
+  it("falls back to sniffing when the new_file tag is unreadable", async () => {
     server.use(
-      http.get(`${STORAGE}/untagged.tf`, () => HttpResponse.text("body")),
+      http.get(`${STORAGE}/untagged-diff.tf`, () =>
+        HttpResponse.text(
+          [
+            "diff --git main.tf main.tf",
+            "--- main.tf",
+            "+++ main.tf",
+            "@@ -1,1 +1,1 @@",
+            '-name = "old"',
+            '+name = "new"',
+          ].join("\n"),
+        ),
+      ),
+      http.get(`${STORAGE}/untagged-raw.tf`, () =>
+        HttpResponse.text('resource "azurerm_resource_group" "rg" {}\n'),
+      ),
     );
 
-    expect((await fetchArtifact(`${STORAGE}/untagged.tf`)).isNewFile).toBe(true);
+    expect((await fetchArtifact(`${STORAGE}/untagged-diff.tf`)).isNewFile).toBe(
+      false,
+    );
+    expect((await fetchArtifact(`${STORAGE}/untagged-raw.tf`)).isNewFile).toBe(
+      true,
+    );
+  });
+
+  it("lets the tag override the body's appearance", async () => {
+    // A tracked file that was *added* carries `new file mode`, so it looks
+    // raw-ish to a sniffer but is a diff. The tag settles it — this is the
+    // case the metadata exists for, and the reason sniffing stays a fallback.
+    server.use(
+      http.get(`${STORAGE}/added.tf`, () =>
+        HttpResponse.text('resource "azurerm_resource_group" "rg" {}\n', {
+          headers: { "x-amz-meta-new_file": "false" },
+        }),
+      ),
+    );
+
+    expect((await fetchArtifact(`${STORAGE}/added.tf`)).isNewFile).toBe(false);
   });
 
   it("throws when the store rejects the read", async () => {

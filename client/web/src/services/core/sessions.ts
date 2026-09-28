@@ -4,6 +4,7 @@
 
 import { apiFetch } from "@/services/api";
 import { metadataHeaderPrefix } from "@/services/auth";
+import { isGitDiff } from "@/utils/diffUtils";
 import type {
   OperationType,
   PaginatedSessionSummary,
@@ -107,12 +108,20 @@ function readPlanType(response: Response): PlanType | null {
  * untracked files `new_file=true`. So this is the artifact's SHAPE, not
  * its novelty, which is exactly what the viewer needs.
  *
- * Only an explicit `"false"` means diff. An unreadable tag then renders
- * the body verbatim, which is the legible failure: parsing raw content as
- * a diff yields an empty original *and* modified, i.e. a blank editor.
+ * The tag is authoritative when present. When it is absent the shape is
+ * sniffed from the body instead: absence is indistinguishable from a
+ * store whose CORS rules do not expose the header (see `readMeta`), and
+ * on such a deployment a fixed answer would mislabel EVERY artifact —
+ * rendering raw `diff --git` text in a plain editor, and stopping
+ * `composeFileArtifacts` from chaining multi-artifact files at all.
+ * Sniffing is wrong only on the narrow case the tag exists to settle, so
+ * it degrades where the fixed answer fails outright.
  */
-function readIsNewFile(response: Response): boolean {
-  return readMeta(response, "new_file") !== "false";
+function readIsNewFile(response: Response, text: string): boolean {
+  const tag = readMeta(response, "new_file");
+  if (tag === "false") return false;
+  if (tag === "true") return true;
+  return !isGitDiff(text);
 }
 
 /** Fetch an artifact's body and metadata from its (pre-signed) storage URL. */
@@ -121,10 +130,11 @@ export async function fetchArtifact(url: string): Promise<ArtifactPayload> {
   if (!response.ok) {
     throw new Error(`Failed to fetch artifact: ${response.status}`);
   }
+  const text = await response.text();
   return {
-    text: await response.text(),
+    text,
     planType: readPlanType(response),
-    isNewFile: readIsNewFile(response),
+    isNewFile: readIsNewFile(response, text),
   };
 }
 
