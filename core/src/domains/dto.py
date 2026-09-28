@@ -250,8 +250,8 @@ class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 
     address: str
-    resource_id: str
-    error: str = ""
+    resource_id: str = field(hash=False)
+    error: str = field(hash=False, default="")
 
 
 @dataclass

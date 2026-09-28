@@ -59,7 +59,7 @@ class TerraformDriftService:
             result.excluded = exclusions
             return result
 
-        async def validator(history: History) -> TerraformPlanDTO:
+        async def plan_callback(history: History) -> TerraformPlanDTO:
             return await self.__terraform_svc.plan(targets=targets)
 
         for i in range(max_iterations):
@@ -68,15 +68,14 @@ class TerraformDriftService:
             if plan is None:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
                 if plan_result.plan is None:
-                    logging.error(f"Drift check could not plan: {plan_result.feedback}")
-                    return resolved(
-                        TerraformDriftDTO(
-                            in_sync=False,
-                            drift="",
-                            feedback=plan_result.feedback,
-                            stdout=plan_result.stdout,
-                            plan=None,
-                        )
+                    plan_result = await self.__validation_svc.generate_and_validate(
+                        q="Solve the errors.",
+                        ctx=self.__ctx,
+                        conventions=conventions,
+                        include_forbidden_actions=False,
+                        operation_type=OperationType.GENERATE,
+                        validator=plan_callback,
+                        max_iterations=system_config.orchestration.max_validation_iteration,
                     )
                 plan = plan_result.plan
 
@@ -126,7 +125,7 @@ class TerraformDriftService:
                     conventions=conventions,
                     include_forbidden_actions=False,
                     operation_type=OperationType.DRIFT,
-                    validator=validator,
+                    validator=plan_callback,
                     max_iterations=system_config.orchestration.max_validation_iteration,
                 )
                 plan = result.plan

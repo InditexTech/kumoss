@@ -5,7 +5,7 @@
 import json
 from collections.abc import Coroutine
 from dataclasses import asdict
-from typing import Callable, Any, cast
+from typing import Callable, Any
 
 from src.application.exceptions import TerraformValidationFailedError
 from src.application.services.requests_filter_service import RequestsFilterService
@@ -31,7 +31,6 @@ from src.domains.services import (
     TerraformValidationService,
 )
 from src.domains.value_objects import Conventions
-from src.infrastructure.database.models import TerraformPlan
 from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
@@ -192,14 +191,11 @@ class TerraformImportHandler:
                     outcome = await self.__import_svc.import_resources(import_cmds)
                     imported.update(outcome.imported)
                     failed.update(outcome.failed)
-                    for r in failed.copy():
-                        if r.address.lower() in {r.address.lower() for r in imported}:
-                            logging.debug(f"discarded {r.resource_id} from failed list")
-                            failed.discard(r)
+                    failed.difference_update(imported)
                     logging.debug(
-                        f"import_cmds: {import_cmds}\n"
-                        + f"imported: {imported}\n"
-                        + f"failed: {failed}\n"
+                        f"import_cmds: {[r.address for r in import_cmds]}\n"
+                        + f"imported: {[r.address for r in imported]}\n"
+                        + f"failed: {[r.address for r in failed]}\n"
                     )
                     return TerraformImportDTO(
                         imported=imported,
