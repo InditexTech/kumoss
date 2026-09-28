@@ -203,17 +203,23 @@ class TerraformImportHandler:
                         failed=failed,
                     )
 
+                async def split_errors(errors: str) -> str:
+                    return await self.__task_svc.split_errors(
+                        errors=errors, operation_type=OperationType.IMPORT
+                    )
+
                 import_results: ValidationResultDTO = await import_callback(ctx.history)
                 if not import_results.ok:
                     try:
                         import_results = await self.__validation_svc.generate_and_validate(
-                            q=f"Fix the following import errors:\n{import_results.feedback}",
+                            q=await split_errors(import_results.feedback),
                             ctx=ctx,
                             conventions=Conventions.empty(),
                             include_forbidden_actions=False,
                             operation_type=OperationType.GENERATE,
                             validator=import_callback,
                             max_iterations=system_config.orchestration.max_import_iteration,
+                            refine_feedback=split_errors,
                         )
                     except ValidationLoopExceededError as e:
                         if not isinstance(e.result, TerraformImportDTO):

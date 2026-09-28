@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from src.domains.services.task_service import TaskService
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
-from src.shared.constants import PromptsLibrary, ToolContext
+from src.shared.constants import OperationType, PromptsLibrary, ToolContext
 
 
 class TestTaskService(unittest.IsolatedAsyncioTestCase):
@@ -39,16 +39,69 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
         ops = self._ops(self.group_size + 1)
         self._llm_returns(ops)
 
-        groups = await self.service.split_task(task="drift report")
+        groups = await self.service.split_task(
+            task="drift report", operation_type=OperationType.DRIFT
+        )
 
         self.assertEqual(groups, [ops[: self.group_size], ops[self.group_size :]])
-        self.template_svc.render.assert_awaited_once_with(PromptsLibrary.TASK_SPLITTER)
+        self.template_svc.render.assert_awaited_once_with(
+            PromptsLibrary.TASK_SPLITTER, operation_type=OperationType.DRIFT
+        )
         self.tool_svc.get_available_tools.assert_called_once_with(
             contexts=[
                 ToolContext.WORKSPACE_INSPECTION,
                 ToolContext.EXTERNAL_INFORMATION,
             ]
         )
+
+    async def test_split_task_renders_the_splitter_for_the_operation_type(self):
+        self._llm_returns(self._ops(1))
+
+        await self.service.split_task(
+            task="Error: Reference to undeclared input variable",
+            operation_type=OperationType.GENERATE,
+        )
+
+        self.template_svc.render.assert_awaited_once_with(
+            PromptsLibrary.TASK_SPLITTER, operation_type=OperationType.GENERATE
+        )
+        self.assertEqual(
+            self.llm_svc.generate.await_args.kwargs["query"],
+            "Error: Reference to undeclared input variable",
+        )
+
+    async def test_split_errors_numbers_the_operations_above_the_raw_errors(self):
+        ops = self._ops(self.group_size + 1)
+        self._llm_returns(ops)
+
+        query = await self.service.split_errors(
+            errors="Error: Unsupported argument", operation_type=OperationType.IMPORT
+        )
+
+        self.template_svc.render.assert_awaited_once_with(
+            PromptsLibrary.TASK_SPLITTER, operation_type=OperationType.IMPORT
+        )
+        self.assertEqual(
+            self.llm_svc.generate.await_args.kwargs["query"],
+            "Error: Unsupported argument",
+        )
+        steps = "\n".join(f"{i}. {op}" for i, op in enumerate(ops, 1))
+        self.assertIn(steps, query)
+        self.assertIn(
+            "<terraform_errors>\nError: Unsupported argument\n</terraform_errors>",
+            query,
+        )
+        self.assertLess(query.index(steps), query.index("<terraform_errors>"))
+
+    async def test_split_errors_passes_the_errors_through_on_an_empty_split(self):
+        self._llm_returns([])
+
+        query = await self.service.split_errors(
+            errors="Error: Unsupported argument",
+            operation_type=OperationType.GENERATE,
+        )
+
+        self.assertEqual(query, "Error: Unsupported argument")
 
     async def test_filter_reconciliation_sends_flat_json_and_regroups(self):
         kept = self._ops(self.group_size + 2)

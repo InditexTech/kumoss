@@ -275,7 +275,7 @@ class TerraformImportDTO:
 
     @property
     def stdout(self) -> str:
-        return str(self.imported) if len(self.imported) > 1 else ""
+        return str(self.imported) if len(self.imported) > 0 else ""
 
     @property
     def targets(self) -> list[str]:

@@ -127,6 +127,24 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
             system_config.orchestration.max_validation_iteration,
         )
 
+    async def test_refine_feedback_rewrites_the_next_query(self):
+        validator = AsyncMock(side_effect=[_plan(False, "raw error"), _plan(True)])
+        refine = AsyncMock(return_value="1. fix it")
+
+        _ = await self.__run(validator, max_iterations=2, refine_feedback=refine)
+
+        refine.assert_awaited_once_with("raw error")
+        self.assertEqual(self.__queries(), ["create it", "1. fix it"])
+
+    async def test_refine_feedback_is_skipped_after_the_last_attempt(self):
+        validator = AsyncMock(return_value=_plan(False, "raw error"))
+        refine = AsyncMock(return_value="1. fix it")
+
+        with self.assertRaises(ValidationLoopExceededError):
+            _ = await self.__run(validator, max_iterations=2, refine_feedback=refine)
+
+        self.assertEqual(refine.await_count, 1)
+
 
 class TestTerraformImportDTOValidationResult(unittest.TestCase):
     def test_ok_needs_a_passing_plan_and_no_failed_import(self):

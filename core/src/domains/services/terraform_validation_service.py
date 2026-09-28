@@ -94,6 +94,7 @@ class TerraformValidationService:
         include_forbidden_actions: bool,
         operation_type: OperationType,
         max_iterations: int,
+        refine_feedback: Callable[[str], Awaitable[str]] | None = None,
     ) -> T:
         """
         Execute the terraform generation and validation cycle using tool calls
@@ -103,6 +104,8 @@ class TerraformValidationService:
         :param validator: checks each attempt; its feedback is the next query
         :param max_iterations: attempts before giving up, defaults to
             ``orchestration.max_validation_iteration``
+        :param refine_feedback: rewrites a failed attempt's feedback before
+            it becomes the next query
         :return: the validator result of the last attempt, which succeeded
         :raises ValidationLoopExceededError: carrying the last attempt's result
         """
@@ -166,7 +169,11 @@ class TerraformValidationService:
                     first_q, local_history.get_last_turn().assistant
                 )
                 return result
-            q = result.feedback
+            q = (
+                await refine_feedback(result.feedback)
+                if refine_feedback and i + 1 < max_iterations
+                else result.feedback
+            )
 
         raise ValidationLoopExceededError(
             message="Validation loop exceeded.",

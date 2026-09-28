@@ -62,6 +62,11 @@ class TerraformDriftService:
         async def plan_callback(history: History) -> TerraformPlanDTO:
             return await self.__terraform_svc.plan(targets=targets)
 
+        async def split_errors(errors: str) -> str:
+            return await self.__split_svc.split_errors(
+                errors=errors, operation_type=OperationType.GENERATE
+            )
+
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
@@ -69,13 +74,14 @@ class TerraformDriftService:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
                 if plan_result.plan is None:
                     plan_result = await self.__validation_svc.generate_and_validate(
-                        q="Solve the errors.",
+                        q=await split_errors(plan_result.feedback),
                         ctx=self.__ctx,
                         conventions=conventions,
                         include_forbidden_actions=False,
                         operation_type=OperationType.GENERATE,
                         validator=plan_callback,
                         max_iterations=system_config.orchestration.max_validation_iteration,
+                        refine_feedback=split_errors,
                     )
                 plan = plan_result.plan
 
