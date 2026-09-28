@@ -64,10 +64,7 @@ class TaskService:
         if not operations:
             return errors
         steps = "\n".join(f"{i}. {op}" for i, op in enumerate(operations, 1))
-        return (
-            f"Fix the following errors, in order:\n{steps}\n\n"
-            + f"<terraform_errors>\n{errors}\n</terraform_errors>"
-        )
+        return f"Fix the following errors:\n{steps}\n\n"
 
     async def filter_reconciliation(
         self, operations: list[list[str]]
