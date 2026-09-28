@@ -14,12 +14,9 @@ from src.shared.constants import OperationRole, PanelRole, TerraformProvider
 
 
 class AuthConfigResponse(BaseModel):
-    """Public settings the SPA needs before it can do anything.
+    """Public OIDC settings the SPA needs to run its login flow.
 
-    Mostly the OIDC login flow — blank ``issuer_url`` means auth is
-    disabled (dev mode) — plus the object store's metadata header
-    prefix, which the SPA needs to read artifact metadata and cannot
-    obtain any other way.
+    Blank ``issuer_url`` means auth is disabled (dev mode).
     """
 
     issuer_url: str

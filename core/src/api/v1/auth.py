@@ -30,9 +30,6 @@ async def auth_config() -> AuthConfigResponse:
         client_id=oidc.client_id,
         audience=oidc.audience,
         scope=oidc.scope,
-        # The SPA reads artifact metadata off presigned-URL responses and
-        # cannot know which store renamed the keys. Cheap to ask: the
-        # factory is cached and the lifespan already built this adapter.
         artifact_metadata_header_prefix=(
             default_object_storage().metadata_header_prefix
         ),

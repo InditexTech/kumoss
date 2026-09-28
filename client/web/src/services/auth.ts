@@ -21,28 +21,8 @@ export function isOidcEnabled(): boolean {
   return (authConfig?.issuer_url.trim() ?? "") !== "";
 }
 
-/**
- * Covers every store but Azure, so it is the least-bad guess — but it is
- * only ever reached outside the bootstrap (tests, or a future entry point
- * that skips it). In the app `loadAuthConfig()` is awaited before
- * `root.render` and a failure there renders `BootstrapError` instead.
- */
-const DEFAULT_METADATA_HEADER_PREFIX = "x-amz-meta-";
-
-/**
- * The deployed object store's metadata header prefix, e.g. `x-amz-meta-`.
- *
- * Unlike `buildOidcConfig`, this falls back rather than throwing: there is
- * a sane default, and throwing here would break the artifact viewer over a
- * login concern it has nothing to do with. Do not "harden" it into a throw.
- *
- * `||` and not `??`, so an empty string from an older backend falls back
- * too — otherwise the SPA would ask for a header literally named `type`.
- */
 export function metadataHeaderPrefix(): string {
-  return (
-    authConfig?.artifact_metadata_header_prefix || DEFAULT_METADATA_HEADER_PREFIX
-  );
+  return authConfig?.artifact_metadata_header_prefix || "x-amz-meta-";
 }
 
 /** State carried through the IdP round trip via `signinRedirect({ state })`. */
@@ -65,11 +45,7 @@ export function buildOidcConfig(): AuthProviderProps {
     // requested explicitly; harmless elsewhere.
     ...(audience ? { extraQueryParams: { audience } } : {}),
     onSigninCallback: () => {
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname,
-      );
+      window.history.replaceState({}, document.title, window.location.pathname);
     },
   };
 }

@@ -38,11 +38,8 @@ class IObjectStorage(ABC):
     def metadata_header_prefix(self) -> str:
         """Prefix this store prepends to metadata keys on the way out.
 
-        ``put(metadata={"type": "plan"})`` comes back as a response header
-        named this prefix plus the key. A browser reading an object's
-        metadata off a presigned URL has to be told which prefix to ask
-        for, so the API serves this on ``GET /v1/auth/config``. Includes
-        the trailing hyphen.
+        A browser reading an object's metadata off a presigned URL
+        has to be told which prefix to ask for.
         """
         pass
 
