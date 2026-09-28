@@ -92,6 +92,7 @@ class TerraformDriftService:
 
             operations: list[list[str]] = await self.__split_svc.split_task(
                 task=drift.drift,
+                operation_type=OperationType.DRIFT,
             )
             if filter_session_changes:
                 operations = await self.__split_svc.filter_reconciliation(
@@ -124,7 +125,7 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
-                    operation_type=OperationType.DRIFT,
+                    operation_type=OperationType.GENERATE,
                     validator=plan_callback,
                     max_iterations=system_config.orchestration.max_validation_iteration,
                 )

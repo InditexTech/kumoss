@@ -190,6 +190,7 @@ class TerraformImportHandler:
                     import_cmds.difference_update(imported)
                     outcome = await self.__import_svc.import_resources(import_cmds)
                     imported.update(outcome.imported)
+                    failed.difference_update(outcome.failed)
                     failed.update(outcome.failed)
                     failed.difference_update(imported)
                     logging.debug(
