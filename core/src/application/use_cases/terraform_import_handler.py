@@ -206,7 +206,7 @@ class TerraformImportHandler:
                 if not import_results.ok:
                     try:
                         import_results = await self.__validation_svc.generate_and_validate(
-                            q=import_results.feedback,
+                            q=f"Fix the following import errors:\n{import_results.feedback}",
                             ctx=ctx,
                             conventions=Conventions.empty(),
                             include_forbidden_actions=False,
