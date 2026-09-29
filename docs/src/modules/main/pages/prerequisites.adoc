@@ -6,7 +6,7 @@ you need before following xref:main:quickstart.adoc[Quickstart].
 
 == When to use this deployment
 
-Use the Compose stack to evaluate Nebula, develop on it, run demos, or test
+Use the Compose stack to evaluate Kumoss, develop on it, run demos, or test
 changes on a workstation or a throwaway virtual machine that only trusted
 people can reach.
 
@@ -32,7 +32,7 @@ xref:main:guides/deploy-to-production.adoc[Deploy to production].
 * Git, and Docker Engine with Docker Compose v2.24 or later.
 * As a rough guideline, at least 8 GB RAM and 10 GB free disk.
 
-Separate state-backend credentials are *optional*. By default Nebula
+Separate state-backend credentials are *optional*. By default Kumoss
 manages Terraform state itself in the bundled object store, so the cloud
 credentials above are all the IaC sidecar needs. A second grant is
 required only if you set `storage.terraform_state_bucket` to `""` and let

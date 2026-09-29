@@ -1,7 +1,7 @@
 = Import infrastructure
 :description: Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
 
-The Nebula web application offers two import modes: Partial Import, for
+The Kumoss web application offers two import modes: Partial Import, for
 the unmanaged resources your request names, and Full Import, for every
 unmanaged resource in the session's scope. Both find the resources the
 cloud holds but the Terraform state does not, write a resource block for
@@ -127,7 +127,7 @@ resources are now managed from your repository." Import rounds run no
 compliance audit and never set the lock.
 
 *Example.* "Import the storage account `stappdev001` and the key vault
-`kv-app-dev`." Nebula finds both among the unmanaged resources in the
+`kv-app-dev`." Kumoss finds both among the unmanaged resources in the
 subscription, writes an `azurerm_storage_account` and an
 `azurerm_key_vault` block, and imports them. The storage account
 imports; the key vault is rejected because the ID was paired in a
@@ -157,7 +157,7 @@ compliance, locks.* As for partial import.
 
 *Example.* "Import all the infrastructure" on a GCP project with a
 bucket, a service account and one IAM binding that Terraform does not
-track. Nebula selects all three, generates the blocks, imports them, and
+track. Kumoss selects all three, generates the blocks, imports them, and
 reports `Succeeded`.
 
 [#limitations]

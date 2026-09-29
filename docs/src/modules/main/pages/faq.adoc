@@ -1,7 +1,7 @@
 = Frequently asked questions
-:description: Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
+:description: Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Kumoss.
 
-Short answers for people using the Nebula web application. The longer
+Short answers for people using the Kumoss web application. The longer
 explanations are in the xref:main:guides/make-a-request.adoc[Make a
 request] guide; mode-by-mode behavior is in
 xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating
@@ -35,7 +35,7 @@ merge, or apply your sessions.
 [%collapsible]
 ====
 Your identity token expired and the application signed you out. Sign
-in again. Any Nebula session that was running continues on the
+in again. Any Kumoss session that was running continues on the
 server; reopen it from the footer or your user page.
 ====
 --
@@ -47,7 +47,7 @@ server; reopen it from the footer or your user page.
 .Do I have to specify every parameter?
 [%collapsible]
 ====
-No. Missing parameters never block a creation request. Nebula applies
+No. Missing parameters never block a creation request. Kumoss applies
 your organization's naming conventions, resource defaults, and the
 placement it finds in the workspace, and it states the assumptions it
 made in the response.
@@ -87,10 +87,10 @@ HTTPS URL. Azure DevOps users: the portal's clone URL starts with
 `\https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only
 `github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are
 supported for pull requests. The repository must also be reachable by
-Nebula's service account.
+Kumoss's service account.
 ====
 
-.Why does Nebula say it found no IaC paths?
+.Why does Kumoss say it found no IaC paths?
 [%collapsible]
 ====
 It only sees files committed on the repository's default branch, and
@@ -108,7 +108,7 @@ layout].
 Either it sits under an excluded directory name, or it is nested
 under another directory that already qualifies as a root (for example
 `platform/network/` under a `platform/` that has a `main.tf`); in that
-case pick the parent, Nebula works from there.
+case pick the parent, Kumoss works from there.
 ====
 
 .Why does the scope field not accept my value?
@@ -157,7 +157,7 @@ round to finish; the input is disabled during a run.
 .What is the branch called?
 [%collapsible]
 ====
-`Nebula/YYYY-MM-DD_HHMMSS` in UTC, created on the first request of the
+`Kumoss/YYYY-MM-DD_HHMMSS` in UTC, created on the first request of the
 session. Every round pushes to it.
 ====
 --
@@ -271,7 +271,7 @@ and executes the plan you reviewed, without re-planning. The
 apply-results screen shows what happened.
 ====
 
-.The apply failed. Will Nebula retry?
+.The apply failed. Will Kumoss retry?
 [%collapsible]
 ====
 No. The session still closes as completed, with an apply report whose
@@ -299,10 +299,10 @@ infrastructure].
 .Where does Terraform state live?
 [%collapsible]
 ====
-Not in the repository, and not in the working copy Nebula creates. Out
-of the box, Nebula keeps state for you, in a bucket dedicated to state
+Not in the repository, and not in the working copy Kumoss creates. Out
+of the box, Kumoss keeps state for you, in a bucket dedicated to state
 with one state file per project (repository + cloud scope + path).
-Your platform team can instead configure Nebula to leave it in the
+Your platform team can instead configure Kumoss to leave it in the
 remote backend your repository's own Terraform files declare, exactly
 as it would if you ran the engine yourself. Either way your pull
 request contains only your infrastructure code — no state file and no
@@ -316,11 +316,11 @@ backends].
 [%collapsible]
 ====
 The session is planning against empty state. The usual causes are that
-your platform team turned off Nebula-managed state and your repository
+your platform team turned off Kumoss-managed state and your repository
 declares no remote backend of its own, that the project's identity
 changed — the root-module path moved, the repository was renamed, or a
 different cloud scope was selected — or that your platform team changed
-the state backend, which Nebula never migrates. Report it with the
+the state backend, which Kumoss never migrates. Report it with the
 session id; an operator can check the state location.
 ====
 --
@@ -329,7 +329,7 @@ session id; an operator can check the state location.
 
 [accordion,aria-label="Data and privacy frequently asked questions"]
 --
-.What data leaves Nebula when I make a request?
+.What data leaves Kumoss when I make a request?
 [%collapsible]
 ====
 Your request text, the conversation, the repository files the agent
@@ -339,7 +339,7 @@ review. Do not paste secrets into requests or commit them to the
 repository.
 ====
 
-.Which cloud credentials does Nebula use?
+.Which cloud credentials does Kumoss use?
 [%collapsible]
 ====
 The identity your platform team configured for the execution engine,

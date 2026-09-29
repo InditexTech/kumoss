@@ -1,9 +1,9 @@
 = LLM providers and models
-:description: How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
+:description: How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
 
-Nebula calls large language models (LLMs) through
+Kumoss calls large language models (LLMs) through
 https://docs.litellm.ai/[LiteLLM], a routing library that speaks to
-many providers behind one interface. This page explains how Nebula
+many providers behind one interface. This page explains how Kumoss
 selects models, where credentials go, what the core checks at startup,
 and how to use the advanced `llm.model_list` router configuration.
 
@@ -18,10 +18,10 @@ guides, xref:main:quickstart.adoc[Quickstart] and
 xref:main:guides/deploy-to-production.adoc[Deploy to production], which
 say where the credentials live in each deployment model.
 
-== How Nebula uses LiteLLM
+== How Kumoss uses LiteLLM
 
-Nebula configures two model roles in `config.yaml`. Both are applied by
-the core's LiteLLM Router; there is no provider enum in Nebula, so any
+Kumoss configures two model roles in `config.yaml`. Both are applied by
+the core's LiteLLM Router; there is no provider enum in Kumoss, so any
 model string LiteLLM understands is accepted by the configuration.
 Whether a model _works_ is a different matter; see <<model-requirements,Model
 requirements>> below.
@@ -78,7 +78,7 @@ not support one of these parameters ignores it instead of failing.
 [#model-requirements]
 == Model requirements
 
-Nebula's agents are tool-calling loops, so the configuration accepting
+Kumoss's agents are tool-calling loops, so the configuration accepting
 a model string does not mean the model can run a session. Both roles
 must provide:
 
@@ -108,7 +108,7 @@ must provide:
 The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of
 these, as do the same models on Azure AI Foundry (`azure_ai/`) and the
 Claude and Gemini models on Vertex AI that the core's test suite
-exercises. Nebula has not tested every provider LiteLLM lists.
+exercises. Kumoss has not tested every provider LiteLLM lists.
 
 == The `provider/model-id` notation
 
@@ -120,7 +120,7 @@ A LiteLLM model string is `<provider>/<model-id>`:
 * `<model-id>` is whatever that provider calls the model or deployment
   (`claude-sonnet-5`, `gpt-4o`, a deployment name, an endpoint name).
 
-Routing is purely prefix based. Nebula does not validate that the
+Routing is purely prefix based. Kumoss does not validate that the
 model id exists; a typo surfaces as an error from the provider on the
 first call. The reference list of model ids is
 https://models.litellm.ai/[models.litellm.ai]; the provider list with
@@ -201,7 +201,7 @@ pins `litellm>=1.93.0`).
 The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the `litellm_params` keys you
 would use instead when writing an `llm.model_list` entry. The lists
-come from LiteLLM's documentation. *Nebula has not tested every
+come from LiteLLM's documentation. *Kumoss has not tested every
 provider listed here*; the checked-in `config.yaml` and the code
 defaults both target Anthropic directly (`anthropic/`), and the core's
 test suite
@@ -465,7 +465,7 @@ llm:
 ----
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
 ----
 
 For how to paste the key, and what the file-path alternative needs, see
@@ -653,7 +653,7 @@ provider still rejects a value (for example a completion cap below
 is set to `PRODUCTION`. Running the core, or `pytest`, on your
 workstation (rather than inside the container) therefore silently
 loads `core/.env` into the process environment — including any real
-secrets it holds — even though nothing in Nebula's own code does this.
+secrets it holds — even though nothing in Kumoss's own code does this.
 The working directory does not matter: python-dotenv searches upwards
 from the directory of the *calling package*, so with the virtual
 environment at `core/.venv` the file `core/.env` is found from any

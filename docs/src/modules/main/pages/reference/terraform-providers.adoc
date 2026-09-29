@@ -235,7 +235,7 @@ covers `azure` and `gcp` only, so the value the wizard collects as
 id, but never reaches the engine environment: every command runs
 against whatever cluster the variables above select. A
 mounted kubeconfig must be readable by the unprivileged user the image
-runs as (`nebula`, uid and gid `10001`), and any paths inside it must
+runs as (`kumoss`, uid and gid `10001`), and any paths inside it must
 resolve inside the container.
 
 Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
@@ -831,6 +831,6 @@ the provider version pinned in the deployment.
 
 * xref:main:guides/configure-state-backends.adoc[Configure state
   backends] for how these credentials fit into the backend model
-  Nebula chooses.
+  Kumoss chooses.
 * xref:main:reference/environment-variables.adoc[Environment variables
   and secrets] for every other variable the stack reads.

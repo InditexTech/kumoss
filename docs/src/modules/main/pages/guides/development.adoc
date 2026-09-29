@@ -1,9 +1,9 @@
 = Development
-:description: Contribute to Nebula: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
+:description: Contribute to Kumoss: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 
-This guide covers contributing to Nebula itself — running the repository's
+This guide covers contributing to Kumoss itself — running the repository's
 own test suites, checks, and tooling. It does not cover deploying or
-operating Nebula; for that, see xref:main:quickstart.adoc[] and
+operating Kumoss; for that, see xref:main:quickstart.adoc[] and
 xref:main:guides/deploy-to-production.adoc[].
 
 == Prerequisites
@@ -51,7 +51,7 @@ Async tests are unmarked, so `--asyncio-mode=auto` is required.
 `core/tests/conftest.py` supplies placeholder values for the LLM
 credential and database URL that the configuration module validates at
 import; suites that talk to PostgreSQL or Redis need the compose stack
-(or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own
+(or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own
 instances).
 
 == Type checking

@@ -1,7 +1,7 @@
 = Administer users and locks
 :description: Sign in and reach the admin panel, review any user's sessions, and manage session locks and roles.
 
-The Nebula web application has one portal for looking at sessions, with
+The Kumoss web application has one portal for looking at sessions, with
 two views: *Your sessions* (`/user/sessions`), where every signed-in user
 sees the sessions they own, opens their details and artifacts, and jumps
 back into a session to continue it; and the *admin panel* (`/admin`),

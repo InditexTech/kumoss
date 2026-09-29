@@ -4,7 +4,7 @@
 // Set three attributes before including this partial:
 //
 //   :diagram-name: system-architecture
-//   :diagram-alt: Nebula system architecture: the edge, the core, the sidecars
+//   :diagram-alt: Kumoss system architecture: the edge, the core, the sidecars
 //   :diagram-verb: trace a relationship
 //   include::partial$interactive-diagram.adoc[]
 //

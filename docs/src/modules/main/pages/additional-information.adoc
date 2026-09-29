@@ -1,9 +1,9 @@
 = Additional information
-:description: Nebula's licensing, support channels, and how to report a security vulnerability.
+:description: Kumoss's licensing, support channels, and how to report a security vulnerability.
 
 This page gathers what does not fit under Guides or Reference:
 licensing of the default stack, how to reach the people behind a
-Nebula deployment, where release notes and the changelog will be
+Kumoss deployment, where release notes and the changelog will be
 published, and where the FAQ lives.
 
 == Licensing of the default stack
@@ -12,7 +12,7 @@ Every component that runs by default in the checked-in Compose stack
 is open source, with one source-available exception that is disclosed
 rather than hidden (the bundled but inactive Terraform binary is a
 second, opt-in exception). Identity has no licensing footprint at all:
-Nebula speaks standard OpenID Connect and trusts any spec-faithful
+Kumoss speaks standard OpenID Connect and trusts any spec-faithful
 issuer, so a fully open-source deployment can pair it with Keycloak
 (Apache-2.0, CNCF Incubating) while an enterprise can point it at Entra
 ID, Auth0, or Okta without changing a line of code.
@@ -21,7 +21,7 @@ ID, Auth0, or Okta without changing a line of code.
 |===
 |Component |Role |Licence |Notes
 
-|Nebula (core, sidecars, SPA, contracts)
+|Kumoss (core, sidecars, SPA, contracts)
 |The platform
 |Apache-2.0
 |REUSE-compliant SPDX headers
@@ -83,10 +83,10 @@ via the `RUSTFS` provider
 Three channels, each with its own purpose:
 
 * *Support request in the web application* — questions about your own
-  Nebula deployment or about one of your sessions. It reaches the
-  reviewers in your deployment, not the Nebula project.
-* https://github.com/InditexTech/nebula/issues[Issue tracker] — bugs
-  and feature requests in Nebula itself. Check the existing issues
+  Kumoss deployment or about one of your sessions. It reaches the
+  reviewers in your deployment, not the Kumoss project.
+* https://github.com/InditexTech/kumoss/issues[Issue tracker] — bugs
+  and feature requests in Kumoss itself. Check the existing issues
   first; xref:main:contributing.adoc[] covers what happens next.
 * https://vdp.inditex.com[Disclosure submission program] — security
   vulnerabilities, reported privately and never through a public
@@ -97,8 +97,8 @@ Three channels, each with its own purpose:
 
 Any signed-in user can send a support request from inside the web
 application. It goes to the people who hold the reviewer roles in your
-own Nebula deployment — colleagues on your platform team, not the
-Nebula project — through the channel your platform team connected
+own Kumoss deployment — colleagues on your platform team, not the
+Kumoss project — through the channel your platform team connected
 (Slack in the reference setup), with a copy addressed to you.
 
 From the browser, the chat-bubble *Support* icon in the header opens a
@@ -131,21 +131,21 @@ https://vdp.inditex.com[disclosure submission program], in English —
 never through a public GitHub issue. The security team acknowledges a
 report within 48 hours, investigates its severity, and develops,
 tests, and publishes a fix and an advisory. See the
-https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
+https://github.com/InditexTech/kumoss/blob/main/SECURITY.md[security
 policy] for the full process and the safe-harbor terms covering
 researchers who report in good faith.
 
 == Release notes
 
-Nebula has not published a tagged release yet. When it does, the curated
+Kumoss has not published a tagged release yet. When it does, the curated
 highlights of each release — what is new and what it changes for the
 people using it — will be listed here and on the project's
-https://github.com/InditexTech/nebula/releases[GitHub Releases] page.
+https://github.com/InditexTech/kumoss/releases[GitHub Releases] page.
 
 == Changelog
 
 The unabridged, commit-level record of changes is the repository's
-https://github.com/InditexTech/nebula/commits/main[commit history];
+https://github.com/InditexTech/kumoss/commits/main[commit history];
 it is not duplicated here. Once releases exist, each GitHub Release
 carries the complete list of additions, changes, fixes, and
 deprecations since the previous one.

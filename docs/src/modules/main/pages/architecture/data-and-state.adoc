@@ -1,7 +1,7 @@
 = Data and state
 :description: What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
 
-This page describes what each of Nebula's data stores holds: core-db,
+This page describes what each of Kumoss's data stores holds: core-db,
 phoenix-db, Redis, object storage, and the `workspaces` volume on the
 filesystem shared between the core and the iac sidecar.
 
@@ -33,7 +33,7 @@ xref:main:reference/database-schema.adoc[Database schema].
 
 *phoenix-db (PostgreSQL 17)* belongs exclusively to Phoenix and stores
 traces and prompt versions — operational/LLM telemetry, fully separate
-from Nebula's domain data.
+from Kumoss's domain data.
 
 == Redis
 
@@ -95,7 +95,7 @@ shipped. A remote backend, however, is not optional regardless of that
 setting: workspaces are ephemeral and the `.gitignore` the core seeds
 excludes `*.tfstate`, so local state would be lost after the run.
 Because `storage.terraform_state_bucket` ships set to
-`nebula-terraform-state`, the default is that *Nebula manages state
+`kumoss-terraform-state`, the default is that *Kumoss manages state
 itself*, in a second bucket in the same store kept separate from the
 artifacts bucket. A deployment can instead set the value to `""` so
 that *each repository declares its own remote backend* — `azurerm`,
@@ -114,7 +114,7 @@ A bare `terraform_state_bucket:` key with no value is *not* the same as
 `""` — it parses as YAML null and fails boot with a Pydantic validation
 error — and *deleting* the key entirely also leaves managed state on,
 since the configuration default is the same
-`nebula-terraform-state` value.
+`kumoss-terraform-state` value.
 
 See xref:main:guides/configure-state-backends.adoc[Configure state
 backends] for the full decision between the three ownership models and
@@ -136,7 +136,7 @@ via git pushes and artifact uploads, not the volume.
 == authz sidecar persistence
 
 authz persistence is a JSON file (`/data/roles.json`, container-local
-in the shipped Compose file; set `NEBULA_AUTHZ_ROLE_STORE` to a mounted
+in the shipped Compose file; set `KUMOSS_AUTHZ_ROLE_STORE` to a mounted
 path to keep it), rewritten atomically under a process lock. It backs
 the sidecar's own user/role endpoints, which the core does not call;
-Nebula's roles live in core-db.
+Kumoss's roles live in core-db.

@@ -1,7 +1,7 @@
 = Deployment view
 :description: The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
 
-This page describes how Nebula's containers are deployed on one Docker
+This page describes how Kumoss's containers are deployed on one Docker
 Compose stack, the operational notes that follow from that topology,
 and the architectural characteristics that result from the decisions
 described across this section.
@@ -14,7 +14,7 @@ calls between them. The user's browser sits outside the bridge network
 on purpose.
 
 :diagram-name: deployment-topology
-:diagram-alt: Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network
+:diagram-alt: Kumoss Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
@@ -34,8 +34,8 @@ Only the proxy publishes host ports; all other containers are reachable
 solely on the internal network. The `workspaces` volume is the one
 mount shared by two containers (core and iac), which is what lets the
 iac service run the IaC engine against the core's git clones. Both
-containers run as the same unprivileged user (`nebula`, uid/gid 10001,
-fixed by the `NEBULA_UID`/`NEBULA_GID` build args) so files either one
+containers run as the same unprivileged user (`kumoss`, uid/gid 10001,
+fixed by the `KUMOSS_UID`/`KUMOSS_GID` build args) so files either one
 creates are writable by the other. Additional Compose hardening for the
 iac container (dropping all capabilities, `no-new-privileges`, a
 read-only root filesystem, and CPU/memory/pid limits) was prototyped
@@ -71,14 +71,14 @@ repository ships no Kubernetes manifests or Helm charts.
   Failure of any step aborts boot. Git credential configuration follows
   and is best-effort.
 * Configuration comes from a single `config.yaml`, baked into the image
-  at `/etc/nebula/config.yaml` by the core Dockerfile, so changes
-  require an image rebuild unless `NEBULA_CONFIG` points at a file
+  at `/etc/kumoss/config.yaml` by the core Dockerfile, so changes
+  require an image rebuild unless `KUMOSS_CONFIG` points at a file
   mounted elsewhere in the container.
 * Secrets never appear in the file: `*_env` fields name environment
   variables (database URL, service bearer tokens, storage keys, git
   personal access token), and the core validates at boot that every
   enabled service's token and every referenced LLM credential resolves.
-  Each `NEBULA_<SERVICE>_TOKEN` must match between the core's outbound
+  Each `KUMOSS_<SERVICE>_TOKEN` must match between the core's outbound
   client and the sidecar's inbound validation.
 * Authentication needs no secret: the `oidc` block and
   `admin.default_root_email` are plain configuration that Pydantic
@@ -109,12 +109,12 @@ to plan for before running more than one:
   key, so it de-duplicates
   cache misses within one process only.
 * *Static storage credentials are rendered in plaintext* into
-  `backend_override.tf` on the shared volume when Nebula-managed state
+  `backend_override.tf` on the shared volume when Kumoss-managed state
   is used with access/secret keys or an Azure account key. Prefer
   credential chains or workload identity where the provider allows it.
 * *One Git identity for every user.* All pushes and pull requests use
   the single PAT in `GIT_TOKEN`, and commits are authored, by default,
-  as `Nebula <nebula@noreply.invalid>` (`git.author_name` /
+  as `Kumoss <kumoss@noreply.invalid>` (`git.author_name` /
   `git.author_email`), so
   repository history attributes nothing to the requesting user — the
   session record in core-db is the audit trail.

@@ -1,5 +1,5 @@
 = Core API
-:description: Every route the Nebula core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
+:description: Every route the Kumoss core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 
 The core exposes 19 routes across nine routers in
 `core/src/api/v1/`. This page is derived from those routers, which are
@@ -364,7 +364,7 @@ roles, and is what the browser calls to learn what to render:
 ----
 {
   "id": 1,
-  "email": "dev@nebula.local",
+  "email": "dev@kumoss.local",
   "display_name": "Local Developer",
   "operation_role": "devops",
   "panel_role": "admin"

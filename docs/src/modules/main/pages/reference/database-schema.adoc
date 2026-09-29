@@ -1,7 +1,7 @@
 = Database schema
 :description: The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
 
-core-db is Nebula's system of record: who the users are, what they asked
+core-db is Kumoss's system of record: who the users are, what they asked
 for, and what each run produced. Thirteen tables hold it. Everything else —
 traces, cached session facts, the generated files themselves — lives
 outside this database.

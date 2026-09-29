@@ -10,7 +10,7 @@ which Teams group, which mailing list, which pager rotation.
 Contract: `contracts/openapi/notifications.v1.yaml`. Default endpoint:
 `\http://notifications:8080`. Bearer token: the value of the variable
 named by `services.notifications.token_env`,
-`NEBULA_NOTIFICATIONS_TOKEN` by default. The service is *optional* and
+`KUMOSS_NOTIFICATIONS_TOKEN` by default. The service is *optional* and
 ships disabled (`services.notifications.enabled: false`).
 
 == Endpoints
@@ -169,7 +169,7 @@ Slack's and one the service's own:
   cut at a recipient boundary and ends with `+N more`.
 
 The bearer token is compared in constant time. If
-`NEBULA_NOTIFICATIONS_TOKEN` is blank the service accepts every
+`KUMOSS_NOTIFICATIONS_TOKEN` is blank the service accepts every
 request — acceptable on an isolated workstation, not on a shared
 network.
 
@@ -200,7 +200,7 @@ use all three, so a caller must still handle them.
 |yes
 |Slack incoming-webhook URL. The service refuses to start without it.
 
-|`NEBULA_NOTIFICATIONS_TOKEN`
+|`KUMOSS_NOTIFICATIONS_TOKEN`
 |no
 |Bearer token clients must present. Blank accepts every request.
 
@@ -227,7 +227,7 @@ the server's access and error output. It does not trace deliveries.
 * *The container exits at boot with a configuration error.* Set
   `SLACK_WEBHOOK_URL`, and a valid `LOG_LEVEL`, in
   `services/notifications/.env`.
-* *The core gets `401`.* `NEBULA_NOTIFICATIONS_TOKEN` differs between
+* *The core gets `401`.* `KUMOSS_NOTIFICATIONS_TOKEN` differs between
   `core/.env` and `services/notifications/.env`.
 * *`502 Downstream channel error`.* Slack rejected the payload or was
   unreachable. Check the webhook URL is still valid in Slack.

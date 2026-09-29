@@ -61,7 +61,7 @@ Other settings that follow from the origin:
   policy requires it.
 * No component enforces rate limiting; add it at the ingress.
 * The reference nginx config caps request bodies at `client_max_body_size
-  4m` on port 80. Keep an explicit limit at your own ingress; Nebula's
+  4m` on port 80. Keep an explicit limit at your own ingress; Kumoss's
   requests (repository descriptions, not file uploads) are small, but an
   unbounded body size is an easy denial-of-service vector.
 * Sidecars, databases, Redis, object storage's internal endpoint, and
@@ -80,7 +80,7 @@ sidecar to `hooks.slack.com` (or your channel).
 * Build the images from the repository with your registry's tags. The
   core image copies `config.yaml` from the repository root at build
   time; to keep one image per version and vary configuration per
-  environment, mount the file instead and set `NEBULA_CONFIG` to its
+  environment, mount the file instead and set `KUMOSS_CONFIG` to its
   path inside the container. The path must be a regular file, or the
   core silently falls back to built-in defaults, which disable every
   *optional* sidecar (notifications, mapping, authz). The IaC sidecar
@@ -90,8 +90,8 @@ sidecar to `hooks.slack.com` (or your channel).
   (`\http://iac:8082`, unreachable from most environments), the core
   boots successfully and the failure only surfaces on the first IaC
   call (init/validate/plan/apply), not at boot.
-* Build the core and IaC images with the *same* `NEBULA_UID` and
-  `NEBULA_GID` build arguments (default `10001`) and run both with that
+* Build the core and IaC images with the *same* `KUMOSS_UID` and
+  `KUMOSS_GID` build arguments (default `10001`) and run both with that
   identity.
 * Set `APP_VERSION` on the core to your release version; it is reported
   in the OpenAPI document.

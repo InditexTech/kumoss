@@ -7,7 +7,7 @@ validate or apply anything, so `services.iac` has no `enabled` flag.
 
 Contract: `contracts/openapi/iac.v1.yaml`. Default endpoint:
 `\http://iac:8082`. Bearer token: the value of the variable named by
-`services.iac.token_env`, `NEBULA_IAC_TOKEN` by default, which the
+`services.iac.token_env`, `KUMOSS_IAC_TOKEN` by default, which the
 bundled implementation reads from the variable of the same name.
 
 Every POST enqueues a *job* that runs exactly one command against the
@@ -19,7 +19,7 @@ Orchestration is the caller's responsibility. The service does not
 sequence commands, interpret plan output, or detect drift: a caller
 that wants "validate this workspace" submits `init`, then `validate`,
 then `plan`, and `show` if it needs the plan JSON, as separate jobs,
-deciding after each one whether to continue. In Nebula that logic
+deciding after each one whether to continue. In Kumoss that logic
 lives in the core.
 
 Jobs targeting the same `workspace_path` run one at a time in
@@ -641,7 +641,7 @@ The service, not the caller, decides the identifier shape.
 
 The service does not choose where state goes. `init` reads the backend
 from the workspace it is handed, and preparing that workspace is the
-caller's job. Nebula's core writes a `backend_override.tf` into the
+caller's job. Kumoss's core writes a `backend_override.tf` into the
 workspace before calling `init`, pinning state to the object store it
 already holds credentials for. The engine merges `*_override.tf` over
 the rest of the configuration, so an override both introduces a
@@ -720,8 +720,8 @@ submitting jobs. Other deployments may use a PersistentVolumeClaim, an
 NFS mount, object storage, or an upload endpoint — same contract,
 different mechanics.
 
-The bundled image runs as an unprivileged user, `nebula`, uid and gid
-`10001` by default, set by the `NEBULA_UID` and `NEBULA_GID` build
+The bundled image runs as an unprivileged user, `kumoss`, uid and gid
+`10001` by default, set by the `KUMOSS_UID` and `KUMOSS_GID` build
 arguments. The engine executes provider plugins and provisioners from
 generated code, so it must not run as root.
 
@@ -729,7 +729,7 @@ Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
 files, and state next to the configuration, *workspace directories
 must be writable by that uid*. In the compose stack this holds because
 the core image is built with the same two build arguments and also
-runs as `nebula`, so everything the core clones is owned by the same
+runs as `kumoss`, so everything the core clones is owned by the same
 user. Override the two arguments together or not at all.
 
 * *Existing volumes.* A `workspaces` volume created by a stack that
@@ -754,7 +754,7 @@ The bundled implementation reads four groups of variables.
 |===
 |Variable |Required |Meaning
 
-|`NEBULA_IAC_TOKEN`
+|`KUMOSS_IAC_TOKEN`
 |no
 |Bearer token clients must present. Blank disables the check
 entirely.
@@ -805,8 +805,8 @@ uv run pytest \
 ----
 
 `--service-token` is needed only if the implementation enforces
-authentication. Both values may also come from `NEBULA_IAC_URL` and
-`NEBULA_IAC_TOKEN`.
+authentication. Both values may also come from `KUMOSS_IAC_URL` and
+`KUMOSS_IAC_TOKEN`.
 
 The suite generates requests from the OpenAPI document and checks that
 every status the service answers is one the contract documents for

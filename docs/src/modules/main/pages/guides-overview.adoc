@@ -1,12 +1,12 @@
 = Guides
-:description: Task guides for using, operating, and developing Nebula, grouped by what you want to do.
+:description: Task guides for using, operating, and developing Kumoss, grouped by what you want to do.
 
-These guides show how to accomplish specific tasks with Nebula. Pick the
+These guides show how to accomplish specific tasks with Kumoss. Pick the
 group that matches your role, then the guide that states your goal. For
 what each operating mode does today, side by side, see
 xref:main:reference/operating-modes.adoc[Operating modes].
 
-== Use Nebula
+== Use Kumoss
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -38,7 +38,7 @@ Bring existing, unmanaged cloud resources under Terraform management,
 for a specific set of resources or across a whole scope.
 ====
 
-== Operate Nebula
+== Operate Kumoss
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -54,7 +54,7 @@ admin panel.
 
 [card]
 .xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
-Read Nebula's traces in Arize Phoenix, and know what a trace contains and
+Read Kumoss's traces in Arize Phoenix, and know what a trace contains and
 omits.
 
 [card]
@@ -66,7 +66,7 @@ rules.
 .xref:main:guides/configure-state-backends.adoc[Configure state backends]
 Choose who owns Terraform and OpenTofu state:
 xref:main:guides/state-backends/repository-declared.adoc[the repository],
-xref:main:guides/state-backends/nebula-managed.adoc[Nebula], or
+xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss], or
 xref:main:guides/state-backends/sidecar-supplied.adoc[the deployment].
 
 [card]
@@ -79,7 +79,7 @@ xref:main:guides/production/hardening.adoc[hardening], and
 xref:main:guides/production/operations.adoc[operations].
 ====
 
-== Develop Nebula
+== Develop Kumoss
 
 [cards,columns="1 s:2 m:3"]
 ====
