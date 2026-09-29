@@ -92,19 +92,19 @@ router.
 |operation `developer`
 |`200` Terraform roots
 
-|`GET /api/v1/sessions`
+|`GET /api/v1/sessions/list`
 |any signed-in user
 |`200` page of summaries
 
-|`GET /api/v1/sessions/\{session_id}`
+|`GET /api/v1/sessions?id=\{session_id}`
 |read access to the session
 |`200` session aggregate
 
-|`GET /api/v1/admin/sessions`
+|`GET /api/v1/admin/sessions/list`
 |panel `viewer`
 |`200` page of summaries
 
-|`GET /api/v1/admin/sessions/\{session_id}`
+|`GET /api/v1/admin/sessions?id=\{session_id}`
 |panel `viewer`
 |`200` session aggregate
 
@@ -312,8 +312,8 @@ Prefix `/v1/auth`. Two routes.
 deliberately so: the single-page application has to read it before it
 can log in at all. Outside `/v1`, the framework's interactive
 documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` —
-is served without authentication as well. It returns the four non-secret OIDC settings, taken
-straight from `config.yaml`:
+is served without authentication as well. It returns the four
+non-secret OIDC settings, taken straight from `config.yaml`:
 
 [source,json]
 ----
@@ -321,13 +321,23 @@ straight from `config.yaml`:
   "issuer_url": "",
   "client_id": "",
   "audience": "",
-  "scope": "openid profile email"
+  "scope": "openid profile email",
+  "artifact_metadata_header_prefix": "x-amz-meta-"
 }
 ----
 
 A blank `issuer_url` tells the browser that authentication is disabled
 and it should use the local development identity. See
 xref:main:guides/enable-authentication.adoc[Enable authentication].
+
+`artifact_metadata_header_prefix` is not configurable. It is derived
+from `storage.provider` — `x-amz-meta-` for S3 and RustFS,
+`x-ms-meta-` for an Azure storage account — and is how the browser
+knows which header names carry an artifact's metadata when it reads one
+from a pre-signed URL. The core never reads that metadata itself, so
+this is the only way the client can learn it. See
+xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
+for the CORS rules that must expose those headers.
 
 `POST /api/v1/auth/authorize` asks whether the caller may operate on a
 cloud project. It requires a signed-in user and takes `cloud`,
@@ -380,7 +390,7 @@ admin-panel access.
 Prefix `/v1/sessions`. Two routes, both open to
 any signed-in user.
 
-`GET /api/v1/sessions` returns a page of session summaries. The list
+`GET /api/v1/sessions/list` returns a page of session summaries. The list
 is *always* scoped to the caller's own sessions — there is no
 parameter that widens it.
 
@@ -413,19 +423,19 @@ id. Up to 200 characters.
 The envelope carries `items`, `total`, `page`, `page_size`, and
 `total_pages`. Each item resolves server-side everything the list view
 renders: `uuid`, `username`, `operation`, `provider`, `first_query`,
-`workspace_uri`, `current_status`, the `in_flight` and `is_blocked`
-flags, and the timestamps. `username` is the owning user's e-mail, or
-`user-<id>` when the user has none; the name is historical, and it is
-a response field only — there is no `username` query parameter.
+`workspace` (URI, branch, root path), `current_status`, the
+`in_flight` and `is_blocked` flags, and the timestamps. `username` is
+the owning user's e-mail, or `user-<id>` when the user has none; the
+name is historical, and it is a response field only — there is no
+`username` query parameter.
 
-`GET /api/v1/sessions/\{session_id}` returns the full session
-aggregate: the session facts, its `workspace` (URI, branch, root
-path), its `scope_id`, the complete `statuses` timeline, and one entry
-in `rounds` per generation round. Each round carries its own statuses,
-its `report`, `compliance`, `plan`, and `code_changes` artifacts as
-client-fetchable URLs, and its `pull_requests`. `compliance` also carries
-the audit's `passed` verdict, and is `null` when the round was not
-audited.
+`GET /api/v1/sessions?id=\{session_id}` returns the full session
+aggregate: the summary fields, its `scope_id`, and one entry in
+`rounds` per generation round. Each round carries its own statuses,
+its `reports`, `compliance_checks`, `plans`, and `code_changes`
+artifacts as client-fetchable URLs, oldest first, and its
+`pull_requests`. Each `compliance_checks` entry also carries the audit's
+`passed` verdict; the list is empty when the round was not audited.
 
 Pass `include_history=true` to also populate `history` with the
 session's conversation turns. That variant always reads fresh from the
@@ -442,11 +452,11 @@ floor further.
 |===
 |Route |Panel role |Returns
 
-|`GET /api/v1/admin/sessions`
+|`GET /api/v1/admin/sessions/list`
 |`viewer`
 |A page of session summaries across all users.
 
-|`GET /api/v1/admin/sessions/\{session_id}`
+|`GET /api/v1/admin/sessions?id=\{session_id}`
 |`viewer`
 |Any session's full aggregate.
 
@@ -463,13 +473,13 @@ floor further.
 |The updated user.
 |===
 
-`GET /api/v1/admin/sessions` takes the same `page`, `page_size`,
+`GET /api/v1/admin/sessions/list` takes the same `page`, `page_size`,
 `operation`, `status`, and `search` parameters as the caller-scoped
 list, plus `user_email`, which partial-matches the owning user's
 e-mail and accepts up to 254 characters. The response envelope is
 identical.
 
-`GET /api/v1/admin/sessions/\{session_id}` is the unrestricted
+`GET /api/v1/admin/sessions?id=\{session_id}` is the unrestricted
 counterpart of the session detail route: same `include_history`
 parameter, same response, but no ownership check beyond the panel
 role. An unknown session is `404`.

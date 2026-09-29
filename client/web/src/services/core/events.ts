@@ -141,7 +141,7 @@ export async function checkSessionStatus(
 ): Promise<SessionCheckResult> {
   try {
     const data = await apiFetch<{ current_status: string }>(
-      `/api/v1/sessions/${encodeURIComponent(sessionId)}`,
+      `/api/v1/sessions?id=${encodeURIComponent(sessionId)}`,
     );
     if (data.current_status === "completed") return { status: "completed" };
     if (data.current_status === "uncompleted")

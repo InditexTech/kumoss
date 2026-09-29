@@ -97,6 +97,16 @@
   color: var(--color-content-muted);
 }
 
+/* Status message carried on a collapsed bootstrap round; unlike
+   .timelineQuery it is short and never clamped. */
+.timelineMessage {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 18px;
+  color: var(--color-content-muted);
+  overflow-wrap: anywhere;
+}
+
 .timelineCount {
   color: var(--color-content-muted);
 }
@@ -137,45 +147,29 @@
   width: 70%;
 }
 
-/* Rows are two-column grids (name | date) so an expanded status
-   message can span the full row width via grid-column. */
+/* Rows are grids of name | chip | date. Only plan rows carry a chip; with
+   two children the third track collapses to zero and the leading `1fr`
+   still pushes the date to the right edge, so event rows need no variant. */
 .timelineOpRow {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   align-items: baseline;
   border-bottom: 1px solid var(--color-border);
   cursor: default;
-}
-
-/* Sub-headers splitting each round into its status rows (pipeline
-   progress) and its artifact rows (openable outputs). */
-.timelineOpGroup {
-  display: block;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.timelineOpGroupLabel {
-  display: inline-block;
-  color: var(--color-content-muted);
-  letter-spacing: 0.08em;
-  padding: 20px 16px 6px 0;
-  white-space: nowrap;
-}
-
-.timelineOpGroup:first-child .timelineOpGroupLabel {
-  padding-top: 0;
 }
 
 .timelineOpRowClickable {
   cursor: pointer;
 }
 
+/* Artifacts hang off the event that produced them, so they read as the
+   event row's children: indented and on a tinted surface. */
 .timelineOpRowArtifact {
   background: var(--color-surface-subtle);
 }
 
 .timelineOpRowArtifact .timelineOpName {
-  padding-left: 8px;
+  padding-left: 24px;
 }
 
 .timelineOpRowArtifact .timelineOpDate {
@@ -186,6 +180,23 @@
   background: var(--color-content-hover-bg);
 }
 
+/* The session's resting state is rendered in place, on the event row that
+   already recorded it — a separate closing entry below the timeline said
+   the same thing a second time. These give that row the weight the
+   standalone entry used to carry. */
+.timelineOpRowTerminal .timelineOpName {
+  font-weight: 500;
+  color: var(--color-content-primary);
+}
+
+.timelineOpRowTerminal {
+  border-bottom: none;
+}
+
+.timelineOpRowFailed .timelineOpName {
+  color: var(--color-delete);
+}
+
 .artifactFileIcon {
   font-size: 15px !important;
   color: var(--color-content-secondary);
@@ -194,9 +205,13 @@
 }
 
 /* Expanded status message (chevron toggle on rows that carry one);
-   padded surface box mirroring the artifact rows' treatment. */
+   padded surface box mirroring the artifact rows' treatment.
+
+   A sibling of its row rather than a child, because a message can contain
+   links and the row is a `role="button"`. That makes it a row of
+   `.timelineOps`'s table in its own right, so it spans the full width
+   without needing the `grid-column: 1 / -1` it used to carry. */
 .timelineOpMessage {
-  grid-column: 1 / -1;
   white-space: normal;
   font-size: 13px;
   font-weight: 300;
@@ -220,6 +235,38 @@
   color: var(--color-content-primary);
   padding: 12px 16px 12px 0;
   white-space: nowrap;
+}
+
+/* How many resources a plan is scoped to. A count, not the addresses:
+   one address runs past 50 characters and the row has no width to spare,
+   so the list itself lives in the row's tooltip and in the opened
+   artifact. Sits on the tinted artifact-row surface, so it is drawn with
+   a hairline rather than a fill, which would disappear against it. */
+.timelineOpTargetChip {
+  align-self: center;
+  margin-right: 12px;
+  padding: 1px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 300;
+  line-height: 16px;
+  color: var(--color-content-muted);
+  white-space: nowrap;
+}
+
+/* The row's tooltip: the plan's targets, one address per line. Addresses
+   are identifiers with no spaces, so they break anywhere rather than
+   overflow — the safety net for the few that outrun the tooltip's width,
+   which is set on the component (MUI's own `max-width` wins over a module
+   class here). */
+.targetTooltipList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
 }
 
 .timelineOpDate {

@@ -11,7 +11,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { useWizardTerraform } from "./useWizardTerraform";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
 import type { SessionOutcome } from "@/services/workflows/session_outcome";
-import { makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import { makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 
 vi.mock("@/services/core/sessionsCache", () => ({
   invalidateSessionsCache: vi.fn(),
@@ -40,7 +40,6 @@ function makeResultsOutcome(
     report: null,
     compliance: null,
     code: "<Terraform_Plan>\nplan output\n</Terraform_Plan>\n<main.tf>\nresource {}\n</main.tf>",
-    targets: ["azurerm_resource_group.main"],
     ...overrides,
   };
 }

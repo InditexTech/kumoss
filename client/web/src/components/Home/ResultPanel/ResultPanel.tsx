@@ -6,8 +6,11 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useSession } from "@/contexts/SessionContext";
 import { CodeBlock, StatusBadge } from "@/components/ui";
+import { STRINGS } from "@/constants/strings";
 import { processTerraformPlan } from "@/utils/terraformUtils";
 import {
   extractCodeFiles,
@@ -42,6 +45,7 @@ import styles from "./ResultPanel.module.css";
 
 const TAB_FADE_MS = 300;
 const VALID_DETAILS: DetailView[] = ["impact", "costs", "change"];
+const LABELS_TARGETS = STRINGS.sessions.artifactTargets;
 
 export type TabId = "plan" | "code" | "report";
 
@@ -59,6 +63,7 @@ export default function ResultPanel({
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [importFilter, setImportFilter] = useState<ImportFilterId>("all");
   const [selectedFile, setSelectedFile] = useState("");
+  const [targetsOpen, setTargetsOpen] = useState(true);
 
   const rawDetail = searchParams.get("detail") as DetailView;
   const activeDetail: DetailView =
@@ -154,6 +159,16 @@ export default function ResultPanel({
     () => extractCodeFiles(code),
     [code],
   );
+  // `code` is a flat blob, so `extractCodeFiles` can only recover bodies —
+  // whether each one is raw content or a diff travels beside it.
+  const newFiles = useMemo(
+    () => new Set(session.newFiles ?? []),
+    [session.newFiles],
+  );
+  // Addresses the displayed plan was narrowed to. Session state rather than
+  // report data: they come off the plan artifact the resolver selected, so a
+  // report has no way to carry them (see `session_outcome.fetchPlanContent`).
+  const planTargets = session.planTargets ?? [];
 
   return (
     <div className={styles.panel}>
@@ -189,12 +204,50 @@ export default function ResultPanel({
           {activeTab === "plan" && (
             <div className={styles.planView}>
               {planCode ? (
-                <CodeBlock
-                  code={planCode}
-                  language="hcl"
-                  showLineNumbers
-                  height="100%"
-                />
+                <>
+                  {planTargets.length > 0 && (
+                    <div className={styles.targets}>
+                      <button
+                        type="button"
+                        className={styles.targetsToggle}
+                        onClick={() => setTargetsOpen((open) => !open)}
+                        aria-expanded={targetsOpen}
+                      >
+                        {targetsOpen ? (
+                          <ExpandLessIcon
+                            className={styles.targetsToggleIcon}
+                          />
+                        ) : (
+                          <ExpandMoreIcon
+                            className={styles.targetsToggleIcon}
+                          />
+                        )}
+                        {`${LABELS_TARGETS} (${planTargets.length})`}
+                      </button>
+                      {targetsOpen && (
+                        <ul className={styles.targetsList}>
+                          {planTargets.map((target) => (
+                            <li key={target} className={styles.targetsItem}>
+                              {target}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {/* The editor takes `height="100%"`, so it needs a box that
+                      owns the space the targets block leaves — unlike the
+                      session panel's copy, which reserves it with fixed
+                      `calc()` heights. */}
+                  <div className={styles.planEditor}>
+                    <CodeBlock
+                      code={planCode}
+                      language="hcl"
+                      showLineNumbers
+                      height="100%"
+                    />
+                  </div>
+                </>
               ) : (
                 <Typography variant="bodyText" className={styles.emptyState}>
                   No terraform plan available to display.
@@ -208,6 +261,7 @@ export default function ResultPanel({
               {Object.keys(codeFiles).length > 0 ? (
                 <CodeBlock
                   files={codeFiles}
+                  newFiles={newFiles}
                   activeFile={selectedFile || Object.keys(codeFiles)[0]}
                   onFileChange={setSelectedFile}
                   showLineNumbers

@@ -7,12 +7,18 @@ from src.domains.entities import History, SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
-    TerraformValidationService,
+    SessionService,
     TaskService,
+    TemplateOrchestrationService,
+    TerraformValidationService,
 )
 from src.domains.value_objects import Conventions, PlanRef
 from src.shared.config import system_config
-from src.shared.constants import ContentType, OperationType
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    SessionStatus,
+)
 from src.shared.logger import logging
 
 
@@ -20,12 +26,16 @@ class TerraformDriftService:
     def __init__(
         self,
         session_context: SessionContext,
+        session_service: SessionService,
+        template_service: TemplateOrchestrationService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ):
         self.__ctx = session_context
+        self.__session_svc = session_service
+        self.__template_svc = template_service
         self.__validation_svc = validation_service
         self.__terraform_svc = terraform_service
         self.__split_svc = split_service
@@ -69,6 +79,11 @@ class TerraformDriftService:
 
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
+
+            _ = await self.__session_svc.update_status(
+                msg="Assessing drift on the targeted infrastructure.",
+                status=SessionStatus.RECONCILING,
+            )
 
             if plan is None:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
@@ -143,9 +158,8 @@ class TerraformDriftService:
         if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:
-            logging.warning(
-                f"Drift resolution completed but issues remain: {drift.drift}"
-            )
+            remaining = f"Drift resolution completed but issues remain: {drift.drift}"
+            logging.warning(remaining)
 
         return resolved(drift)
 
@@ -161,5 +175,5 @@ class TerraformDriftService:
                 targets=targets,
                 content=drift.drift,
                 content_type=ContentType.TEXT,
-                is_drift=True,
+                metadata={"type": "drift"},
             )

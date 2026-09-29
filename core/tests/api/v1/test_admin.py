@@ -82,7 +82,7 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
     async def test_admin_sessions_lists_across_users(self):
         _ = await self._seed_session("a@example.com")
         _ = await self._seed_session("b@example.com")
-        resp = await self.client.get("/v1/admin/sessions")
+        resp = await self.client.get("/v1/admin/sessions/list")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 2)
@@ -93,7 +93,7 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         _ = await self._seed_session("a@example.com")
         _ = await self._seed_session("b@example.com")
         resp = await self.client.get(
-            "/v1/admin/sessions", params={"user_email": "a@example"}
+            "/v1/admin/sessions/list", params={"user_email": "a@example"}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
@@ -104,7 +104,7 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         _, sid = await self._seed_session("a@example.com")
         _ = await self._seed_session("b@example.com")
         resp = await self.client.get(
-            "/v1/admin/sessions", params={"search": str(sid)[:8]}
+            "/v1/admin/sessions/list", params={"search": str(sid)[:8]}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
@@ -113,7 +113,7 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
 
     async def test_admin_session_detail(self):
         _, sid = await self._seed_session("a@example.com")
-        resp = await self.client.get(f"/v1/admin/sessions/{sid}")
+        resp = await self.client.get("/v1/admin/sessions", params={"id": str(sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["uuid"], str(sid))
 

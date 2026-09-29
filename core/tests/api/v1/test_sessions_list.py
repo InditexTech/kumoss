@@ -22,7 +22,7 @@ from src.shared.constants import (
 
 
 class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
-    """Contract tests for GET /v1/sessions and GET /v1/sessions/{id}."""
+    """Contract tests for GET /v1/sessions/list and GET /v1/sessions?id=."""
 
     async def asyncSetUp(self):
         await db.initialize()
@@ -56,7 +56,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await db.close()
 
     async def test_list_matches_contract(self):
-        resp = await self.client.get("/v1/sessions")
+        resp = await self.client.get("/v1/sessions/list")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 1)
@@ -68,7 +68,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["operation"], "generate")
         self.assertEqual(item["provider"], "azure")
         self.assertEqual(item["first_query"], "create a resource group")
-        self.assertEqual(item["workspace_uri"], "https://example.com/foo.git")
+        self.assertEqual(item["workspace"]["uri"], "https://example.com/foo.git")
         self.assertEqual(item["current_status"], "started")
         self.assertFalse(item["in_flight"])
         self.assertFalse(item["is_blocked"])
@@ -110,7 +110,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             self.sid, "https://github.com/org/repo/pull/42", 42
         )
 
-        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
 
@@ -123,10 +123,9 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("pull_request", body)
         self.assertNotIn("pull_requests", body)
         self.assertEqual(body["current_status"], "generating")
-        # Session-level timeline spans all rounds.
-        self.assertEqual(
-            [s["status"] for s in body["statuses"]], ["started", "generating"]
-        )
+        # The timeline is the rounds' statuses concatenated in round
+        # order; the payload no longer ships a second, flat copy.
+        self.assertNotIn("statuses", body)
         # History is opt-in via ?include_history=true; null by default.
         self.assertIsNone(body["history"])
 
@@ -140,15 +139,15 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([s["status"] for s in rnd["statuses"]], ["generating"])
         # URLs are presigned by the object-storage singleton; the stored
         # key must be embedded in the signed URL.
-        self.assertIn("report.json", rnd["report"]["url"])
-        self.assertEqual(rnd["plan"]["targets"], ["azurerm_resource_group.main"])
+        self.assertIn("report.json", rnd["reports"][0]["url"])
+        self.assertEqual(rnd["plans"][0]["targets"], ["azurerm_resource_group.main"])
         self.assertEqual(rnd["code_changes"][0]["file_name"], "main.tf")
         self.assertEqual(rnd["code_changes"][0]["file_size_bytes"], 128)
-        self.assertIn("check.json", rnd["compliance"]["url"])
-        self.assertFalse(rnd["compliance"]["passed"])
+        self.assertIn("check.json", rnd["compliance_checks"][0]["url"])
+        self.assertFalse(rnd["compliance_checks"][0]["passed"])
         # Rounds without a check (the compliance checker is optional)
-        # expose it as null.
-        self.assertIsNone(first["compliance"])
+        # expose an empty list.
+        self.assertEqual(first["compliance_checks"], [])
         self.assertEqual(
             rnd["pull_requests"],
             [
@@ -166,7 +165,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await DatabaseService.update_history(ctx)
 
         resp = await self.client.get(
-            f"/v1/sessions/{self.sid}", params={"include_history": "true"}
+            "/v1/sessions", params={"id": str(self.sid), "include_history": "true"}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(
@@ -175,12 +174,12 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         # Default stays history-less.
-        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertIsNone(resp.json()["history"])
 
     async def test_detail_unknown_session_is_404(self):
-        resp = await self.client.get(f"/v1/sessions/{uuid4()}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(uuid4())})
         self.assertEqual(resp.status_code, 404, resp.text)
 
     async def test_list_filters(self):
@@ -189,7 +188,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async def fetch(**params: str) -> int:
-            resp = await self.client.get("/v1/sessions", params=params)
+            resp = await self.client.get("/v1/sessions/list", params=params)
             self.assertEqual(resp.status_code, 200, resp.text)
             return resp.json()["total"]
 

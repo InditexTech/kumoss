@@ -33,6 +33,16 @@ class IObjectStorage(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def metadata_header_prefix(self) -> str:
+        """Prefix this store prepends to metadata keys on the way out.
+
+        A browser reading an object's metadata off a presigned URL
+        has to be told which prefix to ask for.
+        """
+        pass
+
     @abstractmethod
     async def get(self, key: str) -> bytes:
         """Full object body for ``key``.

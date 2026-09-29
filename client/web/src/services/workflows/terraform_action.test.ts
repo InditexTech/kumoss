@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import { MODE } from "@/types/ui";
 import type { Mode } from "@/types/ui";
 import { runTerraformActionWorkflow } from "./terraform_action";

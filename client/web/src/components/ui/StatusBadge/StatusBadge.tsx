@@ -34,6 +34,7 @@ const VARIANT_CLASS: Record<string, string | undefined> = {
   // Round-phase statuses share the in-progress styling.
   filtering: styles.generating,
   validating: styles.generating,
+  reconciling: styles.generating,
   apply: styles.generating,
   report: styles.generating,
   uncompleted: styles.partial,

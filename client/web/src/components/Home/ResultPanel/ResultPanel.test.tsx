@@ -348,3 +348,64 @@ describe("ResultPanel", () => {
     });
   });
 });
+
+/**
+ * The addresses a targeted plan was narrowed to. They come from the plan
+ * artifact the session resolver selected (`session_outcome.fetchPlanContent`),
+ * not from the report, so they are session state rather than report data.
+ */
+describe("ResultPanel plan targets", () => {
+  const TARGETS = ["azurerm_key_vault.a", "azurerm_resource_group.main"];
+
+  function renderPlanTab(patch: Record<string, unknown>) {
+    return renderResultPanel({ tab: "plan" }, {
+      terraform_report: mockReport,
+      code: "<Terraform_Plan>resource {}</Terraform_Plan>",
+      ...patch,
+    });
+  }
+
+  it("lists every target, open by default", () => {
+    renderPlanTab({ planTargets: TARGETS });
+
+    expect(screen.getByText("Targets (2)")).toBeInTheDocument();
+    for (const target of TARGETS) {
+      expect(screen.getByText(target)).toBeInTheDocument();
+    }
+  });
+
+  it("collapses the list without losing the count", async () => {
+    const user = userEvent.setup();
+    renderPlanTab({ planTargets: TARGETS });
+
+    await user.click(screen.getByRole("button", { name: /Targets \(2\)/ }));
+
+    expect(screen.getByText("Targets (2)")).toBeInTheDocument();
+    expect(screen.queryByText(TARGETS[0])).toBeNull();
+  });
+
+  it("renders no targets block for an untargeted plan", () => {
+    renderPlanTab({ planTargets: [] });
+
+    expect(screen.queryByText(/Targets/)).toBeNull();
+    expect(screen.getByTestId("code-block")).toBeInTheDocument();
+  });
+
+  it("renders no targets block when the session carries none", () => {
+    renderPlanTab({});
+
+    expect(screen.queryByText(/Targets/)).toBeNull();
+  });
+
+  it("keeps the targets out of the empty plan state", () => {
+    renderResultPanel({ tab: "plan" }, {
+      terraform_report: mockReport,
+      planTargets: TARGETS,
+    });
+
+    expect(
+      screen.getByText("No terraform plan available to display."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Targets/)).toBeNull();
+  });
+});

@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
@@ -56,6 +57,7 @@ from src.infrastructure.database.models import (
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
+from src.shared.logger import logging
 from src.shared.constants import (
     OperationRole,
     OperationType,
@@ -620,7 +622,11 @@ class DatabaseService:
             operation=s.operation,
             provider=provider.provider,
             first_query=first_query,
-            workspace_uri=workspace.uri,
+            workspace=WorkspaceRef(
+                uri=workspace.uri,
+                branch=workspace.branch,
+                root_path=workspace.root_path,
+            ),
             current_status=current_status,
             in_flight=s.in_flight,
             is_blocked=s.is_blocked,
@@ -747,12 +753,6 @@ class DatabaseService:
 
     @staticmethod
     def __round_detail(r: Round) -> RoundDetail:
-        # A round holds at most one meaningful report/plan; latest wins.
-        report = max(r.reports, key=lambda x: (x.created_at, x.id), default=None)
-        plan = max(r.terraform_plans, key=lambda x: (x.created_at, x.id), default=None)
-        compliance = max(
-            r.compliance_checks, key=lambda x: (x.created_at, x.id), default=None
-        )
         return RoundDetail(
             id=r.id,
             number=r.number,
@@ -761,22 +761,22 @@ class DatabaseService:
                 DatabaseService.__status_entry(st)
                 for st in sorted(r.statuses, key=lambda st: (st.created_at, st.id))
             ],
-            report=ReportRef(
-                **DatabaseService.__artifact_fields(report), type=report.type
-            )
-            if report
-            else None,
-            compliance=ComplianceCheckRef(
-                **DatabaseService.__artifact_fields(compliance),
-                passed=compliance.passed,
-            )
-            if compliance
-            else None,
-            plan=TerraformPlanRef(
-                **DatabaseService.__artifact_fields(plan), targets=plan.targets
-            )
-            if plan
-            else None,
+            reports=[
+                ReportRef(**DatabaseService.__artifact_fields(rep), type=rep.type)
+                for rep in sorted(r.reports, key=lambda rep: (rep.created_at, rep.id))
+            ],
+            compliance_checks=[
+                ComplianceCheckRef(
+                    **DatabaseService.__artifact_fields(c), passed=c.passed
+                )
+                for c in sorted(r.compliance_checks, key=lambda c: (c.created_at, c.id))
+            ],
+            plans=[
+                TerraformPlanRef(
+                    **DatabaseService.__artifact_fields(p), targets=p.targets
+                )
+                for p in sorted(r.terraform_plans, key=lambda p: (p.created_at, p.id))
+            ],
             code_changes=[
                 CodeChangeRef(
                     **DatabaseService.__artifact_fields(c), file_name=c.file_name
@@ -806,7 +806,14 @@ class DatabaseService:
         if not include_history:
             cached = await redis_client.get_json(_k_detail(session_id))
             if cached is not None:
-                return SessionDetail.model_validate(cached)
+                try:
+                    return SessionDetail.model_validate(cached)
+                except ValidationError as e:
+                    logging.warning(
+                        f"Stale-shaped cache entry at {_k_detail(session_id)} "
+                        f"failed to validate ({e}); dropping it"
+                    )
+                    _ = await redis_client.invalidate(_k_detail(session_id))
 
         async with db.session() as sess:
             stmt = (
@@ -853,12 +860,6 @@ class DatabaseService:
         # max(id) is the append-order proxy for "latest" — the same
         # convention get_last_status and the list_sessions filter use.
         current = max(s.statuses, key=lambda st: st.id, default=None)
-        # Every status belongs to a round (NOT NULL); the session-level
-        # view is the full timeline across all rounds.
-        session_statuses = sorted(
-            s.statuses,
-            key=lambda st: (st.created_at, st.id),
-        )
 
         detail = SessionDetail(
             uuid=s.uuid,
@@ -866,20 +867,21 @@ class DatabaseService:
             operation=s.operation,
             provider=provider.provider,
             first_query=history.first_query if history else None,
-            workspace_uri=workspace.uri,
-            current_status=current.status if current else SessionStatus.STARTED,
-            in_flight=s.in_flight,
-            is_blocked=s.is_blocked,
-            created_at=s.created_at,
-            updated_at=s.updated_at,
             workspace=WorkspaceRef(
                 uri=workspace.uri,
                 branch=workspace.branch,
                 root_path=workspace.root_path,
             ),
+            current_status=current.status if current else SessionStatus.STARTED,
+            in_flight=s.in_flight,
+            is_blocked=s.is_blocked,
+            created_at=s.created_at,
+            updated_at=s.updated_at,
             scope_id=provider.scope_id,
-            statuses=[DatabaseService.__status_entry(st) for st in session_statuses],
-            rounds=[DatabaseService.__round_detail(r) for r in s.rounds],
+            rounds=[
+                DatabaseService.__round_detail(r)
+                for r in sorted(s.rounds, key=lambda r: (r.number, r.id))
+            ],
             history=history.payload if include_history and history else None,
         )
 

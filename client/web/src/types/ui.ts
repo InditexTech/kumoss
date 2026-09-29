@@ -90,6 +90,12 @@ export interface Session {
   terraform_report?: TerraformReport;
   compliance_report?: ComplianceReport;
   code?: string;
+  planTargets?: string[];
+  /**
+   * File names in `code` whose body is raw content rather than a diff.
+   * `code` is a flat blob, so the shape cannot be recovered from it.
+   */
+  newFiles?: string[];
   applyResults?: ApplyResultsData;
 }
 

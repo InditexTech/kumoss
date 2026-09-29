@@ -11,6 +11,7 @@ failure), not the backend.
 """
 
 import unittest
+from types import SimpleNamespace
 from typing import override
 from uuid import uuid4
 
@@ -30,7 +31,12 @@ from src.infrastructure.database.models import (
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage._s3 import S3ObjectStorage
-from src.shared.constants import OperationType, ReportType, TerraformProvider
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    ReportType,
+    TerraformProvider,
+)
 
 _ENDPOINT = "http://object-storage:9000"
 
@@ -40,15 +46,24 @@ class _RecordingStorage(IObjectStorage):
 
     def __init__(self):
         self.puts: list[str] = []
+        self.metas: list[dict[str, str]] = []
         self.deletes: list[str] = []
+
+    @property
+    @override
+    def metadata_header_prefix(self) -> str:
+        return "x-fake-meta-"
 
     @override
     async def ensure_bucket(self) -> None:
         pass
 
     @override
-    async def put(self, key: str, data: bytes, content_type: str) -> None:
+    async def put(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         self.puts.append(key)
+        self.metas.append(metadata)
 
     @override
     async def get(self, key: str) -> bytes:
@@ -71,7 +86,9 @@ class _DownStorage(_RecordingStorage):
     """Fake port whose ``put`` fails like an unreachable store."""
 
     @override
-    async def put(self, key: str, data: bytes, content_type: str) -> None:
+    async def put(
+        self, key: str, data: bytes, content_type: str, metadata: dict[str, str]
+    ) -> None:
         raise ObjectStorageUnavailable(message="object store is down", error_code=503)
 
 
@@ -127,7 +144,11 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
 class TestStoreArtifacts(_RoundBase):
     async def test_store_report_uploads_and_records_row(self):
         report_id = await self.service.store_report(
-            self.sid, self.round_id, ReportType.GENERATE, '{"summary": "ok"}'
+            self.sid,
+            self.round_id,
+            ReportType.GENERATE,
+            '{"summary": "ok"}',
+            content_type=ContentType.JSON,
         )
 
         report: Report | None = await db.get_by(Report, id=report_id)
@@ -149,7 +170,11 @@ class TestStoreArtifacts(_RoundBase):
 
     async def test_store_terraform_plan_records_targets(self):
         plan_id = await self.service.store_terraform_plan(
-            self.sid, self.round_id, ["azurerm_resource_group.rg"], "plan output"
+            self.sid,
+            self.round_id,
+            ["azurerm_resource_group.rg"],
+            "plan output",
+            content_type=ContentType.TEXT,
         )
 
         plan: TerraformPlan | None = await db.get_by(TerraformPlan, id=plan_id)
@@ -159,13 +184,17 @@ class TestStoreArtifacts(_RoundBase):
 
         artifact: Artifact | None = await db.get_by(Artifact, id=plan.artifact_id)
         assert artifact is not None
-        self.assertIn(f"/rounds/{self.round_id}/plans/plan-", artifact.uri)
+        self.assertIn(f"/rounds/{self.round_id}/plans/", artifact.uri)
         self.assertEqual(artifact.content_type, "text/plain")
         self.assertEqual(await self.storage.get(artifact.uri), b"plan output")
 
     async def test_store_code_change_keeps_nested_name_in_db_only(self):
         change_id = await self.service.store_code_change(
-            self.sid, self.round_id, "infra/main.tf", 'resource "x" "y" {}'
+            self.sid,
+            self.round_id,
+            "infra/main.tf",
+            'resource "x" "y" {}',
+            content_type=ContentType.TEXT,
         )
 
         change: CodeChange | None = await db.get_by(CodeChange, id=change_id)
@@ -181,10 +210,18 @@ class TestStoreArtifacts(_RoundBase):
 
     async def test_two_reports_in_one_round_get_distinct_keys(self):
         first = await self.service.store_report(
-            self.sid, self.round_id, ReportType.GENERATE, "one"
+            self.sid,
+            self.round_id,
+            ReportType.GENERATE,
+            "one",
+            content_type=ContentType.JSON,
         )
         second = await self.service.store_report(
-            self.sid, self.round_id, ReportType.GENERATE, "two"
+            self.sid,
+            self.round_id,
+            ReportType.GENERATE,
+            "two",
+            content_type=ContentType.JSON,
         )
 
         first_report = await db.get_by(Report, id=first)
@@ -198,15 +235,17 @@ class TestStoreArtifacts(_RoundBase):
     async def test_detail_read_model_presigns_stored_keys(self):
         """End-to-end through the __artifact_url seam."""
         _ = await self.service.store_report(
-            self.sid, self.round_id, ReportType.GENERATE, '{"summary": "ok"}'
+            self.sid,
+            self.round_id,
+            ReportType.GENERATE,
+            '{"summary": "ok"}',
+            content_type=ContentType.JSON,
         )
 
         detail = await DatabaseService.get_session_detail(self.sid)
         # Round 1 is opened by create_session; ours is round 2.
         self.assertEqual(len(detail.rounds), 2)
-        report_ref = detail.rounds[1].report
-        self.assertIsNotNone(report_ref)
-        assert report_ref is not None
+        [report_ref] = detail.rounds[1].reports
         # Signed by the config-selected singleton: assert shape, not host.
         self.assertIn("X-Amz-Signature=", report_ref.url)
         self.assertIn(f"/rounds/{self.round_id}/reports/generate-", report_ref.url)
@@ -225,7 +264,11 @@ class TestStoreFailureModes(_RoundBase):
         missing_round = self.round_id + 999_999
         with self.assertRaises(ExceptionHandler):
             _ = await service.store_report(
-                self.sid, missing_round, ReportType.GENERATE, "content"
+                self.sid,
+                missing_round,
+                ReportType.GENERATE,
+                "content",
+                content_type=ContentType.JSON,
             )
 
         # The uploaded key must have been deleted again.
@@ -248,7 +291,10 @@ class TestStoreFailureModes(_RoundBase):
                 self.round_id,
                 ReportType.GENERATE,
                 "content",
-                content_type="application/" + ("x" * 60),  # >64 chars
+                # A bare object standing in for ContentType: no real member
+                # is long enough to trip the guard, so this fakes one via
+                # the same `.value` the real enum exposes.
+                content_type=SimpleNamespace(value="application/" + ("x" * 60)),
             )
         self.assertEqual(caught.exception.error_code, 400)
         self.assertEqual(fake.puts, [])
@@ -258,11 +304,64 @@ class TestStoreFailureModes(_RoundBase):
 
         with self.assertRaises(ObjectStorageUnavailable):
             _ = await service.store_report(
-                self.sid, self.round_id, ReportType.GENERATE, "content"
+                self.sid,
+                self.round_id,
+                ReportType.GENERATE,
+                "content",
+                content_type=ContentType.JSON,
             )
 
         artifacts: list[Artifact] = await db.list_by(Artifact)
         self.assertEqual(artifacts, [])
+
+
+class TestPlanTypeMetadata(_RoundBase):
+    """The caller's metadata is what labels a plan object.
+
+    The read model returns a round's plans unlabelled and in order, so
+    the object metadata is the only place a consumer can ask what a
+    given plan artifact actually is — the key carries no flavour.
+    """
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        # Swap the real S3 port for the recorder: the assertion is about
+        # what the service hands to ``put``, not what MinIO stores.
+        self.recorder = _RecordingStorage()
+        self.service = ArtifactStorageService(self.recorder)
+
+    async def __store(self, metadata: dict[str, str] = None) -> None:
+        _ = await self.service.store_terraform_plan(
+            self.sid,
+            self.round_id,
+            ["azurerm_resource_group.rg"],
+            "plan output",
+            content_type=ContentType.TEXT,
+            metadata=metadata,
+        )
+
+    async def test_caller_metadata_reaches_the_object_verbatim(self):
+        await self.__store(metadata={"type": "drift", "origin": "validation"})
+        self.assertEqual(
+            self.recorder.metas[-1], {"type": "drift", "origin": "validation"}
+        )
+
+    async def test_an_unlabelled_plan_carries_no_metadata(self):
+        await self.__store()
+        self.assertEqual(self.recorder.metas[-1], {})
+
+    async def test_the_key_carries_no_flavour(self):
+        # Two plans of different kinds land under the same prefix, so no
+        # consumer can classify one by parsing its key.
+        await self.__store(metadata={"type": "drift"})
+        await self.__store(metadata={"type": "plan"})
+
+        prefix = f"sessions/{self.sid}/rounds/{self.round_id}/plans/"
+        for key in self.recorder.puts[-2:]:
+            self.assertTrue(key.startswith(prefix), key)
+            self.assertNotIn("drift", key)
+            self.assertNotIn("plan-", key)
+        self.assertNotEqual(self.recorder.puts[-2], self.recorder.puts[-1])
 
 
 if __name__ == "__main__":

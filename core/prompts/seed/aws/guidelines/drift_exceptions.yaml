@@ -25,3 +25,12 @@ body: |
   - No carve-outs configured.
   - Example: "Never reconcile resources tagged `owner = platform`; the
     platform team manages them."
+
+  ## Ignore tags_all fields in every resource
+  - The `tags_all` attribute is a read-only attribute that is automatically
+    populated by the provider with all tags applied to the resource, including
+    inherited tags from the provider's `default_tags` configuration. It should
+    not be defined in the Terraform configuration, as it can lead to unexpected
+    behavior and errors during plan and apply operations.
+  - No `tags_all` definition should be added or reconciled depending on the provider version will force failures on future actions.
+  - If a resource has a `tags_all` attribute defined in the iac, the tags defined should be moved to the `tags` attribute of that resource.

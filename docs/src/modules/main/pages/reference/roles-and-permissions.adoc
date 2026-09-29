@@ -198,15 +198,15 @@ Backend routes behind the matrix:
 |===
 |Route |Who
 
-|`GET /api/v1/sessions`, `GET /api/v1/sessions/\{session_id}`
+|`GET /api/v1/sessions/list`, `GET /api/v1/sessions?id=\{session_id}`
 |Any signed-in user; the list is always scoped to the caller, the
 detail is owner or any panel role
 
 |`GET /api/v1/events/subscribe/\{session_id}`
 |Owner or any panel role
 
-|`GET /api/v1/admin/sessions`,
-`GET /api/v1/admin/sessions/\{session_id}`
+|`GET /api/v1/admin/sessions/list`,
+`GET /api/v1/admin/sessions?id=\{session_id}`
 |panel `viewer` or higher
 
 |`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock`

@@ -12,6 +12,7 @@ import styles from "./PercentageBarProgress.module.css";
 const GENERATE_PERCENTAGES: Record<string, number> = {
   STARTED: 0,
   FILTERING: 30,
+  RECONCILING: 45,
   GENERATING: 60,
   VALIDATING: 80,
   APPLY: 90,
@@ -23,6 +24,7 @@ const GENERATE_PERCENTAGES: Record<string, number> = {
 const APPLY_PERCENTAGES: Record<string, number> = {
   STARTED: 0,
   FILTERING: 30,
+  RECONCILING: 45,
   GENERATING: 60,
   VALIDATING: 80,
   APPLY: 90,
@@ -59,10 +61,7 @@ export default function PercentageBarProgress() {
     <Fade in timeout={800}>
       <div className={styles.container}>
         <div className={styles.track}>
-          <div
-            className={fillCls.join(" ")}
-            style={{ width: `${pct}%` }}
-          />
+          <div className={fillCls.join(" ")} style={{ width: `${pct}%` }} />
         </div>
 
         <div className={styles.messageArea}>

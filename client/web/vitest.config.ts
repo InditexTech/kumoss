@@ -19,7 +19,6 @@ export default mergeConfig(
         exclude: [
           'src/**/*.test.*',
           'src/test/**',
-          'src/mocks/**',
           'src/**/*.d.ts',
           'src/main.tsx',
         ],
