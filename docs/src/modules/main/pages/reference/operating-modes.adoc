@@ -1,9 +1,9 @@
 = Operating modes
 :description: What each Nebula operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
 
-Nebula's web application offers four operating modes in its header:
+Nebula's web application offers five operating modes in its header:
 Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation,
-and Import Infrastructure. This page is the lookup material behind them:
+Partial Import, and Full Import. This page is the lookup material behind them:
 the inputs every session provides, the lifecycle every session follows,
 and a table that compares what each mode does today. The task guides for
 each mode are xref:main:guides/generate-infrastructure.adoc[Generate
@@ -74,24 +74,27 @@ locked.
 [#compare-modes]
 == Comparing the operating modes
 
-[cols="2,3,3,3,3",options="header"]
+[cols="2,3,3,3,3,3",options="header"]
 |===
-| |Generate Infrastructure |Partial Drift Remediation |Full Drift Remediation |Import Infrastructure (today)
+| |Generate Infrastructure |Partial Drift Remediation |Full Drift Remediation |Partial Import |Full Import
 
 |Core route
 |`POST /api/v1/iac/generate`
 |`POST /api/v1/iac/drift` with `is_partial: true`
 |`POST /api/v1/iac/drift` with `is_partial: false`
-|`POST /api/v1/iac/apply`
+|`POST /api/v1/iac/import` with `is_partial: true`
+|`POST /api/v1/iac/import` with `is_partial: false`
 
 |Minimum operation role (API)
 |`developer`
 |`devops`
 |`devops`
-|`developer` + owner
+|`developer`
+|`developer`
 
 |Selectable by roles below `devops` in the UI
 |yes
+|no (shown disabled)
 |no (shown disabled)
 |no (shown disabled)
 |no (shown disabled)
@@ -100,28 +103,33 @@ locked.
 |required, classified by the filter
 |required, classified by the drift filter
 |required by the API, not used for filtering
-|not sent
+|required, classified by the import filter
+|fixed "Import all the infrastructure", not used for filtering
 
 |Reads existing code and state
 |yes
 |yes
 |yes
-|applies the pinned plan only
+|yes, plus the cloud scope inventory
+|yes, plus the cloud scope inventory
 
 |Terraform targets
 |generated from the diff history
 |generated from the request
 |none (whole root)
-|fixed by the pinned plan
+|generated from the diff history
+|generated from the diff history
 
 |Drift handling
 |two-iteration pre-check on session targets
 |up to `max_drift_reports` iterations
 |up to `max_drift_reports` iterations
-|none
+|convergence after import, up to `max_drift_reports` iterations
+|convergence after import, up to `max_drift_reports` iterations
 
 |Compliance check
 |yes, when enabled
+|no
 |no
 |no
 |no
@@ -131,28 +139,33 @@ locked.
 |no
 |no
 |no
+|no
 
 |Report type
 |`generate`
 |`drift`
 |`drift`
-|`apply`
+|`import`
+|`import`
 
 |Pins a plan
 |yes
 |no
 |no
-|consumes it
+|no
+|no
 
 |Enables apply
 |yes
 |no
 |no
-|is the apply
+|no (the state is written during the round)
+|no (the state is written during the round)
 
 |Pull request
 |create and merge from the branch
 |create and merge from the branch
 |create and merge from the branch
-|typically after merge
+|create and merge from the branch
+|create and merge from the branch
 |===

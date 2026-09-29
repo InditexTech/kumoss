@@ -90,9 +90,9 @@ class TemplateAdapter(ITemplate):
         )
 
     @override
-    def render_task_splitter(self) -> str:
+    def render_task_splitter(self, operation_type: OperationType) -> str:
         t = self._get_template(self._core + "task_splitter.jinja")
-        return t.render()
+        return t.render(IS_DRIFT=operation_type is OperationType.DRIFT)
 
     @override
     def render_filter_reconciliation(self) -> str:

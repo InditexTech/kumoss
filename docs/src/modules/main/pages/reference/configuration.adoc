@@ -359,6 +359,16 @@ condition fires.
 |Maximum generate-then-validate attempts per generation task before the
 round fails with `Validation loop exceeded.`
 
+|`orchestration.max_import_iteration`
+|integer
+|`5`
+|`5`
+|Optional
+|Maximum generate-then-import attempts in an import round. A failed plan
+or a rejected import is fed back to the generator and counts as one
+attempt. When the attempts run out after a passing plan, the round still
+reports what did import and lists what did not.
+
 |`orchestration.max_tool_chain_executions`
 |integer
 |`70`

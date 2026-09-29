@@ -76,8 +76,8 @@ against real state.
 *Artifacts and reports.* Drift reports and plans per iteration,
 code-change files, a `drift` JSON report, a pushed branch.
 
-*Plan pinned.* *No.* Drift sessions do not pin a plan, so apply (and
-therefore the Import Infrastructure mode) on a drift-only session is
+*Plan pinned.* *No.* Drift sessions do not pin a plan, so apply on a
+drift-only session is
 accepted with `202`, and then the background round fails with `No
 reviewed plan is pinned for this session; run a generate or drift round
 before applying.` Take the "or drift" in that message with a pinch of
