@@ -24,9 +24,9 @@ class TestAuthConfig(unittest.IsolatedAsyncioTestCase):
 
     async def test_returns_configured_values(self):
         oidc = OidcConfig(
-            issuer_url="https://idp.example.com/realms/nebula",
-            client_id="nebula-spa",
-            audience="nebula-api",
+            issuer_url="https://idp.example.com/realms/kumoss",
+            client_id="kumoss-spa",
+            audience="kumoss-api",
             scope="openid profile email custom",
         )
         with patch("src.api.v1.auth.system_config") as cfg:
@@ -36,17 +36,17 @@ class TestAuthConfig(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             resp.json(),
             {
-                "issuer_url": "https://idp.example.com/realms/nebula",
-                "client_id": "nebula-spa",
-                "audience": "nebula-api",
+                "issuer_url": "https://idp.example.com/realms/kumoss",
+                "client_id": "kumoss-spa",
+                "audience": "kumoss-api",
                 "scope": "openid profile email custom",
             },
         )
 
     async def test_scope_placeholder_served_expanded(self):
         oidc = OidcConfig(
-            issuer_url="https://idp.example.com/realms/nebula",
-            client_id="nebula-spa",
+            issuer_url="https://idp.example.com/realms/kumoss",
+            client_id="kumoss-spa",
             scope="openid api://{client_id}/access_as_user",
         )
         with patch("src.api.v1.auth.system_config") as cfg:
@@ -54,7 +54,7 @@ class TestAuthConfig(unittest.IsolatedAsyncioTestCase):
             resp = await self.client.get("/v1/auth/config")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
-        self.assertEqual(body["scope"], "openid api://nebula-spa/access_as_user")
+        self.assertEqual(body["scope"], "openid api://kumoss-spa/access_as_user")
         self.assertEqual(body["audience"], "")
 
     async def test_blank_issuer_means_auth_disabled(self):

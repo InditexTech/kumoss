@@ -80,7 +80,7 @@ class _GatingBase(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-123",
-            branch_name="Nebula/x",
+            branch_name="Kumoss/x",
             query="create a resource group",
             iac_path="infra",
         )

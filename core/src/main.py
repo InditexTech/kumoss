@@ -33,7 +33,7 @@ from src.shared.logger import logging
 async def lifespan(app: FastAPI):
     """Application lifespan handler for startup and shutdown events."""
     # Startup
-    logging.info("Starting Nebula application...")
+    logging.info("Starting Kumoss application...")
     try:
         await db.initialize(echo=False)
         logging.info("Database initialized successfully")
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logging.info("Shutting down Nebula application...")
+    logging.info("Shutting down Kumoss application...")
     shutdown_tracer_providers()
     logging.info("Tracer providers flushed and shut down")
     await redis_client.close()
@@ -122,17 +122,17 @@ tags_metadata: list[dict[str, str]] = [
 ]
 
 app = FastAPI(
-    title="Nebula",
-    summary="Browser-facing orchestration API of the Nebula core engine.",
+    title="Kumoss",
+    summary="Browser-facing orchestration API of the Kumoss core engine.",
     description="Generate compliant Infrastructure as Code with a couple of clicks",
     version=os.getenv("APP_VERSION", "0.0.0-dev"),
     contact={
-        "name": "Nebula maintainers",
-        "url": "https://github.com/InditexTech/nebula",
+        "name": "Kumoss maintainers",
+        "url": "https://github.com/InditexTech/kumoss",
     },
     license_info={
         "name": "Apache-2.0",
-        "url": "https://github.com/InditexTech/nebula/blob/main/LICENSE",
+        "url": "https://github.com/InditexTech/kumoss/blob/main/LICENSE",
     },
     openapi_tags=tags_metadata,
     swagger_ui_parameters={"syntaxHighlight.theme": "nord"},

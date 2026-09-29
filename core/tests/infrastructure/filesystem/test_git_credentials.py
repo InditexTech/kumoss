@@ -16,8 +16,8 @@ def _stub_cfg(
     provider="",
     user="",
     token="",
-    author_name="Nebula",
-    author_email="nebula@noreply.invalid",
+    author_name="Kumoss",
+    author_email="kumoss@noreply.invalid",
 ):
     cfg.git.provider.value = provider
     cfg.git.pat_user = user
@@ -59,7 +59,7 @@ class TestConfigureGitCredentials(unittest.TestCase):
         # Author identity is still set even when creds are skipped.
         self.assertTrue(
             _called_with_args(
-                mock_run, "git", "config", "--global", "user.name", "Nebula"
+                mock_run, "git", "config", "--global", "user.name", "Kumoss"
             )
         )
         self.assertTrue(
@@ -69,7 +69,7 @@ class TestConfigureGitCredentials(unittest.TestCase):
                 "config",
                 "--global",
                 "user.email",
-                "nebula@noreply.invalid",
+                "kumoss@noreply.invalid",
             )
         )
 
@@ -120,7 +120,7 @@ class TestConfigureGitCredentials(unittest.TestCase):
         )
         self.assertTrue(
             _called_with_args(
-                mock_run, "git", "config", "--global", "user.name", "Nebula"
+                mock_run, "git", "config", "--global", "user.name", "Kumoss"
             )
         )
         self.assertTrue(
@@ -130,7 +130,7 @@ class TestConfigureGitCredentials(unittest.TestCase):
                 "config",
                 "--global",
                 "user.email",
-                "nebula@noreply.invalid",
+                "kumoss@noreply.invalid",
             )
         )
 

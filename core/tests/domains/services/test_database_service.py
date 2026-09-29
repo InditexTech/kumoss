@@ -56,7 +56,7 @@ class _SessionBase(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-123",
-            branch_name="Nebula/x",
+            branch_name="Kumoss/x",
             query="create a resource group",
             iac_path="infra",
         )
@@ -105,7 +105,7 @@ class TestSessionContextFreshness(_SessionBase):
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
         self.assertEqual(ctx.scope_id, "sub-123")
         self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
-        self.assertEqual(ctx.branch_name, "Nebula/x")
+        self.assertEqual(ctx.branch_name, "Kumoss/x")
         self.assertEqual(ctx.iac_path, "infra")
         self.assertEqual(len(ctx.history), 0)
 
@@ -133,7 +133,7 @@ class TestSessionContextFreshness(_SessionBase):
             repo_uri="https://example.com/bar.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-456",
-            branch_name="Nebula/y",
+            branch_name="Kumoss/y",
             query="another one",
             iac_path="infra",
         )
@@ -277,7 +277,7 @@ class TestInFlightEnforcement(_SessionBase):
 
 class TestFinishedSessionDetailCache(_SessionBase):
     def _detail_key(self) -> str:
-        return f"nebula:v1:session:{self.sid}:detail"
+        return f"kumoss:v1:session:{self.sid}:detail"
 
     async def test_live_session_detail_is_never_cached(self):
         await DatabaseService.mark_session_status(
@@ -337,7 +337,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "working"
         )
-        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        status_key = f"kumoss:v1:session:{self.sid}:status:last"
         live_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertLessEqual(live_ttl, 6 * 60)
 
@@ -347,7 +347,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
 
     async def test_uncompleted_stays_live_for_the_cache(self):
         await DatabaseService.mark_uncompleted(self.sid, "gave up")
-        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        status_key = f"kumoss:v1:session:{self.sid}:status:last"
         live_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertLessEqual(live_ttl, 6 * 60)
 

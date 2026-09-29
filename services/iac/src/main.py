@@ -90,7 +90,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Nebula IaC Service",
+    title="Kumoss IaC Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,

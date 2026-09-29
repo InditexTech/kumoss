@@ -92,7 +92,7 @@ from src.shared.constants import (
 # Keys are namespaced and versioned so a schema change can drop everything
 # by bumping the prefix.
 
-_CACHE_NS = "nebula:v1"
+_CACHE_NS = "kumoss:v1"
 
 _TTL_FACTS = 4 * 24 * 60 * 60  # write-once facts; immutable, safe to keep long
 _TTL_CONTEXT = 2 * 24 * 60 * 60  # session context; written through on save

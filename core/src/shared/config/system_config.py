@@ -5,7 +5,7 @@
 """System-wide configuration loaded from a YAML file.
 
 Single source of truth for every deployment-tunable knob in the core.
-Resolved at startup from the path in ``NEBULA_CONFIG``; if unset or
+Resolved at startup from the path in ``KUMOSS_CONFIG``; if unset or
 missing, defaults defined here apply (so the OSS distribution boots
 without any config file).
 
@@ -111,7 +111,7 @@ class LlmConfig(BaseModel):
     LiteLLM model-id strings (``provider/model``).  Credentials are
     resolved from the provider's standard env vars (see the provider
     tables at
-    https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/);
+    https://inditextech.github.io/kumoss/prerelease/main/reference/llm-providers/);
     the validator fails boot when litellm reports required env vars
     missing.
 
@@ -223,7 +223,7 @@ class IacServiceConfig(ServiceEndpointConfig):
     """
 
     endpoint: str = "http://iac:8082"
-    token_env: str = "NEBULA_IAC_TOKEN"
+    token_env: str = "KUMOSS_IAC_TOKEN"
     job_poll_interval: float = 5.0
     job_timeout: float = 3600.0
 
@@ -308,8 +308,8 @@ class GitConfig(BaseModel):
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 
     # git refuses to create a commit without name + email.
-    author_name: str = "Nebula"
-    author_email: str = "nebula@noreply.invalid"
+    author_name: str = "Kumoss"
+    author_email: str = "kumoss@noreply.invalid"
 
     @property
     def pat_user(self) -> str:
@@ -332,18 +332,18 @@ class GitConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    """Credentials for Nebula postgres database"""
+    """Credentials for Kumoss postgres database"""
 
-    nebula_database_url_env: str = "NEBULA_SQL_DATABASE_URL"
+    kumoss_database_url_env: str = "KUMOSS_SQL_DATABASE_URL"
 
     @property
-    def nebula_database_url(self) -> str:
-        return _env(self.nebula_database_url_env)
+    def kumoss_database_url(self) -> str:
+        return _env(self.kumoss_database_url_env)
 
     @model_validator(mode="after")
     def _assert_urls(self) -> DatabaseConfig:
-        if not self.nebula_database_url:
-            raise ConfigError("Missing env variable for nebula database")
+        if not self.kumoss_database_url:
+            raise ConfigError("Missing env variable for kumoss database")
         return self
 
 
@@ -360,7 +360,7 @@ class RedisConfig(BaseModel):
     database instead of stalling requests.
     """
 
-    redis_url_env: str = "NEBULA_REDIS_URL"
+    redis_url_env: str = "KUMOSS_REDIS_URL"
     default_url: str = "redis://redis:6379/0"
     max_connections: int = 20
     socket_connect_timeout: float = 2.0
@@ -394,7 +394,7 @@ class StorageConfig(BaseModel):
 
     ``terraform_state_bucket`` names a second bucket (blob container on
     STORAGE_ACCOUNT) in the same store, holding the Terraform state of
-    the projects Nebula manages. It is separate from ``bucket`` so that
+    the projects Kumoss manages. It is separate from ``bucket`` so that
     state does not inherit whatever lifecycle or presign policy the
     artifacts bucket carries. Empty turns managed state off: no backend
     override is written and each workspace keeps the backend its own
@@ -404,8 +404,8 @@ class StorageConfig(BaseModel):
     # `provider` is ObjectStorageProvider enum names (see
     # core/src/shared/constants.py::ObjectStorageProvider).
     provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
-    bucket: str = "nebula-artifacts"
-    terraform_state_bucket: str = "nebula-terraform-state"
+    bucket: str = "kumoss-artifacts"
+    terraform_state_bucket: str = "kumoss-terraform-state"
     endpoint_url: str = "http://object-storage:9000"
     public_endpoint_url: str = "http://localhost:9000"
     region: str = "us-east-1"
@@ -534,15 +534,15 @@ class SystemConfig(BaseModel, frozen=True):
         return self
 
     @classmethod
-    def load(cls, config_path: str = "/etc/nebula/config.yaml") -> SystemConfig:
-        """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
+    def load(cls, config_path: str = "/etc/kumoss/config.yaml") -> SystemConfig:
+        """Load from YAML if KUMOSS_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before
         attempting to parse it. This guards against the docker-compose
         foot-gun where mounting a missing host file silently creates an
         empty directory on the container side.
         """
-        path = os.environ.get("NEBULA_CONFIG") or config_path
+        path = os.environ.get("KUMOSS_CONFIG") or config_path
         if path and Path(path).is_file():
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
