@@ -42,24 +42,23 @@ export interface ListAdminSessionsParams {
   operation?: OperationType;
 }
 
-/** GET /api/v1/admin/sessions — Cross-user session list (panel viewer+) */
+/** GET /api/v1/admin/sessions/list — Cross-user session list (panel viewer+) */
 export async function listAdminSessions(
   params: ListAdminSessionsParams = {},
 ): Promise<PaginatedSessionSummary> {
   return apiFetch<PaginatedSessionSummary>(
-    `${BASE}/sessions${buildQuery({ ...params })}`,
+    `${BASE}/sessions/list${buildQuery({ ...params })}`,
   );
 }
 
-/** GET /api/v1/admin/sessions/{id} — Any session's full aggregate (panel viewer+) */
+/** GET /api/v1/admin/sessions?id={id} — Any session's full aggregate (panel viewer+) */
 export async function getAdminSessionDetail(
   sessionId: string,
   opts?: { includeHistory?: boolean },
 ): Promise<SessionDetail> {
-  const suffix = opts?.includeHistory ? "?include_history=true" : "";
-  return apiFetch<SessionDetail>(
-    `${BASE}/sessions/${encodeURIComponent(sessionId)}${suffix}`,
-  );
+  const query = new URLSearchParams({ id: sessionId });
+  if (opts?.includeHistory) query.set("include_history", "true");
+  return apiFetch<SessionDetail>(`${BASE}/sessions?${query}`);
 }
 
 /** PATCH /api/v1/admin/sessions/{id}/toggle_lock — Lock/unlock apply (panel editor+) */

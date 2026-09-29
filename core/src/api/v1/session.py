@@ -18,7 +18,7 @@ router = APIRouter(prefix="/sessions", tags=["Session Management"])
 
 
 @router.get(
-    path="",
+    path="/list",
     summary="List the caller's sessions.",
 )
 async def sessions_list(
@@ -52,12 +52,12 @@ async def sessions_list(
 
 
 @router.get(
-    path="/{session_id}",
+    path="",
     summary="Get the full session aggregate.",
     responses={404: {"description": "Unknown session."}},
 )
 async def session_detail(
-    session_id: UUID,
+    session_id: Annotated[UUID, Query(alias="id")],
     user: Annotated[User, Depends(get_current_user)],
     include_history: Annotated[
         bool,

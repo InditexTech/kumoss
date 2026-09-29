@@ -6,7 +6,7 @@
  * WORKFLOW: Session Outcome
  *
  * Results are not carried by SSE events; a finished round must be
- * reconstructed from GET /sessions/{id} plus its presigned artifact
+ * reconstructed from GET /sessions?id={id} plus its presigned artifact
  * URLs. This module is the single place that does it — for live runs
  * (round-terminal SSE event), deep links / refresh, and the sessions
  * table "Reload Session" action.

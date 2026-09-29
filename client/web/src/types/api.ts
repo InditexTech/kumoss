@@ -20,7 +20,7 @@ export interface HistoryEntry {
 }
 
 // Raw conversation turn as returned by the backend's History.serialize()
-// (exposed via GET /sessions/{id}?include_history=true).
+// (exposed via GET /sessions?id={id}&include_history=true).
 export interface RawHistoryTurn {
   user: string;
   assistant: string;

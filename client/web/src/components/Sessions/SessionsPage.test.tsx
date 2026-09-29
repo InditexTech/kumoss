@@ -22,10 +22,10 @@ function paginated(items: SessionDetail[]) {
 function mockAdminSession(detail: SessionDetail) {
   const patches: Array<{ locked: boolean }> = [];
   server.use(
-    http.get("/api/v1/admin/sessions", () =>
+    http.get("/api/v1/admin/sessions/list", () =>
       HttpResponse.json(paginated([detail])),
     ),
-    http.get("/api/v1/admin/sessions/:id", () => HttpResponse.json(detail)),
+    http.get("/api/v1/admin/sessions", () => HttpResponse.json(detail)),
     http.patch(
       "/api/v1/admin/sessions/:id/toggle_lock",
       async ({ request }) => {

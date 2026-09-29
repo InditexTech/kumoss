@@ -22,7 +22,7 @@ from src.shared.constants import (
 
 
 class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
-    """Contract tests for GET /v1/sessions and GET /v1/sessions/{id}."""
+    """Contract tests for GET /v1/sessions/list and GET /v1/sessions?id=."""
 
     async def asyncSetUp(self):
         await db.initialize()
@@ -56,7 +56,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await db.close()
 
     async def test_list_matches_contract(self):
-        resp = await self.client.get("/v1/sessions")
+        resp = await self.client.get("/v1/sessions/list")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 1)
@@ -103,7 +103,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             self.sid, "https://github.com/org/repo/pull/42", 42
         )
 
-        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
 
@@ -153,7 +153,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         await DatabaseService.update_history(ctx)
 
         resp = await self.client.get(
-            f"/v1/sessions/{self.sid}", params={"include_history": "true"}
+            "/v1/sessions", params={"id": str(self.sid), "include_history": "true"}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(
@@ -162,12 +162,12 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         # Default stays history-less.
-        resp = await self.client.get(f"/v1/sessions/{self.sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertIsNone(resp.json()["history"])
 
     async def test_detail_unknown_session_is_404(self):
-        resp = await self.client.get(f"/v1/sessions/{uuid4()}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(uuid4())})
         self.assertEqual(resp.status_code, 404, resp.text)
 
     async def test_list_filters(self):
@@ -176,7 +176,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         )
 
         async def fetch(**params: str) -> int:
-            resp = await self.client.get("/v1/sessions", params=params)
+            resp = await self.client.get("/v1/sessions/list", params=params)
             self.assertEqual(resp.status_code, 200, resp.text)
             return resp.json()["total"]
 

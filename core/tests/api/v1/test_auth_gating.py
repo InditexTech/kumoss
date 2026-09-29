@@ -162,12 +162,12 @@ class TestOperationRoleGates(_GatingBase):
 class TestPanelRoleGates(_GatingBase):
     async def test_no_panel_role_cannot_open_admin(self):
         self._act_as(_user(1))
-        resp = await self.client.get("/v1/admin/sessions")
+        resp = await self.client.get("/v1/admin/sessions/list")
         self.assertEqual(resp.status_code, 403, resp.text)
 
     async def test_viewer_can_list_admin_sessions(self):
         self._act_as(_user(1, panel_role=PanelRole.VIEWER))
-        resp = await self.client.get("/v1/admin/sessions")
+        resp = await self.client.get("/v1/admin/sessions/list")
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["total"], 0)
 
@@ -195,19 +195,19 @@ class TestSessionOwnership(_GatingBase):
     async def test_owner_reads_their_session(self):
         owner, sid = await self._seed_session("owner@example.com")
         self._act_as(_user(owner.id))
-        resp = await self.client.get(f"/v1/sessions/{sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
 
     async def test_stranger_cannot_read_someone_elses_session(self):
         owner, sid = await self._seed_session("owner@example.com")
         self._act_as(_user(owner.id + 1000))
-        resp = await self.client.get(f"/v1/sessions/{sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(sid)})
         self.assertEqual(resp.status_code, 403, resp.text)
 
     async def test_panel_viewer_may_read_any_session(self):
         owner, sid = await self._seed_session("owner@example.com")
         self._act_as(_user(owner.id + 1000, panel_role=PanelRole.VIEWER))
-        resp = await self.client.get(f"/v1/sessions/{sid}")
+        resp = await self.client.get("/v1/sessions", params={"id": str(sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
 
     async def test_stranger_cannot_subscribe_to_events(self):
@@ -226,7 +226,7 @@ class TestSessionOwnership(_GatingBase):
         owner_a, _ = await self._seed_session("a@example.com")
         _ = await self._seed_session("b@example.com")
         self._act_as(_user(owner_a.id))
-        resp = await self.client.get("/v1/sessions")
+        resp = await self.client.get("/v1/sessions/list")
         self.assertEqual(resp.status_code, 200, resp.text)
         body = resp.json()
         self.assertEqual(body["total"], 1)

@@ -372,12 +372,10 @@ describe("resolveSessionOutcome", () => {
     let sawIncludeHistory = false;
     mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));
     server.use(
-      http.get("/api/v1/sessions/:sessionId", ({ request, params }) => {
-        sawIncludeHistory =
-          new URL(request.url).searchParams.get("include_history") === "true";
-        return HttpResponse.json(
-          mockState.getSession(params.sessionId as string),
-        );
+      http.get("/api/v1/sessions", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        sawIncludeHistory = params.get("include_history") === "true";
+        return HttpResponse.json(mockState.getSession(params.get("id") ?? ""));
       }),
     );
 

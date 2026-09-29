@@ -135,15 +135,16 @@ export function projectDetail(
 export const sessionHandlers = [
   authConfigHandler(DEFAULT_AUTH_CONFIG),
 
-  http.get("/api/v1/sessions", ({ request }) => {
+  http.get("/api/v1/sessions/list", ({ request }) => {
     const query = readListQuery(request);
     return HttpResponse.json(
       paginate(filterSessions(sortedSessions(), query), query),
     );
   }),
 
-  http.get("/api/v1/sessions/:sessionId", ({ params, request }) => {
-    const detail = mockState.getSession(params.sessionId as string);
+  http.get("/api/v1/sessions", ({ request }) => {
+    const id = new URL(request.url).searchParams.get("id") ?? "";
+    const detail = mockState.getSession(id);
     if (!detail) {
       return HttpResponse.json(
         { detail: "Session not found" },

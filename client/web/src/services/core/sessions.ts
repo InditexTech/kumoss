@@ -23,7 +23,7 @@ export interface ListSessionsParams {
   operation?: OperationType;
 }
 
-/** GET /api/v1/sessions — The caller's own sessions (always self-scoped) */
+/** GET /api/v1/sessions/list — The caller's own sessions (always self-scoped) */
 export async function listUserSessions(
   params: ListSessionsParams = {},
 ): Promise<PaginatedSessionSummary> {
@@ -34,11 +34,13 @@ export async function listUserSessions(
     }
   }
   const qs = query.toString();
-  return apiFetch<PaginatedSessionSummary>(qs ? `${BASE}?${qs}` : BASE);
+  return apiFetch<PaginatedSessionSummary>(
+    qs ? `${BASE}/list?${qs}` : `${BASE}/list`,
+  );
 }
 
 /**
- * GET /api/v1/sessions/{sessionId} — Full session aggregate (facts,
+ * GET /api/v1/sessions?id={sessionId} — Full session aggregate (facts,
  * timeline, rounds). `includeHistory` also populates `history` with the
  * raw conversation turns; it always reads fresh (bypasses the
  * finished-session cache), so leave it off in polling loops.
@@ -47,10 +49,9 @@ export async function getSessionDetail(
   sessionId: string,
   opts?: { includeHistory?: boolean },
 ): Promise<SessionDetail> {
-  const suffix = opts?.includeHistory ? "?include_history=true" : "";
-  return apiFetch<SessionDetail>(
-    `${BASE}/${encodeURIComponent(sessionId)}${suffix}`,
-  );
+  const query = new URLSearchParams({ id: sessionId });
+  if (opts?.includeHistory) query.set("include_history", "true");
+  return apiFetch<SessionDetail>(`${BASE}?${query}`);
 }
 
 /** Whether applying is currently allowed for a session (inverse of is_blocked). */
