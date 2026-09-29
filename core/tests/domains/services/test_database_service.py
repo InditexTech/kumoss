@@ -351,7 +351,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
             "updated_at": "2024-01-01T00:00:00",
             "workspace": {
                 "uri": "https://example.com/foo.git",
-                "branch": "Nebula/x",
+                "branch": "Kumoss/x",
                 "root_path": None,
             },
             "scope_id": "sub-123",

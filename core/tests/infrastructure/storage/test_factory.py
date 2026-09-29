@@ -64,7 +64,7 @@ class TestMetadataHeaderPrefix(unittest.TestCase):
     # STORAGE_ACCOUNT derives the account name from the endpoint host, so
     # the two families need different URLs to construct at all.
     ENDPOINTS = {
-        ObjectStorageProvider.STORAGE_ACCOUNT: ("https://nebula.blob.core.windows.net"),
+        ObjectStorageProvider.STORAGE_ACCOUNT: ("https://kumoss.blob.core.windows.net"),
     }
 
     def test_every_provider_answers_a_usable_prefix(self):
