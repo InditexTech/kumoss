@@ -55,6 +55,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         target_file = parameters["target_file"]
         content = parameters["content"]
 
+        _ = self.__limit_workspace_boundaries(target_file)
+
         self.__filesystem.write_file(target_file, content)
         return {
             "file": target_file,
@@ -64,6 +66,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         target_file = parameters["target_file"]
         diff = parameters["diff"]
 
+        _ = self.__limit_workspace_boundaries(target_file)
+
         self.__filesystem.replace_in_file(target_file, diff)
         return {
             "file": target_file,
@@ -71,6 +75,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
 
     def __handle_delete_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
+
+        _ = self.__limit_workspace_boundaries(target_file)
 
         self.__filesystem.delete_file(target_file)
         return {
@@ -80,6 +86,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
     def __handle_read_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
 
+        _ = self.__limit_workspace_boundaries(target_file)
         try:
             content = self.__filesystem.read_file(target_file)
         except CustomFileNotFoundError:
@@ -94,45 +101,63 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         }
 
     def __handle_list_dir(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        relative_path: str = parameters.get("relative_workspace_path", ".")
-        resolve: Path = self.__filesystem.project_root / relative_path
-        if not resolve.is_relative_to(self.__filesystem.project_root.resolve()):
-            raise ToolInferenceParamsError(
-                message="Path escapes workspace. This is not allowed. "
-                + f"Path: '{str(resolve.resolve())}'",
-                error_code=400,
-            )
+        relative_path: str = parameters["relative_workspace_path"]
+        resolve_path: Path = self.__limit_workspace_boundaries(relative_path)
 
         items: list[Path] = self.__filesystem.list_directory(relative_path)
         return {
             "path": relative_path,
-            "files": [str(i.relative_to(resolve)) for i in items if i.is_file()],
-            "directories": [str(i.relative_to(resolve)) for i in items if i.is_dir()],
+            "files": [str(i.relative_to(resolve_path)) for i in items if i.is_file()],
+            "directories": [
+                str(i.relative_to(resolve_path)) for i in items if i.is_dir()
+            ],
         }
 
-    def __handle_grep_search(self, parameters: dict[str, Any]) -> str:
-        results: list[list[str]] = []
+    def __handle_grep_search(self, parameters: dict[str, Any]) -> list[dict[str, Any]]:
         searches: list[dict[str, Any]] = parameters["searches"]
 
+        if not searches:
+            raise ToolInferenceParamsError(
+                message="Invalid request. At least one search is required.",
+                error_code=400,
+            )
+
+        search_results: list[dict[str, Any]] = []
         for s in searches:
             query = s["query"]
             include_pattern = s.get("include_pattern")
             exclude_pattern = s.get("exclude_pattern")
             case_sensitive = s.get("case_sensitive", False)
-            results.append(
-                self.__filesystem.search_files(
-                    query=query,
-                    include_pattern=include_pattern,
-                    exclude_pattern=exclude_pattern,
-                    case_sensitive=case_sensitive,
-                )
+            raw_matches: list[str] = self.__filesystem.search_files(
+                query=query,
+                include_pattern=include_pattern,
+                exclude_pattern=exclude_pattern,
+                case_sensitive=case_sensitive,
             )
-        return "\n".join(["\n".join(r) for r in results])
+            matches: list[str] = []
+            workspace_path: str = str(self.__filesystem.project_root) + "/"
+            for match in raw_matches:
+                if match.startswith(workspace_path):
+                    match = match[len(workspace_path) :]
+                matches.append(match)
+            search_results.append(
+                {
+                    "query": query,
+                    "include_pattern": include_pattern,
+                    "exclude_pattern": exclude_pattern,
+                    "case_sensitive": case_sensitive,
+                    "match_count": len(matches),
+                    "matches": matches,
+                }
+            )
+
+        return search_results
 
     async def __handle_diff_history(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        result: list[str] = [
-            await self.__git.show_diff(working_tree=False, full_content=False)
-        ]
+        result: list[str] = []
+        diff = await self.__git.show_diff(working_tree=False, full_content=False)
+        if diff:
+            result.append(diff)
         untracked_files: list[str] = []
         for file in await self.__git.get_untracked_files():
             try:
@@ -140,7 +165,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             except ExceptionHandler as e:
                 logging.warning(f"Error reading file: {e.message}")
                 continue
-            untracked_files.append(f"{file}:\n{content}")
+            if content:
+                untracked_files.append(f"{file}:\n{content}")
         if untracked_files:
             result.append(untracked_files)
 
@@ -148,3 +174,19 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "history_available": True,
             "changes": result,
         }
+
+    def __limit_workspace_boundaries(self, path: str) -> Path:
+        if Path(path).is_absolute():
+            raise ToolInferenceParamsError(
+                message="Path must be relative to the workspace."
+                + f" The provided path is absolute - path: '{path}'",
+                error_code=400,
+            )
+        resolve: Path = self.__filesystem.project_root / path
+        if not resolve.is_relative_to(self.__filesystem.project_root.resolve()):
+            raise ToolInferenceParamsError(
+                message="Path escapes workspace. This is not allowed. "
+                + f"Path: '{str(resolve.resolve())}'",
+                error_code=400,
+            )
+        return resolve

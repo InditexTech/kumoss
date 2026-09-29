@@ -217,7 +217,7 @@ class FileSystemUtils(IFileSystem):
         if result.returncode == 0:
             return result.stdout.strip().split("\n") if result.stdout.strip() else []
         elif result.returncode == 1:  # no matches found
-            return [f"No matches found for {query}"]
+            return []
         logging.error(f"Ripgrep error: {result.stderr}")
         raise RipgrepError(
             message=result.stderr,

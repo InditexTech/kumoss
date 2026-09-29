@@ -105,7 +105,7 @@ class ToolRegistryStatic(IToolRegistry):
         """Get available tools for a specific context in LLM-compatible format"""
         filtered_tools: list[ToolDefinitionDTO] = []
 
-        for _, tool_def in self.__tool_definitions.items():
+        for tool_def in self.__tool_definitions.values():
             if tool_def.context == context:
                 filtered_tools.append(tool_def)
 
@@ -366,7 +366,7 @@ class ToolRegistryStatic(IToolRegistry):
             )
         return {"status": status, "summary": summary, "imports": imports}
 
-    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
         try:
             response = await self.__llm.inference(msg=query, web_search=True)
@@ -374,11 +374,20 @@ class ToolRegistryStatic(IToolRegistry):
             InferenceCallWebSearchNotSupported,
             InferenceCallAPIError,
         ) as e:
-            return f"Web search is unavailable: {e.message}. Do NOT retry web_search."
+            return {
+                "query": query,
+                "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
+            }
 
         if not response.text:
-            return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
-        return response.text
+            return {
+                "query": query,
+                "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+            }
+        return {
+            "query": query,
+            "result": response.text,
+        }
 
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]
