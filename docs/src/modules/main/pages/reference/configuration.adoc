@@ -1,7 +1,7 @@
 = Configuration
 :description: Every `config.yaml` field: type, default, validation rule, and effect.
 
-`config.yaml` at the repository root is Nebula's single configuration
+`config.yaml` at the repository root is Kumoss's single configuration
 file for the core service. This page documents every supported section
 and field. The authoritative schema is the `SystemConfig` Pydantic
 model in `core/src/shared/config/system_config.py`; when this page and
@@ -23,11 +23,11 @@ sidecar READMEs under `services/`.
 == How the file is loaded
 
 * The core Dockerfile copies the repository's `config.yaml` to
-  `/etc/nebula/config.yaml` *at image build time*. The file is baked
+  `/etc/kumoss/config.yaml` *at image build time*. The file is baked
   into the image. Editing it on the host does nothing until you run
   `docker compose build core` and restart the container. `docker
   compose watch` syncs only `core/`, not the configuration.
-* The `NEBULA_CONFIG` environment variable overrides the path. The path
+* The `KUMOSS_CONFIG` environment variable overrides the path. The path
   is interpreted *inside the container*, and the file must actually be
   present there (for example through a bind mount or a mounted secret).
   If the path is missing, or is a directory (which is what Docker
@@ -38,7 +38,7 @@ sidecar READMEs under `services/`.
   optional* sidecar (`notifications`, `mapping`, `authz`). The IaC
   sidecar has no `enabled` flag and is always called: its own code
   defaults are `endpoint: "\http://iac:8082"` and `token_env:
-  "NEBULA_IAC_TOKEN"`, independent of whether a `config.yaml` is loaded
+  "KUMOSS_IAC_TOKEN"`, independent of whether a `config.yaml` is loaded
   at all.
 * Validation runs once at startup. A validation error aborts the boot
   with a message containing the `ConfigError` text quoted in the tables
@@ -55,7 +55,7 @@ sidecar READMEs under `services/`.
 Changing any field therefore means: edit `config.yaml`, rebuild the
 core image, restart. "Requires rebuild" in the tables below always
 refers to that sequence. If you instead mount the file at the path in
-`NEBULA_CONFIG`, the equivalent is: update the mounted file and restart
+`KUMOSS_CONFIG`, the equivalent is: update the mounted file and restart
 the core — no image rebuild needed, because the container reads the
 file from disk at startup rather than from the baked-in copy.
 
@@ -66,7 +66,7 @@ file from disk at startup rather than from the baked-in copy.
 |Category |Fields
 
 |*Mandatory* (the core refuses to boot otherwise)
-|The environment variable named by `database.nebula_database_url_env`
+|The environment variable named by `database.kumoss_database_url_env`
 must be set; the variable named by `services.iac.token_env` must be set
 (the IaC sidecar is always called and has no `enabled` flag); the
 credentials that LiteLLM requires for `llm.model` and `llm.small_model`
@@ -80,7 +80,7 @@ variable of every other enabled sidecar; the variable named by
 for `STORAGE_ACCOUNT`; a remote backend declared by every target
 repository while `storage.terraform_state_bucket` is blank — which
 only happens if a deployment explicitly sets it to `""`, since the
-shipped value enables Nebula-managed state by default.
+shipped value enables Kumoss-managed state by default.
 
 |*Optional with defaults*
 |Everything else.
@@ -129,7 +129,7 @@ xref:main:guides/enable-authentication.adoc[Enable authentication].
 |Optional
 |OIDC issuer URL. *Blank disables authentication entirely*: every
 request, from anyone who can reach the API, resolves to a fixed local
-development identity (`dev@nebula.local`) that holds the top role of
+development identity (`dev@kumoss.local`) that holds the top role of
 both role groups (`devops` and panel `admin`). When set, the core
 validates bearer JWTs against the issuer's JWKS, discovered lazily on
 the first request.
@@ -199,7 +199,7 @@ admin]. Ignored while authentication is disabled.
 |===
 
 Requires rebuild: yes. This is the core's mechanism and is unrelated to
-the authorization sidecar's `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`.
+the authorization sidecar's `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`.
 
 [#config-services]
 == `services`
@@ -243,10 +243,10 @@ fails on the first call instead.
 
 |`services.<name>.token_env`
 |string (variable name)
-|`""` for `notifications`, `mapping`, `authz`; *`NEBULA_IAC_TOKEN`* for
+|`""` for `notifications`, `mapping`, `authz`; *`KUMOSS_IAC_TOKEN`* for
 `iac` (its own code default)
-|`NEBULA_NOTIFICATIONS_TOKEN`, `NEBULA_MAPPING_TOKEN`,
-`NEBULA_AUTHZ_TOKEN`, `NEBULA_IAC_TOKEN`
+|`KUMOSS_NOTIFICATIONS_TOKEN`, `KUMOSS_MAPPING_TOKEN`,
+`KUMOSS_AUTHZ_TOKEN`, `KUMOSS_IAC_TOKEN`
 |Conditional (always for `iac`)
 |Name of the environment variable holding the bearer token sent on
 every call. *A sidecar the core will call whose variable resolves to
@@ -502,7 +502,7 @@ only needs a container restart.
 each. Must be writable by the core and *shared with the IaC sidecar at
 the same path*: in the compose stack both containers mount the
 `workspaces` volume at `/workspaces`, and both images run as the same
-unprivileged user (`nebula`, uid and gid `10001`).
+unprivileged user (`kumoss`, uid and gid `10001`).
 
 |`paths.session_plan_filename`
 |string matching `^[A-Za-z0-9._-]{1,128}$`
@@ -524,13 +524,13 @@ Requires rebuild: yes.
 |===
 |YAML path |Type |Default |Requirement |Meaning and effect
 
-|`database.nebula_database_url_env`
+|`database.kumoss_database_url_env`
 |string (variable name)
-|`NEBULA_SQL_DATABASE_URL`
+|`KUMOSS_SQL_DATABASE_URL`
 |Optional (the variable it names is *mandatory*)
 |Name of the environment variable that holds the actual PostgreSQL
 connection URL. URLs embed credentials, which is why the URL itself is
-not in this file. Boot fails with `Missing env variable for nebula
+not in this file. Boot fails with `Missing env variable for kumoss
 database` when the variable is empty, and database initialisation
 fails when it is unreachable. A `postgresql://` scheme is rewritten to
 `postgresql+asyncpg://`, and a `sslmode=` query parameter to asyncpg's
@@ -556,7 +556,7 @@ short so a slow Redis fails fast and reads fall through to PostgreSQL.
 
 |`redis.redis_url_env`
 |string (variable name)
-|`NEBULA_REDIS_URL`
+|`KUMOSS_REDIS_URL`
 |Optional
 |Name of the variable holding the Redis URL (which may embed a
 password).
@@ -668,7 +668,7 @@ Requires rebuild: yes.
 Object storage for generated artifacts (reports, plans, code changes)
 and, by default, for Terraform/OpenTofu state. The browser downloads
 artifacts through presigned URLs. `storage.terraform_state_bucket`
-ships set to `nebula-terraform-state`, so by default Nebula manages
+ships set to `kumoss-terraform-state`, so by default Kumoss manages
 state in a *second bucket* in the same store, sharing the provider and
 the credentials with artifacts; set it to `""` to opt out and let each
 repository keep its own backend instead. See
@@ -691,18 +691,18 @@ URLs below are ignored; the region builds the endpoint).
 
 |`storage.bucket`
 |string
-|`nebula-artifacts`
+|`kumoss-artifacts`
 |Optional
 |Artifacts bucket name, or blob container name for `STORAGE_ACCOUNT`.
 Created at boot if missing.
 
 |`storage.terraform_state_bucket`
 |string
-|`nebula-terraform-state`, both as shipped in `config.yaml` and as the
+|`kumoss-terraform-state`, both as shipped in `config.yaml` and as the
 field default if the key is absent
 |Optional
 |Bucket (or blob container) holding Terraform/OpenTofu state, separate
-from `storage.bucket`. *Non-blank — the shipped value — means Nebula
+from `storage.bucket`. *Non-blank — the shipped value — means Kumoss
 manages state*: the bucket is created at boot if missing and the core
 writes a `backend_override.tf` into every workspace before `init`,
 addressing it with the key `<project_id>/terraform.tfstate`. Backend
@@ -795,7 +795,7 @@ SigV4 limit. Boot fails with `storage.presign_expiry_seconds must be
 between 108000 ... and 604800 ...` otherwise.
 |===
 
-While Nebula-managed state is on, these fields have a second consumer:
+While Kumoss-managed state is on, these fields have a second consumer:
 `endpoint_url`, `region`, and the credential variables are rendered
 into the backend block that the *IaC sidecar* executes. Two
 consequences follow. The sidecar container must be able to reach
@@ -813,7 +813,7 @@ Requires rebuild: yes. Related environment variables in `core/.env`:
 [#config-git]
 == `git`
 
-Credentials and identity for the branches Nebula pushes and the pull
+Credentials and identity for the branches Kumoss pushes and the pull
 requests it opens. Single-tenant: one token serves every session.
 
 [cols="2,2,2,1,4",options="header"]
@@ -847,13 +847,13 @@ are rejected as malformed at pull-request time.
 
 |`git.author_name`
 |string
-|`Nebula`
+|`Kumoss`
 |Optional
 |Commit author name.
 
 |`git.author_email`
 |string
-|`nebula@noreply.invalid`
+|`kumoss@noreply.invalid`
 |Optional
 |Commit author e-mail.
 |===
@@ -888,7 +888,7 @@ oidc:
 services:
   iac:
     endpoint: "http://iac:8082"
-    token_env: "NEBULA_IAC_TOKEN"
+    token_env: "KUMOSS_IAC_TOKEN"
 
 orchestration:
   enable_compliance_checker: true
@@ -905,11 +905,11 @@ storage:
   provider: "RUSTFS"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
-  # Shipped default: Nebula keeps Terraform state in the bundled
+  # Shipped default: Kumoss keeps Terraform state in the bundled
   # RustFS, in its own bucket, so a scratch repository with no backend
   # of its own works out of the box. Set it to "" to use the backend
   # each repository declares instead.
-  terraform_state_bucket: "nebula-terraform-state"
+  terraform_state_bucket: "kumoss-terraform-state"
 
 git:
   provider: "GITHUB"
@@ -930,7 +930,7 @@ environment: "production"
 
 oidc:
   issuer_url: "https://login.example.invalid/realms/platform"
-  client_id: "nebula-web"
+  client_id: "kumoss-web"
   clock_skew_seconds: 60
 
 admin:
@@ -939,19 +939,19 @@ admin:
 services:
   notifications:
     enabled: true
-    endpoint: "https://notifications.nebula.example.invalid"
-    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
+    endpoint: "https://notifications.kumoss.example.invalid"
+    token_env: "KUMOSS_NOTIFICATIONS_TOKEN"
   mapping:
     enabled: true
-    endpoint: "https://mapping.nebula.example.invalid"
-    token_env: "NEBULA_MAPPING_TOKEN"
+    endpoint: "https://mapping.kumoss.example.invalid"
+    token_env: "KUMOSS_MAPPING_TOKEN"
   authz:
     enabled: true
-    endpoint: "https://authz.nebula.example.invalid"
-    token_env: "NEBULA_AUTHZ_TOKEN"
+    endpoint: "https://authz.kumoss.example.invalid"
+    token_env: "KUMOSS_AUTHZ_TOKEN"
   iac:
     endpoint: "http://iac:8082"
-    token_env: "NEBULA_IAC_TOKEN"
+    token_env: "KUMOSS_IAC_TOKEN"
     job_timeout: 3600.0
 
 orchestration:
@@ -971,30 +971,30 @@ llm:
   max_output_tokens: 32000
 
 telemetry:
-  collector_url: "https://phoenix.nebula.example.invalid/"
+  collector_url: "https://phoenix.kumoss.example.invalid/"
 
 http:
   cors_origins:
-    - "https://nebula.example.invalid"
+    - "https://kumoss.example.invalid"
 
 storage:
   provider: "STORAGE_ACCOUNT"
-  bucket: "nebula-artifacts"
-  # Shipped default: Nebula owns state instead of the target
+  bucket: "kumoss-artifacts"
+  # Shipped default: Kumoss owns state instead of the target
   # repositories. Blob container separate from the artifacts container
   # so state escapes any artifact lifecycle policy — enable versioning
   # and soft delete on it. Set it explicitly to "" — a bare key with no
   # value fails at boot — when the repositories already declare their
   # own backends.
-  terraform_state_bucket: "nebula-terraform-state"
+  terraform_state_bucket: "kumoss-terraform-state"
   endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"
   public_endpoint_url: "https://demoplatformartifacts.blob.core.windows.net"
   presign_expiry_seconds: 172800
 
 git:
   provider: "GITLAB"
-  author_name: "Nebula"
-  author_email: "nebula@noreply.invalid"
+  author_name: "Kumoss"
+  author_email: "kumoss@noreply.invalid"
 ----
 
 Points that this example relies on but that the file cannot express:
@@ -1003,7 +1003,7 @@ contracts (the bundled ones are a passthrough and a permissive stub);
 Phoenix must be reachable at `collector_url` for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
-`NEBULA_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API_*`
+`KUMOSS_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API_*`
 credentials must come from a secret store. See
 xref:main:reference/environment-variables.adoc[Environment variables and
 secrets].

@@ -8,12 +8,12 @@
 :page-action-secondary: About
 :page-action-secondary-url: main:about.adoc
 :page-hero-image: main:web-portal-home.jpg
-:page-hero-image-alt: The Nebula web portal's home screen: an operation selector set to Generate Infrastructure, a request box asking what you need, and a row of recent session cards.
+:page-hero-image-alt: The Kumoss web portal's home screen: an operation selector set to Generate Infrastructure, a request box asking what you need, and a row of recent session cards.
 :page-hero-image-bordered:
 
-Nebula turns natural-language infrastructure requests into reviewed,
+Kumoss turns natural-language infrastructure requests into reviewed,
 compliant Terraform-compatible code. Platform engineers and application
-developers describe what they need; Nebula generates the code, validates
+developers describe what they need; Kumoss generates the code, validates
 it against the target cloud, and audits it for compliance, then hands
 over a pull request that a developer applies explicitly — every blocking
 decision is computed by application code, never by a model.
@@ -23,14 +23,14 @@ decision is computed by application code, never by a model.
 [cards,columns="1 s:2 m:4"]
 ====
 [card,subheader="Start here"]
-.xref:main:quickstart.adoc[Try Nebula locally]
+.xref:main:quickstart.adoc[Try Kumoss locally]
 Run it locally with Docker Compose, only LLM credentials and a Git personal
 access token (`GIT_USER`/`GIT_TOKEN`) are yours to supply.
 
 [card,subheader="Production"]
 .xref:main:guides/deploy-to-production.adoc[Deploy to production]
 Harden OIDC, project-level authorization, secrets, persistence, and TLS
-before running Nebula beyond a trusted workstation.
+before running Kumoss beyond a trusted workstation.
 
 [card,subheader="Architecture"]
 .xref:main:architecture.adoc[See how it is built]
@@ -49,12 +49,12 @@ merging and applying the result.
 ====
 [card]
 .xref:main:guides/make-a-request.adoc[Describe what you need, in plain language]
-Open a session and phrase a request; Nebula fills in naming conventions,
+Open a session and phrase a request; Kumoss fills in naming conventions,
 resource defaults, and the placement it finds in your repository.
 
 [card]
 .xref:main:guides/generate-infrastructure.adoc[Get back validated Terraform code]
-Nebula writes Terraform-compatible HCL on a new branch and runs it through
+Kumoss writes Terraform-compatible HCL on a new branch and runs it through
 the engine's own `init`, `validate`, and `plan` until it passes.
 
 [card]
@@ -65,7 +65,7 @@ a reviewer clears it.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
-Nebula opens a pull request from the reviewed plan and applies it only
+Kumoss opens a pull request from the reviewed plan and applies it only
 after an explicit apply request — never on its own.
 ====
 
@@ -73,12 +73,12 @@ after an explicit apply request — never on its own.
 
 [cta]
 ====
-Nebula is open source and actively developed — issues, feedback, and
+Kumoss is open source and actively developed — issues, feedback, and
 contributions are welcome; see how each default component is licensed
 in xref:main:additional-information.adoc#licensing-of-the-default-stack[the licensing table].
 
 [.primary]
-https://github.com/InditexTech/nebula[Star Nebula on GitHub]
+https://github.com/InditexTech/kumoss[Star Kumoss on GitHub]
 ====
 
 == Frequently asked questions
@@ -90,13 +90,13 @@ More questions? See the full xref:main:faq.adoc[FAQ].
 .Where does Terraform state live?
 [%collapsible]
 ====
-Out of the box, Nebula keeps state itself, in a bucket dedicated to
+Out of the box, Kumoss keeps state itself, in a bucket dedicated to
 state with one file per project. Your platform team can instead point it
 at the remote backend your repository's own Terraform files declare.
 Either way, your pull request never contains a state or backend file.
 ====
 
-.Which cloud credentials does Nebula use?
+.Which cloud credentials does Kumoss use?
 [%collapsible]
 ====
 The identity your platform team configured for the execution engine —
@@ -105,7 +105,7 @@ asked, at the start of each session, whether you may work on that cloud,
 repository, and path.
 ====
 
-.What data leaves Nebula when I make a request?
+.What data leaves Kumoss when I make a request?
 [%collapsible]
 ====
 Your request text, the conversation, the repository files the agent

@@ -1,10 +1,10 @@
-= About Nebula
-:description: What Nebula is, who it is for, and why it exists.
+= About Kumoss
+:description: What Kumoss is, who it is for, and why it exists.
 
-Nebula is an LLM-powered platform that turns natural-language requests into
+Kumoss is an LLM-powered platform that turns natural-language requests into
 compliant, Terraform-compatible infrastructure-as-code (IaC). Platform
 engineers and application developers describe the infrastructure they need,
-and Nebula's agents generate the corresponding code, guided by the
+and Kumoss's agents generate the corresponding code, guided by the
 organization's own standards.
 
 It runs as a layered FastAPI orchestration core alongside four
@@ -30,7 +30,7 @@ The core platform components — the `core` orchestration API, the `proxy`
 `config.yaml` and the `.env` files. You never reimplement them; in
 production you replace only the bundled datastores.
 
-Four sidecars are the integration points between Nebula and your
+Four sidecars are the integration points between Kumoss and your
 organization: `iac` (executes the IaC engine; mandatory, always on),
 `notifications` (posts session outcomes to Slack; disabled by default),
 `mapping` (resolves a repository reference; disabled by default), and
@@ -55,7 +55,7 @@ the only public entry point.
 * *OpenTofu by default* — the bundled `iac` sidecar runs OpenTofu, with
   HashiCorp Terraform also bundled and selectable via `IAC_BINARY`.
 
-Nebula's runtime components, internal layering, and end-to-end request flow
+Kumoss's runtime components, internal layering, and end-to-end request flow
 are covered in xref:main:architecture.adoc[Architecture]. To run the bundled
 stack locally, see xref:main:quickstart.adoc[Quickstart]. From there,
 xref:main:guides-overview.adoc[Guides] walks through each task the web

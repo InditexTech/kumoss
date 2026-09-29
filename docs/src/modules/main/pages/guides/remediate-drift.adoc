@@ -1,7 +1,7 @@
 = Remediate drift
 :description: Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
 
-The Nebula web application offers two drift modes: Partial Drift
+The Kumoss web application offers two drift modes: Partial Drift
 Remediation, for a specific set of resources you describe, and Full Drift
 Remediation, for the whole configuration in the IaC path. They share the
 same prerequisites and workflow shape, and differ only in how targets are
@@ -94,7 +94,7 @@ the merge button is labelled for merging only, and no apply is triggered
 afterwards.
 
 *Example.* "Resolve the drift on security group `sg-web-demo`; someone
-opened port 8080 in the console." Nebula plans with `-target` on that
+opened port 8080 in the console." Kumoss plans with `-target` on that
 security group, detects the extra ingress rule, and generates code that
 restores the declared rules. You review the drift report and open a pull
 request.
@@ -134,7 +134,7 @@ drift: artifacts and a `drift` report, no pinned plan, no compliance
 audit, no lock, apply unavailable until a generate round pins a plan, and
 the web application ends the session at the pull-request merge.
 
-*Example.* "Reconcile everything in `envs/dev`." Nebula plans the whole
+*Example.* "Reconcile everything in `envs/dev`." Kumoss plans the whole
 root, finds two drifted resources, generates the reconciling changes, and
 reports `Succeeded`.
 

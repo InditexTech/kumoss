@@ -1,7 +1,7 @@
 = Roles and permissions
-:description: The two independent role groups that gate Nebula — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+:description: The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
 
-Every user record in Nebula's database carries two roles from two
+Every user record in Kumoss's database carries two roles from two
 independent groups: an *operation role*, which decides which
 Infrastructure as Code (IaC) actions the user may run on their own
 sessions, and an *admin-panel role*, which decides what the user may
@@ -251,7 +251,7 @@ re-fetches `GET /api/v1/users/me` and puts the browser straight back
 in as the dev identity.
 
 Do not confuse this with the authorization sidecar.
-`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
+`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
 role inside the sidecar's JSON role store. The core never reads that
 store; the sidecar is consulted only for the cloud-project
 authorization check described above, and only when

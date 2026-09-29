@@ -80,7 +80,7 @@ browser-facing workflow. Related building blocks exist at a lower level:
 
 After the example pull request in
 xref:main:guides/generate-infrastructure.adoc[Generate infrastructure] is
-merged, choose Import Infrastructure and submit. Nebula applies the
+merged, choose Import Infrastructure and submit. Kumoss applies the
 pinned plan, creates the bucket, and shows an `apply` report with
 `Success`.
 

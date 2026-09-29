@@ -1,19 +1,19 @@
 = Authorization sidecar API
-:description: The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
+:description: The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
 
 The authorization service answers *may this user operate on this
 cloud resource?* — a question about a subscription, a project, or an
-account, asked before Nebula runs anything against a live environment.
+account, asked before Kumoss runs anything against a live environment.
 
 Contract: `contracts/openapi/authz.v1.yaml`. Default endpoint:
 `\http://authz:8083`. Bearer token: the value of the variable named by
-`services.authz.token_env`, `NEBULA_AUTHZ_TOKEN` by default. The
+`services.authz.token_env`, `KUMOSS_AUTHZ_TOKEN` by default. The
 service is *optional* and ships disabled (`services.authz.enabled:
 false`).
 
 [IMPORTANT]
 ====
-*Nebula's own roles do not live here.* The operation roles (`developer`
+*Kumoss's own roles do not live here.* The operation roles (`developer`
 < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide
 what a signed-in user can do are rows in the core database, managed
 from the admin panel. This service has a role store of its own, and it
@@ -62,7 +62,7 @@ A `422` from the sidecar is therefore visible at the browser as a
 
 |`POST /v1/check`
 |Decides whether a user may operate on a named cloud resource. *The
-only endpoint Nebula uses.*
+only endpoint Kumoss uses.*
 
 |`GET /v1/users/me`
 |Returns the calling user's record and roles, creating an empty record
@@ -219,13 +219,13 @@ document summary and the `POST /v1/check` description say the
 reference implementation answers "based on whether the service's own
 Service Principal can resolve the resource". It does not: the handler
 makes no cloud call, resolves no credentials, and has no Service
-Principal. It branches on `NEBULA_AUTHZ_PERMISSIVE` alone — true
+Principal. It branches on `KUMOSS_AUTHZ_PERMISSIVE` alone — true
 returns `authorized: true`, false returns `authorized: false` with a
 `reason` naming the cloud and project. This page describes the code's
 actual behaviour.
 ====
 
-`NEBULA_AUTHZ_PERMISSIVE` is the only knob Nebula's own flow
+`KUMOSS_AUTHZ_PERMISSIVE` is the only knob Kumoss's own flow
 exercises. Setting it to `false` flips the default to `authorized:
 false`, which makes a misconfiguration visible instead of silently
 allowing everything. A production deployment replaces the body of
@@ -233,10 +233,10 @@ allowing everything. A production deployment replaces the body of
 a cloud IAM query — rather than tuning this flag.
 
 The other endpoints are backed by a JSON file at
-`NEBULA_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a
+`KUMOSS_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a
 container-local path, so role assignments are lost when the container
 is recreated. Point it at a mounted path if they need to survive. When
-`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set, the record with that email is
+`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` is set, the record with that email is
 granted the `admin` role at startup, and that email is also the
 record's key and `id`. Again: this store governs only this service's
 own administrative endpoints.
@@ -257,21 +257,21 @@ surfaces as `502`. This only bites when `services.authz.enabled` is
 |===
 |Variable |Required |Meaning
 
-|`NEBULA_AUTHZ_TOKEN`
+|`KUMOSS_AUTHZ_TOKEN`
 |no
 |Bearer token clients must present. Blank accepts every request.
 
-|`NEBULA_AUTHZ_PERMISSIVE`
+|`KUMOSS_AUTHZ_PERMISSIVE`
 |no
 |Default `true` — `/v1/check` answers true unconditionally. Set
 `false` for an explicit-deny default.
 
-|`NEBULA_AUTHZ_ROLE_STORE`
+|`KUMOSS_AUTHZ_ROLE_STORE`
 |no
 |Path to the roles JSON file, default `/data/roles.json`. Configures
-this service's own store only; Nebula never reads it.
+this service's own store only; Kumoss never reads it.
 
-|`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`
+|`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`
 |no
 |Email granted the `admin` role at startup, in this service's own
 store.
@@ -305,7 +305,7 @@ suite's job.
 == Next steps
 
 * xref:main:reference/roles-and-permissions.adoc[Roles and
-  permissions] for the roles that actually gate Nebula.
+  permissions] for the roles that actually gate Kumoss.
 * xref:main:reference/api/core.adoc[Core API] for the one core route
   that consults this service.
 * xref:main:reference/configuration.adoc#config-services[the `services`

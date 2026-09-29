@@ -1,7 +1,7 @@
 = Environment variables and secrets
-:description: Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.
+:description: Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.
 
-Nebula keeps every secret in environment variables. `config.yaml` holds
+Kumoss keeps every secret in environment variables. `config.yaml` holds
 only non-secret settings and, where a secret is needed, the _name_ of
 the variable that carries it (fields ending in `_env`). This page
 documents every variable in `core/env.sample` and in the four sidecar
@@ -56,35 +56,35 @@ For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
 |At boot for providers LiteLLM can validate; otherwise on the first LLM
 call
 
-|`NEBULA_IAC_TOKEN`
+|`KUMOSS_IAC_TOKEN`
 |Mandatory (the IaC sidecar is always called; it has no `enabled` flag)
 |sample value `dev-iac-token`
 |Bearer token the core sends to the IaC sidecar. Must equal
-`NEBULA_IAC_TOKEN` in `services/iac/.env`.
+`KUMOSS_IAC_TOKEN` in `services/iac/.env`.
 |At boot: an empty token aborts startup
 
-|`NEBULA_MAPPING_TOKEN`
+|`KUMOSS_MAPPING_TOKEN`
 |Conditional
 |sample value `dev-mapping-token`
 |Bearer token for the mapping sidecar, sent when
 `services.mapping.enabled` is true. Must equal
-`NEBULA_MAPPING_TOKEN` in `services/mapping/.env`.
+`KUMOSS_MAPPING_TOKEN` in `services/mapping/.env`.
 |At boot when enabled
 
-|`NEBULA_NOTIFICATIONS_TOKEN`
+|`KUMOSS_NOTIFICATIONS_TOKEN`
 |Conditional
 |sample value `dev-notifications-token`
 |Bearer token for the notifications sidecar, sent when
 `services.notifications.enabled` is true. Must equal
-`NEBULA_NOTIFICATIONS_TOKEN` in `services/notifications/.env`.
+`KUMOSS_NOTIFICATIONS_TOKEN` in `services/notifications/.env`.
 |At boot when enabled
 
-|`NEBULA_AUTHZ_TOKEN`
+|`KUMOSS_AUTHZ_TOKEN`
 |Conditional
 |sample value `dev-authz-token`
 |Bearer token for the authorization sidecar, sent when
 `services.authz.enabled` is true. Must equal
-`NEBULA_AUTHZ_TOKEN` in `services/authz/.env`.
+`KUMOSS_AUTHZ_TOKEN` in `services/authz/.env`.
 |At boot when enabled
 
 |`GIT_USER`
@@ -108,7 +108,7 @@ credentials come from elsewhere
 unset*; empty otherwise
 |Access key for the S3-compatible store, read when `storage.provider`
 is `RUSTFS` (or `S3` with static keys). Used for the artifacts bucket
-and — where Nebula-managed state is enabled
+and — where Kumoss-managed state is enabled
 (`storage.terraform_state_bucket` non-blank; that is the shipped
 default) — for the state bucket too, in which case it is also embedded
 into the backend block the IaC sidecar executes. Must match
@@ -136,15 +136,15 @@ set static keys under these same variable names unless you rename
 The account name is derived from `storage.endpoint_url`.
 |At boot: configuration validation fails if empty
 
-|`NEBULA_SQL_DATABASE_URL`
+|`KUMOSS_SQL_DATABASE_URL`
 |Mandatory
 |sample value points at the bundled `core-db` container
-|Connection URL of Nebula's PostgreSQL database. Must carry the
+|Connection URL of Kumoss's PostgreSQL database. Must carry the
 credentials of the `core-db` service in `docker-compose.yml`.
 |At boot: configuration validation fails if empty, and database
 initialisation fails if unreachable
 
-|`NEBULA_REDIS_URL`
+|`KUMOSS_REDIS_URL`
 |Optional; not present in `core/env.sample`
 |`redis://redis:6379/0` from `redis.default_url`
 |Redis URL for the session cache. Add it only to point at an external
@@ -153,9 +153,9 @@ compose network. Cache operations fail open at runtime, but the
 boot-time ping must succeed.
 |At boot: Redis initialisation fails if unreachable
 
-|`NEBULA_CONFIG`
+|`KUMOSS_CONFIG`
 |Optional; not present in `env.sample`
-|`/etc/nebula/config.yaml`
+|`/etc/kumoss/config.yaml`
 |Path, inside the container, of the configuration file to load. The
 file must exist at that path (for example through a mounted volume); a
 missing file silently falls back to built-in defaults.
@@ -217,9 +217,9 @@ Two related facts about the sample file:
   core validates tokens with the issuer's public keys. All OIDC
   settings live in `config.yaml`.
 
-=== Read by libraries, not by Nebula
+=== Read by libraries, not by Kumoss
 
-Two more variables can matter to the core even though no Nebula code
+Two more variables can matter to the core even though no Kumoss code
 reads them. Neither is in `core/env.sample`, and neither is needed for
 the bundled Phoenix.
 
@@ -252,11 +252,11 @@ documentation for the version you run before relying on them.
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|`NEBULA_IAC_TOKEN`
+|`KUMOSS_IAC_TOKEN`
 |Recommended; mandatory outside an isolated workstation
 |empty (accepts any bearer)
 |Token the sidecar requires on every `/v1/*` call. Must equal the
-core's `NEBULA_IAC_TOKEN`.
+core's `KUMOSS_IAC_TOKEN`.
 |Per request: a mismatch returns `401` to the core
 
 |`IAC_BINARY`
@@ -279,7 +279,7 @@ can carry the file. It supplies values only — the backend _type_ still
 comes from the workspace's own `terraform { backend "..." }` block.
 Its values take precedence over the core's `backend_override.tf`, which
 in turn beats the repository's own block; keys the file does not
-declare fall through, so setting it _together with_ Nebula-managed
+declare fall through, so setting it _together with_ Kumoss-managed
 state (`storage.terraform_state_bucket` set) merges the two backends
 key by key instead of picking one — a misconfiguration to avoid, not a
 layering feature. Blank or whitespace counts as unset. See
@@ -300,7 +300,7 @@ memory, so a restart also forgets them.
 The IaC sidecar does not interpret cloud credentials. It launches the
 engine with its *entire container environment inherited and no
 allowlist*, so every variable in `services/iac/.env` (including
-`NEBULA_IAC_TOKEN`) is visible to the Terraform and OpenTofu *providers*
+`KUMOSS_IAC_TOKEN`) is visible to the Terraform and OpenTofu *providers*
 and to any `external` or `local-exec` code in the repositories you run.
 The providers read their credentials directly during `init`, `plan`,
 and `apply`. Missing or invalid credentials never stop the container;
@@ -383,7 +383,7 @@ xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[T
 sets of credentials on the sidecar].
 
 Credential files you mount must be readable by the unprivileged user
-the image runs as (`nebula`, uid and gid `10001` by default).
+the image runs as (`kumoss`, uid and gid `10001` by default).
 
 === Credentials for the state backend
 
@@ -391,18 +391,18 @@ The sidecar is the process that reads and writes Terraform state, so
 state-backend credentials are always a sidecar concern.
 
 * *By default* (`storage.terraform_state_bucket` non-blank — that is the
-  shipped value), Nebula manages state. When the core's rendered
+  shipped value), Kumoss manages state. When the core's rendered
   backend block *contains* static keys (`RUSTFS`, or
   `S3`/`STORAGE_ACCOUNT` with keys set in `core/.env`), the sidecar
   needs nothing extra for state.
-* When Nebula-managed state is on and the block *omits* those keys
+* When Kumoss-managed state is on and the block *omits* those keys
   (`provider: S3` with `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` blank),
   the engine resolves credentials from the sidecar's own environment:
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an
   attached instance role or IRSA token. Granting that role to the
   *core* container only is the common mistake — the core creates
   the bucket at boot.
-* With Nebula-managed state on, the sidecar must also reach
+* With Kumoss-managed state on, the sidecar must also reach
   `storage.endpoint_url`. In the Compose stack `core` and `iac` share
   `bridge-network`, so `\http://object-storage:9000` resolves;
   elsewhere, allow that egress.
@@ -422,11 +422,11 @@ backends].
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|`NEBULA_MAPPING_TOKEN`
+|`KUMOSS_MAPPING_TOKEN`
 |Recommended when the sidecar is enabled
 |empty (accepts any bearer)
 |Token required on `POST /v1/resolve`. Must equal the core's
-`NEBULA_MAPPING_TOKEN`.
+`KUMOSS_MAPPING_TOKEN`.
 |Per request
 |===
 
@@ -447,11 +447,11 @@ enum; there is no silent fallback.
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|`NEBULA_NOTIFICATIONS_TOKEN`
+|`KUMOSS_NOTIFICATIONS_TOKEN`
 |Recommended when the sidecar is enabled
 |empty (accepts any bearer)
 |Token required on `POST /v1/notify`. Must equal the core's
-`NEBULA_NOTIFICATIONS_TOKEN`.
+`KUMOSS_NOTIFICATIONS_TOKEN`.
 |Per request
 
 |`SLACK_WEBHOOK_URL`
@@ -497,20 +497,20 @@ would rather not see it.
 |===
 |Variable |Requirement |Default |Meaning |Checked
 
-|`NEBULA_AUTHZ_TOKEN`
+|`KUMOSS_AUTHZ_TOKEN`
 |Recommended when the sidecar is enabled
 |empty (accepts any bearer)
-|Token required on `/v1/*`. Must equal the core's `NEBULA_AUTHZ_TOKEN`.
+|Token required on `/v1/*`. Must equal the core's `KUMOSS_AUTHZ_TOKEN`.
 |Per request
 
-|`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`
+|`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`
 |Optional
 |empty
 |When set, the sidecar grants its own `admin` role to a user record
 keyed by this email at startup.
 |At boot
 
-|`NEBULA_AUTHZ_PERMISSIVE`
+|`KUMOSS_AUTHZ_PERMISSIVE`
 |Optional
 |`true`
 |`true` (case-insensitive): `POST /v1/check` answers
@@ -519,7 +519,7 @@ keyed by this email at startup.
 policy.
 |At boot
 
-|`NEBULA_AUTHZ_ROLE_STORE`
+|`KUMOSS_AUTHZ_ROLE_STORE`
 |Optional
 |`/data/roles.json`
 |Path of the JSON file holding the sidecar's user-to-roles map. The
@@ -542,7 +542,7 @@ Two things to keep apart:
   the preflight fail with `502` or `504` rather than allowing the
   request.
 * The sidecar's `admin` and `user` roles, its root-admin bootstrap, and
-  its `/v1/users` endpoints belong to the sidecar alone. Nebula's own
+  its `/v1/users` endpoints belong to the sidecar alone. Kumoss's own
   operation roles (`developer`, `devops`) and admin-panel roles
   (`viewer`, `editor`, `admin`) live in the core database and are
   documented in the xref:main:guides/administer-users-and-locks.adoc[Admin
@@ -607,10 +607,10 @@ entirely.
   in constant time, but they are still simple services: keep them on a
   private network that only the core can reach, and rotate tokens on a
   schedule.
-* *All five Nebula-built images run unprivileged.* The core, IaC,
+* *All five Kumoss-built images run unprivileged.* The core, IaC,
   mapping, notifications, and authorization Dockerfiles each create and
-  switch to the `nebula` user (uid/gid `10001` by default, from the
-  `NEBULA_UID` / `NEBULA_GID` build args). The `proxy` service is the
+  switch to the `kumoss` user (uid/gid `10001` by default, from the
+  `KUMOSS_UID` / `KUMOSS_GID` build args). The `proxy` service is the
   upstream nginx image, which starts as root and drops privileges for
   its worker processes. Apply your platform's pod or container security
   defaults on top regardless — the Compose file adds no `cap_drop`,
@@ -662,35 +662,35 @@ llm:
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 
 # Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)
-NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
-NEBULA_MAPPING_TOKEN=unused-while-disabled
-NEBULA_NOTIFICATIONS_TOKEN=unused-while-disabled
-NEBULA_AUTHZ_TOKEN=unused-while-disabled
+KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
+KUMOSS_MAPPING_TOKEN=unused-while-disabled
+KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled
+KUMOSS_AUTHZ_TOKEN=unused-while-disabled
 
 # Git push credentials
-GIT_USER=nebula-bot
+GIT_USER=kumoss-bot
 GIT_TOKEN=ghp_example_not_a_real_token
 
 # Bundled RustFS and PostgreSQL defaults
 RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
-NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
+KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss
 ----
 
 `services/iac/.env` (AWS example):
 
 [source,dotenv]
 ----
-NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
+KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
 # Unset: the backend comes from the workspace — the target repository's
-# own block, or the override the core writes when Nebula-managed state
+# own block, or the override the core writes when Kumoss-managed state
 # is on (the shipped default). If set, this file's values win over that
 # override, key by key (see Terraform/OpenTofu state backends), so set
 # it only with storage.terraform_state_bucket explicitly blanked to "",
 # and mount the file in this container.
-# IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl
+# IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl
 
 # These credentials serve both the providers and, when the rendered
 # backend block omits static keys, the S3 state backend.
@@ -728,20 +728,20 @@ services:
 # LLM provider (Google Vertex AI). The service-account key JSON, on one line.
 VERTEXAI_PROJECT=demo-platform-project
 VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
 
 # One distinct token per sidecar
-NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
-NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
-NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
-NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
+KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
+KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
+KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
+KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
 
-GIT_USER=nebula-bot
+GIT_USER=kumoss-bot
 GIT_TOKEN=example-not-a-real-gitlab-token
 
 RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
-NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula
+KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss
 ----
 
 Paste the downloaded key file's content as the value, collapsed onto one
@@ -749,7 +749,7 @@ line and unquoted. Keep the `\n` escapes inside `private_key` as they
 are: turning them into real line breaks makes the JSON invalid.
 
 NOTE: `VERTEXAI_CREDENTIALS` also accepts a path to the key file instead
-of its content. Nebula does not provide that file: create a secret or
+of its content. Kumoss does not provide that file: create a secret or
 file mount into the *core* container yourself (the Compose file mounts
 nothing there), readable by uid `10001`. A path that does not exist
 inside the container is not caught at boot. The first LLM call then
@@ -759,7 +759,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 
 [source,dotenv]
 ----
-NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
+KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
 # Provider grant: the resources plan and apply create.
@@ -778,14 +778,14 @@ ARM_ACCESS_KEY=<storage-account-access-key>
 
 [source,dotenv]
 ----
-NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
+KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
 ----
 
 `services/notifications/.env`:
 
 [source,dotenv]
 ----
-NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
+KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
 SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example
 LOG_LEVEL=INFO
 ----
@@ -794,10 +794,10 @@ LOG_LEVEL=INFO
 
 [source,dotenv]
 ----
-NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
-NEBULA_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid
-NEBULA_AUTHZ_PERMISSIVE=true
-NEBULA_AUTHZ_ROLE_STORE=/data/roles.json
+KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
+KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid
+KUMOSS_AUTHZ_PERMISSIVE=true
+KUMOSS_AUTHZ_ROLE_STORE=/data/roles.json
 ----
 
 === Other LLM providers (drop-in replacements for the LLM block)
@@ -835,7 +835,7 @@ OPENAI_API_BASE=https://llm.example.invalid/v1
 [source,dotenv]
 ----
 # Provider grant. Also serves the gcs backend, unless you override it below.
-GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}
+GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
 
 # State-backend grant: backend-only, and needed only when the state bucket
 # lives outside the project above. Omit it and `init` reuses GOOGLE_CREDENTIALS.
@@ -849,7 +849,7 @@ Kubeconfig mounted into the container.
 
 [source,dotenv]
 ----
-KUBE_CONFIG_PATH=/home/nebula/.kube/config
+KUBE_CONFIG_PATH=/home/kumoss/.kube/config
 ----
 ****
 --

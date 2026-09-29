@@ -27,8 +27,8 @@ uv run pytest \
 ```
 
 `--service-token` is only needed if the implementation enforces auth.
-URL and token may also be supplied via `NEBULA_IAC_URL` /
-`NEBULA_IAC_TOKEN`.
+URL and token may also be supplied via `KUMOSS_IAC_URL` /
+`KUMOSS_IAC_TOKEN`.
 
 The bundled reference impl under `services/iac/` has its own test
 suite — see that directory's README for how to run it.

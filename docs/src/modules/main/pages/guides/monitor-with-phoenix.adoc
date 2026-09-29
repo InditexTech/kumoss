@@ -1,14 +1,14 @@
 = Monitor with Phoenix
-:description: Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
+:description: Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 
-Nebula records what its agents do as *traces*: for every session run,
+Kumoss records what its agents do as *traces*: for every session run,
 the prompts sent to the language model, the tool calls the model made,
 the Terraform validations, and the results. Traces are exported with
 OpenTelemetry using the OpenInference conventions and, in the default
 Compose stack, collected and displayed by
 https://arize.com/docs/phoenix[Arize Phoenix].
 
-This guide covers tracing only. Phoenix also hosts Nebula's runtime
+This guide covers tracing only. Phoenix also hosts Kumoss's runtime
 prompt registry; that is a separate function described in
 xref:main:guides/customize-prompts.adoc[Customize prompts]. How
 Phoenix is deployed in each model is covered by
@@ -36,7 +36,7 @@ the same port as the application, with no authentication of its own.
 |`phoenix` (`arizephoenix/phoenix:20.12.0`)
 |Receives traces over OTLP/HTTP on port 6006 and serves the UI (port
 4317, OTLP/gRPC, is also exposed on the Compose network but unused by
-Nebula). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works
+Kumoss). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works
 behind the proxy prefix. Its MCP server is disabled.
 
 |`phoenix-db` (PostgreSQL 17)
@@ -110,7 +110,7 @@ vendor endpoint) receives the spans. Two caveats:
 
 == Projects
 
-Phoenix groups traces into projects. Nebula picks the project from the
+Phoenix groups traces into projects. Kumoss picks the project from the
 `environment` setting and the session's operation:
 
 [cols="1,3,3,3",options="header"]
@@ -149,7 +149,7 @@ Notes:
 
 == What a trace contains
 
-Nebula instruments four kinds of work with decorators in the domain
+Kumoss instruments four kinds of work with decorators in the domain
 layer; each produces one span type. Attribute keys follow the
 OpenInference semantic conventions.
 
@@ -263,9 +263,9 @@ start time, so durations are correct even though the nesting is flat.
   session status and failure message in the application or the
   xref:main:guides/administer-users-and-locks.adoc[admin panel] for
   error triage.
-* *Metrics, dashboards, alerts, evaluations.* Nebula emits traces only.
+* *Metrics, dashboards, alerts, evaluations.* Kumoss emits traces only.
   Phoenix's evaluation and dataset features are available in the UI but
-  nothing in Nebula populates them.
+  nothing in Kumoss populates them.
 * *Logs.* Application logs go to the container's standard output and
   are not correlated with traces.
 * *Sidecar activity.* The sidecars are not instrumented; engine commands

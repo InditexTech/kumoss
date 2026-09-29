@@ -1,14 +1,14 @@
 = Architecture
-:description: The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.
+:description: The components that make up Kumoss, how they communicate, and where the rest of this section goes into more depth.
 
-This page introduces Nebula's runtime components and how they fit together.
+This page introduces Kumoss's runtime components and how they fit together.
 The rest of this section goes deeper: the end-to-end request flow, the data
 and state each component owns, and the deployment topology.
 
 == Overview
 
 :diagram-name: system-architecture
-:diagram-alt: Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network
+:diagram-alt: Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
@@ -22,7 +22,7 @@ core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the `workspaces` volume,
 `phoenix-db` and the notification and storage backends are carried in the
 notes beside it rather than drawn. Phoenix is reachable through the proxy at
-`/monitoring/`, artifacts land in the `nebula-artifacts` bucket, and the
+`/monitoring/`, artifacts land in the `kumoss-artifacts` bucket, and the
 shipped configuration routes model calls through LiteLLM.
 
 == Component responsibilities
@@ -73,7 +73,7 @@ layer — they live in `core/src/clients`, a sibling package.
 |authz service
 |Cloud project access checks, disabled by default. Disabled, the core
 answers "authorized" without calling it; enabled, an unreachable sidecar is
-an error, never an allow. Its user and role endpoints are unused — Nebula
+an error, never an allow. Its user and role endpoints are unused — Kumoss
 keeps those in core-db.
 |Called from the authorize route with the caller's identity; container-local
 JSON role store
@@ -113,7 +113,7 @@ aggregates. No pub/sub, no locks.
 |Core only
 
 |object-storage (RustFS, Apache-2.0)
-|*Default, bundled* artifact store (`nebula-artifacts`): reports, plans,
+|*Default, bundled* artifact store (`kumoss-artifacts`): reports, plans,
 drift JSON and code changes, served to the browser by presigned URL.
 `storage.provider` switches to AWS S3, Azure Blob Storage or any other
 S3-compatible endpoint. Engine state lives in the *separate*

@@ -43,7 +43,7 @@ xref:main:reference/llm-providers.adoc[LLM providers and models].
 [source,yaml]
 ----
 llm:
-  model: "vertex_ai/claude-sonnet-5"
+  model: "vertex_ai/claude-sonnet-4-5"
   small_model: "vertex_ai/gemini-3.8-flash"
 
 orchestration:
@@ -74,7 +74,7 @@ Set:
   xref:main:reference/llm-providers.adoc#provider-credentials[provider
   credential variables]. The core will not run without them.
 * `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
-  provider named by `git.provider` defined in above in `config.yaml`.
+  provider named by `git.provider` defined in the above `config.yaml`.
 
 Keep the remaining sample values: they match the bundled containers. Every
 variable: xref:main:reference/environment-variables.adoc[Environment

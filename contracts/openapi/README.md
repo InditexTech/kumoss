@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 One hand-written OpenAPI 3.1 document per sidecar service, named
 `<service>.v<major>.yaml`. These files are the source of truth for
-every implementation of a Nebula sidecar, bundled or third-party, and
+every implementation of a Kumoss sidecar, bundled or third-party, and
 the core's HTTP clients under `core/src/clients/` are generated from
 them.
 

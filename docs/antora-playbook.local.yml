@@ -31,7 +31,7 @@
 #
 
 site:
-  title: Nebula
+  title: Kumoss
   # Set to the dev server's own origin so Antora also generates 404.html
   # (@antora/page-composer only does this when site.url is set) — docouture dev
   # (src/lib/dev-server.ts) then has a real 404 page to serve instead of a

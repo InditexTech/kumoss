@@ -27,7 +27,7 @@ and code-change artifacts under
 `sessions/<session>/rounds/<round>/`. A second bucket,
 `storage.terraform_state_bucket`, holds Terraform/OpenTofu state under
 `<project_id>/terraform.tfstate` — it ships set to
-`nebula-terraform-state`, so this is on by default; set it explicitly
+`kumoss-terraform-state`, so this is on by default; set it explicitly
 to `""` to leave state to each repository's own backend instead. Every
 configured bucket is created at boot if missing, and the core *fails to
 boot* if the store is unusable. Choose `storage.provider`:
@@ -43,16 +43,16 @@ Browsers download artifacts through *presigned URLs* built against
 `storage.public_endpoint_url`, so that endpoint must be reachable from
 users' browsers over TLS, and the bucket policy must allow presigned
 reads. Links are valid for `storage.presign_expiry_seconds` (48 hours
-by default). Apply lifecycle and retention rules; Nebula never deletes
+by default). Apply lifecycle and retention rules; Kumoss never deletes
 stored artifacts (it only removes an object whose database record
 failed to be written).
 
-Since Nebula-managed state is on by default, treat the *state bucket
+Since Kumoss-managed state is on by default, treat the *state bucket
 differently from the artifacts bucket*. It is never browser-facing and
 needs no presigned reads; it must be reachable from the *IaC sidecar*,
 not from users; and it should carry versioning and soft delete, be
 excluded from any artifact expiry rule, and be included in your restore
-drills — it is the record of what Nebula has built. Nebula never
+drills — it is the record of what Kumoss has built. Kumoss never
 deletes a state object. Details and per-provider IAM minimums:
 xref:main:guides/configure-state-backends.adoc#operations[Operations].
 
@@ -75,7 +75,7 @@ an isolated workstation:
 * `POSTGRES_PASSWORD=postgres` on both `core-db` and `phoenix-db`, and
   the matching password embedded in `PHOENIX_SQL_DATABASE_URL`. Replace
   all three with a generated password from your secret store, and
-  update `NEBULA_SQL_DATABASE_URL` and `PHOENIX_SQL_DATABASE_URL` to
+  update `KUMOSS_SQL_DATABASE_URL` and `PHOENIX_SQL_DATABASE_URL` to
   match.
 * `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` default to `rustfsadmin` /
   `rustfsadmin`. Rotate both to generated values (and update the core's
@@ -100,12 +100,12 @@ an isolated workstation:
 Back up: the core PostgreSQL database, the Phoenix PostgreSQL database
 (prompts and traces), the artifacts bucket, and — with the highest
 priority — wherever *Terraform state* lives, since losing it means
-losing the record of the infrastructure Nebula manages. That is the
-state bucket if you enabled Nebula-managed state, and otherwise the
+losing the record of the infrastructure Kumoss manages. That is the
+state bucket if you enabled Kumoss-managed state, and otherwise the
 backend each repository declares, which is covered by whoever owns it.
 The workspace volume needs no backup beyond surviving restarts.
 
-Upgrading Nebula:
+Upgrading Kumoss:
 
 . Read the release notes for schema changes; there are no automatic
   migrations. One known breaking change predates OIDC support and is
@@ -127,10 +127,10 @@ After the first deployment:
 [source,bash]
 ----
 # Public route: issuer must be non-empty in production
-curl https://nebula.example.invalid/api/v1/auth/config
+curl https://kumoss.example.invalid/api/v1/auth/config
 
 # Protected route: must answer 401 without a token
-curl -i https://nebula.example.invalid/api/v1/users/me
+curl -i https://kumoss.example.invalid/api/v1/users/me
 
 # Sidecar liveness from inside the cluster network
 curl http://iac:8082/healthz
@@ -143,7 +143,7 @@ Then, as the bootstrap administrator:
 . Run a generate session against a test repository and a test cloud
   project; confirm the branch, the pull request, the report, and the
   traces in Phoenix under `pro-terraform-day2`. Also confirm state
-  landed where you intended: with the shipped default (Nebula-managed
+  landed where you intended: with the shipped default (Kumoss-managed
   state), the core logs `Terraform state: <provider>
   bucket=<bucket> key=<project_id>/terraform.tfstate` before `init` and
   that object must exist in the state bucket afterwards; if you set
@@ -176,11 +176,11 @@ the URL lacks the trailing slash.
 
 |Core boots with every optional sidecar disabled although
 `config.yaml` enables them
-|`NEBULA_CONFIG` points at a missing path or a directory; the core fell
+|`KUMOSS_CONFIG` points at a missing path or a directory; the core fell
 back to defaults (the IaC sidecar is always called regardless, and its
 own default endpoint is unlikely to resolve, which surfaces as a
 different failure).
-|Fix the mount path so `NEBULA_CONFIG` resolves to a regular file.
+|Fix the mount path so `KUMOSS_CONFIG` resolves to a regular file.
 
 |Users get `401 Token validation failed ... audience`
 |Usually the API scope or `audience` setting.
@@ -200,8 +200,8 @@ rebuild the core image.
 |Every plan fails with `permission denied` on state or plan files
 |The shared workspace is not writable by uid `10001`, or the two
 containers run as different users.
-|`chown -R 10001:10001` the workspace volume and align `NEBULA_UID`/
-`NEBULA_GID` on both images.
+|`chown -R 10001:10001` the workspace volume and align `KUMOSS_UID`/
+`KUMOSS_GID` on both images.
 
 |`init` fails downloading providers
 |Egress to `registry.opentofu.org` (or `registry.terraform.io`) is
@@ -214,7 +214,7 @@ blocked or TLS-inspected.
 declares no backend of its own: `init` then falls back to local state,
 whose file dies with the workspace.
 |Add a backend to the repository, or remove the explicit `""` (a bucket
-name, or dropping the key, re-enables Nebula-managed state) and rebuild
+name, or dropping the key, re-enables Kumoss-managed state) and rebuild
 the core image.
 
 |`init` fails with `InvalidAccessKeyId` after switching
@@ -230,7 +230,7 @@ credentials error
 bucket, or cannot reach `storage.endpoint_url`. Granting the role to
 the core alone is not enough.
 |See
-xref:main:guides/state-backends/nebula-managed.adoc#credentials-required[Credentials
+xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
 required].
 
 |Every plan proposes creating resources that already exist
@@ -242,7 +242,7 @@ backend configuration].
 
 |`Error acquiring the state lock`
 |Another run holds it, or a crashed run left it stale.
-|Clear it deliberately (xref:main:guides/state-backends/nebula-managed.adoc#locking[Locking]).
+|Clear it deliberately (xref:main:guides/state-backends/kumoss-managed.adoc#locking[Locking]).
 
 |`init` fails on a missing backend configuration file
 |`IAC_BACKEND_CONFIG` is not validated at startup, so the sidecar starts

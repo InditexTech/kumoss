@@ -1,28 +1,28 @@
 = Repository-declared backend
 :description: Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.
 
-Blank the state bucket with an explicit empty string and Nebula steps out
+Blank the state bucket with an explicit empty string and Kumoss steps out
 of the way:
 
 [source,yaml]
 ----
 storage:
   provider: "RUSTFS"
-  bucket: "nebula-artifacts"
+  bucket: "kumoss-artifacts"
   terraform_state_bucket: ""
 ----
 
 `""` and whitespace-only (`"   "`) are equally blank. A key with no value
 after it is not blank but null, and fails validation at boot; deleting the
 key is not blank either, because its default in code is
-`nebula-terraform-state`, which leaves
-xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
+`kumoss-terraform-state`, which leaves
+xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed state]
 on. What blanking it means:
 
 * No state bucket or container is created at boot.
 * *No `backend_override.tf` is written.* Each workspace keeps the backend
   its own committed configuration declares.
-* *Every repository Nebula operates on must declare a working remote
+* *Every repository Kumoss operates on must declare a working remote
   backend* — `azurerm`, `s3`, `gcs`, or any other the engine supports.
   With *no* backend block the engine falls back to local state, lost with
   the workspace, so the next session plans against nothing.
@@ -32,7 +32,7 @@ on. What blanking it means:
   below).
 
 A typical repository therefore carries its own backend block, which
-Nebula reads and leaves alone:
+Kumoss reads and leaves alone:
 
 [source,hcl]
 ----
@@ -46,7 +46,7 @@ terraform {
 }
 ----
 
-Nothing here is Nebula-specific: the same backend serves your CI and your
+Nothing here is Kumoss-specific: the same backend serves your CI and your
 engineers' laptops, which is the main reason to prefer this model when
 the repositories already have one.
 
@@ -100,10 +100,10 @@ minimums]); the variable-level view is in
 xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
 credentials for the IaC engine].
 
-Model 2 — what ships — can spare you the second set: Nebula writes the
+Model 2 — what ships — can spare you the second set: Kumoss writes the
 backend itself, and where the rendered block embeds static keys — the
 `RUSTFS` case, and `S3`/`STORAGE_ACCOUNT` with keys in `core/.env` — the
 sidecar needs nothing for state. Where it does not embed them, the
 sidecar still has to resolve them; see
-xref:main:guides/state-backends/nebula-managed.adoc#credentials-required[Credentials
+xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
 required].

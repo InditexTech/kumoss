@@ -23,8 +23,8 @@ uv run pytest \
 ```
 
 `--service-token` is only needed if the implementation enforces auth.
-URL and token may also be supplied via `NEBULA_AUTHZ_URL` /
-`NEBULA_AUTHZ_TOKEN`.
+URL and token may also be supplied via `KUMOSS_AUTHZ_URL` /
+`KUMOSS_AUTHZ_TOKEN`.
 
 The bundled reference impl under `services/authz/` has its own test
 suite — see that directory's README for how to run it.

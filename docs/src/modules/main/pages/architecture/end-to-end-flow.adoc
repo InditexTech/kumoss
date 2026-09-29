@@ -12,7 +12,7 @@ gates on purpose: *models propose, code decides.*
 == Phases 1 and 2: request and session
 
 :diagram-name: flow-phases-1-4
-:diagram-alt: Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose
+:diagram-alt: Kumoss request flow, phases 1 to 4: request, identity, session, then filter and compose
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -61,7 +61,7 @@ never refused with `409`: the runner that loses logs
 `runner not started: Session ... already has an operation in flight` and
 returns without touching the session. It then clones into
 `/workspaces/<session>/<call>` on the volume shared with the iac
-sidecar, pushes the branch `Nebula/YYYY-MM-DD_HHMMSS` (UTC), and installs
+sidecar, pushes the branch `Kumoss/YYYY-MM-DD_HHMMSS` (UTC), and installs
 the per-session Phoenix tracer.
 |===
 
@@ -93,7 +93,7 @@ Up to `orchestration.max_validation_iteration` generate-and-validate
 iterations: 8 in the shipped `config.yaml`, 5 built in.
 
 :diagram-name: flow-phases-5-6
-:diagram-alt: Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
+:diagram-alt: Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -176,7 +176,7 @@ existing plan safe: xref:#drift[Drift detection and remediation].
 == Phase 7: report and artifacts
 
 :diagram-name: flow-phases-7-8
-:diagram-alt: Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -235,7 +235,7 @@ xref:#compliance[Compliance gate].
 == Phase 9: pull request and review
 
 :diagram-name: flow-phase-9
-:diagram-alt: Nebula request flow, phase 9: optional pull request and human review
+:diagram-alt: Kumoss request flow, phase 9: optional pull request and human review
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -252,7 +252,7 @@ adapter (GitHub, Azure DevOps or GitLab REST API) opens the pull request
 from the session branch. Reviewers see the code diff, a title and
 description the model derives only from the request and the conversation
 history, and their own CI; the plan, report and cost estimate stay in
-Nebula's results view, and compliance findings reach only the
+Kumoss's results view, and compliance findings reach only the
 notification audience.
 
 |Review outcomes
@@ -268,7 +268,7 @@ the session history and artifacts are kept.
 == Phase 10: apply
 
 :diagram-name: flow-phase-10
-:diagram-alt: Nebula request flow, phase 10: human-triggered apply, never automatic
+:diagram-alt: Kumoss request flow, phase 10: human-triggered apply, never automatic
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -614,7 +614,7 @@ is.
 
 |*Changes requested* — phase 9
 |A reviewer asked for changes, or the pull request's own CI or a merge
-conflict failed it. Nebula does not watch the pull request: the owner
+conflict failed it. Kumoss does not watch the pull request: the owner
 relays the problem as a new request
 |A new round of the same session starts at phase 3, on the same branch.
 
@@ -666,7 +666,7 @@ Before rendering, the SPA fetches the only unauthenticated route,
 
 |*Disabled* — blank `oidc.issuer_url`, the checked-in default
 |The SPA mounts a dev provider, and the core resolves every request to a
-fixed local-developer identity (`urn:nebula:dev` / `dev`), provisioned as a
+fixed local-developer identity (`urn:kumoss:dev` / `dev`), provisioned as a
 real user row with the top role of both groups.
 
 |*Enabled*
@@ -725,7 +725,7 @@ touch a given cloud project and environment. Disabled — the default — the
 core answers "authorized" with no network call; enabled, a timeout or
 unreachable sidecar is returned as `504`/`502`, never as an allow. This is a
 hook for enterprise cloud-access policy, not the access control for
-Nebula's own data.
+Kumoss's own data.
 
 === Session creation and orchestration
 
@@ -792,7 +792,7 @@ adopted, never migrated.
 |The sidecar owns no backend decision
 |Beyond the optional `IAC_BACKEND_CONFIG` file, the backend is whatever the
 workspace contains: the `backend_override.tf` the core writes by default,
-since Nebula-managed state is on as shipped, or the repository's own block
+since Kumoss-managed state is on as shipped, or the repository's own block
 if that is turned off.
 |===
 
@@ -980,7 +980,7 @@ time.
 === Artifacts and telemetry
 
 * Reports, plans, drift JSON and per-file code changes go to the
-  `nebula-artifacts` bucket, metadata to PostgreSQL. The browser fetches
+  `kumoss-artifacts` bucket, metadata to PostgreSQL. The browser fetches
   them through presigned URLs signed against the public port-9000 endpoint
   nginx forwards to RustFS.
 * Every run installs a per-session tracer exporting OpenInference-annotated

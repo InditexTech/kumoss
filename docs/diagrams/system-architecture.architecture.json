@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Nebula System Architecture",
+    "title": "Kumoss System Architecture",
     "output": "system-architecture.html",
     "quality_profile": "showcase",
     "locale": "en",
@@ -134,7 +134,7 @@
       "type": "database",
       "label": "object-storage",
       "sublabel": "RustFS, S3 API",
-      "tag": "nebula-artifacts",
+      "tag": "kumoss-artifacts",
       "row": 2,
       "col": 1,
       "size": [
@@ -172,7 +172,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "Nebula stack, one Compose network",
+      "label": "Kumoss stack, one Compose network",
       "wraps": [
         "nginx",
         "core-api",

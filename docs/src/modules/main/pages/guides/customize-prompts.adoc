@@ -1,7 +1,7 @@
 = Customize prompts
-:description: Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+:description: Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 
-Nebula does not hard-code cloud knowledge. The instructions that tell
+Kumoss does not hard-code cloud knowledge. The instructions that tell
 its agents how to name, configure, and secure resources are *prompts*
 stored in the prompt registry of https://arize.com/docs/phoenix[Arize
 Phoenix], fetched by the core at request time. This guide explains the
@@ -9,7 +9,7 @@ three layers involved, the naming conventions, how seeding and runtime
 lookup work, how the prompts are composed into a system prompt, and how
 to add or change prompts safely.
 
-Phoenix also collects Nebula's traces. That is a separate function,
+Phoenix also collects Kumoss's traces. That is a separate function,
 documented in xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
 Phoenix]. Where Phoenix runs and how it is protected in each deployment
 model is covered by xref:main:quickstart.adoc[Quickstart] and
@@ -36,7 +36,7 @@ in Phoenix
 |*Local Jinja layouts*
 |`core/src/infrastructure/templates/base_layouts/` (`core/` and
 `messages/`), inside the core image
-|Nebula developers
+|Kumoss developers
 |After rebuilding the core image
 |===
 
@@ -153,7 +153,7 @@ have been initialised, the seeder:
 . For each seed, asks Phoenix whether a prompt with that name exists
   (by name, regardless of tags). If it exists, the seed is skipped. If
   not, the seeder creates the prompt with one version whose displayed
-  model name is `nebula-seed` (Phoenix requires a model name; Nebula
+  model name is `kumoss-seed` (Phoenix requires a model name; Kumoss
   ignores it) and tags that version with the value of `environment`
   from `config.yaml` (`development` by default).
 . Logs `Prompt seeding complete: N created, M already present`.
@@ -174,7 +174,7 @@ Consequences to plan for:
   because `general-guidelines-terraform` has no version tagged
   `production`. Tag a version of every prompt with the new value in
   Phoenix before switching, or start from an empty Phoenix database.
-* *Prompt versions are yours to manage.* Nebula always fetches the
+* *Prompt versions are yours to manage.* Kumoss always fetches the
   version currently carrying the environment tag. Publishing a new
   version and moving the tag is how you roll a change out; moving the
   tag back is how you roll it back.

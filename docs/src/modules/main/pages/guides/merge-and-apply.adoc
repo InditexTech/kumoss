@@ -1,5 +1,5 @@
 = Merge and apply
-:description: Handle a locked session, then open, merge, and apply a Nebula pull request.
+:description: Handle a locked session, then open, merge, and apply a Kumoss pull request.
 
 Once you have reviewed a session's results, this guide covers what a
 session lock means for you and how to open the pull request, merge it,
@@ -33,7 +33,7 @@ clears the lock. Your own sessions list shows the lock state in the
 
 == Steps
 
-. *Create PR.* In the results view choose *Create PR*. Nebula writes the
+. *Create PR.* In the results view choose *Create PR*. Kumoss writes the
   title and description and opens the pull request from the session
   branch on your Git provider. Creating it can take a minute.
 . *Review.* "Here is your Pull Request." Use *View Pull Request* to open
