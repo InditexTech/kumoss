@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Configure state backends | Nebula</title>
+<title>Configure state backends | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/configure-state-backends/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/">
     <link rel="prev" href="../customize-prompts/">
     <link rel="next" href="../state-backends/repository-declared/">
-    <meta name="description" content="Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.">
+    <meta name="description" content="Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Configure state backends</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Configure state backends</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula&#8217;s workspaces are <strong>ephemeral by design</strong>: every call clones the
+<p>Kumoss&#8217;s workspaces are <strong>ephemeral by design</strong>: every call clones the
 repository into a fresh directory on the shared <code>workspaces</code> volume and
 deletes it in a <code>finally</code> block, and the workspace pinned for an apply is
 removed once the apply completes. Nothing there survives. Hence a remote
@@ -787,8 +787,8 @@ that already exists.</p>
 <p><strong>State must be shared across runs, not across directories.</strong> Two
 sessions on the same project get two different clone paths, so only
 something that describes <em>the project</em> can bring their state together.
-Nebula derives that identity itself (see
-<a href="../state-backends/nebula-managed/#state-keys" class="xref page">State
+Kumoss derives that identity itself (see
+<a href="../state-backends/kumoss-managed/#state-keys" class="xref page">State
 keys</a>).</p>
 </li>
 </ol>
@@ -805,18 +805,18 @@ commit or a pull request.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p><strong>The shipped <code>config.yaml</code> sets
-<code>storage.terraform_state_bucket: "nebula-terraform-state"</code>, so Nebula
+<code>storage.terraform_state_bucket: "kumoss-terraform-state"</code>, so Kumoss
 manages state itself.</strong> It takes over the backend entirely: it creates
 the bucket or container at boot in the store that <code>storage.provider</code>
 selects (RustFS by default), writes the backend into every workspace,
-and assigns a state key per project. The repositories Nebula operates on
+and assigns a state key per project. The repositories Kumoss operates on
 need no backend block of their own, and there is nothing to set up in a
 cloud account first.</p>
 </div>
 <div class="paragraph">
 <p>If your repositories already declare their own backends and must keep
 them, <strong>set <code>storage.terraform_state_bucket</code> to the empty string</strong> and
-Nebula configures no backend at all. The backend is then yours to
+Kumoss configures no backend at all. The backend is then yours to
 provide: every repository must declare its own remote backend, and the
 IaC sidecar must hold the credentials to reach it. A repository with no
 backend block falls back to local state, which is lost with the
@@ -824,17 +824,17 @@ workspace.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># As shipped: Nebula-managed state. Nothing else to configure on RUSTFS.</span></span>
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># As shipped: Kumoss-managed state. Nothing else to configure on RUSTFS.</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-artifacts"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-terraform-state"</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-artifacts"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-terraform-state"</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
 <p><strong>Only an explicit empty string turns managed state off.</strong> Write
 <code>terraform_state_bucket: ""</code>; whitespace-only counts too. Deleting the
-key does not: the field&#8217;s default in code is <code>nebula-terraform-state</code>,
+key does not: the field&#8217;s default in code is <code>kumoss-terraform-state</code>,
 so a <code>config.yaml</code> without <code>terraform_state_bucket</code> still manages state.
 Nor does writing the key with <strong>no value after it</strong> — YAML reads that as
 null, the field is typed <code>str</code>, and the core dies at boot with
@@ -873,10 +873,10 @@ null, the field is typed <code>str</code>, and the core dies at boot with
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">2</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Nebula-managed state</strong> — <em>shipped default</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Kumoss-managed state</strong> — <em>shipped default</em></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The <strong>core</strong>, from <code>storage.*</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_state_bucket</code> set to a bucket name — as shipped,
-<code>nebula-terraform-state</code></p></td>
+<code>kumoss-terraform-state</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">3</p></td>
@@ -887,7 +887,7 @@ null, the field is typed <code>str</code>, and the core dies at boot with
 </tbody>
 </table></div></div>
 <div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/repository-declared/" class="xref page">Repository-declared backend</a></div><p>Blank the state bucket and let each repository&#8217;s own backend block own
-state.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/nebula-managed/" class="xref page">Nebula-managed state</a></div><p>Keep the shipped default: the core creates the bucket and writes the
+state.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/kumoss-managed/" class="xref page">Kumoss-managed state</a></div><p>Keep the shipped default: the core creates the bucket and writes the
 backend for you.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../state-backends/sidecar-supplied/" class="xref page">Sidecar-supplied backend</a></div><p>Mount a backend configuration file on the IaC sidecar and own the
 decision centrally.</p></div></div></div></div>
 <div class="paragraph">
@@ -922,18 +922,18 @@ CI plan against the same state.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Production, repositories already have backends you must not change</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>1</strong>, by blanking the state bucket</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula writes nothing; each repository keeps the backend its team
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kumoss writes nothing; each repository keeps the backend its team
 declared.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Production, Nebula owns the projects it generates</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Production, Kumoss owns the projects it generates</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> with <code>S3</code> or <code>STORAGE_ACCOUNT</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">One managed store, one credential set, one lifecycle policy, state keys
 assigned automatically.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Production, one central backend for every project, defined outside
-Nebula</p></td>
+Kumoss</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>3</strong></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Backend values live in a file your platform mounts and rotates.</p></td>
 </tr>
@@ -976,10 +976,10 @@ the engine bound.</p>
 <p>Keys absent from a higher layer fall through to the next one, so
 <strong>setting both model 2 and model 3 produces a partial merge, not a clean
 override</strong>: for every key the mounted file declares (<code>bucket</code>, <code>key</code>,
-<code>region</code>, credentials) it replaces Nebula&#8217;s value, and Nebula&#8217;s
+<code>region</code>, credentials) it replaces Kumoss&#8217;s value, and Kumoss&#8217;s
 remaining keys survive. That is worse than either model alone, because
 the result is a backend neither side fully describes. The common
-failure is the mounted file supplying a single <code>key</code>: Nebula&#8217;s
+failure is the mounted file supplying a single <code>key</code>: Kumoss&#8217;s
 per-project <code>key = &lt;project_id&gt;/terraform.tfstate</code> is then gone and
 <strong>every project shares one state object</strong>. <strong>Set
 <code>terraform_state_bucket: ""</code> whenever you set <code>IAC_BACKEND_CONFIG</code></strong> —
@@ -1008,7 +1008,7 @@ take, not a default you inherit.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">set <em>(shipped)</em></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">unset <em>(shipped)</em></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> — Nebula-managed</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>2</strong> — Kumoss-managed</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code></p></td>
@@ -1032,20 +1032,20 @@ take, not a default you inherit.</p>
 <p><strong>Any change to <code>config.yaml</code> needs an image rebuild</strong> (<code>docker compose
 build core &amp;&amp; docker compose up -d core</code>), because the file is baked
 into the core image. To vary it per environment without rebuilding,
-mount <code>config.yaml</code> and point <code>NEBULA_CONFIG</code> at it — see
+mount <code>config.yaml</code> and point <code>KUMOSS_CONFIG</code> at it — see
 <a href="../production/networking-and-tls/#images-and-config-delivery" class="xref page">Images
 and configuration delivery</a>.</p>
 </div>
 <div class="paragraph">
 <p><strong>Switching models moves nothing.</strong> Turning managed state on does not
 import the state your repositories' backends hold; turning it off
-leaves whatever Nebula stored in its bucket, where those backends will
+leaves whatever Kumoss stored in its bucket, where those backends will
 not look for it. Migrate first, or accept that the affected projects
 start from empty state.</p>
 </div>
 <div class="paragraph">
 <p><code>init</code> <strong>always</strong> runs with <code>-reconfigure</code> (<code>tofu init -no-color
--input=false -reconfigure</code>): Nebula runs the engine non-interactively,
+-input=false -reconfigure</code>): Kumoss runs the engine non-interactively,
 and <code>-input=false</code> cannot answer the <em>"Backend configuration changed"</em>
 prompt, so without it any workspace whose backend differs from its
 previous initialization would fail hard. What that means for you:</p>
@@ -1060,7 +1060,7 @@ action.</p>
 <li>
 <p><strong>State under the previous backend is not migrated.</strong> <code>-reconfigure</code>
 deliberately skips the migration <code>-migrate-state</code> would perform.
-Nebula never copies state between backends.</p>
+Kumoss never copies state between backends.</p>
 </li>
 <li>
 <p><strong>A project therefore starts from empty state</strong> after any change that
@@ -1085,12 +1085,12 @@ itself:</p>
 <div class="paragraph">
 <p><code>tofu init -migrate-state</code> run by hand in an equivalent workspace works
 too. Either way, keep the pulled file as a backup and verify with a plan
-that shows no changes before letting Nebula run again.</p>
+that shows no changes before letting Kumoss run again.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="what-nebula-does-not-do"><a class="anchor" href="#what-nebula-does-not-do"></a>What Nebula does not do</h2>
+<h2 id="what-kumoss-does-not-do"><a class="anchor" href="#what-kumoss-does-not-do"></a>What Kumoss does not do</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>State ownership stops at "write the backend and key". Everything below
@@ -1102,13 +1102,13 @@ is yours:</p>
 <p><strong>No state migration.</strong> Never, between any two backends. See above.</p>
 </li>
 <li>
-<p><strong>No versioning or backups.</strong> Nebula does not enable bucket versioning,
+<p><strong>No versioning or backups.</strong> Kumoss does not enable bucket versioning,
 object lock, soft delete, or point-in-time restore on the state
 bucket. Turn them on yourself — for state this matters far more than
 for artifacts.</p>
 </li>
 <li>
-<p><strong>No lifecycle or retention policy</strong>, and no deletion: Nebula never
+<p><strong>No lifecycle or retention policy</strong>, and no deletion: Kumoss never
 removes a state object, so state for a decommissioned project persists
 until you delete it.</p>
 </li>
@@ -1137,7 +1137,7 @@ rest and restrict access accordingly.</p>
 <p><strong>Import writes to managed state during the round.</strong> The import modes
 run <code>terraform import</code> through the IaC sidecar&#8217;s <code>/v1/import</code> while
 the round is still running, so imported resources enter the state
-Nebula manages before any pull request is reviewed. See
+Kumoss manages before any pull request is reviewed. See
 <a href="../import-infrastructure/" class="xref page">Import infrastructure</a>.</p>
 </li>
 </ul>
@@ -1149,7 +1149,7 @@ Nebula manages before any pull request is reviewed. See
 <div class="sectionbody">
 <div class="paragraph">
 <p>This section assumes model 2, which is what ships. If you turned it off
-with <code>terraform_state_bucket: ""</code>, the state bucket is not Nebula&#8217;s, so
+with <code>terraform_state_bucket: ""</code>, the state bucket is not Kumoss&#8217;s, so
 its operation — versioning, access, backups — belongs to whoever owns
 the backend each repository declares.</p>
 </div>
@@ -1159,7 +1159,7 @@ the backend each repository declares.</p>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span>
-<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Terraform state: rustfs bucket=nebula-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1175,7 +1175,7 @@ the <code>Host</code> header unchanged, so SigV4 signatures verify):</p>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">AWS_ACCESS_KEY_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE"> AWS_SECRET_ACCESS_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> \</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">AWS_DEFAULT_REGION=us-east-1 </span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D">\</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  aws</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --endpoint-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost:9000</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  s3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ls</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3://nebula-terraform-state/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --recursive</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  s3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ls</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3://kumoss-terraform-state/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --recursive</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1189,7 +1189,7 @@ elsewhere.</p>
 encryption at rest with your own key if policy requires it; access
 restricted to the core and the IaC sidecar identities; excluded from any
 lifecycle expiry you apply to the artifacts bucket; and included in your
-backup and restore drills — this bucket is the record of what Nebula has
+backup and restore drills — this bucket is the record of what Kumoss has
 built.</p>
 </div>
 </div>
@@ -1242,7 +1242,7 @@ override contains no <code>access_key</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The <strong>IaC sidecar</strong> container has no ambient cloud credentials, or they
 lack access to the state bucket.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Give the sidecar the role/keys, not just the core. See
-<a href="../state-backends/nebula-managed/#credentials-required" class="xref page">Credentials
+<a href="../state-backends/kumoss-managed/#credentials-required" class="xref page">Credentials
 required</a>.</p></td>
 </tr>
 <tr>
@@ -1270,7 +1270,7 @@ object / break the blob lease.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Two repositories collide on one state file</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A shared <code>-backend-config</code> file supplies one <code>key</code> — under model 3, or
 under the mixed model 2 + model 3 case, where the mounted file&#8217;s <code>key</code>
-overrides Nebula&#8217;s per-project one.</p></td>
+overrides Kumoss&#8217;s per-project one.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Declare distinct keys per repository, or use model 2 alone (leave
 <code>IAC_BACKEND_CONFIG</code> unset).</p></td>
 </tr>
@@ -1289,7 +1289,7 @@ gitignore couldn&#8217;t be created</code> and carries on, and the next commit
 (<code>git add -A</code>) picks the override file up. A repository that carried no
 <code>.gitignore</code> is not the cause: the seeded file is honoured for the
 working tree even though it ignores itself and is never committed. A
-repository that already tracks a <code>.gitignore</code> gets Nebula&#8217;s template
+repository that already tracks a <code>.gitignore</code> gets Kumoss&#8217;s template
 appended to it, and that modification is committed and pushed to the
 session branch.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Look for the warning in the core log and check that the <code>workspaces</code>
@@ -1334,9 +1334,9 @@ uid/gid <code>10001</code>. A volume from a stack that ran as root needs
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.terraform_state_bucket</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>nebula-terraform-state</code> <em>(shipped, and the field default)</em></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss-terraform-state</code> <em>(shipped, and the field default)</em></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Names the bucket (blob container on <code>STORAGE_ACCOUNT</code>) that holds
-Nebula-managed state; it is created at boot if missing. Set it to <code>""</code>
+Kumoss-managed state; it is created at boot if missing. Set it to <code>""</code>
 to leave state to the repository instead — <code>""</code> and whitespace-only
 both count as blank. <strong>Deleting the key falls back to the same field
 default and keeps managed state on</strong>, and a key written with no value is
@@ -1436,7 +1436,7 @@ per-cloud backend credential minimums.</p>
 </li>
 <li>
 <p><a href="../../architecture/data-and-state/#terraform-state" class="xref page">Architecture
-— Data and state</a> — where state sits among Nebula&#8217;s stores.</p>
+— Data and state</a> — where state sits among Kumoss&#8217;s stores.</p>
 </li>
 <li>
 <p><a href="../production/operations/#data-and-persistence" class="xref page">Operations
@@ -1486,7 +1486,7 @@ production.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/configure-state-backends.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/configure-state-backends.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1506,7 +1506,7 @@ production.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

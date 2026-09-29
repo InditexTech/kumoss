@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>Data and state | Nebula</title>
+<title>Data and state | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/architecture/data-and-state/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/architecture/data-and-state/">
     <link rel="prev" href="../end-to-end-flow/">
     <link rel="next" href="../deployment-view/">
     <meta name="description" content="What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">Architecture</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Data and state</span></div>
 </nav>
@@ -770,7 +770,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This page describes what each of Nebula&#8217;s data stores holds: core-db,
+<p>This page describes what each of Kumoss&#8217;s data stores holds: core-db,
 phoenix-db, Redis, object storage, and the <code>workspaces</code> volume on the
 filesystem shared between the core and the iac sidecar.</p>
 </div>
@@ -811,7 +811,7 @@ deletion cascades, see
 <div class="paragraph">
 <p><strong>phoenix-db (PostgreSQL 17)</strong> belongs exclusively to Phoenix and stores
 traces and prompt versions — operational/LLM telemetry, fully separate
-from Nebula&#8217;s domain data.</p>
+from Kumoss&#8217;s domain data.</p>
 </div>
 </div>
 </div>
@@ -897,7 +897,7 @@ shipped. A remote backend, however, is not optional regardless of that
 setting: workspaces are ephemeral and the <code>.gitignore</code> the core seeds
 excludes <code><strong>.tfstate</code>, so local state would be lost after the run.
 Because <code>storage.terraform_state_bucket</code> ships set to
-<code>nebula-terraform-state</code>, the default is that *Nebula manages state
+<code>kumoss-terraform-state</code>, the default is that *Kumoss manages state
 itself</strong>, in a second bucket in the same store kept separate from the
 artifacts bucket. A deployment can instead set the value to <code>""</code> so
 that <strong>each repository declares its own remote backend</strong> — <code>azurerm</code>,
@@ -917,7 +917,7 @@ A bare <code>terraform_state_bucket:</code> key with no value is <strong>not</st
 <code>""</code> — it parses as YAML null and fails boot with a Pydantic validation
 error — and <strong>deleting</strong> the key entirely also leaves managed state on,
 since the configuration default is the same
-<code>nebula-terraform-state</code> value.</p>
+<code>kumoss-terraform-state</code> value.</p>
 </div>
 <div class="paragraph">
 <p>See <a href="../../guides/configure-state-backends/" class="xref page">Configure state
@@ -949,10 +949,10 @@ via git pushes and artifact uploads, not the volume.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>authz persistence is a JSON file (<code>/data/roles.json</code>, container-local
-in the shipped Compose file; set <code>NEBULA_AUTHZ_ROLE_STORE</code> to a mounted
+in the shipped Compose file; set <code>KUMOSS_AUTHZ_ROLE_STORE</code> to a mounted
 path to keep it), rewritten atomically under a process lock. It backs
 the sidecar&#8217;s own user/role endpoints, which the core does not call;
-Nebula&#8217;s roles live in core-db.</p>
+Kumoss&#8217;s roles live in core-db.</p>
 </div>
 </div>
 </div>
@@ -994,7 +994,7 @@ Nebula&#8217;s roles live in core-db.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/architecture/data-and-state.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/architecture/data-and-state.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1014,7 +1014,7 @@ Nebula&#8217;s roles live in core-db.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

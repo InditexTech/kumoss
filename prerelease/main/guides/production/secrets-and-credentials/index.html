@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Secrets and credentials | Nebula</title>
+<title>Secrets and credentials | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/production/secrets-and-credentials/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/production/secrets-and-credentials/">
     <link rel="prev" href="../../deploy-to-production/">
     <link rel="next" href="../networking-and-tls/">
-    <meta name="description" content="Every secret Nebula consumes, plus authentication, project-level authorization, LLM, Git, and cloud-engine credentials for a production deployment.">
+    <meta name="description" content="Every secret Kumoss consumes, plus authentication, project-level authorization, LLM, Git, and cloud-engine credentials for a production deployment.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,12 +743,12 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../deploy-to-production/"><span class="dt-breadcrumb-item__content">Deploy to production</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Secrets and credentials</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Secrets and credentials</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Every secret Nebula consumes, plus authentication, project-level authorization, LLM, Git, and cloud-engine credentials for a production deployment.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Every secret Kumoss consumes, plus authentication, project-level authorization, LLM, Git, and cloud-engine credentials for a production deployment.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -819,25 +819,25 @@ credential validation and its limits</a>).</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC bearer token</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core and IaC sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_IAC_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Must match on both sides.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Notifications bearer token</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core and notifications sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_NOTIFICATIONS_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">When enabled.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mapping bearer token</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core and mapping sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">When enabled.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Authorization bearer token</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core and authorization sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">When enabled.</p></td>
 </tr>
 <tr>
@@ -851,14 +851,14 @@ repositories in scope.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Database URL</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_SQL_DATABASE_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_SQL_DATABASE_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Embeds the password. <code>postgresql://</code> and <code>sslmode=</code> are rewritten for
 the async driver.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Redis URL</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_REDIS_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_REDIS_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">When Redis needs a password or lives outside the cluster network.</p></td>
 </tr>
 <tr>
@@ -868,7 +868,7 @@ the async driver.</p></td>
 keys), or nothing for the AWS default credential chain, or
 <code>STORAGE_ACCOUNT_KEY</code> (Azure)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Variable names can be changed through <code>storage.*_env</code>. They serve the
-artifacts bucket and, where Nebula-managed state is enabled, the state
+artifacts bucket and, where Kumoss-managed state is enabled, the state
 bucket — in which case a non-empty value is also embedded into the
 backend block the IaC sidecar executes.</p></td>
 </tr>
@@ -876,8 +876,8 @@ backend block the IaC sidecar executes.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cloud credentials for the engine</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC sidecar</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_*</code>, <code>GOOGLE_*</code>, <code>AWS_*</code>, mounted files, or workload identity</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Read by the providers, not by Nebula. They must also cover the <strong>state
-backend</strong> — Nebula&#8217;s bucket by default, when the rendered backend block
+<td class="tableblock halign-left valign-top"><p class="tableblock">Read by the providers, not by Kumoss. They must also cover the <strong>state
+backend</strong> — Kumoss&#8217;s bucket by default, when the rendered backend block
 carries no static keys, or the repository&#8217;s own if you set
 <code>storage.terraform_state_bucket</code> to <code>""</code>. The role must be on the
 sidecar, not only the core.</p></td>
@@ -942,7 +942,7 @@ arrive as <code>developer</code> with no panel role.</p>
 and needs outbound access to the issuer&#8217;s discovery and JWKS endpoints.
 Access-token lifetime at the identity provider is the revocation
 latency: a user disabled at the identity provider keeps access until
-their access token expires (Nebula has no user-disable switch of its
+their access token expires (Kumoss has no user-disable switch of its
 own). Role changes made in the admin panel take effect on the user&#8217;s
 next request, because roles are read from the database on every
 request.</p>
@@ -954,7 +954,7 @@ request.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Decide whether users may operate on any cloud project their credentials
-reach, or whether Nebula must ask your entitlement system first. In the
+reach, or whether Kumoss must ask your entitlement system first. In the
 second case, implement the authorization contract as described in
 <a href="../../deploy-to-production/#authorization-optional" class="xref page">Authorization
 (optional, must be replaced if enabled)</a> and enable <code>services.authz</code>.
@@ -987,7 +987,7 @@ the provider.</p>
 <p><code>GIT_USER</code> and <code>GIT_TOKEN</code> are written to <code>~/.git-credentials</code> inside
 the core container at boot and used for every push, pull-request
 creation, and merge. Use a dedicated service account, restrict the
-token to the repositories Nebula may change, and set <code>git.provider</code> to
+token to the repositories Kumoss may change, and set <code>git.provider</code> to
 the matching host (<code>GITHUB</code>, <code>AZURE_DEVOPS</code>, or <code>GITLAB</code>). The core
 needs outbound HTTPS to the Git host. Repository URLs entered by users
 must not embed a password or token (<code>https://user:&lt;secret&gt;@host/&#8230;&#8203;</code>,
@@ -1015,7 +1015,7 @@ HTTPS.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Separate from the LLM and storage credentials. Give the IaC sidecar an
-identity that can read and change exactly the resources Nebula manages,
+identity that can read and change exactly the resources Kumoss manages,
 per cloud:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1123,7 +1123,7 @@ modes</a>).</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1143,7 +1143,7 @@ modes</a>).</p>
       <a class="site-footer__brand-link" href="../../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

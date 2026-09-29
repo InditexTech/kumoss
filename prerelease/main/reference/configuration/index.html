@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>Configuration | Nebula</title>
+<title>Configuration | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/configuration/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/configuration/">
     <link rel="prev" href="../operating-modes/">
     <link rel="next" href="../environment-variables/">
     <meta name="description" content="Every `config.yaml` field: type, default, validation rule, and effect.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Configuration</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Configuration</h1>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>config.yaml</code> at the repository root is Nebula&#8217;s single configuration
+<p><code>config.yaml</code> at the repository root is Kumoss&#8217;s single configuration
 file for the core service. This page documents every supported section
 and field. The authoritative schema is the <code>SystemConfig</code> Pydantic
 model in <code>core/src/shared/config/system_config.py</code>; when this page and
@@ -799,13 +799,13 @@ sidecar READMEs under <code>services/</code>.</p>
 <ul>
 <li>
 <p>The core Dockerfile copies the repository&#8217;s <code>config.yaml</code> to
-<code>/etc/nebula/config.yaml</code> <strong>at image build time</strong>. The file is baked
+<code>/etc/kumoss/config.yaml</code> <strong>at image build time</strong>. The file is baked
 into the image. Editing it on the host does nothing until you run
 <code>docker compose build core</code> and restart the container. <code>docker
 compose watch</code> syncs only <code>core/</code>, not the configuration.</p>
 </li>
 <li>
-<p>The <code>NEBULA_CONFIG</code> environment variable overrides the path. The path
+<p>The <code>KUMOSS_CONFIG</code> environment variable overrides the path. The path
 is interpreted <strong>inside the container</strong>, and the file must actually be
 present there (for example through a bind mount or a mounted secret).
 If the path is missing, or is a directory (which is what Docker
@@ -818,7 +818,7 @@ configuration file at all. The built-in default disables <strong>every
 optional</strong> sidecar (<code>notifications</code>, <code>mapping</code>, <code>authz</code>). The IaC
 sidecar has no <code>enabled</code> flag and is always called: its own code
 defaults are <code>endpoint: "http://iac:8082"</code> and <code>token_env:
-"NEBULA_IAC_TOKEN"</code>, independent of whether a <code>config.yaml</code> is loaded
+"KUMOSS_IAC_TOKEN"</code>, independent of whether a <code>config.yaml</code> is loaded
 at all.</p>
 </li>
 <li>
@@ -842,7 +842,7 @@ from the environment at boot or at use time.</p>
 <p>Changing any field therefore means: edit <code>config.yaml</code>, rebuild the
 core image, restart. "Requires rebuild" in the tables below always
 refers to that sequence. If you instead mount the file at the path in
-<code>NEBULA_CONFIG</code>, the equivalent is: update the mounted file and restart
+<code>KUMOSS_CONFIG</code>, the equivalent is: update the mounted file and restart
 the core — no image rebuild needed, because the container reads the
 file from disk at startup rather than from the baked-in copy.</p>
 </div>
@@ -865,7 +865,7 @@ file from disk at startup rather than from the baked-in copy.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Mandatory</strong> (the core refuses to boot otherwise)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The environment variable named by <code>database.nebula_database_url_env</code>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The environment variable named by <code>database.kumoss_database_url_env</code>
 must be set; the variable named by <code>services.iac.token_env</code> must be set
 (the IaC sidecar is always called and has no <code>enabled</code> flag); the
 credentials that LiteLLM requires for <code>llm.model</code> and <code>llm.small_model</code>
@@ -880,7 +880,7 @@ variable of every other enabled sidecar; the variable named by
 for <code>STORAGE_ACCOUNT</code>; a remote backend declared by every target
 repository while <code>storage.terraform_state_bucket</code> is blank — which
 only happens if a deployment explicitly sets it to <code>""</code>, since the
-shipped value enables Nebula-managed state by default.</p></td>
+shipped value enables Kumoss-managed state by default.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Optional with defaults</strong></p></td>
@@ -969,7 +969,7 @@ Full per-provider instructions are in
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">OIDC issuer URL. <strong>Blank disables authentication entirely</strong>: every
 request, from anyone who can reach the API, resolves to a fixed local
-development identity (<code>dev@nebula.local</code>) that holds the top role of
+development identity (<code>dev@kumoss.local</code>) that holds the top role of
 both role groups (<code>devops</code> and panel <code>admin</code>). When set, the core
 validates bearer JWTs against the issuer&#8217;s JWKS, discovered lazily on
 the first request.</p></td>
@@ -1065,7 +1065,7 @@ admin</a>. Ignored while authentication is disabled.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>Requires rebuild: yes. This is the core&#8217;s mechanism and is unrelated to
-the authorization sidecar&#8217;s <code>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL</code>.</p>
+the authorization sidecar&#8217;s <code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code>.</p>
 </div>
 </div>
 </div>
@@ -1132,10 +1132,10 @@ fails on the first call instead.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services.&lt;name&gt;.token_env</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (variable name)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code> for <code>notifications</code>, <code>mapping</code>, <code>authz</code>; <strong><code>NEBULA_IAC_TOKEN</code></strong> for
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code> for <code>notifications</code>, <code>mapping</code>, <code>authz</code>; <strong><code>KUMOSS_IAC_TOKEN</code></strong> for
 <code>iac</code> (its own code default)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code>, <code>NEBULA_MAPPING_TOKEN</code>,
-<code>NEBULA_AUTHZ_TOKEN</code>, <code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_NOTIFICATIONS_TOKEN</code>, <code>KUMOSS_MAPPING_TOKEN</code>,
+<code>KUMOSS_AUTHZ_TOKEN</code>, <code>KUMOSS_IAC_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional (always for <code>iac</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Name of the environment variable holding the bearer token sent on
 every call. <strong>A sidecar the core will call whose variable resolves to
@@ -1499,7 +1499,7 @@ only needs a container restart.</p>
 each. Must be writable by the core and <strong>shared with the IaC sidecar at
 the same path</strong>: in the compose stack both containers mount the
 <code>workspaces</code> volume at <code>/workspaces</code>, and both images run as the same
-unprivileged user (<code>nebula</code>, uid and gid <code>10001</code>).</p></td>
+unprivileged user (<code>kumoss</code>, uid and gid <code>10001</code>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>paths.session_plan_filename</code></p></td>
@@ -1541,13 +1541,13 @@ core injects continue to cover it.</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>database.nebula_database_url_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>database.kumoss_database_url_env</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (variable name)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_SQL_DATABASE_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_SQL_DATABASE_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (the variable it names is <strong>mandatory</strong>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Name of the environment variable that holds the actual PostgreSQL
 connection URL. URLs embed credentials, which is why the URL itself is
-not in this file. Boot fails with <code>Missing env variable for nebula
+not in this file. Boot fails with <code>Missing env variable for kumoss
 database</code> when the variable is empty, and database initialisation
 fails when it is unreachable. A <code>postgresql://</code> scheme is rewritten to
 <code>postgresql+asyncpg://</code>, and a <code>sslmode=</code> query parameter to asyncpg&#8217;s
@@ -1594,7 +1594,7 @@ short so a slow Redis fails fast and reads fall through to PostgreSQL.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>redis.redis_url_env</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (variable name)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_REDIS_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_REDIS_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Name of the variable holding the Redis URL (which may embed a
 password).</p></td>
@@ -1759,7 +1759,7 @@ API container. Set your real origin for a deployed instance.</p></td>
 <p>Object storage for generated artifacts (reports, plans, code changes)
 and, by default, for Terraform/OpenTofu state. The browser downloads
 artifacts through presigned URLs. <code>storage.terraform_state_bucket</code>
-ships set to <code>nebula-terraform-state</code>, so by default Nebula manages
+ships set to <code>kumoss-terraform-state</code>, so by default Kumoss manages
 state in a <strong>second bucket</strong> in the same store, sharing the provider and
 the credentials with artifacts; set it to <code>""</code> to opt out and let each
 repository keep its own backend instead. See
@@ -1798,7 +1798,7 @@ URLs below are ignored; the region builds the endpoint).
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.bucket</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>nebula-artifacts</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss-artifacts</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Artifacts bucket name, or blob container name for <code>STORAGE_ACCOUNT</code>.
 Created at boot if missing.</p></td>
@@ -1806,11 +1806,11 @@ Created at boot if missing.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.terraform_state_bucket</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>nebula-terraform-state</code>, both as shipped in <code>config.yaml</code> and as the
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss-terraform-state</code>, both as shipped in <code>config.yaml</code> and as the
 field default if the key is absent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bucket (or blob container) holding Terraform/OpenTofu state, separate
-from <code>storage.bucket</code>. <strong>Non-blank — the shipped value — means Nebula
+from <code>storage.bucket</code>. <strong>Non-blank — the shipped value — means Kumoss
 manages state</strong>: the bucket is created at boot if missing and the core
 writes a <code>backend_override.tf</code> into every workspace before <code>init</code>,
 addressing it with the key <code>&lt;project_id&gt;/terraform.tfstate</code>. Backend
@@ -1915,7 +1915,7 @@ between 108000 &#8230;&#8203; and 604800 &#8230;&#8203;</code> otherwise.</p></t
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>While Nebula-managed state is on, these fields have a second consumer:
+<p>While Kumoss-managed state is on, these fields have a second consumer:
 <code>endpoint_url</code>, <code>region</code>, and the credential variables are rendered
 into the backend block that the <strong>IaC sidecar</strong> executes. Two
 consequences follow. The sidecar container must be able to reach
@@ -1937,7 +1937,7 @@ alone is not enough.</p>
 <h2 id="config-git"><a class="anchor" href="#config-git"></a><code>git</code></h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Credentials and identity for the branches Nebula pushes and the pull
+<p>Credentials and identity for the branches Kumoss pushes and the pull
 requests it opens. Single-tenant: one token serves every session.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1989,14 +1989,14 @@ are rejected as malformed at pull-request time.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>git.author_name</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Nebula</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>Kumoss</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Commit author name.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>git.author_email</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>nebula@noreply.invalid</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss@noreply.invalid</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Commit author e-mail.</p></td>
 </tr>
@@ -2038,7 +2038,7 @@ everyone reaching port 80 is the local developer with full roles.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">services</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://iac:8082"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"NEBULA_IAC_TOKEN"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"KUMOSS_IAC_TOKEN"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  enable_compliance_checker</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
@@ -2055,11 +2055,11 @@ everyone reaching port 80 is the local developer with full roles.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  endpoint_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://object-storage:9000"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  public_endpoint_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://localhost:9000"</span></span>
-<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # Shipped default: Nebula keeps Terraform state in the bundled</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # Shipped default: Kumoss keeps Terraform state in the bundled</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # RustFS, in its own bucket, so a scratch repository with no backend</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # of its own works out of the box. Set it to "" to use the backend</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # each repository declares instead.</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-terraform-state"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-terraform-state"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">git</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"GITHUB"</span></span></span></code></pre>
@@ -2084,7 +2084,7 @@ control below must be set explicitly.</p>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">oidc</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  issuer_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://login.example.invalid/realms/platform"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  client_id</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-web"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  client_id</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-web"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  clock_skew_seconds</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">60</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">admin</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
@@ -2093,19 +2093,19 @@ control below must be set explicitly.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">services</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  notifications</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://notifications.nebula.example.invalid"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"NEBULA_NOTIFICATIONS_TOKEN"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://notifications.kumoss.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"KUMOSS_NOTIFICATIONS_TOKEN"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  mapping</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://mapping.nebula.example.invalid"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"NEBULA_MAPPING_TOKEN"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://mapping.kumoss.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"KUMOSS_MAPPING_TOKEN"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  authz</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://authz.nebula.example.invalid"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"NEBULA_AUTHZ_TOKEN"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://authz.kumoss.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"KUMOSS_AUTHZ_TOKEN"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://iac:8082"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"NEBULA_IAC_TOKEN"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    token_env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"KUMOSS_IAC_TOKEN"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    job_timeout</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">3600.0</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
@@ -2125,30 +2125,30 @@ control below must be set explicitly.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  max_output_tokens</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">32000</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">telemetry</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  collector_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://phoenix.nebula.example.invalid/"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  collector_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://phoenix.kumoss.example.invalid/"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">http</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  cors_origins</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://nebula.example.invalid"</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://kumoss.example.invalid"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"STORAGE_ACCOUNT"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-artifacts"</span></span>
-<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # Shipped default: Nebula owns state instead of the target</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-artifacts"</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # Shipped default: Kumoss owns state instead of the target</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # repositories. Blob container separate from the artifacts container</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # so state escapes any artifact lifecycle policy — enable versioning</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # and soft delete on it. Set it explicitly to "" — a bare key with no</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # value fails at boot — when the repositories already declare their</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # own backends.</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-terraform-state"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-terraform-state"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  endpoint_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://demoplatformartifacts.blob.core.windows.net"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  public_endpoint_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://demoplatformartifacts.blob.core.windows.net"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  presign_expiry_seconds</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">172800</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">git</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"GITLAB"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  author_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"Nebula"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  author_email</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula@noreply.invalid"</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  author_name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"Kumoss"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  author_email</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss@noreply.invalid"</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -2158,7 +2158,7 @@ contracts (the bundled ones are a passthrough and a permissive stub);
 Phoenix must be reachable at <code>collector_url</code> for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every <code><strong><em>TOKEN</code>, <code>STORAGE_ACCOUNT_KEY</code>,
-<code>NEBULA_SQL_DATABASE_URL</code>, <code>GIT_TOKEN</code>, and the <code>AZURE_API</em></strong></code>
+<code>KUMOSS_SQL_DATABASE_URL</code>, <code>GIT_TOKEN</code>, and the <code>AZURE_API</em></strong></code>
 credentials must come from a secret store. See
 <a href="../environment-variables/" class="xref page">Environment variables and
 secrets</a>.</p>
@@ -2203,7 +2203,7 @@ secrets</a>.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/reference/configuration.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/reference/configuration.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -2223,7 +2223,7 @@ secrets</a>.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Deploy to production | Nebula</title>
+<title>Deploy to production | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/deploy-to-production/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/">
     <link rel="prev" href="../state-backends/sidecar-supplied/">
     <link rel="next" href="../production/secrets-and-credentials/">
-    <meta name="description" content="What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.">
+    <meta name="description" content="What a production deployment of Kumoss commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Deploy to production</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Deploy to production</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">What a production deployment of Nebula commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">What a production deployment of Kumoss commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This guide is for teams deploying Nebula for shared organizational use.
+<p>This guide is for teams deploying Kumoss for shared organizational use.
 It explains what a production deployment consists of, which decisions
 apply to each component, and which settings and secrets you must
 supply. It does not repeat the field-by-field references; it points at
@@ -914,10 +914,10 @@ Compose file is the reference topology you translate to your platform.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="what-production-means-for-nebula"><a class="anchor" href="#what-production-means-for-nebula"></a>What production means for Nebula</h2>
+<h2 id="what-production-means-for-kumoss"><a class="anchor" href="#what-production-means-for-kumoss"></a>What production means for Kumoss</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula plans and applies infrastructure with real cloud credentials,
+<p>Kumoss plans and applies infrastructure with real cloud credentials,
 pushes to your repositories, and sends every prompt, plan, and
 generated file to a tracing backend. A production deployment therefore
 has to control who can reach it, which cloud identity it acts with,
@@ -980,11 +980,11 @@ control, and credentials from your secret store</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Terraform state</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula-managed state in the bundled RustFS by default, or each
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kumoss-managed state in the bundled RustFS by default, or each
 repository&#8217;s own backend if you set <code>storage.terraform_state_bucket</code> to
 <code>""</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A deliberate choice of owner: the repositories' own backends, a
-Nebula-managed bucket on <code>S3</code>/<code>STORAGE_ACCOUNT</code>, or one central backend
+Kumoss-managed bucket on <code>S3</code>/<code>STORAGE_ACCOUNT</code>, or one central backend
 file mounted into the sidecar (<a href="../configure-state-backends/" class="xref page">Configure state backends</a>)</p></td>
 </tr>
 <tr>
@@ -1032,13 +1032,13 @@ each row below is a deployment decision.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core API</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/Dockerfile</code> (Python 3.13, port 8000, user <code>nebula</code> 10001)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/Dockerfile</code> (Python 3.13, port 8000, user <code>kumoss</code> 10001)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Ingress (<code>/api</code>), nothing else</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Shared workspace volume</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Run <strong>one replica</strong> (see
 <a href="../production/hardening/#runtime-and-scaling-constraints" class="xref page">Runtime
 and scaling constraints</a>). Inject <code>config.yaml</code> at build time or mount
-it at <code>NEBULA_CONFIG</code>.</p></td>
+it at <code>KUMOSS_CONFIG</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Web application and edge</p></td>
@@ -1055,7 +1055,7 @@ and TLS</a>).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>postgres:17</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Managed PostgreSQL recommended. Set <code>NEBULA_SQL_DATABASE_URL</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Managed PostgreSQL recommended. Set <code>KUMOSS_SQL_DATABASE_URL</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Redis</p></td>
@@ -1091,7 +1091,7 @@ Phoenix.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC sidecar</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/iac/Dockerfile</code> (OpenTofu 1.12.6, Terraform 1.16.0; port
-8082; user <code>nebula</code> 10001)</p></td>
+8082; user <code>kumoss</code> 10001)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core only</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Shared workspace volume</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Mandatory.</strong> <strong>As a starting point</strong> — harden the image and container,
@@ -1099,7 +1099,7 @@ or implement the contract yourself to your organization&#8217;s requirements.</p
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mapping sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/mapping/Dockerfile</code> (port 8081, user <code>nebula</code> 10001)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/mapping/Dockerfile</code> (port 8081, user <code>kumoss</code> 10001)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core only</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Replace with an implementation against your catalogue, or leave
@@ -1107,7 +1107,7 @@ disabled.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Notifications sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/notifications/Dockerfile</code> (port 8080, user <code>nebula</code> 10001)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/notifications/Dockerfile</code> (port 8080, user <code>kumoss</code> 10001)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core only</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Use the bundled Slack implementation with a production webhook, or
@@ -1115,17 +1115,17 @@ replace it.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Authorization sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/authz/Dockerfile</code> (port 8083, user <code>nebula</code> 10001)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>services/authz/Dockerfile</code> (port 8083, user <code>kumoss</code> 10001)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core only</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none (container-local JSON role file; mount a path via
-<code>NEBULA_AUTHZ_ROLE_STORE</code> to keep it)</p></td>
+<code>KUMOSS_AUTHZ_ROLE_STORE</code> to keep it)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Replace with your policy implementation; the bundled one is permissive.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>All five Nebula-built images (core, iac, mapping, notifications, authz)
-run as the unprivileged <code>nebula</code> user, uid/gid 10001. The
+<p>All five Kumoss-built images (core, iac, mapping, notifications, authz)
+run as the unprivileged <code>kumoss</code> user, uid/gid 10001. The
 <code>nginx/Dockerfile</code> proxy image is the exception: it has no <code>USER</code>
 directive and starts as root, dropping privileges only for its worker
 processes; give it a non-root base image or a Kubernetes
@@ -1236,7 +1236,7 @@ execution environment</strong> are the security decisions you must make:</p>
 supports from the container environment (<code>ARM_*</code>, <code>GOOGLE_*</code>,
 <code>AWS_*</code>, mounted files). Use a workload identity (Kubernetes service
 account federation, pod identity, instance roles) scoped to the
-projects Nebula may change, rather than static keys. Missing
+projects Kumoss may change, rather than static keys. Missing
 credentials do not stop the container; the engine fails at <code>plan</code> or
 <code>apply</code> with its own error.</p>
 </li>
@@ -1244,7 +1244,7 @@ credentials do not stop the container; the engine fails at <code>plan</code> or
 <p><strong>Execution controls.</strong> The image already runs as an unprivileged user.
 The checked-in Compose file applies nothing else. For production, run
 the container with all Linux capabilities dropped, <code>no-new-privileges</code>,
-a read-only root filesystem with writable <code>/tmp</code> and <code>/home/nebula</code>,
+a read-only root filesystem with writable <code>/tmp</code> and <code>/home/kumoss</code>,
 and CPU, memory, and process limits. These were validated on a feature
 branch of this repository but are <strong>not</strong> part of the checked-in Compose
 file; treat them as a requirement you implement on your platform.</p>
@@ -1274,19 +1274,19 @@ BUSL-1.1 licensed and makes your use subject to its terms.</p>
 <p><strong>State backend.</strong> The sidecar is always the process that <em>executes</em>
 the backend, so it always needs reach to it and credentials for it —
 whichever model you pick. By default (<code>storage.terraform_state_bucket</code>
-set to <code>nebula-terraform-state</code>, as shipped) the core configures it:
+set to <code>kumoss-terraform-state</code>, as shipped) the core configures it:
 state goes to that bucket in the same object store as artifacts, keyed
 per project, and the sidecar needs network reach to
 <code>storage.endpoint_url</code> plus, where the rendered block omits static
 keys, its own credentials for the bucket. Set
 <code>storage.terraform_state_bucket</code> to <code>""</code> to leave the backend to each
-target repository instead, with no Nebula configuration involved. For
-one central backend defined outside Nebula, mount a file and point
+target repository instead, with no Kumoss configuration involved. For
+one central backend defined outside Kumoss, mount a file and point
 <code>IAC_BACKEND_CONFIG</code> at it. All three models:
 <a href="../configure-state-backends/" class="xref page">Configure state backends</a>.</p>
 </li>
 <li>
-<p><strong>Blast radius of the sidecar&#8217;s environment.</strong> <code>NEBULA_IAC_TOKEN</code> and
+<p><strong>Blast radius of the sidecar&#8217;s environment.</strong> <code>KUMOSS_IAC_TOKEN</code> and
 every other variable in the IaC sidecar&#8217;s environment are reachable by
 the provider plugins the generated HCL invokes, and by any
 <code>local-exec</code> provisioner in that HCL — generated code runs with the
@@ -1340,7 +1340,7 @@ failure is logged and never fails a session.</p>
 <h3 id="authorization-optional"><a class="anchor" href="#authorization-optional"></a>Authorization (optional, must be replaced if enabled)</h3>
 <div class="paragraph">
 <p>The bundled implementation answers <code>authorized: true</code> to every
-cloud-project check (<code>NEBULA_AUTHZ_PERMISSIVE=true</code>) or <code>authorized:
+cloud-project check (<code>KUMOSS_AUTHZ_PERMISSIVE=true</code>) or <code>authorized:
 false</code> to every check (any other value). Neither is a policy. <strong>Do not
 enable the bundled authorization sidecar as your production
 access-control policy.</strong></p>
@@ -1358,7 +1358,7 @@ environment, and the caller&#8217;s e-mail (or OIDC subject) to <code>POST
 project.</p>
 </li>
 <li>
-<p>It is <strong>not</strong> Nebula&#8217;s own access control. Who can log in, which
+<p>It is <strong>not</strong> Kumoss&#8217;s own access control. Who can log in, which
 operations a user may run, and who can see or act on a session are
 decided by OIDC plus the operation and panel roles stored in the core
 database (<a href="../administer-users-and-locks/" class="xref page">Administer users and locks</a>).</p>
@@ -1383,7 +1383,7 @@ against your entitlement source and enable it.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p><code>config.yaml</code> is baked into the core image at build time, or mounted at
-the path in <code>NEBULA_CONFIG</code>. It contains no secrets and can live in
+the path in <code>KUMOSS_CONFIG</code>. It contains no secrets and can live in
 version control. Review every section; the
 <a href="../../reference/configuration/" class="xref page">configuration reference</a> has the
 fields and a
@@ -1449,7 +1449,7 @@ contract with; <code>max_output_tokens</code> within the provider&#8217;s limits
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>database</code>, <code>redis</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Variable names only; values are secrets. <code>redis.default_url</code> points at
-the Compose service name, so set <code>NEBULA_REDIS_URL</code> when Redis lives
+the Compose service name, so set <code>KUMOSS_REDIS_URL</code> when Redis lives
 elsewhere.</p></td>
 </tr>
 <tr>
@@ -1459,13 +1459,13 @@ and for the prompt API.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http.cors_origins</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Your real origin, for example <code>https://nebula.example.invalid</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Your real origin, for example <code>https://kumoss.example.invalid</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Provider, artifacts bucket or container, the endpoint the core calls,
 and the <strong>public</strong> endpoint browsers reach. Also <code>terraform_state_bucket</code>:
-set to <code>nebula-terraform-state</code> as shipped, which puts Nebula in charge
+set to <code>kumoss-terraform-state</code> as shipped, which puts Kumoss in charge
 of state; set it to <code>""</code> to leave state to each repository&#8217;s own
 backend instead (<a href="../configure-state-backends/" class="xref page">Configure state backends</a>).</p></td>
 </tr>
@@ -1519,7 +1519,7 @@ mounted file) and restarting the core.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/guides/deploy-to-production.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/deploy-to-production.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1539,7 +1539,7 @@ mounted file) and restarting the core.</p>
       <a class="site-footer__brand-link" href="../../../">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

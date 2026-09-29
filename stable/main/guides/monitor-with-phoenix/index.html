@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Monitor with Phoenix | Nebula</title>
+<title>Monitor with Phoenix | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/monitor-with-phoenix/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-phoenix/">
     <link rel="prev" href="../administer-users-and-locks/">
     <link rel="next" href="../customize-prompts/">
-    <meta name="description" content="Read Nebula's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.">
+    <meta name="description" content="Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Monitor with Phoenix</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Monitor with Phoenix</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Read Nebula&#x27;s OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Read Kumoss&#x27;s OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula records what its agents do as <strong>traces</strong>: for every session run,
+<p>Kumoss records what its agents do as <strong>traces</strong>: for every session run,
 the prompts sent to the language model, the tool calls the model made,
 the Terraform validations, and the results. Traces are exported with
 OpenTelemetry using the OpenInference conventions and, in the default
@@ -777,7 +777,7 @@ Compose stack, collected and displayed by
 <a href="https://arize.com/docs/phoenix">Arize Phoenix</a>.</p>
 </div>
 <div class="paragraph">
-<p>This guide covers tracing only. Phoenix also hosts Nebula&#8217;s runtime
+<p>This guide covers tracing only. Phoenix also hosts Kumoss&#8217;s runtime
 prompt registry; that is a separate function described in
 <a href="../customize-prompts/" class="xref page">Customize prompts</a>. How
 Phoenix is deployed in each model is covered by
@@ -818,7 +818,7 @@ the same port as the application, with no authentication of its own.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix</code> (<code>arizephoenix/phoenix:20.12.0</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Receives traces over OTLP/HTTP on port 6006 and serves the UI (port
 4317, OTLP/gRPC, is also exposed on the Compose network but unused by
-Nebula). Started with <code>PHOENIX_HOST_ROOT_PATH=/monitoring</code> so it works
+Kumoss). Started with <code>PHOENIX_HOST_ROOT_PATH=/monitoring</code> so it works
 behind the proxy prefix. Its MCP server is disabled.</p></td>
 </tr>
 <tr>
@@ -934,7 +934,7 @@ at the same base URL that proxies the prompt API.</p>
 <h2 id="projects"><a class="anchor" href="#projects"></a>Projects</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Phoenix groups traces into projects. Nebula picks the project from the
+<p>Phoenix groups traces into projects. Kumoss picks the project from the
 <code>environment</code> setting and the session&#8217;s operation:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1003,7 +1003,7 @@ Import and Full Import alike (see
 <h2 id="what-a-trace-contains"><a class="anchor" href="#what-a-trace-contains"></a>What a trace contains</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula instruments four kinds of work with decorators in the domain
+<p>Kumoss instruments four kinds of work with decorators in the domain
 layer; each produces one span type. Attribute keys follow the
 OpenInference semantic conventions.</p>
 </div>
@@ -1208,9 +1208,9 @@ session status and failure message in the application or the
 error triage.</p>
 </li>
 <li>
-<p><strong>Metrics, dashboards, alerts, evaluations.</strong> Nebula emits traces only.
+<p><strong>Metrics, dashboards, alerts, evaluations.</strong> Kumoss emits traces only.
 Phoenix&#8217;s evaluation and dataset features are available in the UI but
-nothing in Nebula populates them.</p>
+nothing in Kumoss populates them.</p>
 </li>
 <li>
 <p><strong>Logs.</strong> Application logs go to the container&#8217;s standard output and
@@ -1341,7 +1341,7 @@ changing it on an existing deployment.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1361,7 +1361,7 @@ changing it on an existing deployment.</p>
       <a class="site-footer__brand-link" href="../../../">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

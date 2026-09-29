@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Customize prompts | Nebula</title>
+<title>Customize prompts | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/customize-prompts/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/">
     <link rel="prev" href="../monitor-with-phoenix/">
     <link rel="next" href="../configure-state-backends/">
-    <meta name="description" content="Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.">
+    <meta name="description" content="Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Customize prompts</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Customize prompts</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Manage Nebula&#x27;s runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Manage Kumoss&#x27;s runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula does not hard-code cloud knowledge. The instructions that tell
+<p>Kumoss does not hard-code cloud knowledge. The instructions that tell
 its agents how to name, configure, and secure resources are <strong>prompts</strong>
 stored in the prompt registry of <a href="https://arize.com/docs/phoenix">Arize
 Phoenix</a>, fetched by the core at request time. This guide explains the
@@ -778,7 +778,7 @@ lookup work, how the prompts are composed into a system prompt, and how
 to add or change prompts safely.</p>
 </div>
 <div class="paragraph">
-<p>Phoenix also collects Nebula&#8217;s traces. That is a separate function,
+<p>Phoenix also collects Kumoss&#8217;s traces. That is a separate function,
 documented in <a href="../monitor-with-phoenix/" class="xref page">Monitoring with
 Phoenix</a>. Where Phoenix runs and how it is protected in each deployment
 model is covered by <a href="../../quickstart/" class="xref page">Quickstart</a> and
@@ -823,7 +823,7 @@ in Phoenix</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Local Jinja layouts</strong></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/src/infrastructure/templates/base_layouts/</code> (<code>core/</code> and
 <code>messages/</code>), inside the core image</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula developers</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kumoss developers</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">After rebuilding the core image</p></td>
 </tr>
 </tbody>
@@ -1006,7 +1006,7 @@ therefore be available whenever the core starts.</p>
 <p>For each seed, asks Phoenix whether a prompt with that name exists
 (by name, regardless of tags). If it exists, the seed is skipped. If
 not, the seeder creates the prompt with one version whose displayed
-model name is <code>nebula-seed</code> (Phoenix requires a model name; Nebula
+model name is <code>kumoss-seed</code> (Phoenix requires a model name; Kumoss
 ignores it) and tags that version with the value of <code>environment</code>
 from <code>config.yaml</code> (<code>development</code> by default).</p>
 </li>
@@ -1041,7 +1041,7 @@ because <code>general-guidelines-terraform</code> has no version tagged
 Phoenix before switching, or start from an empty Phoenix database.</p>
 </li>
 <li>
-<p><strong>Prompt versions are yours to manage.</strong> Nebula always fetches the
+<p><strong>Prompt versions are yours to manage.</strong> Kumoss always fetches the
 version currently carrying the environment tag. Publishing a new
 version and moving the tag is how you roll a change out; moving the
 tag back is how you roll it back.</p>
@@ -1876,7 +1876,7 @@ traces.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/guides/customize-prompts.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/customize-prompts.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1896,7 +1896,7 @@ traces.</p>
       <a class="site-footer__brand-link" href="../../../">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

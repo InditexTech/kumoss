@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>Operations | Nebula</title>
+<title>Operations | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/production/operations/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/production/operations/">
     <link rel="prev" href="../hardening/">
     <link rel="next" href="../../development/">
     <meta name="description" content="Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../deploy-to-production/"><span class="dt-breadcrumb-item__content">Deploy to production</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Operations</span></div>
 </nav>
@@ -801,7 +801,7 @@ and code-change artifacts under
 <code>sessions/&lt;session&gt;/rounds/&lt;round&gt;/</code>. A second bucket,
 <code>storage.terraform_state_bucket</code>, holds Terraform/OpenTofu state under
 <code>&lt;project_id&gt;/terraform.tfstate</code> — it ships set to
-<code>nebula-terraform-state</code>, so this is on by default; set it explicitly
+<code>kumoss-terraform-state</code>, so this is on by default; set it explicitly
 to <code>""</code> to leave state to each repository&#8217;s own backend instead. Every
 configured bucket is created at boot if missing, and the core <strong>fails to
 boot</strong> if the store is unusable. Choose <code>storage.provider</code>:</p>
@@ -827,17 +827,17 @@ uses the <code>azurerm</code> backend with native blob leases.</p>
 <code>storage.public_endpoint_url</code>, so that endpoint must be reachable from
 users' browsers over TLS, and the bucket policy must allow presigned
 reads. Links are valid for <code>storage.presign_expiry_seconds</code> (48 hours
-by default). Apply lifecycle and retention rules; Nebula never deletes
+by default). Apply lifecycle and retention rules; Kumoss never deletes
 stored artifacts (it only removes an object whose database record
 failed to be written).</p>
 </div>
 <div class="paragraph">
-<p>Since Nebula-managed state is on by default, treat the <strong>state bucket
+<p>Since Kumoss-managed state is on by default, treat the <strong>state bucket
 differently from the artifacts bucket</strong>. It is never browser-facing and
 needs no presigned reads; it must be reachable from the <strong>IaC sidecar</strong>,
 not from users; and it should carry versioning and soft delete, be
 excluded from any artifact expiry rule, and be included in your restore
-drills — it is the record of what Nebula has built. Nebula never
+drills — it is the record of what Kumoss has built. Kumoss never
 deletes a state object. Details and per-provider IAM minimums:
 <a href="../../configure-state-backends/#operations" class="xref page">Operations</a>.</p>
 </div>
@@ -865,7 +865,7 @@ an isolated workstation:</p>
 <p><code>POSTGRES_PASSWORD=postgres</code> on both <code>core-db</code> and <code>phoenix-db</code>, and
 the matching password embedded in <code>PHOENIX_SQL_DATABASE_URL</code>. Replace
 all three with a generated password from your secret store, and
-update <code>NEBULA_SQL_DATABASE_URL</code> and <code>PHOENIX_SQL_DATABASE_URL</code> to
+update <code>KUMOSS_SQL_DATABASE_URL</code> and <code>PHOENIX_SQL_DATABASE_URL</code> to
 match.</p>
 </li>
 <li>
@@ -901,13 +901,13 @@ digest.</p>
 <p>Back up: the core PostgreSQL database, the Phoenix PostgreSQL database
 (prompts and traces), the artifacts bucket, and — with the highest
 priority — wherever <strong>Terraform state</strong> lives, since losing it means
-losing the record of the infrastructure Nebula manages. That is the
-state bucket if you enabled Nebula-managed state, and otherwise the
+losing the record of the infrastructure Kumoss manages. That is the
+state bucket if you enabled Kumoss-managed state, and otherwise the
 backend each repository declares, which is covered by whoever owns it.
 The workspace volume needs no backup beyond surviving restarts.</p>
 </div>
 <div class="paragraph">
-<p>Upgrading Nebula:</p>
+<p>Upgrading Kumoss:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -944,10 +944,10 @@ tagging every prompt version with the new value.</p>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Public route: issuer must be non-empty in production</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">curl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://nebula.example.invalid/api/v1/auth/config</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">curl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://kumoss.example.invalid/api/v1/auth/config</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Protected route: must answer 401 without a token</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">curl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -i</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://nebula.example.invalid/api/v1/users/me</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">curl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -i</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://kumoss.example.invalid/api/v1/users/me</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Sidecar liveness from inside the cluster network</span></span>
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">curl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://iac:8082/healthz</span></span></span></code></pre>
@@ -966,7 +966,7 @@ portal lists users.</p>
 <p>Run a generate session against a test repository and a test cloud
 project; confirm the branch, the pull request, the report, and the
 traces in Phoenix under <code>pro-terraform-day2</code>. Also confirm state
-landed where you intended: with the shipped default (Nebula-managed
+landed where you intended: with the shipped default (Kumoss-managed
 state), the core logs <code>Terraform state: &lt;provider&gt;
 bucket=&lt;bucket&gt; key=&lt;project_id&gt;/terraform.tfstate</code> before <code>init</code> and
 that object must exist in the state bucket afterwards; if you set
@@ -1023,11 +1023,11 @@ the URL lacks the trailing slash.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core boots with every optional sidecar disabled although
 <code>config.yaml</code> enables them</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_CONFIG</code> points at a missing path or a directory; the core fell
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_CONFIG</code> points at a missing path or a directory; the core fell
 back to defaults (the IaC sidecar is always called regardless, and its
 own default endpoint is unlikely to resolve, which surfaces as a
 different failure).</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Fix the mount path so <code>NEBULA_CONFIG</code> resolves to a regular file.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Fix the mount path so <code>KUMOSS_CONFIG</code> resolves to a regular file.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Users get <code>401 Token validation failed &#8230;&#8203; audience</code></p></td>
@@ -1051,8 +1051,8 @@ rebuild the core image.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Every plan fails with <code>permission denied</code> on state or plan files</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The shared workspace is not writable by uid <code>10001</code>, or the two
 containers run as different users.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>chown -R 10001:10001</code> the workspace volume and align <code>NEBULA_UID</code>/
-<code>NEBULA_GID</code> on both images.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>chown -R 10001:10001</code> the workspace volume and align <code>KUMOSS_UID</code>/
+<code>KUMOSS_GID</code> on both images.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails downloading providers</p></td>
@@ -1067,7 +1067,7 @@ blocked or TLS-inspected.</p></td>
 declares no backend of its own: <code>init</code> then falls back to local state,
 whose file dies with the workspace.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Add a backend to the repository, or remove the explicit <code>""</code> (a bucket
-name, or dropping the key, re-enables Nebula-managed state) and rebuild
+name, or dropping the key, re-enables Kumoss-managed state) and rebuild
 the core image.</p></td>
 </tr>
 <tr>
@@ -1085,7 +1085,7 @@ credentials error</p></td>
 bucket, or cannot reach <code>storage.endpoint_url</code>. Granting the role to
 the core alone is not enough.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">See
-<a href="../../state-backends/nebula-managed/#credentials-required" class="xref page">Credentials
+<a href="../../state-backends/kumoss-managed/#credentials-required" class="xref page">Credentials
 required</a>.</p></td>
 </tr>
 <tr>
@@ -1099,7 +1099,7 @@ backend configuration</a>.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>Error acquiring the state lock</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Another run holds it, or a crashed run left it stale.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Clear it deliberately (<a href="../../state-backends/nebula-managed/#locking" class="xref page">Locking</a>).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Clear it deliberately (<a href="../../state-backends/kumoss-managed/#locking" class="xref page">Locking</a>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails on a missing backend configuration file</p></td>
@@ -1158,7 +1158,7 @@ lookup</a>.</p></td>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/production/operations.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/production/operations.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1178,7 +1178,7 @@ lookup</a>.</p></td>
       <a class="site-footer__brand-link" href="../../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

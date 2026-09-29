@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Authorization sidecar API | Nebula</title>
+<title>Authorization sidecar API | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/api/authz/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/authz/">
     <link rel="prev" href="../mapping/">
     <link rel="next" href="../../../additional-information/">
-    <meta name="description" content="The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.">
+    <meta name="description" content="The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,12 +743,12 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">HTTP APIs</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Authorization sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Authorization sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The per-resource cloud access decision contract. Nebula consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -772,12 +772,12 @@
 <div class="paragraph">
 <p>The authorization service answers <strong>may this user operate on this
 cloud resource?</strong> — a question about a subscription, a project, or an
-account, asked before Nebula runs anything against a live environment.</p>
+account, asked before Kumoss runs anything against a live environment.</p>
 </div>
 <div class="paragraph">
 <p>Contract: <code>contracts/openapi/authz.v1.yaml</code>. Default endpoint:
 <code>http://authz:8083</code>. Bearer token: the value of the variable named by
-<code>services.authz.token_env</code>, <code>NEBULA_AUTHZ_TOKEN</code> by default. The
+<code>services.authz.token_env</code>, <code>KUMOSS_AUTHZ_TOKEN</code> by default. The
 service is <strong>optional</strong> and ships disabled (<code>services.authz.enabled:
 false</code>).</p>
 </div>
@@ -789,7 +789,7 @@ false</code>).</p>
 </td>
 <td class="content">
 <div class="paragraph">
-<p><strong>Nebula&#8217;s own roles do not live here.</strong> The operation roles (<code>developer</code>
+<p><strong>Kumoss&#8217;s own roles do not live here.</strong> The operation roles (<code>developer</code>
 &lt; <code>devops</code>) and panel roles (<code>viewer</code> &lt; <code>editor</code> &lt; <code>admin</code>) that decide
 what a signed-in user can do are rows in the core database, managed
 from the admin panel. This service has a role store of its own, and it
@@ -872,7 +872,7 @@ enabled, the core <strong>never</strong> fails open:</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/check</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Decides whether a user may operate on a named cloud resource. <strong>The
-only endpoint Nebula uses.</strong></p></td>
+only endpoint Kumoss uses.</strong></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /v1/users/me</code></p></td>
@@ -1104,7 +1104,7 @@ document summary and the <code>POST /v1/check</code> description say the
 reference implementation answers "based on whether the service&#8217;s own
 Service Principal can resolve the resource". It does not: the handler
 makes no cloud call, resolves no credentials, and has no Service
-Principal. It branches on <code>NEBULA_AUTHZ_PERMISSIVE</code> alone — true
+Principal. It branches on <code>KUMOSS_AUTHZ_PERMISSIVE</code> alone — true
 returns <code>authorized: true</code>, false returns <code>authorized: false</code> with a
 <code>reason</code> naming the cloud and project. This page describes the code&#8217;s
 actual behaviour.</p>
@@ -1114,7 +1114,7 @@ actual behaviour.</p>
 </table>
 </div>
 <div class="paragraph">
-<p><code>NEBULA_AUTHZ_PERMISSIVE</code> is the only knob Nebula&#8217;s own flow
+<p><code>KUMOSS_AUTHZ_PERMISSIVE</code> is the only knob Kumoss&#8217;s own flow
 exercises. Setting it to <code>false</code> flips the default to <code>authorized:
 false</code>, which makes a misconfiguration visible instead of silently
 allowing everything. A production deployment replaces the body of
@@ -1123,10 +1123,10 @@ a cloud IAM query — rather than tuning this flag.</p>
 </div>
 <div class="paragraph">
 <p>The other endpoints are backed by a JSON file at
-<code>NEBULA_AUTHZ_ROLE_STORE</code>, default <code>/data/roles.json</code>, a
+<code>KUMOSS_AUTHZ_ROLE_STORE</code>, default <code>/data/roles.json</code>, a
 container-local path, so role assignments are lost when the container
 is recreated. Point it at a mounted path if they need to survive. When
-<code>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL</code> is set, the record with that email is
+<code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code> is set, the record with that email is
 granted the <code>admin</code> role at startup, and that email is also the
 record&#8217;s key and <code>id</code>. Again: this store governs only this service&#8217;s
 own administrative endpoints.</p>
@@ -1167,24 +1167,24 @@ surfaces as <code>502</code>. This only bites when <code>services.authz.enabled<
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token clients must present. Blank accepts every request.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_PERMISSIVE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_PERMISSIVE</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Default <code>true</code> — <code>/v1/check</code> answers true unconditionally. Set
 <code>false</code> for an explicit-deny default.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROLE_STORE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROLE_STORE</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Path to the roles JSON file, default <code>/data/roles.json</code>. Configures
-this service&#8217;s own store only; Nebula never reads it.</p></td>
+this service&#8217;s own store only; Kumoss never reads it.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Email granted the <code>admin</code> role at startup, in this service&#8217;s own
 store.</p></td>
@@ -1231,7 +1231,7 @@ suite&#8217;s job.</p>
 <ul>
 <li>
 <p><a href="../../roles-and-permissions/" class="xref page">Roles and
-permissions</a> for the roles that actually gate Nebula.</p>
+permissions</a> for the roles that actually gate Kumoss.</p>
 </li>
 <li>
 <p><a href="../core/" class="xref page">Core API</a> for the one core route
@@ -1283,7 +1283,7 @@ section</a> of the configuration reference for enabling the sidecar.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/reference/api/authz.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/reference/api/authz.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1303,7 +1303,7 @@ section</a> of the configuration reference for enabling the sidecar.</p>
       <a class="site-footer__brand-link" href="../../../../">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

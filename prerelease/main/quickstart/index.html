@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Quickstart | Nebula</title>
+<title>Quickstart | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/quickstart/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/quickstart/">
     <link rel="prev" href="../prerequisites/">
     <link rel="next" href="../guides-overview/">
-    <meta name="description" content="Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.">
+    <meta name="description" content="Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Quickstart</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Quickstart</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>In this quickstart, you install Nebula on one machine with Docker Compose,
+<p>In this quickstart, you install Kumoss on one machine with Docker Compose,
 using the bundled stack as shipped, and open the running web application.</p>
 </div>
 </div>
@@ -790,8 +790,8 @@ using the bundled stack as shipped, and open the running web application.</p>
 <h3 id="1-clone-the-repository-and-create-the-environment-files"><a class="anchor" href="#1-clone-the-repository-and-create-the-environment-files"></a>1. Clone the repository and create the environment files</h3>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">git</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> clone</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://github.com/InditexTech/nebula.git</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> nebula</span></span>
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">git</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> clone</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> https://github.com/InditexTech/kumoss.git</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/.env</span></span>
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/.env</span></span></span></code></pre>
@@ -823,7 +823,7 @@ the models you prefer. Model strings per provider:
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-4-5"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.8-flash"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
@@ -863,7 +863,7 @@ credential variables</a>. The core will not run without them.</p>
 </li>
 <li>
 <p><code>GIT_USER</code>, <code>GIT_TOKEN</code> — the account and personal access token for the
-provider named by <code>git.provider</code> defined in above in <code>config.yaml</code>.</p>
+provider named by <code>git.provider</code> defined in the above <code>config.yaml</code>.</p>
 </li>
 </ul>
 </div>
@@ -901,7 +901,7 @@ failed <code>init</code>, <code>plan</code>, or <code>apply</code>.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="5-build-and-start-nebula"><a class="anchor" href="#5-build-and-start-nebula"></a>5. Build and start Nebula</h3>
+<h3 id="5-build-and-start-kumoss"><a class="anchor" href="#5-build-and-start-kumoss"></a>5. Build and start Kumoss</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --build</span></span></span></code></pre>
@@ -970,7 +970,7 @@ optional sidecar is unconfigured.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nebula web application and the API under <code>/api/v1/&#8230;&#8203;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Kumoss web application and the API under <code>/api/v1/&#8230;&#8203;</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost/monitoring/</code></p></td>
@@ -979,7 +979,7 @@ optional sidecar is unconfigured.</p>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Port 80 serves the unauthenticated Nebula application by default, while
+<p>Port 80 serves the unauthenticated Kumoss application by default, while
 port 9000 exposes presigned artifact downloads and the RustFS console, on
 every interface of the host. Keep the stack on a machine only you can reach.</p>
 </div>
@@ -1018,7 +1018,7 @@ prompts survive a restart.</p>
 <div class="paragraph">
 <p><strong><code>down -v</code> deletes the session database, the artifacts, the Phoenix traces
 and prompts, and any in-progress workspaces</strong> — and, by default, the
-Terraform state too, since Nebula manages it in that same object-storage
+Terraform state too, since Kumoss manages it in that same object-storage
 volume. State survives only if you set <code>storage.terraform_state_bucket</code> to
 <code>""</code> so that each repository declares its own backend instead.</p>
 </div>
@@ -1046,7 +1046,7 @@ yours: <a href="../guides/customize-prompts/" class="xref page">Customize prompt
 <a href="../guides/administer-users-and-locks/" class="xref page">Administer users and locks</a>.</p>
 </li>
 <li>
-<p>Decide where Terraform state should live before you point Nebula at
+<p>Decide where Terraform state should live before you point Kumoss at
 anything real:
 <a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a>.</p>
 </li>
@@ -1074,14 +1074,14 @@ production</a>.</p>
 <li>
 <p><strong>The core exits during boot.</strong> Boot is strict and the reason is in
 <code>docker compose logs core</code> — most often missing LLM credentials, an
-empty <code>NEBULA_IAC_TOKEN</code> or database URL in <code>core/.env</code>, or Phoenix not
+empty <code>KUMOSS_IAC_TOKEN</code> or database URL in <code>core/.env</code>, or Phoenix not
 yet reachable. The stack has no healthchecks, so a dependency that was
 simply slower to start leaves the core stopped rather than retrying: run
 <code>docker compose up -d core</code> again.</p>
 </li>
 <li>
 <p><strong>Every session fails at validation with a <code>401</code> from the IaC sidecar.</strong>
-<code>NEBULA_IAC_TOKEN</code> differs between <code>core/.env</code> and <code>services/iac/.env</code>.</p>
+<code>KUMOSS_IAC_TOKEN</code> differs between <code>core/.env</code> and <code>services/iac/.env</code>.</p>
 </li>
 <li>
 <p><strong>A <code>config.yaml</code> change has no effect.</strong> Rebuild the core image with
@@ -1094,7 +1094,7 @@ credentials in <code>services/iac/.env</code> are absent, invalid, or insufficie
 <li>
 <p><strong><code>plan</code> fails with <code>permission denied</code> on a file in the workspace.</strong> The
 <code>workspaces</code> volume predates the current non-root containers. Run
-<code>docker compose down</code>, then <code>docker run --rm -v nebula_workspaces:/workspaces
+<code>docker compose down</code>, then <code>docker run --rm -v kumoss_workspaces:/workspaces
 alpine chown -R 10001:10001 /workspaces</code>, and start again.</p>
 </li>
 <li>
@@ -1165,7 +1165,7 @@ troubleshooting</a>.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/quickstart.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/quickstart.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1185,7 +1185,7 @@ troubleshooting</a>.</p>
       <a class="site-footer__brand-link" href="../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

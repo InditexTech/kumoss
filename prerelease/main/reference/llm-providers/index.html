@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>LLM providers and models | Nebula</title>
+<title>LLM providers and models | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/llm-providers/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/">
     <link rel="prev" href="../environment-variables/">
     <link rel="next" href="../roles-and-permissions/">
-    <meta name="description" content="How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.">
+    <meta name="description" content="How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">LLM providers and models</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">LLM providers and models</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">How Nebula selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,9 +769,9 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula calls large language models (LLMs) through
+<p>Kumoss calls large language models (LLMs) through
 <a href="https://docs.litellm.ai/">LiteLLM</a>, a routing library that speaks to
-many providers behind one interface. This page explains how Nebula
+many providers behind one interface. This page explains how Kumoss
 selects models, where credentials go, what the core checks at startup,
 and how to use the advanced <code>llm.model_list</code> router configuration.</p>
 </div>
@@ -791,11 +791,11 @@ say where the credentials live in each deployment model.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="how-nebula-uses-litellm"><a class="anchor" href="#how-nebula-uses-litellm"></a>How Nebula uses LiteLLM</h2>
+<h2 id="how-kumoss-uses-litellm"><a class="anchor" href="#how-kumoss-uses-litellm"></a>How Kumoss uses LiteLLM</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula configures two model roles in <code>config.yaml</code>. Both are applied by
-the core&#8217;s LiteLLM Router; there is no provider enum in Nebula, so any
+<p>Kumoss configures two model roles in <code>config.yaml</code>. Both are applied by
+the core&#8217;s LiteLLM Router; there is no provider enum in Kumoss, so any
 model string LiteLLM understands is accepted by the configuration.
 Whether a model <em>works</em> is a different matter; see <a href="#model-requirements">Model
 requirements</a> below.</p>
@@ -884,7 +884,7 @@ not support one of these parameters ignores it instead of failing.</p>
 <h2 id="model-requirements"><a class="anchor" href="#model-requirements"></a>Model requirements</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula&#8217;s agents are tool-calling loops, so the configuration accepting
+<p>Kumoss&#8217;s agents are tool-calling loops, so the configuration accepting
 a model string does not mean the model can run a session. Both roles
 must provide:</p>
 </div>
@@ -928,7 +928,7 @@ Responses API path, which only works on OpenAI-compatible endpoints.</p>
 <p>The shipped models (Anthropic Claude direct, <code>anthropic/</code>) satisfy all of
 these, as do the same models on Azure AI Foundry (<code>azure_ai/</code>) and the
 Claude and Gemini models on Vertex AI that the core&#8217;s test suite
-exercises. Nebula has not tested every provider LiteLLM lists.</p>
+exercises. Kumoss has not tested every provider LiteLLM lists.</p>
 </div>
 </div>
 </div>
@@ -952,7 +952,7 @@ credential variables (for example <code>anthropic</code>, <code>vertex_ai</code>
 </ul>
 </div>
 <div class="paragraph">
-<p>Routing is purely prefix based. Nebula does not validate that the
+<p>Routing is purely prefix based. Kumoss does not validate that the
 model id exists; a typo surfaces as an error from the provider on the
 first call. The reference list of model ids is
 <a href="https://models.litellm.ai/">models.litellm.ai</a>; the provider list with
@@ -1059,7 +1059,7 @@ pins <code>litellm&gt;=1.93.0</code>).</p>
 <p>The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the <code>litellm_params</code> keys you
 would use instead when writing an <code>llm.model_list</code> entry. The lists
-come from LiteLLM&#8217;s documentation. <strong>Nebula has not tested every
+come from LiteLLM&#8217;s documentation. <strong>Kumoss has not tested every
 provider listed here</strong>; the checked-in <code>config.yaml</code> and the code
 defaults both target Anthropic directly (<code>anthropic/</code>), and the core&#8217;s
 test suite
@@ -1421,7 +1421,7 @@ validate at boot (a missing value fails on the first call):</p>
 <div class="content">
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
 <span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
-<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span></span></code></pre>
+<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1652,7 +1652,7 @@ provider still rejects a value (for example a completion cap below
 is set to <code>PRODUCTION</code>. Running the core, or <code>pytest</code>, on your
 workstation (rather than inside the container) therefore silently
 loads <code>core/.env</code> into the process environment — including any real
-secrets it holds — even though nothing in Nebula&#8217;s own code does this.
+secrets it holds — even though nothing in Kumoss&#8217;s own code does this.
 The working directory does not matter: python-dotenv searches upwards
 from the directory of the <strong>calling package</strong>, so with the virtual
 environment at <code>core/.venv</code> the file <code>core/.env</code> is found from any
@@ -1702,7 +1702,7 @@ may actually be coming from <code>core/.env</code>.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/reference/llm-providers.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/reference/llm-providers.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1722,7 +1722,7 @@ may actually be coming from <code>core/.env</code>.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

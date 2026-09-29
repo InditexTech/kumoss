@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Environment variables and secrets | Nebula</title>
+<title>Environment variables and secrets | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/reference/environment-variables/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/environment-variables/">
     <link rel="prev" href="../configuration/">
     <link rel="next" href="../llm-providers/">
-    <meta name="description" content="Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.">
+    <meta name="description" content="Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Environment variables</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Environment variables and secrets</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Every environment variable Nebula reads: the core, the four sidecars, the IaC engine, and the LLM providers.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula keeps every secret in environment variables. <code>config.yaml</code> holds
+<p>Kumoss keeps every secret in environment variables. <code>config.yaml</code> holds
 only non-secret settings and, where a secret is needed, the <em>name</em> of
 the variable that carries it (fields ending in <code>_env</code>). This page
 documents every variable in <code>core/env.sample</code> and in the four sidecar
@@ -848,38 +848,38 @@ For <code>anthropic/*</code> models LiteLLM accepts either <code>ANTHROPIC_API_K
 call</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_IAC_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory (the IaC sidecar is always called; it has no <code>enabled</code> flag)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-iac-token</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token the core sends to the IaC sidecar. Must equal
-<code>NEBULA_IAC_TOKEN</code> in <code>services/iac/.env</code>.</p></td>
+<code>KUMOSS_IAC_TOKEN</code> in <code>services/iac/.env</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: an empty token aborts startup</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-mapping-token</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the mapping sidecar, sent when
 <code>services.mapping.enabled</code> is true. Must equal
-<code>NEBULA_MAPPING_TOKEN</code> in <code>services/mapping/.env</code>.</p></td>
+<code>KUMOSS_MAPPING_TOKEN</code> in <code>services/mapping/.env</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_NOTIFICATIONS_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-notifications-token</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the notifications sidecar, sent when
 <code>services.notifications.enabled</code> is true. Must equal
-<code>NEBULA_NOTIFICATIONS_TOKEN</code> in <code>services/notifications/.env</code>.</p></td>
+<code>KUMOSS_NOTIFICATIONS_TOKEN</code> in <code>services/notifications/.env</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-authz-token</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the authorization sidecar, sent when
 <code>services.authz.enabled</code> is true. Must equal
-<code>NEBULA_AUTHZ_TOKEN</code> in <code>services/authz/.env</code>.</p></td>
+<code>KUMOSS_AUTHZ_TOKEN</code> in <code>services/authz/.env</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
@@ -906,7 +906,7 @@ credentials come from elsewhere</p></td>
 unset</strong>; empty otherwise</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Access key for the S3-compatible store, read when <code>storage.provider</code>
 is <code>RUSTFS</code> (or <code>S3</code> with static keys). Used for the artifacts bucket
-and — where Nebula-managed state is enabled
+and — where Kumoss-managed state is enabled
 (<code>storage.terraform_state_bucket</code> non-blank; that is the shipped
 default) — for the state bucket too, in which case it is also embedded
 into the backend block the IaC sidecar executes. Must match
@@ -937,16 +937,16 @@ The account name is derived from <code>storage.endpoint_url</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: configuration validation fails if empty</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_SQL_DATABASE_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_SQL_DATABASE_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mandatory</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">sample value points at the bundled <code>core-db</code> container</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Connection URL of Nebula&#8217;s PostgreSQL database. Must carry the
+<td class="tableblock halign-left valign-top"><p class="tableblock">Connection URL of Kumoss&#8217;s PostgreSQL database. Must carry the
 credentials of the <code>core-db</code> service in <code>docker-compose.yml</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: configuration validation fails if empty, and database
 initialisation fails if unreachable</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_REDIS_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_REDIS_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>core/env.sample</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>redis://redis:6379/0</code> from <code>redis.default_url</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Redis URL for the session cache. Add it only to point at an external
@@ -956,9 +956,9 @@ boot-time ping must succeed.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: Redis initialisation fails if unreachable</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_CONFIG</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_CONFIG</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>env.sample</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/etc/nebula/config.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/etc/kumoss/config.yaml</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Path, inside the container, of the configuration file to load. The
 file must exist at that path (for example through a mounted volume); a
 missing file silently falls back to built-in defaults.</p></td>
@@ -1034,9 +1034,9 @@ settings live in <code>config.yaml</code>.</p>
 </ul>
 </div>
 <div class="sect2">
-<h3 id="read-by-libraries-not-by-nebula"><a class="anchor" href="#read-by-libraries-not-by-nebula"></a>Read by libraries, not by Nebula</h3>
+<h3 id="read-by-libraries-not-by-kumoss"><a class="anchor" href="#read-by-libraries-not-by-kumoss"></a>Read by libraries, not by Kumoss</h3>
 <div class="paragraph">
-<p>Two more variables can matter to the core even though no Nebula code
+<p>Two more variables can matter to the core even though no Kumoss code
 reads them. Neither is in <code>core/env.sample</code>, and neither is needed for
 the bundled Phoenix.</p>
 </div>
@@ -1102,11 +1102,11 @@ documentation for the version you run before relying on them.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_IAC_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_IAC_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Recommended; mandatory outside an isolated workstation</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Token the sidecar requires on every <code>/v1/*</code> call. Must equal the
-core&#8217;s <code>NEBULA_IAC_TOKEN</code>.</p></td>
+core&#8217;s <code>KUMOSS_IAC_TOKEN</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Per request: a mismatch returns <code>401</code> to the core</p></td>
 </tr>
 <tr>
@@ -1131,7 +1131,7 @@ can carry the file. It supplies values only — the backend <em>type</em> still
 comes from the workspace&#8217;s own <code>terraform { backend "&#8230;&#8203;" }</code> block.
 Its values take precedence over the core&#8217;s <code>backend_override.tf</code>, which
 in turn beats the repository&#8217;s own block; keys the file does not
-declare fall through, so setting it <em>together with</em> Nebula-managed
+declare fall through, so setting it <em>together with</em> Kumoss-managed
 state (<code>storage.terraform_state_bucket</code> set) merges the two backends
 key by key instead of picking one — a misconfiguration to avoid, not a
 layering feature. Blank or whitespace counts as unset. See
@@ -1154,7 +1154,7 @@ memory, so a restart also forgets them.</p>
 <p>The IaC sidecar does not interpret cloud credentials. It launches the
 engine with its <strong>entire container environment inherited and no
 allowlist</strong>, so every variable in <code>services/iac/.env</code> (including
-<code>NEBULA_IAC_TOKEN</code>) is visible to the Terraform and OpenTofu <strong>providers</strong>
+<code>KUMOSS_IAC_TOKEN</code>) is visible to the Terraform and OpenTofu <strong>providers</strong>
 and to any <code>external</code> or <code>local-exec</code> code in the repositories you run.
 The providers read their credentials directly during <code>init</code>, <code>plan</code>,
 and <code>apply</code>. Missing or invalid credentials never stop the container;
@@ -1257,7 +1257,7 @@ sets of credentials on the sidecar</a>.</p>
 </div>
 <div class="paragraph">
 <p>Credential files you mount must be readable by the unprivileged user
-the image runs as (<code>nebula</code>, uid and gid <code>10001</code> by default).</p>
+the image runs as (<code>kumoss</code>, uid and gid <code>10001</code> by default).</p>
 </div>
 </div>
 <div class="sect2">
@@ -1270,13 +1270,13 @@ state-backend credentials are always a sidecar concern.</p>
 <ul>
 <li>
 <p><strong>By default</strong> (<code>storage.terraform_state_bucket</code> non-blank — that is the
-shipped value), Nebula manages state. When the core&#8217;s rendered
+shipped value), Kumoss manages state. When the core&#8217;s rendered
 backend block <strong>contains</strong> static keys (<code>RUSTFS</code>, or
 <code>S3</code>/<code>STORAGE_ACCOUNT</code> with keys set in <code>core/.env</code>), the sidecar
 needs nothing extra for state.</p>
 </li>
 <li>
-<p>When Nebula-managed state is on and the block <strong>omits</strong> those keys
+<p>When Kumoss-managed state is on and the block <strong>omits</strong> those keys
 (<code>provider: S3</code> with <code>RUSTFS_ACCESS_KEY</code>/<code>RUSTFS_SECRET_KEY</code> blank),
 the engine resolves credentials from the sidecar&#8217;s own environment:
 <code>AWS_ACCESS_KEY_ID</code>/<code>AWS_SECRET_ACCESS_KEY</code>, <code>AWS_PROFILE</code>, or an
@@ -1285,7 +1285,7 @@ attached instance role or IRSA token. Granting that role to the
 the bucket at boot.</p>
 </li>
 <li>
-<p>With Nebula-managed state on, the sidecar must also reach
+<p>With Kumoss-managed state on, the sidecar must also reach
 <code>storage.endpoint_url</code>. In the Compose stack <code>core</code> and <code>iac</code> share
 <code>bridge-network</code>, so <code>http://object-storage:9000</code> resolves;
 elsewhere, allow that egress.</p>
@@ -1329,11 +1329,11 @@ backends</a>.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/resolve</code>. Must equal the core&#8217;s
-<code>NEBULA_MAPPING_TOKEN</code>.</p></td>
+<code>KUMOSS_MAPPING_TOKEN</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
 </tr>
 </tbody>
@@ -1374,11 +1374,11 @@ enum; there is no silent fallback.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_NOTIFICATIONS_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/notify</code>. Must equal the core&#8217;s
-<code>NEBULA_NOTIFICATIONS_TOKEN</code>.</p></td>
+<code>KUMOSS_NOTIFICATIONS_TOKEN</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
 </tr>
 <tr>
@@ -1447,14 +1447,14 @@ would rather not see it.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>/v1/*</code>. Must equal the core&#8217;s <code>NEBULA_AUTHZ_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>/v1/*</code>. Must equal the core&#8217;s <code>KUMOSS_AUTHZ_TOKEN</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">When set, the sidecar grants its own <code>admin</code> role to a user record
@@ -1462,7 +1462,7 @@ keyed by this email at startup.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_PERMISSIVE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_PERMISSIVE</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> (case-insensitive): <code>POST /v1/check</code> answers
@@ -1472,7 +1472,7 @@ policy.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>NEBULA_AUTHZ_ROLE_STORE</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROLE_STORE</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>/data/roles.json</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Path of the JSON file holding the sidecar&#8217;s user-to-roles map. The
@@ -1502,7 +1502,7 @@ request.</p>
 </li>
 <li>
 <p>The sidecar&#8217;s <code>admin</code> and <code>user</code> roles, its root-admin bootstrap, and
-its <code>/v1/users</code> endpoints belong to the sidecar alone. Nebula&#8217;s own
+its <code>/v1/users</code> endpoints belong to the sidecar alone. Kumoss&#8217;s own
 operation roles (<code>developer</code>, <code>devops</code>) and admin-panel roles
 (<code>viewer</code>, <code>editor</code>, <code>admin</code>) live in the core database and are
 documented in the <a href="../../guides/administer-users-and-locks/" class="xref page">Admin
@@ -1605,10 +1605,10 @@ private network that only the core can reach, and rotate tokens on a
 schedule.</p>
 </li>
 <li>
-<p><strong>All five Nebula-built images run unprivileged.</strong> The core, IaC,
+<p><strong>All five Kumoss-built images run unprivileged.</strong> The core, IaC,
 mapping, notifications, and authorization Dockerfiles each create and
-switch to the <code>nebula</code> user (uid/gid <code>10001</code> by default, from the
-<code>NEBULA_UID</code> / <code>NEBULA_GID</code> build args). The <code>proxy</code> service is the
+switch to the <code>kumoss</code> user (uid/gid <code>10001</code> by default, from the
+<code>KUMOSS_UID</code> / <code>KUMOSS_GID</code> build args). The <code>proxy</code> service is the
 upstream nginx image, which starts as root and drops privileges for
 its worker processes. Apply your platform&#8217;s pod or container security
 defaults on top regardless — the Compose file adds no <code>cap_drop</code>,
@@ -1677,19 +1677,19 @@ The Vertex AI set is shown in the next example.</p>
 <span class="line"><span>ANTHROPIC_API_KEY=sk-example-not-a-real-key</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)</span></span>
-<span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
-<span class="line"><span>NEBULA_MAPPING_TOKEN=unused-while-disabled</span></span>
-<span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=unused-while-disabled</span></span>
-<span class="line"><span>NEBULA_AUTHZ_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>KUMOSS_MAPPING_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>KUMOSS_AUTHZ_TOKEN=unused-while-disabled</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Git push credentials</span></span>
-<span class="line"><span>GIT_USER=nebula-bot</span></span>
+<span class="line"><span>GIT_USER=kumoss-bot</span></span>
 <span class="line"><span>GIT_TOKEN=ghp_example_not_a_real_token</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Bundled RustFS and PostgreSQL defaults</span></span>
 <span class="line"><span>RUSTFS_ACCESS_KEY=rustfsadmin</span></span>
 <span class="line"><span>RUSTFS_SECRET_KEY=rustfsadmin</span></span>
-<span class="line"><span>NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula</span></span></span></code></pre>
+<span class="line"><span>KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1697,16 +1697,16 @@ The Vertex AI set is shown in the next example.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
 <span class="line"><span>IAC_BINARY=tofu</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Unset: the backend comes from the workspace — the target repository's</span></span>
-<span class="line"><span># own block, or the override the core writes when Nebula-managed state</span></span>
+<span class="line"><span># own block, or the override the core writes when Kumoss-managed state</span></span>
 <span class="line"><span># is on (the shipped default). If set, this file's values win over that</span></span>
 <span class="line"><span># override, key by key (see Terraform/OpenTofu state backends), so set</span></span>
 <span class="line"><span># it only with storage.terraform_state_bucket explicitly blanked to "",</span></span>
 <span class="line"><span># and mount the file in this container.</span></span>
-<span class="line"><span># IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl</span></span>
+<span class="line"><span># IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># These credentials serve both the providers and, when the rendered</span></span>
 <span class="line"><span># backend block omits static keys, the S3 state backend.</span></span>
@@ -1746,20 +1746,20 @@ The Vertex AI set is shown in the next example.</p>
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider (Google Vertex AI). The service-account key JSON, on one line.</span></span>
 <span class="line"><span>VERTEXAI_PROJECT=demo-platform-project</span></span>
 <span class="line"><span>VERTEXAI_LOCATION=europe-west1</span></span>
-<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
+<span class="line"><span>VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># One distinct token per sidecar</span></span>
-<span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
-<span class="line"><span>NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span>
-<span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
-<span class="line"><span>NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
+<span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<span class="line"><span>KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span>
+<span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
+<span class="line"><span>KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
 <span class="line"><span></span></span>
-<span class="line"><span>GIT_USER=nebula-bot</span></span>
+<span class="line"><span>GIT_USER=kumoss-bot</span></span>
 <span class="line"><span>GIT_TOKEN=example-not-a-real-gitlab-token</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>RUSTFS_ACCESS_KEY=rustfsadmin</span></span>
 <span class="line"><span>RUSTFS_SECRET_KEY=rustfsadmin</span></span>
-<span class="line"><span>NEBULA_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/nebula</span></span></span></code></pre>
+<span class="line"><span>KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1775,7 +1775,7 @@ are: turning them into real line breaks makes the JSON invalid.</p>
 </td>
 <td class="content">
 <code>VERTEXAI_CREDENTIALS</code> also accepts a path to the key file instead
-of its content. Nebula does not provide that file: create a secret or
+of its content. Kumoss does not provide that file: create a secret or
 file mount into the <strong>core</strong> container yourself (the Compose file mounts
 nothing there), readable by uid <code>10001</code>. A path that does not exist
 inside the container is not caught at boot. The first LLM call then
@@ -1789,7 +1789,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
 <span class="line"><span>IAC_BINARY=tofu</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Provider grant: the resources plan and apply create.</span></span>
@@ -1809,7 +1809,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1817,7 +1817,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
 <span class="line"><span>SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example</span></span>
 <span class="line"><span>LOG_LEVEL=INFO</span></span></span></code></pre>
 </div>
@@ -1827,10 +1827,10 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>NEBULA_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
-<span class="line"><span>NEBULA_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid</span></span>
-<span class="line"><span>NEBULA_AUTHZ_PERMISSIVE=true</span></span>
-<span class="line"><span>NEBULA_AUTHZ_ROLE_STORE=/data/roles.json</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
+<span class="line"><span>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid</span></span>
+<span class="line"><span>KUMOSS_AUTHZ_PERMISSIVE=true</span></span>
+<span class="line"><span>KUMOSS_AUTHZ_ROLE_STORE=/data/roles.json</span></span></span></code></pre>
 </div>
 </div>
 </div>
@@ -1857,7 +1857,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 <div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-2-tab-1" role="tab" aria-selected="true" aria-controls="tabs-2-panel-1" tabindex="0" data-tab-value="Google Cloud"><span class="dt-tabs-item__label">Google Cloud</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-2-tab-2" role="tab" aria-selected="false" aria-controls="tabs-2-panel-2" tabindex="-1" data-tab-value="Kubernetes"><span class="dt-tabs-item__label">Kubernetes</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-2-panel-1" role="tabpanel" aria-labelledby="tabs-2-tab-1" tabindex="0" data-tab-value="Google Cloud"><div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># Provider grant. Also serves the gcs backend, unless you override it below.</span></span>
-<span class="line"><span>GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"nebula@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
+<span class="line"><span>GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># State-backend grant: backend-only, and needed only when the state bucket</span></span>
 <span class="line"><span># lives outside the project above. Omit it and `init` reuses GOOGLE_CREDENTIALS.</span></span>
@@ -1868,7 +1868,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUBE_CONFIG_PATH=/home/nebula/.kube/config</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUBE_CONFIG_PATH=/home/kumoss/.kube/config</span></span></span></code></pre>
 </div>
 </div></section></div></div>
 </div>
@@ -1912,7 +1912,7 @@ fails with a JSON-parsing error rather than a missing-file error.
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/reference/environment-variables.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/reference/environment-variables.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1932,7 +1932,7 @@ fails with a JSON-parsing error rather than a missing-file error.
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

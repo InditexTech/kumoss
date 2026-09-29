@@ -70,11 +70,11 @@
       })()
     </script>
 
-<title>Repository-declared backend | Nebula</title>
+<title>Repository-declared backend | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/state-backends/repository-declared/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/state-backends/repository-declared/">
     <link rel="prev" href="../../configure-state-backends/">
-    <link rel="next" href="../nebula-managed/">
+    <link rel="next" href="../kumoss-managed/">
     <meta name="description" content="Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.">
     <meta name="generator" content="Antora 3.2.0">
 
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../configure-state-backends/"><span class="dt-breadcrumb-item__content">Configure state backends</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Repository-declared backend</span></div>
 </nav>
@@ -770,14 +770,14 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Blank the state bucket with an explicit empty string and Nebula steps out
+<p>Blank the state bucket with an explicit empty string and Kumoss steps out
 of the way:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"nebula-artifacts"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-artifacts"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span></span></span></code></pre>
 </div>
 </div>
@@ -785,8 +785,8 @@ of the way:</p>
 <p><code>""</code> and whitespace-only (<code>"   "</code>) are equally blank. A key with no value
 after it is not blank but null, and fails validation at boot; deleting the
 key is not blank either, because its default in code is
-<code>nebula-terraform-state</code>, which leaves
-<a href="../nebula-managed/" class="xref page">Nebula-managed state</a>
+<code>kumoss-terraform-state</code>, which leaves
+<a href="../kumoss-managed/" class="xref page">Kumoss-managed state</a>
 on. What blanking it means:</p>
 </div>
 <div class="ulist">
@@ -799,7 +799,7 @@ on. What blanking it means:</p>
 its own committed configuration declares.</p>
 </li>
 <li>
-<p><strong>Every repository Nebula operates on must declare a working remote
+<p><strong>Every repository Kumoss operates on must declare a working remote
 backend</strong> — <code>azurerm</code>, <code>s3</code>, <code>gcs</code>, or any other the engine supports.
 With <strong>no</strong> backend block the engine falls back to local state, lost with
 the workspace, so the next session plans against nothing.</p>
@@ -814,7 +814,7 @@ below).</p>
 </div>
 <div class="paragraph">
 <p>A typical repository therefore carries its own backend block, which
-Nebula reads and leaves alone:</p>
+Kumoss reads and leaves alone:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -829,7 +829,7 @@ Nebula reads and leaves alone:</p>
 </div>
 </div>
 <div class="paragraph">
-<p>Nothing here is Nebula-specific: the same backend serves your CI and your
+<p>Nothing here is Kumoss-specific: the same backend serves your CI and your
 engineers' laptops, which is the main reason to prefer this model when
 the repositories already have one.</p>
 </div>
@@ -914,12 +914,12 @@ minimums</a>); the variable-level view is in
 credentials for the IaC engine</a>.</p>
 </div>
 <div class="paragraph">
-<p>Model 2 — what ships — can spare you the second set: Nebula writes the
+<p>Model 2 — what ships — can spare you the second set: Kumoss writes the
 backend itself, and where the rendered block embeds static keys — the
 <code>RUSTFS</code> case, and <code>S3</code>/<code>STORAGE_ACCOUNT</code> with keys in <code>core/.env</code> — the
 sidecar needs nothing for state. Where it does not embed them, the
 sidecar still has to resolve them; see
-<a href="../nebula-managed/#credentials-required" class="xref page">Credentials
+<a href="../kumoss-managed/#credentials-required" class="xref page">Credentials
 required</a>.</p>
 </div>
 </div>
@@ -943,9 +943,9 @@ required</a>.</p>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../nebula-managed/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../kumoss-managed/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Nebula-managed state</span>
+        <span class="pagination__label-full">Kumoss-managed state</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>
@@ -962,7 +962,7 @@ required</a>.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -982,7 +982,7 @@ required</a>.</p>
       <a class="site-footer__brand-link" href="../../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

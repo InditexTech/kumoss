@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>Deployment view | Nebula</title>
+<title>Deployment view | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/architecture/deployment-view/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/architecture/deployment-view/">
     <link rel="prev" href="../data-and-state/">
     <link rel="next" href="../../glossary/">
     <meta name="description" content="The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">Architecture</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Deployment view</span></div>
 </nav>
@@ -770,7 +770,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This page describes how Nebula&#8217;s containers are deployed on one Docker
+<p>This page describes how Kumoss&#8217;s containers are deployed on one Docker
 Compose stack, the operational notes that follow from that topology,
 and the architectural characteristics that result from the decisions
 described across this section.</p>
@@ -788,10 +788,10 @@ on purpose.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/deployment-topology.png" alt="Nebula Compose deployment topology: the stack&#8217;s containers on one bridge network, with only the proxy publishing host ports and the user&#8217;s browser outside the network">
+<img src="../../_images/deployment-topology.png" alt="Kumoss Compose deployment topology: the stack&#8217;s containers on one bridge network, with only the proxy publishing host ports and the user&#8217;s browser outside the network">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/deployment-topology.html" data-archify-title="Nebula Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network">
+<p class="archify-actions" data-archify-src="../../_attachments/deployment-topology.html" data-archify-title="Kumoss Compose deployment topology: the stack's containers on one bridge network, with only the proxy publishing host ports and the user's browser outside the network">
   <span class="archify-hint">Pan, zoom, search, trace a relationship, switch themes.</span>
   <a class="archify-full" href="../../_attachments/deployment-topology.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1147,8 +1147,8 @@ rather than as external nodes.</p>
 solely on the internal network. The <code>workspaces</code> volume is the one
 mount shared by two containers (core and iac), which is what lets the
 iac service run the IaC engine against the core&#8217;s git clones. Both
-containers run as the same unprivileged user (<code>nebula</code>, uid/gid 10001,
-fixed by the <code>NEBULA_UID</code>/<code>NEBULA_GID</code> build args) so files either one
+containers run as the same unprivileged user (<code>kumoss</code>, uid/gid 10001,
+fixed by the <code>KUMOSS_UID</code>/<code>KUMOSS_GID</code> build args) so files either one
 creates are writable by the other. Additional Compose hardening for the
 iac container (dropping all capabilities, <code>no-new-privileges</code>, a
 read-only root filesystem, and CPU/memory/pid limits) was prototyped
@@ -1203,8 +1203,8 @@ and is best-effort.</p>
 </li>
 <li>
 <p>Configuration comes from a single <code>config.yaml</code>, baked into the image
-at <code>/etc/nebula/config.yaml</code> by the core Dockerfile, so changes
-require an image rebuild unless <code>NEBULA_CONFIG</code> points at a file
+at <code>/etc/kumoss/config.yaml</code> by the core Dockerfile, so changes
+require an image rebuild unless <code>KUMOSS_CONFIG</code> points at a file
 mounted elsewhere in the container.</p>
 </li>
 <li>
@@ -1212,7 +1212,7 @@ mounted elsewhere in the container.</p>
 variables (database URL, service bearer tokens, storage keys, git
 personal access token), and the core validates at boot that every
 enabled service&#8217;s token and every referenced LLM credential resolves.
-Each <code>NEBULA</em>&lt;SERVICE&gt;_TOKEN</code> must match between the core&#8217;s outbound
+Each <code>KUMOSS</em>&lt;SERVICE&gt;_TOKEN</code> must match between the core&#8217;s outbound
 client and the sidecar&#8217;s inbound validation.</p>
 </li>
 <li>
@@ -1261,14 +1261,14 @@ cache misses within one process only.</p>
 </li>
 <li>
 <p><strong>Static storage credentials are rendered in plaintext</strong> into
-<code>backend_override.tf</code> on the shared volume when Nebula-managed state
+<code>backend_override.tf</code> on the shared volume when Kumoss-managed state
 is used with access/secret keys or an Azure account key. Prefer
 credential chains or workload identity where the provider allows it.</p>
 </li>
 <li>
 <p><strong>One Git identity for every user.</strong> All pushes and pull requests use
 the single PAT in <code>GIT_TOKEN</code>, and commits are authored, by default,
-as <code>Nebula &lt;nebula@noreply.invalid&gt;</code> (<code>git.author_name</code> /
+as <code>Kumoss &lt;kumoss@noreply.invalid&gt;</code> (<code>git.author_name</code> /
 <code>git.author_email</code>), so
 repository history attributes nothing to the requesting user — the
 session record in core-db is the audit trail.</p>
@@ -1376,7 +1376,7 @@ stay the identity provider&#8217;s concern.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/architecture/deployment-view.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/architecture/deployment-view.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1396,7 +1396,7 @@ stay the identity provider&#8217;s concern.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

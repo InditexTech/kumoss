@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>Networking and TLS | Nebula</title>
+<title>Networking and TLS | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/guides/production/networking-and-tls/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/production/networking-and-tls/">
     <link rel="prev" href="../secrets-and-credentials/">
     <link rel="next" href="../hardening/">
     <meta name="description" content="Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../deploy-to-production/"><span class="dt-breadcrumb-item__content">Deploy to production</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Networking and TLS</span></div>
 </nav>
@@ -862,7 +862,7 @@ policy requires it.</p>
 </li>
 <li>
 <p>The reference nginx config caps request bodies at <code>client_max_body_size
-4m</code> on port 80. Keep an explicit limit at your own ingress; Nebula&#8217;s
+4m</code> on port 80. Keep an explicit limit at your own ingress; Kumoss&#8217;s
 requests (repository descriptions, not file uploads) are small, but an
 unbounded body size is an easy denial-of-service vector.</p>
 </li>
@@ -891,7 +891,7 @@ sidecar to <code>hooks.slack.com</code> (or your channel).</p>
 <p>Build the images from the repository with your registry&#8217;s tags. The
 core image copies <code>config.yaml</code> from the repository root at build
 time; to keep one image per version and vary configuration per
-environment, mount the file instead and set <code>NEBULA_CONFIG</code> to its
+environment, mount the file instead and set <code>KUMOSS_CONFIG</code> to its
 path inside the container. The path must be a regular file, or the
 core silently falls back to built-in defaults, which disable every
 <strong>optional</strong> sidecar (notifications, mapping, authz). The IaC sidecar
@@ -903,8 +903,8 @@ boots successfully and the failure only surfaces on the first IaC
 call (init/validate/plan/apply), not at boot.</p>
 </li>
 <li>
-<p>Build the core and IaC images with the <strong>same</strong> <code>NEBULA_UID</code> and
-<code>NEBULA_GID</code> build arguments (default <code>10001</code>) and run both with that
+<p>Build the core and IaC images with the <strong>same</strong> <code>KUMOSS_UID</code> and
+<code>KUMOSS_GID</code> build arguments (default <code>10001</code>) and run both with that
 identity.</p>
 </li>
 <li>
@@ -957,7 +957,7 @@ development conveniences; do not use them in production.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/blob/docs/stable/docs/src/modules/main/pages/guides/production/networking-and-tls.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/production/networking-and-tls.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -977,7 +977,7 @@ development conveniences; do not use them in production.</p>
       <a class="site-footer__brand-link" href="../../../../">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

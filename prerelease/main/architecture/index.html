@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Architecture | Nebula</title>
+<title>Architecture | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/architecture/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/architecture/">
     <link rel="prev" href="../about/">
     <link rel="next" href="end-to-end-flow/">
-    <meta name="description" content="The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.">
+    <meta name="description" content="The components that make up Kumoss, how they communicate, and where the rest of this section goes into more depth.">
     <meta name="generator" content="Antora 3.2.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,11 +743,11 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Architecture</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Architecture</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The components that make up Nebula, how they communicate, and where the rest of this section goes into more depth.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The components that make up Kumoss, how they communicate, and where the rest of this section goes into more depth.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -769,7 +769,7 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>This page introduces Nebula&#8217;s runtime components and how they fit together.
+<p>This page introduces Kumoss&#8217;s runtime components and how they fit together.
 The rest of this section goes deeper: the end-to-end request flow, the data
 and state each component owns, and the deployment topology.</p>
 </div>
@@ -780,10 +780,10 @@ and state each component owns, and the deployment topology.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../_images/system-architecture.png" alt="Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
+<img src="../_images/system-architecture.png" alt="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../_attachments/system-architecture.html" data-archify-title="Nebula system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
+<p class="archify-actions" data-archify-src="../_attachments/system-architecture.html" data-archify-title="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
   <span class="archify-hint">Pan, zoom, search, trace a relationship, switch themes.</span>
   <a class="archify-full" href="../_attachments/system-architecture.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1133,7 +1133,7 @@ core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the <code>workspaces</code> volume,
 <code>phoenix-db</code> and the notification and storage backends are carried in the
 notes beside it rather than drawn. Phoenix is reachable through the proxy at
-<code>/monitoring/</code>, artifacts land in the <code>nebula-artifacts</code> bucket, and the
+<code>/monitoring/</code>, artifacts land in the <code>kumoss-artifacts</code> bucket, and the
 shipped configuration routes model calls through LiteLLM.</p>
 </div>
 </div>
@@ -1204,7 +1204,7 @@ layer — they live in <code>core/src/clients</code>, a sibling package.</p></td
 <td class="tableblock halign-left valign-top"><p class="tableblock">authz service</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cloud project access checks, disabled by default. Disabled, the core
 answers "authorized" without calling it; enabled, an unreachable sidecar is
-an error, never an allow. Its user and role endpoints are unused — Nebula
+an error, never an allow. Its user and role endpoints are unused — Kumoss
 keeps those in core-db.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Called from the authorize route with the caller&#8217;s identity; container-local
 JSON role store</p></td>
@@ -1251,7 +1251,7 @@ aggregates. No pub/sub, no locks.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">object-storage (RustFS, Apache-2.0)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Default, bundled</strong> artifact store (<code>nebula-artifacts</code>): reports, plans,
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Default, bundled</strong> artifact store (<code>kumoss-artifacts</code>): reports, plans,
 drift JSON and code changes, served to the browser by presigned URL.
 <code>storage.provider</code> switches to AWS S3, Azure Blob Storage or any other
 S3-compatible endpoint. Engine state lives in the <strong>separate</strong>
@@ -1359,7 +1359,7 @@ Compose topology, operational notes, and single-instance limits.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/architecture.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/architecture.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -1379,7 +1379,7 @@ Compose topology, operational notes, and single-instance limits.</p>
       <a class="site-footer__brand-link" href="../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>

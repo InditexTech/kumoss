@@ -70,9 +70,9 @@
       })()
     </script>
 
-<title>End-to-end flow | Nebula</title>
+<title>End-to-end flow | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/nebula/stable/main/architecture/end-to-end-flow/">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/architecture/end-to-end-flow/">
     <link rel="prev" href="../">
     <link rel="next" href="../data-and-state/">
     <meta name="description" content="The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.">
@@ -102,7 +102,7 @@
       <a class="header-toolbar__brand" href="../../../../stable/">
         <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Nebula</span>
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
       </a>
     </div>
     <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
@@ -131,7 +131,7 @@
   </div>
 </div>
 
-<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/nebula" target="_blank" rel="noopener" aria-label="Repository">
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
   <span class="dt-button__content">
     <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
   </span>
@@ -209,7 +209,7 @@
     <div class="side-menu__header-start">
       <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
       <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-      <span class="side-menu__header-title dt-text dt-text--title-s">Nebula</span>
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
     </div>
     <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
   </div>
@@ -218,7 +218,7 @@
   <a class="side-menu__brand-link" href="../../../../stable/">
     <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
     <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
-    <span class="side-menu__brand-title dt-text dt-text--title-m">Nebula</span>
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
   </a>
 </div>
 
@@ -447,8 +447,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/nebula-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Nebula-managed state</span></span>
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
       </a>
     </div>
 
@@ -743,7 +743,7 @@
       <div class="hero__main">
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Nebula</span></a>
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">Architecture</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">End-to-end flow</span></div>
 </nav>
@@ -786,10 +786,10 @@ gates on purpose: <strong>models propose, code decides.</strong></p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phases-1-4.png" alt="Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose">
+<img src="../../_images/flow-phases-1-4.png" alt="Kumoss request flow, phases 1 to 4: request, identity, session, then filter and compose">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-1-4.html" data-archify-title="Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-1-4.html" data-archify-title="Kumoss request flow, phases 1 to 4: request, identity, session, then filter and compose">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phases-1-4.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1187,7 +1187,7 @@ never refused with <code>409</code>: the runner that loses logs
 <code>runner not started: Session &#8230;&#8203; already has an operation in flight</code> and
 returns without touching the session. It then clones into
 <code>/workspaces/&lt;session&gt;/&lt;call&gt;</code> on the volume shared with the iac
-sidecar, pushes the branch <code>Nebula/YYYY-MM-DD_HHMMSS</code> (UTC), and installs
+sidecar, pushes the branch <code>Kumoss/YYYY-MM-DD_HHMMSS</code> (UTC), and installs
 the per-session Phoenix tracer.</p></td>
 </tr>
 </tbody>
@@ -1239,10 +1239,10 @@ iterations: 8 in the shipped <code>config.yaml</code>, 5 built in.</p>
 </div>
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phases-5-6.png" alt="Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check">
+<img src="../../_images/flow-phases-5-6.png" alt="Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-5-6.html" data-archify-title="Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-5-6.html" data-archify-title="Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phases-5-6.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1695,10 +1695,10 @@ existing plan safe: <a href="#drift">Drift detection and remediation</a>.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phases-7-8.png" alt="Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<img src="../../_images/flow-phases-7-8.png" alt="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phases-7-8.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -2122,10 +2122,10 @@ round unpinned. Configuration, exact formula and effect:
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phase-9.png" alt="Nebula request flow, phase 9: optional pull request and human review">
+<img src="../../_images/flow-phase-9.png" alt="Kumoss request flow, phase 9: optional pull request and human review">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phase-9.html" data-archify-title="Nebula request flow, phase 9: optional pull request and human review">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phase-9.html" data-archify-title="Kumoss request flow, phase 9: optional pull request and human review">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phase-9.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -2486,7 +2486,7 @@ adapter (GitHub, Azure DevOps or GitLab REST API) opens the pull request
 from the session branch. Reviewers see the code diff, a title and
 description the model derives only from the request and the conversation
 history, and their own CI; the plan, report and cost estimate stay in
-Nebula&#8217;s results view, and compliance findings reach only the
+Kumoss&#8217;s results view, and compliance findings reach only the
 notification audience.</p></td>
 </tr>
 <tr>
@@ -2508,10 +2508,10 @@ the session history and artifacts are kept.</p></td>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phase-10.png" alt="Nebula request flow, phase 10: human-triggered apply, never automatic">
+<img src="../../_images/flow-phase-10.png" alt="Kumoss request flow, phase 10: human-triggered apply, never automatic">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phase-10.html" data-archify-title="Nebula request flow, phase 10: human-triggered apply, never automatic">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phase-10.html" data-archify-title="Kumoss request flow, phase 10: human-triggered apply, never automatic">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phase-10.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -3326,7 +3326,7 @@ is.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Changes requested</strong> — phase 9</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A reviewer asked for changes, or the pull request&#8217;s own CI or a merge
-conflict failed it. Nebula does not watch the pull request: the owner
+conflict failed it. Kumoss does not watch the pull request: the owner
 relays the problem as a new request</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A new round of the same session starts at phase 3, on the same branch.</p></td>
 </tr>
@@ -3398,7 +3398,7 @@ nginx authenticates nothing — bearer tokens pass through to the core.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Disabled</strong> — blank <code>oidc.issuer_url</code>, the checked-in default</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The SPA mounts a dev provider, and the core resolves every request to a
-fixed local-developer identity (<code>urn:nebula:dev</code> / <code>dev</code>), provisioned as a
+fixed local-developer identity (<code>urn:kumoss:dev</code> / <code>dev</code>), provisioned as a
 real user row with the top role of both groups.</p></td>
 </tr>
 <tr>
@@ -3476,7 +3476,7 @@ touch a given cloud project and environment. Disabled — the default — the
 core answers "authorized" with no network call; enabled, a timeout or
 unreachable sidecar is returned as <code>504</code>/<code>502</code>, never as an allow. This is a
 hook for enterprise cloud-access policy, not the access control for
-Nebula&#8217;s own data.</p>
+Kumoss&#8217;s own data.</p>
 </div>
 </div>
 <div class="sect2">
@@ -3573,7 +3573,7 @@ adopted, never migrated.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The sidecar owns no backend decision</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Beyond the optional <code>IAC_BACKEND_CONFIG</code> file, the backend is whatever the
 workspace contains: the <code>backend_override.tf</code> the core writes by default,
-since Nebula-managed state is on as shipped, or the repository&#8217;s own block
+since Kumoss-managed state is on as shipped, or the repository&#8217;s own block
 if that is turned off.</p></td>
 </tr>
 </tbody>
@@ -3826,7 +3826,7 @@ time.</p>
 <ul>
 <li>
 <p>Reports, plans, drift JSON and per-file code changes go to the
-<code>nebula-artifacts</code> bucket, metadata to PostgreSQL. The browser fetches
+<code>kumoss-artifacts</code> bucket, metadata to PostgreSQL. The browser fetches
 them through presigned URLs signed against the public port-9000 endpoint
 nginx forwards to RustFS.</p>
 </li>
@@ -3886,7 +3886,7 @@ disabled and logs every send failure instead of failing the pipeline.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/nebula/edit/main/docs/src/modules/main/pages/architecture/end-to-end-flow.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/architecture/end-to-end-flow.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
@@ -3906,7 +3906,7 @@ disabled and logs every send failure instead of failing the pipeline.</p>
       <a class="site-footer__brand-link" href="../../../../stable/">
         <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
         <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
-        <span class="dt-text dt-text--label-l-high">Nebula</span>
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
       </a>
       <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
     </div>
