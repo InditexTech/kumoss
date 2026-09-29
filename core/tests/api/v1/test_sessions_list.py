@@ -68,7 +68,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["operation"], "generate")
         self.assertEqual(item["provider"], "azure")
         self.assertEqual(item["first_query"], "create a resource group")
-        self.assertEqual(item["workspace_uri"], "https://example.com/foo.git")
+        self.assertEqual(item["workspace"]["uri"], "https://example.com/foo.git")
         self.assertEqual(item["current_status"], "started")
         self.assertFalse(item["in_flight"])
         self.assertFalse(item["is_blocked"])

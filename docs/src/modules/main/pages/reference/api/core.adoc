@@ -313,8 +313,7 @@ deliberately so: the single-page application has to read it before it
 can log in at all. Outside `/v1`, the framework's interactive
 documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` —
 is served without authentication as well. It returns the four
-non-secret OIDC settings, taken straight from `config.yaml`, plus the
-object store's metadata header prefix:
+non-secret OIDC settings, taken straight from `config.yaml`:
 
 [source,json]
 ----
@@ -424,15 +423,15 @@ id. Up to 200 characters.
 The envelope carries `items`, `total`, `page`, `page_size`, and
 `total_pages`. Each item resolves server-side everything the list view
 renders: `uuid`, `username`, `operation`, `provider`, `first_query`,
-`workspace_uri`, `current_status`, the `in_flight` and `is_blocked`
-flags, and the timestamps. `username` is the owning user's e-mail, or
-`user-<id>` when the user has none; the name is historical, and it is
-a response field only — there is no `username` query parameter.
+`workspace` (URI, branch, root path), `current_status`, the
+`in_flight` and `is_blocked` flags, and the timestamps. `username` is
+the owning user's e-mail, or `user-<id>` when the user has none; the
+name is historical, and it is a response field only — there is no
+`username` query parameter.
 
 `GET /api/v1/sessions/\{session_id}` returns the full session
-aggregate: the session facts, its `workspace` (URI, branch, root
-path), its `scope_id`, the complete `statuses` timeline, and one entry
-in `rounds` per generation round. Each round carries its own statuses,
+aggregate: the summary fields, its `scope_id`, and one entry in
+`rounds` per generation round. Each round carries its own statuses,
 its `report`, `plan`, and `code_changes` artifacts as
 client-fetchable URLs, and its `pull_requests`.
 

@@ -77,7 +77,7 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     header: "Project",
     width: "16%",
     className: styles.secondaryCell,
-    render: (s) => extractProjectName(s.workspace_uri),
+    render: (s) => extractProjectName(s.workspace.uri),
   },
   {
     key: "type",
@@ -150,7 +150,7 @@ function buildAdminColumns(
       header: "Project",
       width: "14%",
       className: styles.secondaryCell,
-      render: (s) => extractProjectName(s.workspace_uri),
+      render: (s) => extractProjectName(s.workspace.uri),
     },
     {
       key: "type",

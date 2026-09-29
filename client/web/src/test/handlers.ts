@@ -45,7 +45,7 @@ export function toSummary(detail: SessionDetail): SessionSummary {
     operation: detail.operation,
     provider: detail.provider,
     first_query: detail.first_query,
-    workspace_uri: detail.workspace_uri,
+    workspace: detail.workspace,
     current_status: detail.current_status,
     in_flight: detail.in_flight,
     is_blocked: detail.is_blocked,
@@ -96,7 +96,7 @@ export function filterSessions(
         !needle ||
         (s.username ?? "").toLowerCase().includes(needle) ||
         (s.first_query ?? "").toLowerCase().includes(needle) ||
-        s.workspace_uri.toLowerCase().includes(needle),
+        s.workspace.uri.toLowerCase().includes(needle),
     )
     .map(toSummary);
 }

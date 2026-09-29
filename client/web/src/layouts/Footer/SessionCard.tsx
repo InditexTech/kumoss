@@ -33,7 +33,7 @@ export default function SessionCard({ session, onClick }: SessionCardProps) {
         )}
         <div className={styles.divider} />
         <Typography variant="h4" component="div" className={styles.projectName}>
-          {extractProjectName(session.workspace_uri)}
+          {extractProjectName(session.workspace.uri)}
         </Typography>
       </div>
     </div>

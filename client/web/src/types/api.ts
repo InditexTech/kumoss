@@ -230,7 +230,7 @@ export interface SessionSummary {
   operation: OperationType;
   provider: TerraformProvider;
   first_query: string | null;
-  workspace_uri: string;
+  workspace: WorkspaceRef;
   current_status: SessionStatus;
   in_flight: boolean;
   is_blocked: boolean;
@@ -248,7 +248,6 @@ export interface SessionSummary {
  * `history` is populated only when requested via `?include_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
-  workspace: WorkspaceRef;
   scope_id: string;
   rounds: RoundDetail[];
   history?: RawHistoryTurn[] | null;

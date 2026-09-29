@@ -646,7 +646,7 @@ class SessionSummary(BaseModel):
     operation: OperationType
     provider: TerraformProvider
     first_query: str | None
-    workspace_uri: str
+    workspace: WorkspaceRef
     current_status: SessionStatus
     in_flight: bool
     is_blocked: bool
@@ -666,7 +666,6 @@ class SessionDetail(SessionSummary):
     ``include_history``.
     """
 
-    workspace: WorkspaceRef
     scope_id: str
     rounds: list[RoundDetail]
     history: list[dict[str, str]] | None = None
