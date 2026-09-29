@@ -1,0 +1,831 @@
+= IaC sidecar API
+:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
+
+The IaC service is a *raw executor* for an IaC engine's command-line
+interface. It is the one mandatory sidecar: without it the core cannot
+validate or apply anything, so `services.iac` has no `enabled` flag.
+
+Contract: `contracts/openapi/iac.v1.yaml`. Default endpoint:
+`\http://iac:8082`. Bearer token: the value of the variable named by
+`services.iac.token_env`, `KUMOSS_IAC_TOKEN` by default, which the
+bundled implementation reads from the variable of the same name.
+
+Every POST enqueues a *job* that runs exactly one command against the
+workspace at `workspace_path` and answers `202 Accepted` with a job id
+immediately. Clients poll `GET /v1/jobs/\{job_id}` for progress and
+the result.
+
+Orchestration is the caller's responsibility. The service does not
+sequence commands, interpret plan output, or detect drift: a caller
+that wants "validate this workspace" submits `init`, then `validate`,
+then `plan`, and `show` if it needs the plan JSON, as separate jobs,
+deciding after each one whether to continue. In Kumoss that logic
+lives in the core.
+
+Jobs targeting the same `workspace_path` run one at a time in
+submission order. Jobs for different workspaces may run concurrently.
+A submission is never refused because the workspace is busy — it
+queues.
+
+[NOTE]
+====
+The contract is written in terms of `terraform`, and the field name
+`terraform_provider` reflects that. The bundled implementation
+defaults to *OpenTofu* and selects the engine at runtime with
+`IAC_BINARY`, so the command it actually runs is `tofu init` unless
+that variable says otherwise. The flags of the subcommands the service
+uses are identical across both engines, which is why the contract does
+not distinguish them. See <<choosing-the-iac-engine>>.
+====
+
+== Endpoints
+
+Ten paths, all under `/v1` except the liveness probe.
+
+[cols="3,4",options="header"]
+|===
+|Endpoint |Command it enqueues
+
+|`POST /v1/init`
+|`init` in the workspace.
+
+|`POST /v1/validate`
+|`validate` in the workspace. The workspace must already be
+initialised.
+
+|`POST /v1/plan`
+|`plan -out <plan_file>`, with optional `-target=` filters.
+
+|`POST /v1/show`
+|`show -json <plan_file>`. On exit code 0 the result's `stdout` is the
+plan JSON.
+
+|`POST /v1/apply`
+|`apply <plan_file>` — exactly the changes recorded in that file.
+
+|`POST /v1/import`
+|`import <address> <resource_id>`. The resource block for `address`
+must already exist in the workspace; the engine reports it if not.
+
+|`POST /v1/import/state-resource-ids`
+|`state pull`, then the identifiers of the managed resource instances
+it found. See <<import-discovery>>.
+
+|`POST /v1/import/scope-resource-ids`
+|No engine command at all — a query against the cloud's own inventory
+API. See <<import-discovery>>.
+
+|`GET /v1/jobs/\{job_id}`
+|Nothing; returns the job's status and outcome.
+
+|`GET /healthz`
+|Nothing; liveness probe, answers `{"status":"ok"}`.
+|===
+
+=== Request fields
+
+Every request schema sets `additionalProperties: false`, so sending a
+field an endpoint does not declare is a `422` rather than a silently
+ignored no-op.
+
+[cols="2,4",options="header"]
+|===
+|Field |Meaning
+
+|`workspace_path`
+|Absolute filesystem path to the workspace *as the implementation sees
+it*, 1 to 4096 characters. Required on every POST. In the compose
+deployment this is a path on the volume mounted into both the core and
+this service, for example `/workspaces/my-iac_a1b2c3`.
+
+|`scope_id`
+|Cloud scope the operation targets, 1 to 1024 characters — Azure
+subscription id, GCP project id, AWS account id, OCI compartment
+OCID. Required on the five endpoints that reach a cloud API. See
+<<scope-injection>>.
+
+|`terraform_provider`
+|Which cloud that is: one of `azure`, `gcp`, `aws`, `oci`,
+`kubernetes`. These are the core's provider names, not Terraform
+registry provider names such as `azurerm` or `google`.
+
+|`plan_file`
+|A *filename*, not a path, matching `^[A-Za-z0-9._-]{1,128}$` so it
+cannot escape the workspace. `plan` writes it; `show` and `apply` read
+the one a previous `plan` wrote.
+
+|`targets`
+|`plan` only. Up to 256 `-target=` filters. Omitted or empty plans the
+whole configuration.
+
+|`address`
+|`import` only. The Terraform resource address to import into, for
+example `azurerm_resource_group.main`.
+
+|`resource_id`
+|`import` only. The provider-specific identifier of the existing cloud
+resource, for example an Azure resource ID or an AWS ARN.
+|===
+
+Which endpoint takes which:
+
+[cols="3,1,1,1,1,1",options="header"]
+|===
+|Endpoint |`workspace_path` |`scope_id` + `terraform_provider`
+|`plan_file` |`targets` |`address` + `resource_id`
+
+|`POST /v1/init`
+|required |required |— |— |—
+
+|`POST /v1/validate`
+|required |not accepted |— |— |—
+
+|`POST /v1/plan`
+|required |required |required |optional |—
+
+|`POST /v1/show`
+|required |not accepted |required |— |—
+
+|`POST /v1/apply`
+|required |required |required |— |—
+
+|`POST /v1/import`
+|required |required |— |— |required
+
+|`POST /v1/import/state-resource-ids`
+|required |not accepted |— |— |—
+
+|`POST /v1/import/scope-resource-ids`
+|required |required |— |— |—
+|===
+
+=== Submission responses
+
+A successful submission is `202 Accepted` with a `Location` header
+pointing at the job resource and this body:
+
+[source,json]
+----
+{"job_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301", "status": "queued"}
+----
+
+`status` is always `queued` at submission time. Errors detectable at
+submission are reported synchronously on the POST:
+
+[cols="1,5",options="header"]
+|===
+|Status |Meaning
+
+|`400`
+|The body could not be parsed at the transport layer — malformed JSON,
+non-UTF-8 bytes, no `Content-Type`. Implementations may answer with a
+problem document or a framework-default body; the bundled one returns
+the latter here.
+
+|`401`
+|Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
+challenge.
+
+|`403`
+|The token is valid but not authorized for this endpoint.
+
+|`404`
+|`workspace_path` does not exist or is not reachable from the
+implementation. This is distinct from an engine-level failure, which
+surfaces in the job result instead.
+
+|`422`
+|The body is well-formed JSON but failed schema validation.
+
+|`503`
+|The implementation is running but lacks a prerequisite needed to
+accept jobs at all — no engine binary, no configured state backend.
+Faults that only surface once the job runs end the job as `failed`
+instead.
+|===
+
+[NOTE]
+====
+*The bundled implementation never emits that `503`.* The contract
+defines the response, but the reference service reaches the two
+prerequisite failures by other routes. A missing or unresolvable
+engine binary is asserted at startup, so the process exits with a
+configuration error and is never running to answer anything. A missing
+or wrong `IAC_BACKEND_CONFIG` path is not checked at all and surfaces
+on `init`, in that job's `stderr`. Its only `503` is a job-level one —
+`Service shut down before the job finished.` in the job's `error` — so
+it appears on `GET /v1/jobs/\{job_id}`, never on a POST. Nor does it
+ever emit the job-level `504`: it puts no time limit on the engine
+command, so a hung command stays `running` instead of ending `failed`
+(see <<job-model>>). Another implementation of the same contract may
+use the submission-time `503` and the `504`, so a caller must still
+handle both.
+====
+
+[#job-model]
+== The job model
+
+`GET /v1/jobs/\{job_id}` returns the job. All keys are always present;
+`started_at`, `finished_at`, `result`, and `error` are null until they
+become meaningful.
+
+[source,json]
+----
+{
+  "job_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+  "kind": "plan",
+  "status": "succeeded",
+  "created_at": "2026-09-21T10:00:00Z",
+  "started_at": "2026-09-21T10:00:01Z",
+  "finished_at": "2026-09-21T10:02:33Z",
+  "result": {"exit_code": 0, "stdout": "...", "stderr": ""},
+  "error": null
+}
+----
+
+`kind` is one of `init`, `validate`, `plan`, `show`, `apply`,
+`import`, `state_resource_ids`, `scope_resource_ids`. `status` moves
+through four values:
+
+[cols="1,4",options="header"]
+|===
+|Status |Meaning
+
+|`queued`
+|Accepted, waiting for its workspace's queue.
+
+|`running`
+|The command or query is executing.
+
+|`succeeded`
+|The command ran to completion. Inspect `result` — `exit_code` may
+still be non-zero.
+
+|`failed`
+|A service-level fault. Inspect `error`.
+|===
+
+*The two failure planes are deliberately distinct, and a caller must
+tell them apart.*
+
+* *Engine-level failures are a normal outcome.* The job ends
+  `succeeded` and its `result` carries the process's `exit_code`
+  (non-zero on failure) with `stdout` and `stderr` passed through
+  verbatim — including the engine's own provider authentication
+  errors. Failures of the underlying cloud query in a discovery job
+  ride this same plane.
+* *Service-level faults* — an unexpected exception, shutdown
+  mid-job, a subprocess timeout where the implementation enforces
+  one — end the job as `failed` with an RFC 7807 problem document in
+  `error` and no result. The problem's embedded `status` member is the
+  HTTP status an equivalent synchronous API would have returned: `500`
+  for an unexpected execution failure, `504` for a subprocess timeout,
+  `503` for a shutdown before completion. The `504` is part of the
+  contract, but the bundled implementation never produces it: it puts
+  no time limit on the engine command, so a hung command keeps the job
+  `running` indefinitely.
+
+Polling an unknown or expired job is `404`, and a `job_id` that is not
+a valid UUID is `422`. The bundled implementation keeps terminal jobs
+in memory for its `job_ttl` (one hour) and holds no job across a
+restart, so *a client must treat an unexpected `404` as job loss* and
+resubmit if the work still matters.
+
+The core polls every `services.iac.job_poll_interval` seconds and
+gives up after `services.iac.job_timeout` (3600 seconds by default).
+That timeout has to cover both the queue wait and the command itself,
+and against the bundled implementation it is the *only* limit: when an
+engine command hangs, the core stops waiting once the timeout elapses,
+while the job stays `running` and the command keeps running in the
+sidecar until it exits on its own.
+
+[#scope-injection]
+== Scope injection
+
+Only the commands that reach a cloud API need to know which scope they
+run against, and only those carry `scope_id` and
+`terraform_provider`:
+
+[cols="3,1,3",options="header"]
+|===
+|Endpoint |Scope |Why
+
+|`POST /v1/init`
+|required
+|May access external services during initialization.
+
+|`POST /v1/plan`
+|required
+|Refreshes state against the API.
+
+|`POST /v1/apply`
+|required
+|Creates and changes resources.
+
+|`POST /v1/import`
+|required
+|Reads the live resource.
+
+|`POST /v1/import/scope-resource-ids`
+|required
+|Enumerates a scope.
+
+|`POST /v1/validate`
+|not accepted
+|Local configuration check.
+
+|`POST /v1/show`
+|not accepted
+|Reads the local plan file.
+
+|`POST /v1/import/state-resource-ids`
+|not accepted
+|Reads Terraform state.
+|===
+
+Generated provider blocks do not name a scope. So where a cloud
+exposes a provider-level environment variable that names one, the
+implementation injects `scope_id` into the engine's environment for
+that command only, picking the variable from `terraform_provider`:
+
+[cols="1,2,2",options="header"]
+|===
+|`terraform_provider` |Environment variable |Scope it sets
+
+|`azure`
+|`ARM_SUBSCRIPTION_ID`
+|subscription
+
+|`gcp`
+|`GOOGLE_PROJECT`
+|project
+
+|`aws`
+|none
+|—
+
+|`oci`
+|none
+|—
+
+|`kubernetes`
+|none
+|—
+|===
+
+Only Azure and GCP have such a variable. An AWS account is implicit in
+the credentials the provider resolves, and an OCI compartment or a
+Kubernetes namespace is a resource argument rather than a provider
+setting, so no environment variable redirects a command to one. For
+those three the bundled implementation injects nothing: the command
+runs against whatever scope the deployment's ambient credentials and
+configuration select, and making those agree with `scope_id` is the
+deployment's responsibility. The pair stays required on the wire so
+the intended scope is always stated, and so an implementation that can
+enforce it has what it needs.
+
+An implementation may scope a command by another mechanism instead —
+an AWS AssumeRole into the account, a provider alias, a credential
+broker — as long as the command runs against `scope_id`. Callers need
+to know nothing about which mechanism was used.
+
+Where the overlay is applied it sits on top of the service's own
+environment, so it wins over an `ARM_SUBSCRIPTION_ID` set on the
+container. Ambient provider credentials are otherwise untouched.
+
+On Azure that variable is also the `azurerm` backend's, so `init`
+resolves the state storage account in `scope_id`'s subscription. A
+deployment keeping state outside that subscription has to name
+`subscription_id` in its backend configuration; see
+xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+minimums].
+
+`POST /v1/import/scope-resource-ids` is the exception: it launches no
+subprocess, so there is no environment to overlay. Its `scope_id` is
+the argument of the inventory query itself — the subscription,
+project, or account whose contents are listed.
+
+[#import-discovery]
+== Import discovery
+
+Two endpoints answer the question "what already exists here that
+Terraform does not manage yet?" without running a state-mutating
+command. Both follow the job model, and on success both put a JSON
+array of identifier strings in the result's `stdout` as a string, the
+way `show` returns the plan JSON, so a caller reads it with one JSON
+parse. The implementation normalizes both lists so they are directly
+comparable, and a caller typically diffs them to decide which existing
+resources still need an `import` job.
+
+`POST /v1/import/state-resource-ids` runs `state pull` and extracts
+the provider-assigned identifier of every managed resource instance in
+the state — its `arn` attribute when it has one, otherwise its `id` —
+deduplicated. An instance with neither contributes nothing. An empty
+state answers `[]`. A `state pull` that exits 0 but prints something
+other than a state document ends the job with exit code 1 and `state
+pull returned an unparsable state document`; a non-zero `state pull`
+is passed through with its own exit code, its `stderr`, and an empty
+`stdout`. The workspace must already be initialised.
+
+`POST /v1/import/scope-resource-ids` talks to each cloud's inventory
+API directly over HTTPS. No `az`, `gcloud`, or `aws` binary is
+involved, and none is present in the bundled image. Tokens come from
+the official auth libraries reading the same `ARM_*`, `GOOGLE_*`, and
+`AWS_*` variables the engine's providers use, so most deployments that
+can run `plan` can run discovery unchanged.
+
+[cols="1,3,2",options="header"]
+|===
+|`terraform_provider` |Source |Scope is
+
+|`azure`
+|Azure Resource Graph
+|subscription ID
+
+|`gcp`
+|Cloud Asset Inventory `searchAllResources`, plus Resource Manager
+`projects.get` and `getIamPolicy`
+|project ID
+
+|`aws`
+|Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources`
+|account ID
+
+|`oci`, `kubernetes`
+|none
+|—
+|===
+
+`oci` and `kubernetes` are answered with exit code 2 and
+`no scope discovery for provider '<provider>'` in `stderr`, with the
+provider name quoted. That is a deliberate outcome, not a crash: the
+job still ends `succeeded`, and the exit code tells the caller the
+provider is unsupported rather than that a cloud call failed.
+
+The contract's own description of this endpoint's `scope_id` field
+enumerates only Azure, GCP, and AWS, omitting both `oci` and
+`kubernetes` even though the schema's provider enum accepts them.
+The omission is consequential here, unlike in the generic `scope_id`
+description: these are exactly the two providers that produce the exit
+code 2 above, so the field description reads as though they cannot be
+sent at all, when in fact they are accepted and answered with a
+negative result.
+
+*The core does not call this endpoint today.* The generated client
+contains both operations, and the core defines the `import` operation
+type, but the mode is not wired into a session pipeline. See
+xref:main:guides/import-infrastructure.adoc[Import infrastructure].
+
+=== What the listing leaves out
+
+Resources whose lifecycle belongs to another control plane are
+excluded at the query, so the caller never sees them. Importing them
+would put Terraform in a fight it loses.
+
+* *Azure* — resource groups carrying a `managedBy` (Databricks,
+  HDInsight, Batch), AKS node resource groups (`MC_*`), and
+  `NetworkWatcherRG`, both names matched case-insensitively, plus
+  everything inside them, role assignments scoped into one of those
+  groups included. Also every
+  `microsoft.alertsmanagement/smartdetectoralertrules` row, not only
+  App Service's, and any resource carrying a `hidden-link*` tag. The
+  tag filter matches the serialized tags, so a tag *value* containing
+  `"hidden-link` drops the row too, and it is applied to resources
+  only — resource groups and role assignments are not tag filtered.
+* *GCP* — the project asset itself, both the Resource Manager and the
+  Compute one; anything labelled `goog-*`, which covers GKE-created
+  disks and `goog-terraform-provisioned`; resources whose name ends in
+  a `gke-*` segment, meaning node instances, instance groups,
+  templates, and firewall rules; and Dataproc, Cloud Functions, Cloud
+  Run, and Cloud Build staging buckets. The `gke-` test is on the last
+  path segment and ignores the asset type, so a resource of your own
+  whose final segment starts with `gke-` is dropped as well.
+* *AWS* — every `ec2:network-interface`, because elastic network
+  interfaces are almost always created by another service (Lambda,
+  RDS, ELB, EKS) and are imported with their owner rather than on
+  their own; service-linked and AWS SSO reserved IAM roles; anything
+  tagged `aws:*` (CloudFormation and CDK stacks), `eks:*`,
+  `kubernetes.io/*`, `k8s.io/*`, `alpha.eksctl.io/*`, or the AWS Load
+  Balancer Controller's `elbv2.k8s.aws/*`, `ingress.k8s.aws/*`, and
+  `service.k8s.aws/*`; and resources owned by another account that the
+  view can see.
+
+=== Identifier normalization
+
+The service, not the caller, decides the identifier shape.
+
+* *Azure* emits full ARM resource IDs, plus resource-group and
+  role-assignment IDs. ARM IDs are case-insensitive in their provider
+  and type segments, so compare them case-insensitively against state.
+* *GCP* emits asset names with the `//service.googleapis.com/` prefix
+  stripped and any `projects/<number>` rewritten to
+  `projects/<project-id>`, because Cloud Asset Inventory reports some
+  services by project number while Terraform IDs use the id. The
+  number comes from the `projects.get` call; if the answer carries no
+  `projectNumber` the rewrite is skipped silently and those names keep
+  the number they arrived with. Project IAM produces one entry per
+  role and member in the provider's own space-delimited form,
+  `<project-id> <role> <member>`, which is both the `id`
+  `google_project_iam_member` stores in state — so the two listings
+  line up — and the identifier `import` takes verbatim. `deleted:`
+  members are dropped, and so is every `*.gserviceaccount.com` member
+  that does not end in `@<project-id>.iam.gserviceaccount.com`:
+  Google's own service agents, and with them any service account owned
+  by a different project. Only the listed project's own service
+  accounts survive. A binding with no role, and an asset with no name,
+  are skipped without comment.
+* *AWS* emits ARNs. `POST /v1/import/state-resource-ids` prefers a
+  resource's `arn` attribute over its `id` for exactly this reason, so
+  the two lists line up. That preference is not AWS-specific — the
+  endpoint takes no `terraform_provider`, so it applies to every state
+  document, a no-op for `azurerm` and `google` resources, which expose
+  no `arn`.
+
+=== Prerequisites and permissions
+
+* *Azure* — `Reader` on the subscription is enough. Resource Graph
+  needs no separate enablement.
+* *GCP* — enable `cloudasset.googleapis.com` and
+  `cloudresourcemanager.googleapis.com` on the project that owns the
+  credentials. No `x-goog-user-project` header is sent, so quota and
+  API enablement are evaluated there, not on the project being listed.
+  On the listed project the identity needs `roles/cloudasset.viewer`
+  and `roles/viewer`, which grants the
+  `resourcemanager.projects.get` and
+  `resourcemanager.projects.getIamPolicy` the lister calls.
+  `projects.get` runs first and is not optional — it resolves the
+  project number the asset names are rewritten with, so a `403` there
+  fails the whole listing.
+* *AWS* — *Resource Explorer must be enabled for the account.* Create
+  an aggregator index in one region, a local index in every region you
+  want discovered, and a default view in the aggregator region; the
+  console's quick setup creates all of these. A region with no local
+  index contributes nothing, and the service checks only that the
+  aggregator index and the default view exist. Then grant the identity
+  `sts:GetCallerIdentity`, `resource-explorer-2:ListIndexes`,
+  `resource-explorer-2:GetDefaultView`, and
+  `resource-explorer-2:Search` — the last of which is what authorizes
+  the `ListResources` call, since that call has no IAM action of its
+  own. `ListIndexes` is called in `AWS_REGION` and the other two in
+  the aggregator's region, so the grant has to be effective in both,
+  and `GetDefaultView` needs an index in the region it is called in.
+  Without an aggregator index or a default view the job ends with exit
+  code 1 and `AWS Resource Explorer is not enabled for account`; a
+  missing permission produces a different message naming the call that
+  was denied. The default view must also expose tags, because the tag
+  exclusions above read the rows' `tags` property and a view that
+  leaves it out makes every one of them silently do nothing. Finally,
+  `AWS_REGION` or `AWS_DEFAULT_REGION` must be set in the
+  environment — it is where the index lookup starts, and a region that
+  only a profile or `~/.aws/config` names does not count. Only the
+  account the ambient credentials belong to can be listed; a
+  `scope_id` naming another account is refused before any Resource
+  Explorer call.
+
+=== Known gaps
+
+* Azure Resource Graph's coverage of child resources is type by type,
+  and the service emits whatever it returns. Some child types are rows
+  and are listed (`microsoft.compute/virtualmachines/extensions`,
+  `microsoft.sql/servers/databases`); others, such as subnets and
+  network security group rules, are not indexed at all, and only the
+  parent's ID appears. Consult Resource Graph's supported-types
+  reference before assuming a child resource will show up.
+* A few GCP resource types have a Terraform identifier shape that
+  differs from the normalized asset name. `google_project_service` is
+  the known case.
+* GCP conditional IAM bindings are emitted without their condition.
+* GCP drops any bound service account that does not belong to the
+  listed project, so a shared identity from another project is missing
+  from the listing even though its binding is importable. Rebuild
+  those by hand.
+* An AWS ARN is not the import identifier for most resource types:
+  `aws_instance` takes the instance ID, `aws_s3_bucket` the bucket
+  name. Turning an ARN into the argument for `POST /v1/import` is the
+  caller's job.
+* ARM resource IDs are reported exactly as Resource Graph returns
+  them, and providers disagree about the casing of the
+  `resourceGroups` segment. Diffing an Azure listing against state can
+  therefore report a difference that is only a difference in case,
+  which AWS and GCP listings do not do. The service does not normalize
+  the casing, because lowercasing an ARM ID can make it unusable as
+  the `resource_id` argument to `POST /v1/import`.
+* Each `scope_id` is checked for shape before anything else. Azure
+  wants a subscription GUID, and GCP accepts modern project ids only,
+  so a legacy domain-scoped id such as `example.com:my-project` is
+  rejected. Either rejection happens before a token is fetched and
+  ends the job with exit code 1.
+* Azure sovereign clouds, the `az login` and CI-injected OIDC
+  request-URL flows, and the `ARM_CLIENT_ID_FILE_PATH` and
+  `ARM_CLIENT_SECRET_FILE_PATH` credential forms are not supported for
+  discovery, although provider commands still accept all of them. The
+  credential cases at least say so — `no Azure credentials configured
+  for scope discovery` — but `ARM_ENVIRONMENT` is not read at all, so
+  a sovereign deployment fails against the public endpoints rather
+  than being told the cloud is unsupported.
+* Each cloud is paged to a bounded number of requests: 100 pages for
+  Azure, 200 for GCP and AWS. A scope large enough to exceed that ends
+  the job with exit code 1 rather than truncating the list silently.
+  Resource Graph's own `resultTruncated` flag is treated the same way.
+* The service itself never retries a cloud call, throttling included.
+  On Azure and GCP a single `429` mid-paging ends the job with exit
+  code 1 and discards the pages already collected; Resource Graph's
+  per-tenant quota makes that the most likely failure on a large
+  subscription. Retry the request. AWS is the partial exception: the
+  boto3 client is configured with timeouts only, so botocore's default
+  retry mode still retries throttled and transient calls a few times
+  before the same failure surfaces.
+
+[#state-backend]
+== State backend
+
+The service does not choose where state goes. `init` reads the backend
+from the workspace it is handed, and preparing that workspace is the
+caller's job. Kumoss's core writes a `backend_override.tf` into the
+workspace before calling `init`, pinning state to the object store it
+already holds credentials for. The engine merges `*_override.tf` over
+the rest of the configuration, so an override both introduces a
+backend where the workspace declares none and replaces one that it
+does declare — any caller can use the same trick.
+
+`IAC_BACKEND_CONFIG` is the escape hatch for a deployment that owns
+the decision instead. Set it to the path of a backend configuration
+file, `.hcl` or `.tfbackend`, and `init` runs with
+`-backend-config=<path>`, with the backend *type* still coming from
+the workspace's own `terraform { backend }` block. The path is either
+absolute, for a file mounted into the container, or relative to the
+workspace, for one the target repository carries at a fixed place.
+Unlike the engine binary, the service does not check it at startup:
+under the second form the file exists only once a repository has been
+cloned into a workspace, so a wrong path fails on `init`, in that
+job's `stderr`. The values in this file win over the core's
+`backend_override.tf` key by key, and the override's remaining keys
+survive the merge, so do not combine the two: set
+`storage.terraform_state_bucket: ""` whenever `IAC_BACKEND_CONFIG` is
+set. See xref:main:guides/configure-state-backends.adoc[Configure
+state backends].
+
+*Reinitialization.* `init` always runs `-reconfigure`, so a workspace
+whose backend changed between calls is rebound to the new one instead
+of failing with "Backend configuration changed", which `-input=false`
+could not answer interactively. State already in the target backend is
+adopted; state held under the previous backend is *not* migrated. Move
+it yourself if it matters.
+
+The full picture, including which of the three models to pick, is in
+xref:main:guides/configure-state-backends.adoc[Configure state
+backends].
+
+[#choosing-the-iac-engine]
+== Choosing the IaC engine
+
+The bundled image ships both engines and `IAC_BINARY` selects one at
+runtime, with no rebuild needed to switch:
+
+* *OpenTofu {opentofu-version}* (MPL-2.0) — the default, `IAC_BINARY=tofu`.
+  Installed from the official minimal OpenTofu image, pinned by
+  digest.
+* *HashiCorp Terraform {terraform-version}* (BUSL-1.1) — `IAC_BINARY=terraform`.
+  Fetched at build time and checksum-verified. Use of it is subject to
+  its license terms.
+
+The service itself is engine-agnostic: it only shells out to `init`,
+`validate`, `plan`, `show`, `apply`, `import`, and `state pull`, whose
+flags are identical across both engines, so any Terraform-compatible
+engine on `PATH` or at an absolute path works.
+
+Three things to know when pointing a workspace previously managed by
+Terraform at the default OpenTofu engine:
+
+* Providers resolve from `registry.opentofu.org`. Hostless sources
+  such as `hashicorp/azurerm` work unchanged, but allow that egress
+  alongside or instead of `registry.terraform.io`.
+* A repository with a committed `.terraform.lock.hcl` generated by
+  Terraform may need one `tofu init -upgrade` to regenerate provider
+  checksums. The failure, if any, surfaces in the `init` job's
+  `stderr`.
+* State remains readable in both directions until OpenTofu first
+  applies. After that, going back to Terraform requires restoring a
+  state backup — see OpenTofu's
+  https://opentofu.org/docs/intro/migration/[migration guide].
+
+== Workspace and runtime ownership
+
+The service operates on `workspace_path` as visible *inside* its own
+container. The contract makes no assumption about how the workspace
+got there. The compose deployment mounts a named `workspaces` volume
+at `/workspaces` in both the core and the IaC containers, so the core
+writes the cloned repository there and references the same path when
+submitting jobs. Other deployments may use a PersistentVolumeClaim, an
+NFS mount, object storage, or an upload endpoint — same contract,
+different mechanics.
+
+The bundled image runs as an unprivileged user, `kumoss`, uid and gid
+`10001` by default, set by the `KUMOSS_UID` and `KUMOSS_GID` build
+arguments. The engine executes provider plugins and provisioners from
+generated code, so it must not run as root.
+
+Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
+files, and state next to the configuration, *workspace directories
+must be writable by that uid*. In the compose stack this holds because
+the core image is built with the same two build arguments and also
+runs as `kumoss`, so everything the core clones is owned by the same
+user. Override the two arguments together or not at all.
+
+* *Existing volumes.* A `workspaces` volume created by a stack that
+  ran as root keeps root-owned directories the engine can no longer
+  write to, and `plan` then fails with `permission denied` on the
+  state or plan file.
+* *Other deployments.* The requirement does not change with the
+  topology: whatever backs the shared workspace must be owned by the
+  unprivileged user the images were built with, and every component
+  that stages repositories into it must run as that same identity. How
+  a platform expresses that — a pod security context, export options,
+  a one-off `chown` — is deployment-specific; the ownership itself is
+  not.
+* *Provider credentials.* Credential files you mount must be readable
+  by uid `10001`.
+
+== Configuration
+
+The bundled implementation reads four groups of variables.
+
+[cols="2,1,4",options="header"]
+|===
+|Variable |Required |Meaning
+
+|`KUMOSS_IAC_TOKEN`
+|no
+|Bearer token clients must present. Blank disables the check
+entirely.
+
+|`IAC_BINARY`
+|no
+|Name or absolute path of the engine CLI. Default `tofu`; set
+`terraform` for the bundled Terraform.
+
+|`IAC_BACKEND_CONFIG`
+|no
+|Path to a backend configuration file `init` passes to
+`-backend-config`. Not validated at startup. Unset, the backend comes
+from the workspace itself.
+
+|`ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*`
+|no
+|Provider credentials, read directly by the engine's providers and
+identical for OpenTofu and Terraform. Provide whichever your modules
+need; without them `plan` and `apply` fail with the engine's own
+authentication errors in the result's `stderr`. The per-request scope
+variable is layered on top of these.
+|===
+
+Everything else is a property of the service rather than of a
+deployment: `job_ttl`, how long a terminal job stays pollable, and
+`log_level`. The per-cloud minimum sets and every credential variable
+are in xref:main:reference/terraform-providers.adoc[Terraform
+providers];
+xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
+credentials for the IaC engine] covers how they reach the container.
+
+[#conformance]
+== Conformance
+
+The implementation-agnostic Schemathesis suite at
+`contracts/conformance/iac/` runs against any implementation of this
+contract, in-tree or your own. Point `--service-url` at a running
+instance:
+
+[source,bash]
+----
+cd contracts/conformance/iac
+uv sync
+uv run pytest \
+  --service-url=https://iac.your.example \
+  --service-token=$YOUR_TOKEN
+----
+
+`--service-token` is needed only if the implementation enforces
+authentication. Both values may also come from `KUMOSS_IAC_URL` and
+`KUMOSS_IAC_TOKEN`.
+
+The suite generates requests from the OpenAPI document and checks that
+every status the service answers is one the contract documents for
+that operation, and that response bodies match the declared schemas.
+It does not check that every documented status is reachable — a status
+the implementation never emits, such as the submission-time `503`,
+leaves the run green. Nor does it check that the commands the jobs run
+produce accurate output for your modules, cloud-provider
+authentication semantics, or behaviour under concurrency.
+
+The bundled implementation has its own unit test suite, separate from
+this one; see xref:main:guides/development.adoc[Development].
+
+== Next steps
+
+* xref:main:guides/configure-state-backends.adoc[Configure state
+  backends] for the three ways state can be pinned.
+* xref:main:reference/terraform-providers.adoc[Terraform providers]
+  for the credential variables each cloud needs.
+* xref:main:guides/deploy-to-production.adoc#iac-mandatory[Deploy to
+  production] for why a production deployment should implement this
+  contract rather than harden the bundled image.

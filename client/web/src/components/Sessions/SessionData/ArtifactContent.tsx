@@ -2,23 +2,30 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Typography from "@mui/material/Typography";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useSearchParams } from "react-router-dom";
-import { fetchArtifactContent } from "@/services/core/sessions";
+import { fetchArtifact } from "@/services/core/sessions";
 import { useMode } from "@/contexts/ModeContext";
 import type {
   ArtifactRef,
   CodeChangeRef,
   OperationType,
+  PlanType,
   ReportRef,
   ReportType,
-  RoundDetail,
+  TerraformPlanRef,
 } from "@/types/api";
-import type { TerraformReport } from "@/types";
+import type { ComplianceReport, TerraformReport } from "@/types";
+import { STRINGS } from "@/constants/strings";
 import {
   ChangesTable,
   ChangeDetail,
+  ComplianceRules,
+  ComplianceSummaryCard,
+  ComplianceViolations,
   PotentialImpactCard,
   ImpactDetail,
   EstimatedCostsCard,
@@ -29,37 +36,75 @@ import {
   ApplyChangesList,
   ApplyResourceDetail,
   ApplyRecommendations,
+  ImportedResourcesList,
+  ImportExclusions,
+  ImportStateAlignment,
+  ImportedResourceDetail,
   hasStructuredCosts,
   reportStatusVariant,
 } from "@/components/Home";
-import type { FilterId, DetailView, ApplyFilterId } from "@/components/Home";
+import type {
+  FilterId,
+  DetailView,
+  ApplyFilterId,
+  ImportFilterId,
+} from "@/components/Home";
 import { CodeBlock, StatusBadge } from "@/components/ui";
-import { composeFileArtifacts } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
-export type ArtifactKind = "report" | "plan" | "change";
+export type ArtifactKind = "report" | "plan" | "change" | "compliance";
 
 interface ArtifactContentProps {
   kind: ArtifactKind;
   artifact: ArtifactRef;
-  round: RoundDetail;
   operation: OperationType;
+  /**
+   * Reports the flavour that came back with the plan body. Opening a
+   * plan answers the question the timeline was asking anyway, so the
+   * answer goes back up rather than being re-fetched per row.
+   */
+  onPlanType?: (id: number, type: PlanType) => void;
 }
 
-// Apply and drift reports announce themselves; generate/import ones are
-// just "Report".
+const LABELS = STRINGS.sessions.artifactLabels;
+const LABELS_TARGETS = STRINGS.sessions.artifactTargets;
+
+/**
+ * The editor takes a fixed height, so the targets block above it reserves
+ * its own: one line for the toggle, plus the list's bounded height when
+ * it is open. Constant either way — the list scrolls rather than growing
+ * with the target count.
+ */
+const EDITOR_HEIGHT = "calc(100vh - 200px)";
+const EDITOR_HEIGHT_TARGETS_CLOSED = "calc(100vh - 248px)";
+const EDITOR_HEIGHT_TARGETS_OPEN = "calc(100vh - 376px)";
+
 const REPORT_LABELS: Partial<Record<ReportType, string>> = {
-  apply: "Apply Report",
-  drift: "Drift Report",
+  apply: LABELS.applyReport,
+  drift: LABELS.driftReport,
+  import: LABELS.importReport,
 };
 
-export function artifactLabel(kind: ArtifactKind, artifact: ArtifactRef): string {
+export function artifactLabel(
+  kind: ArtifactKind,
+  artifact: ArtifactRef,
+  planType?: PlanType | null,
+): string {
   switch (kind) {
     case "report":
-      return REPORT_LABELS[(artifact as ReportRef).type] ?? "Report";
+      return REPORT_LABELS[(artifact as ReportRef).type] ?? LABELS.report;
+    case "compliance":
+      return LABELS.complianceCheck;
     case "plan":
-      return "Terraform Plan";
+      // A drift round stores both the diff and the plan it produced, and
+      // only the object's `type` metadata tells them apart — so the caller
+      // resolves it (`usePlanTypes`) and passes it in. Unresolved falls to
+      // the neutral label rather than announcing a plan as drift.
+      return planType === "drift"
+        ? LABELS.driftOperation
+        : LABELS.terraformPlan;
     case "change":
+      // A file name, not copy: nothing to translate.
       return (artifact as CodeChangeRef).file_name;
   }
 }
@@ -72,16 +117,55 @@ function getLanguage(kind: ArtifactKind, artifact: ArtifactRef): string {
   return "plaintext";
 }
 
+/**
+ * Past this, indenting costs more than the horizontal scrolling it saves:
+ * the re-serialized copy plus Monaco's tokenization of it is the expense,
+ * not the parse.
+ */
+const MAX_PRETTY_JSON_BYTES = 512 * 1024;
+
+/**
+ * Re-emits a JSON body indented, or null if the body isn't JSON.
+ *
+ * Plans are uploaded as `text/plain` whatever the producer actually wrote,
+ * so `content_type` can't be asked and the body has to be sniffed. Written
+ * without indentation, a list of resource actions arrives as one unwrapped
+ * line that no amount of syntax highlighting makes readable — parsing and
+ * re-printing is what puts the line breaks in.
+ *
+ * Returning null means "render it the way we always did".
+ */
+export function prettyPrintJson(text: string): string | null {
+  // The cheap gate, and the only type check needed: a body starting with
+  // `{` or `[` either parses to an object/array or throws, so scalars are
+  // rejected here rather than after the parse. HCL plans, the common case,
+  // never reach JSON.parse at all. Testing the untrimmed string avoids
+  // copying the whole body; JSON.parse tolerates the leading whitespace.
+  if (text.length > MAX_PRETTY_JSON_BYTES || !/^\s*[{[]/.test(text)) return null;
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return null;
+  }
+}
+
 export default function ArtifactContent({
   kind,
   artifact,
-  round,
   operation,
+  onPlanType,
 }: Readonly<ArtifactContentProps>) {
   const [content, setContent] = useState<string | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
+  // Names in `files` whose body is raw content, not a diff — the viewer
+  // cannot tell from the text, so the store's metadata is carried across.
+  const [newFiles, setNewFiles] = useState<ReadonlySet<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [applyFilter, setApplyFilter] = useState<ApplyFilterId>("all");
+  const [importFilter, setImportFilter] = useState<ImportFilterId>("all");
+  // Open by default: the targets answer "what is this plan scoped to?",
+  // which is the question that brought the user here from the timeline.
+  const [targetsOpen, setTargetsOpen] = useState(true);
   const { setMode } = useMode();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -98,8 +182,6 @@ export default function ArtifactContent({
   const rawFilter = searchParams.get("filter") as FilterId;
   const activeFilter: FilterId =
     rawFilter && VALID_FILTERS.includes(rawFilter) ? rawFilter : "all";
-
-  const activeFile = searchParams.get("file") || "";
 
   const setActiveDetail = useCallback(
     (detail: DetailView, resourceName?: string) => {
@@ -136,55 +218,38 @@ export default function ArtifactContent({
     [setSearchParams],
   );
 
-  const setActiveFile = useCallback(
-    (file: string) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (file) {
-          next.set("file", file);
-        } else {
-          next.delete("file");
-        }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
+  const changeFileName =
+    kind === "change" ? (artifact as CodeChangeRef).file_name : "";
+
+  // A notification sink, not a fetch input: kept in a ref so an
+  // unmemoized prop from a caller cannot re-trigger the download.
+  const onPlanTypeRef = useRef(onPlanType);
+  useEffect(() => {
+    onPlanTypeRef.current = onPlanType;
+  });
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setContent(null);
     setFiles(null);
+    setNewFiles(new Set());
 
     (async () => {
       try {
         if (kind === "change") {
-          const contents = await Promise.all(
-            round.code_changes.map((c) => fetchArtifactContent(c.url)),
-          );
+          const { text, isNewFile } = await fetchArtifact(artifact.url);
           if (cancelled) return;
-          // A round can carry several sequential-diff artifacts for the
-          // same file — collapse each file's group into one cumulative
-          // artifact instead of letting the last overwrite the rest.
-          const grouped = new Map<string, string[]>();
-          round.code_changes.forEach((c, i) => {
-            const group = grouped.get(c.file_name);
-            if (group) {
-              group.push(contents[i]);
-            } else {
-              grouped.set(c.file_name, [contents[i]]);
-            }
-          });
-          const record: Record<string, string> = {};
-          for (const [fileName, group] of grouped) {
-            record[fileName] = composeFileArtifacts(fileName, group);
-          }
-          setFiles(record);
+          setFiles({ [changeFileName]: text });
+          setNewFiles(new Set(isNewFile ? [changeFileName] : []));
         } else {
-          const text = await fetchArtifactContent(artifact.url);
+          // Body and metadata come from the same response, so the plan's
+          // flavour is free here — no ranged follow-up for an artifact
+          // already on screen.
+          const { text, planType } = await fetchArtifact(artifact.url);
           if (cancelled) return;
           setContent(text);
+          if (planType) onPlanTypeRef.current?.(artifact.id, planType);
         }
       } catch {
         // leave content/files null → error state
@@ -196,7 +261,7 @@ export default function ArtifactContent({
     return () => {
       cancelled = true;
     };
-  }, [kind, artifact.url, round]);
+  }, [kind, artifact.id, artifact.url, changeFileName]);
 
   useEffect(() => {
     if (kind === "report") {
@@ -220,6 +285,30 @@ export default function ArtifactContent({
     }
   }, [kind, content]);
 
+  const complianceData: ComplianceReport | null = useMemo(() => {
+    if (kind !== "compliance" || !content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }, [kind, content]);
+
+  // Everything that reaches the raw viewer: plans, and reports whose body
+  // isn't the shape the report renderers expect. Keyed on `content`, which
+  // the fetch effect writes once per artifact — so the parse does not
+  // re-run when a filter tab or a detail overlay changes `searchParams`.
+  // Gated on `reportData` and `complianceData` so a body the renderers
+  // already claimed is never parsed twice; that second pass would be the
+  // expensive one.
+  const prettyContent = useMemo(
+    () =>
+      content && !reportData && !complianceData
+        ? prettyPrintJson(content)
+        : null,
+    [content, reportData, complianceData],
+  );
+
   const selectedChange = useMemo(() => {
     if (activeDetail !== "change" || !resourceParam || !reportData?.detailed_changes) return null;
     return reportData.detailed_changes.find((c) => c.name === resourceParam) ?? null;
@@ -227,7 +316,7 @@ export default function ArtifactContent({
 
   // The report ref's `type` (the reports.type column, surfaced by the
   // session detail read model) decides which renderer handles it;
-  // generate/import go through the plan table.
+  // generate goes through the plan table.
   const reportType = kind === "report" ? (artifact as ReportRef).type : null;
 
   // Drift reports carry `remediated_resources` and a prose `summary`
@@ -246,25 +335,29 @@ export default function ArtifactContent({
     return applyChanges.find((c) => c.resource_name === resourceParam) ?? null;
   }, [activeDetail, resourceParam, applyChanges]);
 
-  const fileNames = files ? Object.keys(files) : [];
-  const clickedFileName =
-    kind === "change" ? (artifact as CodeChangeRef).file_name : "";
-  const effectiveActiveFile =
-    activeFile || clickedFileName || (fileNames.length > 0 ? fileNames[0] : "");
+  // Import reports carry `imported_resources` (one per attempted import),
+  // the `excluded_resources` the exception list withheld, and a
+  // `state_alignment` note.
+  const importedResources =
+    reportType === "import" ? reportData?.imported_resources : undefined;
+  const selectedImportedResource = useMemo(() => {
+    if (activeDetail !== "change" || !resourceParam || !importedResources) return null;
+    return importedResources.find((r) => r.resource_address === resourceParam) ?? null;
+  }, [activeDetail, resourceParam, importedResources]);
 
   if (loading) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Loading artifact...</Typography>;
   }
 
   if (kind === "change") {
-    if (!files || fileNames.length === 0) {
+    if (!files) {
       return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
     }
     return (
       <CodeBlock
         files={files}
-        activeFile={effectiveActiveFile}
-        onFileChange={setActiveFile}
+        newFiles={newFiles}
+        activeFile={changeFileName}
         showLineNumbers
         height="calc(100vh - 200px)"
       />
@@ -275,14 +368,27 @@ export default function ArtifactContent({
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
   }
 
+  if (kind === "compliance" && complianceData) {
+    return (
+      <div className={styles.reportContainer}>
+        <ComplianceSummaryCard report={complianceData} />
+        <ComplianceViolations violations={complianceData.violations} />
+        <ComplianceRules
+          rules={complianceData.checked_rules}
+          violations={complianceData.violations}
+        />
+      </div>
+    );
+  }
+
   const summaryText =
     reportData?.execution_summary ??
     (typeof reportData?.summary === "string" ? reportData.summary : undefined);
 
-  // Apply and drift reports badge the round's overall outcome next to
-  // the summary label; generate/import ones carry no such status.
+  // Apply, drift and import reports badge the round's overall outcome
+  // next to the summary label; generate ones carry no such status.
   const reportStatus =
-    reportType === "apply" || reportType === "drift"
+    reportType === "apply" || reportType === "drift" || reportType === "import"
       ? reportStatusVariant(reportData?.status)
       : null;
 
@@ -320,6 +426,24 @@ export default function ArtifactContent({
               />
             </>
           );
+        case "import":
+          return (
+            <>
+              <ImportedResourcesList
+                resources={report.imported_resources ?? []}
+                activeFilter={importFilter}
+                setActiveFilter={setImportFilter}
+                onSelect={(resource) => {
+                  setActiveDetail("change", resource.resource_address);
+                }}
+              />
+              <ImportExclusions excluded={report.excluded_resources} />
+              <ImportStateAlignment text={report.state_alignment} />
+              <ApplyRecommendations
+                recommendations={report.recommendations ?? []}
+              />
+            </>
+          );
         default:
           return (
             <ChangesTable
@@ -339,7 +463,11 @@ export default function ArtifactContent({
         {summaryText && (
           <div className={styles.executionSummary}>
             <Typography variant="label" className={styles.executionSummaryLabel}>
-              {reportType === "drift" ? "Drift Summary" : "Execution Summary"}
+              {reportType === "drift"
+                ? "Drift Summary"
+                : reportType === "import"
+                  ? "Import Summary"
+                  : "Execution Summary"}
               {reportStatus && (
                 <StatusBadge
                   variant={reportStatus}
@@ -404,6 +532,12 @@ export default function ArtifactContent({
             onClose={() => setActiveDetail(null)}
           />
         )}
+        {activeDetail === "change" && selectedImportedResource && (
+          <ImportedResourceDetail
+            resource={selectedImportedResource}
+            onClose={() => setActiveDetail(null)}
+          />
+        )}
         {activeDetail === "change" && selectedApplyChange && (
           <ApplyResourceDetail
             change={selectedApplyChange}
@@ -414,12 +548,54 @@ export default function ArtifactContent({
     );
   }
 
+  // The timeline row only had room for a count, so the addresses
+  // themselves land here, where they can be read and copied.
+  const planTargets =
+    kind === "plan" ? ((artifact as TerraformPlanRef).targets ?? []) : [];
+
   return (
-    <CodeBlock
-      code={content}
-      language={getLanguage(kind, artifact)}
-      showLineNumbers
-      height="calc(100vh - 200px)"
-    />
+    <>
+      {planTargets.length > 0 && (
+        <div className={styles.targets}>
+          <button
+            type="button"
+            className={styles.targetsToggle}
+            onClick={() => setTargetsOpen((open) => !open)}
+            aria-expanded={targetsOpen}
+          >
+            {targetsOpen ? (
+              <ExpandLessIcon className={styles.targetsToggleIcon} />
+            ) : (
+              <ExpandMoreIcon className={styles.targetsToggleIcon} />
+            )}
+            {`${LABELS_TARGETS} (${planTargets.length})`}
+          </button>
+          {targetsOpen && (
+            <ul className={styles.targetsList}>
+              {planTargets.map((target) => (
+                <li key={target} className={styles.targetsItem}>
+                  {target}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <CodeBlock
+        code={prettyContent ?? content}
+        // The sniffed result overrides the declared one here rather than
+        // being threaded into getLanguage, which stays pure and
+        // metadata-only.
+        language={prettyContent ? "json" : getLanguage(kind, artifact)}
+        showLineNumbers
+        height={
+          planTargets.length === 0
+            ? EDITOR_HEIGHT
+            : targetsOpen
+              ? EDITOR_HEIGHT_TARGETS_OPEN
+              : EDITOR_HEIGHT_TARGETS_CLOSED
+        }
+      />
+    </>
   );
 }

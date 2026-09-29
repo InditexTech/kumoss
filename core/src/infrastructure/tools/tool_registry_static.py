@@ -18,6 +18,7 @@ from src.domains.dto import (
     ToolDefinitionDTO,
     TerraformPlanReport,
     TerraformApplyReport,
+    TerraformImportReport,
 )
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
@@ -52,6 +53,7 @@ class ToolRegistryStatic(IToolRegistry):
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
+            "iac_import.json": ToolContext.IMPORT_ADDRESSES,
             "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
 
@@ -84,6 +86,7 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_plan_report": self.__handle_report_plan_generator,
             "generate_terraform_drift_report": self.__handle_report_drift_generator,
             "generate_terraform_apply_report": self.__handle_report_apply_generator,
+            "generate_terraform_import_report": self.__handle_report_import_generator,
             # Domain tools
             "requests_filter": self.__handle_requests_filter,
             "generate_pull_request": self.__handle_pr_generator,
@@ -91,6 +94,7 @@ class ToolRegistryStatic(IToolRegistry):
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
             "task_complete": self.__handle_task_completion,
+            "import_addresses": self.__handle_import_addresses,
             "report_compliance_findings": self._handle_compliance_findings,
             # External information
             "web_search": self.__handle_web_search,
@@ -265,6 +269,32 @@ class ToolRegistryStatic(IToolRegistry):
                 error_code=400,
             )
 
+    def __handle_report_import_generator(
+        self, parameters: dict[str, Any]
+    ) -> TerraformImportReport:
+        summary = parameters["summary"]
+        status = parameters["status"]
+        execution_summary = parameters["execution_summary"]
+        imported_resources = parameters["imported_resources"]
+        excluded_resources = parameters["excluded_resources"]
+        state_alignment = parameters["state_alignment"]
+        recommendations = parameters["recommendations"]
+        try:
+            return TerraformImportReport(
+                summary=summary,
+                status=status,
+                execution_summary=execution_summary,
+                imported_resources=imported_resources,
+                excluded_resources=excluded_resources,
+                state_alignment=state_alignment,
+                recommendations=recommendations,
+            )
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=500,
+            )
+
     def __handle_requests_filter(
         self, parameters: dict[str, Any]
     ) -> dict[str, bool | str]:
@@ -324,6 +354,17 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
+
+    def __handle_import_addresses(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        status = parameters["status"]
+        summary = parameters["summary"]
+        imports = parameters["imports"]
+        if not isinstance(imports, list):
+            raise ToolInferenceParamsError(
+                message=f"IAC import inference hasn't returned the expected structure. got={imports}",
+                error_code=500,
+            )
+        return {"status": status, "summary": summary, "imports": imports}
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
         query = parameters["query"]

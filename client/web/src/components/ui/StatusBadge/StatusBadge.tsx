@@ -17,6 +17,7 @@ const VARIANT_CLASS: Record<string, string | undefined> = {
   completed: styles.completed,
   succeeded: styles.succeeded,
   successfully_imported: styles.successfully_imported,
+  imported: styles.successfully_imported,
   generated: styles.generated,
   update: styles.update,
   updated: styles.updated,
@@ -33,6 +34,7 @@ const VARIANT_CLASS: Record<string, string | undefined> = {
   // Round-phase statuses share the in-progress styling.
   filtering: styles.generating,
   validating: styles.generating,
+  reconciling: styles.generating,
   apply: styles.generating,
   report: styles.generating,
   uncompleted: styles.partial,

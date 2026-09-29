@@ -8,20 +8,20 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference implementation of [`contracts/openapi/authz.v1.yaml`](../../contracts/openapi/authz.v1.yaml).
 
-The OSS default for the Nebula authorization contract:
+The OSS default for the Kumoss authorization contract:
 
 - **`POST /v1/check`** — permissive by default (returns `authorized:
   true`). Production deploys should override this with real
-  cloud-access logic. Set `NEBULA_AUTHZ_PERMISSIVE=false` to flip the
+  cloud-access logic. Set `KUMOSS_AUTHZ_PERMISSIVE=false` to flip the
   default to `authorized: false` so misconfigurations are visible.
 - **`GET /v1/users/me`** — looks up the user identified by the
   caller-supplied `X-User-Id` header, creating a record on first call.
   When the header is absent, returns an anonymous user with no roles.
-- **Role storage** — JSON file at `NEBULA_AUTHZ_ROLE_STORE` (default
+- **Role storage** — JSON file at `KUMOSS_AUTHZ_ROLE_STORE` (default
   `/data/roles.json`, a container-local path). Role assignments are lost
-  when the container is recreated; point `NEBULA_AUTHZ_ROLE_STORE` at a
+  when the container is recreated; point `KUMOSS_AUTHZ_ROLE_STORE` at a
   mounted path if you need them to survive.
-- **Default root admin** — when `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` is set,
+- **Default root admin** — when `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` is set,
   the user record with that email is granted the `admin` role on
   startup.
 - **Admin endpoints** — `GET /v1/roles`, `GET /v1/users`,
@@ -31,7 +31,7 @@ The OSS default for the Nebula authorization contract:
 - **`GET /healthz`** — liveness probe.
 
 This service's own `/v1/users/me`, `/v1/roles`, `/v1/users`, and role
-admin endpoints are not consulted by Nebula at all — the core never
+admin endpoints are not consulted by Kumoss at all — the core never
 calls them. They exist only for callers of this service directly (or
 for enterprises building on this reference impl) to manage this
 service's own user/role store.
@@ -45,11 +45,11 @@ calls this service in exactly one place: `POST /v1/auth/authorize` →
 user_id}` where `user_id` is `user.email or user.subject`. No
 `X-User-Id` / `X-User-Email` headers are ever sent by the core on any
 live path — those headers only matter if you call this service's other
-endpoints directly. Nebula's own operation roles (`developer` <
+endpoints directly. Kumoss's own operation roles (`developer` <
 `devops`) and panel roles (`viewer` < `editor` < `admin`) live in the
 core database and are managed from the admin panel; this service's
 role store affects only its own `/v1/users*` admin endpoints and has no
-effect on what a user can do in Nebula.
+effect on what a user can do in Kumoss.
 
 The web app sends the repository URL as `project` and the IaC path as
 `environment`; the contract caps `environment` at 32 characters, so a
@@ -60,17 +60,17 @@ when `/v1/check` is enabled).
 
 | Env var                          | Required | Description                                           |
 |----------------------------------|----------|-------------------------------------------------------|
-| `NEBULA_AUTHZ_TOKEN`             | no       | Bearer token clients must present.                    |
-| `NEBULA_AUTHZ_ROLE_STORE`        | no       | Path to the roles JSON file. Default `/data/roles.json`. Configures this service's own user/role store only — Nebula never reads it. |
-| `NEBULA_AUTHZ_ROOT_ADMIN_EMAIL`  | no       | Email address granted the `admin` role on startup, in this service's own store. It is also used as that user's record key and `id`. |
-| `NEBULA_AUTHZ_PERMISSIVE`        | no       | The only knob Nebula's own flow exercises. Default `true` — `/v1/check` returns true unconditionally. Set `false` for explicit-deny default. |
+| `KUMOSS_AUTHZ_TOKEN`             | no       | Bearer token clients must present.                    |
+| `KUMOSS_AUTHZ_ROLE_STORE`        | no       | Path to the roles JSON file. Default `/data/roles.json`. Configures this service's own user/role store only — Kumoss never reads it. |
+| `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`  | no       | Email address granted the `admin` role on startup, in this service's own store. It is also used as that user's record key and `id`. |
+| `KUMOSS_AUTHZ_PERMISSIVE`        | no       | The only knob Kumoss's own flow exercises. Default `true` — `/v1/check` returns true unconditionally. Set `false` for explicit-deny default. |
 
 ## Run locally
 
 ```bash
 cd services/authz
 uv sync
-NEBULA_AUTHZ_ROOT_ADMIN_EMAIL=you@example.com \
+KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL=you@example.com \
   uv run fastapi run src/main.py --port 8083
 ```
 
@@ -81,7 +81,7 @@ curl -X POST http://localhost:8083/v1/check \
 ```
 
 The example above omits the `Authorization` header, so it only works
-while `NEBULA_AUTHZ_TOKEN` is empty; once set, add
+while `KUMOSS_AUTHZ_TOKEN` is empty; once set, add
 `-H 'Authorization: Bearer <token>'`.
 
 ## Tests

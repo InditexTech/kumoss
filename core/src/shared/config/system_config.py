@@ -110,10 +110,15 @@ class LlmConfig(BaseModel):
     reasoning and ``small_model`` for cheaper filler work.  Both are
     LiteLLM model-id strings (``provider/model``).  Credentials are
     resolved from the provider's standard env vars (see the provider
-    tables in ``docs/litellm.md``); the validator fails boot when
-    litellm reports required env vars missing.
+    tables at
+    https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/);
+    the validator fails boot when litellm reports required env vars
+    missing.
 
-    ``temperature`` and ``max_output_tokens`` apply to both roles.
+    ``temperature``, ``max_output_tokens`` and ``timeout`` apply to both
+    roles. ``timeout`` is the per-request budget in seconds LiteLLM
+    enforces on a single inference call (retries get a fresh budget);
+    long reasoning or web-search calls need a generous value.
 
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
     format (fallbacks, load balancing, custom credential env var names
@@ -130,6 +135,7 @@ class LlmConfig(BaseModel):
     small_model: str = "anthropic/claude-haiku-4-5"
     temperature: float = 0.1
     max_output_tokens: int = 32000
+    timeout: float = Field(default=600.0, gt=0)
 
     model_list: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -242,7 +248,8 @@ class OrchestrationConfig(BaseModel):
     """Iteration limits and batch sizes for the core's orchestration loops."""
 
     max_drift_reports: int = 3
-    max_validation_iteration: int = 5
+    max_validation_iteration: int = 8
+    max_import_iteration: int = 5
     max_tool_agent_executions: int = 40
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
@@ -264,12 +271,13 @@ class TelemetryConfig(BaseModel):
     """Generic OTel telemetry knobs.
 
     ``collector_url`` is a base URL; the OTLP endpoint is computed from
-    it at use time as ``f"{collector_url}v1/traces"``. The OSS-default
-    deploy bundles Phoenix as the collector but anything that speaks
-    OTLP/HTTP works.
+    it at use time as ``f"{collector_url}v1/traces"``. The default is the
+    Phoenix service of the bundled docker-compose stack; anything that
+    speaks OTLP/HTTP works. Running the core outside docker needs an
+    explicit ``http://localhost:6006/``.
     """
 
-    collector_url: str = "http://localhost:6006/"
+    collector_url: str = "http://phoenix:6006/"
     otel_attribute_count_limit: int = 1024
     otel_console_exporter: bool = False
 

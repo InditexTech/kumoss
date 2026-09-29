@@ -5,11 +5,13 @@
 /**
  * WORKFLOW: Terraform Action
  *
- * Triggers the appropriate IaC endpoint based on the current mode,
- * returning a session ID that the hook layer uses for SSE subscription.
+ * Triggers the appropriate IaC endpoint based on the current mode (or
+ * an explicit apply), returning a session ID that the hook layer uses
+ * for SSE subscription.
  *
  * Actions:
- * 1. Select the IaC endpoint based on mode (generate / drift / apply)
+ * 1. Select the IaC endpoint: apply for an apply action, otherwise by
+ *    mode (generate / drift / import)
  * 2. Call the endpoint with the user's query and session context
  * 3. Return the session ID for SSE tracking
  */
@@ -17,6 +19,7 @@
 import {
   generateInfrastructure,
   driftDetectionRemediation,
+  importInfrastructure,
   applyInfrastructure,
 } from "@/services/core/iac_actions";
 import type { IacSessionResponse, TerraformProvider } from "@/types/api";
@@ -25,7 +28,8 @@ import { MODE } from "@/types/ui";
 
 // ─── Workflow input / output types ─────────────────────────────
 
-export interface TerraformActionParams {
+export interface ModeActionParams {
+  kind?: "mode";
   query: string;
   mode: Mode;
   repoUri?: string;
@@ -33,6 +37,23 @@ export interface TerraformActionParams {
   scopeId?: string;
   iacPath?: string;
   sessionId?: string;
+}
+
+/**
+ * Apply is not a mode: it runs on an existing session after its PR is
+ * merged, reusing the session's stored plan with no query or targets.
+ */
+export interface ApplyActionParams {
+  kind: "apply";
+  sessionId: string;
+}
+
+export type TerraformActionParams = ModeActionParams | ApplyActionParams;
+
+export function isApplyAction(
+  params: TerraformActionParams,
+): params is ApplyActionParams {
+  return params.kind === "apply";
 }
 
 export interface TerraformActionResult {
@@ -47,11 +68,8 @@ export async function runTerraformActionWorkflow(
 ): Promise<TerraformActionResult> {
   let response: IacSessionResponse;
 
-  if (params.mode === MODE.IMPORT) {
-    // Apply reuses the session's stored plan; it takes no query or targets.
-    response = await applyInfrastructure({
-      session_id: params.sessionId ?? "",
-    });
+  if (isApplyAction(params)) {
+    response = await applyInfrastructure({ session_id: params.sessionId });
     return { sessionId: response.session_id };
   }
 
@@ -80,6 +98,18 @@ export async function runTerraformActionWorkflow(
       break;
     case MODE.PARTIAL_DRIFT:
       response = await driftDetectionRemediation({
+        ...baseRequest,
+        is_partial: true,
+      });
+      break;
+    case MODE.IMPORT:
+      response = await importInfrastructure({
+        ...baseRequest,
+        is_partial: false,
+      });
+      break;
+    case MODE.PARTIAL_IMPORT:
+      response = await importInfrastructure({
         ...baseRequest,
         is_partial: true,
       });

@@ -33,7 +33,7 @@ To maintain a collaborative and respectful environment, please consider the foll
 
 - All contributors are expected to follow the project's [code of conduct](CODE_OF_CONDUCT.md). Please be respectful and
 considerate towards other contributors.
-- Before starting work on a new feature or fix, check existing [issues](https://github.com/InditexTech/nebula/issues) and [pull requests](https://github.com/InditexTech/nebula/pulls)
+- Before starting work on a new feature or fix, check existing [issues](https://github.com/InditexTech/kumoss/issues) and [pull requests](https://github.com/InditexTech/kumoss/pulls)
 to avoid duplications and unnecessary discussions.
 - If you wish to work on an existing issue, comment on the issue to inform other contributors that you are working on it.
 This will help coordinate efforts and prevent conflicts.
@@ -47,9 +47,9 @@ and its purpose.
 
 ## Development
 
-The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](docs/architecture.md) explains how they fit together.
+The repository is a monorepo: the FastAPI core in `core/`, four sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](https://inditextech.github.io/kumoss/prerelease/main/architecture/) explains how they fit together.
 
-**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Getting started: local/non-production](docs/getting-started-local.md) is the step-by-step guide; `docker compose up --watch` hot-reloads the core.
+**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](https://inditextech.github.io/kumoss/prerelease/main/quickstart/) is the step-by-step guide. `docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload`, so run `docker compose restart core` after a sync.
 
 **Core tests** (Python 3.13, `uv`):
 
@@ -60,7 +60,7 @@ uv pip install --system pytest pytest-asyncio
 python -m pytest tests/ --asyncio-mode=auto
 ```
 
-Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
+Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
 
 **Frontend checks** (Node 24): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
 

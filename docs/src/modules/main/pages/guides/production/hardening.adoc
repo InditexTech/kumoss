@@ -1,0 +1,94 @@
+= Hardening
+:description: Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.
+
+This is the third of four pages that expand
+xref:main:guides/deploy-to-production.adoc[Deploy to production]: with
+networking and TLS reproduced, this page covers the constraints the
+current implementation places on runtime and scaling, then the
+hardening checklist the platform must apply. The checked-in
+`docker-compose.yml` applies no `cap_drop`, `read_only`, or resource
+limits to the iac container, or to any other container. Everything
+below is a recommendation for your platform, never a description of
+what the stack ships hardened with.
+
+[#runtime-and-scaling-constraints]
+== Runtime and scaling constraints
+
+These are properties of the current implementation, not tuning
+options:
+
+* *Run one core replica.* Sessions execute as in-process background
+  tasks of the API process; the only concurrency control is a
+  compare-and-set flag on the session row; the SSE endpoint polls the
+  database of the same process. A second replica would not share
+  in-flight work and would leave sessions half-run when a pod is
+  replaced. Size the single pod for your expected parallel sessions
+  (each holds a repository clone and several model calls).
+* *Run one IaC sidecar per workspace volume.* Jobs and their results are
+  held in memory and serialized per workspace path.
+* *Restarts interrupt runs.* A session that was running when the core
+  restarted keeps its last status; its in-flight flag is released only
+  by the process that set it. Expect to inspect such sessions in the
+  admin panel after a rolling restart.
+* *Start-up is strict* and ordered: database, Redis, the object-storage
+  artifacts bucket, the Terraform state bucket (created by default,
+  since `storage.terraform_state_bucket` ships non-blank; skipped only
+  if you blank it explicitly to `""`), Phoenix prompt seeding, then git
+  credentials — the last only logs a warning on failure; every other
+  step exits the process. Readiness should be derived from the API answering `GET
+  /api/v1/auth/config`; the core has no dedicated health route.
+* *The checked-in compose has no healthchecks and no restart policies*
+  for `core`, its dependencies, or the sidecars (only `proxy` sets
+  `restart: on-failure`); the core's own DB connection has no retry,
+  Redis retry is under a second, and Phoenix-seeding retry is only about
+  27.5 seconds. A core that loses a start-up race exits and *stays
+  down* under Compose. On your platform, give the core: a restart
+  policy, a startup probe with a generous failure threshold (allow for
+  the ~30-second Phoenix wait), and a liveness probe on `GET
+  /api/v1/auth/config` — otherwise a transient dependency race at boot
+  becomes a permanent outage.
+* *A remote state backend is mandatory, and by default Kumoss provides
+  it.* The workspace is deleted after each run and the pinned workspace
+  after apply, and the seeded `.gitignore` excludes `*.tfstate`, so
+  local state would be lost otherwise. `storage.terraform_state_bucket`
+  ships set to `kumoss-terraform-state`, so the core writes a
+  `backend_override.tf` into each workspace pointing at that bucket
+  under a per-project key. Set the key to `""` to make it yours to
+  provide instead: every repository you onboard must then declare its
+  own remote backend and the sidecar must be able to authenticate to
+  it — verify this before the first real session. Either way, *Kumoss
+  never migrates state* between backends — `init` always runs
+  `-reconfigure`. See xref:main:guides/configure-state-backends.adoc[].
+
+[#hardening-checklist]
+== Hardening checklist
+
+Items the repository leaves to the platform. Apply them; none is
+optional for a shared deployment.
+
+* OIDC enabled; `GET /api/v1/auth/config` shows a non-empty issuer.
+* Distinct random bearer tokens on every enabled sidecar, sidecars
+  unreachable except from the core.
+* IaC container: dropped capabilities, `no-new-privileges`, read-only
+  root filesystem, resource limits, workload identity instead of static
+  cloud keys, egress limited to registries and cloud APIs.
+* IaC sidecar implemented to your organization's requirements, or the
+  bundled reference consciously accepted for production after review.
+* Mapping, notifications, and authorization containers already run as
+  the unprivileged `kumoss` user (10001) in the bundled images; the
+  `proxy` (nginx) image starts as root and drops privileges only for
+  its workers — give it a non-root image or a Kubernetes
+  `runAsNonRoot` treatment if your policy requires it.
+* Phoenix behind authentication or network isolation; retention policy
+  for traces.
+* TLS everywhere users and browsers connect; managed database and
+  storage endpoints with TLS.
+* Artifacts bucket private except for presigned reads; lifecycle rules.
+* State bucket private with no public path at all, versioning and soft
+  delete enabled, no lifecycle expiry, access limited to the core
+  (bucket creation) and the IaC sidecar (read/write).
+* Git token scoped to the repositories in scope; LLM provider configured
+  under acceptable data-handling terms.
+* Seeded prompts reviewed and adapted before the first user session;
+  they encode a generic policy, including the compliance rules and
+  forbidden actions (xref:main:guides/customize-prompts.adoc[]).

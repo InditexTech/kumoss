@@ -1,0 +1,42 @@
+= Prerequisites
+:description: What the local Docker Compose deployment is for and what you need before following the quickstart.
+
+This page lists what the local Docker Compose deployment is for and what
+you need before following xref:main:quickstart.adoc[Quickstart].
+
+== When to use this deployment
+
+Use the Compose stack to evaluate Kumoss, develop on it, run demos, or test
+changes on a workstation or a throwaway virtual machine that only trusted
+people can reach.
+
+Do *not* use it for shared or production environments. As shipped it has no
+TLS, well-known default credentials for PostgreSQL and RustFS, an
+unauthenticated Phoenix console, and, unless you enable OIDC, *no
+authentication at all*: every request runs as a built-in local identity
+that holds the `devops` operation role and the panel `admin` role. It
+publishes ports 80 and 9000 on every interface of the host. For anything
+shared, read
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
+
+== Requirements
+
+* Credentials for one LLM provider supported by LiteLLM. See
+  xref:main:reference/llm-providers.adoc[LLM providers and models].
+* Cloud credentials for the cloud your OpenTofu/Terraform code targets:
+  the variables your providers read to create and change the resources
+  `plan` and `apply` manage. They are given to the IaC sidecar. See
+  xref:main:reference/terraform-providers.adoc[Terraform providers].
+* A personal access token for your Git provider, with permission to push
+  branches and open pull requests.
+* Git, and Docker Engine with Docker Compose v2.24 or later.
+* As a rough guideline, at least 8 GB RAM and 10 GB free disk.
+
+Separate state-backend credentials are *optional*. By default Kumoss
+manages Terraform state itself in the bundled object store, so the cloud
+credentials above are all the IaC sidecar needs. A second grant is
+required only if you set `storage.terraform_state_bucket` to `""` and let
+each target repository declare its own backend, in which case it must
+reach the store that repository's `terraform { backend ... }` block names.
+See
+xref:main:guides/configure-state-backends.adoc[Configure state backends].

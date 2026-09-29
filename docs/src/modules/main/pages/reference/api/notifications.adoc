@@ -1,0 +1,271 @@
+= Notifications sidecar API
+:description: The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
+
+The notifications service delivers an event the core wants a human to
+see. The contract is deliberately *channel-agnostic*: a caller never
+names a channel. It describes an event and identifies an audience, and
+the implementation decides where that lands — which Slack channel,
+which Teams group, which mailing list, which pager rotation.
+
+Contract: `contracts/openapi/notifications.v1.yaml`. Default endpoint:
+`\http://notifications:8080`. Bearer token: the value of the variable
+named by `services.notifications.token_env`,
+`KUMOSS_NOTIFICATIONS_TOKEN` by default. The service is *optional* and
+ships disabled (`services.notifications.enabled: false`).
+
+== Endpoints
+
+Two paths.
+
+[cols="2,4",options="header"]
+|===
+|Endpoint |What it does
+
+|`POST /v1/notify`
+|Validates a notification and queues it for delivery. Answers `202
+Accepted` as soon as the request is accepted — delivery happens out of
+band and is not guaranteed to have finished when the call returns.
+
+|`GET /healthz`
+|Liveness probe, answers `{"status":"ok"}`. Does not check downstream
+connectivity, so a `200` here does not mean Slack is reachable.
+|===
+
+Implementations are encouraged, but not required, to be idempotent on
+`kind` plus `subject` plus `body` within a short window so that a
+caller retry does not double-post.
+
+== Request
+
+[source,json]
+----
+{
+  "kind": "iac.terraform.apply_completed",
+  "severity": "info",
+  "subject": "Apply completed for session a1b2c3",
+  "body": "3 added, 1 changed, 0 destroyed.",
+  "audience": ["someone@example.com"],
+  "links": [{"label": "Pull request", "url": "https://github.com/..."}],
+  "context": {"session_id": "a1b2c3"}
+}
+----
+
+`kind`, `severity`, `subject`, and `body` are required.
+`additionalProperties` is `false`, so an undeclared field is a `422`
+rather than a silently ignored one.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`kind`
+|1-128 chars
+|Event category. Free-form by design; the convention is dotted
+lowercase — `iac.terraform.plan_completed`,
+`iac.terraform.apply_completed`, `system.error`. An implementation may
+route on it.
+
+|`severity`
+|enum
+|One of `info`, `warning`, `error`, `critical`.
+
+|`subject`
+|1-256 chars
+|Single-line summary, suitable as a notification title.
+
+|`body`
+|1-16384 chars
+|The message. Markdown is permitted; whether it is rendered or passed
+through verbatim is the implementation's choice.
+
+|`audience`
+|≤256 items
+|Implementation-specific recipient identifiers — email addresses,
+Slack handles, Teams group ids. An implementation that routes by other
+means may ignore it.
+
+|`links`
+|≤32 items
+|Structured links to render. Each is `{"label": ..., "url": ...}` with
+`label` 1-128 characters and `url` a URI of at most 2048.
+
+|`context`
+|free-form
+|Arbitrary structured context. An implementation must not assume any
+particular shape.
+|===
+
+== Responses
+
+`202 Accepted` carries the delivery identifier:
+
+[source,json]
+----
+{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
+----
+
+It identifies the *delivery attempt*, not a durable record the caller
+can later query: the contract has no endpoint that takes it back. Its
+value is correlating a core log line with the sidecar's own.
+
+[cols="1,5",options="header"]
+|===
+|Status |Meaning
+
+|`400`
+|The body could not be parsed at the transport layer — malformed JSON,
+non-UTF-8 bytes, no `Content-Type`. May be a problem document or a
+framework-default body.
+
+|`401`
+|Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
+challenge.
+
+|`403`
+|The token is valid but not authorized for this endpoint.
+
+|`422`
+|Well-formed JSON that failed schema validation.
+
+|`502`
+|The downstream channel returned an error or could not be reached.
+
+|`503`
+|The service is running but not configured — no webhook URL, for
+example.
+|===
+
+== How the core uses it
+
+The core never exposes this contract directly. Its own
+`POST /api/v1/notifications` route takes the same event description
+*minus* `audience`, and derives the recipient list server-side from
+the caller's identity before forwarding. A client therefore cannot
+address a notification to somebody else. See
+xref:main:reference/api/core.adoc[Core API].
+
+The core also fires notifications of its own accord — an apply
+failure, for instance, is reported this way rather than raised. When
+the service is disabled the core's route answers `503`; when a
+forward fails it answers `502`.
+
+== The bundled implementation
+
+`services/notifications/` posts to a single Slack channel through an
+incoming webhook. It exists to be useful out of the box and to be a
+readable worked example for anyone writing a Teams, email, or
+PagerDuty implementation of the same contract.
+
+A notification becomes a Slack attachment, colour-coded by severity,
+with an action button per link. Two limits shape the rendering, one
+Slack's and one the service's own:
+
+* Slack allows five buttons per attachment, so links past the fifth
+  continue in follow-up attachments.
+* The service caps field values at 1000 characters, well under
+  Slack's own per-field limit, so one oversized value cannot push the
+  rest of the card out of view. A context value over the cap is
+  truncated and ends with an ellipsis; an audience list over it is
+  cut at a recipient boundary and ends with `+N more`.
+
+The bearer token is compared in constant time. If
+`KUMOSS_NOTIFICATIONS_TOKEN` is blank the service accepts every
+request — acceptable on an isolated workstation, not on a shared
+network.
+
+A non-2xx answer from Slack, or an unreachable Slack, becomes `502`
+with an RFC 7807 body whose title is `Downstream channel error` and
+which carries *no* detail. That is deliberate: the webhook URL is the
+Slack credential, and the HTTP client embeds it in every error
+message, so echoing the underlying error would leak it into the
+core's logs.
+
+=== Responses it never produces
+
+The contract documents `400`, `403`, and `503`; this implementation
+emits none of them. Request validation runs before the handler, so a
+bad body is a `422` rather than a `400`. It has no authorization
+concept beyond the bearer token, so there is nothing to answer `403`
+with. And `503` is unreachable because the process refuses to boot
+without a webhook URL. Another implementation of the same contract may
+use all three, so a caller must still handle them.
+
+=== Configuration
+
+[cols="2,1,4",options="header"]
+|===
+|Variable |Required |Meaning
+
+|`SLACK_WEBHOOK_URL`
+|yes
+|Slack incoming-webhook URL. The service refuses to start without it.
+
+|`KUMOSS_NOTIFICATIONS_TOKEN`
+|no
+|Bearer token clients must present. Blank accepts every request.
+
+|`LOG_LEVEL`
+|no
+|Root log level, default `INFO`.
+|===
+
+Configuration is asserted at startup: a missing webhook URL or an
+unknown log level raises a configuration error and the process exits,
+so a deployment that could not deliver anything fails at boot rather
+than on the first notification. Under `docker compose` that shows up
+as the `notifications` container exiting until
+`services/notifications/.env` sets the URL. The core treats its
+notifications as best-effort and keeps working.
+
+=== Troubleshooting
+
+The service reports a problem in one place only — the
+`application/problem+json` response to the caller. It writes no log
+lines of its own, so `docker compose logs -f notifications` shows just
+the server's access and error output. It does not trace deliveries.
+
+* *The container exits at boot with a configuration error.* Set
+  `SLACK_WEBHOOK_URL`, and a valid `LOG_LEVEL`, in
+  `services/notifications/.env`.
+* *The core gets `401`.* `KUMOSS_NOTIFICATIONS_TOKEN` differs between
+  `core/.env` and `services/notifications/.env`.
+* *`502 Downstream channel error`.* Slack rejected the payload or was
+  unreachable. Check the webhook URL is still valid in Slack.
+* *Nothing arrives and the core logs `Failed to send '<kind>'
+  notification`.* Check the `services.notifications` block in
+  `config.yaml`, and that the core image was rebuilt after the change
+  — `config.yaml` is baked into the image.
+
+[#conformance]
+== Conformance
+
+The implementation-agnostic Schemathesis suite at
+`contracts/conformance/notifications/` runs against any implementation
+of this contract:
+
+[source,bash]
+----
+cd contracts/conformance/notifications
+uv sync
+uv run pytest \
+  --service-url=https://notifications.your.example \
+  --service-token=$YOUR_TOKEN
+----
+
+`--service-token` is needed only if the implementation enforces
+authentication.
+
+The suite generates requests from the OpenAPI document and checks that
+response bodies match the declared schemas and that invalid bodies do
+not produce undocumented `5xx` answers. It cannot check that a
+notification actually reached a human, so a green run on an
+implementation with a stale webhook URL is still possible.
+
+== Next steps
+
+* xref:main:reference/api/core.adoc[Core API] for the core route that
+  wraps this one.
+* xref:main:reference/configuration.adoc#config-services[the `services`
+  section] of the configuration reference for enabling the sidecar.
+* xref:main:guides/deploy-to-production.adoc[Deploy to production] for
+  the decision of whether to run the bundled implementation at all.

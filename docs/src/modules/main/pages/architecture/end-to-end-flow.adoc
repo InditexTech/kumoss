@@ -1,0 +1,995 @@
+= End-to-end flow
+:description: The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
+
+One generate session, from request to applied infrastructure, in ten
+phases across five sequence diagrams. Each diagram shows only the
+participants its phases use; the xref:#legend[legend] lists them and
+the arrow conventions.
+
+Every step that changes state or blocks progress belongs to the control
+gates on purpose: *models propose, code decides.*
+
+== Phases 1 and 2: request and session
+
+:diagram-name: flow-phases-1-4
+:diagram-alt: Kumoss request flow, phases 1 to 4: request, identity, session, then filter and compose
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 1 to 13; the diagram also covers phases 3 and 4.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Request
+|The wizard posts repository URL, target cloud, scope id, optional IaC
+path and request text to `POST /api/v1/iac/generate` with a bearer
+token. The IaC path is one of the Terraform roots
+`POST /api/v1/repository/parse` found in a metadata-only clone
+(a `git ls-tree` heuristic over `.tf` directories).
+
+|Identity and role
+|The authentication dependency validates the bearer JWT, or resolves
+the fixed local-developer identity when auth is disabled, and the role
+check requires `developer`: `401` or `403` otherwise. The wizard has separately asked the authz sidecar
+whether the user may work on that cloud project. See
+xref:#auth[Authentication] and xref:#authz[Authorization and
+ownership].
+
+|Repository reachability
+|The URL may carry a userinfo username (the `<org>@` prefix of an Azure
+DevOps clone URL, or `git@`) but must not embed a password or token —
+a request-model validator rejects one that does with `422`, an empty
+`user:` password included — and then `git ls-remote` must succeed:
+unreachable or rejected → `400`. Either way no session is created.
+
+|Session creation
+|A session row owned by the caller is created, or an existing one
+resolved by `session_id` with ownership asserted; a round opens and the
+API answers `202 Accepted` with the session id. Everything from here
+runs as an in-process background task.
+
+|Progress stream
+|The UI subscribes to `GET /api/v1/events/subscribe/\{session_id}` and
+receives status events every 4-5 seconds until a terminal status.
+
+|Guard, workspace, tracing
+|The runner takes the in-flight guard, an atomic compare-and-set on the
+session row. The `202` has already been sent, so a concurrent request is
+never refused with `409`: the runner that loses logs
+`runner not started: Session ... already has an operation in flight` and
+returns without touching the session. It then clones into
+`/workspaces/<session>/<call>` on the volume shared with the iac
+sidecar, pushes the branch `Kumoss/YYYY-MM-DD_HHMMSS` (UTC), and installs
+the per-session Phoenix tracer.
+|===
+
+== Phases 3 and 4: filter and compose
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Request Filter Agent (`filtering`)
+|The small model, with read-only workspace tools, classifies the request
+against the `general-guidelines-requests` and
+`<cloud>-guidelines-forbidden_actions` prompts. A change request
+proceeds; a question is answered in the conversation; an out-of-scope,
+prohibited or ambiguous request is declined with a rationale. In the
+last two cases the round ends `uncompleted` and the user is invited to
+reformulate — the session itself stays usable.
+
+|Prompt Compositor
+|Two small-model passes select the relevant resource templates and
+abbreviations from the cloud's `resources_list` and `abbreviations`
+prompts in Phoenix, then look for dependencies among them. The result is
+the round's _conventions_, which every later agent is rendered with.
+|===
+
+== Phase 5: generate, validate, correct
+
+Up to `orchestration.max_validation_iteration` generate-and-validate
+iterations: 8 in the shipped `config.yaml`, 5 built in.
+
+:diagram-name: flow-phases-5-6
+:diagram-alt: Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 14 to 25; the diagram also covers phase 6.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Infrastructure Generation Agent (`generating`)
+|The main model edits Terraform files through the tool registry (read,
+write, list, ripgrep search, web search), bounded by
+`orchestration.max_tool_chain_executions` (70) model turns — one
+increment per inference turn after its tool calls run, the same bound
+every agent loop shares; reaching it raises `ToolExecutionsExceeded` and
+the round fails — and terminated by the sentinel `task_complete` tool.
+
+|Persist and push
+|Every changed or new file is uploaded as a code-change artifact and
+committed and pushed to the session branch, so the work is durable
+before validation starts.
+
+|Session Target Generator
+|The main model derives this round's `-target` list from the branch's
+diff history, so the plan covers what the round changed rather than the
+whole root module.
+
+|Validation (`validating`)
+|`init`, `validate` and `plan -out session.plan -target ...` are
+submitted to the iac sidecar as asynchronous jobs, each polled every
+`services.iac.job_poll_interval` seconds within
+`services.iac.job_timeout`. The engine (OpenTofu by default) runs
+against the shared workspace with the cloud credentials in
+`services/iac/.env`.
+
+|Correct or fail
+|Engine errors go back to the generation agent as the next query and the
+loop repeats. After `orchestration.max_validation_iteration` (8 shipped)
+failures the round ends `FAILED`, the branch keeps the last pushed
+attempt, and the session is xref:#how-a-session-ends[closed for good].
+|===
+
+== Phase 6: implicit drift pre-check
+
+Runs on the targets validation has just produced, at most twice.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Inspect the plan
+|Status `reconciling`. The core runs `show -json` on the plan artifact
+validation left in the workspace — the round's own plan, never a second
+one — and inverts the `before`/`after` differences into "make the code
+match the infrastructure" operations, stored as a drift artifact.
+
+|Split and filter
+|The Drift Task Splitter (main model) turns the differences into
+plain-language operations, the Reconciliation Filter (small model)
+reads the branch's `diff_history` and drops every operation that would
+merely undo the session's own intended changes, and the Drift Exception
+Filter (small model) then drops every operation the cloud's
+`drift_exceptions` rules cover, logging what it removed.
+
+|Decide
+|Genuine drift re-enters the generation loop in batches of
+`orchestration.drift_group_operations` (8) with the forbidden-actions
+block omitted, and the pre-check runs once more. If only the session's
+own changes remain, or the plan is clean, the pre-check stops and the
+last plan is final. If genuine drift is still there after the second
+iteration, the round continues to the report anyway: a warning is logged
+and the drift is re-read from the last remediation batch's plan, so the
+report and the pinned plan agree. A remediation batch that exhausts its own
+validation attempts fails the round instead.
+|===
+
+Full mechanism, including the fingerprint that makes reading an
+existing plan safe: xref:#drift[Drift detection and remediation].
+
+== Phase 7: report and artifacts
+
+:diagram-name: flow-phases-7-8
+:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 26 to 34; the diagram also covers phase 8.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Report Generator (`report`)
+|The main model turns the final plan into a JSON report: create, update,
+delete and recreate counts, detailed changes, an impact banner (`low`,
+`medium`, `high`) assigned with the `general-compliance-impact`
+criteria, and cost estimates.
+
+|Artifacts
+|Report, plans, drift JSON and code changes go to object storage under
+`sessions/<session>/rounds/<round>/`, where `<round>` is the round's
+*database primary key*, not its ordinal in the session. The key patterns
+are `reports/<report type>-<token>.json`, `plans/plan-<token>.txt`,
+`plans/drift-<token>.txt` and `changes/<token>-<sanitized file name>`.
+Metadata goes to PostgreSQL; the UI receives presigned URLs.
+|===
+
+== Phase 8: compliance audit
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Compliance Auditor
+|With `orchestration.enable_compliance_checker` on, a second,
+independent small-model agent reads the session's first request and the
+raw plan output — not the report JSON — alongside the
+`general-compliance-report` rules and the cloud guidelines. It has no
+repository tools and must answer through its only tool,
+`report_compliance_findings`: rule id, severity, resource, message,
+suggested fix. The findings are stored like any other artifact, at
+`compliance/check-<token>.json` with a `compliance_checks` row holding
+the verdict, so the session detail and the portal can show them.
+
+|Verdict in code
+|The tool handler recomputes `passed` from the severities: any `error`
+or `critical` finding fails the audit regardless of the model's own
+claim.
+
+|Lock or release, then pin
+|The handler first writes `is_blocked`, which decides whether apply and
+pull-request merge are available, and notifies on failure; only then does
+the validated workspace with `session.plan` become the session's pinned
+plan, replacing any earlier pin. A failed lock write therefore leaves the
+round unpinned. Configuration, exact formula and effect:
+xref:#compliance[Compliance gate].
+|===
+
+== Phase 9: pull request and review
+
+:diagram-name: flow-phase-9
+:diagram-alt: Kumoss request flow, phase 9: optional pull request and human review
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 35 to 40.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Pull request on demand
+|`PUT /api/v1/repository/pr` (owner, `developer`) has the PR Title and
+Description Agent (small model) draft the text, then the Git provider
+adapter (GitHub, Azure DevOps or GitLab REST API) opens the pull request
+from the session branch. Reviewers see the code diff, a title and
+description the model derives only from the request and the conversation
+history, and their own CI; the plan, report and cost estimate stay in
+Kumoss's results view, and compliance findings reach only the
+notification audience.
+
+|Review outcomes
+|Requested changes become a new request in the same session — back to
+phase 3, a new round on the same branch — which is possible while the
+session is `COMPLETED` or `UNCOMPLETED`, never after a `FAILED` round.
+Approval leads to `PUT /api/v1/repository/pr/merge`, which merges into
+the default branch unless the session is locked (`409`): a merge is
+always lock-checked. A rejected or closed pull request ends delivery;
+the session history and artifacts are kept.
+|===
+
+== Phase 10: apply
+
+:diagram-name: flow-phase-10
+:diagram-alt: Kumoss request flow, phase 10: human-triggered apply, never automatic
+:diagram-verb: follow a message
+include::partial$interactive-diagram.adoc[]
+
+Messages 41 to 49.
+
+[cols="1,3",options="header"]
+|===
+|Step |What happens
+
+|Explicit human action
+|`POST /api/v1/iac/apply` with the session id. Nothing in the pipeline
+applies on its own; in the UI this is the "Approve PR and Apply" button
+after a merge.
+
+|Gates
+|A valid identity, the `developer` role, session ownership and an
+unlocked session (`409 Session ... is blocked` — the only `409` a client
+sees), then `202`. In the background the runner needs a free in-flight
+guard, and the handler needs a pinned plan; a drift-only session has
+none, because drift rounds never pin.
+
+|One apply
+|The iac sidecar runs a single `apply session.plan` on the pinned
+workspace: no re-plan, no retry. Exactly the reviewed plan executes.
+
+|Outcome
+|The Report Generator reads the engine output either way and writes an
+`apply` report whose `status` is the model's classification of that
+output — `Success`, `Partial` or `Failed`. A non-zero exit does not
+raise: the deterministic signal is the `iac.apply.failure` notification,
+gated on the exit code, and the session still ends `COMPLETED` — see
+xref:#how-a-session-ends[How a session ends].
+
+|Cleanup (always)
+|The pinned plan is discarded, the run directory is removed from the
+volume, and the in-flight guard is released in a `finally` block.
+|===
+
+[#legend]
+== Diagram legend
+
+Each diagram is an Archify sequence diagram: participants across the
+top, time running downwards, one arrow per message.
+
+*Participants* — the boxes at the top; each diagram shows only the ones
+its phases use.
+
+[cols="1,3",options="header"]
+|===
+|Participant |Meaning
+
+|*User / reviewer* (grey)
+|Human actor. Only a human starts a request, creates or merges a pull
+request, or applies.
+
+|*Web UI + Core API* (blue)
+|The React application and the FastAPI routers: authentication
+dependency, `202` answers, SSE stream, presigned URLs.
+
+|*Control gates* (red)
+|Application code with no model judgment: session and lock handling, the
+in-flight guard, git operations, drift calculation, the compliance
+verdict, artifact storage. Every state change and every blocking
+decision happens here.
+
+|*LLM agents* (green)
+|Prompt-driven agent loops. Each message into this participant names the
+agent and its model role (`main` = `llm.model`, `small` =
+`llm.small_model`); see the xref:#agent-catalogue[agent catalogue].
+
+|*core-db* (purple)
+|The PostgreSQL rows the gates read and write: the session, its status,
+the in-flight guard, `is_blocked`, artifact metadata. Its own
+participant, so every state change is a visible message rather than an
+invisible side effect.
+
+|*External* (amber)
+|Git hosting, the IaC engine in the iac sidecar, object storage, Slack
+through the notifications sidecar, and the cloud platform.
+|===
+
+*Arrows and bands*
+
+[cols="1,3",options="header"]
+|===
+|Element |Meaning
+
+|Solid grey arrow (`default message`)
+|A call or hand-over in the direction of the arrow.
+
+|Dashed grey arrow (`return`)
+|A result flowing back: engine output, structured findings, an HTTP
+status, a message shown to the user.
+
+|Dashed crimson arrow (`security`)
+|A gate or a state change with authority over the flow: identity and
+role checks, refusals, the compliance verdict, the lock flag, the
+in-flight guard, cleanup.
+
+|Dashed purple arrow (`async trace`)
+|A *fire-and-forget* notification to the notifications sidecar. It never
+fails the pipeline.
+
+|Vertical bar on a lifeline
+|An activation: that participant is busy for the span the bar covers.
+
+|Dashed band labeled `PHASE n · …`
+|One phase, numbered as the sections above. The label also carries facts
+that have no arrow of their own, such as the conditions under which a
+bounded loop stops.
+
+|Message numbers
+|1 to 49, continuous across the five diagrams. They do not map
+one-to-one onto the steps in the tables above, which group several
+messages per step.
+
+|A number with an `a` / `b` / `c` suffix
+|*Mutually exclusive* arms of one decision — `32a` and `32b` are the two
+outcomes of the compliance verdict, and only one happens. Each arm's
+messages also start with its condition in brackets: `[fail]`, `[pass]`,
+`[approved]`. A sequence diagram draws one column, so the arms appear
+one after another; the shared number and the bracket are what mark them
+as alternatives rather than consecutive steps. Arms can differ in
+length, so `13a` with no `13b` means only the first arm still has a
+message at that point.
+
+|`[at most n …]` in a label or band
+|A bounded loop with its ceiling, at the shipped values: 70 model turns
+per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+operations per drift batch.
+|===
+
+[#agent-catalogue]
+== Agent catalogue
+
+Every message into the agents lane is one of the agents below. Each is
+an orchestration loop rendered from a Jinja layout with
+prompts fetched from Phoenix, given a fixed tool set, and ended by a
+*sentinel tool* whose structured arguments are the agent's result.
+
+[cols="2,1,3,2,3",options="header"]
+|===
+|Agent |Model |Tools available |Ends via |Where it appears
+
+|Infrastructure Generation Agent
+|main
+|`write_to_file`, `replace_in_file`, `delete_file`, `read_file`,
+`list_dir`, `bulk_grep_search`, `diff_history`, `web_search`
+|`task_complete`
+|Phase 5; re-entered by drift batches in Phase 6 and by dedicated drift
+sessions
+
+|Session Target Generator
+|main
+|`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`
+(read-only)
+|`generate_terraform_targets`
+|Phase 5, before every `plan -target`
+
+|Drift Target Generator
+|main
+|the same read-only set, rendered with the
+`general-guidelines-targeting_policies` prompt
+|`generate_terraform_targets`
+|Dedicated *partial* drift sessions only, never in the generate flow
+
+|Report Generator
+|main
+|Plan and apply reports: `web_search`. Drift report: `read_file`,
+`list_dir`, `bulk_grep_search`, `diff_history` (it *must* call
+`diff_history`) and no web search
+|`generate_terraform_plan_report`, `generate_terraform_drift_report`
+or `generate_terraform_apply_report`
+|Phase 7, Phase 10, and dedicated drift sessions
+
+|Request Filter Agent
+|small
+|`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`
+|`requests_filter`
+|Phase 3; also the first step of partial drift sessions
+
+|Prompt Compositor
+|small
+|none besides its sentinel
+|`construct_information` (two passes)
+|Phase 4
+
+|Status Message Agent
+|small
+|none
+|plain text
+|Every status change; its text is what the SSE stream carries
+
+|Drift Task Splitter
+|main
+|`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`,
+`web_search`
+|`report_decomposed_task_operations`
+|Phase 6 and dedicated drift sessions
+
+|Reconciliation Filter Agent
+|small
+|`read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it *must*
+call `diff_history`)
+|`report_decomposed_task_operations`
+|Phase 6 only, generate rounds
+
+|Drift Exception Filter Agent
+|small
+|None besides its sentinel; rendered with the cloud's `drift_exceptions`
+prompt
+|`report_decomposed_task_operations`
+|Phase 6 and dedicated drift sessions, after the reconciliation filter
+
+|Compliance Auditor Agent
+|small
+|none besides its sentinel; input is the first request and the raw plan
+output
+|`report_compliance_findings`
+|Phase 8, generate rounds, when the checker is enabled
+
+|PR Title & Description Agent
+|small
+|none
+|`generate_pull_request`
+|Phase 9
+|===
+
+Agents never delegate to one another and there is no supervisor agent:
+the handler classes call each in a fixed order, and every loop has a
+configured ceiling (`orchestration.max_tool_chain_executions`,
+`max_validation_iteration`, `max_drift_reports`,
+`drift_group_operations`; the drift pre-check inside a generate round is
+fixed at two iterations).
+
+*Deterministic, non-LLM components* fill the other lanes: the FastAPI
+routers and use-case handlers; PostgreSQL session, ownership, status,
+`in_flight` and `is_blocked` controls; the git workspace service and the
+GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
+calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
+verdict; object storage with presigned URLs; SSE status delivery; the
+notifications sidecar.
+
+[#how-a-session-ends]
+== How a session ends
+
+A round leaves the session in one of three statuses, or writes none at all.
+Only `FAILED` is terminal, and it is terminal for the *session*, not only for
+the round: the in-flight guard refuses to start a run on a session whose
+latest status is `FAILED`. A follow-up request, apply or drift round sent to
+it is still answered `202`, and its runner then logs
+`runner not started: Session ... is finished and cannot be resumed` and
+exits, so only a new session carries the work forward. `COMPLETED` and
+`UNCOMPLETED` are resting states that accept a new round whenever the owner
+sends one. The progress stream closes on any of the three.
+
+=== `FAILED`: the session is closed
+
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Status message and side effects
+
+|*Validation never converged* — phase 5
+|All `orchestration.max_validation_iteration` attempts are used: 8 in the
+shipped `config.yaml`, 5 built in
+|`runner failed: Validation loop exceeded.` and a `system.exception.failure`
+notification. No LLM problem summary is produced. The branch keeps the last
+pushed attempt.
+
+|*Apply without a pinned plan* — phase 10
+|The session's last round was drift-only, or an earlier apply already
+consumed the pin. Every apply discards the pin, whether it succeeded or not,
+so a second apply on the same session always ends here
+|`202` answered, then an internal `409`: `No reviewed plan is pinned for this
+session; run a generate or drift round before applying.` The wording
+misleads, since drift rounds never pin. The runner sets `FAILED` and sends
+`system.exception.failure`.
+
+|*Pipeline failed* — any phase
+|Any error the core raises as one of its own typed exceptions: a model or
+tool error, a drift remediation batch that exhausts its own validation
+attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+cannot return
+|`runner failed: <reason>` and `system.exception.failure`; run directory
+removed; in-flight guard released.
+|===
+
+=== `COMPLETED`: the round finished, the session stays open
+
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Side effects
+
+|*Validated, unlocked* — phase 8
+|The audit passed or the checker is off, and the report's impact banner is
+not `high` or `orchestration.block_on_high_impact` is off
+|`is_blocked = false`, plan pinned. Apply and pull-request merge are
+available.
+
+|*Validated, locked* — phase 8
+|Any `error` or `critical` compliance finding, or a `high` impact banner
+with `orchestration.block_on_high_impact` on
+|`is_blocked = true`, plan pinned; `iac.compliance.failed` or
+`iac.impact.high` notification. Apply and merge answer `409` until a later
+passing, non-high round clears the lock or a panel `editor` toggles it.
+
+|*Applied* — phase 10
+|The engine's apply exited with code zero
+|`apply` report written; pinned plan discarded.
+
+|*Apply failed* — phase 10
+|The engine's apply exited with a non-zero code
+|Not an exception: the handler writes an `apply` report whose status is the
+model's classification of the engine output (normally `Failed`), sends
+`iac.apply.failure` — the deterministic, exit-code-gated signal — and
+returns. Pinned plan discarded; no retry.
+|===
+
+A failed apply and a successful one leave the same `COMPLETED` status. The
+`apply` report and the `iac.apply.failure` notification are the only places
+the difference shows, and the next step after a failure is a new generate
+round, never a second apply.
+
+=== `UNCOMPLETED`: the request needs reformulating
+
+The Request Filter Agent declined the request in phase 3 as out of scope,
+prohibited or ambiguous, or answered it as a question. The rationale is
+added to the conversation, and the owner's next request opens a new round of
+the same session.
+
+=== No status written
+
+These outcomes leave the latest status as it was.
+
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Effect
+
+|*Pull request open* — phase 9
+|The owner created a pull request
+|Pull request recorded. Pull-request creation is not lock-checked; the merge
+is.
+
+|*Changes requested* — phase 9
+|A reviewer asked for changes, or the pull request's own CI or a merge
+conflict failed it. Kumoss does not watch the pull request: the owner
+relays the problem as a new request
+|A new round of the same session starts at phase 3, on the same branch.
+
+|*Pull request rejected or closed* — phase 9
+|The reviewer closed the pull request
+|History and artifacts kept; the session still accepts new rounds.
+
+|*Concurrent run dropped* — phase 2
+|A generate, drift or apply request reached a session with a run already in
+flight
+|`202` answered, then the runner logs `runner not started: Session ...
+already has an operation in flight` and returns without touching the
+session.
+
+|*Run ended without a status* — any phase
+|An error outside the core's own exception types, such as an unexpected
+library or runtime error. The runner converts only its own typed exceptions
+into `FAILED`
+|Run directory removed and guard released, but no status and no
+notification are written. The latest status stays at an in-progress value
+such as `generating`, and the progress stream keeps reporting it until its
+`orchestration.max_session_events_iteration` cap, about three hours. The
+session is not terminal and accepts a new round.
+|===
+
+== How the architecture works
+
+The mechanisms behind the flow above, one concern per subsection.
+
+=== Browser delivery and ingress
+
+The nginx image compiles the SPA in a Node builder stage and serves the
+bundle itself; there is no separate frontend container. The SPA uses
+relative paths, so nginx is the only address the browser knows: `/api`
+proxies to `core:8000`, a dedicated events location disables proxy buffering
+so progress streams immediately, and `/monitoring/` exposes the Phoenix UI.
+nginx authenticates nothing — bearer tokens pass through to the core.
+
+[#auth]
+=== Authentication
+
+Before rendering, the SPA fetches the only unauthenticated route,
+`GET /api/v1/auth/config`, which returns the OIDC `issuer_url`,
+`client_id`, optional `audience` and resolved `scope` from `config.yaml`.
+
+[cols="1,3",options="header"]
+|===
+|Mode |Behaviour
+
+|*Disabled* — blank `oidc.issuer_url`, the checked-in default
+|The SPA mounts a dev provider, and the core resolves every request to a
+fixed local-developer identity (`urn:kumoss:dev` / `dev`), provisioned as a
+real user row with the top role of both groups.
+
+|*Enabled*
+|Authorization Code flow with PKCE as a public client — no client secret
+exists anywhere. Login redirects to the identity provider and returns to
+`/auth/callback`; tokens are kept in `sessionStorage`; renewal is silent;
+logout is RP-initiated, falling back to a local sign-out when the provider
+has no `end_session_endpoint`. Every API call and the progress stream attach
+`Authorization: Bearer <access_token>`, and any `401` flips the UI to a
+"session expired" login screen.
+|===
+
+On the core, a bearer-token dependency guards every protected route. It
+validates the token against the issuer's JWKS — fetched lazily on first use
+and cached, so boot never depends on the identity provider — checks `iss`
+(with or without trailing slash), `aud` (`oidc.audience`, or `client_id` and
+`api://<client_id>` when blank) and `exp`/`nbf` within
+`clock_skew_seconds`, requires `exp`, `iss` and `sub`, and accepts only
+asymmetric algorithms. Claims then resolve to a user keyed by issuer and
+subject: the first request provisions the row, later ones sync e-mail and
+display name, and a token whose `email` matches `admin.default_root_email`
+with `email_verified: true` is elevated one-way to `devops` + `admin` from
+that user's next request on.
+
+[#authz]
+=== Authorization and ownership
+
+Two independent role groups live on the user row:
+
+[cols="1,2,4",options="header"]
+|===
+|Group |Values |Gates
+
+|Operation role
+|`developer` < `devops`
+|`generate`, `apply`, repository parse and pull-request routes need
+`developer`; `drift` needs `devops`. The SPA mirrors this in the mode
+drop-down, offering drift, partial drift and import only to `devops` users
+even though the backend accepts `apply` from a `developer`.
+
+|Panel role
+|`viewer` < `editor` < `admin`, nullable
+|`viewer` lists cross-user sessions, `editor` toggles a session lock,
+`admin` lists users and assigns roles. An admin cannot drop their own
+`admin` panel role (`409`).
+|===
+
+Every session has an owner. The sessions list is always scoped to the
+caller; writes — iterations, apply, pull requests — are owner-only, and
+reads, including the progress stream, are open to the owner or to anyone
+holding a panel role.
+
+Separately from roles, the wizard's preflight
+`POST /api/v1/auth/authorize` asks the authz sidecar whether the caller may
+touch a given cloud project and environment. Disabled — the default — the
+core answers "authorized" with no network call; enabled, a timeout or
+unreachable sidecar is returned as `504`/`502`, never as an allow. This is a
+hook for enterprise cloud-access policy, not the access control for
+Kumoss's own data.
+
+=== Session creation and orchestration
+
+A `POST` to `/api/v1/iac/generate`, `/iac/drift` or `/iac/apply` creates or
+resolves a session owned by the caller and returns `202 Accepted`. The
+`git ls-remote` reachability check runs only on requests carrying a
+repository URI — the *first* call of a generate or drift session. Iteration
+calls send only a session id and the new text, and an apply request has no
+repository field at all, so both skip it.
+
+The pipeline then runs in-process as a background task; there is no external
+job queue. Each run gets a freshly assembled object graph: the two model
+providers, the workspace tool registry, Phoenix-backed template services,
+and the validation, filter, report, drift, task-splitting and pull-request
+services.
+
+=== Model routing
+
+The generate flow advances through the statuses the progress stream reports
+— `filtering`, `generating`, `validating`, `reconciling`, `report` — as
+described in phases 3 to 8. Routing is by prompt type, not by provider:
+
+[cols="1,3",options="header"]
+|===
+|Model role |Used by
+
+|`llm.model` (main)
+|Infrastructure generation, target calculation, report writing, drift task
+splitting
+
+|`llm.small_model` (small)
+|Request filtering, prompt composition, status messages, pull-request text,
+the reconciliation filter, the drift exception filter, the compliance audit
+|===
+
+=== IaC and mapping sidecars
+
+The *iac sidecar* is a deliberately thin executor: a reference for
+non-production installs, meant to be re-implemented against the
+organization's own execution platform in production. Each POST enqueues
+exactly one engine command (OpenTofu by default) as an asynchronous job and
+returns a job id; the core polls it — 5-second interval, 1-hour budget per
+job — and does all the sequencing itself.
+
+[cols="1,3",options="header"]
+|===
+|Behaviour |Detail
+
+|Three verbs over the plan artifact
+|`plan` runs `init → validate → plan -out` and returns a reference naming
+what it wrote; `drift` runs `show -json` on such a reference; `apply` runs
+the artifact already in the workspace.
+
+|`init` is cached
+|Once per round, and re-run only when the engine's own output asks for it,
+which keeps retry loops from re-initializing the same workspace. Both
+containers read the same `workspaces` volume.
+
+|`init` always runs `-reconfigure`
+|The engine runs with `-input=false` and could not answer a "Backend
+configuration changed" prompt. The consequence: a changed backend is
+adopted, never migrated.
+
+|The sidecar owns no backend decision
+|Beyond the optional `IAC_BACKEND_CONFIG` file, the backend is whatever the
+workspace contains: the `backend_override.tf` the core writes by default,
+since Kumoss-managed state is on as shipped, or the repository's own block
+if that is turned off.
+|===
+
+The *mapping sidecar* translates a business identifier into a repository
+reference; the reference implementation is an identity passthrough. It may
+also answer with the terraform provider and cloud scope that identifier
+deploys to, and those answers are best effort: `null` means "unknown, ask
+the user", never "there is none". The wizard skips the step for every
+field the mapper fills, so a guess is a question the user never gets to
+correct — an implementation that does not know must say `null`.
+
+[#drift]
+=== Drift detection and remediation
+
+All drift work runs through one bounded loop:
+
+. *Read the drift out of a plan.* Detection is `show -json` over a plan
+  artifact, so the loop takes the plan to start from as a parameter: the
+  workspace, the plan file, the targets it was produced with, and a
+  fingerprint of the working tree — the SHA-256 of
+  `git status --porcelain=v2 --branch --untracked-files=all` — sampled
+  immediately after the plan job returned. A generate round passes the
+  plan it has just validated, so its pre-check costs one `show`; a
+  dedicated drift session passes nothing and the loop plans first.
+. *Invert it.* Each resource's `before` and `after` are diffed and the
+  result inverted into "make the code match the infrastructure" operations.
+  The drift JSON is stored as an artifact; the plan text is stored by the
+  validation loop that produced it, one artifact per attempt.
+. *Split, filter, and remediate.* A clean plan stops the loop. Otherwise
+  the Drift Task Splitter (main model) turns the JSON into plain-language
+  operations, the Drift Exception Filter drops every operation the cloud's
+  `<cloud>-guidelines-drift_exceptions` rules cover (logging each one), and
+  the survivors, chunked into groups of `drift_group_operations` (8), each
+  re-enter the generation and validation loop with the forbidden-actions
+  block omitted, the intent being reconciliation. When every operation is
+  excluded the loop stops there: re-planning would only rediscover the
+  same drift.
+
+The fingerprint is what makes reading an existing plan safe: any plan the
+working tree has moved past is re-planned, and one naming a different
+workspace is refused. It covers uncommitted and untracked files, so it moves
+for generated code while ignoring the engine's own output. Every
+reconciliation group re-plans and the last of those is what the next
+iteration reads; an iteration whose split yielded no operations has no plan
+to hand on, so the next one plans for itself. Every iteration that could
+have changed therefore reads live state.
+
+Each iteration opens with a `reconciling` status written before step 1, so
+the phase is visible on the timeline whether or not drift was found.
+
+The loop has two entry points, differing in *what* they target and
+*whether* session intent is filtered out:
+
+[cols="1,2,3",options="header"]
+|===
+|Entry point |Targets |Behaviour
+
+|*Pre-check inside every generate round*
+|The session's own validated targets
+|At most two iterations, filtered. The Reconciliation Filter agent must call
+`diff_history` — the branch's committed diff against the default branch plus
+untracked files — then drops any operation that would merely revert a
+session change, trims mixed operations to their genuine-drift part, and
+keeps the rest. An empty survivor list ends the loop without invoking the
+generator. The GENERATE report is written from the pre-check's final plan,
+and the first detection reuses the validation loop's plan rather than
+planning again.
+
+|*Dedicated drift session* — `POST /api/v1/iac/drift`
+|Full drift takes the whole root module, an empty target list. Partial drift
+takes the targets the Drift Target Generator chooses after the request
+filter.
+|Up to `max_drift_reports` (5) iterations, unfiltered — a drift session has
+no intended changes of its own. It writes a DRIFT report from the branch
+diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
+lock, does not run the compliance audit and does not pin the workspace —
+drift never pins — so an apply after a drift-only round fails until a
+generate round pins a plan.
+|===
+
+*How the DRIFT report is written.* The drift report is the one report the
+generator does not receive as a text to summarise: it reads the branch for
+itself. The report service gives the drift report the workspace-inspection
+tool set instead of `web_search`, and the drift branch of the report
+layout makes `diff_history` a required first call and the sole source of
+truth for the remediation. That works because every reconciliation group
+commits and pushes inside the validation loop before the report runs, so
+the branch's committed diff against the default branch, plus untracked
+files, *is* the reconciliation; no remediated resource may be named that
+the diff does not show. The drift handler therefore no longer serialises
+the session history into the report query and passes only what the
+remediation left out, in two labelled blocks that map one-to-one onto
+optional report fields:
+
+[cols="2,2,3,2",options="header"]
+|===
+|Block in the report query |Report field |When it appears |Effect on `status`
+
+|"Unreconciled drift"
+|`unreconciled_drift`
+|The loop ended out of sync: genuine drift the iteration ceiling left
+behind, or a drift read that failed outright
+|`Partial`, or `Failed` when nothing was remediated at all
+
+|"Whitelisted exceptions"
+|`whitelisted_exceptions`
+|The Drift Exception Filter excluded operations; one entry per excluded
+change, with the rule that covers it
+|None. Leaving them alone is the intended outcome, so the round can still
+report `Succeeded`
+|===
+
+Both blocks stay out of the schema's top-level `required`, and
+`resource_address` is optional inside them — a failed drift read names no
+resource, and a rule may cover a type or a naming pattern rather than an
+address — so a thin answer cannot fail validation and cost an otherwise
+good report. One consequence of reading the branch rather than a per-round
+record: the diff is branch-wide, so in a multi-round drift session every
+report describes every change on the branch, including the ones earlier
+rounds made.
+
+The pre-check replaced an earlier design in which a *predictive* target
+agent guessed the affected resources and remediated drift *before* any code
+was generated. That agent and its `PREDICTIVE` mode were removed, and the
+shared Phoenix guideline was renamed from `predictive_targets` to
+`targeting_policies`.
+
+[#compliance]
+=== Compliance gate
+
+[cols="1,3",options="header"]
+|===
+|Aspect |Detail
+
+|Where it runs
+|Only in the generate handler, after the report is written, behind
+`orchestration.enable_compliance_checker` (`true` in the checked-in
+`config.yaml`; the built-in default is `false`). The drift handler no longer
+runs it, and the apply handler never calls it. Disabled, the check
+short-circuits to an empty passing report and stores nothing. The gate has
+no progress status of its own.
+
+|How it audits
+|A second, independent small-model agent loop. Its query is the session's
+first user request plus the raw plan output, rendered into the local
+compliance-checker layout with the `general-compliance-report` rules and the
+cloud guidelines from Phoenix. It has no repository access and one tool, the
+sentinel `report_compliance_findings`, whose arguments — `rule_id`,
+`severity`, `resource`, `message` and `suggested_fix` per violation — are
+parsed into a typed report. The rules are applied by the model; only the
+verdict is computed in code.
+
+|Persistence
+|The report is stored in object storage under the round, as
+`compliance/check-<token>.json`, with a `compliance_checks` row holding the
+`passed` verdict. The session detail returns it in the round's
+`compliance_checks`, and the portal renders it in the session view and,
+when the session is locked, in the blocked pull-request view.
+
+|Verdict in code
+|The tool handler recomputes `passed` from the reported severities: any
+`error` or `critical` violation fails the check regardless of the model's
+own claim.
+
+|Effect
+|Every generate round writes `is_blocked = (audit failed) or (high
+impact)`, high impact meaning `orchestration.block_on_high_impact` is on and
+the report's banner is `high`. Failure sends `iac.compliance.failed`, or
+`iac.impact.high`, to the notifications sidecar. Apply and pull-request
+merge refuse blocked sessions with `409`; pull-request *creation* is not
+lock-checked, and the audited code is already on the working branch, so the
+lock guards the apply boundary specifically. A later passing generate round
+with a non-high impact clears the lock, drift rounds leave it untouched, and
+a panel `editor` can toggle it from the admin panel.
+|===
+
+=== Progress and persistence
+
+Status rows are appended to PostgreSQL with a Redis write-through; there is
+no message broker. The stream endpoint polls the last status every 4-5
+seconds — usually from Redis — and sends small JSON events until a terminal
+status. The SPA reads it with `fetch` and a streaming response rather than
+`EventSource`, which cannot carry an `Authorization` header, and retries
+three times with exponential backoff. A `401` is not retried and surfaces as
+a session-expired event. Token and ownership are checked once, at connect
+time.
+
+=== Artifacts and telemetry
+
+* Reports, plans, drift JSON and per-file code changes go to the
+  `kumoss-artifacts` bucket, metadata to PostgreSQL. The browser fetches
+  them through presigned URLs signed against the public port-9000 endpoint
+  nginx forwards to RustFS.
+* Every run installs a per-session tracer exporting OpenInference-annotated
+  spans — LLM, tool, chain, Terraform — to Phoenix over OTLP/HTTP.
+* Prompt templates live in Phoenix as a runtime registry, seeded at boot and
+  fetched per request by environment tag, so prompt edits apply without a
+  redeploy.
+* Notifications are fire-and-forget: the facade no-ops when the sidecar is
+  disabled and logs every send failure instead of failing the pipeline.

@@ -1,0 +1,251 @@
+= Mapping sidecar API
+:description: The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
+
+The mapping service answers one question: *given what my organization
+calls this thing, which repository holds its IaC?* The identifier can
+be a project name, a subscription code, a product slug, or a full git
+URL — whatever the organization already uses. The service returns the
+clone URL and, when its catalogue knows them, the Terraform provider
+the identifier deploys with and the cloud scope it deploys into.
+
+Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are
+best effort, and *`null` means "I do not know, ask the user"* — never
+"there is none". The wizard skips its provider and scope questions for
+any field the mapper answers, so a confident wrong answer is worse than
+`null`: the user is never prompted and never sees it. An implementation
+returns `null` whenever its catalogue is not authoritative.
+
+Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint:
+`\http://mapping:8081`. Bearer token: the value of the variable named
+by `services.mapping.token_env`, `KUMOSS_MAPPING_TOKEN` by default.
+The service is *optional* and ships disabled
+(`services.mapping.enabled: false`).
+
+It is internal-only. The browser never reaches it: the core forwards
+requests through `POST /api/v1/mapping/resolve`.
+
+== Endpoints
+
+Two paths.
+
+[cols="2,4",options="header"]
+|===
+|Endpoint |What it does
+
+|`POST /v1/resolve`
+|Translates `identifier` into the repository the rest of Kumoss
+operates on, and optionally into the Terraform provider and cloud scope
+the caller would otherwise have to ask the user for.
+
+|`GET /healthz`
+|Liveness probe, answers `{"status":"ok"}`.
+|===
+
+== Request
+
+[source,json]
+----
+{"identifier": "my-project", "terraform_provider": "azure"}
+----
+
+Only `identifier` is required. `additionalProperties` is `false`.
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`identifier`
+|1-1024 chars
+|The business identifier to resolve. Free-form by design.
+
+|`terraform_provider`
+|enum, nullable
+|The provider the caller already knows the deployment targets — one of
+`azure`, `gcp`, `aws`, `oci`, `kubernetes` (the core's own vocabulary,
+not Terraform registry names such as `azurerm` or `google`). An
+implementation may use it to disambiguate an identifier that spans
+clouds, and must echo it back when it is sent. May be omitted or sent as
+null, meaning the caller does not know either.
+|===
+
+The wizard never sends `terraform_provider`: resolution runs at the
+repository step, before a provider has been picked. The field exists
+for contract completeness and for callers other than the wizard.
+
+== Response
+
+[source,json]
+----
+{
+  "repo_url": "https://github.com/me/my-iac.git",
+  "identifier": "my-project",
+  "terraform_provider": "azure",
+  "scope_id": "0000aaaa-11bb-cccc-dd22-eeeeee333333"
+}
+----
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Limits |Meaning
+
+|`repo_url`
+|1-2048 chars, required
+|The URL Kumoss clones. Free-form because git accepts many URL shapes
+— `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute
+path. Returning something the deployment's git client can actually
+clone is the implementation's responsibility. When the identifier
+already is a repository URL, it is passed through unchanged.
+
+|`identifier`
+|1-1024 chars, required
+|The request's `identifier`, echoed verbatim. Normative rather than
+conventional: callers correlate responses on it.
+
+|`terraform_provider`
+|enum, nullable
+|The provider the deployment targets. Echoes the request's value when
+one was sent; otherwise the implementation's best-effort answer, or
+`null` for "I do not know, ask the user". Never a guess — the caller
+skips its provider prompt when this is non-null, so a wrong value is
+never seen or corrected.
+
+|`scope_id`
+|1-1024 chars, nullable
+|The cloud scope the deployment targets — Azure: subscription id, GCP:
+project id, AWS: account id, OCI: compartment OCID — as a best-effort
+answer, or `null` for "I do not know, ask the user". Same warning as
+`terraform_provider`: a wrong value sends the user into a plan against
+the wrong scope with nothing to catch it. The core does not validate
+the value against the wizard's typed-scope pattern, so an OCID is
+accepted here even though it cannot be typed in the wizard.
+|===
+
+`additionalProperties` is `false` on the response too, so a client can
+rely on these four keys being the whole of it.
+
+=== Status codes
+
+[cols="1,5",options="header"]
+|===
+|Status |Meaning
+
+|`200`
+|Resolved.
+
+|`400`
+|The body could not be parsed at the transport layer — malformed JSON,
+non-UTF-8 bytes, no `Content-Type`. May be a problem document or a
+framework-default body.
+
+|`401`
+|Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
+challenge.
+
+|`403`
+|The token is valid but not authorized for this endpoint.
+
+|`404`
+|The identifier is not in the catalogue. The contract reserves this
+for a clean negative answer, *distinct* from a transient backend
+failure, which is a `5xx`.
+
+|`422`
+|Well-formed JSON that failed schema validation, including a
+`terraform_provider` outside the enum.
+
+|`502`
+|The downstream catalogue or CMDB returned an error.
+|===
+
+The `404`-versus-`502` split is the one design decision a catalogue
+implementation should get right: it is what lets the core tell a user
+"no such project" instead of "try again later".
+
+== How the core consumes the answer
+
+The core calls the service from `POST /api/v1/mapping/resolve` and
+surfaces a timeout as `504` and an unreachable sidecar as `502`. Two
+more answers are also `502`: a body the core cannot parse, and a
+`terraform_provider` outside the contract's enum (the generated client
+hands the raw string through, and the core refuses it rather than
+letting it fail later). There is no silent fallback once the sidecar is
+enabled.
+
+When the sidecar is disabled (the shipped default) the core answers
+byte-for-byte what the bundled service would: `repo_url` and
+`identifier` both echo the input, `terraform_provider` echoes whatever
+was sent, and `scope_id` is `null`. Toggling `services.mapping.enabled`
+therefore changes nothing for a user who pastes a repository URL.
+
+== The bundled implementation
+
+`services/mapping/` is an *identity passthrough*. Whatever
+`identifier` arrives comes back as both `repo_url` and `identifier`,
+`terraform_provider` echoes what the caller sent, and `scope_id` is
+always `null`. Nothing is truncated and nothing is guessed: sniffing
+`azure` out of a `dev.azure.com` URL would conflate "hosted on Azure
+DevOps" with "deploys to Azure", and a guess is a question the user
+never gets to correct. It exists so a fresh deployment works end to end
+without anyone writing a real mapper, and it is exactly right for users
+who pass real git URLs already.
+
+A catalogue-backed implementation replaces it: look the identifier up
+in a CMDB, Backstage, or a shared spreadsheet and return the canonical
+IaC repository, plus the provider and scope when the catalogue is
+authoritative for them. The contract carries the result and says
+nothing about where the lookup data lives.
+
+=== Responses it never produces
+
+The contract documents `400`, `403`, `404`, and `502` for real
+catalogue backends. The passthrough emits none of them — it has no
+catalogue to miss in and no authorization concept beyond the bearer
+token. It only ever answers `200`, `401`, `422`, or `500`. A caller
+must still handle the full set, because a catalogue implementation
+will use it.
+
+=== Configuration
+
+[cols="2,1,4",options="header"]
+|===
+|Variable |Required |Meaning
+
+|`KUMOSS_MAPPING_TOKEN`
+|no
+|Bearer token clients must present. Blank disables the check entirely
+and accepts every request.
+|===
+
+[#conformance]
+== Conformance
+
+The implementation-agnostic Schemathesis suite at
+`contracts/conformance/mapping/` runs against any implementation of
+this contract:
+
+[source,bash]
+----
+cd contracts/conformance/mapping
+uv sync
+uv run pytest \
+  --service-url=https://mapping.your.example \
+  --service-token=$YOUR_TOKEN
+----
+
+`--service-token` is needed only if the implementation enforces
+authentication.
+
+The suite generates requests from the OpenAPI document and checks
+schema conformance of the responses. It cannot check that the
+identifiers your catalogue resolves are the *right* repositories, nor
+that a provider or scope it answers is true — that is what the
+implementation's own tests are for.
+
+== Next steps
+
+* xref:main:reference/api/core.adoc[Core API] for the core route that
+  wraps this one.
+* xref:main:reference/configuration.adoc#config-services[the `services`
+  section] of the configuration reference for enabling the sidecar.
+* xref:main:guides/make-a-request.adoc[Make a request] for which wizard
+  questions a mapper's answers skip.

@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { apiFetch } from "@/services/api";
+import { metadataHeaderPrefix } from "@/services/auth";
+import { isGitDiff } from "@/utils/diffUtils";
 import type {
   OperationType,
   PaginatedSessionSummary,
+  PlanType,
   SessionDetail,
   SessionStatus,
 } from "@/types/api";
@@ -20,7 +23,7 @@ export interface ListSessionsParams {
   operation?: OperationType;
 }
 
-/** GET /api/v1/sessions — The caller's own sessions (always self-scoped) */
+/** GET /api/v1/sessions/list — The caller's own sessions (always self-scoped) */
 export async function listUserSessions(
   params: ListSessionsParams = {},
 ): Promise<PaginatedSessionSummary> {
@@ -31,11 +34,13 @@ export async function listUserSessions(
     }
   }
   const qs = query.toString();
-  return apiFetch<PaginatedSessionSummary>(qs ? `${BASE}?${qs}` : BASE);
+  return apiFetch<PaginatedSessionSummary>(
+    qs ? `${BASE}/list?${qs}` : `${BASE}/list`,
+  );
 }
 
 /**
- * GET /api/v1/sessions/{sessionId} — Full session aggregate (facts,
+ * GET /api/v1/sessions?id={sessionId} — Full session aggregate (facts,
  * timeline, rounds). `includeHistory` also populates `history` with the
  * raw conversation turns; it always reads fresh (bypasses the
  * finished-session cache), so leave it off in polling loops.
@@ -44,10 +49,9 @@ export async function getSessionDetail(
   sessionId: string,
   opts?: { includeHistory?: boolean },
 ): Promise<SessionDetail> {
-  const suffix = opts?.includeHistory ? "?include_history=true" : "";
-  return apiFetch<SessionDetail>(
-    `${BASE}/${encodeURIComponent(sessionId)}${suffix}`,
-  );
+  const query = new URLSearchParams({ id: sessionId });
+  if (opts?.includeHistory) query.set("include_history", "true");
+  return apiFetch<SessionDetail>(`${BASE}?${query}`);
 }
 
 /** Whether applying is currently allowed for a session (inverse of is_blocked). */
@@ -56,11 +60,119 @@ export async function checkApplyAllowed(sessionId: string): Promise<boolean> {
   return !detail.is_blocked;
 }
 
-/** Fetch artifact content directly from its (pre-signed) storage URL */
-export async function fetchArtifactContent(url: string): Promise<string> {
+/**
+ * One artifact read: the body, plus what the store said about it. Both
+ * arrive in the same response, so a caller needing both must not pay twice.
+ */
+export interface ArtifactPayload {
+  text: string;
+  /**
+   * The plan flavour, or null for an artifact that carries no `type`
+   * metadata — every report and code change, and any plan stored before
+   * the backend began writing it.
+   */
+  planType: PlanType | null;
+  /** See `readIsNewFile`. Meaningless for reports and plans. */
+  isNewFile: boolean;
+}
+
+/**
+ * One user-metadata value the store returned alongside an object.
+ *
+ * The backend writes bare keys (`type`, `new_file`) and each store
+ * renames them on the way out — S3 and RustFS to `x-amz-meta-`, Azure
+ * Blob to `x-ms-meta-`. Nothing is guessed here: `GET /api/v1/auth/config`
+ * tells the SPA which prefix the deployed store uses. `Headers.get` is
+ * case-insensitive, so the prefix's casing costs nothing.
+ *
+ * Null when the key is absent — and also when the store's CORS rules do
+ * not expose it: the reference proxy's `Access-Control-Expose-Headers`,
+ * or `ExposeHeaders`/`ExposedHeaders` on an S3 bucket or Azure storage
+ * account. Indistinguishable from here; see the networking guide.
+ */
+function readMeta(response: Response, key: string): string | null {
+  return response.headers.get(`${metadataHeaderPrefix()}${key}`);
+}
+
+/** The plan flavour, or null when absent or unrecognised. */
+function readPlanType(response: Response): PlanType | null {
+  const value = readMeta(response, "type");
+  return value === "drift" || value === "plan" ? value : null;
+}
+
+/**
+ * Whether a code change's body is a whole file rather than `git diff`
+ * output.
+ *
+ * The backend tags tracked-file diffs `new_file=false` — including newly
+ * *added* tracked files, whose diff carries `new file mode` — and
+ * untracked files `new_file=true`. So this is the artifact's SHAPE, not
+ * its novelty, which is exactly what the viewer needs.
+ *
+ * The tag is authoritative when present. When it is absent the shape is
+ * sniffed from the body instead: absence is indistinguishable from a
+ * store whose CORS rules do not expose the header (see `readMeta`), and
+ * on such a deployment a fixed answer would mislabel EVERY artifact —
+ * rendering raw `diff --git` text in a plain editor, and stopping
+ * `composeFileArtifacts` from chaining multi-artifact files at all.
+ * Sniffing is wrong only on the narrow case the tag exists to settle, so
+ * it degrades where the fixed answer fails outright.
+ */
+function readIsNewFile(response: Response, text: string): boolean {
+  const tag = readMeta(response, "new_file");
+  if (tag === "false") return false;
+  if (tag === "true") return true;
+  return !isGitDiff(text);
+}
+
+/** Fetch an artifact's body and metadata from its (pre-signed) storage URL. */
+export async function fetchArtifact(url: string): Promise<ArtifactPayload> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch artifact: ${response.status}`);
   }
-  return response.text();
+  const text = await response.text();
+  return {
+    text,
+    planType: readPlanType(response),
+    isNewFile: readIsNewFile(response, text),
+  };
+}
+
+/** Fetch artifact content directly from its (pre-signed) storage URL */
+export async function fetchArtifactContent(url: string): Promise<string> {
+  return (await fetchArtifact(url)).text;
+}
+
+/**
+ * A plan's flavour alone, without downloading the plan.
+ *
+ * The object is the only place it lives: `terraform_plans` holds no
+ * flavour column and the read model does not synthesise one, so asking
+ * means fetching. Use `fetchArtifact` when the body is wanted too — it
+ * returns both from one response. This is for labelling timeline rows
+ * nobody has opened yet.
+ *
+ * `Range: bytes=0-0` keeps that to a single byte, and a simple byte
+ * range is CORS-safelisted, so it costs no preflight. RustFS answers 206
+ * with the object's metadata headers intact; Azure answers 206 for the
+ * same request.
+ *
+ * A HEAD would be cheaper still and is not portable: an Azure read-SAS
+ * serves one, but an S3 or RustFS URL is presigned for GET and SigV4
+ * covers the method, so HEAD is 403 there. The ranged GET is the one
+ * shape both backends answer.
+ *
+ * Returns null rather than throwing when the flavour is unreadable.
+ * Callers fall back to the neutral label; a plan row is still openable
+ * without knowing its flavour.
+ */
+export async function fetchPlanType(url: string): Promise<PlanType | null> {
+  try {
+    const response = await fetch(url, { headers: { Range: "bytes=0-0" } });
+    if (!response.ok) return null;
+    return readPlanType(response);
+  } catch {
+    return null;
+  }
 }

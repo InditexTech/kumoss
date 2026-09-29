@@ -1,0 +1,238 @@
+= Administer users and locks
+:description: Sign in and reach the admin panel, review any user's sessions, and manage session locks and roles.
+
+The Kumoss web application has one portal for looking at sessions, with
+two views: *Your sessions* (`/user/sessions`), where every signed-in user
+sees the sessions they own, opens their details and artifacts, and jumps
+back into a session to continue it; and the *admin panel* (`/admin`),
+where users who hold an admin-panel role see every user's sessions, can
+lock or unlock the apply of a session, and, for panel admins, manage
+roles. This guide explains how to sign in and reach both views, what
+each one shows, and how to perform the common administrative tasks:
+reviewing any user's session and locking or unlocking the apply of a
+session. It describes what the current API and UI implement; operations
+that do not exist (deleting users or sessions, for example) are not
+described.
+
+== Prerequisites
+
+* An admin-panel role (`viewer`, `editor`, or `admin`) to reach the admin
+  panel; a session owner with no panel role only sees their own
+  sessions. See
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+  for the complete role matrix.
+* An account, reached through your identity provider or, with
+  authentication disabled (the checked-in default), the built-in local
+  developer identity.
+
+== Signing in and finding the admin panel
+
+. Open the application. With OIDC enabled you are redirected to your
+  identity provider and back; with authentication disabled (blank
+  `oidc.issuer_url`, the checked-in default) you land in the wizard
+  directly as the built-in local developer. If your token expires the
+  application shows "Your session has expired. Please sign in again."
+. The *user icon* in the header opens your user page (`/user`), which
+  has three sections: *Profile* (name, e-mail, sign-out), *Session
+  History* with a "View all sessions" button that opens your sessions
+  view, and, only for users with a panel role, *Admin* with an "Admin
+  Panel" button that opens the admin panel.
+. The *Sessions* panel in the footer of the wizard lists your most
+  recent sessions; "View all" opens the same sessions view, and
+  selecting an entry opens that session's detail directly
+  (`/user/sessions?session=<id>`).
+. Users without a panel role who type `/admin` are redirected to the
+  home page.
+
+== Your sessions view
+
+Reached from the user page or the footer. It lists the sessions you own,
+newest first, with these columns: query, project, type, cloud, status,
+apply lock, and creation time. Controls:
+
+* *Search* by project name, query text, or session id, plus *type*
+  (`generate`, `drift`, `import`) and *status* (`generating`,
+  `completed`, `uncompleted`, `failed`) filters. Results are paginated.
+* *Apply column.* A read-only lock icon showing whether apply and
+  pull-request merge are currently blocked for that session. Owners
+  cannot change it; only a panel editor or admin can, from the admin
+  panel.
+
+Clicking a row opens the detail panel with: type, cloud, status, failure
+message when present, duration, a timeline of statuses per round with
+the artifacts attached to each (report, apply report, drift report,
+Terraform plan, changed files), and additional information (session id,
+IaC path, scope, repository link, pull-request links). Artifacts render
+inline: JSON reports as change tables with impact and cost sections,
+plans as code, and code changes as file diffs.
+
+*Reload Session* (shown unless the session failed) reopens the session
+in the wizard, in the mode the session was created with, so you can
+review the results, create or merge the pull request, apply, or
+continue the conversation. Failed sessions cannot be resumed; start a
+new one.
+
+The conversation history is not shown in this view; it is available in
+the admin panel.
+
+== Admin panel
+
+Reached from the "Admin Panel" button on the user page. It has a
+*Sessions* tab for every panel role and a *Users* tab for panel `admin`
+only.
+
+=== Sessions tab
+
+The table lists sessions from every user with these columns: user
+(local part of the e-mail), session id (first eight characters; the
+full id on hover), query, project, type, cloud, status, apply lock, and
+creation time.
+
+Controls:
+
+* *Search by user email* and *Search by project name, query or session
+  id*, plus the same *type* and *status* filters as the user view.
+  Results are paginated.
+* *Apply column.* Viewers see the same read-only lock icon as owners.
+  For editors and admins the icon becomes a button (its accessible name
+  is "Lock apply" or "Unlock apply") that toggles the lock; the detail
+  panel shows the same state as the text "Apply Locked" or "Apply
+  Open".
+* *Phoenix.* A link that opens `/monitoring/projects` in a new tab,
+  where the traces of every run live. The link is not filtered by
+  session; search by session id in Phoenix. See
+  xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
+
+The detail panel shows everything the owner sees plus the conversation
+*History* (every user request and answer in the session) and, for
+editors and admins, the "Apply Locked" or "Apply Open" toggle. "Reload
+Session" is available here too and opens the session in the wizard.
+
+=== Users tab (panel `admin` only)
+
+The table lists users (display name with the e-mail underneath, or the
+e-mail alone when there is no display name), *Operation role*
+(`Developer`, `DevOps`), *Panel role* (`No access`, `Viewer`, `Editor`,
+`Admin`), and creation time, newest first. The page-size selector offers
+10, 15, 25, and 50 rows (15 by default, remembered in the browser); the
+API itself accepts any `page_size` from 1 to 100. A search box matches
+e-mail or display name.
+
+Changing a drop-down saves immediately by sending the user's complete
+role state to `PUT /admin/users/\{user_id}/roles`. Rules enforced by the
+API:
+
+* `operation_role` is required; every user always has one.
+* `panel_role` may be `viewer`, `editor`, `admin`, or omitted; omitting
+  it removes panel access.
+* A panel admin cannot set their own panel role to anything but `admin`
+  (`409 A panel admin cannot remove their own admin role.`). The UI
+  disables that drop-down for your own row. An admin may still change
+  their own operation role.
+* Unknown user id: `404`.
+
+[#session-locks]
+== Session locks
+
+A lock (`is_blocked` on the session) prevents two actions by the owner:
+apply (`409 Session ... is blocked; apply is not allowed.`) and
+pull-request merge (`409 Session ... is blocked; PR merge is not
+allowed.`). It does not prevent reading the session, continuing the
+conversation, or creating a pull request. Owners see the lock state in
+their sessions view and in the results view of the wizard but cannot
+change it.
+
+Locks are set in two ways:
+
+* *Automatically* at the end of a generate round, from two independent
+  triggers, each behind its own switch: the compliance check fails (only
+  when `orchestration.enable_compliance_checker` is `true`; a disabled
+  checker always passes), or the report's impact banner is `high` (only
+  when `orchestration.block_on_high_impact` is `true`). Both default to
+  `false` in code and the shipped `config.yaml` turns both on, so a
+  configuration that omits the `orchestration` block disables both
+  triggers. A later generate round that passes cleanly clears the lock
+  again. Notifications are sent when the notifications sidecar is
+  enabled.
+* *Manually* by a panel editor or admin, in either direction, from the
+  admin panel.
+
+The lock is recomputed at the end of *every* generate round from that
+round's compliance and impact result, unconditionally. A manual lock or
+unlock therefore lasts only until the owner's next generate round on that
+session, which sets the flag afresh; drift rounds never change it.
+
+== Walkthroughs
+
+=== Checking on your own session
+
+. Open the footer *Sessions* panel or your user page and choose "View
+  all sessions".
+. Filter by status or search by project to find the session. The Apply
+  column tells you whether apply and merge are currently blocked.
+. Open the row to read the report, the plan, and the changed files.
+. Press *Reload Session* to return to the wizard for that session and
+  continue: create the pull request, merge it, apply, or send a
+  follow-up request.
+
+=== Reviewing a failed session (panel `viewer` or higher)
+
+. Open the admin panel, Sessions tab. Filter *status* to `failed`, or
+  search by the user's e-mail.
+. Open the session. Read the failure message and the timeline; the last
+  status message usually names the failing step (validation, plan,
+  apply).
+. Expand the round's artifacts. A `Terraform Plan` or drift report shows
+  engine output; a `Report` shows what the model concluded. Code-change
+  artifacts show exactly what was written.
+. Open *History* to read the conversation, including declined or
+  reformulated requests.
+. Use the *Phoenix* link to inspect the traces for the session id when
+  you need the prompts, tool calls, or model outputs behind a step.
+. Failed sessions cannot be resumed; ask the owner to start a new
+  session with the corrected request.
+
+=== Locking or unlocking the apply of a session (panel `editor` or higher)
+
+Use a lock when a report looks risky but the automatic lock did not
+trigger, or when a change must wait for an out-of-band approval. Use an
+unlock after the automatic lock (failed compliance or `high` impact) has
+been reviewed and accepted.
+
+. Admin panel, Sessions tab. Find the session (search by user e-mail,
+  project, or session id).
+. Press *Lock apply* or *Unlock apply* in the Apply column, or open the
+  detail panel and toggle *Apply Open* / *Apply Locked*.
+. While locked, the owner receives `409` on apply and on pull-request
+  merge. Creating the pull request is still possible so that reviewers
+  can read the diff.
+. After unlocking, the owner can merge and apply from the results view
+  of their session.
+
+=== Promoting a user to DevOps (panel `admin`)
+
+. Admin panel, Users tab. Search by e-mail or name.
+. Change *Operation role* from `Developer` to `DevOps`. The change is
+  saved immediately.
+. The user sees the drift modes on their next page load; roles are read
+  from `/api/v1/users/me` when the application starts.
+
+=== Granting viewer, editor, or admin panel access (panel `admin`)
+
+. Admin panel, Users tab. Find the user.
+. Set *Panel role* to `Viewer` (read all sessions), `Editor` (also lock
+  and unlock), or `Admin` (also manage users). Choose `No access` to
+  remove panel access.
+. The new panel user finds the *Admin Panel* button on their user page
+  after reloading.
+
+Remember that granting a panel role does not change what the user can do
+to infrastructure; adjust the operation role separately if needed.
+
+== Next steps
+
+* xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] to
+  inspect the traces behind any session.
+* xref:main:additional-information.adoc#support-requests[Support
+  requests] for who receives the support requests users send from the
+  application header.

@@ -1,0 +1,259 @@
+= Operations
+:description: Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.
+
+This is the last of four pages that expand
+xref:main:guides/deploy-to-production.adoc[Deploy to production]: with
+networking and hardening decided, this page covers what each data
+service holds and how to run it in production, how to back up and
+upgrade a deployment, how to verify a fresh deployment, and how to
+diagnose the failures a production deployment is most likely to hit.
+
+[#data-and-persistence]
+== Data services and persistence
+
+*PostgreSQL (core).* The system of record: users and roles, sessions
+and their ownership, rounds, statuses, conversation history, pull
+requests, and artifact metadata. Use a managed instance with backups
+and TLS. There are *no migrations*: the schema is created with
+`create_all` at start-up, and a schema change between versions requires
+a manual migration or a fresh database. Plan upgrades accordingly.
+
+*Redis.* A cache; the database remains authoritative and cache
+operations fail open at runtime. The boot-time connectivity check must
+succeed, so Redis has to exist, but it needs no persistence.
+
+*Object storage.* `storage.bucket` holds reports, plans, drift output,
+and code-change artifacts under
+`sessions/<session>/rounds/<round>/`. A second bucket,
+`storage.terraform_state_bucket`, holds Terraform/OpenTofu state under
+`<project_id>/terraform.tfstate` — it ships set to
+`kumoss-terraform-state`, so this is on by default; set it explicitly
+to `""` to leave state to each repository's own backend instead. Every
+configured bucket is created at boot if missing, and the core *fails to
+boot* if the store is unusable. Choose `storage.provider`:
+
+* `S3`: AWS S3 on its regional endpoint, credentials from the default
+  chain or static keys. State uses the `s3` backend with
+  `use_lockfile = true`.
+* `STORAGE_ACCOUNT`: an Azure storage account with a shared key. State
+  uses the `azurerm` backend with native blob leases.
+* `RUSTFS`: RustFS or any S3-compatible server with a custom endpoint.
+
+Browsers download artifacts through *presigned URLs* built against
+`storage.public_endpoint_url`, so that endpoint must be reachable from
+users' browsers over TLS, and the bucket policy must allow presigned
+reads. Links are valid for `storage.presign_expiry_seconds` (48 hours
+by default). Apply lifecycle and retention rules; Kumoss never deletes
+stored artifacts (it only removes an object whose database record
+failed to be written).
+
+Since Kumoss-managed state is on by default, treat the *state bucket
+differently from the artifacts bucket*. It is never browser-facing and
+needs no presigned reads; it must be reachable from the *IaC sidecar*,
+not from users; and it should carry versioning and soft delete, be
+excluded from any artifact expiry rule, and be included in your restore
+drills — it is the record of what Kumoss has built. Kumoss never
+deletes a state object. Details and per-provider IAM minimums:
+xref:main:guides/configure-state-backends.adoc#operations[Operations].
+
+*Phoenix.* Required at core start-up (prompt seeding retries for about
+27 seconds and then aborts the boot) and on every request (prompt
+fetch). Run it with its own PostgreSQL, back that database up, and put
+the UI and API behind access control: Phoenix has *no authentication of
+its own*, and it holds prompts, plans, generated code, repository
+metadata, and user identifiers. The core sets no exporter headers; OTLP
+header env vars may be honoured by the OpenTelemetry SDK but this is
+not verified here — put an authenticating proxy or collector in front
+of Phoenix if you need auth. Note that the same
+`telemetry.collector_url` serves both trace export and the prompt API
+(xref:main:guides/monitor-with-phoenix.adoc#configuration[Configuration]).
+
+*Checked-in defaults you must not carry into production.* The compose
+file hard-codes several credentials and settings that are fine only on
+an isolated workstation:
+
+* `POSTGRES_PASSWORD=postgres` on both `core-db` and `phoenix-db`, and
+  the matching password embedded in `PHOENIX_SQL_DATABASE_URL`. Replace
+  all three with a generated password from your secret store, and
+  update `KUMOSS_SQL_DATABASE_URL` and `PHOENIX_SQL_DATABASE_URL` to
+  match.
+* `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` default to `rustfsadmin` /
+  `rustfsadmin`. Rotate both to generated values (and update the core's
+  `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`) before onboarding real data.
+  Set them explicitly on the core: when `storage.provider` is `RUSTFS`
+  and the variables are absent, the core silently falls back to
+  `rustfsadmin` — deleting them does not remove the default, only
+  setting them does.
+* `RUSTFS_CONSOLE_ENABLE=true` exposes the RustFS web console. Disable
+  it, or make sure port 9000's console path is never reachable outside
+  the cluster network — only the presigned-URL data path belongs on the
+  public endpoint.
+* Floating image tags (`rustfs/rustfs:latest`,
+  `ghcr.io/astral-sh/uv:latest` in every Python Dockerfile,
+  `node:24-alpine`, `postgres:17`, `redis:8.8`) are convenient for local
+  use but not reproducible. Pin every image you run in production by
+  digest.
+
+[#backups-and-upgrades]
+== Backups and upgrades
+
+Back up: the core PostgreSQL database, the Phoenix PostgreSQL database
+(prompts and traces), the artifacts bucket, and — with the highest
+priority — wherever *Terraform state* lives, since losing it means
+losing the record of the infrastructure Kumoss manages. That is the
+state bucket if you enabled Kumoss-managed state, and otherwise the
+backend each repository declares, which is covered by whoever owns it.
+The workspace volume needs no backup beyond surviving restarts.
+
+Upgrading Kumoss:
+
+. Read the release notes for schema changes; there are no automatic
+  migrations. One known breaking change predates OIDC support and is
+  documented in full in
+  xref:main:architecture/data-and-state.adoc[Data and state]: migrate
+  or drop the affected volume by hand before you point a current core
+  at it.
+. Rebuild or pull the images and the configuration for the new version.
+. New prompt seed files are created in Phoenix on the next core start;
+  existing prompts are never overwritten, so review the seed changes
+  and apply the ones you want as new prompt versions in Phoenix.
+. Do not change `environment` on an existing deployment without first
+  tagging every prompt version with the new value.
+
+== Verification checklist
+
+After the first deployment:
+
+[source,bash]
+----
+# Public route: issuer must be non-empty in production
+curl https://kumoss.example.invalid/api/v1/auth/config
+
+# Protected route: must answer 401 without a token
+curl -i https://kumoss.example.invalid/api/v1/users/me
+
+# Sidecar liveness from inside the cluster network
+curl http://iac:8082/healthz
+----
+
+Then, as the bootstrap administrator:
+
+. Sign in; confirm the user page shows the Admin section and the admin
+  portal lists users.
+. Run a generate session against a test repository and a test cloud
+  project; confirm the branch, the pull request, the report, and the
+  traces in Phoenix under `pro-terraform-day2`. Also confirm state
+  landed where you intended: with the shipped default (Kumoss-managed
+  state), the core logs `Terraform state: <provider>
+  bucket=<bucket> key=<project_id>/terraform.tfstate` before `init` and
+  that object must exist in the state bucket afterwards; if you set
+  `storage.terraform_state_bucket` to `""`, check the backend the
+  repository declares instead, and confirm `init` did not silently fall
+  back to local state. Either way the pull request must contain *no*
+  `backend_override.tf` and no `*.tfstate`.
+. Trigger a compliance failure or a high-impact change and confirm the
+  session is locked and the notification arrives.
+. Apply from a session that passed, and confirm the plan that ran is
+  the one reviewed.
+. Restart the core and confirm it boots (prompt seeding reports
+  `already present`) and that sessions resume normally.
+
+== Troubleshooting
+
+[cols="3,3,3",options="header"]
+|===
+|Symptom |Cause |Fix
+
+|Core exits with `Services the core calls have no bearer token`
+|The IaC sidecar's token variable, or that of a sidecar enabled in
+`config.yaml`, is empty in the core's environment.
+|Set a distinct bearer token on both sides of every enabled sidecar.
+
+|Core exits with `Phoenix unreachable after 8 attempts`
+|Phoenix is not reachable at `telemetry.collector_url` from the core, or
+the URL lacks the trailing slash.
+|Fix the URL or the network path, then restart the core.
+
+|Core boots with every optional sidecar disabled although
+`config.yaml` enables them
+|`KUMOSS_CONFIG` points at a missing path or a directory; the core fell
+back to defaults (the IaC sidecar is always called regardless, and its
+own default endpoint is unlikely to resolve, which surfaces as a
+different failure).
+|Fix the mount path so `KUMOSS_CONFIG` resolves to a regular file.
+
+|Users get `401 Token validation failed ... audience`
+|Usually the API scope or `audience` setting.
+|See xref:main:guides/enable-authentication.adoc#troubleshooting[OIDC
+troubleshooting].
+
+|The session view never updates
+|The ingress buffers the SSE path.
+|Disable buffering for `/api/v1/events/subscribe/`.
+
+|Artifact links fail in the browser
+|`storage.public_endpoint_url` is not reachable from browsers, or the
+presigned host differs from the endpoint users reach.
+|Point `storage.public_endpoint_url` at a browser-reachable address and
+rebuild the core image.
+
+|Every plan fails with `permission denied` on state or plan files
+|The shared workspace is not writable by uid `10001`, or the two
+containers run as different users.
+|`chown -R 10001:10001` the workspace volume and align `KUMOSS_UID`/
+`KUMOSS_GID` on both images.
+
+|`init` fails downloading providers
+|Egress to `registry.opentofu.org` (or `registry.terraform.io`) is
+blocked or TLS-inspected.
+|Allow the egress, or mount your inspection CA into the IaC container.
+
+|Every session plans against empty state and nothing is recorded
+|This happens when a deployment has explicitly set
+`storage.terraform_state_bucket` to `""` and the target repository
+declares no backend of its own: `init` then falls back to local state,
+whose file dies with the workspace.
+|Add a backend to the repository, or remove the explicit `""` (a bucket
+name, or dropping the key, re-enables Kumoss-managed state) and rebuild
+the core image.
+
+|`init` fails with `InvalidAccessKeyId` after switching
+`storage.provider` to `S3`
+|`RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` are still set to
+`rustfsadmin`, so those keys were embedded into the state backend
+block.
+|Blank both and rebuild the core image.
+
+|`init` fails on the state backend with `AccessDenied` or a
+credentials error
+|The *IaC sidecar* lacks credentials or permissions for the state
+bucket, or cannot reach `storage.endpoint_url`. Granting the role to
+the core alone is not enough.
+|See
+xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
+required].
+
+|Every plan proposes creating resources that already exist
+|The project's state key changed, or state was not migrated after a
+backend change; `init` always uses `-reconfigure` and never migrates.
+|See
+xref:main:guides/configure-state-backends.adoc#changing-backend-configuration[Changing
+backend configuration].
+
+|`Error acquiring the state lock`
+|Another run holds it, or a crashed run left it stale.
+|Clear it deliberately (xref:main:guides/state-backends/kumoss-managed.adoc#locking[Locking]).
+
+|`init` fails on a missing backend configuration file
+|`IAC_BACKEND_CONFIG` is not validated at startup, so the sidecar starts
+and the error appears in the first job that runs `init`. The file is
+not mounted at that path inside the container, or is not readable by
+uid `10001`.
+|Fix the mount and its ownership, or unset the variable.
+
+|A run stopped without a failure message
+|A prompt was missing in Phoenix for the deployment's `environment`
+tag.
+|See xref:main:guides/customize-prompts.adoc#runtime-lookup[Runtime
+lookup].
+|===

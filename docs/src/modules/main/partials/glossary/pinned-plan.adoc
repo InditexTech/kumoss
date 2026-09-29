@@ -1,0 +1,5 @@
+The plan file and validated workspace that a successful generate round
+renames into the session's `pinned` directory, replacing any earlier pin,
+and that `POST /api/v1/iac/apply` executes without re-planning. Only
+generate rounds pin — drift rounds never do — and apply consumes and
+discards it whatever the outcome.

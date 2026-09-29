@@ -62,6 +62,7 @@ class SessionStatus(Enum):
     FILTERING = "filtering"
     GENERATING = "generating"
     VALIDATING = "validating"
+    RECONCILING = "reconciling"
     REPORT = "report"
     APPLY = "apply"
     COMPLETED = "completed"
@@ -80,6 +81,9 @@ class PromptsLibrary(Enum):
     FILTER_DRIFT_EXCEPTIONS = "filter_drift_exceptions"
     PROMPT_COMPOSITOR = "prompt_compositor"
     IAC_GENERATOR = "iac_generator"
+    IMPORT_FILTER = "import_filter"
+    IMPORT_EXCEPTIONS = "import_exceptions"
+    IMPORT_ADDRESSES = "import_addresses"
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
     PR_GENERATOR = "pr_generator"
@@ -102,6 +106,7 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
+    IMPORT_ADDRESSES = "import_addresses"
     COMPLIANCE_CHECK = "compliance_check"
 
 

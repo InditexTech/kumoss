@@ -1,0 +1,751 @@
+= Customize prompts
+:description: Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+
+Kumoss does not hard-code cloud knowledge. The instructions that tell
+its agents how to name, configure, and secure resources are *prompts*
+stored in the prompt registry of https://arize.com/docs/phoenix[Arize
+Phoenix], fetched by the core at request time. This guide explains the
+three layers involved, the naming conventions, how seeding and runtime
+lookup work, how the prompts are composed into a system prompt, and how
+to add or change prompts safely.
+
+Phoenix also collects Kumoss's traces. That is a separate function,
+documented in xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
+Phoenix]. Where Phoenix runs and how it is protected in each deployment
+model is covered by xref:main:quickstart.adoc[Quickstart] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
+
+== Three different things, not one
+
+[cols="1,2,2,3",options="header"]
+|===
+|Layer |Where |Who changes it |When it takes effect
+
+|*Runtime prompts*
+|Phoenix prompt registry (UI at `/monitoring/` in the default stack,
+persisted in `phoenix-db`)
+|Prompt maintainers, in the Phoenix UI or API
+|Immediately on the next request; the core caches nothing
+
+|*Seed YAML files*
+|`core/prompts/seed/<scope>/<type>/<name>.yaml` in the repository
+|Contributors and operators preparing a new deployment
+|Only at core startup, and only for prompt names that do not yet exist
+in Phoenix
+
+|*Local Jinja layouts*
+|`core/src/infrastructure/templates/base_layouts/` (`core/` and
+`messages/`), inside the core image
+|Kumoss developers
+|After rebuilding the core image
+|===
+
+The seed files are the initial content of the registry, nothing more.
+The Jinja layouts are the fixed skeletons of each agent's system prompt:
+they define the agent's role, its tools and its output rules, and they
+contain placeholders that the core fills with prompts fetched from
+Phoenix. Operators customise the runtime prompts; the layouts are code.
+
+== Seed file conventions
+
+=== Path
+
+[source]
+----
+core/prompts/seed/<scope>/<type>/<name>.yaml
+----
+
+* `<scope>` is one of `general`, `aws`, `azure`, `gcp`, `oci`,
+  `kubernetes`.
+* `<type>` is one of `guidelines`, `resources`, `compliance`.
+* `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits,
+  underscores).
+
+The loader rejects any other depth, scope, type, or name at startup
+with a `PromptSeedLoadError`, for example `Invalid prompt name
+'Bad-Name' in ...; must match ^[a-z0-9_]+$`. That check only applies to
+files it actually loads: the loader globs `*.yaml` only, so a `.yml`
+file, or any other extension, is silently skipped rather than rejected
+— a typo in the extension produces no error at all, just a missing
+prompt.
+
+=== Qualified name
+
+The Phoenix prompt name is derived from the path, never declared inside
+the file, so a misfiled prompt cannot misreport its identity:
+
+[source]
+----
+<scope>-<type>-<name>
+----
+
+[cols="2,3",options="header"]
+|===
+|File |Phoenix prompt name
+
+|`aws/guidelines/networking.yaml`
+|`aws-guidelines-networking`
+
+|`aws/guidelines/abbreviations.yaml`
+|`aws-guidelines-abbreviations`
+
+|`aws/guidelines/resources_list.yaml`
+|`aws-guidelines-resources_list`
+
+|`aws/resources/s3_bucket.yaml`
+|`aws-resources-s3_bucket`
+
+|`azure/resources/storage_account.yaml`
+|`azure-resources-storage_account`
+
+|`kubernetes/resources/deployment.yaml`
+|`kubernetes-resources-deployment`
+
+|`general/guidelines/terraform.yaml`
+|`general-guidelines-terraform`
+
+|`general/guidelines/requests.yaml`
+|`general-guidelines-requests`
+
+|`general/compliance/report.yaml`
+|`general-compliance-report`
+
+|`general/compliance/impact.yaml`
+|`general-compliance-impact`
+|===
+
+Two files that would produce the same qualified name abort the boot
+with `Duplicate qualified name ...`.
+
+=== Content
+
+[cols="1,1,1,4",options="header"]
+|===
+|Key |Required |Type |Meaning
+
+|`body`
+|yes
+|non-empty string
+|The prompt text, usually Markdown. Stored as a single user message in
+Phoenix.
+
+|`description`
+|no
+|string
+|Shown in the Phoenix UI next to the prompt.
+|===
+
+Every shipped seed provides both keys and starts with the repository's
+SPDX comment header. The loader reads `body` and `description` and
+ignores everything else in the mapping — an extra key is neither
+rejected nor surfaced anywhere; it is dead weight in the file.
+
+== How seeding works
+
+At every core startup, after the database, Redis, and object storage
+have been initialised, the seeder:
+
+. Loads every seed file (sorted, validated as above).
+. Probes Phoenix at `telemetry.collector_url`, retrying connection
+  errors for about 27 seconds. If Phoenix stays unreachable the boot
+  fails with `Phoenix unreachable after 8 attempts`. Phoenix must
+  therefore be available whenever the core starts.
+. For each seed, asks Phoenix whether a prompt with that name exists
+  (by name, regardless of tags). If it exists, the seed is skipped. If
+  not, the seeder creates the prompt with one version whose displayed
+  model name is `kumoss-seed` (Phoenix requires a model name; Kumoss
+  ignores it) and tags that version with the value of `environment`
+  from `config.yaml` (`development` by default).
+. Logs `Prompt seeding complete: N created, M already present`.
+
+Consequences to plan for:
+
+* *Seeding never overwrites.* Editing a seed file after the first boot
+  against a given Phoenix database has no effect on the prompt that
+  already exists there. To change an already seeded prompt, edit it in
+  Phoenix (see below) or delete it there and restart the core.
+* *Only new names are pushed.* Adding a new seed file and restarting the
+  core does create the new prompt, even on an existing deployment.
+* *The environment tag matters.* The core fetches prompts by name and
+  tag, and the tag is `environment`. If you change `environment` (say
+  from `development` to `production`) on a deployment whose prompts
+  were seeded earlier, the seeder sees the names already exist, skips
+  them, and never applies the new tag. The next session then fails
+  because `general-guidelines-terraform` has no version tagged
+  `production`. Tag a version of every prompt with the new value in
+  Phoenix before switching, or start from an empty Phoenix database.
+* *Prompt versions are yours to manage.* Kumoss always fetches the
+  version currently carrying the environment tag. Publishing a new
+  version and moving the tag is how you roll a change out; moving the
+  tag back is how you roll it back.
+
+== Runtime lookup
+
+Each time an agent chain is rendered, the core fetches the prompts its
+layout needs from Phoenix with the `<scope>-<type>-<name>` name and the
+`environment` tag, and reads the text of the first message of that
+version. There is no cache: every session sees the current tagged
+version, so editing a prompt in Phoenix takes effect on the next run
+without rebuilding or restarting the core.
+
+If a requested prompt (or a version with the right tag) does not exist,
+the Phoenix client raises `Prompt not found: <name>` and the background
+run stops. This error is not one the runner converts into a failed
+round: the session keeps its last status (for example `filtering`), no
+failure message or notification is produced, and the browser's event
+stream stays open until its timeout. The workspace is cleaned up and the
+session's in-flight guard is released, so a new request can be sent once
+the prompt exists. There is no fallback to seed files at runtime.
+
+== Prompt categories
+
+=== Provider-wide guidelines (`<cloud>-guidelines-*`)
+
+One set per cloud scope, applied across all resources of that cloud:
+
+[cols="1,3,2",options="header"]
+|===
+|Name |Purpose |Used by
+
+|`abbreviations`
+|Table of short prefixes for resource names; the compositor offers them
+to the model.
+|Prompt compositor
+
+|`drift_exceptions`
+|Resources and changes drift remediation must never touch. Ships as a
+placeholder with no exceptions.
+|Drift exception filter, in every drift round and every generate round's
+drift pre-check
+
+|`import_exceptions`
+|Resource IDs an import round must never bring under Terraform, one
+Markdown bullet per ID. Parsed by the core, not read by a model; see
+<<import-exception-list>>. Ships as a placeholder with no exceptions,
+for every cloud except `kubernetes`.
+|Import scope diff, in every import round that finds unmanaged
+resources
+
+|`forbidden_actions`
+|Actions the agents must refuse or avoid (for example destructive
+operations).
+|Request filter; IaC generator and compliance checker in generate rounds
+
+|`networking`
+|Networking conventions (address plans, exposure rules, private
+endpoints).
+|IaC generator, compliance checker
+
+|`permissions`
+|Identity and access conventions (least privilege, role assignment
+patterns).
+|IaC generator, compliance checker
+
+|`resource_creation`
+|General conventions for creating resources (tags, naming, defaults).
+|IaC generator, compliance checker
+
+|`resources_list`
+|Catalogue of the `<cloud>-resources-*` prompts the compositor may
+select. Source of truth for discovery.
+|Prompt compositor
+|===
+
+=== General cross-provider prompts (`general-guidelines-*`)
+
+[cols="1,3,2",options="header"]
+|===
+|Name |Purpose |Used by
+
+|`general-guidelines-terraform`
+|Organisation-wide Terraform standards (structure, providers, state,
+style).
+|IaC generator, compliance checker
+
+|`general-guidelines-requests`
+|Rules for classifying and accepting user requests.
+|Request filter
+
+|`general-guidelines-targeting_policies`
+|Exclusions and policies for choosing drift remediation targets. Ships
+as a placeholder with no exclusions.
+|Target generator, drift mode only
+|===
+
+=== Compliance prompts (`general-compliance-*`)
+
+[cols="1,3,2",options="header"]
+|===
+|Name |Purpose |Used by
+
+|`general-compliance-report`
+|Business rules with rule ids and severities that the compliance
+auditor checks a plan against. The shipped seed defines
+`scope_exceeded`, `scope_incomplete`, and `critical_deletion`. A failed
+check locks the session.
+|Compliance checker (when `orchestration.enable_compliance_checker` is
+`true`)
+
+|`general-compliance-impact`
+|Criteria for labelling each change group `low`, `medium`, or `high`. A
+`high` banner locks the session when
+`orchestration.block_on_high_impact` is `true`.
+|Report generator, generate reports only
+|===
+
+=== Component and resource prompts (`<cloud>-resources-<name>`)
+
+One prompt per resource type, holding the default configuration the
+model should produce unless the user asks otherwise. Examples that ship
+today: `aws-resources-s3_bucket`, `azure-resources-storage_account`,
+`gcp-resources-cloud_run`, `oci-resources-compute_instance`,
+`kubernetes-resources-deployment`.
+
+== Shipped seed inventory
+
+The `aws`, `azure`, `gcp` and `oci` scopes ship the same eight guideline
+prompts; `kubernetes` ships seven, without `import_exceptions`. The
+resource prompts differ per cloud.
+
+[cols="1,3,4,1",options="header"]
+|===
+|Scope |`guidelines` |`resources` |`compliance`
+
+|`general`
+|`requests`, `targeting_policies`, `terraform`
+|none
+|`impact`, `report`
+
+|`aws`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
+|`aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`,
+`internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`,
+`route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc`
+|none
+
+|`azure`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
+|`application_insights`, `azure_openai`, `container_app`, `cosmosdb`,
+`function`, `key_vault`, `nat_gateway`, `network_security_group`,
+`postgres_flexible_server`, `redis_managed`, `resource_group`,
+`storage_account`, `subnet`, `virtual_machine`, `virtual_network`,
+`webapp`
+|none
+
+|`gcp`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
+|`bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`,
+`cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`,
+`project`, `service_account`, `spanner`, `storage_bucket`,
+`subnetwork`, `vertex`, `vpc_network`
+|none
+
+|`oci`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`,
+`import_exceptions`, `networking`, `permissions`, `resource_creation`,
+`resources_list`
+|`autonomous_database`, `block_volume`, `compute_instance`,
+`dns_zone`, `file_storage`, `functions`, `iam_policy`,
+`internet_gateway`, `load_balancer`, `nat_gateway`,
+`network_security_group`, `object_storage`, `oke_cluster`,
+`security_list`, `subnet`, `vault`, `vcn`
+|none
+
+|`kubernetes`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
+`permissions`, `resource_creation`, `resources_list`
+|`cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`,
+`daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`,
+`namespace`, `network_policy`, `persistent_volume_claim`, `role`,
+`role_binding`, `secret`, `service`, `service_account`, `stateful_set`
+|none
+|===
+
+[#guideline-prompts]
+=== Guideline prompts every cloud scope must provide
+
+The core requests these guideline prompts unconditionally for the
+session's cloud, so every scope must have all of them in Phoenix or its
+sessions abort with `Prompt not found`:
+
+[cols="2,3",options="header"]
+|===
+|Requested by |Prompt
+
+|Prompt compositor (every generate and drift round)
+|`<cloud>-guidelines-abbreviations`, `<cloud>-guidelines-resources_list`
+
+|Request filter (every generate round and every partial drift round)
+|`<cloud>-guidelines-forbidden_actions`
+
+|IaC generator and compliance checker
+|`<cloud>-guidelines-resource_creation`, `<cloud>-guidelines-networking`,
+`<cloud>-guidelines-permissions`; plus
+`<cloud>-guidelines-forbidden_actions` in generate rounds
+
+|Drift exception filter (every drift round and every generate round's
+drift pre-check)
+|`<cloud>-guidelines-drift_exceptions`
+
+|Import scope diff (every import round that finds unmanaged resources)
+|`<cloud>-guidelines-import_exceptions`
+|===
+
+The import exception list is only read once the scope listing has
+returned resources that the state does not track. Only Azure, GCP and
+AWS have a scope listing, so an `oci` or `kubernetes` import round
+stops before it would ask for the prompt, and `kubernetes` ships
+without one.
+
+Keep this in mind when you delete a prompt in Phoenix or trim the seed
+set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
+`networking` seeds were missing before 2026-09-11 and have been added;
+an already seeded Phoenix database does not receive them until the core
+restarts, because only new names are pushed.)
+
+Also note that the loader's name pattern permits a leading underscore
+while Phoenix rejects names starting with `_`; avoid them.
+
+[#drift-exception-rules]
+== Drift exception rules
+
+`<cloud>-guidelines-drift_exceptions` is the list of things drift
+remediation must never touch. It is read by a dedicated *drift exception
+filter*: after the task splitter turns a drift report into operations,
+and after the reconciliation filter has removed the session's own
+changes, this agent receives the remaining operations together with the
+rules and returns the ones no rule covers. Only those are remediated.
+Whatever it removes is logged as a warning and reported in the drift
+report's `whitelisted_exceptions` block, one entry per excluded change,
+naming the change and the rule that covers it. That block is kept apart
+from `unreconciled_drift`, which is for drift the round genuinely failed
+to fix, and it does not lower the report's outcome: leaving an excluded
+change alone is the intended result.
+
+The filter runs on *every* drift round, full or partial, and on the
+drift pre-check inside every generate round, so a generate round cannot
+silently "fix" an excluded resource either. That also makes the prompt
+mandatory for every cloud scope: a missing one aborts the round with
+`Prompt not found`.
+
+This is not the same brake as `general-guidelines-targeting_policies`.
+Targeting policies decide which resources a *partial* drift round plans
+at all; they never reach a full drift round and they never see the
+operations. Exception rules apply to the operations of every drift
+round, whatever produced them.
+
+=== How to write one
+
+The body is prose, read by a model. Keep each exception on its own
+bullet, and name the resource address, type, attribute, tag, namespace
+or naming pattern precisely enough that an agent can match it against a
+sentence like "In `main.tf`, for `azurerm_key_vault.kvt_001`: update the
+tag `owner` from `platform` to `payments`." Say what must not be
+reconciled, and why — the reason is what the agent quotes back in the
+report.
+
+The shipped seed has three sections, and they are the rule kinds the
+filter understands:
+
+* *Provider quirks*: a permanent false diff the provider reports on every
+  plan.
+* *Resources managed outside Terraform*: something another system owns
+  and keeps changing on purpose.
+* *Environment, team and naming carve-outs*: whole slices of the estate a
+  workload session must not touch.
+
+The agent may also *trim* an operation: when one instruction bundles an
+excluded change with a legitimate one, it keeps the legitimate part and
+drops the rest. Rules that name a single attribute are therefore as
+useful as rules that name a whole resource.
+
+=== Worked examples
+
+[source,yaml]
+----
+  ## Provider quirks (permanent false diffs)
+  - The `azurerm` provider always reports a diff on the `created_at` tag
+    written by the tagging policy; never reconcile that tag.
+
+  ## Resources managed outside Terraform
+  - The values of `azurerm_key_vault_secret` are rotated by the secrets
+    platform; never reconcile them.
+
+  ## Environment, team and naming carve-outs
+  - Never reconcile resources in the `rg-shared-platform` resource
+    group; the platform team owns them.
+----
+
+With those rules in place, a drift round that found "Delete resource
+`azurerm_storage_account.sta_shared_001` in `rg-shared-platform`"
+remediates nothing, stops rather than re-planning, and lists the resource
+under `whitelisted_exceptions` in the report, quoting the carve-out — with
+the outcome still `Succeeded`, because nothing was left unreconciled
+involuntarily.
+
+[#import-exception-list]
+== Import exception list
+
+`<cloud>-guidelines-import_exceptions` names the resources an import
+round must never bring under Terraform, even when they exist in the
+cloud scope and the state does not track them. Unlike every other
+prompt, it is not written for a model. The core parses the body itself
+and removes the listed IDs from the scope diff before anything else
+sees it:
+
+* The list applies on *every* import round, full scope or partial. A
+  withheld resource never reaches the `import_filter` selection agent,
+  the IaC generator, or `terraform import`, so neither a broad request
+  nor a model's selection can bring it back.
+* The comparison follows the same rule as the diff against the state.
+  Azure ARM IDs match case-insensitively, so
+  `/subscriptions/.../resourceGroups/rg-a` also withholds a scope entry
+  spelled `/resourcegroups/RG-A`. GCP and AWS IDs match exactly, because
+  two of their resources can differ only by case.
+* What was withheld is not an error. The import report receives it as
+  `excluded_resource_ids` and names each one as skipped on purpose. When
+  every unmanaged resource in the scope is withheld, the round ends with
+  `Every unmanaged resource in the scope <scope> is on the import
+  exception list.` and an empty report.
+* An ID on the list that is not in the scope, or is already managed,
+  has no effect and is not reported.
+
+This is not the same brake as
+<<drift-exception-rules,`drift_exceptions`>>. Drift exception rules are
+prose that an agent matches against drift operations. The import
+exception list is a list of exact IDs, enforced in code.
+
+=== How to write one
+
+Put each resource ID on its own Markdown bullet (`-` or `*`), exactly
+as the cloud's scope listing returns it: the full ARM ID for Azure, the
+asset name without the `//service.googleapis.com/` prefix for GCP (for
+project IAM, the space-separated `<project-id> <role> <member>` entry),
+and the ARN for AWS. See
+xref:main:reference/api/iac.adoc[IaC sidecar API] for the exact shapes.
+Backticks around the ID are optional. Every line that is not a bullet
+is ignored, so headings and explanations stay readable in Phoenix, but
+keep them in plain paragraphs: a bullet of prose would be read as an ID.
+
+[source,yaml]
+----
+body: |
+  # Import Exception List — Azure
+
+  The shared platform resources are owned by the platform team and
+  must stay out of workload repositories.
+
+  - /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform
+  - `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-shared-platform/providers/Microsoft.KeyVault/vaults/kvt-shared-001`
+----
+
+Each ID withholds that one resource only. Listing a resource group does
+not withhold the resources inside it, which appear in the scope listing
+under their own IDs.
+
+NOTE: Before this list was parsed by the core, the `import_filter`
+agent read it as prose. Seeding never overwrites, so a deployment whose
+list was curated in free text keeps that text: any ID not written as a
+bullet is now silently ignored. Rewrite such lists as bullets.
+
+== How prompts are composed into a system prompt
+
+For a generate or drift round the core builds the conventions in two
+model passes and then renders the layouts:
+
+. *First compositor pass.* The `prompt_compositor` layout is rendered
+  with the cloud's `resources_list` (as the list of available
+  templates) and `abbreviations` (as the list of available
+  abbreviations). The small model reads the user's request and calls
+  the `construct_information` tool with the resource template names and
+  abbreviations it considers relevant. Names must match the
+  `resources_list` entries exactly.
+. *Second compositor pass.* The layout is rendered again, this time
+  including the full text of the resource prompts selected in the
+  first pass. The model looks for dependencies (a subnet needs a
+  network, a function needs a storage account, and so on) and returns
+  additional templates and abbreviations. Both passes are merged into
+  the round's conventions.
+. *Rendering the agent layouts.* The IaC generator layout (and the
+  compliance checker layout) receives `general-guidelines-terraform`,
+  the cloud's `resource_creation`, `networking`, and `permissions`
+  guidelines, `forbidden_actions` in generate rounds (drift rounds omit
+  it), and a concrete-implementation section built from the selected
+  `<cloud>-resources-*` prompts and abbreviations. The compliance
+  checker additionally receives `general-compliance-report`; the
+  report generator receives `general-compliance-impact` for generate
+  reports; the drift target generator receives
+  `general-guidelines-targeting_policies`; the drift exception filter
+  receives the cloud's `drift_exceptions`; the request filter receives
+  `general-guidelines-requests` and the cloud's `forbidden_actions`.
+
+The layouts also carry fixed content that is not in Phoenix: the
+agent's role, the tools it may call, output format rules, and the
+working directory. Those change only with a core rebuild.
+
+`<cloud>-guidelines-import_exceptions` is the one prompt that is never
+rendered into a layout: the core reads the IDs out of it, and the
+`import_filter` layout only receives what is left after they are
+removed.
+
+*Discovery depends on `resources_list`.* Nothing enumerates the
+`<cloud>-resources-*` prompts that exist in Phoenix. The compositor can
+only pick names that appear in `resources_list`, and every name it
+picks is then fetched, so a name listed there without a matching
+resource prompt aborts the run. The reverse is just as important: a
+resource prompt that exists but is not named in the cloud's
+`resources_list` is never selected — the compositor has no other way to
+discover it, and the loader does no cross-check between the seed files
+on disk and the `resources_list` catalogue at startup. Whenever you add
+a resource seed, add its name to `resources_list` in the same change,
+for every cloud you edit. The Azure `resources_list` now names all 16
+shipped Azure resource seeds; keep it that way as you add more.
+
+== Examples
+
+All examples are fictitious and use the repository conventions.
+
+=== A provider-wide guideline seed
+
+File `core/prompts/seed/aws/guidelines/networking.yaml` (shipped; body
+shortened here for space — see the file for the full text), producing the
+Phoenix prompt `aws-guidelines-networking`:
+
+[source,yaml]
+----
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS networking conventions (VPCs, subnets, gateways, security groups).
+body: |
+  # AWS Networking Guidelines
+
+  ## Topology
+  - Default to a multi-AZ VPC with public and private subnets per
+    availability zone.
+  - For multi-environment deployments, use separate VPCs per
+    environment (`dev`, `staging`, `prod`) connected through Transit
+    Gateway or VPC peering.
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs
+    or other VPCs that will be peered.
+  - Allocate `/16` per VPC by default; carve `/24` subnets within.
+  - Spread subnets across at least two availability zones.
+----
+
+=== A resource (component) seed
+
+File `core/prompts/seed/aws/resources/s3_bucket.yaml` (shipped; body
+shortened here for space — see the file for the full text), producing
+`aws-resources-s3_bucket`:
+
+[source,yaml]
+----
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).
+body: |
+  # AWS S3 Bucket
+
+  For an S3 Bucket, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<project>-<purpose>-<environment>`. Bucket
+    names are globally unique, lowercase, 3-63 characters.
+  - Versioning must be enabled.
+  - Server-side encryption must use aws:kms with bucket key enabled.
+  - Block Public Access must be fully enabled unless the request
+    explicitly requires a public bucket.
+----
+
+=== The matching `resources_list` entry
+
+The compositor can only select `s3_bucket` because it appears in
+`core/prompts/seed/aws/guidelines/resources_list.yaml`
+(`aws-guidelines-resources_list`). The shipped file is a bulleted
+catalogue; a new resource prompt needs one more line in the same style,
+for example a hypothetical `sqs_queue` resource that does not ship
+today:
+
+[source,yaml]
+----
+description: Names of aws-resources-* prompts the compositor may select from.
+body: |
+  # Available AWS Resource Templates
+
+  ...
+  - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.
+  - `sqs_queue` — SQS queue with encryption, dead-letter queue, and retention.
+  ...
+----
+
+The name in backticks must equal the `<name>` part of the resource
+prompt exactly, and it must exist on both sides: a resource prompt with
+no `resources_list` entry is never selected, and a `resources_list`
+entry with no matching resource prompt aborts the run when picked.
+
+*List style is not uniform across clouds.* AWS, Azure, GCP, and OCI name
+entries in backticks with a trailing description, as above; the
+Kubernetes `resources_list` uses plain bullets with no backticks at all
+(`- namespace`, `- deployment`, and so on). There is no enforced format
+— the compositor only needs the bare name to appear somewhere in the
+body. When you edit a `resources_list`, follow the style already used
+in that specific file rather than copying another cloud's convention.
+
+=== Adding a new component prompt to a fresh deployment
+
+. Create `core/prompts/seed/<cloud>/resources/<name>.yaml` with
+  `description` and `body`.
+. Add the `<name>` entry to
+  `core/prompts/seed/<cloud>/guidelines/resources_list.yaml`.
+. Rebuild the core image (`docker compose build core`) so the new seed
+  files are inside it, and start the stack. The seeder creates
+  `<cloud>-resources-<name>` and, because `resources_list` does not
+  exist yet either, the updated catalogue.
+
+=== Adding or changing a prompt on an already running deployment
+
+The seeder will not touch `<cloud>-guidelines-resources_list` once it
+exists, so the catalogue must be edited in Phoenix:
+
+. Open Phoenix (`/monitoring/` in the default stack) and go to
+  *Prompts*.
+. For a new component: either add the seed file and restart the core
+  (new names are created), or create the prompt
+  `<cloud>-resources-<name>` directly in Phoenix. In both cases the
+  new version must carry the deployment's `environment` tag
+  (`development` by default); the seeder tags what it creates, a
+  manual creation must be tagged by hand.
+. Open `<cloud>-guidelines-resources_list`, create a new version with
+  the extra line, and move the environment tag to it.
+. Run a session that mentions the new resource. No core rebuild or
+  restart is needed for step 3 to take effect.
+
+To *change* an existing prompt (a naming rule, a security default, a
+compliance rule), create a new version in Phoenix and move the tag.
+Keep the previous version; moving the tag back is the rollback.
+
+== Checklist for operators
+
+* Review every shipped prompt before relying on a deployment: naming
+  conventions, security defaults, forbidden actions, and compliance
+  rules encode a policy, not yours.
+* Keep Phoenix reachable during core startups; seeding is part of the
+  boot.
+* Decide who may edit prompts. Anyone with access to the Phoenix UI can
+  change what the agents generate. Phoenix has no authentication in the
+  default stack.
+* Treat the `environment` value as part of the prompt data model: it is
+  the tag every fetch uses.
+* Back up `phoenix-db`; it holds your curated prompts as well as the
+  traces.

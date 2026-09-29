@@ -14,10 +14,15 @@ from src.domains.services import ArtifactStorageService, SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.domains.dto import TerraformPlanDTO, ToolResultDTO
+from src.domains.dto import ToolResultDTO, ValidationResultDTO
 from src.domains.value_objects import Conventions
-from src.shared.config import system_config
-from src.shared.constants import ContentType, PromptsLibrary, SessionStatus, ToolContext
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    PromptsLibrary,
+    SessionStatus,
+    ToolContext,
+)
 from src.shared.logger import logging
 from src.shared.exceptions import ExceptionHandler
 
@@ -79,27 +84,36 @@ class TerraformValidationService:
                 continue
             await __upload(name, content, new_file="true")
 
-    async def generate_and_validate(
+    async def generate_and_validate[T: ValidationResultDTO](
         self,
         q: str,
         ctx: SessionContext,
+        *,
+        validator: Callable[[History], Awaitable[T]],
         conventions: Conventions,
         include_forbidden_actions: bool,
-        validator: Callable[[History], Awaitable[TerraformPlanDTO]],
-    ) -> TerraformPlanDTO:
+        operation_type: OperationType,
+        max_iterations: int,
+        refine_feedback: Callable[[str], Awaitable[str]] | None = None,
+    ) -> T:
         """
         Execute the terraform generation and validation cycle using tool calls
 
         :param query: User query
         :param history: task conversation history
-        :return: the plan result of the last attempt, which succeeded
+        :param validator: checks each attempt; its feedback is the next query
+        :param max_iterations: attempts before giving up, defaults to
+            ``orchestration.max_validation_iteration``
+        :param refine_feedback: rewrites a failed attempt's feedback before
+            it becomes the next query
+        :return: the validator result of the last attempt, which succeeded
+        :raises ValidationLoopExceededError: carrying the last attempt's result
         """
         first_q = q
         local_history = ctx.history.deepcopy()
-        for i in range(system_config.orchestration.max_validation_iteration):
-            logging.debug(
-                f"Validation service {i}/{system_config.orchestration.max_validation_iteration}"
-            )
+        result: T | None = None
+        for i in range(max_iterations):
+            logging.debug(f"Validation service {i + 1}/{max_iterations}")
             _ = await self.__session_svc.update_status(
                 msg=q,
                 prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
@@ -121,6 +135,7 @@ class TerraformValidationService:
                 ),
                 prompt=await self.__template_svc.render(
                     prompt=PromptsLibrary.IAC_GENERATOR,
+                    operation_type=operation_type,
                     resources=conventions.templates,
                     abbreviations=conventions.abbreviations,
                     include_forbidden_actions=include_forbidden_actions,
@@ -147,6 +162,7 @@ class TerraformValidationService:
                     targets=result.targets,
                     content=result.stdout,
                     content_type=ContentType.TEXT,
+                    metadata={"type": "plan"},
                 )
 
             if result.ok:
@@ -154,9 +170,14 @@ class TerraformValidationService:
                     first_q, local_history.get_last_turn().assistant
                 )
                 return result
-            q = result.feedback
+            q = (
+                await refine_feedback(result.feedback)
+                if refine_feedback
+                else result.feedback
+            )
 
         raise ValidationLoopExceededError(
             message="Validation loop exceeded.",
             error_code=422,
+            result=result,
         )

@@ -6,7 +6,7 @@
  * WORKFLOW: Session Outcome
  *
  * Results are not carried by SSE events; a finished round must be
- * reconstructed from GET /sessions/{id} plus its presigned artifact
+ * reconstructed from GET /sessions?id={id} plus its presigned artifact
  * URLs. This module is the single place that does it — for live runs
  * (round-terminal SSE event), deep links / refresh, and the sessions
  * table "Reload Session" action.
@@ -14,12 +14,22 @@
 
 import {
   getSessionDetail,
+  fetchArtifact,
   fetchArtifactContent,
+  fetchPlanType,
 } from "@/services/core/sessions";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
-import type { HistoryEntry, CodeChangeRef, RoundDetail, SessionDetail } from "@/types/api";
-import type { TerraformReport, PlanSummary } from "@/types";
+import type {
+  HistoryEntry,
+  CodeChangeRef,
+  ComplianceCheckRef,
+  ReportRef,
+  RoundDetail,
+  SessionDetail,
+  TerraformPlanRef,
+} from "@/types/api";
+import type { ComplianceReport, TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
 // ─── Outcome model ─────────────────────────────────────────────
@@ -30,8 +40,10 @@ export type SessionOutcome =
       detail: SessionDetail;
       round: RoundDetail;
       report: TerraformReport | null;
+      compliance: ComplianceReport | null;
       code: string;
-      targets: string[] | undefined;
+      planTargets?: string[];
+      newFiles?: string[];
     }
   | {
       kind: "apply-results";
@@ -109,8 +121,11 @@ export async function waitForNewRound(
 
 export interface RoundArtifacts {
   report: TerraformReport | null;
+  compliance: ComplianceReport | null;
   code: string;
-  targets: string[] | undefined;
+  planTargets?: string[];
+  /** Names in `code` whose body is raw content rather than a diff. */
+  newFiles?: string[];
 }
 
 /**
@@ -138,22 +153,92 @@ function collectCodeChanges(
   return [...byName.entries()];
 }
 
+/**
+ * The round's terraform plan body, or null when it stored none.
+ *
+ * Position cannot pick it. A round's `plans` interleaves both flavours —
+ * the validation loop appends one plan per iteration, the drift pass its
+ * diff — and the *newest* entry is routinely a diff: every generate round
+ * runs the drift pre-check after validating, and that check stores its
+ * diff before it decides there is nothing to remediate
+ * (`terraform_drift_service.__store_drift`). Import rounds check drift the
+ * same way. So the newest plan-flavoured artifact has to be found, and the
+ * flavour is object metadata the read model does not carry.
+ *
+ * Resolved with ranged probes (`fetchPlanType`, one byte each, all in
+ * flight at once) rather than by downloading bodies newest-first: a
+ * backward walk would pull a whole drift diff down just to discard it.
+ *
+ * A round whose plans are all diffs yields null — the Plan tab's empty
+ * state, since the diff is already the Report tab's subject. But a round
+ * where *no* flavour was readable at all falls back to the newest plan:
+ * unreadable metadata (an object stored before the backend wrote it, or a
+ * store whose CORS rules hide the header) is not evidence of drift, and
+ * blanking the tab across such a deployment would be worse than the
+ * pre-existing order guess.
+ *
+ * `targets` is read off the chosen ref — a sibling of the `url` the body came
+ * from — so the addresses always describe the plan actually on screen. That is
+ * narrower than "what this round targeted": a remediating drift round writes
+ * its targets on the remediation plan, and the validation loop then appends a
+ * plan per iteration carrying the validator's usually-empty `terraform_targets`
+ * (see `isPartialDrift` in `roundSummary.ts`). When the selected plan is one of
+ * those, this yields `[]` rather than the round's addresses, which is the
+ * honest answer for a per-artifact label.
+ */
+async function fetchPlanContent(
+  plans: TerraformPlanRef[],
+): Promise<{ content: string; targets: string[] } | null> {
+  if (plans.length === 0) return null;
+  const types = await Promise.all(plans.map((p) => fetchPlanType(p.url)));
+  let chosen: TerraformPlanRef | null = null;
+  for (let i = plans.length - 1; i >= 0; i--) {
+    if (types[i] === "plan") {
+      chosen = plans[i];
+      break;
+    }
+  }
+  if (!chosen && types.every((t) => t === null)) {
+    chosen = plans[plans.length - 1];
+  }
+  if (!chosen) return null;
+  return {
+    content: await fetchArtifactContent(chosen.url),
+    targets: chosen.targets ?? [],
+  };
+}
+
 async function fetchRoundArtifacts(
   round: RoundDetail,
   rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
   const codeChanges = collectCodeChanges(rounds);
-  const [reportContent, planContent, ...fileContents] = await Promise.all([
-    round.report
-      ? fetchArtifactContent(round.report.url)
+  // Oldest-first, and a round holds exactly one report and at most one
+  // compliance check, so the newest is the round's own — unlike its plans
+  // (see `fetchPlanContent`).
+  const reportRef: ReportRef | null =
+    round.reports[round.reports.length - 1] ?? null;
+  const complianceRef: ComplianceCheckRef | null =
+    round.compliance_checks[round.compliance_checks.length - 1] ?? null;
+  const [reportContent, complianceContent, plan, composed] = await Promise.all([
+    reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
+    complianceRef
+      ? fetchArtifactContent(complianceRef.url)
       : Promise.resolve(null),
-    round.plan ? fetchArtifactContent(round.plan.url) : Promise.resolve(null),
-    ...codeChanges.map(async ([fileName, changes]) => {
-      const contents = await Promise.all(
-        changes.map((c) => fetchArtifactContent(c.url)),
-      );
-      return composeFileArtifacts(fileName, contents);
-    }),
+    fetchPlanContent(round.plans),
+    // fetchArtifact, not fetchArtifactContent: composing a file's chain
+    // needs each artifact's shape, and it rides the same response.
+    Promise.all(
+      codeChanges.map(async ([fileName, changes]) => {
+        const payloads = await Promise.all(
+          changes.map((c) => fetchArtifact(c.url)),
+        );
+        return composeFileArtifacts(
+          fileName,
+          payloads.map(({ text, isNewFile }) => ({ text, isNewFile })),
+        );
+      }),
+    ),
   ]);
 
   let report: TerraformReport | null = null;
@@ -165,15 +250,36 @@ async function fetchRoundArtifacts(
     }
   }
 
-  const parts: string[] = [];
-  if (planContent) {
-    parts.push(`<Terraform_Plan>\n${planContent}\n</Terraform_Plan>`);
+  let compliance: ComplianceReport | null = null;
+  if (complianceContent) {
+    try {
+      compliance = JSON.parse(complianceContent);
+    } catch {
+      // ignore malformed compliance check
+    }
   }
+
+  const parts: string[] = [];
+  if (plan) {
+    parts.push(`<Terraform_Plan>\n${plan.content}\n</Terraform_Plan>`);
+  }
+  // The blob flattens each file to text, so the shape has to travel
+  // alongside it — `extractCodeFiles` on the other end cannot recover it.
+  const newFiles: string[] = [];
   codeChanges.forEach(([fileName], i) => {
-    parts.push(`<${fileName}>\n${fileContents[i]}\n</${fileName}>`);
+    parts.push(`<${fileName}>\n${composed[i].text}\n</${fileName}>`);
+    if (composed[i].isNewFile) newFiles.push(fileName);
   });
 
-  return { report, code: parts.join("\n"), targets: round.plan?.targets };
+  // A round with no plan on screen has no addresses to label it with, even
+  // when its drift diffs carried some.
+  return {
+    report,
+    compliance,
+    code: parts.join("\n"),
+    planTargets: plan?.targets ?? [],
+    newFiles,
+  };
 }
 
 /**
@@ -213,7 +319,12 @@ export async function resolveSessionOutcome(
     const priorRound = detail.rounds
       .slice(0, -1)
       .reverse()
-      .find((r) => r.report || r.plan || r.code_changes.length > 0);
+      .find(
+        (r) =>
+          r.reports.length > 0 ||
+          r.plans.length > 0 ||
+          r.code_changes.length > 0,
+      );
     if (!priorRound) {
       return { kind: "rejected", detail, rationale };
     }
@@ -282,14 +393,24 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     history: normalizeHistory(detail.history),
   };
 
+  // `planTargets` and `newFiles` are assigned whenever `code` is, never
+  // omitted: the patch is merged into the existing session, so leaving a key
+  // out would keep the previous round's addresses labelling this round's
+  // plan, or tint the wrong file as new.
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
+    patch.compliance_report = outcome.compliance ?? undefined;
     patch.code = outcome.code;
+    patch.planTargets = outcome.planTargets ?? [];
+    patch.newFiles = outcome.newFiles ?? [];
   } else if (outcome.kind === "apply-results") {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
+    patch.compliance_report = outcome.prior.compliance ?? undefined;
     patch.code = outcome.prior.code;
+    patch.planTargets = outcome.prior.planTargets ?? [];
+    patch.newFiles = outcome.prior.newFiles ?? [];
   }
 
   return patch;
@@ -337,6 +458,9 @@ export function buildAssistantMessage(outcome: SessionOutcome): string {
       const report = outcome.report;
       if (outcome.detail.operation === "drift") {
         if (typeof report?.summary === "string") return report.summary;
+      }
+      if (outcome.detail.operation === "import") {
+        if (report?.execution_summary) return report.execution_summary;
       }
       if (report?.potential_impact?.summary) {
         return report.potential_impact.summary;

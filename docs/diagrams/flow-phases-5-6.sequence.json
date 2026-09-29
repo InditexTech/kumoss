@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Nebula request flow · Phases 5-6 — generate, validate, correct, drift pre-check",
+    "title": "Kumoss request flow · Phases 5-6",
     "output": "flow-phases-5-6.html",
     "quality_profile": "showcase",
     "locale": "en",
@@ -38,7 +38,7 @@
     {
       "from": 150,
       "to": 496,
-      "label": "PHASE 5 · Generate, validate, correct — at most 5 iterations"
+      "label": "PHASE 5 · Generate, validate, correct — at most 8 iterations"
     },
     {
       "from": 500,
@@ -100,7 +100,7 @@
       "from": "ct",
       "to": "ui",
       "y": 474,
-      "label": "20b · [5 iterations exhausted] session FAILED (422) · system.exception.failure",
+      "label": "20b · [8 iterations exhausted] session FAILED (422) · system.exception.failure",
       "variant": "security"
     },
     {

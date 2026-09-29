@@ -1,0 +1,164 @@
+= Architecture
+:description: The components that make up Kumoss, how they communicate, and where the rest of this section goes into more depth.
+
+This page introduces Kumoss's runtime components and how they fit together.
+The rest of this section goes deeper: the end-to-end request flow, the data
+and state each component owns, and the deployment topology.
+
+== Overview
+
+:diagram-name: system-architecture
+:diagram-alt: Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network
+:diagram-verb: trace a relationship
+include::partial$interactive-diagram.adoc[]
+
+Dashed edges are wiring that exists but is not exercised by the checked-in
+`config.yaml`: the identity provider is contacted only once
+`oidc.issuer_url` is set.
+
+The diagram condenses some detail. The four sidecars share one node
+(`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`); the
+core appears as its API layer plus a single "application and adapters" node
+covering the other three layers; and Redis, the `workspaces` volume,
+`phoenix-db` and the notification and storage backends are carried in the
+notes beside it rather than drawn. Phoenix is reachable through the proxy at
+`/monitoring/`, artifacts land in the `kumoss-artifacts` bucket, and the
+shipped configuration routes model calls through LiteLLM.
+
+== Component responsibilities
+
+[cols="2,4,3",options="header"]
+|===
+|Component |Responsibility |Main relationships
+
+|React SPA (`client/web`)
+|Session wizard, planning and results views, user page and admin panel. An
+OIDC public client: it calls `/api` with a bearer token and streams
+progress over Server-Sent Events.
+|Built into the Nginx image; reaches the API through Nginx, and the
+identity provider directly for login
+
+|Nginx (`proxy`)
+|Sole public entry point, on ports 80 and 9000: serves the built SPA and
+proxies `/api`, the events stream, `/monitoring/` and object storage.
+|Browser → core, Phoenix, object storage
+
+|Core API layer (`core/src/api/v1`)
+|Routes every request: IaC operations, the progress stream, session reads,
+repository and pull-request actions, identity and roles, the admin panel,
+and passthroughs to the mapping and notifications sidecars. One
+authentication dependency guards all of them but the public OIDC
+configuration.
+|Delegates to application handlers
+
+|Application layer (`core/src/application`)
+|The generate, drift and apply handlers, and the services they orchestrate
+— filtering, reporting, pull requests, session orchestration. A factory
+builds a fresh object graph per run.
+|Composes domain services
+
+|Domain layer (`core/src/domains`)
+|Entities, value objects and ports, and the services holding the behaviour:
+the agent loop, session and user management, validation, targeting, the
+compliance audit, artifact storage, persistence and tracing.
+|Depends only on interfaces
+
+|Infrastructure layer (`core/src/infrastructure`)
+|Adapters behind those ports: OIDC, the LiteLLM router, git and workspaces,
+the iac-sidecar driver, Jinja layouts, object storage, PostgreSQL, Redis
+and OpenTelemetry. The generated sidecar clients are *not* part of this
+layer — they live in `core/src/clients`, a sibling package.
+|Implements domain ports
+
+|authz service
+|Cloud project access checks, disabled by default. Disabled, the core
+answers "authorized" without calling it; enabled, an unreachable sidecar is
+an error, never an allow. Its user and role endpoints are unused — Kumoss
+keeps those in core-db.
+|Called from the authorize route with the caller's identity; container-local
+JSON role store
+
+|iac service
+|Runs one IaC engine command per asynchronous job — `init`, `validate`,
+`plan`, `show`, `apply` — returning a job id to poll. OpenTofu by default,
+selected with `IAC_BINARY`. A reference implementation; production
+deployments are expected to supply their own.
+|Shares the `workspaces` volume with the core
+
+|mapping service
+|Resolves a business identifier to a repository URL, plus a best-effort
+terraform provider and cloud scope (`null` means unknown, ask the user);
+the reference implementation is an identity passthrough.
+|Called through a core passthrough route
+
+|notifications service
+|Channel-agnostic notify contract; the reference implementation posts
+colour-coded Slack webhook messages.
+|Fire-and-forget from the core on compliance, apply and pipeline failures;
+request/response for the support requests the header's chat bubble sends
+
+|OpenAPI contracts (`contracts/openapi`)
+|Source of truth for the four sidecar APIs, with Schemathesis conformance
+suites.
+|Contracts → generated clients → sidecars
+
+|core-db (PostgreSQL 17)
+|System of record: thirteen tables covering users, sessions, workspaces,
+rounds, plans, pull requests, reports, compliance checks and artifacts.
+|Core, over asyncpg
+
+|Redis 8
+|Fail-open cache for session facts, the last status and finished-session
+aggregates. No pub/sub, no locks.
+|Core only
+
+|object-storage (RustFS, Apache-2.0)
+|*Default, bundled* artifact store (`kumoss-artifacts`): reports, plans,
+drift JSON and code changes, served to the browser by presigned URL.
+`storage.provider` switches to AWS S3, Azure Blob Storage or any other
+S3-compatible endpoint. Engine state lives in the *separate*
+`storage.terraform_state_bucket` — on by default as shipped.
+|Core through the SDK, browser through Nginx :9000, and the iac sidecar for
+state
+
+|`workspaces` volume
+|Per-run git clones under `/workspaces/<session>/<call>`. A failed run's
+directory is removed; a successful generate round *renames* its directory
+to `/workspaces/<session>/pinned`, which survives until apply discards it
+or the next generate round replaces it.
+|Mounted by core and iac
+
+|Phoenix + phoenix-db
+|OpenTelemetry trace collector and UI, and the prompt registry seeded at
+core boot.
+|Core, over OTLP/HTTP and the Prompts API
+
+|OIDC identity provider
+|Authenticates users and issues the JWT access tokens the core validates.
+Any provider with discovery, JWKS and JWT access tokens works; Entra ID,
+Keycloak, Auth0 and Okta are documented.
+|Browser for login, core for discovery and JWKS; configured under `oidc`
+
+|LLM providers
+|Model inference behind the LiteLLM router, in a main and a small role.
+|Selected by `llm.model` and `llm.small_model`; credentials in the core's
+environment file
+
+|Git hosting
+|Clone and push over the git CLI; pull requests through the GitHub, Azure
+DevOps or GitLab REST APIs. Public SaaS hosts only — `github.com`,
+`gitlab.com` without subgroups, `dev.azure.com` — over HTTPS. GitHub
+Enterprise Server and self-managed GitLab are not supported today.
+|Selected by `git.provider`
+|===
+
+== How to read the rest of this section
+
+* xref:main:architecture/end-to-end-flow.adoc[End-to-end flow] — the ten
+  phases of one generate session, from the request to the applied
+  infrastructure, and the mechanisms behind them.
+* xref:main:architecture/data-and-state.adoc[Data and state] — what
+  core-db, phoenix-db, Redis, object storage, and the `workspaces` volume
+  each hold.
+* xref:main:architecture/deployment-view.adoc[Deployment view] — the
+  Compose topology, operational notes, and single-instance limits.

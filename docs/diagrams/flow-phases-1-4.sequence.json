@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Nebula request flow · Phases 1-4 — request, identity, session, filter, compose",
+    "title": "Kumoss request flow · Phases 1-4",
     "output": "flow-phases-1-4.html",
     "quality_profile": "showcase",
     "locale": "en",

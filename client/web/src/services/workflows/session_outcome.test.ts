@@ -4,9 +4,9 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
-import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
-import type { ReportRef } from "@/types/api";
+import { server } from "@/test/server";
+import { mockState, makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
+import type { ReportRef, TerraformPlanRef } from "@/types/api";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
@@ -33,6 +33,41 @@ function reportRef(id: number, path: string): ReportRef {
   return { ...artifactRef(id, path), type: "generate" };
 }
 
+function planRef(
+  id: number,
+  path: string,
+  targets: string[],
+): TerraformPlanRef {
+  return { ...artifactRef(id, path), targets };
+}
+
+/**
+ * A store serving a plan object: its body, and its flavour under the
+ * metadata header. The same handler answers the ranged flavour probe and
+ * the full read — a real store distinguishes them by the `Range` header,
+ * and neither caller here cares which bytes come back with the metadata.
+ */
+function servePlan(path: string, type: string | null, body: string) {
+  return http.get(`${STORAGE}/${path}`, () =>
+    HttpResponse.text(body, {
+      headers: type ? { "x-amz-meta-type": type } : {},
+    }),
+  );
+}
+
+/**
+ * A store serving a code-change object. `new_file=false` marks the body
+ * as `git diff` output; `true` (or no tag at all) marks it as whole-file
+ * content. The composer reads only this, never the body's shape.
+ */
+function serveCodeChange(path: string, isNewFile: boolean, body: string) {
+  return http.get(`${STORAGE}/${path}`, () =>
+    HttpResponse.text(body, {
+      headers: { "x-amz-meta-new_file": String(isNewFile) },
+    }),
+  );
+}
+
 beforeEach(() => {
   mockState.clear();
 });
@@ -45,8 +80,8 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
-            plan: { ...artifactRef(2, "plan.txt"), targets: ["a.b"] },
+            reports: [reportRef(1, "report.json")],
+            plans: [planRef(2, "plan.txt", ["a.b"])],
             code_changes: [
               { ...artifactRef(3, "main.tf"), file_name: "main.tf" },
               { ...artifactRef(4, "vars.tf"), file_name: "vars.tf" },
@@ -67,10 +102,171 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.kind).toBe("results");
     if (outcome.kind !== "results") throw new Error("unreachable");
     expect(outcome.report).toEqual(report);
-    expect(outcome.targets).toEqual(["a.b"]);
     expect(outcome.code).toContain("<Terraform_Plan>\nplan output\n</Terraform_Plan>");
     expect(outcome.code).toContain("<main.tf>\nresource {}\n</main.tf>");
     expect(outcome.code).toContain("<vars.tf>\nvariable {}\n</vars.tf>");
+  });
+
+  it("takes the newest plan-flavoured artifact, not the newest artifact", async () => {
+    // The shape every generate round has: the validation loop's plans,
+    // then the drift pre-check's diff stored after them. Order alone
+    // would hand the panel the diff.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-multi",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            reports: [reportRef(10, "report.json")],
+            plans: [
+              planRef(11, "first.txt", []),
+              planRef(12, "final.txt", ["c.d"]),
+              planRef(13, "drift.txt", ["a.b"]),
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report.json`, () =>
+        HttpResponse.json({ status: "ok" }),
+      ),
+      servePlan("first.txt", "plan", "early plan"),
+      servePlan("final.txt", "plan", "final plan"),
+      servePlan("drift.txt", "drift", "drift diff"),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-multi");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("final plan");
+    expect(outcome.code).not.toContain("drift diff");
+    expect(outcome.code).not.toContain("early plan");
+    // Targets ride with the *selected* plan, so they must be `final.txt`'s —
+    // not the newest artifact's (`a.b`, the drift diff) and not the first
+    // plan's (none). Reading them off the wrong ref is invisible in the body
+    // but mislabels the panel.
+    expect(outcome.planTargets).toEqual(["c.d"]);
+  });
+
+  it("leaves the plan empty for a round that stored only drift diffs", async () => {
+    // Drift detected, nothing remediated: the round holds diffs and no
+    // plan. The Plan tab shows its empty state rather than a diff.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-drift-only",
+        operation: "drift",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [planRef(21, "drift-1.txt", []), planRef(22, "drift-2.txt", [])],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      servePlan("drift-1.txt", "drift", "first diff"),
+      servePlan("drift-2.txt", "drift", "second diff"),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-drift-only");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).not.toContain("Terraform_Plan");
+    expect(outcome.code).not.toContain("diff");
+    // No plan on screen, so no targets to describe — even though both
+    // diffs are plan-flavoured artifacts that could have carried some.
+    expect(outcome.planTargets).toEqual([]);
+  });
+
+  it("falls back to the newest plan when the store exposes no flavour", async () => {
+    // Objects stored before the backend wrote the metadata, or a store
+    // whose CORS rules hide it. Unreadable everywhere is not the same as
+    // "every plan is a drift diff", so the old order rule still applies.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-no-meta",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [planRef(31, "old-1.txt", []), planRef(32, "old-2.txt", [])],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      servePlan("old-1.txt", null, "older plan"),
+      servePlan("old-2.txt", null, "newest plan"),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-no-meta");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("newest plan");
+    expect(outcome.code).not.toContain("older plan");
+  });
+
+  it("treats a plan with no targets field as having none", async () => {
+    // `targets` is declared `string[]`, but the read model has already
+    // served it absent (a plan stored before the column existed), and an
+    // undefined array reaches the panel as a crash rather than an empty list.
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-no-targets",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            plans: [artifactRef(41, "bare.txt") as TerraformPlanRef],
+          }),
+        ],
+      }),
+    );
+    server.use(servePlan("bare.txt", "plan", "bare plan"));
+
+    const outcome = await resolveSessionOutcome("sess-no-targets");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.code).toContain("bare plan");
+    expect(outcome.planTargets).toEqual([]);
+  });
+
+  it("hydrates the round's compliance check", async () => {
+    const check = {
+      passed: false,
+      summary: "Public ingress is not allowed",
+      violations: [
+        {
+          rule_id: "NET-001",
+          severity: "critical",
+          message: "0.0.0.0/0 on port 22",
+        },
+      ],
+    };
+    mockState.addSession(
+      makeSessionDetail({
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            compliance_checks: [
+              { ...artifactRef(1, "compliance.json"), passed: false },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/compliance.json`, () => HttpResponse.json(check)),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.compliance).toEqual(check);
   });
 
   it("merges code changes across rounds, with later rounds winning", async () => {
@@ -87,7 +283,7 @@ describe("resolveSessionOutcome", () => {
           makeRound({
             number: 2,
             statuses: [makeStatus("started"), makeStatus("completed")],
-            plan: { ...artifactRef(5, "plan.txt"), targets: [] },
+            plans: [planRef(5, "plan.txt", [])],
             code_changes: [
               { ...artifactRef(6, "outputs-r2.tf"), file_name: "outputs.tf" },
               { ...artifactRef(7, "vault.tf"), file_name: "vault.tf" },
@@ -150,8 +346,8 @@ describe("resolveSessionOutcome", () => {
       }),
     );
     server.use(
-      http.get(`${STORAGE}/diff1`, () => HttpResponse.text(diff1)),
-      http.get(`${STORAGE}/diff2`, () => HttpResponse.text(diff2)),
+      serveCodeChange("diff1", false, diff1),
+      serveCodeChange("diff2", false, diff2),
     );
 
     const outcome = await resolveSessionOutcome("sess-1");
@@ -163,18 +359,58 @@ describe("resolveSessionOutcome", () => {
     expect(outcome.code).toContain('-output "b" {}');
     expect(outcome.code).toContain('-output "c" {}');
     expect(outcome.code).toContain('+output "a" {}');
+    // Both artifacts are diffs, so the composed result is one too.
+    expect(outcome.newFiles).toEqual([]);
+  });
+
+  it("reports which files the code blob holds raw rather than as diffs", async () => {
+    // The blob flattens every file to text, so the viewer can only learn
+    // a file's shape from this list.
+    mockState.addSession(
+      makeSessionDetail({
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            code_changes: [
+              { ...artifactRef(3, "vars.tf"), file_name: "vars.tf" },
+              { ...artifactRef(4, "main.tf"), file_name: "main.tf" },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      serveCodeChange("vars.tf", true, 'variable "a" {}'),
+      serveCodeChange(
+        "main.tf",
+        false,
+        [
+          "diff --git main.tf main.tf",
+          "--- main.tf",
+          "+++ main.tf",
+          "@@ -1,1 +1,1 @@",
+          '-resource "a" {}',
+          '+resource "b" {}',
+        ].join("\n"),
+      ),
+    );
+
+    const outcome = await resolveSessionOutcome("sess-1");
+
+    expect(outcome.kind).toBe("results");
+    if (outcome.kind !== "results") throw new Error("unreachable");
+    expect(outcome.newFiles).toEqual(["vars.tf"]);
+    expect(buildSessionPatch(outcome).newFiles).toEqual(["vars.tf"]);
   });
 
   it("requests the conversation history when given a session id", async () => {
     let sawIncludeHistory = false;
     mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));
     server.use(
-      http.get("/api/v1/sessions/:sessionId", ({ request, params }) => {
-        sawIncludeHistory =
-          new URL(request.url).searchParams.get("include_history") === "true";
-        return HttpResponse.json(
-          mockState.getSession(params.sessionId as string),
-        );
+      http.get("/api/v1/sessions", ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        sawIncludeHistory = params.get("include_history") === "true";
+        return HttpResponse.json(mockState.getSession(params.get("id") ?? ""));
       }),
     );
 
@@ -215,7 +451,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -252,7 +488,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
           }),
           makeRound({
             statuses: [makeStatus("uncompleted", "Query is off-topic")],
@@ -284,7 +520,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("started"), makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
             code_changes: [
               { ...artifactRef(2, "main.tf"), file_name: "main.tf" },
             ],
@@ -352,7 +588,7 @@ describe("resolveSessionOutcome", () => {
               makeStatus("apply"),
               makeStatus("completed"),
             ],
-            report: reportRef(9, "apply-report.json"),
+            reports: [reportRef(9, "apply-report.json")],
           }),
         ],
       }),
@@ -377,7 +613,7 @@ describe("resolveSessionOutcome", () => {
         rounds: [
           makeRound({
             statuses: [makeStatus("completed")],
-            report: reportRef(1, "report.json"),
+            reports: [reportRef(1, "report.json")],
           }),
         ],
       }),
@@ -430,8 +666,8 @@ describe("buildSessionPatch", () => {
       detail,
       round: detail.rounds[0],
       report: null,
+      compliance: null,
       code: "<main.tf>\nx\n</main.tf>",
-      targets: ["a.b"],
     });
 
     expect(patch).toMatchObject({
@@ -448,12 +684,46 @@ describe("buildSessionPatch", () => {
       is_blocked: true,
       current_status: "completed",
       code: "<main.tf>\nx\n</main.tf>",
+      planTargets: [],
     });
-    expect(patch).not.toHaveProperty("terraform_targets");
     expect(patch.history).toEqual([
       { role: "user", content: "deploy a VM" },
       { role: "assistant", content: "Here is your VM" },
     ]);
+  });
+
+  it("carries the plan's targets onto the session", () => {
+    const detail = makeSessionDetail();
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: null,
+      code: "",
+      planTargets: ["azurerm_key_vault.a", "azurerm_key_vault.b"],
+    });
+
+    expect(patch.planTargets).toEqual([
+      "azurerm_key_vault.a",
+      "azurerm_key_vault.b",
+    ]);
+  });
+
+  it("clears the targets when the new round's plan has none", () => {
+    // `updateSession` merges, so an omitted key would leave the previous
+    // round's addresses labelling a plan they have nothing to do with.
+    const detail = makeSessionDetail();
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: null,
+      code: "",
+    });
+
+    expect(patch.planTargets).toEqual([]);
   });
 
   it("marks failed outcomes with current_status failed only", () => {
@@ -469,8 +739,9 @@ describe("buildSessionPatch", () => {
       rationale: "Off-topic",
       prior: {
         report: { status: "ok" },
+        compliance: { passed: false, summary: "Two rules broken" },
         code: "<main.tf>\nx\n</main.tf>",
-        targets: ["a.b"],
+        planTargets: ["azurerm_vm.web"],
       },
     });
 
@@ -478,6 +749,35 @@ describe("buildSessionPatch", () => {
       current_status: "uncompleted",
       code: "<main.tf>\nx\n</main.tf>",
       terraform_report: { status: "ok" },
+      planTargets: ["azurerm_vm.web"],
+      compliance_report: { passed: false, summary: "Two rules broken" },
+    });
+  });
+
+  it("carries the compliance check of a results outcome", () => {
+    const detail = makeSessionDetail({ is_blocked: true });
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: {
+        passed: false,
+        summary: "Public ingress is not allowed",
+        violations: [
+          {
+            rule_id: "NET-001",
+            severity: "critical",
+            message: "0.0.0.0/0 on port 22",
+          },
+        ],
+      },
+      code: "",
+    });
+
+    expect(patch.compliance_report).toMatchObject({
+      passed: false,
+      violations: [{ rule_id: "NET-001" }],
     });
   });
 });
@@ -513,8 +813,8 @@ describe("buildAssistantMessage", () => {
         detail,
         round: detail.rounds[0],
         report: { potential_impact: { summary: "Adds one VM" } },
+        compliance: null,
         code: "",
-        targets: undefined,
       }),
     ).toBe("Adds one VM");
   });
@@ -526,8 +826,8 @@ describe("buildAssistantMessage", () => {
         detail,
         round: detail.rounds[0],
         report: { summary: { create: 2, update: 1, delete: 0, recreate: 0 } },
+        compliance: null,
         code: "",
-        targets: undefined,
       }),
     ).toContain("2 to create");
   });
@@ -539,10 +839,26 @@ describe("buildAssistantMessage", () => {
         detail: makeSessionDetail({ operation: "drift" }),
         round: detail.rounds[0],
         report: { summary: "One resource drifted" },
+        compliance: null,
         code: "",
-        targets: undefined,
       }),
     ).toBe("One resource drifted");
+  });
+
+  it("uses the import report's execution summary for import sessions", () => {
+    expect(
+      buildAssistantMessage({
+        kind: "results",
+        detail: makeSessionDetail({ operation: "import" }),
+        round: detail.rounds[0],
+        report: {
+          summary: { selected: 1, imported: 1, failed: 0 },
+          execution_summary: "One storage account is now managed",
+        },
+        compliance: null,
+        code: "",
+      }),
+    ).toBe("One storage account is now managed");
   });
 
   it("uses execution_summary for apply results and rationale for rejections", () => {

@@ -59,17 +59,30 @@ export const STRINGS = {
     showCode: "Show Code",
     confirmApply: "Confirm and Apply",
     requestReview: "Request Review",
-    // Drift wording: merging the PR *is* the remediation, so nothing is
-    // applied afterwards and the labels must not promise it.
+    // Drift/import wording: merging the PR ends the flow (it *is* the
+    // remediation; an import is already in state), so nothing is applied
+    // afterwards and the labels must not promise it.
     mergePrompt: "",
     approveAndMerge: "Approve and Merge PR",
     confirmMerge: "Confirm and Merge",
     merging: "Merging…",
     mergeSuccess:
       "Pull Request merged. Your infrastructure is being updated to its declared state.",
-    highImpactTitle: "High Impact Deployment",
-    highImpactMessage:
-      "This deployment involves high-impact changes that could significantly affect your infrastructure. The session has been blocked and our support team notified. A specialist will review your request and contact you shortly.",
+    importMergeSuccess:
+      "Pull Request merged. The imported resources are now managed from your repository.",
+    blockedTitle: "Deployment Blocked",
+    blockedMessage:
+      "A specialist has been notified and will review this deployment before it can proceed.",
+    blockedWhy: "Why",
+    highImpactReason: "High impact",
+    complianceReason: "Compliance",
+    showAllFindings: "Show all findings",
+    hideFindings: "Hide findings",
+    checkAgain: "Check again",
+    checkingLock: "Checking…",
+    stillBlocked: "The deployment is still blocked.",
+    blockedOnMerge:
+      "This deployment was blocked before the merge. A specialist will review it.",
   },
 
   applyResults: {
@@ -80,7 +93,7 @@ export const STRINGS = {
     taskValue: "Terraform Apply",
     completedLabel: "Completed:",
     errorMessage:
-      "Infrastructure application error. The Nebula AI team can help you resolve it.",
+      "Infrastructure application error. The Kumoss team can help you resolve it.",
     viewResources: "View Resources",
   },
 
@@ -90,10 +103,10 @@ export const STRINGS = {
     creatingButton: "SENDING SUPPORT REQUEST",
     groupCreated: "Support request sent. The team has been notified.",
     sendFailed: "Support request could not be sent.",
-    openLink: "Click here to open Nebula AI",
+    openLink: "Click here to open Kumoss",
     noEmailError: "Error: No user email found. Please login again.",
     tooltip:
-      "Contact the Nebula team - they will help you to: \
+      "Contact the Kumoss team - they will help you to: \
 - See the terraform plan \
 - Analyze the terraform report \
 - Help you to deploy your infraestructure",
@@ -178,6 +191,61 @@ export const STRINGS = {
     pageTitle: "Sessions",
     searchPlaceholder: "Search User or Project",
     noSessions: "No sessions found",
+
+    /** Timeline heading per round kind. Keys are `RoundKind`. */
+    roundKinds: {
+      generate: "Code Generation",
+      drift: "Drift Analysis",
+      import: "Import",
+      apply: "Terraform Apply",
+    },
+    /**
+     * Timeline row heading per working status. Keys are `SessionStatus`, and
+     * the set is deliberately partial: the statuses left out (`started`,
+     * `apply`, and the resting ones) read fine capitalised, so they fall
+     * back to the status name itself.
+     */
+    statusLabels: {
+      filtering: "Request acceptance",
+      generating: "Generating Infrastructure as Code",
+      validating: "Validating infrastructure configuration",
+      reconciling: "Reconciling drift state",
+      report: "Constructing a final report",
+    },
+    /**
+     * Appended to a round heading for non-success resting states; success
+     * needs no words. Keys are `SessionStatus`, and the set is deliberately
+     * partial — any status absent here renders no suffix.
+     */
+    roundOutcomeSuffixes: {
+      failed: " — Failed",
+      uncompleted: " — Incomplete",
+    },
+    /** Marks a drift round that targeted named resources. */
+    roundPartialSuffix: " (partial)",
+    /** Heads the resource list in an opened plan artifact. */
+    artifactTargets: "Targets",
+    /** Pluralised noun for a plan row's count chip: "3 targets", "1 target". */
+    artifactTargetCount: { one: "target", other: "targets" },
+    /**
+     * Verb prefixing an artifact row's `aria-label`. The row is a button
+     * whose only text is the artifact's name, so the label has to say
+     * what activating it does — sighted users get that from the eye icon.
+     */
+    artifactOpen: "View",
+    /**
+     * Labels for an artifact row. Generate reports fall back to the generic
+     * `report`; the other report kinds announce themselves explicitly.
+     */
+    artifactLabels: {
+      report: "Report",
+      applyReport: "Apply Report",
+      driftReport: "Drift Report",
+      importReport: "Import Report",
+      complianceCheck: "Compliance Check",
+      terraformPlan: "Terraform Plan",
+      driftOperation: "Drift Operation",
+    },
   },
 
   admin: {

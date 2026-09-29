@@ -24,6 +24,7 @@ from src.domains.services.database_service import DatabaseService
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.shared.config import system_config
 from src.shared.constants import (
+    OperationType,
     PromptsLibrary,
     ReportType,
     SessionStatus,
@@ -96,7 +97,9 @@ class TerraformCRUDHandler:
                     ctx=ctx,
                     conventions=conventions,
                     include_forbidden_actions=True,
+                    operation_type=OperationType.GENERATE,
                     validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_validation_iteration,
                 )
 
                 if not plan_result.ok:
@@ -127,7 +130,7 @@ class TerraformCRUDHandler:
                 )
 
                 check = await self.__compliance_svc.check(
-                    request=ctx.history.get_first_turn().user,
+                    ctx=ctx,
                     conventions=conventions,
                     plan=drift.stdout,
                 )

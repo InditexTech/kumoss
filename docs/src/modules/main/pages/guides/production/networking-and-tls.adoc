@@ -1,0 +1,115 @@
+= Networking and TLS
+:description: Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.
+
+This is the second of four pages that expand
+xref:main:guides/deploy-to-production.adoc[Deploy to production]: with
+credentials in place, this page covers the ingress and TLS
+requirements, then how images and `config.yaml` reach a running
+deployment.
+
+== Ingress routing
+
+Terminate TLS at your ingress and expose one origin for the web
+application and API. Reproduce the routing the reference nginx
+configuration implements:
+
+[cols="2,3,6",options="header"]
+|===
+|Path |Upstream |Requirements
+
+|`/`
+|Static bundle built from `client/web`
+|Single-page application fallback to `index.html`. The reference config
+sets `expires 1d` on this location, which also caches `index.html` for
+a day — serve `index.html` itself with `Cache-Control: no-cache` (or an
+equivalent short-lived directive) so a new deploy is picked up
+promptly, while still caching hashed static assets aggressively.
+
+|`/api`
+|Core, port 8000
+|Prefix match. The core is mounted with `root_path=/api`. Long timeouts (the
+reference uses 600 seconds).
+
+|`/api/v1/events/subscribe/`
+|Core, port 8000
+|Server-sent events: *response buffering off*, HTTP/1.1, no
+compression, read timeout long enough for a run (600 seconds in the
+reference; the stream itself lives up to three hours).
+
+|`/monitoring/`
+|Phoenix, port 6006, with `PHOENIX_HOST_ROOT_PATH=/monitoring`
+|*Restrict access* (identity-aware proxy, VPN, or network policy). The
+admin panel links to `/monitoring/projects`.
+
+|Object-storage public endpoint
+|The bucket's endpoint (`storage.public_endpoint_url`)
+|Reachable by browsers; the reference forwards port 9000 to RustFS and
+adds an unconditional `Access-Control-Allow-Origin: *` header. Do not
+reproduce the wildcard CORS header in production — scope it to your
+real origin. With S3 or Azure this is the provider's own endpoint and
+its own CORS configuration applies instead.
+
+The endpoint must also expose two artifact metadata headers. `type`
+tells a drift diff from the plan that resolved it — without it the
+session timeline labels both as plain plans. `new_file` says whether a
+code change holds a whole file or a `git diff` — without it every new
+file renders as plain text instead of a tinted addition. The reference
+proxy sets `Access-Control-Expose-Headers: x-amz-meta-type,
+x-amz-meta-new_file`; a swapped-in S3 bucket needs
+`ExposeHeaders: ["x-amz-meta-type", "x-amz-meta-new_file"]` in its CORS
+rule, and Azure Blob needs
+`ExposedHeaders: x-ms-meta-type,x-ms-meta-new_file`.
+
+The client does not guess between those two spellings. The core derives
+the prefix from `storage.provider` and serves it on
+`GET /api/v1/auth/config` as `artifact_metadata_header_prefix`, so a
+prefix mismatch is impossible — only the expose-list can go wrong.
+|===
+
+Other settings that follow from the origin:
+
+* `http.cors_origins` must list the origin; the API sets
+  `allow_credentials` and reflects it.
+* The identity provider must have `<origin>/auth/callback` and
+  `<origin>` registered.
+* The core's OpenAPI document (`/api/openapi.json`), Swagger UI
+  (`/api/docs`), and ReDoc (`/api/redoc`) are public by design; block them at the ingress if your
+  policy requires it.
+* No component enforces rate limiting; add it at the ingress.
+* The reference nginx config caps request bodies at `client_max_body_size
+  4m` on port 80. Keep an explicit limit at your own ingress; Kumoss's
+  requests (repository descriptions, not file uploads) are small, but an
+  unbounded body size is an easy denial-of-service vector.
+* Sidecars, databases, Redis, object storage's internal endpoint, and
+  Phoenix's OTLP port must *not* be exposed through the ingress. Use
+  network policies so that only the core reaches the sidecars.
+
+Outbound connections you must allow: the core to the LLM provider, the
+Git host, the identity provider, object storage, and Phoenix; the IaC
+sidecar to the provider registry (`registry.opentofu.org` or
+`registry.terraform.io`) and to the cloud APIs; the notifications
+sidecar to `hooks.slack.com` (or your channel).
+
+[#images-and-config-delivery]
+== Images and configuration delivery
+
+* Build the images from the repository with your registry's tags. The
+  core image copies `config.yaml` from the repository root at build
+  time; to keep one image per version and vary configuration per
+  environment, mount the file instead and set `KUMOSS_CONFIG` to its
+  path inside the container. The path must be a regular file, or the
+  core silently falls back to built-in defaults, which disable every
+  *optional* sidecar (notifications, mapping, authz). The IaC sidecar
+  has no `enabled` flag and is always called: if the fallback also
+  leaves its bearer token unresolved, the core fails to boot; but if the
+  token is set and only the endpoint falls back to the built-in default
+  (`\http://iac:8082`, unreachable from most environments), the core
+  boots successfully and the failure only surfaces on the first IaC
+  call (init/validate/plan/apply), not at boot.
+* Build the core and IaC images with the *same* `KUMOSS_UID` and
+  `KUMOSS_GID` build arguments (default `10001`) and run both with that
+  identity.
+* Set `APP_VERSION` on the core to your release version; it is reported
+  in the OpenAPI document.
+* `docker compose watch` and bind-mounted source directories are
+  development conveniences; do not use them in production.

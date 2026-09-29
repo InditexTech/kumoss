@@ -11,8 +11,10 @@
 # names (GIT_USER, GIT_TOKEN, NEBULA_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
 # NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
 # repeated here. LLM provider credentials use LiteLLM's own variable
-# names (docs/litellm.md). Override only if you need a different env var
-# name — see core/src/shared/config/system_config.py for the `*_env` fields.
+# names:
+#   https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/
+# Override only if you need a different env var name — see
+# core/src/shared/config/system_config.py for the `*_env` fields.
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
 # true and point it at a self-hosted mapper) or override per-environment
@@ -20,14 +22,17 @@
 
 # development | staging | production. Selects the Phoenix tracing project
 # prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
-# Phoenix prompts (docs/monitoring.md, docs/phoenix-prompt-templates.md).
+# Phoenix prompts:
+#   https://inditextech.github.io/nebula/prerelease/main/guides/monitor-with-phoenix/
+#   https://inditextech.github.io/nebula/prerelease/main/guides/customize-prompts/
 # No security gates are keyed on it.
 environment: "development"
 
 # OIDC login + bearer-token validation. Blank issuer_url disables auth
 # entirely (dev default: every request acts as a local developer with
 # top roles). Optional overrides (`audience`, `scope`), per-IdP setup
-# and quirks (Entra ID, Keycloak, Auth0): docs/oidc-setup.md.
+# and quirks (Entra ID, Keycloak, Auth0):
+#   https://inditextech.github.io/nebula/prerelease/main/guides/enable-authentication/
 # clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
@@ -40,9 +45,10 @@ oidc:
 # admin) when they log in — on first login for new users, on the next
 # login for existing ones. IdPs that never emit `email_verified` (Entra
 # ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
-# table instead (docs/oidc-setup.md, "Bootstrap admin"). Elevation is
-# one-way: clearing this field later never demotes anyone. Leave blank
-# to skip.
+# table instead — see "Bootstrap admin" at
+#   https://inditextech.github.io/nebula/prerelease/main/guides/enable-authentication/
+# Elevation is one-way: clearing this field later never demotes anyone.
+# Leave blank to skip.
 admin:
   default_root_email: ""
 
@@ -56,7 +62,7 @@ admin:
 # flip `enabled: false` to skip an optional service entirely.
 services:
   notifications:
-    enabled: false
+    enabled: true
     endpoint: "http://notifications:8080"
     token_env: "NEBULA_NOTIFICATIONS_TOKEN"
     timeout: 30.0
@@ -96,12 +102,13 @@ services:
 # clean generate round or a panel editor unlocks it.
 #
 # max_drift_reports: maximum detect-and-remediate iterations in a drift
-# session. Every knob is described in docs/configuration.md.
+# session. Every knob is described at
+#   https://inditextech.github.io/nebula/prerelease/main/reference/configuration/
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
-  max_drift_reports: 3
-  max_validation_iteration: 5
+  max_drift_reports: 5
+  max_validation_iteration: 8
   max_tool_chain_executions: 70
   max_session_events_iteration: 2160
   drift_group_operations: 8
@@ -111,30 +118,30 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars, set in core/.env. The azure_ai
-# models below read AZURE_AI_API_KEY and AZURE_AI_API_BASE; LiteLLM has no
-# boot-time validation mapping for azure_ai, so a missing or invalid
-# credential is only detected on the first LLM call, not at boot. For
-# providers LiteLLM can validate (anthropic/..., vertex_ai/..., openai/...,
-# azure/...) the core fails boot when the required env vars are missing;
-# the in-code defaults (anthropic/...) need ANTHROPIC_API_KEY.
+# from the provider's standard env vars, set in core/.env — the models
+# below need ANTHROPIC_API_KEY. For providers LiteLLM can validate
+# (anthropic/..., vertex_ai/..., openai/..., azure/...) the core fails
+# boot when the required env vars are missing; for the rest (azure_ai/...
+# among them) a missing or invalid credential is only detected on the
+# first LLM call.
 # Advanced routing (load balancing, custom credential env var names,
 # per-entry endpoints) is available via an optional `model_list` key.
 # The core passes only that list to the Router, so router-level
 # fallbacks between different models are not configurable.
 #
 # Refer to:
-#   - docs/litellm.md                          — Nebula's LiteLLM guide
-#   - https://models.litellm.ai/              — model IDs
-#   - https://docs.litellm.ai/docs/providers  — provider credential keys
+#   - https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/  — Nebula's LiteLLM guide
+#   - https://models.litellm.ai/                                                     — model IDs
+#   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
   # Complex tasks model
-  model: "azure_ai/claude-sonnet-4-5"
+  model: "vertex_ai/claude-sonnet-4-6"
   # Simple tasks model
-  small_model: "azure_ai/claude-haiku-4-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
+  timeout: 600
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
@@ -170,9 +177,9 @@ redis:
   pool_timeout: 2.0
 
 # OTel telemetry. `collector_url` is a base URL; the OTLP endpoint is
-# computed at use time as `f"{collector_url}v1/traces"`. Phoenix is
-# reachable as `phoenix:6006` on the docker network; the in-code default
-# (http://localhost:6006/) only works when running the core outside docker.
+# computed at use time as `f"{collector_url}v1/traces"`. The value below
+# is also the in-code default: Phoenix as reachable on the docker
+# network. Running the core outside docker needs http://localhost:6006/.
 telemetry:
   collector_url: "http://phoenix:6006/"
   otel_attribute_count_limit: 1024
@@ -210,7 +217,8 @@ http:
 # sidecar holding that backend's credentials. Use an explicit "" rather
 # than an empty value — the field is a string, and a YAML null fails
 # validation at boot. Deleting the key restores the default, which is
-# this same bucket name. See docs/terraform-state-backends.md.
+# this same bucket name. See
+#   https://inditextech.github.io/nebula/prerelease/main/guides/configure-state-backends/
 #
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
@@ -239,7 +247,8 @@ storage:
 #
 # `provider` defaults to GITHUB and must be a GitProviderName enum name
 # or value (see core/src/shared/constants.py::GitProviderName): GITHUB,
-# AZURE_DEVOPS, GITLAB. Full field reference: docs/configuration.md.
+# AZURE_DEVOPS, GITLAB. Full field reference:
+#   https://inditextech.github.io/nebula/prerelease/main/reference/configuration/
 git:
   provider: "GITHUB"
   author_name: "Nebula"

@@ -72,17 +72,13 @@ jspm_packages/
 # Typescript v1 declaration files
 typings/
 
-# Optional npm cache directory
+# Optional cache directories 
 .npm
-
-# Optional eslint cache
 .eslintcache
+*.tgz
 
 # Optional REPL history
 .node_repl_history
-
-# Output of 'npm pack'
-*.tgz
 
 # Yarn Integrity file
 .yarn-integrity
@@ -97,15 +93,27 @@ coverage/
 CLAUDE.md
 AGENTS.md
 
+# Agent tooling
+.agents/
+agent/
+.claude/skills/
+.claude/settings.local.json
+skills-lock.json
+
 # Local Tests
 local_test/
+.playwright-mcp
 
 # Unpublished files
 docs-tmp/
+
+# Pre-migration Markdown guides, kept as a local reference copy until the
+# docouture site under docs/ retires them
+docs-old/
 
 # Unpublished diagrams: interactive HTML exports are generated from the
 # *.architecture.json
 docs/diagrams/*.html
 # Throwaway browser evidence from `archify visual-check`; the published export
-# is docs/images/<diagram>.png
+# is docs/src/modules/main/images/<diagram>.png
 docs/diagrams/*.visual-check.*

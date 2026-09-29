@@ -1,0 +1,3 @@
+The phase where a small-model agent classifies a request: a change request
+proceeds, a question is answered in the conversation, and an out-of-scope,
+prohibited, or ambiguous request is declined with an explanation.

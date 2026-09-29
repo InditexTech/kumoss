@@ -36,7 +36,7 @@ function renderHeader() {
 }
 
 function logo() {
-  return screen.getByRole("link", { name: /nebula/i });
+  return screen.getByRole("link", { name: /kumoss/i });
 }
 
 describe("Header logo", () => {

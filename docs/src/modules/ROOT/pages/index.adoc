@@ -1,0 +1,133 @@
+= Home
+:page-layout: home
+:page-nav-module: main
+:description: Turn natural-language requests into reviewed, compliant Terraform-compatible Infrastructure as Code, generated directly in your repository.
+:page-tags: infrastructure-as-code, terraform, opentofu, compliance, llm
+:page-action: Get started
+:page-action-url: main:quickstart.adoc
+:page-action-secondary: About
+:page-action-secondary-url: main:about.adoc
+:page-hero-image: main:web-portal-home.jpg
+:page-hero-image-alt: The Kumoss web portal's home screen: an operation selector set to Generate Infrastructure, a request box asking what you need, and a row of recent session cards.
+:page-hero-image-bordered:
+
+Kumoss turns natural-language infrastructure requests into reviewed,
+compliant Terraform-compatible code. Platform engineers and application
+developers describe what they need; Kumoss generates the code, validates
+it against the target cloud, and audits it for compliance, then hands
+over a pull request that a developer applies explicitly — every blocking
+decision is computed by application code, never by a model.
+
+== Get started
+
+[cards,columns="1 s:2 m:4"]
+====
+[card,subheader="Start here"]
+.xref:main:quickstart.adoc[Try Kumoss locally]
+Run it locally with Docker Compose, only LLM credentials and a Git personal
+access token (`GIT_USER`/`GIT_TOKEN`) are yours to supply.
+
+[card,subheader="Production"]
+.xref:main:guides/deploy-to-production.adoc[Deploy to production]
+Harden OIDC, project-level authorization, secrets, persistence, and TLS
+before running Kumoss beyond a trusted workstation.
+
+[card,subheader="Architecture"]
+.xref:main:architecture.adoc[See how it is built]
+The layered FastAPI core, the four contract-first sidecars, and the
+request lifecycle from filter to apply.
+
+[card,subheader="Guides"]
+.xref:main:guides-overview.adoc[Follow a session end to end]
+Step-by-step guides for making a request, following a session, and
+merging and applying the result.
+====
+
+== Key capabilities
+
+[cards,columns="1 s:2 m:2"]
+====
+[card]
+.xref:main:guides/make-a-request.adoc[Describe what you need, in plain language]
+Open a session and phrase a request; Kumoss fills in naming conventions,
+resource defaults, and the placement it finds in your repository.
+
+[card]
+.xref:main:guides/generate-infrastructure.adoc[Get back validated Terraform code]
+Kumoss writes Terraform-compatible HCL on a new branch and runs it through
+the engine's own `init`, `validate`, and `plan` until it passes.
+
+[card]
+.xref:main:guides/merge-and-apply.adoc#session-locked[Catch compliance issues before they ship]
+An LLM auditor reviews every generated plan against your organization's
+rules; a failing finding or a high-impact change locks the session until
+a reviewer clears it.
+
+[card]
+.xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
+Kumoss opens a pull request from the reviewed plan and applies it only
+after an explicit apply request — never on its own.
+====
+
+== Free & open source
+
+[cta]
+====
+Kumoss is open source and actively developed — issues, feedback, and
+contributions are welcome; see how each default component is licensed
+in xref:main:additional-information.adoc#licensing-of-the-default-stack[the licensing table].
+
+[.primary]
+https://github.com/InditexTech/kumoss[Star Kumoss on GitHub]
+====
+
+== Frequently asked questions
+
+More questions? See the full xref:main:faq.adoc[FAQ].
+
+[accordion,aria-label="Frequently asked questions"]
+--
+.Where does Terraform state live?
+[%collapsible]
+====
+Out of the box, Kumoss keeps state itself, in a bucket dedicated to
+state with one file per project. Your platform team can instead point it
+at the remote backend your repository's own Terraform files declare.
+Either way, your pull request never contains a state or backend file.
+====
+
+.Which cloud credentials does Kumoss use?
+[%collapsible]
+====
+The identity your platform team configured for the execution engine —
+never yours. An optional external authorization service can also be
+asked, at the start of each session, whether you may work on that cloud,
+repository, and path.
+====
+
+.What data leaves Kumoss when I make a request?
+[%collapsible]
+====
+Your request text, the conversation, the repository files the agent
+reads, the plan, and validation errors are sent to the language model
+your platform team configured, and stored in the tracing system for
+review.
+====
+
+.Do I have to open a pull request?
+[%collapsible]
+====
+The API allows a direct apply, but the web application has no
+standalone Apply button. As a `developer`, the pull request is your
+route to apply — the recommended path, since it brings your team's
+review and CI into the decision.
+====
+
+.Can other people see my sessions?
+[%collapsible]
+====
+Only reviewers who hold a panel role (viewer, editor, or admin) can
+read them, including the conversation. Nobody but you can continue,
+merge, or apply your sessions.
+====
+--

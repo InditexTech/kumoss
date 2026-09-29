@@ -38,6 +38,14 @@
   padding-top: var(--assistant-top-offset);
 }
 
+.fullPageScroll {
+  scrollbar-width: none;
+}
+
+.fullPageScroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Left side (split layout panel) ─── */
 
 .leftSide {

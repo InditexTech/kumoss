@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 # Conformance suites
 
 Per-service Schemathesis test packs. Any implementation that wants to
-claim it satisfies a Nebula contract must pass the matching suite.
+claim it satisfies a Kumoss contract must pass the matching suite.
 
 Layout: `<service>/` — one directory per service, mirroring
 `../openapi/`. Each contains the Schemathesis configuration, fixtures,

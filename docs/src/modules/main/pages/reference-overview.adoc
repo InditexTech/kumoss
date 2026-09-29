@@ -1,0 +1,90 @@
+= Reference
+:description: Lookup material for Kumoss: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
+
+This section is the lookup material for Kumoss: the operating modes,
+every configuration field, every environment variable, the LLM provider
+and model tables, roles, repository layout, Terraform providers, and the
+HTTP APIs, described exhaustively.
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:reference/operating-modes.adoc[Operating modes]
+What each operating mode does today, the inputs every session takes, and
+how a session runs.
+
+[card]
+.xref:main:reference/configuration.adoc[Configuration]
+Every `config.yaml` section and field: type, default, validation rule,
+and effect.
+
+[card]
+.xref:main:reference/database-schema.adoc[Database schema]
+The thirteen tables of core-db, what each records, the enumerated columns,
+and how rows are deleted.
+
+[card]
+.xref:main:reference/environment-variables.adoc[Environment variables and secrets]
+Every variable in `core/env.sample` and the four sidecar `env.sample`
+files, plus the IaC engine and LLM provider variables.
+
+[card]
+.xref:main:reference/llm-providers.adoc[LLM providers and models]
+How Kumoss selects LiteLLM models, provider credential tables, and the
+`llm.model_list` router escape hatch.
+
+[card]
+.xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+The two independent role groups, the complete permission matrix, and
+who gets which role by default.
+
+[card]
+.xref:main:reference/repository-layout.adoc[Repository layout]
+How Kumoss finds Terraform roots in a repository: the detection rules
+and the wizard's zero/one/many behavior.
+
+[card]
+.xref:main:reference/terraform-providers.adoc[Terraform providers]
+Minimum environment variables per cloud and state backend, plus the
+exhaustive variable reference.
+
+[card]
+.xref:main:reference/api/index.adoc[HTTP APIs]
+Every route the core exposes under `/api/v1`, and the four sidecar
+OpenAPI contracts it consumes as a client.
+====
+
+== Limits at a glance
+
+[cols="2,4",options="header"]
+|===
+|Limit |Value
+
+|Request and follow-up text
+|500 characters
+
+|Cloud scope
+|64 characters, letters, digits, and hyphens
+
+|Support message
+|500 characters
+
+|Generate-and-validate attempts per request
+|8
+
+|Drift check inside a generate round
+|2 passes
+
+|Drift remediation session
+|5 iterations
+
+|One operation per session at a time
+|A second request while one is running is ignored until it finishes
+
+|Live progress stream
+|About 3 hours per connection; reopen the session afterwards
+
+|xref:main:reference/roles-and-permissions.adoc[Roles]
+|`developer`: generate, pull request, apply. `devops`: also drift
+remediation.
+|===

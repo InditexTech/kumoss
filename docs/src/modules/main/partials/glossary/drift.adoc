@@ -1,0 +1,3 @@
+Infrastructure changes made outside Terraform — for example a console edit
+or a hotfix — that no longer match the code. Kumoss can detect drift and
+generate code that reconciles it.

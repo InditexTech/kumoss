@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "Nebula Compose Deployment Topology",
+    "title": "Kumoss Compose Deployment Topology",
     "output": "deployment-topology.html",
     "quality_profile": "showcase",
     "locale": "en"
@@ -156,7 +156,7 @@
   "boundaries": [
     {
       "kind": "region",
-      "label": "Compose project nebula, one bridge network",
+      "label": "Compose project kumoss, one bridge network",
       "wraps": [
         "authz",
         "mapping",
@@ -254,7 +254,7 @@
       "title": "The shared workspaces volume",
       "items": [
         "core and iac mount workspaces read-write, so the engine runs on the core git clones",
-        "Both run as nebula, uid/gid 10001 via NEBULA_UID and NEBULA_GID",
+        "Both run as kumoss, uid/gid 10001 via KUMOSS_UID and KUMOSS_GID",
         "Each run clones into a unique directory and deletes it in a finally block"
       ]
     },

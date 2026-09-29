@@ -1,0 +1,62 @@
+= Sidecar-supplied backend
+:description: Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
+
+For a deployment that owns the backend decision centrally, the IaC
+sidecar accepts a backend configuration file. An absolute path is
+resolved *inside the sidecar container*, so mount the file there; a
+relative path is resolved against the workspace, which is how a file
+carried by the target repository is reached:
+
+[source,dotenv]
+----
+# services/iac/.env
+IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl
+----
+
+[source,yaml]
+----
+# docker-compose.override.yml
+services:
+  iac:
+    volumes:
+      - ./backend.hcl:/etc/kumoss/backend.hcl:ro
+----
+
+`init` then runs with `-backend-config=/etc/kumoss/backend.hcl`. The
+file holds backend _values_ only — a `.hcl` or `.tfbackend` partial
+configuration:
+
+[source,hcl]
+----
+bucket = "acme-central-tfstate"
+region = "eu-west-1"
+----
+
+The file names the state store but carries no credentials for it: as
+under the repository-declared model, the sidecar's ambient credentials
+must be granted access to that store as well as to the provider — see
+xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
+two credential grants].
+
+Three constraints follow from how `-backend-config` works:
+
+. *The backend _type_ still comes from the workspace.* The repository
+  must declare `terraform { backend "s3" {} }` (possibly with an empty
+  body); a file alone cannot introduce a backend where none is
+  declared.
+. *You are responsible for state keys.* Terraform's `key` is a single
+  value, so if every project reads the same file, every project shares
+  one state file unless the repositories declare distinct keys
+  themselves. Per-project keying is a feature of
+  xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
+  state] only.
+. *Blank means unset.* An empty or whitespace-only `IAC_BACKEND_CONFIG`
+  is treated as not set.
+
+The sidecar does *not* check this path at startup, unlike `IAC_BINARY`.
+A workspace-relative file exists only once the target repository has
+been cloned, so there is nothing to verify at boot. A wrong path
+therefore surfaces as an `init` failure on the first job that uses it,
+in that job's stderr rather than in the container's startup log. A file
+you mount must be readable by uid `10001` (`kumoss`), the unprivileged
+user the image runs as.

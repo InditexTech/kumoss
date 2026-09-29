@@ -37,11 +37,13 @@ class LiteLLMAdapter(ILLMProvider):
         model: str,
         temperature: float,
         max_tokens: int,
+        timeout: float,
         router: Router,
     ) -> None:
         self.__model = model
         self.__temperature = temperature
         self.__max_tokens = max_tokens
+        self.__timeout = timeout
         self.__router = router
         self._last_invocation_params: dict[str, Any] | None = None
 
@@ -107,7 +109,7 @@ class LiteLLMAdapter(ILLMProvider):
                 "max_tokens": max_tokens,
                 "temperature": 1.0 if thinking else self.__temperature,
                 "num_retries": 3,
-                "timeout": 120,
+                "timeout": self.__timeout,
             }
 
             if tools:
@@ -179,7 +181,7 @@ class LiteLLMAdapter(ILLMProvider):
             "tools": [{"type": "web_search_preview", "search_context_size": "medium"}],
             "max_output_tokens": max_tokens,
             "temperature": self.__temperature,
-            "timeout": 120,
+            "timeout": self.__timeout,
         }
         self._last_invocation_params = aresponses_kwargs
         resp = cast(

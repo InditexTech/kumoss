@@ -1,0 +1,3 @@
+One conversation with Kumoss about one repository. A session owns a Git
+branch named `Kumoss/YYYY-MM-DD_HHMMSS` (UTC) and a directory on the shared
+volume, and each user request within it opens a round.

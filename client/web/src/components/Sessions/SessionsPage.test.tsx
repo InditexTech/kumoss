@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
-import { makeSessionDetail, mockState } from "@/mocks/state";
+import { server } from "@/test/server";
+import { makeSessionDetail, mockState } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import type { PanelRole, SessionDetail } from "@/types/api";
 import SessionsPage from "./SessionsPage";
@@ -22,10 +22,10 @@ function paginated(items: SessionDetail[]) {
 function mockAdminSession(detail: SessionDetail) {
   const patches: Array<{ locked: boolean }> = [];
   server.use(
-    http.get("/api/v1/admin/sessions", () =>
+    http.get("/api/v1/admin/sessions/list", () =>
       HttpResponse.json(paginated([detail])),
     ),
-    http.get("/api/v1/admin/sessions/:id", () => HttpResponse.json(detail)),
+    http.get("/api/v1/admin/sessions", () => HttpResponse.json(detail)),
     http.patch(
       "/api/v1/admin/sessions/:id/toggle_lock",
       async ({ request }) => {

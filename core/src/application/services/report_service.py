@@ -46,12 +46,14 @@ class ReportService:
             ReportType.GENERATE: 0,
             ReportType.DRIFT: 1,
             ReportType.APPLY: 2,
+            ReportType.IMPORT: 3,
         }.get(type, 0)
 
         _ = await self.__session_svc.update_status(
-            msg="Terraform apply finished. Generating report"
-            if type is ReportType.APPLY
-            else "Infrastructure successfully validated. Generating report",
+            msg={
+                ReportType.APPLY: "Terraform apply finished. Generating report",
+                ReportType.IMPORT: "Terraform import processing finished. Generating report",
+            }.get(type, "Infrastructure successfully validated. Generating report"),
             prompt=await self.__template_svc.render(PromptsLibrary.STATUS_UPDATE),
             status=SessionStatus.REPORT,
             history=ctx.history,

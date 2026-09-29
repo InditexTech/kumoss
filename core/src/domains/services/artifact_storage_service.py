@@ -25,9 +25,10 @@ def _safe_name(file_name: str) -> str:
 
 
 def _token() -> str:
-    # Rounds may legitimately store twice (the read model picks "latest
-    # wins"); a random token keeps every write at a fresh key so an old
-    # DB row can never alias new bytes.
+    # A round stores several plans and reports — a drift pass writes its
+    # diff and its plan, and every validation iteration adds another —
+    # and the read model returns them all. A random token keeps each
+    # write at a fresh key so an old DB row can never alias new bytes.
     return uuid4().hex[:8]
 
 
@@ -89,6 +90,45 @@ class ArtifactStorageService:
             ),
         )
 
+    async def store_compliance_check(
+        self,
+        session_id: UUID,
+        round_id: int,
+        passed: bool,
+        content: str | bytes,
+        content_type: ContentType,
+        metadata: dict[str, str] = None,
+    ) -> int:
+        """Persist a round compliance check; returns the compliance_checks row pk.
+
+        Args:
+            session_id: Owning session uuid (key namespacing only).
+            round_id: Round pk the check belongs to.
+            passed: Verdict of the check, surfaced by the read model.
+            content: Check report body; str is stored utf-8 encoded.
+            content_type: MIME type served on reads (max 64 chars).
+            metadata: Metadata attached to the object.
+        """
+        data = self.__encode(content)
+        key = (
+            f"sessions/{session_id}/rounds/{round_id}"
+            + f"/compliance/check-{_token()}.json"
+        )
+        return await self.__store(
+            key=key,
+            data=data,
+            content_type=content_type.value,
+            metadata=metadata if metadata else {},
+            context=f"session {session_id} round {round_id}",
+            db_write=lambda: DatabaseService.add_compliance_check(
+                round_id=round_id,
+                passed=passed,
+                uri=key,
+                content_type=content_type.value,
+                file_size_bytes=len(data),
+            ),
+        )
+
     async def store_terraform_plan(
         self,
         session_id: UUID,
@@ -97,7 +137,6 @@ class ArtifactStorageService:
         content: str | bytes,
         content_type: ContentType,
         metadata: dict[str, str] = None,
-        is_drift: bool = False,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -106,14 +145,15 @@ class ArtifactStorageService:
             round_id: Round pk the plan belongs to.
             targets: Terraform targets the plan covers.
             content: Plan body; str is stored utf-8 encoded.
-            content_type: MIME type served on reads (max 20 chars).
-            metadata: Metadata attached to the object.
+            content_type: MIME type served on reads (max 64 chars).
+            metadata: Metadata attached to the object. The
+                ``terraform_plans`` row holds no flavour, so callers that
+                store more than one kind of plan (a drift diff and a
+                validation plan) label it here and a consumer reads it
+                off the object.
         """
         data = self.__encode(content)
-        key = (
-            f"sessions/{session_id}/rounds/{round_id}"
-            + f"/plans/{'drift' if is_drift else 'plan'}-{_token()}.txt"
-        )
+        key = f"sessions/{session_id}/rounds/{round_id}" + f"/plans/{_token()}.txt"
         return await self.__store(
             key=key,
             data=data,
@@ -146,7 +186,7 @@ class ArtifactStorageService:
             file_name: Original (possibly nested) file path; stored
                 verbatim in the DB, sanitized inside the object key.
             content: File body; str is stored utf-8 encoded.
-            content_type: MIME type served on reads (max 20 chars).
+            content_type: MIME type served on reads (max 64 chars).
             metadata: Metadata attached to the object.
         """
         data = self.__encode(content)

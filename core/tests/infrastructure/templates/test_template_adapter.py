@@ -229,6 +229,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         "plan": ("FOR PLAN ANALYSIS REPORTS", "generate_terraform_plan_report"),
         "drift": ("FOR DRIFT REMEDIATION REPORTS", "generate_terraform_drift_report"),
         "apply": ("FOR APPLY REPORTS", "generate_terraform_apply_report"),
+        "import": ("FOR IMPORT REPORTS", "generate_terraform_import_report"),
     }
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
@@ -328,6 +329,36 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             ["session", "drift"],
         )
 
+    def test_render_task_splitter_drift(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_task_splitter(operation_type=OperationType.DRIFT)
+
+        self.assertIn("JSON drift report", prompt)
+        self.assertIn("dictionary_item_added", prompt)
+        self.assertNotIn("Troubleshooting Strategist", prompt)
+        self.assertNotIn("Root Cause", prompt)
+        self.assertIn("`report_decomposed_task_operations`", prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("{%", prompt)
+
+    def test_render_task_splitter_terraform_errors(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        for operation_type in (OperationType.GENERATE, OperationType.IMPORT):
+            with self.subTest(operation_type=operation_type):
+                prompt = adapter.render_task_splitter(operation_type=operation_type)
+
+                self.assertIn("Troubleshooting Strategist", prompt)
+                self.assertIn("Identify Root Causes", prompt)
+                self.assertNotIn("drift report", prompt)
+                self.assertNotIn("dictionary_item_added", prompt)
+                self.assertIn("`report_decomposed_task_operations`", prompt)
+                self.assertNotIn("{{", prompt)
+                self.assertNotIn("{%", prompt)
+
     def test_render_filter_reconciliation(self):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
@@ -365,6 +396,42 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("diff_history", prompt)
         self.assertNotIn("/test/project", prompt)
         self.assertNotIn("{{", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_import_exceptions_returns_the_scope_list(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.return_value = "- /subscriptions/s/resourceGroups/rg-a"
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+
+        body = await adapter.render_import_exceptions()
+
+        mock_fetch.assert_awaited_once_with(
+            prompt_name="import_exceptions",
+            scope="azure",
+            type="guidelines",
+            tag=system_config.environment,
+        )
+        # Returned verbatim: reading the IDs out of it is the caller's job.
+        self.assertEqual(body, "- /subscriptions/s/resourceGroups/rg-a")
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_render_import_filter_leaves_exceptions_to_code(
+        self, mock_fetch: AsyncMock
+    ):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+
+        prompt = await adapter.render_import_filter(
+            unmanaged_ids=["res-1"], resources=[], abbreviations=[]
+        )
+
+        self.assertIn("- res-1", prompt)
+        self.assertNotIn("exception", prompt.lower())
+        mock_fetch.assert_not_awaited()
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):

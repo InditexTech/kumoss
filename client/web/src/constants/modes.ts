@@ -28,8 +28,27 @@ export const MODE_OPTIONS: ModeOption[] = [
     description: "Restores all infrastructure to the expected state.",
   },
   {
+    value: MODE.PARTIAL_IMPORT,
+    label: "Partial Import",
+    description: "Imports only the unmanaged resources your request names.",
+  },
+  {
     value: MODE.IMPORT,
-    label: "Import Infrastructure",
-    description: "Adds existing resources to manage them from the tool.",
+    label: "Full Import",
+    description: "Brings every unmanaged resource in the scope under management.",
   },
 ];
+
+/**
+ * Full modes act on the whole scope, so the wizard asks no query and sends
+ * these fixed ones instead. Partial modes need the user's query to know
+ * what to act on.
+ */
+export const FIXED_MODE_QUERIES: Partial<Record<Mode, string>> = {
+  [MODE.DRIFT]: "Reconcile all the drift",
+  [MODE.IMPORT]: "Import all the infrastructure",
+};
+
+export function isFixedModeQuery(query: string): boolean {
+  return Object.values(FIXED_MODE_QUERIES).includes(query);
+}

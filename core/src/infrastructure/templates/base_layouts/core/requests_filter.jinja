@@ -45,6 +45,12 @@ All file paths are relative to this directory.
      - A scoped request — "fix the drift on keyvault kvt_001" — is accepted after verifying the referent exists in the workspace using the inspection tools. If the referent does not exist, it falls into the missing-referent or ambiguous-target rejection (category C).
      Requests to create, modify, or delete infrastructure are NOT drift requests. Reject them as an operation mismatch: set `status` to `false` and explain that infrastructure changes are available through the generation operation.
 
+{% elif OPERATION_TYPE == "import" %}
+  A. IMPORT REQUEST — the user wants to bring existing cloud resources under Terraform management. Set `status` to `true` and it will be handed to the downstream import pipeline. Valid import requests include:
+     - A broad scope request — "import everything in the scope", "bring all unmanaged resources under Terraform" — selects the full scope diff. Set `status` to `true`; no parameters or disambiguation needed.
+     - A targeted request — "import storage account staweu1001", "bring the key vault under Terraform management" — targets specific existing cloud resources for import. Such a resource is expected to be absent from the Terraform workspace, so do not apply the missing-referent rejection based on workspace inspection; cloud discovery validates it downstream.
+     Requests to create NEW infrastructure, modify existing Terraform-managed resources, or detect drift are NOT import requests. Reject them as an operation mismatch: set `status` to `false` and explain that infrastructure creation is available through the generation operation and drift detection through the drift operation.
+
 {% endif %}
   B. INFORMATIONAL QUESTION — the user asks ABOUT the workspace infrastructure rather than asking to change it. Set `status` to `false` (no code generation must run) and write the FULL ANSWER in `explanation`. Supported question types:
   1. Inventory: "what infrastructure do I have?", "which storage accounts exist?" — inspect the workspace and summarize the resources it defines (types, names, resource groups, notable settings).
@@ -62,6 +68,8 @@ All file paths are relative to this directory.
   - Category A: enumerate the defaults and assumptions you are making (e.g., "assuming a new storage account in existing resource group rg-app-dev, name per naming conventions, remaining settings from the storage_account module template").
 {% elif OPERATION_TYPE == "drift" %}
   - Category A: state the scope of the drift run (full workspace or the specific resource(s) targeted).
+{% elif OPERATION_TYPE == "import" %}
+  - Category A: state the scope of the import (full scope diff or the specific resource(s) targeted for import).
 {% endif %}
   - Category B: the complete, self-contained answer to the question, based on the evidence you gathered from the workspace.
   - Category C: state which condition applies and exactly what is out of scope, prohibited, ambiguous, or missing from the workspace.
@@ -75,6 +83,12 @@ All file paths are relative to this directory.
   - "check drift on kvt_001" (module.keyvault_001 exists in the workspace) -> status=true. Scoped drift run on module.keyvault_001.
   - "check drift on kvt_999" (not present in the workspace) -> status=false. Missing referent: no resource matching "kvt_999" was found in the workspace.
   - "create a storage account" -> status=false. Operation mismatch: this is a drift session; infrastructure creation is available through the generation operation.
+{% elif OPERATION_TYPE == "import" %}
+  - "import everything in the scope" -> status=true. Full scope import; all unmanaged resources in the scope will be considered. Explanation states a full-scope import will start.
+  - "bring storage account staweu1001 under Terraform management" -> status=true. Targeted import of a specific cloud resource.
+  - "import all the key vaults" -> status=true. Targeted import scoped to a resource type.
+  - "create a new storage account" -> status=false. Operation mismatch: this is an import session; infrastructure creation is available through the generation operation.
+  - "resolve the drift" -> status=false. Operation mismatch: this is an import session; drift detection is available through the drift operation.
 {% endif %}
   - "what infra do I have?" -> status=false. Explanation summarizes the workspace inventory: "The workspace defines 1 resource group (rg-app-dev) containing 2 storage accounts (stappdev001, stlogsdev001) and 1 AKS cluster (aks-app-dev)...".
   - "what improvements are possible?" -> status=false. Explanation lists concrete gaps against the conventions and module templates found in the workspace (e.g., a storage account missing the mandatory tags, a name not matching the naming conventions).

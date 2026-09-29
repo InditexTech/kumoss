@@ -1,0 +1,270 @@
+= Roles and permissions
+:description: The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+
+Every user record in Kumoss's database carries two roles from two
+independent groups: an *operation role*, which decides which
+Infrastructure as Code (IaC) actions the user may run on their own
+sessions, and an *admin-panel role*, which decides what the user may
+do in the admin panel. See xref:main:glossary.adoc[Glossary] for the
+short definitions of both terms; this page is the complete reference:
+every grant each level carries, the permission matrix the API
+enforces, and who receives which role by default.
+
+Roles live in the core database, not in the authorization sidecar. The
+authorization sidecar is consulted only by `POST
+/api/v1/auth/authorize`, which calls the sidecar's `POST /v1/check` to
+decide whether the caller may work against a given cloud project — a
+check that is disabled by default (`services.authz.enabled: false`)
+and has no bearing on operation or panel roles. See
+xref:main:guides/deploy-to-production.adoc[Deploy to production] for
+when to enable it.
+
+== Two independent role groups
+
+The two groups solve different problems and do not affect each other.
+A panel `admin` with operation role `developer` cannot run drift
+remediation, and cannot apply or merge a pull request on somebody
+else's session — acting on a session belongs to its owner only,
+whatever the panel role. Conversely, a `devops` user with no panel
+role sees only their own sessions.
+
+=== Operation roles
+
+Operation roles are hierarchical, and every user has one.
+
+[cols="1,4",options="header"]
+|===
+|Operation role |Grants
+
+|`developer`
+|Generate Infrastructure, create and merge pull requests, and apply a
+pinned plan on sessions they own.
+
+|`devops`
+|Everything `developer` can do, plus Partial and Full Drift
+Remediation. The web application also reserves the Partial Import and
+Full Import modes for `devops`.
+|===
+
+=== Admin-panel roles
+
+Admin-panel roles are hierarchical too, and optional: most users have
+no panel role and see only their own sessions.
+
+[cols="1,4",options="header"]
+|===
+|Panel role |Grants
+
+|none
+|Own sessions only.
+
+|`viewer`
+|Read-only view of every user's sessions in the admin panel.
+
+|`editor`
+|`viewer`, plus lock and unlock apply and pull-request merge on any
+session (see
+xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
+locks]).
+
+|`admin`
+|`editor`, plus user and role management.
+|===
+
+=== Session access rules
+
+The API enforces these rules regardless of role:
+
+* The *owner* can always read a session and is the only one who can
+  act on it (continue it, create or merge its pull request, apply).
+* A user with *any panel role* can read any session, both through the
+  admin routes and through the regular session routes, including its
+  live event stream.
+* Everyone else receives `403 Not the session owner`.
+
+== Roles at a glance
+
+[cols="3,2,4",options="header"]
+|===
+|Route |Minimum operation role |Extra condition
+
+|`POST /api/v1/iac/generate`
+|`developer`
+|Owner only when continuing an existing session
+
+|`POST /api/v1/iac/drift`
+|`devops`
+|Owner only when continuing an existing session
+
+|`POST /api/v1/iac/import`
+|`developer`
+|Owner only when continuing an existing session. The web application
+offers the import modes only to `devops`.
+
+|`POST /api/v1/iac/apply`
+|`developer`
+|Owner only; session not locked (`409`). A pinned plan must exist,
+otherwise the round the `202` opened fails and the session ends
+`failed`.
+
+|`POST /api/v1/repository/parse` (list Terraform roots in a
+repository)
+|`developer`
+|None; the wizard calls it on every new session, immediately after the
+repository URL is entered
+
+|`PUT /api/v1/repository/pr` (create pull request)
+|`developer`
+|Owner only
+
+|`PUT /api/v1/repository/pr/merge`
+|`developer`
+|Owner only; session not locked
+|===
+
+The web application is stricter than the API in one place: it disables
+Partial Drift Remediation, Full Drift Remediation, Partial Import, and
+Full Import for users below `devops`, showing the hint "Requires the
+devops operation role." The API itself accepts an import from any
+`developer`. With authentication disabled (blank
+`oidc.issuer_url`), the local development identity holds `devops` and
+sees every mode.
+
+== Permission matrix
+
+The matrix reflects what the backend enforces. The web application
+hides or disables controls accordingly.
+
+[cols="4,1,1,1,1",options="header"]
+|===
+|Capability |No panel role |`viewer` |`editor` |`admin`
+
+|Sign in, run sessions allowed by the operation role
+|yes |yes |yes |yes
+
+|View own sessions, details, artifacts, lock state; reopen own
+sessions
+|yes |yes |yes |yes
+
+|Open the admin panel
+|no |yes |yes |yes
+
+|List sessions across all users, paginated
+|no |yes |yes |yes
+
+|Filter by type and status; search by user e-mail, project, query
+text, or session id
+|no |yes |yes |yes
+
+|Open any user's session detail, including conversation history
+|no |yes |yes |yes
+
+|View any session's statuses, reports, plans, code-change artifacts,
+repository link, pull-request links, lock state
+|no |yes |yes |yes
+
+|Open Phoenix from the admin sessions tab
+|no |yes |yes |yes
+
+|Receive support requests sent from the web application's header
+|no |no |yes |yes
+
+|Lock or unlock apply and pull-request merge on a session
+|no |no |yes |yes
+
+|List and search users
+|no |no |no |yes
+
+|Assign operation roles
+|no |no |no |yes
+
+|Assign or remove panel roles
+|no |no |no |yes
+
+|Remove one's own panel `admin` role
+|no |no |no |*no* (`409`)
+
+|Act on another user's session (continue, create or merge a pull
+request, apply)
+|no |no |no |no (owner only)
+
+|Delete a user or a session
+|not implemented |not implemented |not implemented |not implemented
+|===
+
+Backend routes behind the matrix:
+
+[cols="3,4",options="header"]
+|===
+|Route |Who
+
+|`GET /api/v1/sessions/list`, `GET /api/v1/sessions?id=\{session_id}`
+|Any signed-in user; the list is always scoped to the caller, the
+detail is owner or any panel role
+
+|`GET /api/v1/events/subscribe/\{session_id}`
+|Owner or any panel role
+
+|`GET /api/v1/admin/sessions/list`,
+`GET /api/v1/admin/sessions?id=\{session_id}`
+|panel `viewer` or higher
+
+|`PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock`
+|panel `editor` or higher
+
+|`GET /api/v1/admin/users`, `PUT /api/v1/admin/users/\{user_id}/roles`
+|panel `admin`
+|===
+
+Missing or invalid credentials yield `401`; an insufficient panel role
+yields `403 Requires admin-panel role '<role>' or higher`.
+
+== Who gets which roles
+
+*With authentication disabled* (blank `oidc.issuer_url`, the
+checked-in default), every request runs as the built-in local
+development identity, which holds `devops` and panel `admin`. Anyone
+who can reach the stack has full access to both views; use this only
+on an isolated workstation.
+
+*With OIDC enabled*, a new user is created on first login with
+operation role `developer` and no panel role: they can generate
+infrastructure and see their own sessions, nothing more. The first
+administrator comes from one of two places:
+
+* `admin.default_root_email` in `config.yaml`: the user whose token
+  carries that e-mail with `email_verified: true` is elevated to
+  `devops` and panel `admin` at login. The elevation is one-way and is
+  re-checked on every request. Only identity providers that emit
+  `email_verified` in access tokens (Keycloak, for instance) can use
+  this path.
+* A one-off database grant for providers that never emit
+  `email_verified` (Entra ID, Auth0, Okta). See
+  xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant
+  the first administrator access].
+
+After that, the administrator manages everyone else from the Users
+tab. The bootstrap elevation is re-applied on every request of the
+root user, so demoting that user from the Users tab is undone the next
+time they call the API; clear `admin.default_root_email` and rebuild
+the core image first if a real demotion is needed.
+
+With authentication disabled there is no identity provider to sign out
+of, but the "Log out" action still works locally: it clears the user
+in the browser and shows the login screen. Pressing *Sign In*
+re-fetches `GET /api/v1/users/me` and puts the browser straight back
+in as the dev identity.
+
+Do not confuse this with the authorization sidecar.
+`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
+role inside the sidecar's JSON role store. The core never reads that
+store; the sidecar is consulted only for the cloud-project
+authorization check described above, and only when
+`services.authz.enabled` is `true`.
+
+== Next steps
+
+* xref:main:guides/administer-users-and-locks.adoc[Administer users
+  and locks] to perform the tasks this reference describes.
+* xref:main:guides/enable-authentication.adoc[Enable authentication]
+  to configure OIDC and the first administrator.

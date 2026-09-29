@@ -7,7 +7,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SessionProvider, useSession } from "@/contexts/SessionContext";
-import { ModeProvider } from "@/contexts/ModeContext";
+import { ModeProvider, useMode } from "@/contexts/ModeContext";
+import { MODE } from "@/types/ui";
 import { useHomeWizard } from "./useHomeWizard";
 import type { ResolveResult } from "@/hooks/useMapperResolution";
 
@@ -616,6 +617,101 @@ describe("useHomeWizard — auth & terraform orchestration", () => {
   });
 });
 
+describe("useHomeWizard — full modes skip the query", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuthState.mockReturnValue({ status: "idle" });
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  function renderWizard() {
+    return renderHook(
+      () => ({ wizard: useHomeWizard(), mode: useMode(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+  }
+
+  it.each([
+    [MODE.IMPORT, "Import all the infrastructure"],
+    [MODE.DRIFT, "Reconcile all the drift"],
+  ])("%s starts at the repository with a fixed query", (mode, query) => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(mode); });
+
+    expect(result.current.wizard.step).toBe("repository_url");
+    expect(result.current.wizard.data.query).toBe(query);
+    expect(result.current.session.session.first_query).toBe(query);
+  });
+
+  it("a full mode overrides a query typed in a partial mode", async () => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.PARTIAL_IMPORT); });
+    await act(async () => { await result.current.wizard.handleInput("import the vault"); });
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+
+    expect(result.current.wizard.step).toBe("repository_url");
+    expect(result.current.wizard.data.query).toBe("Import all the infrastructure");
+  });
+
+  it("switching between full modes swaps the fixed query", () => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.DRIFT); });
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+
+    expect(result.current.wizard.data.query).toBe("Import all the infrastructure");
+  });
+
+  it("leaving a full mode for a partial one asks for the query again", () => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+    act(() => { result.current.mode.setMode(MODE.PARTIAL_IMPORT); });
+
+    expect(result.current.wizard.step).toBe("query");
+    expect(result.current.wizard.data.query).toBe("");
+  });
+
+  it("leaving a full mode drops an authorization in flight", () => {
+    const { result } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+    mockAuthState.mockReturnValue({ status: "loading" });
+    act(() => { result.current.mode.setMode(MODE.PARTIAL_IMPORT); });
+
+    expect(mockAuthReset).toHaveBeenCalled();
+  });
+
+  it("sends the fixed query to the API", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "https://dev.azure.com/org/repo",
+      provider: "azure",
+      scopeId: "sub-123",
+      paths: ["environments/dev"],
+    });
+    const { result, rerender } = renderWizard();
+
+    act(() => { result.current.mode.setMode(MODE.IMPORT); });
+    await act(async () => {
+      await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
+    });
+
+    mockAuthState.mockReturnValue({ status: "success" });
+    await act(async () => { rerender(); });
+
+    expect(mockTerraformRun.mock.calls[0][0]).toMatchObject({
+      query: "Import all the infrastructure",
+      mode: "import",
+    });
+  });
+});
+
 describe("useHomeWizard — iterate & applyAfterPr", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -674,7 +770,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     expect(mockTerraformRun).not.toHaveBeenCalled();
   });
 
-  it("applyAfterPr calls terraform in import mode", async () => {
+  it("applyAfterPr runs an apply action, not a mode", async () => {
     const { result } = renderHook(
       () => ({ wizard: useHomeWizard(), session: useSession() }),
       { wrapper: Wrapper },
@@ -703,9 +799,9 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     act(() => { result.current.wizard.applyAfterPr(); });
 
     expect(mockTerraformRun).toHaveBeenCalled();
-    expect(mockTerraformRun.mock.calls[0][0]).toMatchObject({
+    expect(mockTerraformRun.mock.calls[0][0]).toEqual({
+      kind: "apply",
       sessionId: "abc-123",
-      mode: "import",
     });
   });
 
@@ -722,6 +818,25 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       result.current.session.updateSession({
         uuid: "abc-123",
         operation: "drift",
+      });
+    });
+
+    act(() => { result.current.wizard.applyAfterPr(); });
+
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+  });
+  // An import is already in Terraform state once the round finishes, so the
+  // merge ends the flow exactly like drift.
+  it("applyAfterPr refuses to apply an import session", () => {
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.session.updateSession({
+        uuid: "abc-123",
+        operation: "import",
       });
     });
 
