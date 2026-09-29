@@ -38,6 +38,7 @@ function makeResultsOutcome(
     detail,
     round: detail.rounds[0],
     report: null,
+    compliance: null,
     code: "<Terraform_Plan>\nplan output\n</Terraform_Plan>\n<main.tf>\nresource {}\n</main.tf>",
     ...overrides,
   };

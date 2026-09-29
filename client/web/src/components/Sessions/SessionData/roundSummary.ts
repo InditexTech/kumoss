@@ -92,6 +92,9 @@ export function roundArtifacts(round: RoundDetail): ArtifactRow[] {
   for (const report of round.reports) {
     rows.push({ kind: "report", artifact: report });
   }
+  for (const check of round.compliance_checks) {
+    rows.push({ kind: "compliance", artifact: check });
+  }
   for (const plan of round.plans) rows.push({ kind: "plan", artifact: plan });
   for (const change of round.code_changes) {
     rows.push({ kind: "change", artifact: change });
@@ -114,11 +117,12 @@ export type TimelineEvent = {
  * A round's statuses and artifacts merged into one chronological sequence.
  *
  * Nothing in the payload links an artifact to a status — `code_changes`,
- * `reports` and `terraform_plans` carry only `round_id` — so the link is
- * derived from time. That derivation is exact rather than heuristic because
- * every writer persists the status *before* the artifact and never
- * interleaves two stages: `generating` is followed by one `store_code_change`
- * per changed file, `validating` by at most one plan, `report` by one report.
+ * `reports`, `compliance_checks` and `terraform_plans` carry only `round_id`
+ * — so the link is derived from time. That derivation is exact rather than
+ * heuristic because every writer persists the status *before* the artifact
+ * and never interleaves two stages: `generating` is followed by one
+ * `store_code_change` per changed file, `validating` by at most one plan,
+ * `report` by one report and at most one compliance check.
  * So an artifact belongs to the last status at or before its own instant.
  *
  * Two consequences fall out of that rule rather than being hardcoded:
@@ -194,6 +198,7 @@ export function roundMeta(events: TimelineEvent[]): string[] {
 export function isBootstrapRound(round: RoundDetail): boolean {
   return (
     round.reports.length === 0 &&
+    round.compliance_checks.length === 0 &&
     round.plans.length === 0 &&
     round.code_changes.length === 0 &&
     round.pull_requests.length === 0 &&

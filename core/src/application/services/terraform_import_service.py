@@ -123,24 +123,24 @@ class TerraformImportService:
 
     async def import_resources(
         self,
-        imports: list[tuple[str, str]],
+        imports: list[TerraformImportAttempt],
     ) -> TerraformImportDTO:
-        outcome = TerraformImportDTO(imported=[], failed=[])
-        for address, resource_id in imports:
+        outcome = TerraformImportDTO.empty()
+        for r in imports:
             result = await self.__import_prv.import_resource(
-                address=address,
-                resource_id=resource_id,
+                address=r.address,
+                resource_id=r.resource_id,
             )
             attempt = TerraformImportAttempt(
-                address=address,
-                resource_id=resource_id,
+                address=r.address,
+                resource_id=r.resource_id,
                 error=result.feedback,
             )
             if result.ok:
-                outcome.imported.append(attempt)
+                outcome.imported.add(attempt)
             else:
-                outcome.failed.append(attempt)
+                outcome.failed.add(attempt)
                 logging.warning(
-                    f"Import failed for {address} ({resource_id}): {result.feedback}"
+                    f"Import failed for {r.address} ({r.resource_id}): {result.feedback}"
                 )
         return outcome

@@ -48,10 +48,11 @@ All file paths are relative to this directory.
 
 {% if IS_IMPORT %}
 <objective>
-Create a Terraform resource block for each cloud resource id in the user's message so that `terraform import` can bind it to state.
+Create a bare Terraform resource block for each cloud resource id in the user's message so that `terraform import` can bind it to state.
 
 - Explore the existing Terraform codebase first and follow its file organization and naming conventions.
-- Scaffold each block with the configuration the rules above require, deriving values from the cloud resource id where it carries them (name, resource group, location). Use `web_search` for provider documentation when a required argument is not obvious.
+- Use `web_search` for provider documentation when a required argument is not obvious.
+- Don't include anything beyond the bare minimum so that the import command can bind it to state.
 - Never modify or delete Terraform configuration that existed before this task.
 - Writing the blocks twice must produce the same code: leave a block that already exists for an id as it is.
 </objective>

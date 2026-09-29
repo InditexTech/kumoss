@@ -1,7 +1,7 @@
 = Frequently asked questions
-:description: Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Nebula.
+:description: Short answers about roles, requests, sessions, results, locks, pull requests and apply, data and privacy, and getting help in Kumoss.
 
-Short answers for people using the Nebula web application. The longer
+Short answers for people using the Kumoss web application. The longer
 explanations are in the xref:main:guides/make-a-request.adoc[Make a
 request] guide; mode-by-mode behavior is in
 xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating
@@ -15,7 +15,7 @@ xref:main:additional-information.adoc#support-requests[Support requests].
 
 [accordion,aria-label="Access and roles frequently asked questions"]
 --
-.Why are the drift modes and Import Infrastructure greyed out?
+.Why are the drift and import modes greyed out?
 [%collapsible]
 ====
 They require the `devops` operation role. New users start as
@@ -35,7 +35,7 @@ merge, or apply your sessions.
 [%collapsible]
 ====
 Your identity token expired and the application signed you out. Sign
-in again. Any Nebula session that was running continues on the
+in again. Any Kumoss session that was running continues on the
 server; reopen it from the footer or your user page.
 ====
 --
@@ -47,7 +47,7 @@ server; reopen it from the footer or your user page.
 .Do I have to specify every parameter?
 [%collapsible]
 ====
-No. Missing parameters never block a creation request. Nebula applies
+No. Missing parameters never block a creation request. Kumoss applies
 your organization's naming conventions, resource defaults, and the
 placement it finds in the workspace, and it states the assumptions it
 made in the response.
@@ -87,10 +87,10 @@ HTTPS URL. Azure DevOps users: the portal's clone URL starts with
 `\https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only
 `github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are
 supported for pull requests. The repository must also be reachable by
-Nebula's service account.
+Kumoss's service account.
 ====
 
-.Why does Nebula say it found no IaC paths?
+.Why does Kumoss say it found no IaC paths?
 [%collapsible]
 ====
 It only sees files committed on the repository's default branch, and
@@ -108,7 +108,7 @@ layout].
 Either it sits under an excluded directory name, or it is nested
 under another directory that already qualifies as a root (for example
 `platform/network/` under a `platform/` that has a `main.tf`); in that
-case pick the parent, Nebula works from there.
+case pick the parent, Kumoss works from there.
 ====
 
 .Why does the scope field not accept my value?
@@ -127,7 +127,7 @@ lower-cases the value. Underscores, dots, and spaces are not accepted.
 [%collapsible]
 ====
 From a couple of minutes for a small change to considerably longer for
-large roots: generation and up to five validation attempts run first,
+large roots: generation and up to eight validation attempts run first,
 then a drift check and the report. The progress screen shows what is
 happening at each moment.
 ====
@@ -157,7 +157,7 @@ round to finish; the input is disabled during a run.
 .What is the branch called?
 [%collapsible]
 ====
-`Nebula/YYYY-MM-DD_HHMMSS` in UTC, created on the first request of the
+`Kumoss/YYYY-MM-DD_HHMMSS` in UTC, created on the first request of the
 session. Every round pushes to it.
 ====
 --
@@ -249,14 +249,11 @@ looking at it, and your organization can adapt the rule.
 [%collapsible]
 ====
 The API allows a direct apply, but the web application does not offer
-a standalone Apply button. In practice you reach apply either through
-*Approve PR and Apply*, which merges the pull request and then
-applies, or through the *Import Infrastructure* mode in the header
-drop-down, which calls the same apply on the current session and is
-only selectable with the `devops` role. So as a `developer` in the web
-application, the pull request is the route to apply — which is also
-the recommended one, because it brings your team's review and CI into
-the decision.
+a standalone Apply button. You reach apply through *Approve PR and
+Apply*, which merges the pull request and then applies, so in the web
+application the pull request is the route to apply — which is also the
+recommended one, because it brings your team's review and CI into the
+decision.
 ====
 
 .Reviewers asked for changes. What now?
@@ -274,7 +271,7 @@ and executes the plan you reviewed, without re-planning. The
 apply-results screen shows what happened.
 ====
 
-.The apply failed. Will Nebula retry?
+.The apply failed. Will Kumoss retry?
 [%collapsible]
 ====
 No. The session still closes as completed, with an apply report whose
@@ -287,20 +284,25 @@ changed since the plan), and send a new request, which produces a
 fresh plan to review.
 ====
 
-.Does Import Infrastructure import my existing resources?
+.Do the import modes import my existing resources?
 [%collapsible]
 ====
-Not yet. Today it runs the apply of an existing session's reviewed
-plan. Importing unmanaged resources is a planned capability.
+Yes. Partial Import and Full Import find the resources in your scope
+that Terraform does not manage, write resource blocks for them, and run
+`terraform import` during the round, so they are in the state before the
+pull request is reviewed. Rejected imports are fed back to the generator
+and retried. Merging the pull request ends the session; nothing is
+applied. See xref:main:guides/import-infrastructure.adoc[Import
+infrastructure].
 ====
 
 .Where does Terraform state live?
 [%collapsible]
 ====
-Not in the repository, and not in the working copy Nebula creates. Out
-of the box, Nebula keeps state for you, in a bucket dedicated to state
+Not in the repository, and not in the working copy Kumoss creates. Out
+of the box, Kumoss keeps state for you, in a bucket dedicated to state
 with one state file per project (repository + cloud scope + path).
-Your platform team can instead configure Nebula to leave it in the
+Your platform team can instead configure Kumoss to leave it in the
 remote backend your repository's own Terraform files declare, exactly
 as it would if you ran the engine yourself. Either way your pull
 request contains only your infrastructure code — no state file and no
@@ -314,11 +316,11 @@ backends].
 [%collapsible]
 ====
 The session is planning against empty state. The usual causes are that
-your platform team turned off Nebula-managed state and your repository
+your platform team turned off Kumoss-managed state and your repository
 declares no remote backend of its own, that the project's identity
 changed — the root-module path moved, the repository was renamed, or a
 different cloud scope was selected — or that your platform team changed
-the state backend, which Nebula never migrates. Report it with the
+the state backend, which Kumoss never migrates. Report it with the
 session id; an operator can check the state location.
 ====
 --
@@ -327,7 +329,7 @@ session id; an operator can check the state location.
 
 [accordion,aria-label="Data and privacy frequently asked questions"]
 --
-.What data leaves Nebula when I make a request?
+.What data leaves Kumoss when I make a request?
 [%collapsible]
 ====
 Your request text, the conversation, the repository files the agent
@@ -337,7 +339,7 @@ review. Do not paste secrets into requests or commit them to the
 repository.
 ====
 
-.Which cloud credentials does Nebula use?
+.Which cloud credentials does Kumoss use?
 [%collapsible]
 ====
 The identity your platform team configured for the execution engine,

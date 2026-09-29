@@ -37,6 +37,7 @@ export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
     query: "deploy a VM",
     statuses: [makeStatus("started"), makeStatus("completed")],
     reports: [],
+    compliance_checks: [],
     plans: [],
     code_changes: [],
     pull_requests: [],

@@ -179,6 +179,11 @@ export interface ReportRef extends ArtifactRef {
  */
 export type PlanType = "plan" | "drift";
 
+/** A compliance check artifact plus the verdict stored alongside it. */
+export interface ComplianceCheckRef extends ArtifactRef {
+  passed: boolean;
+}
+
 export interface TerraformPlanRef extends ArtifactRef {
   targets: string[];
 }
@@ -212,6 +217,7 @@ export interface RoundDetail {
   query: string;
   statuses: StatusEntry[];
   reports: ReportRef[];
+  compliance_checks: ComplianceCheckRef[];
   plans: TerraformPlanRef[];
   code_changes: CodeChangeRef[];
   pull_requests: PullRequestRef[];

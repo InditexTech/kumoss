@@ -1,13 +1,13 @@
 = Repository layout
-:description: How Nebula finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
+:description: How Kumoss finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
 
-When a repository URL is entered, Nebula looks inside it for the
+When a repository URL is entered, Kumoss looks inside it for the
 directories that hold Terraform-compatible code and offers them as the
 session's *IaC path*. This page is the complete reference for that
 detection.
 
 [#terraform-roots]
-== How Nebula finds Terraform roots
+== How Kumoss finds Terraform roots
 
 After the repository URL is entered, the wizard calls `POST
 /api/v1/repository/parse`. The core validates the URL with `git
@@ -42,8 +42,8 @@ with several it asks the user to pick. The chosen path becomes the
 session's IaC path: it is fixed on the first request, the engine runs
 `init`, `validate`, `plan`, and `apply` inside that directory, and it
 is one of the three inputs that identify the project's state when
-Nebula manages state (see
-xref:main:guides/state-backends/nebula-managed.adoc#state-keys[State
+Kumoss manages state (see
+xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
 keys]). The web application offers only detected paths; API callers
 may pass any repository-relative `iac_path` that contains no `..`
 segment, and an omitted `iac_path` means the repository root.

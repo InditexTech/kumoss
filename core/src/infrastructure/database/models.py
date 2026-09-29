@@ -208,6 +208,9 @@ class Round(Base):
         "TerraformPlan", cascade="all, delete"
     )
     reports: Mapped[list["Report"]] = relationship("Report", cascade="all, delete")
+    compliance_checks: Mapped[list["ComplianceCheck"]] = relationship(
+        "ComplianceCheck", cascade="all, delete"
+    )
     code_changes: Mapped[list["CodeChange"]] = relationship(
         "CodeChange", cascade="all, delete"
     )
@@ -232,6 +235,9 @@ class Artifact(Base):
     )
     reports: Mapped[list["Report"]] = relationship(
         "Report", back_populates="artifact", cascade="all, delete"
+    )
+    compliance_checks: Mapped[list["ComplianceCheck"]] = relationship(
+        "ComplianceCheck", back_populates="artifact", cascade="all, delete"
     )
     code_changes: Mapped[list["CodeChange"]] = relationship(
         "CodeChange", back_populates="artifact", cascade="all, delete"
@@ -276,6 +282,25 @@ class Report(Base):
     @override
     def __repr__(self) -> str:
         return f"<Report(round_id='{self.round_id}', type='{self.type}')>"
+
+
+@final
+class ComplianceCheck(Base):
+    """"""
+
+    __tablename__ = "compliance_checks"
+
+    round_id: Mapped[int] = mapped_column(ForeignKey("rounds.id"), index=True)
+    artifact_id: Mapped[int] = mapped_column(ForeignKey("artifacts.id"), index=True)
+    passed: Mapped[bool] = mapped_column()
+    # relations
+    artifact: Mapped["Artifact"] = relationship(
+        "Artifact", back_populates="compliance_checks"
+    )
+
+    @override
+    def __repr__(self) -> str:
+        return f"<ComplianceCheck(round_id='{self.round_id}', passed='{self.passed}')>"
 
 
 @final

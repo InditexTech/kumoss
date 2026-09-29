@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -81,6 +81,26 @@ class LLMResponseDTO:
         )
 
 
+class ValidationResultDTO(Protocol):
+    """What a generation loop validator answers, whichever step it ran.
+
+    ``feedback`` is what the next generation attempt is asked to fix;
+    ``stdout`` and ``targets`` are the plan the attempt was checked with.
+    """
+
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def feedback(self) -> str: ...
+
+    @property
+    def stdout(self) -> str: ...
+
+    @property
+    def targets(self) -> list[str]: ...
+
+
 @dataclass
 class TerraformPlanDTO:
     """Result of an ``init`` → ``validate`` → ``plan`` sequence.
@@ -102,6 +122,17 @@ class TerraformPlanDTO:
     @property
     def summary(self) -> str:
         return self.stdout if self.ok else self.feedback
+
+    @classmethod
+    def empty(cls) -> "TerraformPlanDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
+        return cls(
+            ok=True,
+            feedback="",
+            stdout="",
+            targets=[],
+            plan=None,
+        )
 
 
 @dataclass
@@ -214,13 +245,13 @@ class TerraformImportResourceDTO:
         return self.stdout if self.ok else self.feedback
 
 
-@dataclass
+@dataclass(frozen=True)
 class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 
     address: str
-    resource_id: str
-    error: str = ""
+    resource_id: str = field(compare=False)
+    error: str = field(compare=False, default="")
 
 
 @dataclass
@@ -228,17 +259,34 @@ class TerraformImportDTO:
     """Outcome of an import round, partitioned by result.
 
     Callers get the split they need instead of the raw per-resource
-    results: ``imported`` drives the convergence plan and the report,
-    ``failed`` carries the reason each import was rejected.
+    results.
     """
 
-    imported: list[TerraformImportAttempt]
-    failed: list[TerraformImportAttempt]
+    imported: set[TerraformImportAttempt]
+    failed: set[TerraformImportAttempt]
 
     @property
-    def addresses(self) -> list[str]:
-        """Terraform addresses now tracked in state."""
-        return [r.address for r in self.imported]
+    def ok(self) -> bool:
+        return len(self.failed) == 0
+
+    @property
+    def feedback(self) -> str:
+        return "\n".join([f"- {f}" for f in self.failed])
+
+    @property
+    def stdout(self) -> str:
+        return str(self.imported) if len(self.imported) > 0 else ""
+
+    @property
+    def targets(self) -> list[str]:
+        return []
+
+    @classmethod
+    def empty(cls) -> "TerraformImportDTO":
+        return cls(
+            imported=set(),
+            failed=set(),
+        )
 
 
 @dataclass
@@ -580,6 +628,12 @@ class ReportRef(ArtifactRef):
     type: ReportType
 
 
+class ComplianceCheckRef(ArtifactRef):
+    """Read model: a compliance check artifact plus its verdict."""
+
+    passed: bool
+
+
 class TerraformPlanRef(ArtifactRef):
     """Read model: a terraform plan artifact plus its resource targets.
 
@@ -624,6 +678,7 @@ class RoundDetail(BaseModel):
     query: str
     statuses: list[StatusEntry]
     reports: list[ReportRef]
+    compliance_checks: list[ComplianceCheckRef]
     plans: list[TerraformPlanRef]
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]

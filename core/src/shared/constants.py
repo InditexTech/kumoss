@@ -106,7 +106,7 @@ class ToolContext(Enum):
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
     GENERAL_TASK_COMPLETION = "general_task_completion"
-    IAC_IMPORT = "iac_import"
+    IMPORT_ADDRESSES = "import_addresses"
     COMPLIANCE_CHECK = "compliance_check"
 
 

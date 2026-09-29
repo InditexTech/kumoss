@@ -19,11 +19,14 @@ import type {
   RoundDetail,
   TerraformPlanRef,
 } from "@/types/api";
-import type { TerraformReport } from "@/types";
+import type { ComplianceReport, TerraformReport } from "@/types";
 import { STRINGS } from "@/constants/strings";
 import {
   ChangesTable,
   ChangeDetail,
+  ComplianceRules,
+  ComplianceSummaryCard,
+  ComplianceViolations,
   PotentialImpactCard,
   ImpactDetail,
   EstimatedCostsCard,
@@ -52,7 +55,7 @@ import { composeFileArtifacts } from "@/utils/diffUtils";
 import type { CodeChangeArtifact } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
-export type ArtifactKind = "report" | "plan" | "change";
+export type ArtifactKind = "report" | "plan" | "change" | "compliance";
 
 interface ArtifactContentProps {
   kind: ArtifactKind;
@@ -94,6 +97,8 @@ export function artifactLabel(
   switch (kind) {
     case "report":
       return REPORT_LABELS[(artifact as ReportRef).type] ?? LABELS.report;
+    case "compliance":
+      return LABELS.complianceCheck;
     case "plan":
       // A drift round stores both the diff and the plan it produced, and
       // only the object's `type` metadata tells them apart — so the caller
@@ -326,15 +331,28 @@ export default function ArtifactContent({
     }
   }, [kind, content]);
 
+  const complianceData: ComplianceReport | null = useMemo(() => {
+    if (kind !== "compliance" || !content) return null;
+    try {
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }, [kind, content]);
+
   // Everything that reaches the raw viewer: plans, and reports whose body
   // isn't the shape the report renderers expect. Keyed on `content`, which
   // the fetch effect writes once per artifact — so the parse does not
   // re-run when a filter tab or a detail overlay changes `searchParams`.
-  // Gated on `reportData` so a body the tables already claimed is never
-  // parsed twice; that second pass would be the expensive one.
+  // Gated on `reportData` and `complianceData` so a body the renderers
+  // already claimed is never parsed twice; that second pass would be the
+  // expensive one.
   const prettyContent = useMemo(
-    () => (content && !reportData ? prettyPrintJson(content) : null),
-    [content, reportData],
+    () =>
+      content && !reportData && !complianceData
+        ? prettyPrintJson(content)
+        : null,
+    [content, reportData, complianceData],
   );
 
   const selectedChange = useMemo(() => {
@@ -401,6 +419,19 @@ export default function ArtifactContent({
 
   if (content === null) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
+  }
+
+  if (kind === "compliance" && complianceData) {
+    return (
+      <div className={styles.reportContainer}>
+        <ComplianceSummaryCard report={complianceData} />
+        <ComplianceViolations violations={complianceData.violations} />
+        <ComplianceRules
+          rules={complianceData.checked_rules}
+          violations={complianceData.violations}
+        />
+      </div>
+    );
   }
 
   const summaryText =

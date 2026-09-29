@@ -13,6 +13,7 @@ from src.domains.services import (
     TerraformValidationService,
 )
 from src.domains.value_objects import Conventions, PlanRef
+from src.shared.config import system_config
 from src.shared.constants import (
     ContentType,
     OperationType,
@@ -68,8 +69,13 @@ class TerraformDriftService:
             result.excluded = exclusions
             return result
 
-        async def validator(history: History) -> TerraformPlanDTO:
+        async def plan_callback(history: History) -> TerraformPlanDTO:
             return await self.__terraform_svc.plan(targets=targets)
+
+        async def split_errors(errors: str) -> str:
+            return await self.__split_svc.split_errors(
+                errors=errors, operation_type=OperationType.GENERATE
+            )
 
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
@@ -82,15 +88,15 @@ class TerraformDriftService:
             if plan is None:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
                 if plan_result.plan is None:
-                    logging.error(f"Drift check could not plan: {plan_result.feedback}")
-                    return resolved(
-                        TerraformDriftDTO(
-                            in_sync=False,
-                            drift="",
-                            feedback=plan_result.feedback,
-                            stdout=plan_result.stdout,
-                            plan=None,
-                        )
+                    plan_result = await self.__validation_svc.generate_and_validate(
+                        q=await split_errors(plan_result.feedback),
+                        ctx=self.__ctx,
+                        conventions=conventions,
+                        include_forbidden_actions=False,
+                        operation_type=OperationType.GENERATE,
+                        validator=plan_callback,
+                        max_iterations=system_config.orchestration.max_validation_iteration,
+                        refine_feedback=split_errors,
                     )
                 plan = plan_result.plan
 
@@ -107,6 +113,7 @@ class TerraformDriftService:
 
             operations: list[list[str]] = await self.__split_svc.split_task(
                 task=drift.drift,
+                operation_type=OperationType.DRIFT,
             )
             if filter_session_changes:
                 operations = await self.__split_svc.filter_reconciliation(
@@ -139,8 +146,9 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
-                    operation_type=OperationType.DRIFT,
-                    validator=validator,
+                    operation_type=OperationType.GENERATE,
+                    validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_validation_iteration,
                 )
                 plan = result.plan
 

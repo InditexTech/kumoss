@@ -28,8 +28,8 @@ uv run pytest \
 ```
 
 `--service-token` is only needed if the implementation enforces auth.
-URL and token may also be supplied via `NEBULA_MAPPING_URL` /
-`NEBULA_MAPPING_TOKEN`.
+URL and token may also be supplied via `KUMOSS_MAPPING_URL` /
+`KUMOSS_MAPPING_TOKEN`.
 
 The bundled reference impl under `services/mapping/` has its own test
 suite — see that directory's README for how to run it.

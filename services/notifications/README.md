@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference implementation of [`contracts/openapi/notifications.v1.yaml`](../../contracts/openapi/notifications.v1.yaml).
 
-The OSS default for the Nebula notifications contract: posts to a single
+The OSS default for the Kumoss notifications contract: posts to a single
 Slack channel via an incoming webhook. Intended to be useful out of the
 box for hobbyists and serve as a concrete read-the-source example for
 anyone writing an alternative implementation (Teams, email, PagerDuty,
@@ -25,7 +25,7 @@ etc.) of the same contract.
   characters; an audience list over the cap is cut at a recipient
   boundary and ends with `+N more`.
 - `GET /healthz` — liveness probe.
-- Bearer-token auth on `/v1/notify` if `NEBULA_NOTIFICATIONS_TOKEN` is
+- Bearer-token auth on `/v1/notify` if `KUMOSS_NOTIFICATIONS_TOKEN` is
   set; otherwise accepts any request (local-dev fallback). Leave it
   blank in a shared network only for local experimentation — set a
   real token whenever this service is reachable by anyone other than
@@ -48,7 +48,7 @@ etc.) of the same contract.
 | Env var                       | Required | Description                                  |
 |-------------------------------|----------|----------------------------------------------|
 | `SLACK_WEBHOOK_URL`           | yes      | Slack incoming-webhook URL. The service refuses to start without it. |
-| `NEBULA_NOTIFICATIONS_TOKEN`  | no       | Bearer token clients must present.           |
+| `KUMOSS_NOTIFICATIONS_TOKEN`  | no       | Bearer token clients must present.           |
 | `LOG_LEVEL`                   | no       | Root log level (default `INFO`).             |
 
 Configuration is asserted at startup: a missing webhook URL or an
@@ -66,7 +66,7 @@ responses to the caller and as warnings or errors on stdout
 
 - Container exits at boot with `ConfigError`: set `SLACK_WEBHOOK_URL`
   (and a valid `LOG_LEVEL`) in `services/notifications/.env`.
-- `401` at the core: `NEBULA_NOTIFICATIONS_TOKEN` differs between
+- `401` at the core: `KUMOSS_NOTIFICATIONS_TOKEN` differs between
   `core/.env` and `services/notifications/.env`.
 - `502 Downstream channel error`: Slack rejected the payload or was
   unreachable. Check the webhook URL is still valid in Slack.
@@ -95,7 +95,7 @@ curl -X POST http://localhost:8080/v1/notify \
 
 The service is wired into the repo-root `docker-compose.yml`, which
 loads `services/notifications/.env` (copy `env.sample` to `.env` in
-this directory). Set `SLACK_WEBHOOK_URL` and `NEBULA_NOTIFICATIONS_TOKEN`
+this directory). Set `SLACK_WEBHOOK_URL` and `KUMOSS_NOTIFICATIONS_TOKEN`
 there, enable `services.notifications` in the root `config.yaml`, rebuild
 the core image, and run `docker compose up`.
 

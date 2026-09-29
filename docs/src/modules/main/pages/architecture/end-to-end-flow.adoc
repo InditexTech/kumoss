@@ -12,7 +12,7 @@ gates on purpose: *models propose, code decides.*
 == Phases 1 and 2: request and session
 
 :diagram-name: flow-phases-1-4
-:diagram-alt: Nebula request flow, phases 1 to 4: request, identity, session, then filter and compose
+:diagram-alt: Kumoss request flow, phases 1 to 4: request, identity, session, then filter and compose
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -61,7 +61,7 @@ never refused with `409`: the runner that loses logs
 `runner not started: Session ... already has an operation in flight` and
 returns without touching the session. It then clones into
 `/workspaces/<session>/<call>` on the volume shared with the iac
-sidecar, pushes the branch `Nebula/YYYY-MM-DD_HHMMSS` (UTC), and installs
+sidecar, pushes the branch `Kumoss/YYYY-MM-DD_HHMMSS` (UTC), and installs
 the per-session Phoenix tracer.
 |===
 
@@ -89,10 +89,11 @@ the round's _conventions_, which every later agent is rendered with.
 
 == Phase 5: generate, validate, correct
 
-Up to five generate-and-validate iterations.
+Up to `orchestration.max_validation_iteration` generate-and-validate
+iterations: 8 in the shipped `config.yaml`, 5 built in.
 
 :diagram-name: flow-phases-5-6
-:diagram-alt: Nebula request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
+:diagram-alt: Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -130,9 +131,9 @@ against the shared workspace with the cloud credentials in
 
 |Correct or fail
 |Engine errors go back to the generation agent as the next query and the
-loop repeats. After `orchestration.max_validation_iteration` (8)
+loop repeats. After `orchestration.max_validation_iteration` (8 shipped)
 failures the round ends `FAILED`, the branch keeps the last pushed
-attempt, and the session is xref:#terminal-states[closed for good].
+attempt, and the session is xref:#how-a-session-ends[closed for good].
 |===
 
 == Phase 6: implicit drift pre-check
@@ -162,20 +163,11 @@ Filter (small model) then drops every operation the cloud's
 `orchestration.drift_group_operations` (8) with the forbidden-actions
 block omitted, and the pre-check runs once more. If only the session's
 own changes remain, or the plan is clean, the pre-check stops and the
-last plan is final.
-
-|What the timeline shows
-|Every entry into `TerraformDriftService.detect_and_resolve_drift` writes
-a `reconciling` status per iteration _before_ it reads drift — so an
-in-sync check still leaves a trace — and one more when the loop ends,
-carrying its conclusion: no drift found, the remaining differences are
-the session's own changes, the remaining differences are covered by the
-drift exception rules, or the unresolved drift itself, paraphrased by
-the small model. Error exits (an unplannable workspace, an unreadable
-plan) write only the assessment entry, since the handler's report and the
-runner's terminal status already carry the failure. Because the pre-check
-is part of every generate round, `reconciling` appears in generate
-sessions too, not only in dedicated drift ones.
+last plan is final. If genuine drift is still there after the second
+iteration, the round continues to the report anyway: a warning is logged
+and the drift is re-read from the last remediation batch's plan, so the
+report and the pinned plan agree. A remediation batch that exhausts its own
+validation attempts fails the round instead.
 |===
 
 Full mechanism, including the fingerprint that makes reading an
@@ -184,7 +176,7 @@ existing plan safe: xref:#drift[Drift detection and remediation].
 == Phase 7: report and artifacts
 
 :diagram-name: flow-phases-7-8
-:diagram-alt: Nebula request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -222,7 +214,9 @@ raw plan output — not the report JSON — alongside the
 `general-compliance-report` rules and the cloud guidelines. It has no
 repository tools and must answer through its only tool,
 `report_compliance_findings`: rule id, severity, resource, message,
-suggested fix.
+suggested fix. The findings are stored like any other artifact, at
+`compliance/check-<token>.json` with a `compliance_checks` row holding
+the verdict, so the session detail and the portal can show them.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the severities: any `error`
@@ -241,7 +235,7 @@ xref:#compliance[Compliance gate].
 == Phase 9: pull request and review
 
 :diagram-name: flow-phase-9
-:diagram-alt: Nebula request flow, phase 9: optional pull request and human review
+:diagram-alt: Kumoss request flow, phase 9: optional pull request and human review
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -258,7 +252,7 @@ adapter (GitHub, Azure DevOps or GitLab REST API) opens the pull request
 from the session branch. Reviewers see the code diff, a title and
 description the model derives only from the request and the conversation
 history, and their own CI; the plan, report and cost estimate stay in
-Nebula's results view, and compliance findings reach only the
+Kumoss's results view, and compliance findings reach only the
 notification audience.
 
 |Review outcomes
@@ -274,7 +268,7 @@ the session history and artifacts are kept.
 == Phase 10: apply
 
 :diagram-name: flow-phase-10
-:diagram-alt: Nebula request flow, phase 10: human-triggered apply, never automatic
+:diagram-alt: Kumoss request flow, phase 10: human-triggered apply, never automatic
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -287,7 +281,7 @@ Messages 41 to 49.
 |Explicit human action
 |`POST /api/v1/iac/apply` with the session id. Nothing in the pipeline
 applies on its own; in the UI this is the "Approve PR and Apply" button
-after a merge, or Import Infrastructure mode on an existing session.
+after a merge.
 
 |Gates
 |A valid identity, the `developer` role, session ownership and an
@@ -306,7 +300,7 @@ workspace: no re-plan, no retry. Exactly the reviewed plan executes.
 output — `Success`, `Partial` or `Failed`. A non-zero exit does not
 raise: the deterministic signal is the `iac.apply.failure` notification,
 gated on the exit code, and the session still ends `COMPLETED` — see
-xref:#terminal-states[Terminal states].
+xref:#how-a-session-ends[How a session ends].
 
 |Cleanup (always)
 |The pinned plan is discarded, the run directory is removed from the
@@ -402,9 +396,9 @@ length, so `13a` with no `13b` means only the first arm still has a
 message at that point.
 
 |`[at most n …]` in a label or band
-|A bounded loop with its ceiling: 70 model turns per agent loop, 5
-validation iterations, 2 drift pre-check rounds, 8 operations per drift
-batch.
+|A bounded loop with its ceiling, at the shipped values: 70 model turns
+per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+operations per drift batch.
 |===
 
 [#agent-catalogue]
@@ -518,94 +512,133 @@ calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
 verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.
 
-[#terminal-states]
-== Terminal states
+[#how-a-session-ends]
+== How a session ends
 
-Where a generate session can end. The marker in each end state is the
-diagram's: 🟩 success, 🟥 a rejection, block or failure, 🟨 waiting on a human
-review, 🟧 waiting on the human to reformulate, or a bounded loop that
-stopped without converging.
+A round leaves the session in one of three statuses, or writes none at all.
+Only `FAILED` is terminal, and it is terminal for the *session*, not only for
+the round: the in-flight guard refuses to start a run on a session whose
+latest status is `FAILED`. A follow-up request, apply or drift round sent to
+it is still answered `202`, and its runner then logs
+`runner not started: Session ... is finished and cannot be resumed` and
+exits, so only a new session carries the work forward. `COMPLETED` and
+`UNCOMPLETED` are resting states that accept a new round whenever the owner
+sends one. The progress stream closes on any of the three.
 
-[cols="3,4,4",options="header"]
+=== `FAILED`: the session is closed
+
+[cols="2,3,4",options="header"]
 |===
-|End state |Reached when |Status and side effects
+|Outcome |Reached when |Status message and side effects
 
-|🟩 *Infrastructure applied* — phase 10
-|The human-triggered apply succeeded
-|`COMPLETED` (apply round); pinned plan discarded
+|*Validation never converged* — phase 5
+|All `orchestration.max_validation_iteration` attempts are used: 8 in the
+shipped `config.yaml`, 5 built in
+|`runner failed: Validation loop exceeded.` and a `system.exception.failure`
+notification. No LLM problem summary is produced. The branch keeps the last
+pushed attempt.
 
-|🟩 *Validated, awaiting apply* — phase 8
-|The round passed the audit, or the checker is off, and the impact is not
-`high`
-|`COMPLETED`, `is_blocked = false`, plan pinned
+|*Apply without a pinned plan* — phase 10
+|The session's last round was drift-only, or an earlier apply already
+consumed the pin. Every apply discards the pin, whether it succeeded or not,
+so a second apply on the same session always ends here
+|`202` answered, then an internal `409`: `No reviewed plan is pinned for this
+session; run a generate or drift round before applying.` The wording
+misleads, since drift rounds never pin. The runner sets `FAILED` and sends
+`system.exception.failure`.
 
-|🟨 *Awaiting pull-request review* — phase 9
-|The user created a pull request
-|Status unchanged; pull request recorded
+|*Pipeline failed* — any phase
+|Any error the core raises as one of its own typed exceptions: a model or
+tool error, a drift remediation batch that exhausts its own validation
+attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+cannot return
+|`runner failed: <reason>` and `system.exception.failure`; run directory
+removed; in-flight guard released.
+|===
 
-|*Changes requested* — amber loop back to phase 3
-|The reviewer asked for changes, or CI or a conflict failed the pull request
-|A new round of the same session starts at phase 3
+=== `COMPLETED`: the round finished, the session stays open
 
-|🟧 *Request declined or answered* — phase 3
-|The Request Filter Agent declined the request or answered a question
-|`UNCOMPLETED`; the session stays usable
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Side effects
 
-|🟥 *Apply locked* — phase 8
+|*Validated, unlocked* — phase 8
+|The audit passed or the checker is off, and the report's impact banner is
+not `high` or `orchestration.block_on_high_impact` is off
+|`is_blocked = false`, plan pinned. Apply and pull-request merge are
+available.
+
+|*Validated, locked* — phase 8
 |Any `error` or `critical` compliance finding, or a `high` impact banner
-with `orchestration.block_on_high_impact`
-|`COMPLETED`, `is_blocked = true`, plan pinned; `iac.compliance.failed` or
-`iac.impact.high` notification
+with `orchestration.block_on_high_impact` on
+|`is_blocked = true`, plan pinned; `iac.compliance.failed` or
+`iac.impact.high` notification. Apply and merge answer `409` until a later
+passing, non-high round clears the lock or a panel `editor` toggles it.
 
-|🟥 *Validation never converged* — phase 5
-|All five generate-and-validate attempts used
-|`FAILED` with `runner failed: Validation loop exceeded.`, plus
-`system.exception.failure`. No LLM problem summary is produced. The branch
-keeps the last pushed attempt
+|*Applied* — phase 10
+|The engine's apply exited with code zero
+|`apply` report written; pinned plan discarded.
 
-|🟧 *Drift pre-check did not converge* — phase 6
-|Both pre-check iterations used and drift remains
-|The round continues to the report with a warning logged, re-reading the
-drift from the last remediation batch's plan so the report and the pinned
-plan agree. A batch that exhausts its own validation iterations ends the
-round `FAILED` instead
-
-|🟥 *Pull request rejected or closed* — phase 9
-|The reviewer closed the pull request
-|Status unchanged; history and artifacts kept
-
-|🟥 *Apply failed* — phase 10
-|The engine's apply returned a non-zero exit code
-|Not an exception: the handler writes an `apply` report whose status is
-the model's classification of the engine output (normally `Failed`), sends
+|*Apply failed* — phase 10
+|The engine's apply exited with a non-zero code
+|Not an exception: the handler writes an `apply` report whose status is the
+model's classification of the engine output (normally `Failed`), sends
 `iac.apply.failure` — the deterministic, exit-code-gated signal — and
-returns, so the session still ends `COMPLETED`. Pinned plan discarded; no
-retry, a new generate round is needed
-
-|🟥 *Apply without a pinned plan* — phase 10
-|Apply on a session whose last round was drift-only, or whose pinned plan
-was already consumed
-|`202` answered, then an internal `409`: `No reviewed plan is pinned for
-this session; run a generate or drift round before applying.` — misleading
-wording, since drift rounds never pin. The runner sets `FAILED` and sends
-`system.exception.failure`; the session cannot be resumed
-
-|🟥 *Pipeline failed* — reachable from any phase
-|An LLM or tool error, a sidecar timeout, a git or storage failure, or any
-other handled exception
-|`FAILED`; `system.exception.failure` notification; workspace cleaned;
-in-flight guard released
-
-|*Run stopped without a status* — not shown
-|A prompt missing in Phoenix for the deployment's `environment` tag
-|Last status kept, no failure message, guard released
+returns. Pinned plan discarded; no retry.
 |===
 
-`FAILED` is terminal for the *session*, not only for the round: the
-in-flight guard refuses to start a run on a session whose latest status is
-`FAILED`, so no follow-up request, apply or drift round can attach to it —
-only a new session carries the work forward. `COMPLETED` and `UNCOMPLETED`
-sessions accept new rounds normally.
+A failed apply and a successful one leave the same `COMPLETED` status. The
+`apply` report and the `iac.apply.failure` notification are the only places
+the difference shows, and the next step after a failure is a new generate
+round, never a second apply.
+
+=== `UNCOMPLETED`: the request needs reformulating
+
+The Request Filter Agent declined the request in phase 3 as out of scope,
+prohibited or ambiguous, or answered it as a question. The rationale is
+added to the conversation, and the owner's next request opens a new round of
+the same session.
+
+=== No status written
+
+These outcomes leave the latest status as it was.
+
+[cols="2,3,4",options="header"]
+|===
+|Outcome |Reached when |Effect
+
+|*Pull request open* — phase 9
+|The owner created a pull request
+|Pull request recorded. Pull-request creation is not lock-checked; the merge
+is.
+
+|*Changes requested* — phase 9
+|A reviewer asked for changes, or the pull request's own CI or a merge
+conflict failed it. Kumoss does not watch the pull request: the owner
+relays the problem as a new request
+|A new round of the same session starts at phase 3, on the same branch.
+
+|*Pull request rejected or closed* — phase 9
+|The reviewer closed the pull request
+|History and artifacts kept; the session still accepts new rounds.
+
+|*Concurrent run dropped* — phase 2
+|A generate, drift or apply request reached a session with a run already in
+flight
+|`202` answered, then the runner logs `runner not started: Session ...
+already has an operation in flight` and returns without touching the
+session.
+
+|*Run ended without a status* — any phase
+|An error outside the core's own exception types, such as an unexpected
+library or runtime error. The runner converts only its own typed exceptions
+into `FAILED`
+|Run directory removed and guard released, but no status and no
+notification are written. The latest status stays at an in-progress value
+such as `generating`, and the progress stream keeps reporting it until its
+`orchestration.max_session_events_iteration` cap, about three hours. The
+session is not terminal and accepts a new round.
+|===
 
 == How the architecture works
 
@@ -633,7 +666,7 @@ Before rendering, the SPA fetches the only unauthenticated route,
 
 |*Disabled* — blank `oidc.issuer_url`, the checked-in default
 |The SPA mounts a dev provider, and the core resolves every request to a
-fixed local-developer identity (`urn:nebula:dev` / `dev`), provisioned as a
+fixed local-developer identity (`urn:kumoss:dev` / `dev`), provisioned as a
 real user row with the top role of both groups.
 
 |*Enabled*
@@ -692,7 +725,7 @@ touch a given cloud project and environment. Disabled — the default — the
 core answers "authorized" with no network call; enabled, a timeout or
 unreachable sidecar is returned as `504`/`502`, never as an allow. This is a
 hook for enterprise cloud-access policy, not the access control for
-Nebula's own data.
+Kumoss's own data.
 
 === Session creation and orchestration
 
@@ -759,7 +792,7 @@ adopted, never migrated.
 |The sidecar owns no backend decision
 |Beyond the optional `IAC_BACKEND_CONFIG` file, the backend is whatever the
 workspace contains: the `backend_override.tf` the core writes by default,
-since Nebula-managed state is on as shipped, or the repository's own block
+since Kumoss-managed state is on as shipped, or the repository's own block
 if that is turned off.
 |===
 
@@ -807,9 +840,8 @@ iteration reads; an iteration whose split yielded no operations has no plan
 to hand on, so the next one plans for itself. Every iteration that could
 have changed therefore reads live state.
 
-Each iteration opens with a `reconciling` status written before step 1, and
-the loop closes with a second one carrying its conclusion — the phase is
-visible on the timeline whether or not drift was found.
+Each iteration opens with a `reconciling` status written before step 1, so
+the phase is visible on the timeline whether or not drift was found.
 
 The loop has two entry points, differing in *what* they target and
 *whether* session intent is filtered out:
@@ -900,8 +932,8 @@ shared Phoenix guideline was renamed from `predictive_targets` to
 `orchestration.enable_compliance_checker` (`true` in the checked-in
 `config.yaml`; the built-in default is `false`). The drift handler no longer
 runs it, and the apply handler never calls it. Disabled, the check
-short-circuits to an empty passing report. The gate has no progress status
-of its own.
+short-circuits to an empty passing report and stores nothing. The gate has
+no progress status of its own.
 
 |How it audits
 |A second, independent small-model agent loop. Its query is the session's
@@ -912,6 +944,13 @@ sentinel `report_compliance_findings`, whose arguments — `rule_id`,
 `severity`, `resource`, `message` and `suggested_fix` per violation — are
 parsed into a typed report. The rules are applied by the model; only the
 verdict is computed in code.
+
+|Persistence
+|The report is stored in object storage under the round, as
+`compliance/check-<token>.json`, with a `compliance_checks` row holding the
+`passed` verdict. The session detail returns it in the round's
+`compliance_checks`, and the portal renders it in the session view and,
+when the session is locked, in the blocked pull-request view.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the reported severities: any
@@ -944,7 +983,7 @@ time.
 === Artifacts and telemetry
 
 * Reports, plans, drift JSON and per-file code changes go to the
-  `nebula-artifacts` bucket, metadata to PostgreSQL. The browser fetches
+  `kumoss-artifacts` bucket, metadata to PostgreSQL. The browser fetches
   them through presigned URLs signed against the public port-9000 endpoint
   nginx forwards to RustFS.
 * Every run installs a per-session tracer exporting OpenInference-annotated

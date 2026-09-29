@@ -8,9 +8,14 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { mergePullRequest } from "@/services/core/iac_code";
 import { getApiErrorMessage } from "@/services/api";
+import {
+  useRefreshSessionLock,
+  useWatchSessionLock,
+} from "@/hooks/useSessionLock";
 import { isAllowedUrl } from "@/utils/sanitize";
 import { isMergeOnlySession } from "@/utils/session";
 import { STRINGS } from "@/constants/strings";
+import BlockedReasons from "./BlockedReasons";
 import type { PrApprovalStep } from "@/types/ui";
 import styles from "./PrApprovalView.module.css";
 
@@ -32,6 +37,23 @@ export default function PrApprovalView({
   const { session, prDetails } = useSession();
   const { showNotification } = useNotification();
   const [approving, setApproving] = useState(false);
+  const [checkingLock, setCheckingLock] = useState(false);
+  const refreshLock = useRefreshSessionLock();
+
+  useWatchSessionLock(!!session.is_blocked);
+
+  const handleCheckAgain = useCallback(async () => {
+    setCheckingLock(true);
+    try {
+      if (await refreshLock()) {
+        showNotification("warning", STRINGS.pr.stillBlocked);
+      }
+    } catch (err) {
+      showNotification("failure", getApiErrorMessage(err));
+    } finally {
+      setCheckingLock(false);
+    }
+  }, [refreshLock, showNotification]);
 
   const confirming = step === "confirming";
 
@@ -58,10 +80,15 @@ export default function PrApprovalView({
       await mergePullRequest({ session_id: session.uuid });
       onApprove();
     } catch (err) {
-      showNotification(
-        "failure",
-        `Failed to approve pull request: ${getApiErrorMessage(err)}`,
-      );
+      const blocked = await refreshLock().catch(() => false);
+      if (blocked) {
+        showNotification("warning", STRINGS.pr.blockedOnMerge);
+      } else {
+        showNotification(
+          "failure",
+          `Failed to approve pull request: ${getApiErrorMessage(err)}`,
+        );
+      }
       setApproving(false);
       onStepChange("initial");
     }
@@ -72,32 +99,27 @@ export default function PrApprovalView({
     onApprove,
     showNotification,
     onStepChange,
+    refreshLock,
   ]);
 
   if (session.is_blocked) {
+    const compliance = session.compliance_report;
+    const banner = session.terraform_report?.potential_impact?.banner;
     const impactDetail =
-      session.terraform_report?.potential_impact?.banner?.description;
+      banner?.level === "high" ? banner.description || banner.title : undefined;
     return (
       <div className={styles.blockedContainer}>
         <Typography variant="h1" className={styles.heading}>
-          {STRINGS.pr.highImpactTitle}
+          {STRINGS.pr.blockedTitle}
         </Typography>
         <Typography variant="bodyText" className={styles.blockedText}>
-          {STRINGS.pr.highImpactMessage}
+          {STRINGS.pr.blockedMessage}
         </Typography>
 
-        {impactDetail && (
-          <div className={styles.warningBanner}>
-            <span className={styles.warningIcon}>⚠</span>
-            <Typography
-              variant="body2"
-              component="span"
-              className={styles.warningText}
-            >
-              {impactDetail}
-            </Typography>
-          </div>
-        )}
+        <BlockedReasons
+          impactDetail={impactDetail}
+          compliance={compliance?.passed === false ? compliance : undefined}
+        />
 
         <div className={styles.buttonRow}>
           <button
@@ -115,6 +137,15 @@ export default function PrApprovalView({
             {STRINGS.assistant.contactTeam}
           </button>
         </div>
+
+        <button
+          className={styles.backLink}
+          type="button"
+          onClick={handleCheckAgain}
+          disabled={checkingLock}
+        >
+          {checkingLock ? STRINGS.pr.checkingLock : STRINGS.pr.checkAgain}
+        </button>
       </div>
     );
   }

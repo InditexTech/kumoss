@@ -1,7 +1,7 @@
 = Roles and permissions
-:description: The two independent role groups that gate Nebula — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+:description: The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
 
-Every user record in Nebula's database carries two roles from two
+Every user record in Kumoss's database carries two roles from two
 independent groups: an *operation role*, which decides which
 Infrastructure as Code (IaC) actions the user may run on their own
 sessions, and an *admin-panel role*, which decides what the user may
@@ -42,8 +42,8 @@ pinned plan on sessions they own.
 
 |`devops`
 |Everything `developer` can do, plus Partial and Full Drift
-Remediation. The web application also reserves the Import
-Infrastructure mode for `devops`.
+Remediation. The web application also reserves the Partial Import and
+Full Import modes for `devops`.
 |===
 
 === Admin-panel roles
@@ -96,6 +96,11 @@ The API enforces these rules regardless of role:
 |`devops`
 |Owner only when continuing an existing session
 
+|`POST /api/v1/iac/import`
+|`developer`
+|Owner only when continuing an existing session. The web application
+offers the import modes only to `devops`.
+
 |`POST /api/v1/iac/apply`
 |`developer`
 |Owner only; session not locked (`409`). A pinned plan must exist,
@@ -118,10 +123,10 @@ repository URL is entered
 |===
 
 The web application is stricter than the API in one place: it disables
-Partial Drift Remediation, Full Drift Remediation, and Import
-Infrastructure for users below `devops`, showing the hint "Requires
-the devops operation role." The API itself accepts an apply from any
-`developer` who owns the session. With authentication disabled (blank
+Partial Drift Remediation, Full Drift Remediation, Partial Import, and
+Full Import for users below `devops`, showing the hint "Requires the
+devops operation role." The API itself accepts an import from any
+`developer`. With authentication disabled (blank
 `oidc.issuer_url`), the local development identity holds `devops` and
 sees every mode.
 
@@ -251,7 +256,7 @@ re-fetches `GET /api/v1/users/me` and puts the browser straight back
 in as the dev identity.
 
 Do not confuse this with the authorization sidecar.
-`NEBULA_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
+`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
 role inside the sidecar's JSON role store. The core never reads that
 store; the sidecar is consulted only for the cloud-project
 authorization check described above, and only when

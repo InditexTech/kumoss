@@ -1,15 +1,15 @@
-= Nebula-managed state
+= Kumoss-managed state
 :description: The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 
-With the state bucket set to a name — the shipped configuration — Nebula
+With the state bucket set to a name — the shipped configuration — Kumoss
 owns state:
 
 [source,yaml]
 ----
 storage:
   provider: "RUSTFS"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
@@ -28,7 +28,7 @@ See <<credentials-required,Credentials required>> below for how the IaC
 sidecar authenticates against the state store when the rendered backend
 does not embed static keys.
 
-== What Nebula manages automatically
+== What Kumoss manages automatically
 
 [cols="2,4",options="header"]
 |===
@@ -60,12 +60,12 @@ never reaches a commit or a pull request.
 The override wins over whatever the repository declares: Terraform and
 OpenTofu merge `*_override.tf` *over* the rest of the configuration, so
 one file both _introduces_ a backend where the repository declares none
-and _replaces_ one it does declare. Nebula never edits the repository's
+and _replaces_ one it does declare. Kumoss never edits the repository's
 committed HCL. The core logs the target on every `init`:
 
 [source]
 ----
-Terraform state: rustfs bucket=nebula-terraform-state key=<project_id>/terraform.tfstate
+Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
 ----
 
 == Per-provider configuration
@@ -86,7 +86,7 @@ name is the only value to add.
 ----
 storage:
   provider: "RUSTFS"
-  terraform_state_bucket: "nebula-terraform-state"
+  terraform_state_bucket: "kumoss-terraform-state"
   endpoint_url: "http://object-storage:9000"
   region: "us-east-1"
 ----
@@ -97,7 +97,7 @@ Rendered into each workspace as `backend_override.tf`:
 ----
 terraform {
   backend "s3" {
-    bucket = "nebula-terraform-state"
+    bucket = "kumoss-terraform-state"
     key    = "<project_id>/terraform.tfstate"
     region = "us-east-1"
 
@@ -134,8 +134,8 @@ AWS S3.
 ----
 storage:
   provider: "S3"
-  bucket: "acme-nebula-artifacts"
-  terraform_state_bucket: "acme-nebula-tfstate"
+  bucket: "acme-kumoss-artifacts"
+  terraform_state_bucket: "acme-kumoss-tfstate"
   region: "eu-west-1"
 ----
 
@@ -147,7 +147,7 @@ configured:
 ----
 terraform {
   backend "s3" {
-    bucket = "acme-nebula-tfstate"
+    bucket = "acme-kumoss-tfstate"
     key    = "<project_id>/terraform.tfstate"
     region = "eu-west-1"
 
@@ -168,7 +168,7 @@ or a workload identity on the *IaC sidecar's* container:
 ----
 terraform {
   backend "s3" {
-    bucket = "acme-nebula-tfstate"
+    bucket = "acme-kumoss-tfstate"
     key    = "<project_id>/terraform.tfstate"
     region = "eu-west-1"
 
@@ -192,10 +192,10 @@ Azure Blob Storage.
 ----
 storage:
   provider: "STORAGE_ACCOUNT"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
-  endpoint_url: "https://acmenebula.blob.core.windows.net"
-  public_endpoint_url: "https://acmenebula.blob.core.windows.net"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
+  endpoint_url: "https://acmekumoss.blob.core.windows.net"
+  public_endpoint_url: "https://acmekumoss.blob.core.windows.net"
 ----
 
 `terraform_state_bucket` names a *blob container*, not a bucket. The
@@ -205,8 +205,8 @@ account name is derived from `endpoint_url`; `region` is ignored.
 ----
 terraform {
   backend "azurerm" {
-    storage_account_name = "acmenebula"
-    container_name       = "nebula-terraform-state"
+    storage_account_name = "acmekumoss"
+    container_name       = "kumoss-terraform-state"
     key                  = "<project_id>/terraform.tfstate"
     access_key           = "azure-shared-key"
   }
@@ -324,7 +324,7 @@ of them is a different project and therefore a different state file.
 
 == Locking
 
-State locking is enabled and is *native to the store* — Nebula
+State locking is enabled and is *native to the store* — Kumoss
 provisions no extra infrastructure for it.
 
 [cols="1,2,4",options="header"]

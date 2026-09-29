@@ -18,6 +18,11 @@ export {
   DriftResourceDetail,
 } from "./ResultPanel/DriftReport/DriftReport";
 export {
+  ComplianceRules,
+  ComplianceSummaryCard,
+  ComplianceViolations,
+} from "./ResultPanel/ComplianceReport/ComplianceReport";
+export {
   ApplyChangesList,
   ApplyResourceDetail,
   ApplyRecommendations,

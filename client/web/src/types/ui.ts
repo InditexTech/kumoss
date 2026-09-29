@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Dispatch, SetStateAction } from "react";
-import type { TerraformReport } from "./index";
+import type { ComplianceReport, TerraformReport } from "./index";
 import type {
   HistoryEntry,
   OperationType,
@@ -88,6 +88,7 @@ export interface Session {
   is_blocked?: boolean;
   history?: HistoryEntry[];
   terraform_report?: TerraformReport;
+  compliance_report?: ComplianceReport;
   code?: string;
   planTargets?: string[];
   /**

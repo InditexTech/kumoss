@@ -13,11 +13,14 @@ from src.application.services.report_service import ReportService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.application.services.terraform_import_service import TerraformImportService
 from src.domains.dto import (
+    TerraformImportAttempt,
     TerraformImportDTO,
     TerraformPlanDTO,
+    ValidationResultDTO,
 )
 from src.domains.entities import History
 from src.domains.entities.session import SessionContext
+from src.domains.exceptions import ValidationLoopExceededError
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     SessionService,
@@ -27,6 +30,7 @@ from src.domains.services import (
     TerraformTargetService,
     TerraformValidationService,
 )
+from src.domains.value_objects import Conventions
 from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
@@ -88,9 +92,7 @@ class TerraformImportHandler:
                 {
                     "selected_resource_ids": [],
                     "excluded_resource_ids": excluded,
-                    "import_results": asdict(
-                        TerraformImportDTO(imported=[], failed=[])
-                    ),
+                    "import_results": {"imported": [], "failed": []},
                     "summary": msg,
                 }
             ),
@@ -137,7 +139,6 @@ class TerraformImportHandler:
                     )
                     return
 
-                selected_ids: list[str] = unmanaged_ids
                 if is_partial:
                     filtered = await self.__task_svc.filter_imports(
                         query=q,
@@ -145,9 +146,9 @@ class TerraformImportHandler:
                         conventions=conventions,
                         history=ctx.history,
                     )
-                    selected_ids = filtered.selected
+                    unmanaged_ids = filtered.selected
 
-                    if not selected_ids:
+                    if not unmanaged_ids:
                         await self.__report_nothing_to_import(
                             q,
                             msg=filtered.explanation
@@ -163,49 +164,73 @@ class TerraformImportHandler:
                         targets=await self.__target_svc.generate_session(local_history),
                     )
 
-                q_import = (
-                    "Create a Terraform resource block for each of these "
-                    + "\n".join(f"- {rid}" for rid in selected_ids)
-                )
                 plan_result = await self.__validation_svc.generate_and_validate(
-                    q=q_import,
+                    q="Create a Terraform resource block for each of these "
+                    + "\n".join(f"- {rid}" for rid in unmanaged_ids),
                     ctx=ctx,
-                    conventions=conventions,
+                    conventions=Conventions.empty(),
                     include_forbidden_actions=False,
                     operation_type=OperationType.IMPORT,
                     validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_import_iteration,
                 )
 
-                if not plan_result.ok:
-                    fail_msg = await self.__report_svc.summarize_problem(
-                        feedback=plan_result.feedback,
-                        history=ctx.history,
+                imported: set[TerraformImportAttempt] = set()
+                failed: set[TerraformImportAttempt] = set()
+                import_targets: list[str] = plan_result.targets
+
+                async def import_callback(
+                    local_history: History,
+                ) -> ValidationResultDTO:
+                    import_cmds: set[
+                        TerraformImportAttempt
+                    ] = await self.__import_address_svc.get_import_addresses(
+                        failed or unmanaged_ids
                     )
-                    raise TerraformValidationFailedError(
-                        message=fail_msg,
-                        error_code=500,
+                    import_cmds.difference_update(imported)
+                    outcome = await self.__import_svc.import_resources(import_cmds)
+                    imported.update(outcome.imported)
+                    failed.difference_update(outcome.failed)
+                    failed.update(outcome.failed)
+                    failed.difference_update(imported)
+                    logging.debug(
+                        f"import_cmds: {[r.address for r in import_cmds]}\n"
+                        + f"imported: {[r.address for r in imported]}\n"
+                        + f"failed: {[r.address for r in failed]}\n"
+                    )
+                    return TerraformImportDTO(
+                        imported=imported,
+                        failed=failed,
                     )
 
-                imports = await self.__import_address_svc.get_import_addresses(
-                    ctx.history, selected_ids
-                )
-                if not imports:
-                    logging.warning(
-                        "There is nothing to import: no generated resource block "
-                        + f"was found in the branch diff for selected ids {selected_ids}"
-                    )
-                import_results = await self.__import_svc.import_resources(imports)
-                if import_results.failed:
-                    logging.warning(
-                        f"{len(import_results.failed)}/{len(imports)} imports failed"
+                async def split_errors(errors: str) -> str:
+                    return await self.__task_svc.split_errors(
+                        errors=errors, operation_type=OperationType.IMPORT
                     )
 
-                plan_after_import = plan_result.stdout
-                if import_results.addresses:
+                import_results: ValidationResultDTO = await import_callback(ctx.history)
+                if not import_results.ok:
+                    try:
+                        import_results = await self.__validation_svc.generate_and_validate(
+                            q=await split_errors(import_results.feedback),
+                            ctx=ctx,
+                            conventions=Conventions.empty(),
+                            include_forbidden_actions=False,
+                            operation_type=OperationType.GENERATE,
+                            validator=import_callback,
+                            max_iterations=system_config.orchestration.max_import_iteration,
+                            refine_feedback=split_errors,
+                        )
+                    except ValidationLoopExceededError as e:
+                        if not isinstance(e.result, TerraformImportDTO):
+                            raise
+                        import_results = e.result
+
+                if import_results.stdout:
                     drift = await self.__drift_svc.detect_and_resolve_drift(
                         plan=None,
                         filter_session_changes=False,
-                        targets=plan_result.targets,
+                        targets=import_targets,
                         conventions=conventions,
                         max_iterations=system_config.orchestration.max_drift_reports,
                     )
@@ -219,17 +244,17 @@ class TerraformImportHandler:
                             error_code=500,
                         )
 
-                    plan_after_import = drift.stdout or plan_after_import
-
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
                     type=ReportType.IMPORT,
                     content=json.dumps(
                         {
-                            "selected_resource_ids": selected_ids,
+                            "selected_resource_ids": unmanaged_ids,
                             "excluded_resource_ids": discovery.excluded,
-                            "import_results": asdict(import_results),
-                            "plan_after_import": plan_after_import,
+                            "import_results": {
+                                "imported": [asdict(a) for a in imported],
+                                "failed": [asdict(a) for a in failed],
+                            },
                         }
                     ),
                 )

@@ -1,7 +1,7 @@
 = Generate infrastructure
 :description: Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
 
-Generate Infrastructure is the default mode in the Nebula web application.
+Generate Infrastructure is the default mode in the Kumoss web application.
 It turns a natural-language request into validated Terraform code on a new
 branch, with a plan, a report, and optional compliance checks. This guide
 describes what happens during a generate round, what it produces, and its
@@ -39,7 +39,7 @@ bucket for application logs", "open port 443 on the web security group",
   Terraform targets for this round from the diff history. The IaC sidecar
   runs `init`, `validate`, and `plan -out session.plan` with those
   targets. Validation feedback is fed back to the model for up to
-  `orchestration.max_validation_iteration` attempts (8 by default) before
+  `orchestration.max_validation_iteration` attempts (8 in the shipped `config.yaml`) before
   the round fails with `Validation loop exceeded.`
 . *Drift pre-check.* Two detect-and-reconcile iterations run on the
   session targets. The first reads its drift out of the plan artifact the
@@ -89,7 +89,7 @@ Repository `\https://git.example.invalid/platform/demo-iac.git`, cloud
 `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a
 private S3 bucket named `demo-platform-logs` with versioning and default
 encryption for application logs." The round produces `s3_logs.tf` on
-branch `Nebula/2026-09-11_101500`, a plan with one resource to create, a
+branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a
 report with a `low` impact banner, and a passing compliance check. You
 create the pull request, merge it, and apply.
 

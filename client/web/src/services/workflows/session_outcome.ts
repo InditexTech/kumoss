@@ -23,12 +23,13 @@ import { normalizeHistory } from "@/types/api";
 import type {
   HistoryEntry,
   CodeChangeRef,
+  ComplianceCheckRef,
   ReportRef,
   RoundDetail,
   SessionDetail,
   TerraformPlanRef,
 } from "@/types/api";
-import type { TerraformReport, PlanSummary } from "@/types";
+import type { ComplianceReport, TerraformReport, PlanSummary } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
 // ─── Outcome model ─────────────────────────────────────────────
@@ -39,6 +40,7 @@ export type SessionOutcome =
       detail: SessionDetail;
       round: RoundDetail;
       report: TerraformReport | null;
+      compliance: ComplianceReport | null;
       code: string;
       planTargets?: string[];
       newFiles?: string[];
@@ -119,6 +121,7 @@ export async function waitForNewRound(
 
 export interface RoundArtifacts {
   report: TerraformReport | null;
+  compliance: ComplianceReport | null;
   code: string;
   planTargets?: string[];
   /** Names in `code` whose body is raw content rather than a diff. */
@@ -210,12 +213,18 @@ async function fetchRoundArtifacts(
   rounds: RoundDetail[],
 ): Promise<RoundArtifacts> {
   const codeChanges = collectCodeChanges(rounds);
-  // Oldest-first, and a round holds exactly one report, so the newest is
-  // the round's own — unlike its plans (see `fetchPlanContent`).
+  // Oldest-first, and a round holds exactly one report and at most one
+  // compliance check, so the newest is the round's own — unlike its plans
+  // (see `fetchPlanContent`).
   const reportRef: ReportRef | null =
     round.reports[round.reports.length - 1] ?? null;
-  const [reportContent, plan, composed] = await Promise.all([
+  const complianceRef: ComplianceCheckRef | null =
+    round.compliance_checks[round.compliance_checks.length - 1] ?? null;
+  const [reportContent, complianceContent, plan, composed] = await Promise.all([
     reportRef ? fetchArtifactContent(reportRef.url) : Promise.resolve(null),
+    complianceRef
+      ? fetchArtifactContent(complianceRef.url)
+      : Promise.resolve(null),
     fetchPlanContent(round.plans),
     // fetchArtifact, not fetchArtifactContent: composing a file's chain
     // needs each artifact's shape, and it rides the same response.
@@ -241,6 +250,15 @@ async function fetchRoundArtifacts(
     }
   }
 
+  let compliance: ComplianceReport | null = null;
+  if (complianceContent) {
+    try {
+      compliance = JSON.parse(complianceContent);
+    } catch {
+      // ignore malformed compliance check
+    }
+  }
+
   const parts: string[] = [];
   if (plan) {
     parts.push(`<Terraform_Plan>\n${plan.content}\n</Terraform_Plan>`);
@@ -257,6 +275,7 @@ async function fetchRoundArtifacts(
   // when its drift diffs carried some.
   return {
     report,
+    compliance,
     code: parts.join("\n"),
     planTargets: plan?.targets ?? [],
     newFiles,
@@ -380,6 +399,7 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
   // plan, or tint the wrong file as new.
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
+    patch.compliance_report = outcome.compliance ?? undefined;
     patch.code = outcome.code;
     patch.planTargets = outcome.planTargets ?? [];
     patch.newFiles = outcome.newFiles ?? [];
@@ -387,6 +407,7 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     patch.terraform_report = outcome.report ?? undefined;
   } else if (outcome.kind === "rejected" && outcome.prior) {
     patch.terraform_report = outcome.prior.report ?? undefined;
+    patch.compliance_report = outcome.prior.compliance ?? undefined;
     patch.code = outcome.prior.code;
     patch.planTargets = outcome.prior.planTargets ?? [];
     patch.newFiles = outcome.prior.newFiles ?? [];

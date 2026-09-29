@@ -1,7 +1,7 @@
 = Quickstart
-:description: Install Nebula on one machine with Docker Compose, from cloning the repository to opening the running web application.
+:description: Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 
-In this quickstart, you install Nebula on one machine with Docker Compose,
+In this quickstart, you install Kumoss on one machine with Docker Compose,
 using the bundled stack as shipped, and open the running web application.
 
 == Prerequisites
@@ -15,8 +15,8 @@ xref:main:prerequisites.adoc[prerequisites].
 
 [source,bash]
 ----
-git clone https://github.com/InditexTech/nebula.git
-cd nebula
+git clone https://github.com/InditexTech/kumoss.git
+cd kumoss
 
 cp core/env.sample core/.env
 cp services/iac/env.sample services/iac/.env
@@ -43,13 +43,27 @@ xref:main:reference/llm-providers.adoc[LLM providers and models].
 [source,yaml]
 ----
 llm:
-  model: "vertex_ai/claude-sonnet-5"
+  model: "vertex_ai/claude-sonnet-4-5"
   small_model: "vertex_ai/gemini-3.8-flash"
 
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
 ----
+
+Apart from the Git credentials you set in the next step, you may need to
+change the Git provider. `git.provider` must name the host of your
+repository and defaults to `GITHUB`; for Azure DevOps or GitLab, add it to
+the file:
+
+[source,yaml]
+----
+git:
+  provider: "GITLAB"  # or "AZURE_DEVOPS"
+----
+
+Accepted values and the supported hosts:
+xref:main:reference/configuration.adoc#config-git[`git` configuration].
 
 === 3. Fill in core/.env
 
@@ -60,7 +74,7 @@ Set:
   xref:main:reference/llm-providers.adoc#provider-credentials[provider
   credential variables]. The core will not run without them.
 * `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
-  provider named by `git.provider` (GitHub, Azure DevOps or GitLab).
+  provider named by `git.provider` defined in the above `config.yaml`.
 
 Keep the remaining sample values: they match the bundled containers. Every
 variable: xref:main:reference/environment-variables.adoc[Environment
@@ -84,7 +98,7 @@ Invalid or missing cloud credentials do not stop the container. The engine
 runs anyway and its own authentication error appears in the session as a
 failed `init`, `plan`, or `apply`.
 
-=== 5. Build and start Nebula
+=== 5. Build and start Kumoss
 
 [source,bash]
 ----
@@ -136,14 +150,14 @@ With authentication disabled this returns a JSON document with an empty
 |URL |What it serves
 
 |`\http://localhost`
-|Nebula web application and the API under `/api/v1/...`
+|Kumoss web application and the API under `/api/v1/...`
 
 |`\http://localhost/monitoring/`
 |Phoenix: traces of every run and the prompt registry
 
 |===
 
-Port 80 serves the unauthenticated Nebula application by default, while
+Port 80 serves the unauthenticated Kumoss application by default, while
 port 9000 exposes presigned artifact downloads and the RustFS console, on
 every interface of the host. Keep the stack on a machine only you can reach.
 
@@ -175,7 +189,7 @@ prompts survive a restart.
 
 *`down -v` deletes the session database, the artifacts, the Phoenix traces
 and prompts, and any in-progress workspaces* — and, by default, the
-Terraform state too, since Nebula manages it in that same object-storage
+Terraform state too, since Kumoss manages it in that same object-storage
 volume. State survives only if you set `storage.terraform_state_bucket` to
 `""` so that each repository declares its own backend instead.
 
@@ -189,7 +203,7 @@ volume. State survives only if you set `storage.terraform_state_bucket` to
   xref:main:guides/enable-authentication.adoc[Enable authentication].
 * Learn the role model and the admin panel:
   xref:main:guides/administer-users-and-locks.adoc[Administer users and locks].
-* Decide where Terraform state should live before you point Nebula at
+* Decide where Terraform state should live before you point Kumoss at
   anything real:
   xref:main:guides/configure-state-backends.adoc[Configure state backends].
 * Turn on the optional sidecars — Slack notifications, resource mapping,
@@ -205,19 +219,19 @@ volume. State survives only if you set `storage.terraform_state_bucket` to
 
 * *The core exits during boot.* Boot is strict and the reason is in
   `docker compose logs core` — most often missing LLM credentials, an
-  empty `NEBULA_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not
+  empty `KUMOSS_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not
   yet reachable. The stack has no healthchecks, so a dependency that was
   simply slower to start leaves the core stopped rather than retrying: run
   `docker compose up -d core` again.
 * *Every session fails at validation with a `401` from the IaC sidecar.*
-  `NEBULA_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
+  `KUMOSS_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
 * *A `config.yaml` change has no effect.* Rebuild the core image with
   `docker compose build core`.
 * *`plan` or `apply` fails with a provider authentication error.* The cloud
   credentials in `services/iac/.env` are absent, invalid, or insufficient.
 * *`plan` fails with `permission denied` on a file in the workspace.* The
   `workspaces` volume predates the current non-root containers. Run
-  `docker compose down`, then `docker run --rm -v nebula_workspaces:/workspaces
+  `docker compose down`, then `docker run --rm -v kumoss_workspaces:/workspaces
   alpine chown -R 10001:10001 /workspaces`, and start again.
 * *`init` fails on the state backend, or every plan wants to recreate
   existing resources.*

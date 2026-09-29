@@ -18,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from src.domains.dto import (
     CodeChangeRef,
+    ComplianceCheckRef,
     PaginatedSessionSummary,
     PullRequestRef,
     ReportRef,
@@ -41,6 +42,7 @@ from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
     Artifact,
     CodeChange,
+    ComplianceCheck,
     TerraformPlan,
     TerraformProvider as DbTerraformProvider,
     PullRequest,
@@ -730,7 +732,9 @@ class DatabaseService:
         return default_object_storage().presigned_get_url(artifact.uri)
 
     @staticmethod
-    def __artifact_fields(row: Report | TerraformPlan | CodeChange) -> dict[str, Any]:
+    def __artifact_fields(
+        row: Report | TerraformPlan | CodeChange | ComplianceCheck,
+    ) -> dict[str, Any]:
         return {
             "id": row.id,
             "url": DatabaseService.__artifact_url(row.artifact),
@@ -760,6 +764,12 @@ class DatabaseService:
             reports=[
                 ReportRef(**DatabaseService.__artifact_fields(rep), type=rep.type)
                 for rep in sorted(r.reports, key=lambda rep: (rep.created_at, rep.id))
+            ],
+            compliance_checks=[
+                ComplianceCheckRef(
+                    **DatabaseService.__artifact_fields(c), passed=c.passed
+                )
+                for c in sorted(r.compliance_checks, key=lambda c: (c.created_at, c.id))
             ],
             plans=[
                 TerraformPlanRef(
@@ -819,6 +829,9 @@ class DatabaseService:
                     selectinload(Session.rounds)
                     .selectinload(Round.reports)
                     .selectinload(Report.artifact),
+                    selectinload(Session.rounds)
+                    .selectinload(Round.compliance_checks)
+                    .selectinload(ComplianceCheck.artifact),
                     selectinload(Session.rounds)
                     .selectinload(Round.terraform_plans)
                     .selectinload(TerraformPlan.artifact),
@@ -1132,6 +1145,22 @@ class DatabaseService:
             Report, round_id=round_id, artifact_id=aid, type=report_type
         )
         return report.id
+
+    @staticmethod
+    async def add_compliance_check(
+        round_id: int,
+        passed: bool,
+        uri: str,
+        content_type: str,
+        file_size_bytes: int,
+    ) -> int:
+        aid = await DatabaseService.__create_artifact(
+            uri, content_type, file_size_bytes
+        )
+        check: ComplianceCheck = await db.create(
+            ComplianceCheck, round_id=round_id, artifact_id=aid, passed=passed
+        )
+        return check.id
 
     @staticmethod
     async def add_terraform_plan(

@@ -406,6 +406,30 @@ describe("SessionData plan targets", () => {
   });
 });
 
+describe("SessionData artifacts", () => {
+  it("lists the round's compliance check alongside the other artifacts", () => {
+    const session = makeSessionDetail({
+      rounds: [
+        makeRound({
+          compliance_checks: [
+            {
+              id: 7,
+              url: "https://storage.test/compliance.json",
+              content_type: "application/json",
+              file_size_bytes: 10,
+              created_at: "2026-01-01T00:00:00Z",
+              passed: false,
+            },
+          ],
+        }),
+      ],
+    });
+    renderWithProviders(<SessionData session={session} />);
+
+    expect(screen.getByText("Compliance Check")).toBeInTheDocument();
+  });
+});
+
 describe("SessionData apply lock", () => {
   it("renders a read-only label when no lock handler is given", () => {
     renderWithProviders(

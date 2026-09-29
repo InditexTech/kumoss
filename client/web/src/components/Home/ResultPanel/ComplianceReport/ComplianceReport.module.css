@@ -1,0 +1,192 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ─── Verdict and summary ─── */
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.summaryCounts {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.summaryBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 80ch;
+}
+
+.summaryText {
+  color: var(--color-content-primary);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.textToggle {
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.textToggle:hover {
+  opacity: 0.7;
+}
+
+/* ─── Sections ─── */
+
+.section {
+  margin-top: 28px;
+}
+
+.sectionTitle {
+  margin: 0 0 12px;
+  color: var(--color-heading);
+}
+
+.sectionCount {
+  vertical-align: super;
+  margin-left: 2px;
+  opacity: 0.7;
+}
+
+/* ─── Violations ─── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  --severity-color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--severity-color);
+  border-radius: var(--radius-sm);
+}
+
+.critical,
+.error {
+  --severity-color: var(--color-danger);
+}
+
+.warning {
+  --severity-color: var(--color-warning);
+}
+
+.info {
+  --severity-color: var(--color-info);
+}
+
+.entryHeader {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.severity {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--severity-color);
+}
+
+.ruleId {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.resource {
+  color: var(--color-text-muted);
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.message {
+  color: var(--color-text-body);
+  margin: 0;
+}
+
+.suggestedFix {
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+/* ─── Rules checked ─── */
+
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-content-primary);
+}
+
+.rule.critical,
+.rule.error,
+.rule.warning,
+.rule.info {
+  border-color: var(--severity-color);
+  color: var(--severity-color);
+}
+
+.passedRule {
+  color: var(--color-text-muted);
+}
+
+.ruleIcon {
+  font-size: 11px;
+  line-height: 1;
+}

@@ -17,7 +17,7 @@ returns `null` whenever its catalogue is not authoritative.
 
 Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint:
 `\http://mapping:8081`. Bearer token: the value of the variable named
-by `services.mapping.token_env`, `NEBULA_MAPPING_TOKEN` by default.
+by `services.mapping.token_env`, `KUMOSS_MAPPING_TOKEN` by default.
 The service is *optional* and ships disabled
 (`services.mapping.enabled: false`).
 
@@ -33,7 +33,7 @@ Two paths.
 |Endpoint |What it does
 
 |`POST /v1/resolve`
-|Translates `identifier` into the repository the rest of Nebula
+|Translates `identifier` into the repository the rest of Kumoss
 operates on, and optionally into the Terraform provider and cloud scope
 the caller would otherwise have to ask the user for.
 
@@ -90,7 +90,7 @@ for contract completeness and for callers other than the wizard.
 
 |`repo_url`
 |1-2048 chars, required
-|The URL Nebula clones. Free-form because git accepts many URL shapes
+|The URL Kumoss clones. Free-form because git accepts many URL shapes
 — `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute
 path. Returning something the deployment's git client can actually
 clone is the implementation's responsibility. When the identifier
@@ -210,7 +210,7 @@ will use it.
 |===
 |Variable |Required |Meaning
 
-|`NEBULA_MAPPING_TOKEN`
+|`KUMOSS_MAPPING_TOKEN`
 |no
 |Bearer token clients must present. Blank disables the check entirely
 and accepts every request.

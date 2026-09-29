@@ -10,7 +10,7 @@ carried by the target repository is reached:
 [source,dotenv]
 ----
 # services/iac/.env
-IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl
+IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl
 ----
 
 [source,yaml]
@@ -19,10 +19,10 @@ IAC_BACKEND_CONFIG=/etc/nebula/backend.hcl
 services:
   iac:
     volumes:
-      - ./backend.hcl:/etc/nebula/backend.hcl:ro
+      - ./backend.hcl:/etc/kumoss/backend.hcl:ro
 ----
 
-`init` then runs with `-backend-config=/etc/nebula/backend.hcl`. The
+`init` then runs with `-backend-config=/etc/kumoss/backend.hcl`. The
 file holds backend _values_ only — a `.hcl` or `.tfbackend` partial
 configuration:
 
@@ -48,7 +48,7 @@ Three constraints follow from how `-backend-config` works:
   value, so if every project reads the same file, every project shares
   one state file unless the repositories declare distinct keys
   themselves. Per-project keying is a feature of
-  xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed
+  xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
   state] only.
 . *Blank means unset.* An empty or whitespace-only `IAC_BACKEND_CONFIG`
   is treated as not set.
@@ -58,5 +58,5 @@ A workspace-relative file exists only once the target repository has
 been cloned, so there is nothing to verify at boot. A wrong path
 therefore surfaces as an `init` failure on the first job that uses it,
 in that job's stderr rather than in the container's startup log. A file
-you mount must be readable by uid `10001` (`nebula`), the unprivileged
+you mount must be readable by uid `10001` (`kumoss`), the unprivileged
 user the image runs as.

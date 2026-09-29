@@ -66,6 +66,7 @@ function round(overrides: Partial<RoundDetail> = {}): RoundDetail {
     query: "Create a storage account",
     statuses: [],
     reports: [],
+    compliance_checks: [],
     plans: [],
     code_changes: [],
     pull_requests: [],

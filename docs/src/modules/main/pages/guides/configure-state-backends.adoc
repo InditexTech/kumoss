@@ -1,7 +1,7 @@
 = Configure state backends
-:description: Choose which party owns Terraform and OpenTofu state — the repository, Nebula, or the deployment — and how core and sidecar configuration interact.
+:description: Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.
 
-Nebula's workspaces are *ephemeral by design*: every call clones the
+Kumoss's workspaces are *ephemeral by design*: every call clones the
 repository into a fresh directory on the shared `workspaces` volume and
 deletes it in a `finally` block, and the workspace pinned for an apply is
 removed once the apply completes. Nothing there survives. Hence a remote
@@ -14,8 +14,8 @@ backend is not optional:
 . *State must be shared across runs, not across directories.* Two
   sessions on the same project get two different clone paths, so only
   something that describes _the project_ can bring their state together.
-  Nebula derives that identity itself (see
-  xref:main:guides/state-backends/nebula-managed.adoc#state-keys[State
+  Kumoss derives that identity itself (see
+  xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
   keys]).
 
 The seeded `.gitignore` excludes `*.tfstate`, `*.tfstate.*`, and
@@ -25,17 +25,17 @@ commit or a pull request.
 == What ships by default
 
 *The shipped `config.yaml` sets
-`storage.terraform_state_bucket: "nebula-terraform-state"`, so Nebula
+`storage.terraform_state_bucket: "kumoss-terraform-state"`, so Kumoss
 manages state itself.* It takes over the backend entirely: it creates
 the bucket or container at boot in the store that `storage.provider`
 selects (RustFS by default), writes the backend into every workspace,
-and assigns a state key per project. The repositories Nebula operates on
+and assigns a state key per project. The repositories Kumoss operates on
 need no backend block of their own, and there is nothing to set up in a
 cloud account first.
 
 If your repositories already declare their own backends and must keep
 them, *set `storage.terraform_state_bucket` to the empty string* and
-Nebula configures no backend at all. The backend is then yours to
+Kumoss configures no backend at all. The backend is then yours to
 provide: every repository must declare its own remote backend, and the
 IaC sidecar must hold the credentials to reach it. A repository with no
 backend block falls back to local state, which is lost with the
@@ -43,16 +43,16 @@ workspace.
 
 [source,yaml]
 ----
-# As shipped: Nebula-managed state. Nothing else to configure on RUSTFS.
+# As shipped: Kumoss-managed state. Nothing else to configure on RUSTFS.
 storage:
   provider: "RUSTFS"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
 ----
 
 *Only an explicit empty string turns managed state off.* Write
 `terraform_state_bucket: ""`; whitespace-only counts too. Deleting the
-key does not: the field's default in code is `nebula-terraform-state`,
+key does not: the field's default in code is `kumoss-terraform-state`,
 so a `config.yaml` without `terraform_state_bucket` still manages state.
 Nor does writing the key with *no value after it* — YAML reads that as
 null, the field is typed `str`, and the core dies at boot with
@@ -73,10 +73,10 @@ Exactly one party decides where state goes. Pick deliberately.
 |`terraform_state_bucket: ""` and `IAC_BACKEND_CONFIG` unset
 
 |2
-|*Nebula-managed state* — _shipped default_
+|*Kumoss-managed state* — _shipped default_
 |The *core*, from `storage.*`
 |`terraform_state_bucket` set to a bucket name — as shipped,
-`nebula-terraform-state`
+`kumoss-terraform-state`
 
 |3
 |*Sidecar-supplied backend configuration* — _opt-in_
@@ -92,7 +92,7 @@ Blank the state bucket and let each repository's own backend block own
 state.
 
 [card]
-.xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
+.xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed state]
 Keep the shipped default: the core creates the bucket and writes the
 backend for you.
 
@@ -120,16 +120,16 @@ CI plan against the same state.
 
 |Production, repositories already have backends you must not change
 |*1*, by blanking the state bucket
-|Nebula writes nothing; each repository keeps the backend its team
+|Kumoss writes nothing; each repository keeps the backend its team
 declared.
 
-|Production, Nebula owns the projects it generates
+|Production, Kumoss owns the projects it generates
 |*2* with `S3` or `STORAGE_ACCOUNT`
 |One managed store, one credential set, one lifecycle policy, state keys
 assigned automatically.
 
 |Production, one central backend for every project, defined outside
-Nebula
+Kumoss
 |*3*
 |Backend values live in a file your platform mounts and rotates.
 |===
@@ -165,10 +165,10 @@ the engine bound.
 Keys absent from a higher layer fall through to the next one, so
 *setting both model 2 and model 3 produces a partial merge, not a clean
 override*: for every key the mounted file declares (`bucket`, `key`,
-`region`, credentials) it replaces Nebula's value, and Nebula's
+`region`, credentials) it replaces Kumoss's value, and Kumoss's
 remaining keys survive. That is worse than either model alone, because
 the result is a backend neither side fully describes. The common
-failure is the mounted file supplying a single `key`: Nebula's
+failure is the mounted file supplying a single `key`: Kumoss's
 per-project `key = <project_id>/terraform.tfstate` is then gone and
 *every project shares one state object*. *Set
 `terraform_state_bucket: ""` whenever you set `IAC_BACKEND_CONFIG`* —
@@ -185,7 +185,7 @@ take, not a default you inherit.
 
 |set _(shipped)_
 |unset _(shipped)_
-|*2* — Nebula-managed
+|*2* — Kumoss-managed
 
 |`""`
 |set
@@ -203,18 +203,18 @@ take, not a default you inherit.
 *Any change to `config.yaml` needs an image rebuild* (`docker compose
 build core && docker compose up -d core`), because the file is baked
 into the core image. To vary it per environment without rebuilding,
-mount `config.yaml` and point `NEBULA_CONFIG` at it — see
+mount `config.yaml` and point `KUMOSS_CONFIG` at it — see
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 
 *Switching models moves nothing.* Turning managed state on does not
 import the state your repositories' backends hold; turning it off
-leaves whatever Nebula stored in its bucket, where those backends will
+leaves whatever Kumoss stored in its bucket, where those backends will
 not look for it. Migrate first, or accept that the affected projects
 start from empty state.
 
 `init` *always* runs with `-reconfigure` (`tofu init -no-color
--input=false -reconfigure`): Nebula runs the engine non-interactively,
+-input=false -reconfigure`): Kumoss runs the engine non-interactively,
 and `-input=false` cannot answer the _"Backend configuration changed"_
 prompt, so without it any workspace whose backend differs from its
 previous initialization would fail hard. What that means for you:
@@ -224,7 +224,7 @@ previous initialization would fail hard. What that means for you:
   action.
 * *State under the previous backend is not migrated.* `-reconfigure`
   deliberately skips the migration `-migrate-state` would perform.
-  Nebula never copies state between backends.
+  Kumoss never copies state between backends.
 * *A project therefore starts from empty state* after any change that
   alters its backend or its key — switching `storage.provider`,
   renaming `terraform_state_bucket`, moving the root module, changing
@@ -243,19 +243,19 @@ tofu state push project.tfstate
 
 `tofu init -migrate-state` run by hand in an equivalent workspace works
 too. Either way, keep the pulled file as a backup and verify with a plan
-that shows no changes before letting Nebula run again.
+that shows no changes before letting Kumoss run again.
 
-== What Nebula does not do
+== What Kumoss does not do
 
 State ownership stops at "write the backend and key". Everything below
 is yours:
 
 * *No state migration.* Never, between any two backends. See above.
-* *No versioning or backups.* Nebula does not enable bucket versioning,
+* *No versioning or backups.* Kumoss does not enable bucket versioning,
   object lock, soft delete, or point-in-time restore on the state
   bucket. Turn them on yourself — for state this matters far more than
   for artifacts.
-* *No lifecycle or retention policy*, and no deletion: Nebula never
+* *No lifecycle or retention policy*, and no deletion: Kumoss never
   removes a state object, so state for a decommissioned project persists
   until you delete it.
 * *No DynamoDB lock table.* Locking uses the S3-native lockfile; there is
@@ -273,17 +273,16 @@ is yours:
 * *No state encryption beyond the store's own.* State contains resource
   attributes and can contain secrets; rely on bucket-level encryption at
   rest and restrict access accordingly.
-* *No import of existing resources into managed state.* The bundled IaC
-  sidecar implements the contract's `/v1/import*` endpoints
-  (single-address import, state inventory, cloud-scope inventory), but
-  the core never calls them: nothing in a session adopts pre-existing
-  resources into the state Nebula manages. See
+* *Import writes to managed state during the round.* The import modes
+  run `terraform import` through the IaC sidecar's `/v1/import` while
+  the round is still running, so imported resources enter the state
+  Kumoss manages before any pull request is reviewed. See
   xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
 == Operations
 
 This section assumes model 2, which is what ships. If you turned it off
-with `terraform_state_bucket: ""`, the state bucket is not Nebula's, so
+with `terraform_state_bucket: ""`, the state bucket is not Kumoss's, so
 its operation — versioning, access, backups — belongs to whoever owns
 the backend each repository declares.
 
@@ -292,7 +291,7 @@ the backend each repository declares.
 [source,bash]
 ----
 docker compose logs core | grep "Terraform state:"
-# Terraform state: rustfs bucket=nebula-terraform-state key=<project_id>/terraform.tfstate
+# Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
 ----
 
 *Inspect the bundled store.* RustFS speaks the S3 API, so any S3 client
@@ -307,7 +306,7 @@ aws configure set default.s3.addressing_style path
 AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
 AWS_DEFAULT_REGION=us-east-1 \
   aws --endpoint-url http://localhost:9000 \
-  s3 ls s3://nebula-terraform-state/ --recursive
+  s3 ls s3://kumoss-terraform-state/ --recursive
 ----
 
 *Reset local state.* `docker compose down -v` removes the
@@ -319,7 +318,7 @@ elsewhere.
 encryption at rest with your own key if policy requires it; access
 restricted to the core and the IaC sidecar identities; excluded from any
 lifecycle expiry you apply to the artifacts bucket; and included in your
-backup and restore drills — this bucket is the record of what Nebula has
+backup and restore drills — this bucket is the record of what Kumoss has
 built.
 
 [#state-troubleshooting]
@@ -356,7 +355,7 @@ override contains no `access_key`
 |The *IaC sidecar* container has no ambient cloud credentials, or they
 lack access to the state bucket.
 |Give the sidecar the role/keys, not just the core. See
-xref:main:guides/state-backends/nebula-managed.adoc#credentials-required[Credentials
+xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
 required].
 
 |`init` fails to dial the endpoint (`connection refused`, DNS failure)
@@ -380,7 +379,7 @@ object / break the blob lease.
 |Two repositories collide on one state file
 |A shared `-backend-config` file supplies one `key` — under model 3, or
 under the mixed model 2 + model 3 case, where the mounted file's `key`
-overrides Nebula's per-project one.
+overrides Kumoss's per-project one.
 |Declare distinct keys per repository, or use model 2 alone (leave
 `IAC_BACKEND_CONFIG` unset).
 
@@ -397,7 +396,7 @@ gitignore couldn't be created` and carries on, and the next commit
 (`git add -A`) picks the override file up. A repository that carried no
 `.gitignore` is not the cause: the seeded file is honoured for the
 working tree even though it ignores itself and is never committed. A
-repository that already tracks a `.gitignore` gets Nebula's template
+repository that already tracks a `.gitignore` gets Kumoss's template
 appended to it, and that modification is committed and pushed to the
 session branch.
 |Look for the warning in the core log and check that the `workspaces`
@@ -425,9 +424,9 @@ uid/gid `10001`. A volume from a stack that ran as root needs
 → `s3`, `STORAGE_ACCOUNT` → `azurerm`.
 
 |`storage.terraform_state_bucket`
-|`nebula-terraform-state` _(shipped, and the field default)_
+|`kumoss-terraform-state` _(shipped, and the field default)_
 |Names the bucket (blob container on `STORAGE_ACCOUNT`) that holds
-Nebula-managed state; it is created at boot if missing. Set it to `""`
+Kumoss-managed state; it is created at boot if missing. Set it to `""`
 to leave state to the repository instead — `""` and whitespace-only
 both count as blank. *Deleting the key falls back to the same field
 default and keeps managed state on*, and a key written with no value is
@@ -495,7 +494,7 @@ Terraform {terraform-version}; both support `use_lockfile`.
 * xref:main:reference/terraform-providers.adoc[Terraform providers] —
   per-cloud backend credential minimums.
 * xref:main:architecture/data-and-state.adoc#terraform-state[Architecture
-  — Data and state] — where state sits among Nebula's stores.
+  — Data and state] — where state sits among Kumoss's stores.
 * xref:main:guides/production/operations.adoc#data-and-persistence[Operations
   — Data services and persistence] — persistence expectations in
   production.

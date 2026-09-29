@@ -359,11 +359,13 @@ class ApplicationFactory:
         tool_svc: ToolOrchestrationService,
         llm_svc: LLMOrchestrationService,
         template_svc: TemplateOrchestrationService,
+        artifact_svc: ArtifactStorageService,
     ) -> ComplianceCheckService:
         return ComplianceCheckService(
             tool_service=tool_svc,
             llm_service=llm_svc,
             template_service=template_svc,
+            artifact_service=artifact_svc,
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
@@ -382,7 +384,9 @@ class ApplicationFactory:
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils.project_root)
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
+        compliance_svc = self._get_compliance_service(
+            tool_svc, llm_svc, template_svc, artifact_svc
+        )
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -488,7 +492,9 @@ class ApplicationFactory:
         terraform_svc = self._get_terraform_provider(
             workspace_svc.pinned_dir(self.__ctx.id)
         )
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
+        compliance_svc = self._get_compliance_service(
+            tool_svc, llm_svc, template_svc, artifact_svc
+        )
         return TerraformApplyHandler(
             terraform_service=terraform_svc,
             session_service=session_svc,

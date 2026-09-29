@@ -141,6 +141,7 @@ llm:
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000
+  timeout: 600
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the

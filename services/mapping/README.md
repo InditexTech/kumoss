@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference implementation of [`contracts/openapi/mapping.v1.yaml`](../../contracts/openapi/mapping.v1.yaml).
 
-The OSS default for the Nebula mapping contract: identity passthrough.
+The OSS default for the Kumoss mapping contract: identity passthrough.
 Whatever `identifier` the caller sends is returned as both the
 `repo_url` and the `identifier`. Useful for users who pass real git
 URLs directly and don't have (or need) a business-product → IaC
@@ -35,7 +35,7 @@ browser directly.
   terraform_provider: <whatever was sent, or null>, scope_id: null}`.
   Nothing is truncated.
 - `GET /healthz` — liveness probe.
-- Bearer-token auth on `/v1/resolve` if `NEBULA_MAPPING_TOKEN` is set.
+- Bearer-token auth on `/v1/resolve` if `KUMOSS_MAPPING_TOKEN` is set.
   Leave it blank in a shared network only for local experimentation —
   a blank token disables the check entirely, so set one whenever this
   service is reachable by anyone other than the core.
@@ -50,7 +50,7 @@ of them — it only ever emits `200`, `401` (bad/missing token), `422`
 
 | Env var                        | Required | Description                          |
 |--------------------------------|----------|--------------------------------------|
-| `NEBULA_MAPPING_TOKEN`         | no       | Bearer token clients must present.   |
+| `KUMOSS_MAPPING_TOKEN`         | no       | Bearer token clients must present.   |
 
 ## Run locally
 

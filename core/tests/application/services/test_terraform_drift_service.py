@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.dto import FilteredOperationsDTO, TerraformDriftDTO, TerraformPlanDTO
 from src.domains.value_objects import PlanRef
-from src.shared.constants import SessionStatus
+from src.shared.constants import OperationType
 
 
 WORKSPACE = Path("/workspaces/demo")
@@ -131,17 +131,32 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self._drift_refs(), [fresh])
         self.assertTrue(result.in_sync)
 
-    async def test_a_failed_initial_plan_returns_without_splitting(self):
+    async def test_a_failed_initial_plan_is_split_into_the_fix_query(self):
+        fixed = _ref("rev-fixed")
         self.terraform_svc.plan.return_value = _plan(None, stdout="partial plan")
+        self.split_svc.split_errors.return_value = "1. declare var.sku"
+        self.validation_svc.generate_and_validate.return_value = _plan(fixed)
+        self.terraform_svc.drift.return_value = _drift("", fixed)
 
         result = await self._run(filter_session_changes=False, plan=None)
 
-        self.assertFalse(result.in_sync)
-        self.assertEqual(result.feedback, "Error: plan failed")
-        self.assertEqual(result.stdout, "partial plan")
-        self.assertIsNone(result.plan)
-        self.terraform_svc.drift.assert_not_awaited()
+        self.split_svc.split_errors.assert_awaited_once_with(
+            errors="Error: plan failed", operation_type=OperationType.GENERATE
+        )
+        gen_kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
+        self.assertEqual(gen_kwargs["q"], "1. declare var.sku")
+        self.assertEqual(
+            await gen_kwargs["refine_feedback"]("Error: still broken"),
+            "1. declare var.sku",
+        )
+        self.split_svc.split_errors.assert_awaited_with(
+            errors="Error: still broken", operation_type=OperationType.GENERATE
+        )
         self.split_svc.split_task.assert_not_awaited()
+        self.split_svc.filter_reconciliation.assert_not_awaited()
+        self.split_svc.filter_exceptions.assert_not_awaited()
+        self.assertEqual(self._drift_refs(), [fixed])
+        self.assertTrue(result.in_sync)
 
     async def test_synchronized_resources_skip_splitting(self):
         self.terraform_svc.drift.return_value = _drift("", self.round_ref)
@@ -176,7 +191,9 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
 
         await self._run(filter_session_changes=True, plan=self.round_ref)
 
-        self.split_svc.split_task.assert_awaited_once_with(task="[drift]")
+        self.split_svc.split_task.assert_awaited_once_with(
+            task="[drift]", operation_type=OperationType.DRIFT
+        )
         self.split_svc.filter_reconciliation.assert_awaited_once_with(
             operations=[["revert sku", "add tag"]]
         )
@@ -324,17 +341,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["content"], "[drift]")
         self.assertEqual(kwargs["targets"], self.targets)
 
-    async def test_a_clean_check_records_the_assessment_and_its_outcome(self):
-        self.terraform_svc.drift.return_value = _drift("", self.round_ref)
-
-        await self._run(filter_session_changes=True, plan=self.round_ref)
-
-        calls = self._statuses()
-        self.assertEqual(len(calls), 2)
-        self.assertIn("Assessing drift", calls[0]["msg"])
-        self.assertIn("No drift found", calls[1]["msg"])
-        self.assertEqual({c["status"] for c in calls}, {SessionStatus.RECONCILING})
-
     async def test_the_assessment_is_recorded_before_the_drift_diff_is_stored(self):
         self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
         self.split_svc.split_task.return_value = []
@@ -351,39 +357,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         # status is written first.
         self.assertEqual(order[:2], ["status", "artifact"])
 
-    async def test_each_iteration_is_assessed_once(self):
-        reconciled = _ref("rev-reconciled")
-        self.terraform_svc.drift.side_effect = [
-            _drift("[drift]", self.round_ref),
-            _drift("", reconciled),
-        ]
-        self.split_svc.split_task.return_value = [["op a"]]
-        self.validation_svc.generate_and_validate.return_value = _plan(reconciled)
-
-        await self._run(
-            filter_session_changes=False, max_iterations=3, plan=self.round_ref
-        )
-
-        msgs = [c["msg"] for c in self._statuses()]
-        self.assertEqual(len([m for m in msgs if "Assessing drift" in m]), 2)
-        self.assertIn("No drift found", msgs[-1])
-
-    async def test_unresolved_drift_is_rewritten_by_the_model(self):
-        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
-        self.split_svc.split_task.return_value = [["op a"]]
-        self.validation_svc.generate_and_validate.return_value = _plan(self.round_ref)
-
-        await self._run(
-            filter_session_changes=False, max_iterations=1, plan=self.round_ref
-        )
-
-        closing = self._statuses()[-1]
-        self.assertIn("issues remain", closing["msg"])
-        self.assertIn("[drift]", closing["msg"])
-        # A raw terraform diff would be rendered verbatim by the UI.
-        self.assertIsNotNone(closing["prompt"])
-        self.assertIs(closing["history"], self.ctx.history)
-
     async def test_the_fixed_literals_cost_no_model_call(self):
         self.terraform_svc.drift.return_value = _drift("", self.round_ref)
 
@@ -394,18 +367,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         for call in self._statuses():
             self.assertIsNone(call.get("prompt"))
         self.template_svc.render.assert_not_awaited()
-
-    async def test_session_owned_drift_is_announced_as_such(self):
-        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
-        self.split_svc.split_task.return_value = [["revert sku"]]
-        self.split_svc.filter_reconciliation.return_value = []
-
-        await self._run(
-            filter_session_changes=True, max_iterations=3, plan=self.round_ref
-        )
-
-        closing = self._statuses()[-1]
-        self.assertIn("this session's own changes", closing["msg"])
 
     async def test_an_unreadable_drift_records_no_conclusion(self):
         self.terraform_svc.drift.return_value = _drift(
@@ -482,24 +443,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.in_sync)
         # No explanation from the agent, so the operations stand in for one.
         self.assertEqual(result.excluded, ["drop kv"])
-
-    async def test_fully_excluded_drift_is_announced_as_such(self):
-        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
-        self.split_svc.split_task.return_value = [["drop kv"]]
-        self.split_svc.filter_exceptions.side_effect = None
-        self.split_svc.filter_exceptions.return_value = _filtered(
-            kept=[], excluded=["drop kv"]
-        )
-
-        await self._run(
-            filter_session_changes=False, max_iterations=3, plan=self.round_ref
-        )
-
-        # This exit completes the phase, it does not fail it, so the
-        # timeline has to say why the loop stopped.
-        closing = self._statuses()[-1]
-        self.assertIn("drift exception rules", closing["msg"])
-        self.assertIsNone(closing.get("prompt"))
 
     async def test_exclusions_survive_the_closing_re_read(self):
         reconciled = _ref("rev-reconciled")

@@ -42,7 +42,7 @@
         },
         "summary": {
           "type": "string",
-          "description": "Human-readable summary of the compliance check results."
+          "description": "One or two sentences, at most 300 characters, stating the verdict and its main reason. Do not list the change inventory, attributes or per-rule results here; each problem belongs in violations."
         },
         "checked_rules": {
           "type": "array",

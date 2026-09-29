@@ -90,6 +90,45 @@ class ArtifactStorageService:
             ),
         )
 
+    async def store_compliance_check(
+        self,
+        session_id: UUID,
+        round_id: int,
+        passed: bool,
+        content: str | bytes,
+        content_type: ContentType,
+        metadata: dict[str, str] = None,
+    ) -> int:
+        """Persist a round compliance check; returns the compliance_checks row pk.
+
+        Args:
+            session_id: Owning session uuid (key namespacing only).
+            round_id: Round pk the check belongs to.
+            passed: Verdict of the check, surfaced by the read model.
+            content: Check report body; str is stored utf-8 encoded.
+            content_type: MIME type served on reads (max 64 chars).
+            metadata: Metadata attached to the object.
+        """
+        data = self.__encode(content)
+        key = (
+            f"sessions/{session_id}/rounds/{round_id}"
+            + f"/compliance/check-{_token()}.json"
+        )
+        return await self.__store(
+            key=key,
+            data=data,
+            content_type=content_type.value,
+            metadata=metadata if metadata else {},
+            context=f"session {session_id} round {round_id}",
+            db_write=lambda: DatabaseService.add_compliance_check(
+                round_id=round_id,
+                passed=passed,
+                uri=key,
+                content_type=content_type.value,
+                file_size_bytes=len(data),
+            ),
+        )
+
     async def store_terraform_plan(
         self,
         session_id: UUID,

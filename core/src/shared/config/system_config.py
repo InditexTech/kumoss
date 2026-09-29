@@ -115,7 +115,10 @@ class LlmConfig(BaseModel):
     the validator fails boot when litellm reports required env vars
     missing.
 
-    ``temperature`` and ``max_output_tokens`` apply to both roles.
+    ``temperature``, ``max_output_tokens`` and ``timeout`` apply to both
+    roles. ``timeout`` is the per-request budget in seconds LiteLLM
+    enforces on a single inference call (retries get a fresh budget);
+    long reasoning or web-search calls need a generous value.
 
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
     format (fallbacks, load balancing, custom credential env var names
@@ -132,6 +135,7 @@ class LlmConfig(BaseModel):
     small_model: str = "anthropic/claude-haiku-4-5"
     temperature: float = 0.1
     max_output_tokens: int = 32000
+    timeout: float = Field(default=600.0, gt=0)
 
     model_list: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -244,7 +248,8 @@ class OrchestrationConfig(BaseModel):
     """Iteration limits and batch sizes for the core's orchestration loops."""
 
     max_drift_reports: int = 3
-    max_validation_iteration: int = 5
+    max_validation_iteration: int = 8
+    max_import_iteration: int = 5
     max_tool_chain_executions: int = 70
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
