@@ -1,0 +1,21 @@
+README.md
+  s_eb3b0a5ecdf09e::t_cefc4a32d5975f 15
+docs/src/modules/ROOT/pages/index.adoc
+  s_eb3b0a5ecdf09e::t_864d2b009d4722 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76ea5476edb385b5390354709843639277c09569",
+  "prompts": {},
+  "sessions": {
+    "s_eb3b0a5ecdf09e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "947abbbc-113e-4c80-a51d-6e659918fa15",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
