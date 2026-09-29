@@ -1,0 +1,23 @@
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_3bd9d1d09ae40a::t_eea2e453d886ea 276-279
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_3bd9d1d09ae40a::t_6f8cad8c6b5ada 2,4-10,14-18,21-178,182-185
+docs/src/modules/main/pages/reference/operating-modes.adoc
+  s_3bd9d1d09ae40a::t_b589723f47c5c3 4,6,77,79,85-86,92-93,100,106-107,113-114,120-121,127-128,135,142,148-149,155-156,162-163,169-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39910a656ba2aa8e75376d1710e1534e886ffc3a",
+  "prompts": {},
+  "sessions": {
+    "s_3bd9d1d09ae40a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f51ad81-d457-4462-a7b6-87a5193cbe1b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
