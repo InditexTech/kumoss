@@ -1,0 +1,29 @@
+client/web/index.html
+  s_a95c9c3197746a::t_1ba2908b160749 12,26
+client/web/src/components/ui/GreetingScreen/GreetingScreen.tsx
+  s_a95c9c3197746a::t_c2e0b37ba0324c 12
+client/web/src/constants/strings.ts
+  s_a95c9c3197746a::t_79f55a873e8031 96,106,109
+client/web/src/layouts/Header/Header.test.tsx
+  s_a95c9c3197746a::t_51e185e96ef980 39
+client/web/src/layouts/Header/Header.tsx
+  s_a95c9c3197746a::t_fb4f133f375f42 55
+config.yaml
+  s_a95c9c3197746a::t_5002b974f82662 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a0ac5c6a71752d32db00c8e4cac306fe1892f50c",
+  "prompts": {},
+  "sessions": {
+    "s_a95c9c3197746a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca971afd-9878-4093-9cd1-b68565ff9ae9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
