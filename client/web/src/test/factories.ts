@@ -2,6 +2,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Neutral factories for the client-facing session contract, plus the
+ * in-memory store `handlers.ts` serves from.
+ *
+ * These carry no scenario data on purpose: every default is bland, so a
+ * test that cares about a field sets it explicitly, and a test that does
+ * not cannot come to depend on a fixture whose shape later drifts.
+ */
+
 import type {
   RoundDetail,
   SessionDetail,
@@ -16,8 +25,9 @@ let nextRoundId = 1;
 export function makeStatus(
   status: SessionStatus,
   message: string | null = null,
+  createdAt: string = NOW,
 ): StatusEntry {
-  return { status, message, created_at: NOW };
+  return { status, message, created_at: createdAt };
 }
 
 export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
@@ -26,9 +36,9 @@ export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
     number: 1,
     query: "deploy a VM",
     statuses: [makeStatus("started"), makeStatus("completed")],
-    report: null,
-    compliance: null,
-    plan: null,
+    reports: [],
+    compliance_checks: [],
+    plans: [],
     code_changes: [],
     pull_requests: [],
     created_at: NOW,
@@ -45,19 +55,17 @@ export function makeSessionDetail(
     operation: "generate",
     provider: "azure",
     first_query: "deploy a VM",
-    workspace_uri: "https://dev.azure.com/org/project/_git/repo",
-    current_status: "completed",
-    in_flight: false,
-    is_blocked: false,
-    created_at: NOW,
-    updated_at: NOW,
     workspace: {
       uri: "https://dev.azure.com/org/project/_git/repo",
       branch: "nebula/sess-1",
       root_path: "environments/dev",
     },
+    current_status: "completed",
+    in_flight: false,
+    is_blocked: false,
+    created_at: NOW,
+    updated_at: NOW,
     scope_id: "sub-123",
-    statuses: [makeStatus("started"), makeStatus("completed")],
     rounds: [makeRound()],
     history: [{ user: "deploy a VM", assistant: "Here is your VM" }],
     ...overrides,
@@ -81,14 +89,5 @@ export const mockState = {
   },
   listSessions(): SessionDetail[] {
     return [...sessions.values()];
-  },
-  updateStatus(uuid: string, status: SessionStatus, message?: string) {
-    const detail = sessions.get(uuid);
-    if (!detail) return;
-    const entry = makeStatus(status, message ?? null);
-    detail.current_status = status;
-    detail.statuses = [...detail.statuses, entry];
-    const round = detail.rounds[detail.rounds.length - 1];
-    if (round) round.statuses = [...round.statuses, entry];
   },
 };

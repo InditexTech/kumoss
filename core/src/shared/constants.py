@@ -62,6 +62,7 @@ class SessionStatus(Enum):
     FILTERING = "filtering"
     GENERATING = "generating"
     VALIDATING = "validating"
+    RECONCILING = "reconciling"
     REPORT = "report"
     APPLY = "apply"
     COMPLETED = "completed"

@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import { renderWithProviders } from "@/test/render";
 import type { UserInfo } from "@/types";
 import { STRINGS } from "@/constants/strings";

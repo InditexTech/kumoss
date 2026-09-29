@@ -162,6 +162,7 @@ class TerraformValidationService:
                     targets=result.targets,
                     content=result.stdout,
                     content_type=ContentType.TEXT,
+                    metadata={"type": "plan"},
                 )
 
             if result.ok:

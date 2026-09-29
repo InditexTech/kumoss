@@ -145,10 +145,10 @@ Runs on the targets validation has just produced, at most twice.
 |Step |What happens
 
 |Inspect the plan
-|The core runs `show -json` on the plan artifact validation left in the
-workspace — the round's own plan, never a second one — and inverts the
-`before`/`after` differences into "make the code match the
-infrastructure" operations, stored as a drift artifact.
+|Status `reconciling`. The core runs `show -json` on the plan artifact
+validation left in the workspace — the round's own plan, never a second
+one — and inverts the `before`/`after` differences into "make the code
+match the infrastructure" operations, stored as a drift artifact.
 
 |Split and filter
 |The Drift Task Splitter (main model) turns the differences into
@@ -745,8 +745,8 @@ services.
 === Model routing
 
 The generate flow advances through the statuses the progress stream reports
-— `filtering`, `generating`, `validating`, `report` — as described in phases
-3 to 8. Routing is by prompt type, not by provider:
+— `filtering`, `generating`, `validating`, `reconciling`, `report` — as
+described in phases 3 to 8. Routing is by prompt type, not by provider:
 
 [cols="1,3",options="header"]
 |===
@@ -839,6 +839,9 @@ reconciliation group re-plans and the last of those is what the next
 iteration reads; an iteration whose split yielded no operations has no plan
 to hand on, so the next one plans for itself. Every iteration that could
 have changed therefore reads live state.
+
+Each iteration opens with a `reconciling` status written before step 1, so
+the phase is visible on the timeline whether or not drift was found.
 
 The loop has two entry points, differing in *what* they target and
 *whether* session intent is filtered out:
@@ -945,9 +948,9 @@ verdict is computed in code.
 |Persistence
 |The report is stored in object storage under the round, as
 `compliance/check-<token>.json`, with a `compliance_checks` row holding the
-`passed` verdict. The session detail returns it as the round's `compliance`
-artifact, and the portal renders it in the session view and, when the
-session is locked, in the blocked pull-request view.
+`passed` verdict. The session detail returns it in the round's
+`compliance_checks`, and the portal renders it in the session view and,
+when the session is locked, in the blocked pull-request view.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the reported severities: any

@@ -20,7 +20,7 @@ export interface HistoryEntry {
 }
 
 // Raw conversation turn as returned by the backend's History.serialize()
-// (exposed via GET /sessions/{id}?include_history=true).
+// (exposed via GET /sessions?id={id}&include_history=true).
 export interface RawHistoryTurn {
   user: string;
   assistant: string;
@@ -128,6 +128,7 @@ export type SessionStatus =
   | "filtering"
   | "generating"
   | "validating"
+  | "reconciling"
   | "apply"
   | "report"
   | "completed"
@@ -169,6 +170,15 @@ export interface ReportRef extends ArtifactRef {
   type: ReportType;
 }
 
+/**
+ * The stored plan flavour: a drift diff, or the plan it produced.
+ *
+ * Not a field of `TerraformPlanRef` — the backend keeps it on the stored
+ * object's `type` metadata and never in the database, so it is read with
+ * `fetchPlanType(url)` rather than served in the read model.
+ */
+export type PlanType = "plan" | "drift";
+
 /** A compliance check artifact plus the verdict stored alongside it. */
 export interface ComplianceCheckRef extends ArtifactRef {
   passed: boolean;
@@ -192,15 +202,23 @@ export interface PullRequestRef {
   number: number;
 }
 
-/** One generation iteration with its statuses and artifacts. */
+/**
+ * One generation round with its statuses and artifacts.
+ *
+ * Every artifact list is ordered oldest to newest. A round can hold
+ * several reports and several plans — a drift pass stores the drift
+ * diff and the plan it produced, plus one plan per validation
+ * iteration — and telling those apart means reading each object's
+ * `type` metadata; the payload does not carry it.
+ */
 export interface RoundDetail {
   id: number;
   number: number;
   query: string;
   statuses: StatusEntry[];
-  report: ReportRef | null;
-  compliance?: ComplianceCheckRef | null;
-  plan: TerraformPlanRef | null;
+  reports: ReportRef[];
+  compliance_checks: ComplianceCheckRef[];
+  plans: TerraformPlanRef[];
   code_changes: CodeChangeRef[];
   pull_requests: PullRequestRef[];
   created_at: string;
@@ -218,7 +236,7 @@ export interface SessionSummary {
   operation: OperationType;
   provider: TerraformProvider;
   first_query: string | null;
-  workspace_uri: string;
+  workspace: WorkspaceRef;
   current_status: SessionStatus;
   in_flight: boolean;
   is_blocked: boolean;
@@ -227,15 +245,16 @@ export interface SessionSummary {
 }
 
 /**
- * Full session aggregate. `statuses` holds the session's full status
- * timeline; round-level statuses also live inside their round. Pull
- * requests live inside their round. `history` is populated only when
- * requested via `?include_history=true`.
+ * Full session aggregate. Statuses, pull requests and artifacts all
+ * live inside their round; every status row belongs to a round, so the
+ * session's flat timeline is `rounds.flatMap((r) => r.statuses)` —
+ * `rounds` is ordered by `(number, id)` and each round's statuses by
+ * `(created_at, id)`, so that concatenation is chronological.
+ * `current_status` is the cheap latest-status field for polling.
+ * `history` is populated only when requested via `?include_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
-  workspace: WorkspaceRef;
   scope_id: string;
-  statuses: StatusEntry[];
   rounds: RoundDetail[];
   history?: RawHistoryTurn[] | null;
 }
@@ -260,12 +279,19 @@ export interface SessionEventData {
 
 // ─── Auth (/api/v1/auth/*) ──────────────────────────────────
 
-/** Public OIDC settings; blank issuer_url = auth disabled (dev mode). */
+/** Public bootstrap settings; blank issuer_url = auth disabled (dev mode). */
 export interface AuthConfigResponse {
   issuer_url: string;
   client_id: string;
   audience: string;
   scope: string;
+  /**
+   * Prefix the deployed object store puts on metadata keys when serving
+   * an object — `x-amz-meta-` for S3-API stores, `x-ms-meta-` for Azure
+   * Blob. Backend-computed from `storage.provider`: the SPA never learns
+   * which store is behind it, only how to address its metadata.
+   */
+  artifact_metadata_header_prefix: string;
 }
 
 // ─── Users & Roles (/api/v1/users/*, /api/v1/admin/*) ───────

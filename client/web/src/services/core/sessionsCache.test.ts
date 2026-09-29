@@ -16,7 +16,11 @@ const makeFakeSession = (id: string): SessionSummary => ({
   operation: "generate",
   provider: "azure",
   first_query: "create a resource group",
-  workspace_uri: "https://repo.example.com",
+  workspace: {
+    uri: "https://repo.example.com",
+    branch: "nebula/sess",
+    root_path: null,
+  },
   current_status: "completed",
   in_flight: false,
   is_blocked: false,

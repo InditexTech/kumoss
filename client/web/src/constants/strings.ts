@@ -191,6 +191,61 @@ export const STRINGS = {
     pageTitle: "Sessions",
     searchPlaceholder: "Search User or Project",
     noSessions: "No sessions found",
+
+    /** Timeline heading per round kind. Keys are `RoundKind`. */
+    roundKinds: {
+      generate: "Code Generation",
+      drift: "Drift Analysis",
+      import: "Import",
+      apply: "Terraform Apply",
+    },
+    /**
+     * Timeline row heading per working status. Keys are `SessionStatus`, and
+     * the set is deliberately partial: the statuses left out (`started`,
+     * `apply`, and the resting ones) read fine capitalised, so they fall
+     * back to the status name itself.
+     */
+    statusLabels: {
+      filtering: "Request acceptance",
+      generating: "Generating Infrastructure as Code",
+      validating: "Validating infrastructure configuration",
+      reconciling: "Reconciling drift state",
+      report: "Constructing a final report",
+    },
+    /**
+     * Appended to a round heading for non-success resting states; success
+     * needs no words. Keys are `SessionStatus`, and the set is deliberately
+     * partial — any status absent here renders no suffix.
+     */
+    roundOutcomeSuffixes: {
+      failed: " — Failed",
+      uncompleted: " — Incomplete",
+    },
+    /** Marks a drift round that targeted named resources. */
+    roundPartialSuffix: " (partial)",
+    /** Heads the resource list in an opened plan artifact. */
+    artifactTargets: "Targets",
+    /** Pluralised noun for a plan row's count chip: "3 targets", "1 target". */
+    artifactTargetCount: { one: "target", other: "targets" },
+    /**
+     * Verb prefixing an artifact row's `aria-label`. The row is a button
+     * whose only text is the artifact's name, so the label has to say
+     * what activating it does — sighted users get that from the eye icon.
+     */
+    artifactOpen: "View",
+    /**
+     * Labels for an artifact row. Generate reports fall back to the generic
+     * `report`; the other report kinds announce themselves explicitly.
+     */
+    artifactLabels: {
+      report: "Report",
+      applyReport: "Apply Report",
+      driftReport: "Drift Report",
+      importReport: "Import Report",
+      complianceCheck: "Compliance Check",
+      terraformPlan: "Terraform Plan",
+      driftOperation: "Drift Operation",
+    },
   },
 
   admin: {

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import userEvent from "@testing-library/user-event";
 import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -67,7 +67,7 @@ async function openWhy(user = userEvent.setup()) {
 
 function lockOnServer(isBlocked: boolean) {
   server.use(
-    http.get("/api/v1/sessions/:sessionId", () =>
+    http.get("/api/v1/sessions", () =>
       HttpResponse.json({ is_blocked: isBlocked }),
     ),
   );

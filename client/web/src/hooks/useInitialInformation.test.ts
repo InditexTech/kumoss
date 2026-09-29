@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { http, HttpResponse, delay } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import { useInitialInformation } from "./use_initial_information";
 
 const PARAMS = { repositoryUrl: "https://github.com/org/repo", query: "q" };

@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo, useCallback, useState } from "react";
+import { Fragment, useMemo, useCallback, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Typography from "@mui/material/Typography";
+import Tooltip from "@mui/material/Tooltip";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import ReplayIcon from "@mui/icons-material/Replay";
@@ -15,9 +16,11 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import type {
   ArtifactRef,
+  CodeChangeRef,
   HistoryEntry,
   RoundDetail,
   SessionDetail,
+  TerraformPlanRef,
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
@@ -26,6 +29,22 @@ import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
 import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
+import { usePlanTypes } from "./usePlanTypes";
+import {
+  formatDateParts,
+  formatDateTime,
+  formatDuration,
+} from "@/utils/datetime";
+import {
+  codeChangeLabel,
+  isBootstrapRound,
+  lastStatusAt,
+  roundArtifacts,
+  roundEvents,
+  roundMeta,
+  roundTitle,
+  statusLabel,
+} from "./roundSummary";
 import styles from "./SessionData.module.css";
 
 interface SessionDataProps {
@@ -41,56 +60,17 @@ interface SelectedArtifact {
   round: RoundDetail;
 }
 
-function formatShortDate(iso: string | undefined | null): {
-  date: string;
-  time: string;
-} {
-  if (!iso) return { date: "-", time: "" };
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return { date: `${dd}.${mm}.${yy}`, time: `${hh}:${min}` };
-}
-
-function formatOpDate(iso: string | undefined | null): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}.${mm}.${yyyy}, ${hh}:${min}`;
-}
-
-function formatDuration(startIso: string, endIso: string): string {
-  const seconds = (new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000;
-  if (seconds < 0) return "-";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-}
-
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-/** Every artifact of a round, flattened into openable rows. */
-function roundArtifacts(
-  round: RoundDetail,
-): { kind: ArtifactKind; artifact: ArtifactRef }[] {
-  const rows: { kind: ArtifactKind; artifact: ArtifactRef }[] = [];
-  if (round.report) rows.push({ kind: "report", artifact: round.report });
-  if (round.compliance) {
-    rows.push({ kind: "compliance", artifact: round.compliance });
-  }
-  if (round.plan) rows.push({ kind: "plan", artifact: round.plan });
-  for (const change of round.code_changes) {
-    rows.push({ kind: "change", artifact: change });
-  }
-  return rows;
+/**
+ * The chip on a plan row. It stands in for the resource list itself, so it
+ * names the unit rather than showing a bare number next to a timestamp.
+ */
+function targetCountLabel(count: number): string {
+  const { one, other } = STRINGS.sessions.artifactTargetCount;
+  return `${count} ${count === 1 ? one : other}`;
 }
 
 export default function SessionData({
@@ -116,6 +96,10 @@ export default function SessionData({
       return next;
     });
   }, []);
+
+  // Once for the whole panel, not per row: the timeline and the opened
+  // artifact's breadcrumb read the same map.
+  const planTypes = usePlanTypes(session.rounds);
 
   const selected: SelectedArtifact | null = useMemo(() => {
     if (!artifactParam) return null;
@@ -143,7 +127,6 @@ export default function SessionData({
         next.delete("detail");
         next.delete("resource");
         next.delete("filter");
-        next.delete("file");
         return next;
       });
     },
@@ -156,15 +139,57 @@ export default function SessionData({
     session.current_status === "uncompleted";
   const failureMessage = useMemo(() => {
     if (!hasFailure) return null;
-    const failed = [...session.statuses]
+    const failed = session.rounds
+      .flatMap((r) => r.statuses)
       .reverse()
       .find((s) => s.status === "failed" || s.status === "uncompleted");
     return failed?.message || null;
-  }, [hasFailure, session.statuses]);
+  }, [hasFailure, session.rounds]);
 
-  const started = formatShortDate(session.created_at);
-  const completed = formatShortDate(session.updated_at);
-  const hasTimeline = session.rounds.length > 0 || session.statuses.length > 0;
+  // `create_session` opens an empty shell round with the same query the
+  // working round gets, so rendering it would duplicate the user's action.
+  // Its message is the only thing worth keeping, and it belongs on Started.
+  const timelineRounds = useMemo(
+    () => session.rounds.filter((r) => !isBootstrapRound(r)),
+    [session.rounds],
+  );
+  const bootstrapMessage = useMemo(
+    () => session.rounds.find(isBootstrapRound)?.statuses[0]?.message || null,
+    [session.rounds],
+  );
+
+  // `roundEvents` parses and sorts every status and artifact of a round,
+  // and both the heading's count and the rows below it need the result.
+  // Derived here rather than in the render body because `expandedStatuses`
+  // is component state: every expand/collapse re-runs that body.
+  const roundViews = useMemo(
+    () =>
+      timelineRounds.map((round) => {
+        const events = roundEvents(round);
+        return { round, events, meta: roundMeta(events) };
+      }),
+    [timelineRounds],
+  );
+
+  // The last round *with events*, not simply the last one: `create_round`
+  // opens the next round before its first status lands, and that round stays
+  // visible on purpose (see `isBootstrapRound`) while `current_status` still
+  // reports the previous round's terminal value. Indexing alone would put
+  // the marker on a round with no row to carry it.
+  const closingIndex = useMemo(() => {
+    if (!isTerminal) return -1;
+    for (let i = roundViews.length - 1; i >= 0; i--) {
+      if (roundViews[i].events.length > 0) return i;
+    }
+    return -1;
+  }, [isTerminal, roundViews]);
+
+  const started = formatDateParts(session.created_at);
+  // `updated_at` is the fallback only for a session with no status at all,
+  // which the duration row's `isTerminal` guard already rules out. See
+  // `lastStatusAt` for why it is not the primary source.
+  const finishedAt = lastStatusAt(session) ?? session.updated_at;
+  const hasTimeline = session.rounds.length > 0;
   const lockIcon = session.is_blocked ? (
     <LockOutlinedIcon className={styles.btnIcon} />
   ) : (
@@ -251,7 +276,7 @@ export default function SessionData({
             component="span"
             className={styles.fieldValue}
           >
-            {formatDuration(session.created_at, session.updated_at)}
+            {formatDuration(session.created_at, finishedAt)}
           </Typography>
         </div>
       )}
@@ -277,159 +302,207 @@ export default function SessionData({
                   <span className={styles.timelinePhase}>Started</span>
                   <span className={styles.timelineDate}>{started.date}</span>
                   <span className={styles.timelineDate}>{started.time}</span>
+                  {bootstrapMessage && (
+                    <span className={styles.timelineMessage}>
+                      {bootstrapMessage}
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Rounds */}
-              {session.rounds.map((round) => {
-                const artifacts = roundArtifacts(round);
+              {roundViews.map(({ round, events, meta }, roundIndex) => {
+                const closing = roundIndex === closingIndex;
+                // The connector line stops only when the closing round is
+                // also the last thing rendered: a round opened after it
+                // means work resumed, and the trailing line says so.
+                const endsTimeline =
+                  closing && roundIndex === roundViews.length - 1;
                 return (
-                  <div key={round.id} className={styles.timelineEntry}>
+                  <div
+                    key={round.id}
+                    className={`${styles.timelineEntry}${endsTimeline ? ` ${styles.timelineEntryLast}` : ""}${closing && hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
+                  >
                     <div className={styles.timelineDot} />
                     <div className={styles.timelineContent}>
                       <span className={styles.timelinePhase}>
-                        Round {round.number}
+                        {roundTitle(round, session)}
                       </span>
                       <span className={styles.timelineQuery}>
                         {round.query}
                       </span>
-                      <Typography
-                        variant="overline"
-                        component="span"
-                        className={styles.timelineCount}
-                      >
-                        {artifacts.length} ARTIFACT
-                        {artifacts.length !== 1 ? "S" : ""}
-                      </Typography>
+                      {meta.length > 0 && (
+                        <Typography
+                          variant="overline"
+                          component="span"
+                          className={styles.timelineCount}
+                        >
+                          {meta.join(" · ")}
+                        </Typography>
+                      )}
+                      {/* One row per event, with the artifacts that event
+                          produced nested directly beneath it. */}
                       <div className={styles.timelineOps}>
-                        {round.statuses.length > 0 && (
-                          <div className={styles.timelineOpGroup}>
-                            <Typography
-                              variant="overline"
-                              component="span"
-                              className={styles.timelineOpGroupLabel}
-                            >
-                              Statuses
-                            </Typography>
-                          </div>
-                        )}
-                        {round.statuses.map((st, i) => {
+                        {events.map((event, i) => {
                           const statusKey = `${round.id}:${i}`;
-                          const expandable = !!st.message;
+                          const expandable = !!event.message;
                           const expanded = expandedStatuses.has(statusKey);
+                          // Only the final event of the closing round can
+                          // hold the session's resting state.
+                          const isClosing =
+                            closing &&
+                            i === events.length - 1 &&
+                            TERMINAL_STATUSES.includes(event.status);
+                          const rowClass = [
+                            styles.timelineOpRow,
+                            expandable && styles.timelineOpRowClickable,
+                            isClosing && styles.timelineOpRowTerminal,
+                            isClosing &&
+                              hasFailure &&
+                              styles.timelineOpRowFailed,
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
                           return (
-                            <div
-                              key={`st-${i}`}
-                              className={`${styles.timelineOpRow}${expandable ? ` ${styles.timelineOpRowClickable}` : ""}`}
-                              onClick={
-                                expandable
-                                  ? () => toggleStatus(statusKey)
-                                  : undefined
-                              }
-                              role={expandable ? "button" : undefined}
-                              tabIndex={expandable ? 0 : undefined}
-                              onKeyDown={
-                                expandable
-                                  ? (e) => {
-                                      if (e.key === "Enter")
-                                        toggleStatus(statusKey);
-                                    }
-                                  : undefined
-                              }
-                              aria-expanded={expandable ? expanded : undefined}
-                            >
-                              <Typography
-                                variant="subtitle2"
-                                component="div"
-                                className={styles.timelineOpName}
+                            <Fragment key={statusKey}>
+                              <div
+                                className={rowClass}
+                                onClick={
+                                  expandable
+                                    ? () => toggleStatus(statusKey)
+                                    : undefined
+                                }
+                                role={expandable ? "button" : undefined}
+                                tabIndex={expandable ? 0 : undefined}
+                                onKeyDown={
+                                  expandable
+                                    ? (e) => {
+                                        // `role="button"` promises both keys;
+                                        // Space scrolls unless claimed here.
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
+                                          e.preventDefault();
+                                          toggleStatus(statusKey);
+                                        }
+                                      }
+                                    : undefined
+                                }
+                                aria-expanded={
+                                  expandable ? expanded : undefined
+                                }
                               >
-                                {capitalize(st.status)}
-                              </Typography>
-                              <span className={styles.timelineOpDate}>
-                                {formatOpDate(st.created_at)}
-                                {expandable &&
-                                  (expanded ? (
-                                    <ExpandLessIcon
-                                      className={styles.artifactIcon}
-                                    />
-                                  ) : (
-                                    <ExpandMoreIcon
-                                      className={styles.artifactIcon}
-                                    />
-                                  ))}
-                              </span>
-                              {expanded && st.message && (
+                                <Typography
+                                  variant="subtitle2"
+                                  component="div"
+                                  className={styles.timelineOpName}
+                                >
+                                  {statusLabel(event.status)}
+                                </Typography>
+                                <span className={styles.timelineOpDate}>
+                                  {formatDateTime(event.created_at)}
+                                  {expandable &&
+                                    (expanded ? (
+                                      <ExpandLessIcon
+                                        className={styles.artifactIcon}
+                                      />
+                                    ) : (
+                                      <ExpandMoreIcon
+                                        className={styles.artifactIcon}
+                                      />
+                                    ))}
+                                </span>
+                              </div>
+                              {/* Outside the row: a status message can
+                                  contain links, and interactive content
+                                  nested in `role="button"` is invalid. */}
+                              {expanded && event.message && (
                                 <div className={styles.timelineOpMessage}>
-                                  <MarkdownText content={st.message} />
+                                  <MarkdownText content={event.message} />
                                 </div>
                               )}
-                            </div>
+                              {event.artifacts.map(({ kind, artifact }) => {
+                                // `roundArtifacts` widens every row to
+                                // `ArtifactRef`, so `kind` narrows it back —
+                                // same as the `CodeChangeRef` cast below.
+                                const targets =
+                                  kind === "plan"
+                                    ? (artifact as TerraformPlanRef).targets
+                                    : [];
+                                const label =
+                                  kind === "change"
+                                    ? codeChangeLabel(
+                                        round,
+                                        artifact as CodeChangeRef,
+                                      )
+                                    : artifactLabel(
+                                        kind,
+                                        artifact,
+                                        planTypes.get(artifact.id),
+                                      );
+                                return (
+                                  <Tooltip
+                                    key={`${kind}:${artifact.id}`}
+                                    title={
+                                      targets.length > 0
+                                        ? targets.map((target) => (
+                                            <div key={target}>{target}</div>
+                                          ))
+                                        : ""
+                                    }
+                                    describeChild
+                                  >
+                                    <div
+                                      className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
+                                      onClick={() =>
+                                        setArtifactParam({ kind, artifact })
+                                      }
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.preventDefault();
+                                          setArtifactParam({ kind, artifact });
+                                        }
+                                      }}
+                                    >
+                                      <Typography
+                                        variant="subtitle2"
+                                        component="div"
+                                        className={styles.timelineOpName}
+                                      >
+                                        <InsertDriveFileOutlinedIcon
+                                          className={styles.artifactFileIcon}
+                                        />
+                                        {label}
+                                      </Typography>
+                                      {targets.length > 0 && (
+                                        <span
+                                          className={styles.timelineOpTargetChip}
+                                        >
+                                          {targetCountLabel(targets.length)}
+                                        </span>
+                                      )}
+                                      <span className={styles.timelineOpDate}>
+                                        {formatDateTime(artifact.created_at)}
+                                        <VisibilityIcon
+                                          className={styles.artifactIcon}
+                                        />
+                                      </span>
+                                    </div>
+                                  </Tooltip>
+                                );
+                              })}
+                            </Fragment>
                           );
                         })}
-                        {artifacts.length > 0 && (
-                          <div className={styles.timelineOpGroup}>
-                            <Typography
-                              variant="overline"
-                              component="span"
-                              className={styles.timelineOpGroupLabel}
-                            >
-                              Artifacts
-                            </Typography>
-                          </div>
-                        )}
-                        {artifacts.map(({ kind, artifact }) => (
-                          <div
-                            key={`${kind}:${artifact.id}`}
-                            className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
-                            onClick={() => setArtifactParam({ kind, artifact })}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter")
-                                setArtifactParam({ kind, artifact });
-                            }}
-                          >
-                            <Typography
-                              variant="subtitle2"
-                              component="span"
-                              className={styles.timelineOpName}
-                            >
-                              <InsertDriveFileOutlinedIcon
-                                className={styles.artifactFileIcon}
-                              />
-                              {artifactLabel(kind, artifact)}
-                            </Typography>
-                            <span className={styles.timelineOpDate}>
-                              {formatOpDate(artifact.created_at)}
-                              <VisibilityIcon className={styles.artifactIcon} />
-                            </span>
-                          </div>
-                        ))}
                       </div>
                     </div>
                   </div>
                 );
               })}
-
-              {/* Terminal state */}
-              {isTerminal && (
-                <div
-                  className={`${styles.timelineEntry} ${styles.timelineEntryLast}${hasFailure ? ` ${styles.timelineEntryFailed}` : ""}`}
-                >
-                  <div className={styles.timelineDot} />
-                  <div className={styles.timelineContent}>
-                    <span className={styles.timelinePhase}>
-                      {capitalize(session.current_status)}
-                    </span>
-                    <span className={styles.timelineDate}>
-                      {completed.date}
-                    </span>
-                    <span className={styles.timelineDate}>
-                      {completed.time}
-                    </span>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -599,10 +672,14 @@ export default function SessionData({
                 >
                   /
                 </Typography>
-                <span>Round {selected.round.number}</span>
+                <span>{roundTitle(selected.round, session)}</span>
               </span>
               <span className={styles.breadcrumbCurrent}>
-                {artifactLabel(selected.kind, selected.artifact)}
+                {artifactLabel(
+                  selected.kind,
+                  selected.artifact,
+                  planTypes.get(selected.artifact.id),
+                )}
               </span>
             </span>
           }
@@ -610,8 +687,8 @@ export default function SessionData({
           <ArtifactContent
             kind={selected.kind}
             artifact={selected.artifact}
-            round={selected.round}
             operation={session.operation}
+            onPlanType={planTypes.record}
           />
         </PageOverlay>
       )}

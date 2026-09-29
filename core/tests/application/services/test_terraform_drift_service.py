@@ -62,6 +62,8 @@ def _filtered(
 class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.ctx = MagicMock()
+        self.session_svc = AsyncMock()
+        self.template_svc = AsyncMock()
         self.validation_svc = AsyncMock()
         self.terraform_svc = AsyncMock()
         self.split_svc = AsyncMock()
@@ -76,6 +78,8 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.round_ref = _ref("rev-round")
         self.service = TerraformDriftService(
             session_context=self.ctx,
+            session_service=self.session_svc,
+            template_service=self.template_svc,
             validation_service=self.validation_svc,
             terraform_service=self.terraform_svc,
             split_service=self.split_svc,
@@ -100,6 +104,9 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         return [
             call.kwargs["plan"] for call in self.terraform_svc.drift.await_args_list
         ]
+
+    def _statuses(self) -> list[dict]:
+        return [call.kwargs for call in self.session_svc.update_status.await_args_list]
 
     async def test_a_supplied_ref_is_read_without_planning_again(self):
         self.terraform_svc.drift.return_value = _drift("", self.round_ref)
@@ -330,9 +337,58 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         # per attempt; this loop only owns the drift report.
         self.artifact_svc.store_terraform_plan.assert_awaited_once()
         kwargs = self.artifact_svc.store_terraform_plan.await_args.kwargs
-        self.assertTrue(kwargs["is_drift"])
+        self.assertEqual(kwargs["metadata"], {"type": "drift"})
         self.assertEqual(kwargs["content"], "[drift]")
         self.assertEqual(kwargs["targets"], self.targets)
+
+    async def test_the_assessment_is_recorded_before_the_drift_diff_is_stored(self):
+        self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
+        self.split_svc.split_task.return_value = []
+        order: list[str] = []
+        self.session_svc.update_status.side_effect = lambda **kw: order.append("status")
+        self.artifact_svc.store_terraform_plan.side_effect = lambda **kw: order.append(
+            "artifact"
+        )
+
+        await self._run(filter_session_changes=False, plan=self.round_ref)
+
+        # The client attaches an artifact to the last status at or before
+        # its timestamp, so the diff only renders under this phase if the
+        # status is written first.
+        self.assertEqual(order[:2], ["status", "artifact"])
+
+    async def test_the_fixed_literals_cost_no_model_call(self):
+        self.terraform_svc.drift.return_value = _drift("", self.round_ref)
+
+        await self._run(filter_session_changes=True, plan=self.round_ref)
+
+        # The pre-check runs on every generate round; paraphrasing a
+        # sentence that is already prose would buy nothing.
+        for call in self._statuses():
+            self.assertIsNone(call.get("prompt"))
+        self.template_svc.render.assert_not_awaited()
+
+    async def test_an_unreadable_drift_records_no_conclusion(self):
+        self.terraform_svc.drift.return_value = _drift(
+            "", self.round_ref, feedback="Error: stale plan file"
+        )
+
+        await self._run(filter_session_changes=True, plan=self.round_ref)
+
+        # Announcing a phase that then fails is worse than silence: the
+        # handler's report and the runner's terminal status carry it.
+        calls = self._statuses()
+        self.assertEqual(len(calls), 1)
+        self.assertIn("Assessing drift", calls[0]["msg"])
+
+    async def test_an_unplannable_workspace_records_only_the_assessment(self):
+        self.terraform_svc.plan.return_value = _plan(None, stdout="partial plan")
+
+        await self._run(filter_session_changes=False, plan=None)
+
+        calls = self._statuses()
+        self.assertEqual(len(calls), 1)
+        self.assertIn("Assessing drift", calls[0]["msg"])
 
     async def test_the_exception_filter_runs_after_the_reconciliation_filter(self):
         self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)
