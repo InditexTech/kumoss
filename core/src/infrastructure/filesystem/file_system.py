@@ -347,10 +347,10 @@ class FileSystemUtils(IFileSystem):
                         f"missing '{separator_marker}' separator between "
                         + "SEARCH and REPLACE sections.",
                     )
-                search = "\n".join(search_lines).strip()
-                if not search:
+                search = "\n".join(search_lines)
+                if not search.strip():
                     raise malformed(line_no, "SEARCH section is empty.")
-                parsed.append((search, "\n".join(replace_lines).strip()))
+                parsed.append((search, "\n".join(replace_lines)))
                 section = None
             elif section == "search":
                 search_lines.append(line)
