@@ -52,7 +52,7 @@ function Header() {
               navigate("/home");
             }}
           >
-            NEBULA
+            KUMOSS
           </a>
         </div>
 

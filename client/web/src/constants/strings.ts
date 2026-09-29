@@ -93,7 +93,7 @@ export const STRINGS = {
     taskValue: "Terraform Apply",
     completedLabel: "Completed:",
     errorMessage:
-      "Infrastructure application error. The Nebula AI team can help you resolve it.",
+      "Infrastructure application error. The Kumoss team can help you resolve it.",
     viewResources: "View Resources",
   },
 
@@ -103,10 +103,10 @@ export const STRINGS = {
     creatingButton: "SENDING SUPPORT REQUEST",
     groupCreated: "Support request sent. The team has been notified.",
     sendFailed: "Support request could not be sent.",
-    openLink: "Click here to open Nebula AI",
+    openLink: "Click here to open Kumoss",
     noEmailError: "Error: No user email found. Please login again.",
     tooltip:
-      "Contact the Nebula team - they will help you to: \
+      "Contact the Kumoss team - they will help you to: \
 - See the terraform plan \
 - Analyze the terraform report \
 - Help you to deploy your infraestructure",
