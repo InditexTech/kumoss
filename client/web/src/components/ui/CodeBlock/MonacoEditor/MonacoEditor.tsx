@@ -57,7 +57,7 @@ let themesRegistered = false;
 function defineCustomThemes(monacoInstance: typeof monaco): void {
   if (themesRegistered) return;
 
-  monacoInstance.editor.defineTheme("nebula-light", {
+  monacoInstance.editor.defineTheme("kumoss-light", {
     base: "vs",
     inherit: true,
     rules: [],
@@ -68,7 +68,7 @@ function defineCustomThemes(monacoInstance: typeof monaco): void {
     },
   });
 
-  monacoInstance.editor.defineTheme("nebula-dark", {
+  monacoInstance.editor.defineTheme("kumoss-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [],
@@ -321,7 +321,7 @@ const MonacoEditor = ({
     renderOverviewRuler: false,
   };
 
-  const monacoTheme = editorTheme ? "nebula-dark" : "nebula-light";
+  const monacoTheme = editorTheme ? "kumoss-dark" : "kumoss-light";
 
   const containerStyle = { height };
   const editorWrapperStyle = showTabs

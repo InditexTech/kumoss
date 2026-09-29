@@ -178,7 +178,7 @@ export function useTerraformActions() {
           if (outcome.detail.is_blocked) {
             notifyIfHidden("Session blocked", {
               body: "The proposed changes need a specialist review before they can be applied.",
-              tag: "nebula-session-blocked",
+              tag: "kumoss-session-blocked",
             });
           }
         }

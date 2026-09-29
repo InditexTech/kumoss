@@ -256,7 +256,7 @@ function driftSession(): SessionDetail {
     first_query: "check for drift",
     workspace: {
       uri: "https://github.com/contoso/infra",
-      branch: "nebula/sess-1",
+      branch: "kumoss/sess-1",
       root_path: null,
     },
     current_status: "completed",

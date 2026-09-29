@@ -66,7 +66,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(session.uuid).toBe("sess-1");
     expect(session.code).toContain("<main.tf>");
     expect(session.provider).toBe("azure");
-    expect(session.workspace?.branch).toBe("nebula/sess-1");
+    expect(session.workspace?.branch).toBe("kumoss/sess-1");
     expect(session.is_blocked).toBe(false);
     // Rebuilt from {user, assistant} turns, plus the appended summary
     expect(session.history?.[0]).toEqual({
@@ -248,7 +248,7 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     expect(result.current.session.session.workspace).toEqual({
       uri: "https://dev.azure.com/org/project/_git/repo",
-      branch: "nebula/sess-1",
+      branch: "kumoss/sess-1",
       root_path: "environments/dev",
     });
   });
