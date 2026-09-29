@@ -39,7 +39,11 @@
 }
 
 .fullPageScroll {
-  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.fullPageScroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* ─── Left side (split layout panel) ─── */

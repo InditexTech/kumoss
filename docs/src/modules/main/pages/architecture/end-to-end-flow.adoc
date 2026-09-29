@@ -281,7 +281,7 @@ Messages 41 to 49.
 |Explicit human action
 |`POST /api/v1/iac/apply` with the session id. Nothing in the pipeline
 applies on its own; in the UI this is the "Approve PR and Apply" button
-after a merge, or Import Infrastructure mode on an existing session.
+after a merge.
 
 |Gates
 |A valid identity, the `developer` role, session ownership and an

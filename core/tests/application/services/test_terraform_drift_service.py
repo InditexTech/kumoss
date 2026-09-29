@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.dto import FilteredOperationsDTO, TerraformDriftDTO, TerraformPlanDTO
 from src.domains.value_objects import PlanRef
+from src.shared.constants import OperationType
 
 
 WORKSPACE = Path("/workspaces/demo")
@@ -123,17 +124,32 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self._drift_refs(), [fresh])
         self.assertTrue(result.in_sync)
 
-    async def test_a_failed_initial_plan_returns_without_splitting(self):
+    async def test_a_failed_initial_plan_is_split_into_the_fix_query(self):
+        fixed = _ref("rev-fixed")
         self.terraform_svc.plan.return_value = _plan(None, stdout="partial plan")
+        self.split_svc.split_errors.return_value = "1. declare var.sku"
+        self.validation_svc.generate_and_validate.return_value = _plan(fixed)
+        self.terraform_svc.drift.return_value = _drift("", fixed)
 
         result = await self._run(filter_session_changes=False, plan=None)
 
-        self.assertFalse(result.in_sync)
-        self.assertEqual(result.feedback, "Error: plan failed")
-        self.assertEqual(result.stdout, "partial plan")
-        self.assertIsNone(result.plan)
-        self.terraform_svc.drift.assert_not_awaited()
+        self.split_svc.split_errors.assert_awaited_once_with(
+            errors="Error: plan failed", operation_type=OperationType.GENERATE
+        )
+        gen_kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
+        self.assertEqual(gen_kwargs["q"], "1. declare var.sku")
+        self.assertEqual(
+            await gen_kwargs["refine_feedback"]("Error: still broken"),
+            "1. declare var.sku",
+        )
+        self.split_svc.split_errors.assert_awaited_with(
+            errors="Error: still broken", operation_type=OperationType.GENERATE
+        )
         self.split_svc.split_task.assert_not_awaited()
+        self.split_svc.filter_reconciliation.assert_not_awaited()
+        self.split_svc.filter_exceptions.assert_not_awaited()
+        self.assertEqual(self._drift_refs(), [fixed])
+        self.assertTrue(result.in_sync)
 
     async def test_synchronized_resources_skip_splitting(self):
         self.terraform_svc.drift.return_value = _drift("", self.round_ref)
@@ -168,7 +184,9 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
 
         await self._run(filter_session_changes=True, plan=self.round_ref)
 
-        self.split_svc.split_task.assert_awaited_once_with(task="[drift]")
+        self.split_svc.split_task.assert_awaited_once_with(
+            task="[drift]", operation_type=OperationType.DRIFT
+        )
         self.split_svc.filter_reconciliation.assert_awaited_once_with(
             operations=[["revert sku", "add tag"]]
         )

@@ -1,6 +1,6 @@
 [
   {
-    "name": "iac_import",
+    "name": "import_addresses",
     "description": "CRITICAL: Call this tool to report the mapping of Terraform resource addresses to cloud resource IDs found in the workspace, and to signal the end of the inspection task.",
     "parameters": {
       "type": "object",

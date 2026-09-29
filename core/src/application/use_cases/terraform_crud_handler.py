@@ -99,6 +99,7 @@ class TerraformCRUDHandler:
                     include_forbidden_actions=True,
                     operation_type=OperationType.GENERATE,
                     validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_validation_iteration,
                 )
 
                 if not plan_result.ok:

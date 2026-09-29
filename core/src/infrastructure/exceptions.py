@@ -137,3 +137,9 @@ class TokenValidationError(ExceptionHandler):
 
 class TerraformBackendError(ExceptionHandler):
     """Raised when Terraform backend override found an error."""
+
+
+class SearchReplaceBlockError(ExceptionHandler):
+    """Raised when replace_in_file receives malformed or non-applicable SEARCH/REPLACE blocks"""
+
+    pass

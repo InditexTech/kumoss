@@ -139,11 +139,9 @@ Notes:
 * Apply runs re-use the operation of the session they belong to
   (generate or drift), so apply spans appear in the `day2` or `drift`
   project of that session.
-* The `import` projects are created (every provider is initialised at
-  startup) but no current code path routes spans to them, because the
-  core has no import operation yet (see
+* The `import` projects receive the spans of import sessions, Partial
+  Import and Full Import alike (see
   xref:main:guides/import-infrastructure.adoc[Import infrastructure]).
-  Expect them to be empty.
 * Each project has exactly one resource attribute,
   `openinference.project.name`. There is no `service.name` or version.
 
