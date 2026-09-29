@@ -11241,75 +11241,56 @@ Only you and reviewers with a panel role can see your sessions. Nobody else can 
 
 ---
 
-# Import infrastructure
+# Generate infrastructure
 
-Source: /stable/main/guides/import-infrastructure/
+Source: /stable/main/guides/generate-infrastructure/
 
-The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
+Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
 
 ## Prerequisites
 
-- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
-- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
+- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
 
-## Partial import
+## Use case
 
-**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
+Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
 
-**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
+## Workflow
 
-**Workflow.**
+1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
+2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
+3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (8 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
+5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
+8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
 
-1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
-2. **Prompt composition**, as in generate.
-3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
-4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
-5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
-6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
-7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
-8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
+## What generate produces
 
-**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
+- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
+- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
+- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
+- **Plan pinned.** Yes.
 
-**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
+## Apply, pull requests, and locks
 
-**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
+After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
 
-**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
+## Example
 
-**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
-
-**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
-
-**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
-
-**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
-
-## Full import
-
-**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
-
-**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
-
-**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
-
-**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
-
-**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
+Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
 
 ## Limitations
 
-- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
-- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
-- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
-- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
-- Import rounds run no compliance check, show no impact banner, and pin no plan.
+- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
+- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
+- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
 
 ## Next steps
 
-- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
-- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
+- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 
@@ -11800,56 +11781,158 @@ If a directory is missing from the offered list, check that its `.tf` files are 
 
 ---
 
-# Generate infrastructure
+# Deploy to production
 
-Source: /stable/main/guides/generate-infrastructure/
+Source: /stable/main/guides/deploy-to-production/
 
-Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
+This guide is for teams deploying Kumoss for shared organizational use. It explains what a production deployment consists of, which decisions apply to each component, and which settings and secrets you must supply. It does not repeat the field-by-field references; it points at them:
 
-## Prerequisites
+- [Configuration reference](../../reference/configuration/), for every `config.yaml` field.
+- [Environment variables and secrets](../../reference/environment-variables/), for every core and sidecar variable.
+- [LLM providers and models](../../reference/llm-providers/), for LLM providers and credentials.
+- [Enable authentication](../enable-authentication/) for authentication.
+- [Monitor with Phoenix](../monitor-with-phoenix/) for tracing.
+- [Customize prompts](../customize-prompts/) for the prompt registry.
+- [HTTP APIs](../../reference/api/) for the sidecar contracts in `contracts/openapi/` and their conformance suites in `contracts/conformance/`.
 
-- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
+Everything in this guide describes the implementation as it exists in the repository today. Where a capability is a recommendation rather than something the repository provides, it is labelled as such.
 
-## Use case
+This entry page covers what production means, the reference topology, the sidecars as integration boundaries, and the `config.yaml` checklist. The credentials, networking, hardening, and operational detail live on four child pages, each covering one step of the deployment sequence.
 
-Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
+## At a glance
 
-## Workflow
+If you read nothing else, these are the production decisions this guide expands on:
 
-1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
-2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
-3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (8 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
-5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
-7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
-8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
+| # | Decision | Where |
+| --- | --- | --- |
+| 1 | Run one core replica, one IaC sidecar per shared workspace volume; there is no multi-replica mode | [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints) |
+| 2 | Enable OIDC; a blank issuer makes every caller a fully privileged user | [Authentication (OIDC)](../production/secrets-and-credentials/#authentication-oidc) |
+| 3 | Treat the four sidecars as integration boundaries: implement IaC to your requirements, replace mapping and authorization or leave them disabled, integrate notifications | [Sidecars as production integration boundaries](#sidecars-as-production-integration-boundaries), below |
+| 4 | Move every secret to a secret store; keep the variable names | [Secrets inventory](../production/secrets-and-credentials/#secrets-inventory) |
+| 5 | Use managed PostgreSQL, Redis, object storage (S3, Azure, or S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is required at boot | [Data services and persistence](../production/operations/#data-and-persistence) |
+| 6 | Reproduce the ingress rules: SSE path unbuffered, `/monitoring/` restricted, public object-storage endpoint, CORS origin, IdP redirect URIs | [Networking and TLS](../production/networking-and-tls/) |
+| 7 | Give the IaC engine a scoped workload identity and container execution controls; decide who owns the Terraform state backend | [IaC (mandatory)](#iac-mandatory), below; [Cloud credentials for the IaC engine](../production/secrets-and-credentials/#cloud-credentials); [Configure state backends](../configure-state-backends/) |
+| 8 | Review the seeded prompts before the first user session; they encode a generic policy | [Hardening checklist](../production/hardening/#hardening-checklist) |
+| 9 | Plan upgrades by hand: no database migrations, seeds never overwrite prompts, `environment` is a prompt tag | [Backups and upgrades](../production/operations/#backups-and-upgrades) |
 
-## What generate produces
+The repository ships **no Kubernetes manifests or Helm charts**; the Compose file is the reference topology you translate to your platform.
 
-- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
-- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
-- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
-- **Plan pinned.** Yes.
+## What production means for Kumoss
 
-## Apply, pull requests, and locks
+Kumoss plans and applies infrastructure with real cloud credentials, pushes to your repositories, and sends every prompt, plan, and generated file to a tracing backend. A production deployment therefore has to control who can reach it, which cloud identity it acts with, where its data lives, and how it is operated.
 
-After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
+Production is **not** the local Compose stack with `environment: production`. That field only selects the Phoenix project prefix and the prompt tag. It enables no authentication, no authorization, and no stricter default.
 
-## Example
+The differences from [Quickstart](../../quickstart/), in one table:
 
-Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
+| Area | Local/non-production | Production |
+| --- | --- | --- |
+| Platform | Docker Compose on one host | A production platform such as Kubernetes, expressed by you from the reference topology below |
+| Authentication | May stay disabled | **OIDC enabled**; nothing else is acceptable because a blank issuer makes every caller a `devops` + panel `admin` user |
+| Sidecars | Bundled IaC, optionally bundled notifications | All four treated as integration boundaries: reviewed, configured, hardened, replaced where needed |
+| Secrets | Gitignored `.env` files | Kubernetes Secrets or an equivalent secret manager, injected as environment variables |
+| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the well-known default credentials the samples ship | Managed or operated services with persistence, backups, access control, and credentials from your secret store |
+| Terraform state | Kumoss-managed state in the bundled RustFS by default, or each repository’s own backend if you set `storage.terraform_state_bucket` to `""` | A deliberate choice of owner: the repositories' own backends, a Kumoss-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend file mounted into the sidecar ([Configure state backends](../configure-state-backends/)) |
+| Networking | Plain HTTP on `localhost` | TLS, a real origin, an ingress that handles server-sent events, a protected Phoenix, a public object-storage endpoint |
 
-## Limitations
+The repository does not provide Kubernetes manifests, Helm charts, Kustomize overlays, Terraform modules for the platform itself, database migrations, or a multi-replica execution model. It provides the container images, `docker-compose.yml` as the reference topology, and the OpenAPI contracts and conformance suites for the sidecars; you write the platform definition for your environment.
 
-- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
-- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
-- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
+## Reference topology
 
-## Next steps
+The Compose stack defines eleven services on one network. In production each row below is a deployment decision.
 
-- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
+| Component | Reference image | Must be reachable by | Persistence | Production decision |
+| --- | --- | --- | --- | --- |
+| Core API | `core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001) | Ingress (`/api`), nothing else | Shared workspace volume | Run **one replica** (see [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints)). Inject `config.yaml` at build time or mount it at `KUMOSS_CONFIG`. |
+| Web application and edge | `nginx/Dockerfile` builds the React app and serves it; forwards `/api`, the SSE path, `/monitoring/`, and port 9000 | Users | none | Keep it, or serve the built bundle from your own ingress. Reproduce its routing rules ([Networking and TLS](../production/networking-and-tls/)). |
+| PostgreSQL (core) | `postgres:17` | Core | **Required** | Managed PostgreSQL recommended. Set `KUMOSS_SQL_DATABASE_URL`. |
+| Redis | `redis:8.8` | Core | Not required (cache) | Managed Redis or in-cluster. Must be reachable when the core boots. |
+| Object storage | `rustfs/rustfs:latest` | Core (SDK) and **browsers** (presigned URLs) | **Required** | Prefer AWS S3 or an Azure Storage Account through `storage.provider`; RustFS or another S3-compatible store is also supported. |
+| Phoenix | `arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring` | Core (traces and prompt API), operators (UI) | **Required** (through its PostgreSQL) | Operate it with persistence and access control. It is required at core start-up. |
+| PostgreSQL (Phoenix) | `postgres:17` | Phoenix | **Required** | Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on Phoenix. |
+| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port 8082; user `kumoss` 10001) | Core only | Shared workspace volume | **Mandatory.** **As a starting point** — harden the image and container, or implement the contract yourself to your organization’s requirements. |
+| Mapping sidecar | `services/mapping/Dockerfile` (port 8081, user `kumoss` 10001) | Core only | none | Replace with an implementation against your catalogue, or leave disabled. |
+| Notifications sidecar | `services/notifications/Dockerfile` (port 8080, user `kumoss` 10001) | Core only | none | Use the bundled Slack implementation with a production webhook, or replace it. |
+| Authorization sidecar | `services/authz/Dockerfile` (port 8083, user `kumoss` 10001) | Core only | none (container-local JSON role file; mount a path via `KUMOSS_AUTHZ_ROLE_STORE` to keep it) | Replace with your policy implementation; the bundled one is permissive. |
+
+All five Kumoss-built images (core, iac, mapping, notifications, authz) run as the unprivileged `kumoss` user, uid/gid 10001. The `nginx/Dockerfile` proxy image is the exception: it has no `USER` directive and starts as root, dropping privileges only for its worker processes; give it a non-root base image or a Kubernetes `runAsNonRoot`/`securityContext` treatment if your policy requires the master process itself to be non-root.
+
+Two volumes matter beyond databases:
+
+- **The shared workspace** (`/workspaces` in both the core and IaC containers, `paths.upload_folder`). The core clones repositories there and the IaC sidecar runs the engine against the same paths. It must be **one filesystem mounted read-write by both containers at the same path**, owned by uid/gid `10001`. On Kubernetes that means a `ReadWriteMany` volume or the two containers in the same pod sharing a volume, with a matching `fsGroup`/`runAsUser`. Contents are ephemeral (each run’s directory is deleted afterwards), but the pinned plan of every session lives there between a generate round and its apply, so the volume must survive pod restarts.
+- **Phoenix’s database**, which holds your curated prompts as well as traces. Losing it means re-seeding from the repository defaults and losing every prompt edit.
+
+## Sidecars as production integration boundaries
+
+Each sidecar is an OpenAPI contract. The core calls it with a bearer token from the environment variable named by `services.<name>.token_env`, and the sidecar validates that token. Any implementation of the contract can be used by changing `services.<name>.endpoint`. Use the conformance suites in `contracts/conformance/` to verify a replacement; every page under [HTTP APIs](../../reference/api/) carries the command for its own sidecar.
+
+Common rules for every **enabled** sidecar:
+
+- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when the IaC sidecar’s or an enabled optional sidecar’s token variable is empty. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
+- The bundled sidecars compare tokens in constant time, but they remain simple reference services. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
+- The `services.<name>.timeout` field is honoured by the IaC and notifications clients; the mapping and authorization clients use fixed budgets of 10 and 15 seconds.
+- Every sidecar exposes `GET /healthz` for liveness probes.
+
+### IaC (mandatory)
+
+The bundled executor is **a starting point, not production-ready**: harden the image and container (the checked-in compose applies no hardening), review the credential pass-through, or implement the contract yourself. It is functionally complete (it runs every command the core needs), but it encodes no organizational policy: it executes provider plugins from generated HCL with whatever identity is in its environment, on a shared filesystem, with no approval step, no engine timeout, and in-memory job state.
+
+For production the recommendation is to **implement the IaC contract ([`contracts/openapi/iac.v1.yaml`](../../reference/api/iac/)) according to your organization’s requirements**, not only to harden the bundled image. Typical reasons: running the engine on your existing Terraform or OpenTofu execution platform, using a workspace and state strategy other than a shared volume, enforcing per-project cloud identities, adding policy or approval hooks around `plan` and `apply`, auditing every command, or supporting clouds and CLIs the bundled image does not include. The contract is small (one command per asynchronous job, polled by the core), and the [conformance suite](../../reference/api/iac/#conformance) in `contracts/conformance/iac/` verifies a replacement.
+
+If you nevertheless start from the bundled image, its **identity and execution environment** are the security decisions you must make:
+
+- **Cloud identity.** The engine reads whatever credentials the provider supports from the container environment (`ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files). Use a workload identity (Kubernetes service account federation, pod identity, instance roles) scoped to the projects Kumoss may change, rather than static keys. Missing credentials do not stop the container; the engine fails at `plan` or `apply` with its own error.
+- **Execution controls.** The image already runs as an unprivileged user. The checked-in Compose file applies nothing else. For production, run the container with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem with writable `/tmp` and `/home/kumoss`, and CPU, memory, and process limits. These were validated on a feature branch of this repository but are **not** part of the checked-in Compose file; treat them as a requirement you implement on your platform.
+- **No engine timeout.** The sidecar does not bound the engine process itself; `services.iac.job_timeout` in the core (default one hour per job) is the only bound. Set it deliberately.
+- **Egress.** `init` downloads providers from `registry.opentofu.org` (or `registry.terraform.io` when `IAC_BINARY=terraform`), and `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the registry host breaks provider downloads unless the CA is mounted into the container.
+- **Jobs are in memory.** A restart forgets queued and finished jobs; run one instance per shared workspace and do not scale it horizontally.
+- **Engine choice.** `IAC_BINARY=tofu` (default) runs OpenTofu; `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed and makes your use subject to its terms.
+- **State backend.** The sidecar is always the process that *executes* the backend, so it always needs reach to it and credentials for it — whichever model you pick. By default (`storage.terraform_state_bucket` set to `kumoss-terraform-state`, as shipped) the core configures it: state goes to that bucket in the same object store as artifacts, keyed per project, and the sidecar needs network reach to `storage.endpoint_url` plus, where the rendered block omits static keys, its own credentials for the bucket. Set `storage.terraform_state_bucket` to `""` to leave the backend to each target repository instead, with no Kumoss configuration involved. For one central backend defined outside Kumoss, mount a file and point `IAC_BACKEND_CONFIG` at it. All three models: [Configure state backends](../configure-state-backends/).
+- **Blast radius of the sidecar’s environment.** `KUMOSS_IAC_TOKEN` and every other variable in the IaC sidecar’s environment are reachable by the provider plugins the generated HCL invokes, and by any `local-exec` provisioner in that HCL — generated code runs with the same privileges as the sidecar process. The job’s `workspace_path` is not restricted to `/workspaces` by the sidecar itself. Treat the sidecar as reachable only from the core and give it nothing more than the cloud identity it needs.
+
+### Mapping (optional)
+
+The bundled implementation is a **direct passthrough**: the identifier the user types is returned as the repository URL, and it answers nothing else. It adds nothing over leaving the integration disabled, in which case the core performs the same mapping itself. Enable it only with an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue) against the canonical IaC repository. Once enabled, a slow or unreachable sidecar makes the wizard’s resolve step fail with `504`/`502`.
+
+Your implementation may also answer `terraform_provider` and `scope_id` (the cloud subscription, project, account, compartment, or cluster). Both are optional and both are a promise: the wizard stops asking the user for any field your service fills in, so a value it cannot stand behind is a wrong answer nobody gets the chance to correct. Return `null` — meaning "I do not know" — whenever the catalogue is silent, and never infer a provider from the shape of the repository URL.
+
+### Notifications (optional, recommended)
+
+The bundled implementation posts to one Slack incoming webhook and is suitable for production once the webhook and token come from your secret store. The core emits `iac.compliance.failed`, `iac.impact.high`, `iac.apply.failure`, and `system.exception.failure`, plus user-originated support requests from the web application; the audience is the session owner (or caller) plus every user with panel role `editor` or higher. If your operational channel is not Slack (Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in [`contracts/openapi/notifications.v1.yaml`](../../reference/api/notifications/). Delivery is best-effort: a failure is logged and never fails a session.
+
+### Authorization (optional, must be replaced if enabled)
+
+The bundled implementation answers `authorized: true` to every cloud-project check (`KUMOSS_AUTHZ_PERMISSIVE=true`) or `authorized: false` to every check (any other value). Neither is a policy. **Do not enable the bundled authorization sidecar as your production access-control policy.**
+
+Understand what this integration is and is not:
+
+- It is consulted only by the wizard’s preflight `POST /api/v1/auth/authorize`, which sends the cloud, project name, environment, and the caller’s e-mail (or OIDC subject) to `POST /v1/check`. It answers whether that user may work on that cloud project.
+- It is **not** Kumoss’s own access control. Who can log in, which operations a user may run, and who can see or act on a session are decided by OIDC plus the operation and panel roles stored in the core database ([Administer users and locks](../administer-users-and-locks/)).
+- While disabled, the core answers "authorized" without calling anything. Once enabled, an unreachable sidecar produces a `502`/`504` error in the wizard, not an allow.
+
+Implement the contract in [`contracts/openapi/authz.v1.yaml`](../../reference/api/authz/) against your entitlement source and enable it.
+
+## Configuration checklist (`config.yaml`)
+
+`config.yaml` is baked into the core image at build time, or mounted at the path in `KUMOSS_CONFIG`. It contains no secrets and can live in version control. Review every section; the [configuration reference](../../reference/configuration/) has the fields and a [production-shaped example](../../reference/configuration/#example-production).
+
+| Section | Production requirement |
+| --- | --- |
+| `environment` | `production` (or `staging`). Decide before the first boot: it is the tag every prompt fetch uses, and changing it later requires re-tagging every prompt in Phoenix. |
+| `oidc` | `issuer_url` and `client_id` set; `audience` for Auth0 and Okta; `scope` when the default does not fit. |
+| `admin` | `default_root_email` for identity providers that emit `email_verified`; otherwise plan the one-off SQL grant ([Grant the first administrator access](../enable-authentication/#bootstrap-admin)). |
+| `services.iac` | Endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. There is no `enabled` flag; the sidecar is always called. |
+| `services.notifications`, `services.mapping`, `services.authz` | Enabled only with a production-grade implementation behind `endpoint`; each with its own token variable. |
+| `orchestration` | Keep `enable_compliance_checker: true` and `block_on_high_impact: true` unless you have another approval gate; the code defaults are `false`. Review the iteration limits, which bound the cost of a runaway session. |
+| `llm` | Two model strings (or `model_list` aliases) for the provider you contract with; `max_output_tokens` within the provider’s limits. |
+| `paths` | `upload_folder` identical in the core and IaC containers. |
+| `database`, `redis` | Variable names only; values are secrets. `redis.default_url` points at the Compose service name, so set `KUMOSS_REDIS_URL` when Redis lives elsewhere. |
+| `telemetry.collector_url` | Your Phoenix base URL, ending in `/`. It is used both for OTLP export and for the prompt API. |
+| `http.cors_origins` | Your real origin, for example `https://kumoss.example.invalid`. |
+| `storage` | Provider, artifacts bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. Also `terraform_state_bucket`: set to `kumoss-terraform-state` as shipped, which puts Kumoss in charge of state; set it to `""` to leave state to each repository’s own backend instead ([Configure state backends](../configure-state-backends/)). |
+| `git` | Provider matching your repository host, author identity. |
+
+Changing any of these means rebuilding the core image (or updating the mounted file) and restarting the core.
 
 ---
 
@@ -12193,158 +12276,75 @@ To **change** an existing prompt (a naming rule, a security default, a complianc
 
 ---
 
-# Deploy to production
+# Import infrastructure
 
-Source: /stable/main/guides/deploy-to-production/
+Source: /stable/main/guides/import-infrastructure/
 
-This guide is for teams deploying Kumoss for shared organizational use. It explains what a production deployment consists of, which decisions apply to each component, and which settings and secrets you must supply. It does not repeat the field-by-field references; it points at them:
+The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
 
-- [Configuration reference](../../reference/configuration/), for every `config.yaml` field.
-- [Environment variables and secrets](../../reference/environment-variables/), for every core and sidecar variable.
-- [LLM providers and models](../../reference/llm-providers/), for LLM providers and credentials.
-- [Enable authentication](../enable-authentication/) for authentication.
-- [Monitor with Phoenix](../monitor-with-phoenix/) for tracing.
-- [Customize prompts](../customize-prompts/) for the prompt registry.
-- [HTTP APIs](../../reference/api/) for the sidecar contracts in `contracts/openapi/` and their conformance suites in `contracts/conformance/`.
+## Prerequisites
 
-Everything in this guide describes the implementation as it exists in the repository today. Where a capability is a recommendation rather than something the repository provides, it is labelled as such.
+- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
+- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
 
-This entry page covers what production means, the reference topology, the sidecars as integration boundaries, and the `config.yaml` checklist. The credentials, networking, hardening, and operational detail live on four child pages, each covering one step of the deployment sequence.
+## Partial import
 
-## At a glance
+**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
 
-If you read nothing else, these are the production decisions this guide expands on:
+**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
 
-| # | Decision | Where |
-| --- | --- | --- |
-| 1 | Run one core replica, one IaC sidecar per shared workspace volume; there is no multi-replica mode | [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints) |
-| 2 | Enable OIDC; a blank issuer makes every caller a fully privileged user | [Authentication (OIDC)](../production/secrets-and-credentials/#authentication-oidc) |
-| 3 | Treat the four sidecars as integration boundaries: implement IaC to your requirements, replace mapping and authorization or leave them disabled, integrate notifications | [Sidecars as production integration boundaries](#sidecars-as-production-integration-boundaries), below |
-| 4 | Move every secret to a secret store; keep the variable names | [Secrets inventory](../production/secrets-and-credentials/#secrets-inventory) |
-| 5 | Use managed PostgreSQL, Redis, object storage (S3, Azure, or S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is required at boot | [Data services and persistence](../production/operations/#data-and-persistence) |
-| 6 | Reproduce the ingress rules: SSE path unbuffered, `/monitoring/` restricted, public object-storage endpoint, CORS origin, IdP redirect URIs | [Networking and TLS](../production/networking-and-tls/) |
-| 7 | Give the IaC engine a scoped workload identity and container execution controls; decide who owns the Terraform state backend | [IaC (mandatory)](#iac-mandatory), below; [Cloud credentials for the IaC engine](../production/secrets-and-credentials/#cloud-credentials); [Configure state backends](../configure-state-backends/) |
-| 8 | Review the seeded prompts before the first user session; they encode a generic policy | [Hardening checklist](../production/hardening/#hardening-checklist) |
-| 9 | Plan upgrades by hand: no database migrations, seeds never overwrite prompts, `environment` is a prompt tag | [Backups and upgrades](../production/operations/#backups-and-upgrades) |
+**Workflow.**
 
-The repository ships **no Kubernetes manifests or Helm charts**; the Compose file is the reference topology you translate to your platform.
+1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
+2. **Prompt composition**, as in generate.
+3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
+4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
+5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
+6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
+7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
+8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
 
-## What production means for Kumoss
+**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
 
-Kumoss plans and applies infrastructure with real cloud credentials, pushes to your repositories, and sends every prompt, plan, and generated file to a tracing backend. A production deployment therefore has to control who can reach it, which cloud identity it acts with, where its data lives, and how it is operated.
+**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
 
-Production is **not** the local Compose stack with `environment: production`. That field only selects the Phoenix project prefix and the prompt tag. It enables no authentication, no authorization, and no stricter default.
+**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
 
-The differences from [Quickstart](../../quickstart/), in one table:
+**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
 
-| Area | Local/non-production | Production |
-| --- | --- | --- |
-| Platform | Docker Compose on one host | A production platform such as Kubernetes, expressed by you from the reference topology below |
-| Authentication | May stay disabled | **OIDC enabled**; nothing else is acceptable because a blank issuer makes every caller a `devops` + panel `admin` user |
-| Sidecars | Bundled IaC, optionally bundled notifications | All four treated as integration boundaries: reviewed, configured, hardened, replaced where needed |
-| Secrets | Gitignored `.env` files | Kubernetes Secrets or an equivalent secret manager, injected as environment variables |
-| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the well-known default credentials the samples ship | Managed or operated services with persistence, backups, access control, and credentials from your secret store |
-| Terraform state | Kumoss-managed state in the bundled RustFS by default, or each repository’s own backend if you set `storage.terraform_state_bucket` to `""` | A deliberate choice of owner: the repositories' own backends, a Kumoss-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend file mounted into the sidecar ([Configure state backends](../configure-state-backends/)) |
-| Networking | Plain HTTP on `localhost` | TLS, a real origin, an ingress that handles server-sent events, a protected Phoenix, a public object-storage endpoint |
+**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
 
-The repository does not provide Kubernetes manifests, Helm charts, Kustomize overlays, Terraform modules for the platform itself, database migrations, or a multi-replica execution model. It provides the container images, `docker-compose.yml` as the reference topology, and the OpenAPI contracts and conformance suites for the sidecars; you write the platform definition for your environment.
+**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
 
-## Reference topology
+**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
 
-The Compose stack defines eleven services on one network. In production each row below is a deployment decision.
+**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
 
-| Component | Reference image | Must be reachable by | Persistence | Production decision |
-| --- | --- | --- | --- | --- |
-| Core API | `core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001) | Ingress (`/api`), nothing else | Shared workspace volume | Run **one replica** (see [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints)). Inject `config.yaml` at build time or mount it at `KUMOSS_CONFIG`. |
-| Web application and edge | `nginx/Dockerfile` builds the React app and serves it; forwards `/api`, the SSE path, `/monitoring/`, and port 9000 | Users | none | Keep it, or serve the built bundle from your own ingress. Reproduce its routing rules ([Networking and TLS](../production/networking-and-tls/)). |
-| PostgreSQL (core) | `postgres:17` | Core | **Required** | Managed PostgreSQL recommended. Set `KUMOSS_SQL_DATABASE_URL`. |
-| Redis | `redis:8.8` | Core | Not required (cache) | Managed Redis or in-cluster. Must be reachable when the core boots. |
-| Object storage | `rustfs/rustfs:latest` | Core (SDK) and **browsers** (presigned URLs) | **Required** | Prefer AWS S3 or an Azure Storage Account through `storage.provider`; RustFS or another S3-compatible store is also supported. |
-| Phoenix | `arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring` | Core (traces and prompt API), operators (UI) | **Required** (through its PostgreSQL) | Operate it with persistence and access control. It is required at core start-up. |
-| PostgreSQL (Phoenix) | `postgres:17` | Phoenix | **Required** | Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on Phoenix. |
-| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port 8082; user `kumoss` 10001) | Core only | Shared workspace volume | **Mandatory.** **As a starting point** — harden the image and container, or implement the contract yourself to your organization’s requirements. |
-| Mapping sidecar | `services/mapping/Dockerfile` (port 8081, user `kumoss` 10001) | Core only | none | Replace with an implementation against your catalogue, or leave disabled. |
-| Notifications sidecar | `services/notifications/Dockerfile` (port 8080, user `kumoss` 10001) | Core only | none | Use the bundled Slack implementation with a production webhook, or replace it. |
-| Authorization sidecar | `services/authz/Dockerfile` (port 8083, user `kumoss` 10001) | Core only | none (container-local JSON role file; mount a path via `KUMOSS_AUTHZ_ROLE_STORE` to keep it) | Replace with your policy implementation; the bundled one is permissive. |
+## Full import
 
-All five Kumoss-built images (core, iac, mapping, notifications, authz) run as the unprivileged `kumoss` user, uid/gid 10001. The `nginx/Dockerfile` proxy image is the exception: it has no `USER` directive and starts as root, dropping privileges only for its worker processes; give it a non-root base image or a Kubernetes `runAsNonRoot`/`securityContext` treatment if your policy requires the master process itself to be non-root.
+**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
 
-Two volumes matter beyond databases:
+**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
 
-- **The shared workspace** (`/workspaces` in both the core and IaC containers, `paths.upload_folder`). The core clones repositories there and the IaC sidecar runs the engine against the same paths. It must be **one filesystem mounted read-write by both containers at the same path**, owned by uid/gid `10001`. On Kubernetes that means a `ReadWriteMany` volume or the two containers in the same pod sharing a volume, with a matching `fsGroup`/`runAsUser`. Contents are ephemeral (each run’s directory is deleted afterwards), but the pinned plan of every session lives there between a generate round and its apply, so the volume must survive pod restarts.
-- **Phoenix’s database**, which holds your curated prompts as well as traces. Losing it means re-seeding from the repository defaults and losing every prompt edit.
+**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
 
-## Sidecars as production integration boundaries
+**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
 
-Each sidecar is an OpenAPI contract. The core calls it with a bearer token from the environment variable named by `services.<name>.token_env`, and the sidecar validates that token. Any implementation of the contract can be used by changing `services.<name>.endpoint`. Use the conformance suites in `contracts/conformance/` to verify a replacement; every page under [HTTP APIs](../../reference/api/) carries the command for its own sidecar.
+**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
 
-Common rules for every **enabled** sidecar:
+## Limitations
 
-- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when the IaC sidecar’s or an enabled optional sidecar’s token variable is empty. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
-- The bundled sidecars compare tokens in constant time, but they remain simple reference services. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
-- The `services.<name>.timeout` field is honoured by the IaC and notifications clients; the mapping and authorization clients use fixed budgets of 10 and 15 seconds.
-- Every sidecar exposes `GET /healthz` for liveness probes.
+- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
+- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
+- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
+- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
+- Import rounds run no compliance check, show no impact banner, and pin no plan.
 
-### IaC (mandatory)
+## Next steps
 
-The bundled executor is **a starting point, not production-ready**: harden the image and container (the checked-in compose applies no hardening), review the credential pass-through, or implement the contract yourself. It is functionally complete (it runs every command the core needs), but it encodes no organizational policy: it executes provider plugins from generated HCL with whatever identity is in its environment, on a shared filesystem, with no approval step, no engine timeout, and in-memory job state.
-
-For production the recommendation is to **implement the IaC contract ([`contracts/openapi/iac.v1.yaml`](../../reference/api/iac/)) according to your organization’s requirements**, not only to harden the bundled image. Typical reasons: running the engine on your existing Terraform or OpenTofu execution platform, using a workspace and state strategy other than a shared volume, enforcing per-project cloud identities, adding policy or approval hooks around `plan` and `apply`, auditing every command, or supporting clouds and CLIs the bundled image does not include. The contract is small (one command per asynchronous job, polled by the core), and the [conformance suite](../../reference/api/iac/#conformance) in `contracts/conformance/iac/` verifies a replacement.
-
-If you nevertheless start from the bundled image, its **identity and execution environment** are the security decisions you must make:
-
-- **Cloud identity.** The engine reads whatever credentials the provider supports from the container environment (`ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files). Use a workload identity (Kubernetes service account federation, pod identity, instance roles) scoped to the projects Kumoss may change, rather than static keys. Missing credentials do not stop the container; the engine fails at `plan` or `apply` with its own error.
-- **Execution controls.** The image already runs as an unprivileged user. The checked-in Compose file applies nothing else. For production, run the container with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem with writable `/tmp` and `/home/kumoss`, and CPU, memory, and process limits. These were validated on a feature branch of this repository but are **not** part of the checked-in Compose file; treat them as a requirement you implement on your platform.
-- **No engine timeout.** The sidecar does not bound the engine process itself; `services.iac.job_timeout` in the core (default one hour per job) is the only bound. Set it deliberately.
-- **Egress.** `init` downloads providers from `registry.opentofu.org` (or `registry.terraform.io` when `IAC_BINARY=terraform`), and `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the registry host breaks provider downloads unless the CA is mounted into the container.
-- **Jobs are in memory.** A restart forgets queued and finished jobs; run one instance per shared workspace and do not scale it horizontally.
-- **Engine choice.** `IAC_BINARY=tofu` (default) runs OpenTofu; `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed and makes your use subject to its terms.
-- **State backend.** The sidecar is always the process that *executes* the backend, so it always needs reach to it and credentials for it — whichever model you pick. By default (`storage.terraform_state_bucket` set to `kumoss-terraform-state`, as shipped) the core configures it: state goes to that bucket in the same object store as artifacts, keyed per project, and the sidecar needs network reach to `storage.endpoint_url` plus, where the rendered block omits static keys, its own credentials for the bucket. Set `storage.terraform_state_bucket` to `""` to leave the backend to each target repository instead, with no Kumoss configuration involved. For one central backend defined outside Kumoss, mount a file and point `IAC_BACKEND_CONFIG` at it. All three models: [Configure state backends](../configure-state-backends/).
-- **Blast radius of the sidecar’s environment.** `KUMOSS_IAC_TOKEN` and every other variable in the IaC sidecar’s environment are reachable by the provider plugins the generated HCL invokes, and by any `local-exec` provisioner in that HCL — generated code runs with the same privileges as the sidecar process. The job’s `workspace_path` is not restricted to `/workspaces` by the sidecar itself. Treat the sidecar as reachable only from the core and give it nothing more than the cloud identity it needs.
-
-### Mapping (optional)
-
-The bundled implementation is a **direct passthrough**: the identifier the user types is returned as the repository URL, and it answers nothing else. It adds nothing over leaving the integration disabled, in which case the core performs the same mapping itself. Enable it only with an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue) against the canonical IaC repository. Once enabled, a slow or unreachable sidecar makes the wizard’s resolve step fail with `504`/`502`.
-
-Your implementation may also answer `terraform_provider` and `scope_id` (the cloud subscription, project, account, compartment, or cluster). Both are optional and both are a promise: the wizard stops asking the user for any field your service fills in, so a value it cannot stand behind is a wrong answer nobody gets the chance to correct. Return `null` — meaning "I do not know" — whenever the catalogue is silent, and never infer a provider from the shape of the repository URL.
-
-### Notifications (optional, recommended)
-
-The bundled implementation posts to one Slack incoming webhook and is suitable for production once the webhook and token come from your secret store. The core emits `iac.compliance.failed`, `iac.impact.high`, `iac.apply.failure`, and `system.exception.failure`, plus user-originated support requests from the web application; the audience is the session owner (or caller) plus every user with panel role `editor` or higher. If your operational channel is not Slack (Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in [`contracts/openapi/notifications.v1.yaml`](../../reference/api/notifications/). Delivery is best-effort: a failure is logged and never fails a session.
-
-### Authorization (optional, must be replaced if enabled)
-
-The bundled implementation answers `authorized: true` to every cloud-project check (`KUMOSS_AUTHZ_PERMISSIVE=true`) or `authorized: false` to every check (any other value). Neither is a policy. **Do not enable the bundled authorization sidecar as your production access-control policy.**
-
-Understand what this integration is and is not:
-
-- It is consulted only by the wizard’s preflight `POST /api/v1/auth/authorize`, which sends the cloud, project name, environment, and the caller’s e-mail (or OIDC subject) to `POST /v1/check`. It answers whether that user may work on that cloud project.
-- It is **not** Kumoss’s own access control. Who can log in, which operations a user may run, and who can see or act on a session are decided by OIDC plus the operation and panel roles stored in the core database ([Administer users and locks](../administer-users-and-locks/)).
-- While disabled, the core answers "authorized" without calling anything. Once enabled, an unreachable sidecar produces a `502`/`504` error in the wizard, not an allow.
-
-Implement the contract in [`contracts/openapi/authz.v1.yaml`](../../reference/api/authz/) against your entitlement source and enable it.
-
-## Configuration checklist (`config.yaml`)
-
-`config.yaml` is baked into the core image at build time, or mounted at the path in `KUMOSS_CONFIG`. It contains no secrets and can live in version control. Review every section; the [configuration reference](../../reference/configuration/) has the fields and a [production-shaped example](../../reference/configuration/#example-production).
-
-| Section | Production requirement |
-| --- | --- |
-| `environment` | `production` (or `staging`). Decide before the first boot: it is the tag every prompt fetch uses, and changing it later requires re-tagging every prompt in Phoenix. |
-| `oidc` | `issuer_url` and `client_id` set; `audience` for Auth0 and Okta; `scope` when the default does not fit. |
-| `admin` | `default_root_email` for identity providers that emit `email_verified`; otherwise plan the one-off SQL grant ([Grant the first administrator access](../enable-authentication/#bootstrap-admin)). |
-| `services.iac` | Endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. There is no `enabled` flag; the sidecar is always called. |
-| `services.notifications`, `services.mapping`, `services.authz` | Enabled only with a production-grade implementation behind `endpoint`; each with its own token variable. |
-| `orchestration` | Keep `enable_compliance_checker: true` and `block_on_high_impact: true` unless you have another approval gate; the code defaults are `false`. Review the iteration limits, which bound the cost of a runaway session. |
-| `llm` | Two model strings (or `model_list` aliases) for the provider you contract with; `max_output_tokens` within the provider’s limits. |
-| `paths` | `upload_folder` identical in the core and IaC containers. |
-| `database`, `redis` | Variable names only; values are secrets. `redis.default_url` points at the Compose service name, so set `KUMOSS_REDIS_URL` when Redis lives elsewhere. |
-| `telemetry.collector_url` | Your Phoenix base URL, ending in `/`. It is used both for OTLP export and for the prompt API. |
-| `http.cors_origins` | Your real origin, for example `https://kumoss.example.invalid`. |
-| `storage` | Provider, artifacts bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. Also `terraform_state_bucket`: set to `kumoss-terraform-state` as shipped, which puts Kumoss in charge of state; set it to `""` to leave state to each repository’s own backend instead ([Configure state backends](../configure-state-backends/)). |
-| `git` | Provider matching your repository host, author identity. |
-
-Changing any of these means rebuilding the core image (or updating the mounted file) and restarting the core.
+- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
+- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
 
 ---
 
@@ -12428,6 +12428,40 @@ Examples that work well: "Create a private S3 bucket named `demo-platform-logs` 
 ## Next steps
 
 - [Follow a session](../follow-a-session/) once the session starts.
+
+---
+
+# Merge and apply
+
+Source: /stable/main/guides/merge-and-apply/
+
+Once you have reviewed a session’s results, this guide covers what a session lock means for you and how to open the pull request, merge it, and apply the reviewed plan.
+
+## Prerequisites
+
+- A session with results, reached by following [Follow a session](../follow-a-session/).
+- The `developer` role to open, merge, and apply; drift-remediation sessions end at the merge and never apply.
+
+## If the session is locked
+
+A session is locked automatically when the compliance audit fails or, where your deployment enables it, when the impact is **High**. You are notified ("Session blocked") and, when you try to continue with a pull request, you see the **High Impact Deployment** screen: the changes have been blocked, the support team has been notified, and a specialist will review your request. Two buttons: **Back to Report** and **Contact Team**.
+
+While locked you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. You cannot merge it or apply: the server answers that the session is blocked. A reviewer with the appropriate panel role unlocks the [session lock](../administer-users-and-locks/#session-locks), or you send a new request whose result passes cleanly, which clears the lock. Your own sessions list shows the lock state in the **Apply** column.
+
+## Steps
+
+1. **Create PR.** In the results view choose **Create PR**. Kumoss writes the title and description and opens the pull request from the session branch on your Git provider. Creating it can take a minute.
+2. **Review.** "Here is your Pull Request." Use **View Pull Request** to open it (the button appears when the link points at a recognized host; otherwise copy the link from the session details). Your team’s normal review and CI apply. If reviewers ask for changes, type them as a follow-up request; the new round pushes to the same branch and updates the pull request.
+3. **Approve PR and Apply.** When the review is done, choose **Approve PR and Apply**. A confirmation asks you to confirm that you read and understood the report and the proposed changes; **Request Review** sends a support request instead, **Confirm and Apply** merges the pull request into the default branch and starts the apply. In a drift-remediation session the button only merges: the merge is the remediation, no apply follows, and you return to the report.
+4. **Apply.** The engine executes exactly the plan you reviewed; it is not re-planned. The report’s own status is `Success`, `Partial`, or `Failed`, shown on the apply-results screen as **Succeeded**, **Partially Applied**, or **Failed**, together with the execution summary, the resources created, updated, destroyed, or failed, and recommendations. A failed apply still closes the session normally — it is not retried and nothing is rolled back; read the error and start a new request.
+
+## Verify
+
+After an apply the reviewed plan is consumed. To change something else, send a new request; a fresh plan is produced and reviewed before the next apply. Drift and import sessions end at the merge instead: no apply follows, because the merge is the remediation and an import is already in the state. See [Comparing the operating modes](../../reference/operating-modes/#compare-modes).
+
+## Next steps
+
+- [Make a request](../make-a-request/) to start a new session for the next change.
 
 ---
 
@@ -12577,40 +12611,6 @@ Child spans are created after their work finishes, with a back-dated start time,
 
 ---
 
-# Merge and apply
-
-Source: /stable/main/guides/merge-and-apply/
-
-Once you have reviewed a session’s results, this guide covers what a session lock means for you and how to open the pull request, merge it, and apply the reviewed plan.
-
-## Prerequisites
-
-- A session with results, reached by following [Follow a session](../follow-a-session/).
-- The `developer` role to open, merge, and apply; drift-remediation sessions end at the merge and never apply.
-
-## If the session is locked
-
-A session is locked automatically when the compliance audit fails or, where your deployment enables it, when the impact is **High**. You are notified ("Session blocked") and, when you try to continue with a pull request, you see the **High Impact Deployment** screen: the changes have been blocked, the support team has been notified, and a specialist will review your request. Two buttons: **Back to Report** and **Contact Team**.
-
-While locked you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. You cannot merge it or apply: the server answers that the session is blocked. A reviewer with the appropriate panel role unlocks the [session lock](../administer-users-and-locks/#session-locks), or you send a new request whose result passes cleanly, which clears the lock. Your own sessions list shows the lock state in the **Apply** column.
-
-## Steps
-
-1. **Create PR.** In the results view choose **Create PR**. Kumoss writes the title and description and opens the pull request from the session branch on your Git provider. Creating it can take a minute.
-2. **Review.** "Here is your Pull Request." Use **View Pull Request** to open it (the button appears when the link points at a recognized host; otherwise copy the link from the session details). Your team’s normal review and CI apply. If reviewers ask for changes, type them as a follow-up request; the new round pushes to the same branch and updates the pull request.
-3. **Approve PR and Apply.** When the review is done, choose **Approve PR and Apply**. A confirmation asks you to confirm that you read and understood the report and the proposed changes; **Request Review** sends a support request instead, **Confirm and Apply** merges the pull request into the default branch and starts the apply. In a drift-remediation session the button only merges: the merge is the remediation, no apply follows, and you return to the report.
-4. **Apply.** The engine executes exactly the plan you reviewed; it is not re-planned. The report’s own status is `Success`, `Partial`, or `Failed`, shown on the apply-results screen as **Succeeded**, **Partially Applied**, or **Failed**, together with the execution summary, the resources created, updated, destroyed, or failed, and recommendations. A failed apply still closes the session normally — it is not retried and nothing is rolled back; read the error and start a new request.
-
-## Verify
-
-After an apply the reviewed plan is consumed. To change something else, send a new request; a fresh plan is produced and reviewed before the next apply. Drift and import sessions end at the merge instead: no apply follows, because the merge is the remediation and an import is already in the state. See [Comparing the operating modes](../../reference/operating-modes/#compare-modes).
-
-## Next steps
-
-- [Make a request](../make-a-request/) to start a new session for the next change.
-
----
-
 # Remediate drift
 
 Source: /stable/main/guides/remediate-drift/
@@ -12679,6 +12679,418 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) to open and merge the pull request; a drift session ends there.
+
+---
+
+# LLM providers and models
+
+Source: /stable/main/reference/llm-providers/
+
+Kumoss calls large language models (LLMs) through [LiteLLM](https://docs.litellm.ai/), a routing library that speaks to many providers behind one interface. This page explains how Kumoss selects models, where credentials go, what the core checks at startup, and how to use the advanced `llm.model_list` router configuration.
+
+All values in the examples are fictitious. Domains use `.invalid`, and keys look like `sk-example-not-a-real-key`. Never paste real secrets into `config.yaml` or into documentation.
+
+Related guides: [Configuration](../configuration/) (every `config.yaml` field), [Environment variables and secrets](../environment-variables/) (the `.env` files), and the two installation guides, [Quickstart](../../quickstart/) and [Deploy to production](../../guides/deploy-to-production/), which say where the credentials live in each deployment model.
+
+## How Kumoss uses LiteLLM
+
+Kumoss configures two model roles in `config.yaml`. Both are applied by the core’s LiteLLM Router; there is no provider enum in Kumoss, so any model string LiteLLM understands is accepted by the configuration. Whether a model *works* is a different matter; see [Model requirements](#model-requirements) below.
+
+| Key | Role | Used for |
+| --- | --- | --- |
+| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), the report generator chain, and the task splitter chain (turning a drift report into remediation operations). |
+| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
+
+Three extra settings apply to both roles:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `llm.temperature` | `0.1` | Sampling temperature sent with every chat completion. When a chain requests extended thinking, the core sends `1.0` instead, because reasoning-enabled models require it. Tool-internal LLM calls use a fixed `0.5`. |
+| `llm.max_output_tokens` | `32000` | Sent as `max_tokens` (or `max_output_tokens` for the web-search path) on every call. Lower it if your provider caps completions below this value. |
+| `llm.timeout` | `600` | Seconds LiteLLM waits for a single inference call before aborting it. Each of the three internal retries gets a fresh budget, so the worst case for one inference is four times this value. Raise it for slow reasoning models, lower it to fail faster on a stalled provider. |
+
+The core passes `drop_params=True` to LiteLLM, so a provider that does not support one of these parameters ignores it instead of failing.
+
+## Model requirements
+
+Kumoss’s agents are tool-calling loops, so the configuration accepting a model string does not mean the model can run a session. Both roles must provide:
+
+- **OpenAI-style function calling with forced tool choice.** Agent loops send a `tools` list with `tool_choice: required` and expect well-formed JSON arguments back; each loop ends only when the model calls its sentinel tool. This applies to agent loops specifically — the status/summary text calls (`generate_text`) send no tools at all. Models without reliable function calling (many small self-hosted models) fail every agent session.
+- **A completion cap of at least `llm.max_output_tokens`** (32000 by default), or lower that setting to what the provider allows.
+- **A finish reason of `tool_use` or `end_turn`.** Any other finish reason — `length` (the completion was truncated), `content_filter`, and so on — aborts the chain with `UnhandledInferenceFinishReason` instead of being retried or degraded gracefully. In practice this means `max_output_tokens` must comfortably fit within the model’s own output limit, or a long response gets truncated and the session fails outright.
+- **Long context.** The generator receives the composed conventions, the repository excerpts it reads, and the plan output; models with short context windows truncate silently.
+- Optional: native `web_search_options` support, which LiteLLM reports per model. Without it the web-search tool falls back to the OpenAI Responses API path, which only works on OpenAI-compatible endpoints.
+
+The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of these, as do the same models on Azure AI Foundry (`azure_ai/`) and the Claude and Gemini models on Vertex AI that the core’s test suite exercises. Kumoss has not tested every provider LiteLLM lists.
+
+## The `provider/model-id` notation
+
+A LiteLLM model string is `<provider>/<model-id>`:
+
+- `<provider>` selects the LiteLLM integration and therefore the credential variables (for example `anthropic`, `vertex_ai`, `azure`, `bedrock`, `openai`, `ollama`).
+- `<model-id>` is whatever that provider calls the model or deployment (`claude-sonnet-5`, `gpt-4o`, a deployment name, an endpoint name).
+
+Routing is purely prefix based. Kumoss does not validate that the model id exists; a typo surfaces as an error from the provider on the first call. The reference list of model ids is [models.litellm.ai](https://models.litellm.ai/); the provider list with credential keys is [the LiteLLM provider docs](https://docs.litellm.ai/docs/providers).
+
+## Model selection versus credentials
+
+Model selection lives in `config.yaml`; credentials live in `core/.env`. They must belong to the same provider:
+
+```
+# config.yaml (fictitious example)
+llm:
+  model: "anthropic/claude-sonnet-5"
+  small_model: "anthropic/claude-haiku-4-5"
+  temperature: 0.1
+  max_output_tokens: 32000
+```
+
+```
+# core/.env (fictitious example)
+ANTHROPIC_API_KEY=sk-example-not-a-real-key
+```
+
+Changing a model identifier to a different provider means changing the credential variables too. `config.yaml` is baked into the core image, so a model change requires `docker compose build core`; a credential change in `core/.env` only requires restarting the core container.
+
+## Startup credential validation and its limits
+
+At boot the core calls `litellm.validate_environment(model=…​)` for each configured model (or for each `llm.model_list` entry when that key is set). If LiteLLM reports missing environment variables, the core refuses to start with:
+
+```
+LLM credentials missing from environment: ANTHROPIC_API_KEY. Set the listed env vars or configure llm.model_list in config.yaml.
+```
+
+Treat this check as a convenience, not a guarantee:
+
+- **Some providers have no validation mapping in LiteLLM.** For `azure_ai`, `cohere_chat`, `databricks`, `watsonx`, `sambanova`, `anyscale`, and `snowflake` the check reports nothing missing even with no credentials set; the failure appears on the first LLM call instead. The prefix matters, not the vendor: `cohere/<model>` is validated (`COHERE_API_KEY`), `cohere_chat/<model>` is not.
+- **Unknown prefixes pass silently.** A string such as `nonexistent_provider/x` or a bare `model-name` without a provider is not rejected at boot.
+- **Vertex AI checks only the project and location variables.** Boot always requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` to be set; the check is a plain environment lookup and does not consult Application Default Credentials or a Google Cloud SDK installation. `VERTEXAI_CREDENTIALS` is not checked at boot: when it is unset, LiteLLM falls back to Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`) on the first call, and a missing credential file fails there.
+- **Only presence is checked, never validity.** A wrong or expired key passes validation and fails on the first call.
+- **Boot validation always uses the provider’s default variable names**, even for `llm.model_list` entries that reference custom variables through `os.environ/…​`. See the note under [Advanced routing](#advanced-routing-with-llmmodel_list).
+
+The exact behaviour depends on the installed LiteLLM version (the core pins `litellm>=1.93.0`).
+
+## Provider-specific credential variables
+
+The tables below list the LiteLLM model string format, the environment variables LiteLLM reads by default, and the `litellm_params` keys you would use instead when writing an `llm.model_list` entry. The lists come from LiteLLM’s documentation. **Kumoss has not tested every provider listed here**; the checked-in `config.yaml` and the code defaults both target Anthropic directly (`anthropic/`), and the core’s test suite (`core/tests/shared/config/test_llm_config.py`) exercises the OpenAI-style and Vertex AI validation paths.
+
+### Direct providers (frontier labs)
+
+| Provider | Model string | Default env vars | `litellm_params` keys | Notes |
+| --- | --- | --- | --- | --- |
+| Anthropic | `anthropic/<model>` | `ANTHROPIC_API_KEY` | `api_key` | e.g. `anthropic/claude-sonnet-5`. `ANTHROPIC_AUTH_TOKEN` is also accepted as an alternative to the API key. |
+| OpenAI | `openai/<model>` | `OPENAI_API_KEY`, `OPENAI_API_BASE` | `api_key`, `api_base` | `api_base` defaults to `https://api.openai.com/v1` |
+| xAI | `xai/<model>` | `XAI_API_KEY` | `api_key` |   |
+| Mistral AI | `mistral/<model>` | `MISTRAL_API_KEY` | `api_key` |   |
+| Cohere | `cohere/<model>` or `cohere_chat/<model>` | `COHERE_API_KEY` | `api_key` | Boot validation covers the `cohere/` prefix only; `cohere_chat/` has no validation mapping and a missing key fails on the first call. |
+
+### Cloud platforms
+
+| Provider | Model string | Default env vars | `litellm_params` keys | Notes |
+| --- | --- | --- | --- | --- |
+| Google Vertex AI | `vertex_ai/<model>` | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS` | `vertex_project`, `vertex_location`, `vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account key JSON content, on one line. A path to a key file also works, but only if you mount that file into the core container yourself. Omit it to use Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on). |
+| Google AI Studio (Gemini API) | `gemini/<model>` | `GEMINI_API_KEY` (LiteLLM also accepts `GOOGLE_API_KEY`) | `api_key` |   |
+| Azure OpenAI | `azure/<deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` | `api_key`, `api_base`, `api_version` | `api_base` is `https://<resource>.openai.azure.com` |
+| Azure AI Foundry | `azure_ai/<model>` | `AZURE_AI_API_KEY`, `AZURE_AI_API_BASE` | `api_key`, `api_base` | No boot-time validation mapping in LiteLLM. |
+| AWS Bedrock | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` | Boot validation checks only the two key variables; the region is still needed at call time. `AWS_PROFILE`, or `AWS_ROLE_ARN` `AWS_WEB_IDENTITY_TOKEN_FILE`, are also accepted as alternatives to static keys. |
+| AWS SageMaker | `sagemaker/<endpoint>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` |   |
+| Cloudflare Workers AI | `cloudflare/<model>` | `CLOUDFLARE_API_KEY`, `CLOUDFLARE_API_BASE` | `api_key`, `api_base` |   |
+
+### Hosted inference services
+
+| Provider | Model string | Default env vars | `litellm_params` keys |
+| --- | --- | --- | --- |
+| Groq | `groq/<model>` | `GROQ_API_KEY` | `api_key` |
+| DeepSeek | `deepseek/<model>` | `DEEPSEEK_API_KEY` | `api_key` |
+| Together AI | `together_ai/<model>` | `TOGETHERAI_API_KEY` | `api_key` |
+| Fireworks AI | `fireworks_ai/<model>` | `FIREWORKS_AI_API_KEY` | `api_key` |
+| OpenRouter | `openrouter/<model>` | `OPENROUTER_API_KEY` | `api_key` |
+| Perplexity AI | `perplexity/<model>` | `PERPLEXITYAI_API_KEY` | `api_key` |
+| Cerebras | `cerebras/<model>` | `CEREBRAS_API_KEY` | `api_key` |
+| SambaNova | `sambanova/<model>` | `SAMBANOVA_API_KEY` | `api_key` |
+| DeepInfra | `deepinfra/<model>` | `DEEPINFRA_API_KEY` | `api_key` |
+| Anyscale | `anyscale/<model>` | `ANYSCALE_API_KEY` | `api_key` |
+| Replicate | `replicate/<model>` | `REPLICATE_API_KEY` | `api_key` |
+| AI21 | `ai21/<model>` | `AI21_API_KEY` | `api_key` |
+| Databricks | `databricks/<endpoint>` | `DATABRICKS_API_KEY`, `DATABRICKS_API_BASE` | `api_key`, `api_base` |
+| IBM watsonx | `watsonx/<model-id>` | `WATSONX_APIKEY`, `WATSONX_URL`, `WATSONX_PROJECT_ID` | `api_key`, `api_base`, `watsonx_project_id` |
+| Snowflake Cortex | `snowflake/<model>` | `SNOWFLAKE_ACCOUNT_ID`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD` | `snowflake_account_id`, `snowflake_user`, `snowflake_password` |
+
+### OpenAI-compatible and self-hosted endpoints
+
+| Engine | Model string | Default env vars | `litellm_params` keys | Notes |
+| --- | --- | --- | --- | --- |
+| Ollama | `ollama/<model>` | `OLLAMA_API_BASE` | `api_base` | Default base `http://localhost:11434`; no API key. From inside the compose network, use the host or container address, not `localhost`. |
+| vLLM, LocalAI, LM Studio, FastChat, TabbyAPI, and other OpenAI-compatible servers | `openai/<model>` | `OPENAI_API_KEY`, `OPENAI_API_BASE` | `api_key`, `api_base` | Point `api_base` at `http://<host>:<port>/v1`. Boot validation still requires `OPENAI_API_KEY` to be set; use a placeholder such as `none` if the server does not check it. |
+| Hugging Face (serverless or dedicated endpoints, TGI) | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` | `api_key`, `api_base` |   |
+
+## Minimal configuration example
+
+A single direct provider, both roles on the same vendor, no router customisation. This is the checked-in setup, and the simplest working one.
+
+```
+# config.yaml
+llm:
+  model: "anthropic/claude-sonnet-5"
+  small_model: "anthropic/claude-haiku-4-5"
+  temperature: 0.1
+  max_output_tokens: 32000
+```
+
+```
+# core/.env (fictitious)
+ANTHROPIC_API_KEY=sk-example-not-a-real-key
+```
+
+An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot validate at boot (a missing value fails on the first call):
+
+```
+llm:
+  model: "azure_ai/claude-sonnet-4-5"
+  small_model: "azure_ai/claude-haiku-4-5"
+```
+
+```
+AZURE_AI_API_KEY=example-not-a-real-key
+AZURE_AI_API_BASE=https://demo-platform.services.ai.azure.com
+```
+
+Equivalent example on Google Vertex AI:
+
+```
+llm:
+  model: "vertex_ai/claude-sonnet-4-5"
+  small_model: "vertex_ai/gemini-3.7-flash"
+```
+
+```
+VERTEXAI_PROJECT=demo-platform-project
+VERTEXAI_LOCATION=europe-west1
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
+```
+
+For how to paste the key, and what the file-path alternative needs, see [the Vertex AI example in Environment variables](../environment-variables/#example-all-sidecars).
+
+## Advanced routing with `llm.model_list`
+
+`llm.model_list` follows the [LiteLLM Router format](https://docs.litellm.ai/docs/routing) and is passed to the Router verbatim. Use it only when you need something the two plain model strings cannot express:
+
+- **Load balancing.** Several entries sharing one `model_name` are load balanced by the Router. Router-level **fallbacks** between different `model_name`s are not available: the core passes only `model_list` to the Router and exposes no `fallbacks` or `routing_strategy` setting. If the alias named by `llm.model` or `llm.small_model` has no healthy deployment, the call fails.
+- **Custom credential variable names.** A `litellm_params` value of the form `os.environ/VARIABLE_NAME` is resolved by LiteLLM from the environment at call time, so secrets stay out of `config.yaml`.
+- **Per-model endpoints**, such as a self-hosted OpenAI-compatible server for the small model and a cloud provider for the main model.
+
+You do **not** need it to keep credentials in `core/.env`: plain model strings already read the provider’s default variables.
+
+Rules when `model_list` is non-empty:
+
+1. `llm.model` and `llm.small_model` **must equal a `model_name`** in the list. They are router aliases now, not provider strings.
+2. Only `litellm_params.model` is required in an entry. **`api_key`, `api_base`, `api_version`, and the other credential keys are optional**: when omitted, LiteLLM reads the provider’s default environment variables at call time (for `azure/…​`, that is `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION`). Add them only to point an entry at a different endpoint or at a differently named variable.
+3. Boot validation runs against each entry’s `litellm_params.model` instead of the two role strings.
+4. Boot validation still checks the provider’s **default** variable names. If an entry references `os.environ/MY_CUSTOM_KEY`, the default-named variable (for example `ANTHROPIC_API_KEY`) must also be set, or the core will not boot. This is a LiteLLM limitation; `validate_environment` treats an empty-string value as present, so the default-named variable can hold any value, even empty, because only the custom one is used at call time.
+
+If all you want is the default provider credentials from `core/.env`, you do not need `model_list` at all; the two plain model strings are the right configuration.
+
+### Aliases with default credentials
+
+Two aliases and nothing else. Credentials come from `core/.env` under the provider’s default names, exactly as without `model_list`:
+
+```
+# config.yaml (fictitious)
+llm:
+  model: "main"
+  small_model: "small"
+  model_list:
+    - model_name: "main"
+      litellm_params:
+        model: "azure/main-deployment"
+    - model_name: "small"
+      litellm_params:
+        model: "azure/small-deployment"
+```
+
+```
+# core/.env (fictitious)
+AZURE_API_KEY=sk-example-not-a-real-key
+AZURE_API_BASE=https://demo-platform.openai.azure.example.invalid
+AZURE_API_VERSION=2025-01-01-preview
+```
+
+### Advanced example: per-entry endpoints and custom variable names
+
+Two aliases, two load-balanced Azure OpenAI deployments for the main role in different regions, a self-hosted small model, and custom credential variable names. Here `api_key`, `api_base`, and `api_version` are present **because each entry needs its own endpoint and key**; they would be redundant otherwise. All values are fictitious; `main-deployment` is an Azure OpenAI deployment name.
+
+```
+# config.yaml (fictitious)
+llm:
+  model: "main"
+  small_model: "small"
+  temperature: 0.1
+  max_output_tokens: 32000
+  model_list:
+    # Primary deployment for the main role.
+    - model_name: "main"
+      litellm_params:
+        model: "azure/main-deployment"
+        api_key: "os.environ/PLATFORM_AZURE_KEY_EU"
+        api_base: "https://eu.llm.example.invalid"
+        api_version: "2025-01-01-preview"
+    # Second deployment with the same alias: load balanced with the first.
+    - model_name: "main"
+      litellm_params:
+        model: "azure/main-deployment"
+        api_key: "os.environ/PLATFORM_AZURE_KEY_US"
+        api_base: "https://us.llm.example.invalid"
+        api_version: "2025-01-01-preview"
+    # Self-hosted OpenAI-compatible server for the small role.
+    - model_name: "small"
+      litellm_params:
+        model: "openai/llama-3.3-70b-instruct"
+        api_key: "os.environ/SELF_HOSTED_LLM_KEY"
+        api_base: "https://llm.example.invalid/v1"
+```
+
+```
+# core/.env (fictitious)
+PLATFORM_AZURE_KEY_EU=sk-example-not-a-real-key-eu
+PLATFORM_AZURE_KEY_US=sk-example-not-a-real-key-us
+SELF_HOSTED_LLM_KEY=sk-example-not-a-real-key-local
+
+# Required only to satisfy boot validation, which checks the provider
+# default names even when os.environ/... references are used.
+AZURE_API_KEY=placeholder-for-boot-validation
+AZURE_API_BASE=https://placeholder.example.invalid
+AZURE_API_VERSION=2025-01-01-preview
+OPENAI_API_KEY=placeholder-for-boot-validation
+```
+
+## Troubleshooting
+
+**Core exits with `LLM credentials missing from environment: …​`.** The provider chosen by `llm.model` or `llm.small_model` needs the listed variables in `core/.env`. Either you changed the model prefix without changing the credentials, or you rely on custom variable names through `model_list` without also setting the default-named ones.
+
+**Core boots but the first session fails with an authentication or "model not found" error.** The provider has no boot-time validation mapping (for example `azure_ai`), the key is present but invalid, or the `<model-id>` part of the string is wrong for that provider. Check the model id against [models.litellm.ai](https://models.litellm.ai/) and the provider’s own console.
+
+**Boot validation complains about a default variable although you use custom names.** Expected. Set the default-named variable to any value, even empty (`validate_environment` treats an empty string as present); only the `os.environ/…​` reference in `model_list` is used at call time.
+
+**`model` or `small_model` does not match any `model_name`.** When `model_list` is set, the two role strings are aliases. LiteLLM raises an error on the first call for an alias with no matching entry. Make both values equal to a `model_name` from the list.
+
+**Requests time out or the endpoint is unreachable.** Each chat completion call has an `llm.timeout` budget (600 seconds by default) and `num_retries=3` inside LiteLLM. The web-search Responses API fallback path uses the same timeout but is otherwise different: it retries up to 4 attempts with 30-second sleeps between them and sets no `num_retries`, so a slow or flaky OpenAI-compatible endpoint can stall that path for a long time. For self-hosted endpoints, remember that the core runs inside the compose network: `localhost` refers to the core container, not to the host. Use the service name or the host’s routable address in `api_base`, and make sure any TLS certificate is trusted by the core image.
+
+**Provider rejects `temperature` or `max_tokens`.** The core sends `drop_params=True`, so unsupported parameters are dropped. If the provider still rejects a value (for example a completion cap below `32000`), lower `llm.max_output_tokens`.
+
+## Running outside Docker
+
+`litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
+
+---
+
+# Roles and permissions
+
+Source: /stable/main/reference/roles-and-permissions/
+
+Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
+
+Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
+
+## Two independent role groups
+
+The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
+
+### Operation roles
+
+Operation roles are hierarchical, and every user has one.
+
+| Operation role | Grants |
+| --- | --- |
+| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
+| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
+
+### Admin-panel roles
+
+Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
+
+| Panel role | Grants |
+| --- | --- |
+| none | Own sessions only. |
+| `viewer` | Read-only view of every user’s sessions in the admin panel. |
+| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
+| `admin` | `editor`, plus user and role management. |
+
+### Session access rules
+
+The API enforces these rules regardless of role:
+
+- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
+- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
+- Everyone else receives `403 Not the session owner`.
+
+## Roles at a glance
+
+| Route | Minimum operation role | Extra condition |
+| --- | --- | --- |
+| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
+| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
+| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
+| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
+| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
+
+The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
+
+## Permission matrix
+
+The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
+
+| Capability | No panel role | `viewer` | `editor` | `admin` |
+| --- | --- | --- | --- | --- |
+| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
+| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
+| Open the admin panel | no | yes | yes | yes |
+| List sessions across all users, paginated | no | yes | yes | yes |
+| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
+| Open any user’s session detail, including conversation history | no | yes | yes | yes |
+| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
+| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
+| Receive support requests sent from the web application’s header | no | no | yes | yes |
+| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
+| List and search users | no | no | no | yes |
+| Assign operation roles | no | no | no | yes |
+| Assign or remove panel roles | no | no | no | yes |
+| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
+| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
+| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
+
+Backend routes behind the matrix:
+
+| Route | Who |
+| --- | --- |
+| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
+| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
+| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
+| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
+
+Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
+
+## Who gets which roles
+
+**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
+
+**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
+
+- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
+- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
+
+After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and rebuild the core image first if a real demotion is needed.
+
+With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
+
+Do not confuse this with the authorization sidecar. `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar’s **own** `admin` role inside the sidecar’s JSON role store. The core never reads that store; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
+
+## Next steps
+
+- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
+- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
 
 ---
 
@@ -13050,418 +13462,6 @@ terraform init -backend-config=env/prod.s3.tfbackend
 
 - [Configure state backends](../../guides/configure-state-backends/) for how these credentials fit into the backend model Kumoss chooses.
 - [Environment variables and secrets](../environment-variables/) for every other variable the stack reads.
-
----
-
-# Roles and permissions
-
-Source: /stable/main/reference/roles-and-permissions/
-
-Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
-
-Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
-
-## Two independent role groups
-
-The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
-
-### Operation roles
-
-Operation roles are hierarchical, and every user has one.
-
-| Operation role | Grants |
-| --- | --- |
-| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
-| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
-
-### Admin-panel roles
-
-Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
-
-| Panel role | Grants |
-| --- | --- |
-| none | Own sessions only. |
-| `viewer` | Read-only view of every user’s sessions in the admin panel. |
-| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
-| `admin` | `editor`, plus user and role management. |
-
-### Session access rules
-
-The API enforces these rules regardless of role:
-
-- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
-- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
-- Everyone else receives `403 Not the session owner`.
-
-## Roles at a glance
-
-| Route | Minimum operation role | Extra condition |
-| --- | --- | --- |
-| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
-| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
-| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
-| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
-| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
-
-The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
-
-## Permission matrix
-
-The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
-
-| Capability | No panel role | `viewer` | `editor` | `admin` |
-| --- | --- | --- | --- | --- |
-| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
-| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
-| Open the admin panel | no | yes | yes | yes |
-| List sessions across all users, paginated | no | yes | yes | yes |
-| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
-| Open any user’s session detail, including conversation history | no | yes | yes | yes |
-| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
-| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
-| Receive support requests sent from the web application’s header | no | no | yes | yes |
-| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
-| List and search users | no | no | no | yes |
-| Assign operation roles | no | no | no | yes |
-| Assign or remove panel roles | no | no | no | yes |
-| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
-| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
-| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
-
-Backend routes behind the matrix:
-
-| Route | Who |
-| --- | --- |
-| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
-| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
-| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
-| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
-
-Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
-
-## Who gets which roles
-
-**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
-
-**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
-
-- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
-- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
-
-After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and rebuild the core image first if a real demotion is needed.
-
-With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
-
-Do not confuse this with the authorization sidecar. `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar’s **own** `admin` role inside the sidecar’s JSON role store. The core never reads that store; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
-
-## Next steps
-
-- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
-- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
-
----
-
-# LLM providers and models
-
-Source: /stable/main/reference/llm-providers/
-
-Kumoss calls large language models (LLMs) through [LiteLLM](https://docs.litellm.ai/), a routing library that speaks to many providers behind one interface. This page explains how Kumoss selects models, where credentials go, what the core checks at startup, and how to use the advanced `llm.model_list` router configuration.
-
-All values in the examples are fictitious. Domains use `.invalid`, and keys look like `sk-example-not-a-real-key`. Never paste real secrets into `config.yaml` or into documentation.
-
-Related guides: [Configuration](../configuration/) (every `config.yaml` field), [Environment variables and secrets](../environment-variables/) (the `.env` files), and the two installation guides, [Quickstart](../../quickstart/) and [Deploy to production](../../guides/deploy-to-production/), which say where the credentials live in each deployment model.
-
-## How Kumoss uses LiteLLM
-
-Kumoss configures two model roles in `config.yaml`. Both are applied by the core’s LiteLLM Router; there is no provider enum in Kumoss, so any model string LiteLLM understands is accepted by the configuration. Whether a model *works* is a different matter; see [Model requirements](#model-requirements) below.
-
-| Key | Role | Used for |
-| --- | --- | --- |
-| `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), the report generator chain, and the task splitter chain (turning a drift report into remediation operations). |
-| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
-
-Three extra settings apply to both roles:
-
-| Key | Default | Meaning |
-| --- | --- | --- |
-| `llm.temperature` | `0.1` | Sampling temperature sent with every chat completion. When a chain requests extended thinking, the core sends `1.0` instead, because reasoning-enabled models require it. Tool-internal LLM calls use a fixed `0.5`. |
-| `llm.max_output_tokens` | `32000` | Sent as `max_tokens` (or `max_output_tokens` for the web-search path) on every call. Lower it if your provider caps completions below this value. |
-| `llm.timeout` | `600` | Seconds LiteLLM waits for a single inference call before aborting it. Each of the three internal retries gets a fresh budget, so the worst case for one inference is four times this value. Raise it for slow reasoning models, lower it to fail faster on a stalled provider. |
-
-The core passes `drop_params=True` to LiteLLM, so a provider that does not support one of these parameters ignores it instead of failing.
-
-## Model requirements
-
-Kumoss’s agents are tool-calling loops, so the configuration accepting a model string does not mean the model can run a session. Both roles must provide:
-
-- **OpenAI-style function calling with forced tool choice.** Agent loops send a `tools` list with `tool_choice: required` and expect well-formed JSON arguments back; each loop ends only when the model calls its sentinel tool. This applies to agent loops specifically — the status/summary text calls (`generate_text`) send no tools at all. Models without reliable function calling (many small self-hosted models) fail every agent session.
-- **A completion cap of at least `llm.max_output_tokens`** (32000 by default), or lower that setting to what the provider allows.
-- **A finish reason of `tool_use` or `end_turn`.** Any other finish reason — `length` (the completion was truncated), `content_filter`, and so on — aborts the chain with `UnhandledInferenceFinishReason` instead of being retried or degraded gracefully. In practice this means `max_output_tokens` must comfortably fit within the model’s own output limit, or a long response gets truncated and the session fails outright.
-- **Long context.** The generator receives the composed conventions, the repository excerpts it reads, and the plan output; models with short context windows truncate silently.
-- Optional: native `web_search_options` support, which LiteLLM reports per model. Without it the web-search tool falls back to the OpenAI Responses API path, which only works on OpenAI-compatible endpoints.
-
-The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of these, as do the same models on Azure AI Foundry (`azure_ai/`) and the Claude and Gemini models on Vertex AI that the core’s test suite exercises. Kumoss has not tested every provider LiteLLM lists.
-
-## The `provider/model-id` notation
-
-A LiteLLM model string is `<provider>/<model-id>`:
-
-- `<provider>` selects the LiteLLM integration and therefore the credential variables (for example `anthropic`, `vertex_ai`, `azure`, `bedrock`, `openai`, `ollama`).
-- `<model-id>` is whatever that provider calls the model or deployment (`claude-sonnet-5`, `gpt-4o`, a deployment name, an endpoint name).
-
-Routing is purely prefix based. Kumoss does not validate that the model id exists; a typo surfaces as an error from the provider on the first call. The reference list of model ids is [models.litellm.ai](https://models.litellm.ai/); the provider list with credential keys is [the LiteLLM provider docs](https://docs.litellm.ai/docs/providers).
-
-## Model selection versus credentials
-
-Model selection lives in `config.yaml`; credentials live in `core/.env`. They must belong to the same provider:
-
-```
-# config.yaml (fictitious example)
-llm:
-  model: "anthropic/claude-sonnet-5"
-  small_model: "anthropic/claude-haiku-4-5"
-  temperature: 0.1
-  max_output_tokens: 32000
-```
-
-```
-# core/.env (fictitious example)
-ANTHROPIC_API_KEY=sk-example-not-a-real-key
-```
-
-Changing a model identifier to a different provider means changing the credential variables too. `config.yaml` is baked into the core image, so a model change requires `docker compose build core`; a credential change in `core/.env` only requires restarting the core container.
-
-## Startup credential validation and its limits
-
-At boot the core calls `litellm.validate_environment(model=…​)` for each configured model (or for each `llm.model_list` entry when that key is set). If LiteLLM reports missing environment variables, the core refuses to start with:
-
-```
-LLM credentials missing from environment: ANTHROPIC_API_KEY. Set the listed env vars or configure llm.model_list in config.yaml.
-```
-
-Treat this check as a convenience, not a guarantee:
-
-- **Some providers have no validation mapping in LiteLLM.** For `azure_ai`, `cohere_chat`, `databricks`, `watsonx`, `sambanova`, `anyscale`, and `snowflake` the check reports nothing missing even with no credentials set; the failure appears on the first LLM call instead. The prefix matters, not the vendor: `cohere/<model>` is validated (`COHERE_API_KEY`), `cohere_chat/<model>` is not.
-- **Unknown prefixes pass silently.** A string such as `nonexistent_provider/x` or a bare `model-name` without a provider is not rejected at boot.
-- **Vertex AI checks only the project and location variables.** Boot always requires `VERTEXAI_PROJECT` and `VERTEXAI_LOCATION` to be set; the check is a plain environment lookup and does not consult Application Default Credentials or a Google Cloud SDK installation. `VERTEXAI_CREDENTIALS` is not checked at boot: when it is unset, LiteLLM falls back to Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`) on the first call, and a missing credential file fails there.
-- **Only presence is checked, never validity.** A wrong or expired key passes validation and fails on the first call.
-- **Boot validation always uses the provider’s default variable names**, even for `llm.model_list` entries that reference custom variables through `os.environ/…​`. See the note under [Advanced routing](#advanced-routing-with-llmmodel_list).
-
-The exact behaviour depends on the installed LiteLLM version (the core pins `litellm>=1.93.0`).
-
-## Provider-specific credential variables
-
-The tables below list the LiteLLM model string format, the environment variables LiteLLM reads by default, and the `litellm_params` keys you would use instead when writing an `llm.model_list` entry. The lists come from LiteLLM’s documentation. **Kumoss has not tested every provider listed here**; the checked-in `config.yaml` and the code defaults both target Anthropic directly (`anthropic/`), and the core’s test suite (`core/tests/shared/config/test_llm_config.py`) exercises the OpenAI-style and Vertex AI validation paths.
-
-### Direct providers (frontier labs)
-
-| Provider | Model string | Default env vars | `litellm_params` keys | Notes |
-| --- | --- | --- | --- | --- |
-| Anthropic | `anthropic/<model>` | `ANTHROPIC_API_KEY` | `api_key` | e.g. `anthropic/claude-sonnet-5`. `ANTHROPIC_AUTH_TOKEN` is also accepted as an alternative to the API key. |
-| OpenAI | `openai/<model>` | `OPENAI_API_KEY`, `OPENAI_API_BASE` | `api_key`, `api_base` | `api_base` defaults to `https://api.openai.com/v1` |
-| xAI | `xai/<model>` | `XAI_API_KEY` | `api_key` |   |
-| Mistral AI | `mistral/<model>` | `MISTRAL_API_KEY` | `api_key` |   |
-| Cohere | `cohere/<model>` or `cohere_chat/<model>` | `COHERE_API_KEY` | `api_key` | Boot validation covers the `cohere/` prefix only; `cohere_chat/` has no validation mapping and a missing key fails on the first call. |
-
-### Cloud platforms
-
-| Provider | Model string | Default env vars | `litellm_params` keys | Notes |
-| --- | --- | --- | --- | --- |
-| Google Vertex AI | `vertex_ai/<model>` | `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION`, `VERTEXAI_CREDENTIALS` | `vertex_project`, `vertex_location`, `vertex_credentials` | `VERTEXAI_CREDENTIALS` holds the service-account key JSON content, on one line. A path to a key file also works, but only if you mount that file into the core container yourself. Omit it to use Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS`, workload identity, and so on). |
-| Google AI Studio (Gemini API) | `gemini/<model>` | `GEMINI_API_KEY` (LiteLLM also accepts `GOOGLE_API_KEY`) | `api_key` |   |
-| Azure OpenAI | `azure/<deployment>` | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` | `api_key`, `api_base`, `api_version` | `api_base` is `https://<resource>.openai.azure.com` |
-| Azure AI Foundry | `azure_ai/<model>` | `AZURE_AI_API_KEY`, `AZURE_AI_API_BASE` | `api_key`, `api_base` | No boot-time validation mapping in LiteLLM. |
-| AWS Bedrock | `bedrock/<model-id>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` | Boot validation checks only the two key variables; the region is still needed at call time. `AWS_PROFILE`, or `AWS_ROLE_ARN` `AWS_WEB_IDENTITY_TOKEN_FILE`, are also accepted as alternatives to static keys. |
-| AWS SageMaker | `sagemaker/<endpoint>` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION_NAME` | `aws_access_key_id`, `aws_secret_access_key`, `aws_region_name` |   |
-| Cloudflare Workers AI | `cloudflare/<model>` | `CLOUDFLARE_API_KEY`, `CLOUDFLARE_API_BASE` | `api_key`, `api_base` |   |
-
-### Hosted inference services
-
-| Provider | Model string | Default env vars | `litellm_params` keys |
-| --- | --- | --- | --- |
-| Groq | `groq/<model>` | `GROQ_API_KEY` | `api_key` |
-| DeepSeek | `deepseek/<model>` | `DEEPSEEK_API_KEY` | `api_key` |
-| Together AI | `together_ai/<model>` | `TOGETHERAI_API_KEY` | `api_key` |
-| Fireworks AI | `fireworks_ai/<model>` | `FIREWORKS_AI_API_KEY` | `api_key` |
-| OpenRouter | `openrouter/<model>` | `OPENROUTER_API_KEY` | `api_key` |
-| Perplexity AI | `perplexity/<model>` | `PERPLEXITYAI_API_KEY` | `api_key` |
-| Cerebras | `cerebras/<model>` | `CEREBRAS_API_KEY` | `api_key` |
-| SambaNova | `sambanova/<model>` | `SAMBANOVA_API_KEY` | `api_key` |
-| DeepInfra | `deepinfra/<model>` | `DEEPINFRA_API_KEY` | `api_key` |
-| Anyscale | `anyscale/<model>` | `ANYSCALE_API_KEY` | `api_key` |
-| Replicate | `replicate/<model>` | `REPLICATE_API_KEY` | `api_key` |
-| AI21 | `ai21/<model>` | `AI21_API_KEY` | `api_key` |
-| Databricks | `databricks/<endpoint>` | `DATABRICKS_API_KEY`, `DATABRICKS_API_BASE` | `api_key`, `api_base` |
-| IBM watsonx | `watsonx/<model-id>` | `WATSONX_APIKEY`, `WATSONX_URL`, `WATSONX_PROJECT_ID` | `api_key`, `api_base`, `watsonx_project_id` |
-| Snowflake Cortex | `snowflake/<model>` | `SNOWFLAKE_ACCOUNT_ID`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD` | `snowflake_account_id`, `snowflake_user`, `snowflake_password` |
-
-### OpenAI-compatible and self-hosted endpoints
-
-| Engine | Model string | Default env vars | `litellm_params` keys | Notes |
-| --- | --- | --- | --- | --- |
-| Ollama | `ollama/<model>` | `OLLAMA_API_BASE` | `api_base` | Default base `http://localhost:11434`; no API key. From inside the compose network, use the host or container address, not `localhost`. |
-| vLLM, LocalAI, LM Studio, FastChat, TabbyAPI, and other OpenAI-compatible servers | `openai/<model>` | `OPENAI_API_KEY`, `OPENAI_API_BASE` | `api_key`, `api_base` | Point `api_base` at `http://<host>:<port>/v1`. Boot validation still requires `OPENAI_API_KEY` to be set; use a placeholder such as `none` if the server does not check it. |
-| Hugging Face (serverless or dedicated endpoints, TGI) | `huggingface/<repo/model>` | `HUGGINGFACE_API_KEY` | `api_key`, `api_base` |   |
-
-## Minimal configuration example
-
-A single direct provider, both roles on the same vendor, no router customisation. This is the checked-in setup, and the simplest working one.
-
-```
-# config.yaml
-llm:
-  model: "anthropic/claude-sonnet-5"
-  small_model: "anthropic/claude-haiku-4-5"
-  temperature: 0.1
-  max_output_tokens: 32000
-```
-
-```
-# core/.env (fictitious)
-ANTHROPIC_API_KEY=sk-example-not-a-real-key
-```
-
-An equivalent setup on Azure AI Foundry, whose credentials LiteLLM cannot validate at boot (a missing value fails on the first call):
-
-```
-llm:
-  model: "azure_ai/claude-sonnet-4-5"
-  small_model: "azure_ai/claude-haiku-4-5"
-```
-
-```
-AZURE_AI_API_KEY=example-not-a-real-key
-AZURE_AI_API_BASE=https://demo-platform.services.ai.azure.com
-```
-
-Equivalent example on Google Vertex AI:
-
-```
-llm:
-  model: "vertex_ai/claude-sonnet-4-5"
-  small_model: "vertex_ai/gemini-3.7-flash"
-```
-
-```
-VERTEXAI_PROJECT=demo-platform-project
-VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
-```
-
-For how to paste the key, and what the file-path alternative needs, see [the Vertex AI example in Environment variables](../environment-variables/#example-all-sidecars).
-
-## Advanced routing with `llm.model_list`
-
-`llm.model_list` follows the [LiteLLM Router format](https://docs.litellm.ai/docs/routing) and is passed to the Router verbatim. Use it only when you need something the two plain model strings cannot express:
-
-- **Load balancing.** Several entries sharing one `model_name` are load balanced by the Router. Router-level **fallbacks** between different `model_name`s are not available: the core passes only `model_list` to the Router and exposes no `fallbacks` or `routing_strategy` setting. If the alias named by `llm.model` or `llm.small_model` has no healthy deployment, the call fails.
-- **Custom credential variable names.** A `litellm_params` value of the form `os.environ/VARIABLE_NAME` is resolved by LiteLLM from the environment at call time, so secrets stay out of `config.yaml`.
-- **Per-model endpoints**, such as a self-hosted OpenAI-compatible server for the small model and a cloud provider for the main model.
-
-You do **not** need it to keep credentials in `core/.env`: plain model strings already read the provider’s default variables.
-
-Rules when `model_list` is non-empty:
-
-1. `llm.model` and `llm.small_model` **must equal a `model_name`** in the list. They are router aliases now, not provider strings.
-2. Only `litellm_params.model` is required in an entry. **`api_key`, `api_base`, `api_version`, and the other credential keys are optional**: when omitted, LiteLLM reads the provider’s default environment variables at call time (for `azure/…​`, that is `AZURE_API_KEY`, `AZURE_API_BASE`, and `AZURE_API_VERSION`). Add them only to point an entry at a different endpoint or at a differently named variable.
-3. Boot validation runs against each entry’s `litellm_params.model` instead of the two role strings.
-4. Boot validation still checks the provider’s **default** variable names. If an entry references `os.environ/MY_CUSTOM_KEY`, the default-named variable (for example `ANTHROPIC_API_KEY`) must also be set, or the core will not boot. This is a LiteLLM limitation; `validate_environment` treats an empty-string value as present, so the default-named variable can hold any value, even empty, because only the custom one is used at call time.
-
-If all you want is the default provider credentials from `core/.env`, you do not need `model_list` at all; the two plain model strings are the right configuration.
-
-### Aliases with default credentials
-
-Two aliases and nothing else. Credentials come from `core/.env` under the provider’s default names, exactly as without `model_list`:
-
-```
-# config.yaml (fictitious)
-llm:
-  model: "main"
-  small_model: "small"
-  model_list:
-    - model_name: "main"
-      litellm_params:
-        model: "azure/main-deployment"
-    - model_name: "small"
-      litellm_params:
-        model: "azure/small-deployment"
-```
-
-```
-# core/.env (fictitious)
-AZURE_API_KEY=sk-example-not-a-real-key
-AZURE_API_BASE=https://demo-platform.openai.azure.example.invalid
-AZURE_API_VERSION=2025-01-01-preview
-```
-
-### Advanced example: per-entry endpoints and custom variable names
-
-Two aliases, two load-balanced Azure OpenAI deployments for the main role in different regions, a self-hosted small model, and custom credential variable names. Here `api_key`, `api_base`, and `api_version` are present **because each entry needs its own endpoint and key**; they would be redundant otherwise. All values are fictitious; `main-deployment` is an Azure OpenAI deployment name.
-
-```
-# config.yaml (fictitious)
-llm:
-  model: "main"
-  small_model: "small"
-  temperature: 0.1
-  max_output_tokens: 32000
-  model_list:
-    # Primary deployment for the main role.
-    - model_name: "main"
-      litellm_params:
-        model: "azure/main-deployment"
-        api_key: "os.environ/PLATFORM_AZURE_KEY_EU"
-        api_base: "https://eu.llm.example.invalid"
-        api_version: "2025-01-01-preview"
-    # Second deployment with the same alias: load balanced with the first.
-    - model_name: "main"
-      litellm_params:
-        model: "azure/main-deployment"
-        api_key: "os.environ/PLATFORM_AZURE_KEY_US"
-        api_base: "https://us.llm.example.invalid"
-        api_version: "2025-01-01-preview"
-    # Self-hosted OpenAI-compatible server for the small role.
-    - model_name: "small"
-      litellm_params:
-        model: "openai/llama-3.3-70b-instruct"
-        api_key: "os.environ/SELF_HOSTED_LLM_KEY"
-        api_base: "https://llm.example.invalid/v1"
-```
-
-```
-# core/.env (fictitious)
-PLATFORM_AZURE_KEY_EU=sk-example-not-a-real-key-eu
-PLATFORM_AZURE_KEY_US=sk-example-not-a-real-key-us
-SELF_HOSTED_LLM_KEY=sk-example-not-a-real-key-local
-
-# Required only to satisfy boot validation, which checks the provider
-# default names even when os.environ/... references are used.
-AZURE_API_KEY=placeholder-for-boot-validation
-AZURE_API_BASE=https://placeholder.example.invalid
-AZURE_API_VERSION=2025-01-01-preview
-OPENAI_API_KEY=placeholder-for-boot-validation
-```
-
-## Troubleshooting
-
-**Core exits with `LLM credentials missing from environment: …​`.** The provider chosen by `llm.model` or `llm.small_model` needs the listed variables in `core/.env`. Either you changed the model prefix without changing the credentials, or you rely on custom variable names through `model_list` without also setting the default-named ones.
-
-**Core boots but the first session fails with an authentication or "model not found" error.** The provider has no boot-time validation mapping (for example `azure_ai`), the key is present but invalid, or the `<model-id>` part of the string is wrong for that provider. Check the model id against [models.litellm.ai](https://models.litellm.ai/) and the provider’s own console.
-
-**Boot validation complains about a default variable although you use custom names.** Expected. Set the default-named variable to any value, even empty (`validate_environment` treats an empty string as present); only the `os.environ/…​` reference in `model_list` is used at call time.
-
-**`model` or `small_model` does not match any `model_name`.** When `model_list` is set, the two role strings are aliases. LiteLLM raises an error on the first call for an alias with no matching entry. Make both values equal to a `model_name` from the list.
-
-**Requests time out or the endpoint is unreachable.** Each chat completion call has an `llm.timeout` budget (600 seconds by default) and `num_retries=3` inside LiteLLM. The web-search Responses API fallback path uses the same timeout but is otherwise different: it retries up to 4 attempts with 30-second sleeps between them and sets no `num_retries`, so a slow or flaky OpenAI-compatible endpoint can stall that path for a long time. For self-hosted endpoints, remember that the core runs inside the compose network: `localhost` refers to the core container, not to the host. Use the service name or the host’s routable address in `api_base`, and make sure any TLS certificate is trusted by the core image.
-
-**Provider rejects `temperature` or `max_tokens`.** The core sends `drop_params=True`, so unsupported parameters are dropped. If the provider still rejects a value (for example a completion cap below `32000`), lower `llm.max_output_tokens`.
-
-## Running outside Docker
-
-`litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
 
 ---
 
@@ -17356,278 +17356,6 @@ The suite generates requests from the OpenAPI document and checks that response 
 
 ---
 
-# Core API
-
-Source: /stable/main/reference/api/core/
-
-The core exposes 19 routes across nine routers in `core/src/api/v1/`. This page is derived from those routers, which are the only source of truth: the core has no hand-written specification.
-
-Every router is mounted under `/v1` on an application created with `root_path="/api"`, so the reverse proxy publishes the routes as `/api/v1/…​`. Paths below are written with that prefix.
-
-## The authentication rule
-
-**Authentication is a per-route dependency, not middleware.** Every route under `/v1` except `GET /v1/auth/config` declares the authentication dependency, or one of the two role wrappers built on it. A router added without one of these is public.
-
-The dependency behaves in one of two ways:
-
-- **Blank `oidc.issuer_url`** (the checked-in default) — authentication is disabled. Every request resolves to a fixed local development identity, provisioned as a real row in the users table with the top role of both groups.
-- **`oidc.issuer_url` set** — the dependency requires an `Authorization: Bearer <jwt>`, validates it against the issuer’s JWKS, and maps the `(issuer, subject)` pair to a users row, creating it on first sight. A missing or invalid token is `401` with a `WWW-Authenticate: Bearer` challenge.
-
-Two independent role groups gate the routes, and both live in the core database:
-
-- The **operation role** (`developer` < `devops`) gates Infrastructure as Code work. Falling short is `403 Requires operation role '<role>' or higher`.
-- The **panel role** (`viewer` < `editor` < `admin`, nullable) gates `/v1/admin/*`. Falling short is `403 Requires admin-panel role '<role>' or higher`.
-
-Beyond the role check, a per-session access check applies: the owner may always read and write; a non-owner with any panel role may read only; everyone else receives `403 Not the session owner`. See [Roles and permissions](../../roles-and-permissions/) for the full matrix.
-
-The whole surface is summarized here and then described router by router.
-
-| Route | Requires | Returns |
-| --- | --- | --- |
-| `GET /api/v1/auth/config` | nothing (public) | `200` OIDC settings |
-| `POST /api/v1/auth/authorize` | any signed-in user | `200` decision |
-| `GET /api/v1/users/me` | any signed-in user | `200` identity and roles |
-| `POST /api/v1/iac/generate` | operation `developer` | `202` session id |
-| `POST /api/v1/iac/drift` | operation `devops` | `202` session id |
-| `POST /api/v1/iac/apply` | operation `developer` | `202` session id |
-| `GET /api/v1/events/subscribe/{session_id}` | read access to the session | `200` event stream |
-| `PUT /api/v1/repository/pr` | operation `developer`, owner | `201` pull request |
-| `PUT /api/v1/repository/pr/merge` | operation `developer`, owner | `204` no content |
-| `POST /api/v1/repository/parse` | operation `developer` | `200` Terraform roots |
-| `GET /api/v1/sessions/list` | any signed-in user | `200` page of summaries |
-| `GET /api/v1/sessions?id={session_id}` | read access to the session | `200` session aggregate |
-| `GET /api/v1/admin/sessions/list` | panel `viewer` | `200` page of summaries |
-| `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` | `200` session aggregate |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` | `200` lock state |
-| `GET /api/v1/admin/users` | panel `admin` | `200` page of users |
-| `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` | `200` updated user |
-| `POST /api/v1/mapping/resolve` | any signed-in user | `200` repository reference |
-| `POST /api/v1/notifications` | any signed-in user | `202` delivery id |
-
-## Infrastructure as Code
-
-Prefix `/v1/iac`. Three routes, one per operation. All three are **asynchronous**: they validate the request, resolve or create the session, schedule the pipeline as a background task, and answer `202 Accepted` with nothing but the session id. Progress arrives over the event stream.
-
-```
-{"session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"}
-```
-
-| Route | Minimum role | Notes |
-| --- | --- | --- |
-| `POST /api/v1/iac/generate` | `developer` | Generates, validates, and prepares IaC from a natural-language query. |
-| `POST /api/v1/iac/drift` | `devops` | Detects and remediates drift. `is_partial: true` scopes the round to the resources named in the query. |
-| `POST /api/v1/iac/apply` | `developer` | Applies the plan pinned by the session’s last successful generate round. No re-plan happens at apply time. |
-
-`generate` and `drift` share a request body. Exactly one of `repo_uri` (a first call, which opens a session) or `session_id` (an iteration call on an existing session) must be present; supplying both or neither is a validation error.
-
-| Field | First call | Meaning |
-| --- | --- | --- |
-| `q` | required | The user’s query for this call. At least one character. |
-| `repo_uri` | required | Git-cloneable repository URI. May carry a userinfo username (for example `https://org@dev.azure.com/…​`) but must not embed a password or token; an empty password (`user:@host`) is rejected too. |
-| `scope_id` | required | Cloud scope: Azure subscription id, GCP project id, AWS account id, OCI compartment OCID. Kubernetes has no cloud scope, so any stable identifier does. |
-| `terraform_providers` | required | Which cloud the operation targets. |
-| `iac_path` | optional | Repository-relative path to the IaC root, for example `environments/dev`. Defaults to the repository root. An absolute path or one containing a `..` segment is rejected. First call only — iteration calls inherit it from the session. |
-| `session_id` | omit | On an iteration call, the session to continue. Only `q` may accompany it; `iac_path` in particular is rejected. |
-| `is_partial` | optional | `drift` only, and not gated on which call it is — a first call carrying `repo_uri` may set it. Defaults to `false`. When true, `q` must be non-empty: a blank query is rejected with `Partial drift detection requires a non-empty `q`.` |
-
-`apply` takes only `session_id`, which is required.
-
-Failures on these three routes:
-
-- `400` — the repository URI was rejected as unreachable or not allowed.
-- `403` — the operation role is too low, or the caller is not the owner of the session named by `session_id`.
-- `404` — an iteration call referenced an unknown session.
-- `409` — `apply` only, and only when the session’s plan is locked: `Session <id> is blocked; apply is not allowed.`
-- `422` — the body failed the validation rules above.
-
-A `202` is a promise that a round was scheduled, not that it succeeded. If the session is already running, or already finished, the background runner cannot take the session lock and exits without starting — the `202` has already been sent. Everything after the `202` is visible only on the event stream and in the session detail.
-
-## Events
-
-Prefix `/v1/events`. One route.
-
-`GET /api/v1/events/subscribe/{session_id}` streams a session’s progress as Server-Sent Events. It requires a signed-in caller with read access to the session — the owner, or any user with a panel role.
-
-The response is `text/event-stream` with `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no`, the last of which stops the reverse proxy from buffering the stream. The first line is a `: keepalive` comment; every subsequent event is one JSON object:
-
-```
-data: {"status_msg": "GENERATING", "detail": {"message": "..."}}
-```
-
-`status_msg` is the session’s current status name. The message is sanitized by removing double quotes before it is embedded. The server polls the session’s status every five seconds and closes the stream when the status becomes `COMPLETED`, `UNCOMPLETED` (a rejected round), or `FAILED`, or when the configured iteration ceiling (`orchestration.max_session_events_iteration`) is reached. Reaching the ceiling closes the connection but preserves the session, so a client may reconnect.
-
-Both the token and session access are checked once, at connect time. An unknown session is `404`; no read access is `403`.
-
-The web application consumes this with `fetch` and a `ReadableStream` rather than `EventSource`, because `EventSource` cannot send an `Authorization` header. See [Follow a session](../../../guides/follow-a-session/).
-
-## Repository operations
-
-Prefix `/v1/repository`. Three routes, all requiring operation role `developer`.
-
-`PUT /api/v1/repository/pr` creates a pull request from the session’s working branch. The body is `{"session_id": "<uuid>"}`. The caller must own the session. On success the answer is `201` with the pull request:
-
-```
-{"id": 42, "url": "https://.../pull/42", "status": "active"}
-```
-
-`PUT /api/v1/repository/pr/merge` merges the session’s **most recently opened** pull request into the default branch at the git provider. The body is the same `{"session_id": "<uuid>"}`. The caller must own the session. Success is `204` with no content. A locked session is `409 Session <id> is blocked; PR merge is not allowed.`, an unknown session or a session with no pull requests is `404`.
-
-`POST /api/v1/repository/parse` clones a repository and returns the Terraform root-module directories it found, as POSIX paths relative to the repository root. The body is `{"repo_uri": "<uri>"}` and the same no-password-or-token rule applies. This route takes no session, so there is no ownership check — the wizard calls it as soon as a repository URL is entered.
-
-```
-{"roots": [".", "environments/dev", "environments/prod"]}
-```
-
-A URI that embeds a password or token is `422`, one that `git ls-remote` cannot reach is `400`, and a failed clone or scan is `502`. The detection rules behind the answer are in [Repository layout](../../repository-layout/).
-
-## Authentication
-
-Prefix `/v1/auth`. Two routes.
-
-`GET /api/v1/auth/config` is **the only public route under `/v1`**, deliberately so: the single-page application has to read it before it can log in at all. Outside `/v1`, the framework’s interactive documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` — is served without authentication as well. It returns the four non-secret OIDC settings, taken straight from `config.yaml`:
-
-```
-{
-  "issuer_url": "",
-  "client_id": "",
-  "audience": "",
-  "scope": "openid profile email",
-  "artifact_metadata_header_prefix": "x-amz-meta-"
-}
-```
-
-A blank `issuer_url` tells the browser that authentication is disabled and it should use the local development identity. See [Enable authentication](../../../guides/enable-authentication/).
-
-`artifact_metadata_header_prefix` is not configurable. It is derived from `storage.provider` — `x-amz-meta-` for S3 and RustFS, `x-ms-meta-` for an Azure storage account — and is how the browser knows which header names carry an artifact’s metadata when it reads one from a pre-signed URL. The core never reads that metadata itself, so this is the only way the client can learn it. See [Networking and TLS](../../../guides/production/networking-and-tls/) for the CORS rules that must expose those headers.
-
-`POST /api/v1/auth/authorize` asks whether the caller may operate on a cloud project. It requires a signed-in user and takes `cloud`, `project_name`, and `environment` in the body. It is the **only** place the core consults the authorization sidecar, forwarding the three values plus the caller’s e-mail (falling back to the token subject) to the sidecar’s `POST /v1/check`.
-
-```
-{
-  "result": true,
-  "message": "Authorized",
-  "portalUrl": "https://portal.azure.com/..."
-}
-```
-
-`result` is the sidecar’s `authorized` flag, `message` is its `reason` or a generated sentence, and `portalUrl` renames the sidecar’s `portal_url`. When the sidecar is disabled — the shipped default — the core answers authorized without calling anything. When it is enabled and unreachable the answer is `502` or `504`, and when it answers with a `4xx` or `5xx` the answer is `502`. It is never an allow. See [Authorization sidecar API](../authz/).
-
-## Users
-
-Prefix `/v1/users`. One route.
-
-`GET /api/v1/users/me` returns the authenticated caller’s identity and roles, and is what the browser calls to learn what to render:
-
-```
-{
-  "id": 1,
-  "email": "dev@kumoss.local",
-  "display_name": "Local Developer",
-  "operation_role": "devops",
-  "panel_role": "admin"
-}
-```
-
-`id` is the database primary key, not the token subject. `email` and `display_name` may be null. `panel_role` is null for a user with no admin-panel access.
-
-## Sessions
-
-Prefix `/v1/sessions`. Two routes, both open to any signed-in user.
-
-`GET /api/v1/sessions/list` returns a page of session summaries. The list is **always** scoped to the caller’s own sessions — there is no parameter that widens it.
-
-| Parameter | Default | Meaning |
-| --- | --- | --- |
-| `page` | `1` | One-based page number, minimum 1. |
-| `page_size` | `20` | Items per page, 1 to 100. |
-| `operation` | none | Filter by operation type. |
-| `status` | none | Filter by the session’s **most recent** status. |
-| `search` | none | Partial match on the first query, the workspace URI, or the session id. Up to 200 characters. |
-
-The envelope carries `items`, `total`, `page`, `page_size`, and `total_pages`. Each item resolves server-side everything the list view renders: `uuid`, `username`, `operation`, `provider`, `first_query`, `workspace` (URI, branch, root path), `current_status`, the `in_flight` and `is_blocked` flags, and the timestamps. `username` is the owning user’s e-mail, or `user-<id>` when the user has none; the name is historical, and it is a response field only — there is no `username` query parameter.
-
-`GET /api/v1/sessions?id={session_id}` returns the full session aggregate: the summary fields, its `scope_id`, and one entry in `rounds` per generation round. Each round carries its own statuses, its `reports`, `compliance_checks`, `plans`, and `code_changes` artifacts as client-fetchable URLs, oldest first, and its `pull_requests`. Each `compliance_checks` entry also carries the audit’s `passed` verdict; the list is empty when the round was not audited.
-
-Pass `include_history=true` to also populate `history` with the session’s conversation turns. That variant always reads fresh from the database, so status polling should stay on the default. The caller must be the owner or hold a panel role; an unknown session is `404`.
-
-## Admin
-
-Prefix `/v1/admin`. Five routes. The whole router requires a panel role, so `viewer` is the floor for every route in it; three routes raise the floor further.
-
-| Route | Panel role | Returns |
-| --- | --- | --- |
-| `GET /api/v1/admin/sessions/list` | `viewer` | A page of session summaries across all users. |
-| `GET /api/v1/admin/sessions?id={session_id}` | `viewer` | Any session’s full aggregate. |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | `editor` | The session’s new lock state. |
-| `GET /api/v1/admin/users` | `admin` | A page of users with their roles. |
-| `PUT /api/v1/admin/users/{user_id}/roles` | `admin` | The updated user. |
-
-`GET /api/v1/admin/sessions/list` takes the same `page`, `page_size`, `operation`, `status`, and `search` parameters as the caller-scoped list, plus `user_email`, which partial-matches the owning user’s e-mail and accepts up to 254 characters. The response envelope is identical.
-
-`GET /api/v1/admin/sessions?id={session_id}` is the unrestricted counterpart of the session detail route: same `include_history` parameter, same response, but no ownership check beyond the panel role. An unknown session is `404`.
-
-`PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` takes `{"locked": true}` or `{"locked": false}` and answers with the resulting state. `true` blocks both apply and pull-request merge on that session; `false` releases them. An unknown session is `404`.
-
-```
-{"uuid": "917d0485-a0a2-4c34-8f33-a89d28aba9b0", "is_blocked": true}
-```
-
-`GET /api/v1/admin/users` takes `page`, `page_size`, and a `search` that partial-matches e-mail or display name, up to 254 characters. Each item extends the `/users/me` shape with the `issuer`, the `subject`, and `created_at`.
-
-`PUT /api/v1/admin/users/{user_id}/roles` is a **full-state** assignment, not a patch: the body is `{"operation_role": "devops", "panel_role": "editor"}` and whatever it omits is cleared. `panel_role` is optional and setting it to null removes all admin-panel access. `user_id` is the database primary key. An unknown user is `404`. One case is refused outright: a panel admin removing their own `admin` role is `409 A panel admin cannot remove their own admin role.`
-
-Note what is **not** here. There is no route to delete a user or a session, and a panel role never grants the right to act on another user’s session — continuing it, opening or merging its pull request, and applying it all remain owner-only.
-
-## Mapping
-
-Prefix `/v1/mapping`. One route, open to any signed-in user.
-
-`POST /api/v1/mapping/resolve` is a passthrough to the mapping sidecar. It takes `identifier` (required) plus an optional `terraform_provider` the caller already knows, and returns what the mapper knows about that identifier:
-
-```
-{
-  "repo_url": "https://github.com/me/my-iac.git",
-  "identifier": "https://github.com/me/my-iac.git",
-  "terraform_provider": null,
-  "scope_id": null
-}
-```
-
-Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are the mapper’s best effort, and `null` means "unknown, ask the user" — never "there is none". The wizard skips its provider and scope questions for whichever of them comes back non-null. A body with extra keys is `422`; a sidecar that times out is `504`, and one that is unreachable, answers off-contract, or names a provider outside the enum is `502`.
-
-The sidecar is not reachable from the browser; this route is how the web application gets at it. When mapping is disabled in the system configuration the core’s client answers with an identity passthrough, so a default deployment works without a configured mapper. See [Mapping sidecar API](../mapping/).
-
-## Notifications
-
-Prefix `/v1/notifications`. One route, open to any signed-in user.
-
-`POST /api/v1/notifications` submits a user-originated notification — today, the support request typed into the web application’s header — and the core relays it to the notifications sidecar. The body mirrors the sidecar contract’s `NotificationRequest` with one deliberate difference: it has **no** `audience` field. The core derives the audience server-side from the caller and the users store, so the browser cannot choose recipients. Unknown fields are rejected.
-
-| Field | Required | Constraint |
-| --- | --- | --- |
-| `kind` | yes | Event category, dotted lowercase, for example `support.user_question`. 1 to 128 characters. |
-| `severity` | yes | One of `info`, `warning`, `error`, `critical`. |
-| `subject` | yes | 1 to 256 characters. |
-| `body` | yes | 1 to 16384 characters. |
-| `links` | no | Up to 32 objects, each `{"label": …​, "url": …​}` with a label of 1 to 128 characters and an absolute HTTP URL of up to 2048 characters. |
-| `context` | no | Free-form object. |
-
-Success is `202` with the sidecar’s delivery id:
-
-```
-{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
-```
-
-Unlike the pipeline’s own best-effort notifications, this route tells the caller when nothing was delivered: `502 Notification was not delivered.` if the sidecar did not accept it, and `503 Notifications are disabled.` if the sidecar is switched off in the configuration.
-
-## Next steps
-
-- [Roles and permissions](../../roles-and-permissions/) for the complete permission matrix behind the role columns above.
-- [HTTP APIs](../) for the sidecar contracts the core calls.
-- [Make a request](../../../guides/make-a-request/) for the same flow from the web application.
-
----
-
 # IaC sidecar API
 
 Source: /stable/main/reference/api/iac/
@@ -17927,3 +17655,275 @@ The bundled implementation has its own unit test suite, separate from this one; 
 - [Configure state backends](../../../guides/configure-state-backends/) for the three ways state can be pinned.
 - [Terraform providers](../../terraform-providers/) for the credential variables each cloud needs.
 - [Deploy to production](../../../guides/deploy-to-production/#iac-mandatory) for why a production deployment should implement this contract rather than harden the bundled image.
+
+---
+
+# Core API
+
+Source: /stable/main/reference/api/core/
+
+The core exposes 19 routes across nine routers in `core/src/api/v1/`. This page is derived from those routers, which are the only source of truth: the core has no hand-written specification.
+
+Every router is mounted under `/v1` on an application created with `root_path="/api"`, so the reverse proxy publishes the routes as `/api/v1/…​`. Paths below are written with that prefix.
+
+## The authentication rule
+
+**Authentication is a per-route dependency, not middleware.** Every route under `/v1` except `GET /v1/auth/config` declares the authentication dependency, or one of the two role wrappers built on it. A router added without one of these is public.
+
+The dependency behaves in one of two ways:
+
+- **Blank `oidc.issuer_url`** (the checked-in default) — authentication is disabled. Every request resolves to a fixed local development identity, provisioned as a real row in the users table with the top role of both groups.
+- **`oidc.issuer_url` set** — the dependency requires an `Authorization: Bearer <jwt>`, validates it against the issuer’s JWKS, and maps the `(issuer, subject)` pair to a users row, creating it on first sight. A missing or invalid token is `401` with a `WWW-Authenticate: Bearer` challenge.
+
+Two independent role groups gate the routes, and both live in the core database:
+
+- The **operation role** (`developer` < `devops`) gates Infrastructure as Code work. Falling short is `403 Requires operation role '<role>' or higher`.
+- The **panel role** (`viewer` < `editor` < `admin`, nullable) gates `/v1/admin/*`. Falling short is `403 Requires admin-panel role '<role>' or higher`.
+
+Beyond the role check, a per-session access check applies: the owner may always read and write; a non-owner with any panel role may read only; everyone else receives `403 Not the session owner`. See [Roles and permissions](../../roles-and-permissions/) for the full matrix.
+
+The whole surface is summarized here and then described router by router.
+
+| Route | Requires | Returns |
+| --- | --- | --- |
+| `GET /api/v1/auth/config` | nothing (public) | `200` OIDC settings |
+| `POST /api/v1/auth/authorize` | any signed-in user | `200` decision |
+| `GET /api/v1/users/me` | any signed-in user | `200` identity and roles |
+| `POST /api/v1/iac/generate` | operation `developer` | `202` session id |
+| `POST /api/v1/iac/drift` | operation `devops` | `202` session id |
+| `POST /api/v1/iac/apply` | operation `developer` | `202` session id |
+| `GET /api/v1/events/subscribe/{session_id}` | read access to the session | `200` event stream |
+| `PUT /api/v1/repository/pr` | operation `developer`, owner | `201` pull request |
+| `PUT /api/v1/repository/pr/merge` | operation `developer`, owner | `204` no content |
+| `POST /api/v1/repository/parse` | operation `developer` | `200` Terraform roots |
+| `GET /api/v1/sessions/list` | any signed-in user | `200` page of summaries |
+| `GET /api/v1/sessions?id={session_id}` | read access to the session | `200` session aggregate |
+| `GET /api/v1/admin/sessions/list` | panel `viewer` | `200` page of summaries |
+| `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` | `200` session aggregate |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` | `200` lock state |
+| `GET /api/v1/admin/users` | panel `admin` | `200` page of users |
+| `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` | `200` updated user |
+| `POST /api/v1/mapping/resolve` | any signed-in user | `200` repository reference |
+| `POST /api/v1/notifications` | any signed-in user | `202` delivery id |
+
+## Infrastructure as Code
+
+Prefix `/v1/iac`. Three routes, one per operation. All three are **asynchronous**: they validate the request, resolve or create the session, schedule the pipeline as a background task, and answer `202 Accepted` with nothing but the session id. Progress arrives over the event stream.
+
+```
+{"session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"}
+```
+
+| Route | Minimum role | Notes |
+| --- | --- | --- |
+| `POST /api/v1/iac/generate` | `developer` | Generates, validates, and prepares IaC from a natural-language query. |
+| `POST /api/v1/iac/drift` | `devops` | Detects and remediates drift. `is_partial: true` scopes the round to the resources named in the query. |
+| `POST /api/v1/iac/apply` | `developer` | Applies the plan pinned by the session’s last successful generate round. No re-plan happens at apply time. |
+
+`generate` and `drift` share a request body. Exactly one of `repo_uri` (a first call, which opens a session) or `session_id` (an iteration call on an existing session) must be present; supplying both or neither is a validation error.
+
+| Field | First call | Meaning |
+| --- | --- | --- |
+| `q` | required | The user’s query for this call. At least one character. |
+| `repo_uri` | required | Git-cloneable repository URI. May carry a userinfo username (for example `https://org@dev.azure.com/…​`) but must not embed a password or token; an empty password (`user:@host`) is rejected too. |
+| `scope_id` | required | Cloud scope: Azure subscription id, GCP project id, AWS account id, OCI compartment OCID. Kubernetes has no cloud scope, so any stable identifier does. |
+| `terraform_providers` | required | Which cloud the operation targets. |
+| `iac_path` | optional | Repository-relative path to the IaC root, for example `environments/dev`. Defaults to the repository root. An absolute path or one containing a `..` segment is rejected. First call only — iteration calls inherit it from the session. |
+| `session_id` | omit | On an iteration call, the session to continue. Only `q` may accompany it; `iac_path` in particular is rejected. |
+| `is_partial` | optional | `drift` only, and not gated on which call it is — a first call carrying `repo_uri` may set it. Defaults to `false`. When true, `q` must be non-empty: a blank query is rejected with `Partial drift detection requires a non-empty `q`.` |
+
+`apply` takes only `session_id`, which is required.
+
+Failures on these three routes:
+
+- `400` — the repository URI was rejected as unreachable or not allowed.
+- `403` — the operation role is too low, or the caller is not the owner of the session named by `session_id`.
+- `404` — an iteration call referenced an unknown session.
+- `409` — `apply` only, and only when the session’s plan is locked: `Session <id> is blocked; apply is not allowed.`
+- `422` — the body failed the validation rules above.
+
+A `202` is a promise that a round was scheduled, not that it succeeded. If the session is already running, or already finished, the background runner cannot take the session lock and exits without starting — the `202` has already been sent. Everything after the `202` is visible only on the event stream and in the session detail.
+
+## Events
+
+Prefix `/v1/events`. One route.
+
+`GET /api/v1/events/subscribe/{session_id}` streams a session’s progress as Server-Sent Events. It requires a signed-in caller with read access to the session — the owner, or any user with a panel role.
+
+The response is `text/event-stream` with `Cache-Control: no-cache`, `Connection: keep-alive`, and `X-Accel-Buffering: no`, the last of which stops the reverse proxy from buffering the stream. The first line is a `: keepalive` comment; every subsequent event is one JSON object:
+
+```
+data: {"status_msg": "GENERATING", "detail": {"message": "..."}}
+```
+
+`status_msg` is the session’s current status name. The message is sanitized by removing double quotes before it is embedded. The server polls the session’s status every five seconds and closes the stream when the status becomes `COMPLETED`, `UNCOMPLETED` (a rejected round), or `FAILED`, or when the configured iteration ceiling (`orchestration.max_session_events_iteration`) is reached. Reaching the ceiling closes the connection but preserves the session, so a client may reconnect.
+
+Both the token and session access are checked once, at connect time. An unknown session is `404`; no read access is `403`.
+
+The web application consumes this with `fetch` and a `ReadableStream` rather than `EventSource`, because `EventSource` cannot send an `Authorization` header. See [Follow a session](../../../guides/follow-a-session/).
+
+## Repository operations
+
+Prefix `/v1/repository`. Three routes, all requiring operation role `developer`.
+
+`PUT /api/v1/repository/pr` creates a pull request from the session’s working branch. The body is `{"session_id": "<uuid>"}`. The caller must own the session. On success the answer is `201` with the pull request:
+
+```
+{"id": 42, "url": "https://.../pull/42", "status": "active"}
+```
+
+`PUT /api/v1/repository/pr/merge` merges the session’s **most recently opened** pull request into the default branch at the git provider. The body is the same `{"session_id": "<uuid>"}`. The caller must own the session. Success is `204` with no content. A locked session is `409 Session <id> is blocked; PR merge is not allowed.`, an unknown session or a session with no pull requests is `404`.
+
+`POST /api/v1/repository/parse` clones a repository and returns the Terraform root-module directories it found, as POSIX paths relative to the repository root. The body is `{"repo_uri": "<uri>"}` and the same no-password-or-token rule applies. This route takes no session, so there is no ownership check — the wizard calls it as soon as a repository URL is entered.
+
+```
+{"roots": [".", "environments/dev", "environments/prod"]}
+```
+
+A URI that embeds a password or token is `422`, one that `git ls-remote` cannot reach is `400`, and a failed clone or scan is `502`. The detection rules behind the answer are in [Repository layout](../../repository-layout/).
+
+## Authentication
+
+Prefix `/v1/auth`. Two routes.
+
+`GET /api/v1/auth/config` is **the only public route under `/v1`**, deliberately so: the single-page application has to read it before it can log in at all. Outside `/v1`, the framework’s interactive documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` — is served without authentication as well. It returns the four non-secret OIDC settings, taken straight from `config.yaml`:
+
+```
+{
+  "issuer_url": "",
+  "client_id": "",
+  "audience": "",
+  "scope": "openid profile email",
+  "artifact_metadata_header_prefix": "x-amz-meta-"
+}
+```
+
+A blank `issuer_url` tells the browser that authentication is disabled and it should use the local development identity. See [Enable authentication](../../../guides/enable-authentication/).
+
+`artifact_metadata_header_prefix` is not configurable. It is derived from `storage.provider` — `x-amz-meta-` for S3 and RustFS, `x-ms-meta-` for an Azure storage account — and is how the browser knows which header names carry an artifact’s metadata when it reads one from a pre-signed URL. The core never reads that metadata itself, so this is the only way the client can learn it. See [Networking and TLS](../../../guides/production/networking-and-tls/) for the CORS rules that must expose those headers.
+
+`POST /api/v1/auth/authorize` asks whether the caller may operate on a cloud project. It requires a signed-in user and takes `cloud`, `project_name`, and `environment` in the body. It is the **only** place the core consults the authorization sidecar, forwarding the three values plus the caller’s e-mail (falling back to the token subject) to the sidecar’s `POST /v1/check`.
+
+```
+{
+  "result": true,
+  "message": "Authorized",
+  "portalUrl": "https://portal.azure.com/..."
+}
+```
+
+`result` is the sidecar’s `authorized` flag, `message` is its `reason` or a generated sentence, and `portalUrl` renames the sidecar’s `portal_url`. When the sidecar is disabled — the shipped default — the core answers authorized without calling anything. When it is enabled and unreachable the answer is `502` or `504`, and when it answers with a `4xx` or `5xx` the answer is `502`. It is never an allow. See [Authorization sidecar API](../authz/).
+
+## Users
+
+Prefix `/v1/users`. One route.
+
+`GET /api/v1/users/me` returns the authenticated caller’s identity and roles, and is what the browser calls to learn what to render:
+
+```
+{
+  "id": 1,
+  "email": "dev@kumoss.local",
+  "display_name": "Local Developer",
+  "operation_role": "devops",
+  "panel_role": "admin"
+}
+```
+
+`id` is the database primary key, not the token subject. `email` and `display_name` may be null. `panel_role` is null for a user with no admin-panel access.
+
+## Sessions
+
+Prefix `/v1/sessions`. Two routes, both open to any signed-in user.
+
+`GET /api/v1/sessions/list` returns a page of session summaries. The list is **always** scoped to the caller’s own sessions — there is no parameter that widens it.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `page` | `1` | One-based page number, minimum 1. |
+| `page_size` | `20` | Items per page, 1 to 100. |
+| `operation` | none | Filter by operation type. |
+| `status` | none | Filter by the session’s **most recent** status. |
+| `search` | none | Partial match on the first query, the workspace URI, or the session id. Up to 200 characters. |
+
+The envelope carries `items`, `total`, `page`, `page_size`, and `total_pages`. Each item resolves server-side everything the list view renders: `uuid`, `username`, `operation`, `provider`, `first_query`, `workspace` (URI, branch, root path), `current_status`, the `in_flight` and `is_blocked` flags, and the timestamps. `username` is the owning user’s e-mail, or `user-<id>` when the user has none; the name is historical, and it is a response field only — there is no `username` query parameter.
+
+`GET /api/v1/sessions?id={session_id}` returns the full session aggregate: the summary fields, its `scope_id`, and one entry in `rounds` per generation round. Each round carries its own statuses, its `reports`, `compliance_checks`, `plans`, and `code_changes` artifacts as client-fetchable URLs, oldest first, and its `pull_requests`. Each `compliance_checks` entry also carries the audit’s `passed` verdict; the list is empty when the round was not audited.
+
+Pass `include_history=true` to also populate `history` with the session’s conversation turns. That variant always reads fresh from the database, so status polling should stay on the default. The caller must be the owner or hold a panel role; an unknown session is `404`.
+
+## Admin
+
+Prefix `/v1/admin`. Five routes. The whole router requires a panel role, so `viewer` is the floor for every route in it; three routes raise the floor further.
+
+| Route | Panel role | Returns |
+| --- | --- | --- |
+| `GET /api/v1/admin/sessions/list` | `viewer` | A page of session summaries across all users. |
+| `GET /api/v1/admin/sessions?id={session_id}` | `viewer` | Any session’s full aggregate. |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | `editor` | The session’s new lock state. |
+| `GET /api/v1/admin/users` | `admin` | A page of users with their roles. |
+| `PUT /api/v1/admin/users/{user_id}/roles` | `admin` | The updated user. |
+
+`GET /api/v1/admin/sessions/list` takes the same `page`, `page_size`, `operation`, `status`, and `search` parameters as the caller-scoped list, plus `user_email`, which partial-matches the owning user’s e-mail and accepts up to 254 characters. The response envelope is identical.
+
+`GET /api/v1/admin/sessions?id={session_id}` is the unrestricted counterpart of the session detail route: same `include_history` parameter, same response, but no ownership check beyond the panel role. An unknown session is `404`.
+
+`PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` takes `{"locked": true}` or `{"locked": false}` and answers with the resulting state. `true` blocks both apply and pull-request merge on that session; `false` releases them. An unknown session is `404`.
+
+```
+{"uuid": "917d0485-a0a2-4c34-8f33-a89d28aba9b0", "is_blocked": true}
+```
+
+`GET /api/v1/admin/users` takes `page`, `page_size`, and a `search` that partial-matches e-mail or display name, up to 254 characters. Each item extends the `/users/me` shape with the `issuer`, the `subject`, and `created_at`.
+
+`PUT /api/v1/admin/users/{user_id}/roles` is a **full-state** assignment, not a patch: the body is `{"operation_role": "devops", "panel_role": "editor"}` and whatever it omits is cleared. `panel_role` is optional and setting it to null removes all admin-panel access. `user_id` is the database primary key. An unknown user is `404`. One case is refused outright: a panel admin removing their own `admin` role is `409 A panel admin cannot remove their own admin role.`
+
+Note what is **not** here. There is no route to delete a user or a session, and a panel role never grants the right to act on another user’s session — continuing it, opening or merging its pull request, and applying it all remain owner-only.
+
+## Mapping
+
+Prefix `/v1/mapping`. One route, open to any signed-in user.
+
+`POST /api/v1/mapping/resolve` is a passthrough to the mapping sidecar. It takes `identifier` (required) plus an optional `terraform_provider` the caller already knows, and returns what the mapper knows about that identifier:
+
+```
+{
+  "repo_url": "https://github.com/me/my-iac.git",
+  "identifier": "https://github.com/me/my-iac.git",
+  "terraform_provider": null,
+  "scope_id": null
+}
+```
+
+Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are the mapper’s best effort, and `null` means "unknown, ask the user" — never "there is none". The wizard skips its provider and scope questions for whichever of them comes back non-null. A body with extra keys is `422`; a sidecar that times out is `504`, and one that is unreachable, answers off-contract, or names a provider outside the enum is `502`.
+
+The sidecar is not reachable from the browser; this route is how the web application gets at it. When mapping is disabled in the system configuration the core’s client answers with an identity passthrough, so a default deployment works without a configured mapper. See [Mapping sidecar API](../mapping/).
+
+## Notifications
+
+Prefix `/v1/notifications`. One route, open to any signed-in user.
+
+`POST /api/v1/notifications` submits a user-originated notification — today, the support request typed into the web application’s header — and the core relays it to the notifications sidecar. The body mirrors the sidecar contract’s `NotificationRequest` with one deliberate difference: it has **no** `audience` field. The core derives the audience server-side from the caller and the users store, so the browser cannot choose recipients. Unknown fields are rejected.
+
+| Field | Required | Constraint |
+| --- | --- | --- |
+| `kind` | yes | Event category, dotted lowercase, for example `support.user_question`. 1 to 128 characters. |
+| `severity` | yes | One of `info`, `warning`, `error`, `critical`. |
+| `subject` | yes | 1 to 256 characters. |
+| `body` | yes | 1 to 16384 characters. |
+| `links` | no | Up to 32 objects, each `{"label": …​, "url": …​}` with a label of 1 to 128 characters and an absolute HTTP URL of up to 2048 characters. |
+| `context` | no | Free-form object. |
+
+Success is `202` with the sidecar’s delivery id:
+
+```
+{"delivery_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"}
+```
+
+Unlike the pipeline’s own best-effort notifications, this route tells the caller when nothing was delivered: `502 Notification was not delivered.` if the sidecar did not accept it, and `503 Notifications are disabled.` if the sidecar is switched off in the configuration.
+
+## Next steps
+
+- [Roles and permissions](../../roles-and-permissions/) for the complete permission matrix behind the role columns above.
+- [HTTP APIs](../) for the sidecar contracts the core calls.
+- [Make a request](../../../guides/make-a-request/) for the same flow from the web application.

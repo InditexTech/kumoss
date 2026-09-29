@@ -65,20 +65,20 @@
 - [Development](/stable/main/guides/development/): Contribute to Kumoss: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 - [Enable authentication](/stable/main/guides/enable-authentication/): Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
 - [Follow a session](/stable/main/guides/follow-a-session/): Track a Kumoss session's progress and read the results it produces.
-- [Import infrastructure](/stable/main/guides/import-infrastructure/): Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
+- [Generate infrastructure](/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
 - [Database schema](/stable/main/reference/database-schema/): The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
 - [Operating modes](/stable/main/reference/operating-modes/): What each Kumoss operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
 - [Repository layout](/stable/main/reference/repository-layout/): How Kumoss finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
-- [Generate infrastructure](/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
-- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Kumoss commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
+- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+- [Import infrastructure](/stable/main/guides/import-infrastructure/): Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
 - [Make a request](/stable/main/guides/make-a-request/): Open a Kumoss session and phrase a request that the filter accepts.
-- [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [Merge and apply](/stable/main/guides/merge-and-apply/): Handle a locked session, then open, merge, and apply a Kumoss pull request.
+- [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [Remediate drift](/stable/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
-- [Terraform providers](/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
-- [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
 - [LLM providers and models](/stable/main/reference/llm-providers/): How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
+- [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+- [Terraform providers](/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
 - [Configure state backends](/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.
 - [Configuration](/stable/main/reference/configuration/): Every `config.yaml` field: type, default, validation rule, and effect.
 - [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.
@@ -94,5 +94,5 @@
 - [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
 - [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
 - [Notifications sidecar API](/stable/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
-- [Core API](/stable/main/reference/api/core/): Every route the Kumoss core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 - [IaC sidecar API](/stable/main/reference/api/iac/): The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
+- [Core API](/stable/main/reference/api/core/): Every route the Kumoss core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
