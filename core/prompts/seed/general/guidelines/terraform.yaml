@@ -7,7 +7,7 @@ body: |
   # General Terraform Guidelines
 
   These conventions apply regardless of cloud provider. They establish a
-  predictable shape for every module Nebula generates.
+  predictable shape for every module Kumoss generates.
 
   ## File layout
   - `main.tf` — primary resource definitions for the module.

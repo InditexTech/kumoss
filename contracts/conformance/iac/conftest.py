@@ -5,9 +5,9 @@
 """Pytest configuration for the IaC conformance suite.
 
 Implementation-agnostic: pass `--service-url=<base-url>` (or set
-NEBULA_IAC_URL) and the tests fuzz that URL against the contract.
+KUMOSS_IAC_URL) and the tests fuzz that URL against the contract.
 A bearer token can be supplied via `--service-token` /
-NEBULA_IAC_TOKEN if the implementation enforces auth.
+KUMOSS_IAC_TOKEN if the implementation enforces auth.
 """
 
 from __future__ import annotations
@@ -20,12 +20,12 @@ import pytest
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--service-url",
-        default=os.environ.get("NEBULA_IAC_URL"),
-        help="Base URL of the IaC service to test (or set NEBULA_IAC_URL).",
+        default=os.environ.get("KUMOSS_IAC_URL"),
+        help="Base URL of the IaC service to test (or set KUMOSS_IAC_URL).",
     )
     parser.addoption(
         "--service-token",
-        default=os.environ.get("NEBULA_IAC_TOKEN", ""),
+        default=os.environ.get("KUMOSS_IAC_TOKEN", ""),
         help="Bearer token to include on requests, if the service requires auth.",
     )
 
@@ -35,7 +35,7 @@ def service_url(pytestconfig: pytest.Config) -> str:
     url = pytestconfig.getoption("--service-url")
     if not url:
         raise pytest.UsageError(
-            "--service-url is required (or set NEBULA_IAC_URL). "
+            "--service-url is required (or set KUMOSS_IAC_URL). "
             "Point it at the implementation you want to verify."
         )
     return url

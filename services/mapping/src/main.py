@@ -30,7 +30,7 @@ config = Config.from_env()
 
 
 app = FastAPI(
-    title="Nebula Mapping Service",
+    title="Kumoss Mapping Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/mapping.v1.yaml.",
 )

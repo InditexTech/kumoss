@@ -18,9 +18,9 @@ from src.shared.constants import OperationRole, PanelRole
 # issuer_url). Resolved into a real users row so session FKs and the
 # admin panel work in local dev; always elevated to the top roles.
 _DEV_CLAIMS = TokenClaims(
-    issuer="urn:nebula:dev",
+    issuer="urn:kumoss:dev",
     subject="dev",
-    email="dev@nebula.local",
+    email="dev@kumoss.local",
     name="Local Developer",
     email_verified=True,
 )

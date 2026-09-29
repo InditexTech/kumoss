@@ -222,7 +222,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/apply-x",
+                    branch_name="Kumoss/apply-x",
                     query="seed",
                     iac_path="",
                 )
@@ -263,7 +263,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/apply-blocked",
+                    branch_name="Kumoss/apply-blocked",
                     query="seed",
                     iac_path="",
                 )
@@ -335,7 +335,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/x",
+                    branch_name="Kumoss/x",
                     query="seed",
                     iac_path="",
                 )

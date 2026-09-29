@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A client library for accessing Nebula Notifications Service"""
+"""A client library for accessing Kumoss Notifications Service"""
 
 from .client import AuthenticatedClient, Client
 

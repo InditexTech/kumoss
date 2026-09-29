@@ -4,12 +4,12 @@
 
 FROM python:3.13-slim AS base
 
-ARG NEBULA_UID=10001
-ARG NEBULA_GID=10001
-RUN groupadd --gid "${NEBULA_GID}" nebula \
-    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
-        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
-    && mkdir -p /data && chown nebula:nebula /data
+ARG KUMOSS_UID=10001
+ARG KUMOSS_GID=10001
+RUN groupadd --gid "${KUMOSS_GID}" kumoss \
+    && useradd --uid "${KUMOSS_UID}" --gid "${KUMOSS_GID}" \
+        --create-home --home-dir /home/kumoss --shell /usr/sbin/nologin kumoss \
+    && mkdir -p /data && chown kumoss:kumoss /data
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -25,9 +25,9 @@ COPY services/authz/pyproject.toml services/authz/uv.lock ./
 
 RUN uv sync --frozen --no-default-groups
 
-COPY --chown=nebula:nebula services/authz/src ./src
+COPY --chown=kumoss:kumoss services/authz/src ./src
 
-USER ${NEBULA_UID}:${NEBULA_GID}
+USER ${KUMOSS_UID}:${KUMOSS_GID}
 
 EXPOSE 8083
 

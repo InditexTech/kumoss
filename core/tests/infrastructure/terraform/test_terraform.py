@@ -53,7 +53,7 @@ from src.shared.exceptions import ExceptionHandler
 SESSION_PLAN_FILENAME = "session.plan"
 
 # Truthy so __ensure_init lands the backend in the workspace before init.
-STATE_BUCKET = "nebula-state"
+STATE_BUCKET = "kumoss-state"
 
 SCOPE_ID = "sub-uuid-1234"
 TERRAFORM_PROVIDER = TerraformProvider.AZURE

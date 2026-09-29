@@ -18,7 +18,7 @@ const makeFakeSession = (id: string): SessionSummary => ({
   first_query: "create a resource group",
   workspace: {
     uri: "https://repo.example.com",
-    branch: "nebula/sess",
+    branch: "kumoss/sess",
     root_path: null,
   },
   current_status: "completed",

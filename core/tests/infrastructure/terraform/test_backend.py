@@ -4,7 +4,7 @@
 
 """Unit tests for the Terraform state backend the core writes.
 
-Nebula's own object store holds the state, so the override rendered
+Kumoss's own object store holds the state, so the override rendered
 into each workspace follows ``storage.provider``: the ``s3`` backend
 against a custom endpoint for RUSTFS, plain ``s3`` for AWS, ``azurerm``
 for a storage account. These cover the three renderings, the static
@@ -28,7 +28,7 @@ from src.shared.constants import ObjectStorageProvider
 
 
 PROJECT_ID = "a" * 64
-STATE_BUCKET = "nebula-terraform-state"
+STATE_BUCKET = "kumoss-terraform-state"
 
 _AK_ENV = "TEST_BACKEND_ACCESS_KEY"
 _SK_ENV = "TEST_BACKEND_SECRET_KEY"
@@ -68,8 +68,8 @@ def _azure_config(**overrides) -> StorageConfig:
             **{
                 "provider": ObjectStorageProvider.STORAGE_ACCOUNT,
                 "terraform_state_bucket": "tfstate",
-                "endpoint_url": "https://nebulaacct.blob.core.windows.net",
-                "public_endpoint_url": "https://nebulaacct.blob.core.windows.net",
+                "endpoint_url": "https://kumossacct.blob.core.windows.net",
+                "public_endpoint_url": "https://kumossacct.blob.core.windows.net",
                 "account_key_env": _ACCOUNT_KEY_ENV,
                 **overrides,
             }
@@ -147,7 +147,7 @@ class TestS3Rendering(unittest.TestCase):
         """A deployment on an instance profile or IRSA configures no
         keys; the backend then resolves them the way the AWS SDK does."""
         rendered = self._render({})
-        self.assertIn('bucket = "nebula-terraform-state"', rendered)
+        self.assertIn('bucket = "kumoss-terraform-state"', rendered)
         self.assertNotIn("access_key", rendered)
         self.assertNotIn("secret_key", rendered)
 
@@ -157,7 +157,7 @@ class TestStorageAccountRendering(unittest.TestCase):
         with patch.dict(os.environ, {_ACCOUNT_KEY_ENV: "azure-key"}):
             rendered = TerraformBackend(PROJECT_ID, _azure_config()).render() or ""
         self.assertIn('backend "azurerm"', rendered)
-        self.assertIn('storage_account_name = "nebulaacct"', rendered)
+        self.assertIn('storage_account_name = "kumossacct"', rendered)
         self.assertIn('container_name       = "tfstate"', rendered)
         self.assertIn(
             f'key                  = "{PROJECT_ID}/terraform.tfstate"', rendered

@@ -678,7 +678,7 @@ describe("buildSessionPatch", () => {
       first_query: "deploy a VM",
       workspace: {
         uri: "https://dev.azure.com/org/project/_git/repo",
-        branch: "nebula/sess-1",
+        branch: "kumoss/sess-1",
         root_path: "environments/dev",
       },
       is_blocked: true,

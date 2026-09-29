@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP actions Nebula must never generate (security and cost guardrails).
+description: GCP actions Kumoss must never generate (security and cost guardrails).
 body: |
   # STRICTLY FORBIDDEN GCP ACTIONS
 

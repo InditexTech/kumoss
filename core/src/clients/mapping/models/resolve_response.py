@@ -19,7 +19,7 @@ T = TypeVar("T", bound="ResolveResponse")
 class ResolveResponse:
     """
     Attributes:
-        repo_url (str): URL Nebula should clone. Free-form because git accepts many
+        repo_url (str): URL Kumoss should clone. Free-form because git accepts many
             URL shapes (https://, ssh+git://, git@host:path, file://,
             absolute paths). Implementations are responsible for returning
             something the deployment's git client can clone. When the

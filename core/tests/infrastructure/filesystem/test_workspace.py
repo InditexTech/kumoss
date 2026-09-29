@@ -121,33 +121,33 @@ class TestSetupCallDir(_WorkspaceBase):
     async def test_first_call_clones_and_pushes_the_branch(self):
         sid = uuid4()
         path = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/feat-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/feat-x"
         )
         self.assertTrue(path.is_dir())
         self.assertTrue((path / ".git").is_dir())
         self.assertTrue((path / "README.md").is_file())
         self.assertEqual(path.parent, self.workspaces / str(sid))
-        self.assertEqual(_current_branch(path), "Nebula/feat-x")
+        self.assertEqual(_current_branch(path), "Kumoss/feat-x")
         out = subprocess.check_output(
-            ["git", "ls-remote", "--heads", self.uri, "Nebula/feat-x"]
+            ["git", "ls-remote", "--heads", self.uri, "Kumoss/feat-x"]
         ).decode()
-        self.assertIn("Nebula/feat-x", out)
+        self.assertIn("Kumoss/feat-x", out)
 
     async def test_iteration_call_clones_existing_branch(self):
         sid = uuid4()
         first = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/iter-x"
         )
         _commit_file(first, "new.txt")
         subprocess.check_call(
-            ["git", "-C", str(first), "push", "origin", "Nebula/iter-x"]
+            ["git", "-C", str(first), "push", "origin", "Kumoss/iter-x"]
         )
 
         second = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/iter-x"
         )
         self.assertNotEqual(first, second)
-        self.assertEqual(_current_branch(second), "Nebula/iter-x")
+        self.assertEqual(_current_branch(second), "Kumoss/iter-x")
         self.assertTrue((second / "new.txt").is_file())
 
 
@@ -161,7 +161,7 @@ class TestTerraformGitignore(_WorkspaceBase):
         return await self.svc.setup_call_dir(
             session_id=uuid4(),
             repo_uri=_init_bare_remote(remote, files),
-            branch="Nebula/ignores",
+            branch="Kumoss/ignores",
         )
 
     async def test_writes_the_template_when_the_repo_has_none(self):
@@ -182,7 +182,7 @@ class TestTerraformGitignore(_WorkspaceBase):
 class TestCleanup(_WorkspaceBase):
     async def test_cleanup_removes_dir(self):
         path = await self.svc.setup_call_dir(
-            session_id=uuid4(), repo_uri=self.uri, branch="Nebula/cleanup"
+            session_id=uuid4(), repo_uri=self.uri, branch="Kumoss/cleanup"
         )
         self.svc.cleanup(path)
         self.assertFalse(path.exists())
