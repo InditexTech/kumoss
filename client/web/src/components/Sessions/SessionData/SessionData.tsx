@@ -127,7 +127,6 @@ export default function SessionData({
         next.delete("detail");
         next.delete("resource");
         next.delete("filter");
-        next.delete("file");
         return next;
       });
     },
@@ -443,45 +442,57 @@ export default function SessionData({
                                         planTypes.get(artifact.id),
                                       );
                                 return (
-                                  <div
-                                    className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
-                                    onClick={() =>
-                                      setArtifactParam({ kind, artifact })
+                                  <Tooltip
+                                    key={`${kind}:${artifact.id}`}
+                                    title={
+                                      targets.length > 0
+                                        ? targets.map((target) => (
+                                            <div key={target}>{target}</div>
+                                          ))
+                                        : ""
                                     }
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        setArtifactParam({ kind, artifact });
-                                      }
-                                    }}
+                                    describeChild
                                   >
-                                    <Typography
-                                      variant="subtitle2"
-                                      component="div"
-                                      className={styles.timelineOpName}
+                                    <div
+                                      className={`${styles.timelineOpRow} ${styles.timelineOpRowClickable} ${styles.timelineOpRowArtifact}`}
+                                      onClick={() =>
+                                        setArtifactParam({ kind, artifact })
+                                      }
+                                      role="button"
+                                      tabIndex={0}
+                                      aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.preventDefault();
+                                          setArtifactParam({ kind, artifact });
+                                        }
+                                      }}
                                     >
-                                      <InsertDriveFileOutlinedIcon
-                                        className={styles.artifactFileIcon}
-                                      />
-                                      {label}
-                                    </Typography>
-                                    {targets.length > 0 && (
-                                      <span
-                                        className={styles.timelineOpTargetChip}
+                                      <Typography
+                                        variant="subtitle2"
+                                        component="div"
+                                        className={styles.timelineOpName}
                                       >
-                                        {targetCountLabel(targets.length)}
+                                        <InsertDriveFileOutlinedIcon
+                                          className={styles.artifactFileIcon}
+                                        />
+                                        {label}
+                                      </Typography>
+                                      {targets.length > 0 && (
+                                        <span
+                                          className={styles.timelineOpTargetChip}
+                                        >
+                                          {targetCountLabel(targets.length)}
+                                        </span>
+                                      )}
+                                      <span className={styles.timelineOpDate}>
+                                        {formatDateTime(artifact.created_at)}
+                                        <VisibilityIcon
+                                          className={styles.artifactIcon}
+                                        />
                                       </span>
-                                    )}
-                                    <span className={styles.timelineOpDate}>
-                                      {formatDateTime(artifact.created_at)}
-                                      <VisibilityIcon
-                                        className={styles.artifactIcon}
-                                      />
-                                    </span>
-                                  </div>
+                                    </div>
+                                  </Tooltip>
                                 );
                               })}
                             </Fragment>
@@ -676,7 +687,6 @@ export default function SessionData({
           <ArtifactContent
             kind={selected.kind}
             artifact={selected.artifact}
-            round={selected.round}
             operation={session.operation}
             onPlanType={planTypes.record}
           />

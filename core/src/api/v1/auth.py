@@ -21,7 +21,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # Deliberately unauthenticated: the SPA must read this before it can log in.
 @router.get(
     path="/config",
-    summary="Public settings the SPA needs before it can render.",
+    summary="Public OIDC settings for the SPA login flow.",
 )
 async def auth_config() -> AuthConfigResponse:
     oidc = system_config.oidc

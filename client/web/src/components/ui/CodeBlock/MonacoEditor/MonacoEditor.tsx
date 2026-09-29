@@ -173,6 +173,8 @@ const MonacoEditor = ({
   ensureMonacoConfigured();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const diffEditorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+  const [diffEditorMounts, setDiffEditorMounts] = useState(0);
   const monacoRef = useRef<typeof monaco | null>(null);
   const { isDark } = useShell();
 
@@ -210,6 +212,8 @@ const MonacoEditor = ({
     activeContent !== undefined && !activeIsNewFile
       ? parseGitDiff(activeContent)
       : null;
+  const diffOriginal = activeDiff?.original;
+  const diffModified = activeDiff?.modified;
   const activeLanguage = getMonacoLanguage(
     getLanguageFromFileName(activeFile ?? ""),
   );
@@ -255,10 +259,25 @@ const MonacoEditor = ({
     if (files) decorateAsNewFile(editorInstance, activeIsNewFile);
   };
 
-  const handleDiffEditorDidMount: DiffOnMount = (_editorInstance, monaco) => {
+  useEffect(() => {
+    const model = diffEditorRef.current?.getModel();
+    if (!model || diffOriginal === undefined || diffModified === undefined) {
+      return;
+    }
+    if (model.original.getValue() !== diffOriginal) {
+      model.original.setValue(diffOriginal);
+    }
+    if (model.modified.getValue() !== diffModified) {
+      model.modified.setValue(diffModified);
+    }
+  }, [diffOriginal, diffModified, diffEditorMounts]);
+
+  const handleDiffEditorDidMount: DiffOnMount = (editorInstance, monaco) => {
     defineCustomThemes(monaco);
     monacoRef.current = monaco;
     registerHclLanguage(monaco);
+    diffEditorRef.current = editorInstance;
+    setDiffEditorMounts((mounts) => mounts + 1);
   };
 
   const handleTabClick = (fileName: string) => {

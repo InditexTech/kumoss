@@ -241,7 +241,6 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
           next.delete("detail");
           next.delete("resource");
           next.delete("filter");
-          next.delete("file");
         }
         return next;
       });

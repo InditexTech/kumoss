@@ -7,7 +7,6 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
-import { makeRound } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import type {
   CodeChangeRef,
@@ -102,7 +101,6 @@ function renderReport(
     <ArtifactContent
       kind="report"
       artifact={ref}
-      round={makeRound({ reports: [ref] })}
       operation={operation}
     />,
   );
@@ -234,7 +232,6 @@ describe("ArtifactContent plan metadata", () => {
       <ArtifactContent
         kind="plan"
         artifact={ref}
-        round={makeRound({ plans: [ref] })}
         operation="drift"
         onPlanType={onPlanType}
       />,
@@ -268,7 +265,6 @@ describe("ArtifactContent plan targets", () => {
       <ArtifactContent
         kind="plan"
         artifact={ref}
-        round={makeRound({ plans: [ref] })}
         operation="generate"
       />,
     );
@@ -501,7 +497,6 @@ describe("ArtifactContent JSON bodies in the raw viewer", () => {
       <ArtifactContent
         kind="plan"
         artifact={ref}
-        round={makeRound({ plans: [ref] })}
         operation="generate"
       />,
     );
@@ -598,14 +593,9 @@ describe("ArtifactContent code changes", () => {
     );
   }
 
-  function renderChanges(refs: CodeChangeRef[]) {
+  function renderChange(ref: CodeChangeRef) {
     renderWithProviders(
-      <ArtifactContent
-        kind="change"
-        artifact={refs[0]}
-        round={makeRound({ code_changes: refs })}
-        operation="generate"
-      />,
+      <ArtifactContent kind="change" artifact={ref} operation="generate" />,
     );
   }
 
@@ -614,44 +604,22 @@ describe("ArtifactContent code changes", () => {
     viewer.newFiles = undefined;
   });
 
-  it("tells the viewer which files are raw rather than diffs", async () => {
-    // The guard against forgetting the prop: `newFiles` is optional, so a
-    // dropped call site is silent and every new file renders blank.
-    server.use(
-      serveChange("vars.tf", true, 'variable "a" {}'),
-      serveChange("main.tf", false, MAIN_DIFF),
-    );
-    renderChanges([changeRef(1, "vars.tf"), changeRef(2, "main.tf")]);
+  it("tells the viewer when the file is raw rather than a diff", async () => {
+    server.use(serveChange("vars.tf", true, 'variable "a" {}'));
+    renderChange(changeRef(1, "vars.tf"));
 
     await waitFor(() => expect(viewer.files).toBeDefined());
-    expect(Object.keys(viewer.files!)).toEqual(["vars.tf", "main.tf"]);
-    expect(viewer.files!["vars.tf"]).toBe('variable "a" {}');
+    expect(viewer.files).toEqual({ "vars.tf": 'variable "a" {}' });
     expect([...viewer.newFiles!]).toEqual(["vars.tf"]);
   });
 
-  it("carries the composed shape of a file touched several times", async () => {
-    // Raw snapshot then a diff on top: the composition is still an addition
-    // relative to the session base, so it must stay in `newFiles`.
-    const followUp = [
-      "diff --git vars.tf vars.tf",
-      "--- vars.tf",
-      "+++ vars.tf",
-      "@@ -1,2 +1,1 @@",
-      ' variable "a" {}',
-      '-variable "b" {}',
-    ].join("\n");
-    server.use(
-      serveChange("vars.tf", true, 'variable "a" {}\nvariable "b" {}'),
-      serveChange("vars-2.tf", false, followUp),
-    );
-    renderChanges([
-      changeRef(1, "vars.tf"),
-      { ...changeRef(2, "vars-2.tf"), file_name: "vars.tf" },
-    ]);
+  it("shows the clicked revision as stored, not composed", async () => {
+    server.use(serveChange("main.tf", false, MAIN_DIFF));
+    renderChange(changeRef(1, "main.tf"));
 
     await waitFor(() => expect(viewer.files).toBeDefined());
-    expect(viewer.files!["vars.tf"]).toBe('variable "a" {}');
-    expect([...viewer.newFiles!]).toEqual(["vars.tf"]);
+    expect(viewer.files).toEqual({ "main.tf": MAIN_DIFF });
+    expect([...viewer.newFiles!]).toEqual([]);
   });
 });
 
@@ -673,7 +641,6 @@ describe("ArtifactContent compliance checks", () => {
       <ArtifactContent
         kind="compliance"
         artifact={complianceRef}
-        round={makeRound({ compliance_checks: [complianceRef] })}
         operation="generate"
       />,
     );

@@ -16,7 +16,6 @@ import type {
   PlanType,
   ReportRef,
   ReportType,
-  RoundDetail,
   TerraformPlanRef,
 } from "@/types/api";
 import type { ComplianceReport, TerraformReport } from "@/types";
@@ -51,8 +50,6 @@ import type {
   ImportFilterId,
 } from "@/components/Home";
 import { CodeBlock, StatusBadge } from "@/components/ui";
-import { composeFileArtifacts } from "@/utils/diffUtils";
-import type { CodeChangeArtifact } from "@/utils/diffUtils";
 import styles from "./ArtifactContent.module.css";
 
 export type ArtifactKind = "report" | "plan" | "change" | "compliance";
@@ -60,7 +57,6 @@ export type ArtifactKind = "report" | "plan" | "change" | "compliance";
 interface ArtifactContentProps {
   kind: ArtifactKind;
   artifact: ArtifactRef;
-  round: RoundDetail;
   operation: OperationType;
   /**
    * Reports the flavour that came back with the plan body. Opening a
@@ -156,7 +152,6 @@ export function prettyPrintJson(text: string): string | null {
 export default function ArtifactContent({
   kind,
   artifact,
-  round,
   operation,
   onPlanType,
 }: Readonly<ArtifactContentProps>) {
@@ -187,8 +182,6 @@ export default function ArtifactContent({
   const rawFilter = searchParams.get("filter") as FilterId;
   const activeFilter: FilterId =
     rawFilter && VALID_FILTERS.includes(rawFilter) ? rawFilter : "all";
-
-  const activeFile = searchParams.get("file") || "";
 
   const setActiveDetail = useCallback(
     (detail: DetailView, resourceName?: string) => {
@@ -225,20 +218,8 @@ export default function ArtifactContent({
     [setSearchParams],
   );
 
-  const setActiveFile = useCallback(
-    (file: string) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (file) {
-          next.set("file", file);
-        } else {
-          next.delete("file");
-        }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
+  const changeFileName =
+    kind === "change" ? (artifact as CodeChangeRef).file_name : "";
 
   // A notification sink, not a fetch input: kept in a ref so an
   // unmemoized prop from a caller cannot re-trigger the download.
@@ -257,37 +238,10 @@ export default function ArtifactContent({
     (async () => {
       try {
         if (kind === "change") {
-          // fetchArtifact, not fetchArtifactContent: the shape metadata
-          // rides on the same response as the body.
-          const payloads = await Promise.all(
-            round.code_changes.map((c) => fetchArtifact(c.url)),
-          );
+          const { text, isNewFile } = await fetchArtifact(artifact.url);
           if (cancelled) return;
-          // A round can carry several sequential-diff artifacts for the
-          // same file — collapse each file's group into one cumulative
-          // artifact instead of letting the last overwrite the rest.
-          const grouped = new Map<string, CodeChangeArtifact[]>();
-          round.code_changes.forEach((c, i) => {
-            const artifact = {
-              text: payloads[i].text,
-              isNewFile: payloads[i].isNewFile,
-            };
-            const group = grouped.get(c.file_name);
-            if (group) {
-              group.push(artifact);
-            } else {
-              grouped.set(c.file_name, [artifact]);
-            }
-          });
-          const record: Record<string, string> = {};
-          const raw = new Set<string>();
-          for (const [fileName, group] of grouped) {
-            const composed = composeFileArtifacts(fileName, group);
-            record[fileName] = composed.text;
-            if (composed.isNewFile) raw.add(fileName);
-          }
-          setFiles(record);
-          setNewFiles(raw);
+          setFiles({ [changeFileName]: text });
+          setNewFiles(new Set(isNewFile ? [changeFileName] : []));
         } else {
           // Body and metadata come from the same response, so the plan's
           // flavour is free here — no ranged follow-up for an artifact
@@ -307,7 +261,7 @@ export default function ArtifactContent({
     return () => {
       cancelled = true;
     };
-  }, [kind, artifact.id, artifact.url, round]);
+  }, [kind, artifact.id, artifact.url, changeFileName]);
 
   useEffect(() => {
     if (kind === "report") {
@@ -391,26 +345,19 @@ export default function ArtifactContent({
     return importedResources.find((r) => r.resource_address === resourceParam) ?? null;
   }, [activeDetail, resourceParam, importedResources]);
 
-  const fileNames = files ? Object.keys(files) : [];
-  const clickedFileName =
-    kind === "change" ? (artifact as CodeChangeRef).file_name : "";
-  const effectiveActiveFile =
-    activeFile || clickedFileName || (fileNames.length > 0 ? fileNames[0] : "");
-
   if (loading) {
     return <Typography variant="subtitle2" component="div" className={styles.loading}>Loading artifact...</Typography>;
   }
 
   if (kind === "change") {
-    if (!files || fileNames.length === 0) {
+    if (!files) {
       return <Typography variant="subtitle2" component="div" className={styles.loading}>Failed to load artifact</Typography>;
     }
     return (
       <CodeBlock
         files={files}
         newFiles={newFiles}
-        activeFile={effectiveActiveFile}
-        onFileChange={setActiveFile}
+        activeFile={changeFileName}
         showLineNumbers
         height="calc(100vh - 200px)"
       />
