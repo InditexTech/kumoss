@@ -171,7 +171,7 @@ class TerraformValidationService:
                 return result
             q = (
                 await refine_feedback(result.feedback)
-                if refine_feedback and i + 1 < max_iterations
+                if refine_feedback
                 else result.feedback
             )
 
