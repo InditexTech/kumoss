@@ -769,9 +769,9 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Nebula&#8217;s web application offers four operating modes in its header:
+<p>Nebula&#8217;s web application offers five operating modes in its header:
 Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation,
-and Import Infrastructure. This page is the lookup material behind them:
+Partial Import, and Full Import. This page is the lookup material behind them:
 the inputs every session provides, the lifecycle every session follows,
 and a table that compares what each mode does today. The task guides for
 each mode are <a href="../../guides/generate-infrastructure/" class="xref page">Generate
@@ -859,11 +859,12 @@ locked.</p>
 <div class="sectionbody">
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 14.2857%;">
-<col style="width: 21.4285%;">
-<col style="width: 21.4285%;">
-<col style="width: 21.4285%;">
-<col style="width: 21.4288%;">
+<col style="width: 11.7647%;">
+<col style="width: 17.647%;">
+<col style="width: 17.647%;">
+<col style="width: 17.647%;">
+<col style="width: 17.647%;">
+<col style="width: 17.6473%;">
 </colgroup>
 <thead>
 <tr>
@@ -871,7 +872,8 @@ locked.</p>
 <th class="tableblock halign-left valign-top">Generate Infrastructure</th>
 <th class="tableblock halign-left valign-top">Partial Drift Remediation</th>
 <th class="tableblock halign-left valign-top">Full Drift Remediation</th>
-<th class="tableblock halign-left valign-top">Import Infrastructure (today)</th>
+<th class="tableblock halign-left valign-top">Partial Import</th>
+<th class="tableblock halign-left valign-top">Full Import</th>
 </tr>
 </thead>
 <tbody>
@@ -880,18 +882,21 @@ locked.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/generate</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/drift</code> with <code>is_partial: true</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/drift</code> with <code>is_partial: false</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/import</code> with <code>is_partial: true</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/import</code> with <code>is_partial: false</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Minimum operation role (API)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>devops</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>devops</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code> + owner</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Selectable by roles below <code>devops</code> in the UI</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no (shown disabled)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no (shown disabled)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no (shown disabled)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no (shown disabled)</p></td>
@@ -901,32 +906,37 @@ locked.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required, classified by the filter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required, classified by the drift filter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required by the API, not used for filtering</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not sent</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">required, classified by the import filter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">fixed "Import all the infrastructure", not used for filtering</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Reads existing code and state</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">applies the pinned plan only</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yes, plus the cloud scope inventory</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">yes, plus the cloud scope inventory</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Terraform targets</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">generated from the diff history</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">generated from the request</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none (whole root)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">fixed by the pinned plan</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">generated from the diff history</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">generated from the diff history</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift handling</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">two-iteration pre-check on session targets</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">up to <code>max_drift_reports</code> iterations</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">up to <code>max_drift_reports</code> iterations</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">convergence after import, up to <code>max_drift_reports</code> iterations</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">convergence after import, up to <code>max_drift_reports</code> iterations</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Compliance check</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes, when enabled</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
@@ -937,34 +947,39 @@ locked.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Report type</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>generate</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>drift</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>drift</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Pins a plan</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">consumes it</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Enables apply</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">is the apply</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no (the state is written during the round)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">no (the state is written during the round)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Pull request</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">create and merge from the branch</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">create and merge from the branch</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">create and merge from the branch</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">typically after merge</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">create and merge from the branch</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">create and merge from the branch</p></td>
 </tr>
 </tbody>
 </table></div></div>

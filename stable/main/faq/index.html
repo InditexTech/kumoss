@@ -785,7 +785,7 @@ If the answer you need is not here, see
 <div class="sect2">
 <h3 id="access-and-roles"><a class="anchor" href="#access-and-roles"></a>Access and roles</h3>
 <div class="docouture-accordion-group" role="group" aria-label="Access and roles frequently asked questions"><details>
-<summary class="title">Why are the drift modes and Import Infrastructure greyed out?</summary>
+<summary class="title">Why are the drift and import modes greyed out?</summary>
 <div class="content">
 <div class="paragraph">
 <p>They require the <code>devops</code> operation role. New users start as
@@ -1038,14 +1038,11 @@ looking at it, and your organization can adapt the rule.</p>
 <div class="content">
 <div class="paragraph">
 <p>The API allows a direct apply, but the web application does not offer
-a standalone Apply button. In practice you reach apply either through
-<strong>Approve PR and Apply</strong>, which merges the pull request and then
-applies, or through the <strong>Import Infrastructure</strong> mode in the header
-drop-down, which calls the same apply on the current session and is
-only selectable with the <code>devops</code> role. So as a <code>developer</code> in the web
-application, the pull request is the route to apply — which is also
-the recommended one, because it brings your team&#8217;s review and CI into
-the decision.</p>
+a standalone Apply button. You reach apply through <strong>Approve PR and
+Apply</strong>, which merges the pull request and then applies, so in the web
+application the pull request is the route to apply — which is also the
+recommended one, because it brings your team&#8217;s review and CI into the
+decision.</p>
 </div>
 </div>
 </details><details>
@@ -1080,11 +1077,16 @@ fresh plan to review.</p>
 </div>
 </div>
 </details><details>
-<summary class="title">Does Import Infrastructure import my existing resources?</summary>
+<summary class="title">Do the import modes import my existing resources?</summary>
 <div class="content">
 <div class="paragraph">
-<p>Not yet. Today it runs the apply of an existing session&#8217;s reviewed
-plan. Importing unmanaged resources is a planned capability.</p>
+<p>Yes. Partial Import and Full Import find the resources in your scope
+that Terraform does not manage, write resource blocks for them, and run
+<code>terraform import</code> during the round, so they are in the state before the
+pull request is reviewed. Rejected imports are fed back to the generator
+and retried. Merging the pull request ends the session; nothing is
+applied. See <a href="../guides/import-infrastructure/" class="xref page">Import
+infrastructure</a>.</p>
 </div>
 </div>
 </details><details>

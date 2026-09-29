@@ -826,8 +826,8 @@ pinned plan on sessions they own.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>devops</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Everything <code>developer</code> can do, plus Partial and Full Drift
-Remediation. The web application also reserves the Import
-Infrastructure mode for <code>devops</code>.</p></td>
+Remediation. The web application also reserves the Partial Import and
+Full Import modes for <code>devops</code>.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -924,6 +924,12 @@ live event stream.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Owner only when continuing an existing session</p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Owner only when continuing an existing session. The web application
+offers the import modes only to <code>devops</code>.</p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /api/v1/iac/apply</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>developer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Owner only; session not locked (<code>409</code>). A pinned plan must exist,
@@ -951,10 +957,10 @@ repository URL is entered</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>The web application is stricter than the API in one place: it disables
-Partial Drift Remediation, Full Drift Remediation, and Import
-Infrastructure for users below <code>devops</code>, showing the hint "Requires
-the devops operation role." The API itself accepts an apply from any
-<code>developer</code> who owns the session. With authentication disabled (blank
+Partial Drift Remediation, Full Drift Remediation, Partial Import, and
+Full Import for users below <code>devops</code>, showing the hint "Requires the
+devops operation role." The API itself accepts an import from any
+<code>developer</code>. With authentication disabled (blank
 <code>oidc.issuer_url</code>), the local development identity holds <code>devops</code> and
 sees every mode.</p>
 </div>

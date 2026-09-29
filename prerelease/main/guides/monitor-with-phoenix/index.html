@@ -987,11 +987,9 @@ at the same base URL that proxies the prompt API.</p>
 project of that session.</p>
 </li>
 <li>
-<p>The <code>import</code> projects are created (every provider is initialised at
-startup) but no current code path routes spans to them, because the
-core has no import operation yet (see
-<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>).
-Expect them to be empty.</p>
+<p>The <code>import</code> projects receive the spans of import sessions, Partial
+Import and Full Import alike (see
+<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>).</p>
 </li>
 <li>
 <p>Each project has exactly one resource attribute,

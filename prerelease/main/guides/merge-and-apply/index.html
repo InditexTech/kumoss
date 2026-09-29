@@ -861,9 +861,9 @@ nothing is rolled back; read the error and start a new request.</p>
 <div class="paragraph">
 <p>After an apply the reviewed plan is consumed. To change something else,
 send a new request; a fresh plan is produced and reviewed before the next
-apply. <strong>Import Infrastructure</strong> in the mode drop-down currently performs
-this same apply step on an existing session; it does not yet import
-unmanaged resources, see
+apply. Drift and import sessions end at the merge instead: no apply
+follows, because the merge is the remediation and an import is already
+in the state. See
 <a href="../../reference/operating-modes/#compare-modes" class="xref page">Comparing the operating modes</a>.</p>
 </div>
 </div>
