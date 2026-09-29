@@ -1125,7 +1125,7 @@ request, apply)</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions</code>, <code>GET /api/v1/sessions/{session_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions/list</code>, <code>GET /api/v1/sessions?id={session_id}</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Any signed-in user; the list is always scoped to the caller, the
 detail is owner or any panel role</p></td>
 </tr>
@@ -1134,8 +1134,8 @@ detail is owner or any panel role</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Owner or any panel role</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions</code>,
-<code>GET /api/v1/admin/sessions/{session_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions/list</code>,
+<code>GET /api/v1/admin/sessions?id={session_id}</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">panel <code>viewer</code> or higher</p></td>
 </tr>
 <tr>

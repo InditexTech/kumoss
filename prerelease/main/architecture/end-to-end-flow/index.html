@@ -1656,10 +1656,10 @@ attempt, and the session is <a href="#how-a-session-ends">closed for good</a>.</
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Inspect the plan</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The core runs <code>show -json</code> on the plan artifact validation left in the
-workspace — the round&#8217;s own plan, never a second one — and inverts the
-<code>before</code>/<code>after</code> differences into "make the code match the
-infrastructure" operations, stored as a drift artifact.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Status <code>reconciling</code>. The core runs <code>show -json</code> on the plan artifact
+validation left in the workspace — the round&#8217;s own plan, never a second
+one — and inverts the <code>before</code>/<code>after</code> differences into "make the code
+match the infrastructure" operations, stored as a drift artifact.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Split and filter</p></td>
@@ -3501,8 +3501,8 @@ services.</p>
 <h3 id="model-routing"><a class="anchor" href="#model-routing"></a>Model routing</h3>
 <div class="paragraph">
 <p>The generate flow advances through the statuses the progress stream reports
-— <code>filtering</code>, <code>generating</code>, <code>validating</code>, <code>report</code> — as described in phases
-3 to 8. Routing is by prompt type, not by provider:</p>
+— <code>filtering</code>, <code>generating</code>, <code>validating</code>, <code>reconciling</code>, <code>report</code> — as
+described in phases 3 to 8. Routing is by prompt type, not by provider:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -3633,6 +3633,10 @@ reconciliation group re-plans and the last of those is what the next
 iteration reads; an iteration whose split yielded no operations has no plan
 to hand on, so the next one plans for itself. Every iteration that could
 have changed therefore reads live state.</p>
+</div>
+<div class="paragraph">
+<p>Each iteration opens with a <code>reconciling</code> status written before step 1, so
+the phase is visible on the timeline whether or not drift was found.</p>
 </div>
 <div class="paragraph">
 <p>The loop has two entry points, differing in <strong>what</strong> they target and
@@ -3782,9 +3786,9 @@ verdict is computed in code.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Persistence</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The report is stored in object storage under the round, as
 <code>compliance/check-&lt;token&gt;.json</code>, with a <code>compliance_checks</code> row holding the
-<code>passed</code> verdict. The session detail returns it as the round&#8217;s <code>compliance</code>
-artifact, and the portal renders it in the session view and, when the
-session is locked, in the blocked pull-request view.</p></td>
+<code>passed</code> verdict. The session detail returns it in the round&#8217;s
+<code>compliance_checks</code>, and the portal renders it in the session view and,
+when the session is locked, in the blocked pull-request view.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>

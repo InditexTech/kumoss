@@ -835,7 +835,21 @@ admin panel links to <code>/monitoring/projects</code>.</p></td>
 adds an unconditional <code>Access-Control-Allow-Origin: *</code> header. Do not
 reproduce the wildcard CORS header in production — scope it to your
 real origin. With S3 or Azure this is the provider&#8217;s own endpoint and
-its own CORS configuration applies instead.</p></td>
+its own CORS configuration applies instead.</p>
+<p class="tableblock">The endpoint must also expose two artifact metadata headers. <code>type</code>
+tells a drift diff from the plan that resolved it — without it the
+session timeline labels both as plain plans. <code>new_file</code> says whether a
+code change holds a whole file or a <code>git diff</code> — without it every new
+file renders as plain text instead of a tinted addition. The reference
+proxy sets <code>Access-Control-Expose-Headers: x-amz-meta-type,
+x-amz-meta-new_file</code>; a swapped-in S3 bucket needs
+<code>ExposeHeaders: ["x-amz-meta-type", "x-amz-meta-new_file"]</code> in its CORS
+rule, and Azure Blob needs
+<code>ExposedHeaders: x-ms-meta-type,x-ms-meta-new_file</code>.</p>
+<p class="tableblock">The client does not guess between those two spellings. The core derives
+the prefix from <code>storage.provider</code> and serves it on
+<code>GET /api/v1/auth/config</code> as <code>artifact_metadata_header_prefix</code>, so a
+prefix mismatch is impossible — only the expose-list can go wrong.</p></td>
 </tr>
 </tbody>
 </table></div></div>

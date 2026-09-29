@@ -904,22 +904,22 @@ router.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>200</code> Terraform roots</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions/list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">any signed-in user</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>200</code> page of summaries</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions/{session_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/sessions?id={session_id}</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">read access to the session</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>200</code> session aggregate</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions/list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">panel <code>viewer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>200</code> page of summaries</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions/{session_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions?id={session_id}</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">panel <code>viewer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>200</code> session aggregate</p></td>
 </tr>
@@ -1208,8 +1208,8 @@ detection rules behind the answer are in
 deliberately so: the single-page application has to read it before it
 can log in at all. Outside <code>/v1</code>, the framework&#8217;s interactive
 documentation — <code>/api/docs</code>, <code>/api/redoc</code>, and <code>/api/openapi.json</code> —
-is served without authentication as well. It returns the four non-secret OIDC settings, taken
-straight from <code>config.yaml</code>:</p>
+is served without authentication as well. It returns the four
+non-secret OIDC settings, taken straight from <code>config.yaml</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1217,7 +1217,8 @@ straight from <code>config.yaml</code>:</p>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "issuer_url"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "client_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "audience"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "scope"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"openid profile email"</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "scope"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"openid profile email"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "artifact_metadata_header_prefix"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"x-amz-meta-"</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
@@ -1225,6 +1226,16 @@ straight from <code>config.yaml</code>:</p>
 <p>A blank <code>issuer_url</code> tells the browser that authentication is disabled
 and it should use the local development identity. See
 <a href="../../../guides/enable-authentication/" class="xref page">Enable authentication</a>.</p>
+</div>
+<div class="paragraph">
+<p><code>artifact_metadata_header_prefix</code> is not configurable. It is derived
+from <code>storage.provider</code> — <code>x-amz-meta-</code> for S3 and RustFS,
+<code>x-ms-meta-</code> for an Azure storage account — and is how the browser
+knows which header names carry an artifact&#8217;s metadata when it reads one
+from a pre-signed URL. The core never reads that metadata itself, so
+this is the only way the client can learn it. See
+<a href="../../../guides/production/networking-and-tls/" class="xref page">Networking and TLS</a>
+for the CORS rules that must expose those headers.</p>
 </div>
 <div class="paragraph">
 <p><code>POST /api/v1/auth/authorize</code> asks whether the caller may operate on a
@@ -1290,7 +1301,7 @@ admin-panel access.</p>
 any signed-in user.</p>
 </div>
 <div class="paragraph">
-<p><code>GET /api/v1/sessions</code> returns a page of session summaries. The list
+<p><code>GET /api/v1/sessions/list</code> returns a page of session summaries. The list
 is <strong>always</strong> scoped to the caller&#8217;s own sessions — there is no
 parameter that widens it.</p>
 </div>
@@ -1340,20 +1351,20 @@ id. Up to 200 characters.</p></td>
 <p>The envelope carries <code>items</code>, <code>total</code>, <code>page</code>, <code>page_size</code>, and
 <code>total_pages</code>. Each item resolves server-side everything the list view
 renders: <code>uuid</code>, <code>username</code>, <code>operation</code>, <code>provider</code>, <code>first_query</code>,
-<code>workspace_uri</code>, <code>current_status</code>, the <code>in_flight</code> and <code>is_blocked</code>
-flags, and the timestamps. <code>username</code> is the owning user&#8217;s e-mail, or
-<code>user-&lt;id&gt;</code> when the user has none; the name is historical, and it is
-a response field only — there is no <code>username</code> query parameter.</p>
+<code>workspace</code> (URI, branch, root path), <code>current_status</code>, the
+<code>in_flight</code> and <code>is_blocked</code> flags, and the timestamps. <code>username</code> is
+the owning user&#8217;s e-mail, or <code>user-&lt;id&gt;</code> when the user has none; the
+name is historical, and it is a response field only — there is no
+<code>username</code> query parameter.</p>
 </div>
 <div class="paragraph">
-<p><code>GET /api/v1/sessions/{session_id}</code> returns the full session
-aggregate: the session facts, its <code>workspace</code> (URI, branch, root
-path), its <code>scope_id</code>, the complete <code>statuses</code> timeline, and one entry
-in <code>rounds</code> per generation round. Each round carries its own statuses,
-its <code>report</code>, <code>compliance</code>, <code>plan</code>, and <code>code_changes</code> artifacts as
-client-fetchable URLs, and its <code>pull_requests</code>. <code>compliance</code> also carries
-the audit&#8217;s <code>passed</code> verdict, and is <code>null</code> when the round was not
-audited.</p>
+<p><code>GET /api/v1/sessions?id={session_id}</code> returns the full session
+aggregate: the summary fields, its <code>scope_id</code>, and one entry in
+<code>rounds</code> per generation round. Each round carries its own statuses,
+its <code>reports</code>, <code>compliance_checks</code>, <code>plans</code>, and <code>code_changes</code>
+artifacts as client-fetchable URLs, oldest first, and its
+<code>pull_requests</code>. Each <code>compliance_checks</code> entry also carries the audit&#8217;s
+<code>passed</code> verdict; the list is empty when the round was not audited.</p>
 </div>
 <div class="paragraph">
 <p>Pass <code>include_history=true</code> to also populate <code>history</code> with the
@@ -1386,12 +1397,12 @@ floor further.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions/list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>viewer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A page of session summaries across all users.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions/{session_id}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /api/v1/admin/sessions?id={session_id}</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>viewer</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Any session&#8217;s full aggregate.</p></td>
 </tr>
@@ -1413,14 +1424,14 @@ floor further.</p>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>GET /api/v1/admin/sessions</code> takes the same <code>page</code>, <code>page_size</code>,
+<p><code>GET /api/v1/admin/sessions/list</code> takes the same <code>page</code>, <code>page_size</code>,
 <code>operation</code>, <code>status</code>, and <code>search</code> parameters as the caller-scoped
 list, plus <code>user_email</code>, which partial-matches the owning user&#8217;s
 e-mail and accepts up to 254 characters. The response envelope is
 identical.</p>
 </div>
 <div class="paragraph">
-<p><code>GET /api/v1/admin/sessions/{session_id}</code> is the unrestricted
+<p><code>GET /api/v1/admin/sessions?id={session_id}</code> is the unrestricted
 counterpart of the session detail route: same <code>include_history</code>
 parameter, same response, but no ownership check beyond the panel
 role. An unknown session is <code>404</code>.</p>
