@@ -7,7 +7,7 @@
 :page-action-url: main:quickstart.adoc
 :page-action-secondary: About
 :page-action-secondary-url: main:about.adoc
-:page-hero-image: main:web-portal-home.jpg
+:page-hero-image: main:web-portal-home.png
 :page-hero-image-alt: The Kumoss web portal's home screen: an operation selector set to Generate Infrastructure, a request box asking what you need, and a row of recent session cards.
 :page-hero-image-bordered:
 
