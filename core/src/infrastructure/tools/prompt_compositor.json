@@ -2,6 +2,8 @@
   {
     "name": "construct_information",
     "description": "Constructs two independent lists: one for required infrastructure templates and one for naming abbreviations, based on the analysis of a user's request. The two lists are not correlated. If no items for a list can be determined, an empty array should be used for that list.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

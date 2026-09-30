@@ -185,7 +185,10 @@ class PhoenixTracer(ITracer):
             *_llm_model_name_attributes(model),
             *_llm_invocation_parameters_attributes(invocation_params),
             *_llm_input_messages_attributes(
-                kwargs["msg"], kwargs.get("history"), kwargs.get("system_prompt")
+                kwargs["msg"],
+                kwargs.get("history"),
+                kwargs.get("system_prompt"),
+                kwargs.get("notice"),
             ),
             *_llm_tools(kwargs.get("tools")),
             *_output_llm_attributes(response),
@@ -401,6 +404,7 @@ def _llm_input_messages_attributes(
     query: str | list[ToolResultDTO],
     history: History | None,
     system_prompt: str | None = None,
+    notice: str | None = None,
 ) -> Iterator[tuple[str, str]]:
     """
     Yields the OpenInference input messages attributes for each message in the list.
@@ -478,8 +482,12 @@ def _llm_input_messages_attributes(
             idx += 1
     if isinstance(query, list):
         yield from _trace_tool_results(query, idx)
+        idx += len(query)
     else:
         yield from _trace_text_msg(query, "user", idx)
+        idx += 1
+    if notice:
+        yield from _trace_text_msg(notice, "user", idx)
 
 
 def _output_llm_attributes(response: LLMResponseDTO) -> Iterator[tuple[str, str]]:

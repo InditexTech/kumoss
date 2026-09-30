@@ -2,6 +2,8 @@
   {
     "description": "Read the contents of a file. The output of this tool call will be the entire contents of the file.",
     "name": "read_file",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "properties": {
         "explanation": {
@@ -22,6 +24,8 @@
   {
     "description": "List the files and subdirectories of a directory (non-recursive). The quick tool to use for discovery, before using more targeted tools like file reading. Useful to try to understand the file structure before diving deeper into specific files. Can be used to explore the codebase.",
     "name": "list_dir",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "properties": {
         "explanation": {
@@ -42,6 +46,8 @@
   {
     "name": "bulk_grep_search",
     "description": "Performs multiple text-based regex searches in a single bulk operation. Each search can have its own specific parameters (query, case sensitivity, include/exclude patterns). This is highly efficient for running several independent searches at once.\nSearches every file under the working directory. Each search returns its matches as `path:line:content` strings (paths relative to the working directory).\nUse the include or exclude patterns to filter the search scope by file type or specific paths. To avoid overwhelming output, the results for each individual search are capped at 50 matches (`truncated` is true when more exist).",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {
@@ -87,6 +93,8 @@
   {
     "description": "Retrieve the history of recent changes made to files in the workspace. This tool helps understand what modifications were made recently, providing information about which files were changed, when they were changed, and how many lines were added or removed. Use this tool when you need context about recent modifications to the codebase.",
     "name": "diff_history",
+    "single_use": true,
+    "mutates_workspace": false,
     "parameters": {
       "properties": {
         "explanation": {

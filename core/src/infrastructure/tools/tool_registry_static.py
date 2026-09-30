@@ -75,6 +75,8 @@ class ToolRegistryStatic(IToolRegistry):
                 description=tool_data["description"],
                 parameters=tool_data["parameters"],
                 context=context,
+                single_use=tool_data["single_use"],
+                mutates_workspace=tool_data["mutates_workspace"],
             )
             self.__tool_definitions[tool_def.name] = tool_def
             logging.info(f"Loaded tool: {tool_def.name} from {file_path.name}")

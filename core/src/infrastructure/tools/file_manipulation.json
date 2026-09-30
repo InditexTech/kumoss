@@ -2,6 +2,8 @@
   {
     "description": "Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.",
     "name": "write_to_file",
+    "single_use": false,
+    "mutates_workspace": true,
     "parameters": {
       "properties": {
         "content": {
@@ -23,6 +25,8 @@
   {
     "description": "Request to replace sections of content in an existing file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool should be used when you need to make targeted changes to specific parts of a file.",
     "name": "replace_in_file",
+    "single_use": false,
+    "mutates_workspace": true,
     "parameters": {
       "properties": {
         "diff": {
@@ -44,6 +48,8 @@
   {
     "description": "Deletes a file at the specified path. The operation will fail gracefully if:\n    - The file doesn't exist\n    - The operation is rejected for security reasons\n    - The file cannot be deleted",
     "name": "delete_file",
+    "single_use": false,
+    "mutates_workspace": true,
     "parameters": {
       "properties": {
         "explanation": {

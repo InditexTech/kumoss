@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# pyright: basic
+# pyright: basic, reportArgumentType=false
 
 """Workspace tools confine every path to the working directory.
 
@@ -30,6 +30,7 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
         self.root.mkdir(parents=True)
         (self.root / "main.tf").write_text('resource "x" "y" {}\n')
         (self.root / "modules").mkdir()
+        (self.root / "modules" / "vars.tf").write_text("\n")
         (self.tmp / "repo" / "outside.tf").write_text("secret\n")
         self.registry = ToolRegistryWorkspace(
             filesystem=FileSystemUtils(self.root), git=MagicMock(), llm=MagicMock()
@@ -51,6 +52,23 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
                 result.result,
                 {"path": ".", "files": ["main.tf"], "directories": ["modules"]},
             )
+
+    async def test_list_dir_hides_ignored_entries_like_grep(self):
+        (self.root / ".gitignore").write_text("**/.terraform/*\n*_override.tf\n")
+        (self.root / ".terraform").mkdir()
+        (self.root / ".terraform" / "terraform.tfstate").write_text("{}")
+        (self.root / "backend_override.tf").write_text("terraform {}\n")
+        (self.root / "modules" / "network.tf").write_text("\n")
+
+        result = await self._run("list_dir", relative_workspace_path=".")
+        self.assertTrue(result.success, result.error_message)
+        self.assertEqual(result.result["files"], [".gitignore", "main.tf"])
+        self.assertEqual(result.result["directories"], ["modules"])
+
+    async def test_list_dir_missing_directory_reports_relative_path(self):
+        result = await self._run("list_dir", relative_workspace_path="nope")
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_message, "Directory nope does not exist")
 
     async def test_parent_and_outside_paths_are_rejected(self):
         for path in [

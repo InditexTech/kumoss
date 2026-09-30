@@ -172,17 +172,19 @@ class FileSystemUtils(IFileSystem):
             if not dir_path.exists():
                 raise ExceptionHandler(
                     error_code=404,
-                    message=f"Directory {dir_path.as_posix()} does not exist",
+                    message=f"Directory {relative_path} does not exist",
                 )
 
             if not dir_path.is_dir():
                 raise ExceptionHandler(
                     error_code=400,
-                    message=f"Path {dir_path.as_posix()} is not a directory",
+                    message=f"Path {relative_path} is not a directory",
                 )
 
-            return [i for i in dir_path.iterdir()]
+            return self.__visible_children(dir_path)
 
+        except ExceptionHandler:
+            raise
         except Exception as e:
             logging.error(f"Error listing directory {relative_path}: {e!r}")
             raise ExceptionHandler(
@@ -205,7 +207,8 @@ class FileSystemUtils(IFileSystem):
         :param case_sensitive: Whether search should be case-sensitive
         :returns: Search results
         """
-        cmd = ["rg", "--line-number", "--with-filename"]
+        cmd = ["rg", "--line-number", "--with-filename", "--hidden", "--no-require-git"]
+        cmd.extend(["--glob", "!.git"])
         if not case_sensitive:
             cmd.append("--ignore-case")
         if include_pattern:
@@ -232,6 +235,26 @@ class FileSystemUtils(IFileSystem):
             message=result.stderr,
             error_code=result.returncode,
         )
+
+    def __visible_children(self, dir_path: Path) -> list[Path]:
+        """Immediate children of a directory, honoring the same ignore rules
+        (.gitignore, .ignore) that ripgrep applies in search_files, so both
+        tools agree on what the workspace contains.
+        :param dir_path: Absolute directory path
+        :returns: Files and directories directly under dir_path
+        """
+        cmd = ["rg", "--files", "--hidden", "--no-require-git", "--glob", "!.git"]
+        result = subprocess.run(
+            [*cmd, str(dir_path)], capture_output=True, text=True, cwd=dir_path
+        )
+        if result.returncode not in (0, 1):  # 1: no files found
+            logging.error(f"Ripgrep error: {result.stderr}")
+            raise RipgrepError(message=result.stderr, error_code=result.returncode)
+        children: set[Path] = set()
+        for line in result.stdout.splitlines():
+            relative = Path(line).relative_to(dir_path)
+            children.add(dir_path / relative.parts[0])
+        return list(children)
 
     def __file_exists(self, target_file: str) -> bool:
         """Check if a file exists

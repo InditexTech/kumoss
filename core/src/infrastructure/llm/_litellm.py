@@ -61,6 +61,7 @@ class LiteLLMAdapter(ILLMProvider):
         history: History = None,
         thinking: bool = False,
         web_search: bool = False,
+        notice: str | None = None,
     ) -> LLMResponseDTO:
         if tools and thinking:
             raise InferenceCallThinkingToolError(
@@ -82,6 +83,8 @@ class LiteLLMAdapter(ILLMProvider):
         model_id = self.__model
         max_tokens = self.__max_tokens
         local_history = self.__format_history(history, msg)
+        if notice:
+            local_history.append({"role": "user", "content": notice})
 
         if system_prompt:
             local_history.insert(0, {"role": "system", "content": system_prompt})
@@ -115,7 +118,7 @@ class LiteLLMAdapter(ILLMProvider):
 
             if tools:
                 kwargs["tools"] = self.__format_tools(tools)
-                kwargs["tool_choice"] = "required"
+                kwargs["tool_choice"] = "auto"
 
             if thinking:
                 kwargs["reasoning_effort"] = "low"

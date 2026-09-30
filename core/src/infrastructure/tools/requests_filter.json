@@ -2,6 +2,8 @@
   {
     "name": "requests_filter",
     "description": "Reports the outcome of analyzing the user's request: whether it is an actionable Infrastructure as Code (IaC) change with Terraform in the current workspace, the answer to an informational question about the workspace infrastructure (inventory, possible improvements, change impact), or a rejection. This tool must be called as the final action, after inspecting the workspace, before attempting to construct any infrastructure information or proceeding with IaC generation.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {
