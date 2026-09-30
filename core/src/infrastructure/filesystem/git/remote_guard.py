@@ -2,77 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Server-side SSRF guard for user-supplied repository URIs.
-
-Runs before git ever sees the URI. Only `https://` and SSH (`ssh://`,
-`git+ssh://`, `ssh+git://` and scp-style `[user@]host:path`) are accepted;
-every other transport — `file://`, `git://`, `http://`, `ext::`, local
-paths — is rejected. The host is then resolved and *every* address it
-resolves to must be public: loopback, RFC1918, link-local (cloud metadata
-at 169.254.169.254 included), CGNAT, ULA, multicast, reserved and
-unspecified addresses are rejected, also when smuggled inside an
-IPv4-mapped, NAT64, 6to4 or Teredo IPv6 address.
-
-For https the checked addresses are handed back as git config that pins
-curl's resolution to them and disables redirects, so neither DNS
-rebinding between check and connect nor a redirect to an internal host
-can move the request elsewhere. SSH gets no pin: ssh resolves the host
-itself and git has no equivalent knob.
-"""
-
 import asyncio
 import ipaddress
 import re
 import socket
 from dataclasses import dataclass
+from typing import ClassVar
 from urllib.parse import urlsplit
 
 from src.infrastructure.exceptions import InvalidRepoURI
 from src.shared.logger import logging
 
-IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
-
-_HTTPS_SCHEMES = frozenset({"https"})
-_SSH_SCHEMES = frozenset({"ssh", "git+ssh", "ssh+git"})
-_DEFAULT_PORTS = {"https": 443, "ssh": 22}
-_DNS_TIMEOUT_SECONDS = 5.0
-
-_SCHEME_RE = re.compile(r"^(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://")
-# git's scp-like syntax: no slash before the first colon. A path starting
-# with ':' is git's `<transport>::<address>` remote-helper syntax (`ext::`).
-_SCP_RE = re.compile(
-    r"^(?:(?P<user>[^@/:]+)@)?(?P<host>\[[0-9A-Fa-f:.]+\]|[^@/:\[\]]+):(?P<path>[^:].*)$"
-)
-_HOSTNAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
-
-# Already non-global, so the generic check rejects them; listed so the
-# blocklist is auditable. AWS/GCP/Azure/OCI, AWS IPv6, ECS task, Alibaba.
-_METADATA_ADDRESSES = frozenset(
-    ipaddress.ip_address(a)
-    for a in ("169.254.169.254", "fd00:ec2::254", "169.254.170.2", "100.100.100.200")
-)
-_NAT64 = ipaddress.ip_network("64:ff9b::/96")
-
-_MALFORMED = "Repository URI must be an https:// or ssh:// git URL."
-_FORBIDDEN_HOST = "Repository host is not allowed."
-
 
 @dataclass(frozen=True)
 class CheckedRemote:
-    """A repository URI that passed the guard, plus what it resolved to."""
-
-    scheme: str  # "https" or "ssh"
+    scheme: str
     host: str
     port: int
-    addresses: tuple[IPAddress, ...]
+    addresses: tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]
 
     @property
     def git_config(self) -> tuple[str, ...]:
-        """`key=value` git config that keeps git on the checked addresses."""
         if self.scheme != "https":
             return ()
         config = ["http.followRedirects=false"]
-        if not _is_ip_literal(self.host):
+        if not RemoteGuard.is_ip_literal(self.host):
             pinned = ",".join(
                 f"[{a}]" if a.version == 6 else str(a) for a in self.addresses
             )
@@ -81,133 +35,177 @@ class CheckedRemote:
 
     @property
     def command_options(self) -> list[str]:
-        """`-c key=value` pairs for `git <options> <subcommand>`."""
         return [arg for c in self.git_config for arg in ("-c", c)]
 
     @property
     def clone_options(self) -> list[str]:
-        """`--config=key=value` for `git clone`; persisted into the clone's
-        own config, so later fetch/push to origin keep the pin."""
         return [f"--config={c}" for c in self.git_config]
 
 
-async def check_remote(repo_uri: str) -> CheckedRemote:
-    """Validate `repo_uri` and resolve its host; raise InvalidRepoURI (400)
-    with a generic message on rejection. The reason is logged server-side."""
-    scheme, host, port = _parse(repo_uri)
-    if not host:
-        raise _reject(_MALFORMED, "no host", repo_uri)
-    addresses = await _resolve(host, port, repo_uri)
-    forbidden = [a for a in addresses if _is_forbidden(a)]
-    if forbidden:
-        raise _reject(
-            _FORBIDDEN_HOST,
-            f"{host} resolves to non-public {', '.join(map(str, forbidden))}",
-            repo_uri,
+class RemoteGuard:
+    HTTPS_SCHEMES: ClassVar[frozenset[str]] = frozenset({"https"})
+    SSH_SCHEMES: ClassVar[frozenset[str]] = frozenset({"ssh", "git+ssh", "ssh+git"})
+    DEFAULT_PORTS: ClassVar[dict[str, int]] = {"https": 443, "ssh": 22}
+    DNS_TIMEOUT_SECONDS: ClassVar[float] = 5.0
+
+    SCHEME_RE: ClassVar[re.Pattern[str]] = re.compile(
+        r"^(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://"
+    )
+    # A path starting with ':' is git's `<transport>::<address>` syntax (`ext::`).
+    SCP_RE: ClassVar[re.Pattern[str]] = re.compile(
+        r"^(?:(?P<user>[^@/:]+)@)?(?P<host>\[[0-9A-Fa-f:.]+\]|[^@/:\[\]]+):(?P<path>[^:].*)$"
+    )
+    HOSTNAME_RE: ClassVar[re.Pattern[str]] = re.compile(
+        r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$"
+    )
+
+    METADATA_ADDRESSES: ClassVar[
+        frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address]
+    ] = frozenset(
+        ipaddress.ip_address(a)
+        for a in (
+            "169.254.169.254",
+            "fd00:ec2::254",
+            "169.254.170.2",
+            "100.100.100.200",
         )
-    return CheckedRemote(scheme=scheme, host=host, port=port, addresses=addresses)
+    )
+    NAT64: ClassVar[ipaddress.IPv6Network] = ipaddress.IPv6Network("64:ff9b::/96")
 
+    MALFORMED: ClassVar[str] = "Repository URI must be an https:// or ssh:// git URL."
+    FORBIDDEN_HOST: ClassVar[str] = "Repository host is not allowed."
 
-def _parse(repo_uri: str) -> tuple[str, str, int]:
-    if not repo_uri or any(c.isspace() or not c.isprintable() for c in repo_uri):
-        raise _reject(
-            _MALFORMED, "empty or contains whitespace/control chars", repo_uri
-        )
-    if repo_uri.startswith("-"):
-        raise _reject(_MALFORMED, "looks like a command-line option", repo_uri)
+    @classmethod
+    async def check(cls, repo_uri: str) -> CheckedRemote:
+        scheme, host, port = cls._parse(repo_uri)
+        if not host:
+            raise cls._reject(cls.MALFORMED, "no host", repo_uri)
+        addresses = await cls._resolve(host, port, repo_uri)
+        forbidden = [a for a in addresses if cls._is_forbidden(a)]
+        if forbidden:
+            raise cls._reject(
+                cls.FORBIDDEN_HOST,
+                f"{host} resolves to non-public {', '.join(map(str, forbidden))}",
+                repo_uri,
+            )
+        return CheckedRemote(scheme=scheme, host=host, port=port, addresses=addresses)
 
-    if match := _SCHEME_RE.match(repo_uri):
-        scheme = match["scheme"].lower()
-        if scheme in _HTTPS_SCHEMES:
-            normalized = "https"
-        elif scheme in _SSH_SCHEMES:
-            normalized = "ssh"
-        else:
-            raise _reject(_MALFORMED, f"scheme {scheme!r} not allowed", repo_uri)
-        parsed = urlsplit(repo_uri)
+    @staticmethod
+    def is_ip_literal(host: str) -> bool:
         try:
-            port = parsed.port or _DEFAULT_PORTS[normalized]
+            _ = ipaddress.ip_address(host)
         except ValueError:
-            raise _reject(_MALFORMED, "invalid port", repo_uri) from None
-        if parsed.username is not None and parsed.username.startswith("-"):
-            raise _reject(_MALFORMED, "user looks like an option", repo_uri)
-        return normalized, _validate_host(parsed.hostname or "", repo_uri), port
-
-    # No `scheme://`: scp-style SSH, or something git would treat as a
-    # local path or remote helper — reject those.
-    if (match := _SCP_RE.match(repo_uri)) is None:
-        raise _reject(_MALFORMED, "not an https, ssh or scp-style URI", repo_uri)
-    if (match["user"] or "").startswith("-"):
-        raise _reject(_MALFORMED, "user looks like an option", repo_uri)
-    host = match["host"].removeprefix("[").removesuffix("]").lower()
-    return "ssh", _validate_host(host, repo_uri), _DEFAULT_PORTS["ssh"]
-
-
-def _validate_host(host: str, repo_uri: str) -> str:
-    if not host or _is_ip_literal(host) or _HOSTNAME_RE.match(host):
-        return host
-    raise _reject(_MALFORMED, f"invalid host {host!r}", repo_uri)
-
-
-def _is_ip_literal(host: str) -> bool:
-    try:
-        _ = ipaddress.ip_address(host)
-    except ValueError:
-        return False
-    return True
-
-
-async def _resolve(host: str, port: int, repo_uri: str) -> tuple[IPAddress, ...]:
-    # Always go through getaddrinfo, literals included: it is what turns
-    # the shorthand forms git/curl would also accept (`2130706433`,
-    # `0x7f.1`, `127.1`) into the address actually dialled.
-    loop = asyncio.get_running_loop()
-    try:
-        infos = await asyncio.wait_for(
-            loop.getaddrinfo(host, port, type=socket.SOCK_STREAM),
-            timeout=_DNS_TIMEOUT_SECONDS,
-        )
-    except (OSError, TimeoutError) as e:
-        raise _reject(
-            _FORBIDDEN_HOST, f"cannot resolve {host}: {e}", repo_uri
-        ) from None
-    addresses = tuple(
-        dict.fromkeys(
-            ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos
-        )
-    )
-    if not addresses:
-        raise _reject(_FORBIDDEN_HOST, f"{host} resolved to nothing", repo_uri)
-    return addresses
-
-
-def _is_forbidden(address: IPAddress) -> bool:
-    if address in _METADATA_ADDRESSES or address.is_multicast or not address.is_global:
+            return False
         return True
-    embedded = _embedded_ipv4(address)
-    return embedded is not None and _is_forbidden(embedded)
 
+    @classmethod
+    def _parse(cls, repo_uri: str) -> tuple[str, str, int]:
+        if not repo_uri or any(c.isspace() or not c.isprintable() for c in repo_uri):
+            raise cls._reject(
+                cls.MALFORMED, "empty or contains whitespace/control chars", repo_uri
+            )
+        if repo_uri.startswith("-"):
+            raise cls._reject(
+                cls.MALFORMED, "looks like a command-line option", repo_uri
+            )
 
-def _embedded_ipv4(address: IPAddress) -> ipaddress.IPv4Address | None:
-    if isinstance(address, ipaddress.IPv4Address):
+        if match := cls.SCHEME_RE.match(repo_uri):
+            scheme = match["scheme"].lower()
+            if scheme in cls.HTTPS_SCHEMES:
+                normalized = "https"
+            elif scheme in cls.SSH_SCHEMES:
+                normalized = "ssh"
+            else:
+                raise cls._reject(
+                    cls.MALFORMED, f"scheme {scheme!r} not allowed", repo_uri
+                )
+            parsed = urlsplit(repo_uri)
+            try:
+                port = parsed.port or cls.DEFAULT_PORTS[normalized]
+            except ValueError:
+                raise cls._reject(cls.MALFORMED, "invalid port", repo_uri) from None
+            if parsed.username is not None and parsed.username.startswith("-"):
+                raise cls._reject(cls.MALFORMED, "user looks like an option", repo_uri)
+            return normalized, cls._validate_host(parsed.hostname or "", repo_uri), port
+
+        if (match := cls.SCP_RE.match(repo_uri)) is None:
+            raise cls._reject(
+                cls.MALFORMED, "not an https, ssh or scp-style URI", repo_uri
+            )
+        if (match["user"] or "").startswith("-"):
+            raise cls._reject(cls.MALFORMED, "user looks like an option", repo_uri)
+        host = match["host"].removeprefix("[").removesuffix("]").lower()
+        return "ssh", cls._validate_host(host, repo_uri), cls.DEFAULT_PORTS["ssh"]
+
+    @classmethod
+    def _validate_host(cls, host: str, repo_uri: str) -> str:
+        if not host or cls.is_ip_literal(host) or cls.HOSTNAME_RE.match(host):
+            return host
+        raise cls._reject(cls.MALFORMED, f"invalid host {host!r}", repo_uri)
+
+    @classmethod
+    async def _resolve(
+        cls, host: str, port: int, repo_uri: str
+    ) -> tuple[ipaddress.IPv4Address | ipaddress.IPv6Address, ...]:
+        # Literals too: getaddrinfo expands shorthands git would also accept
+        # (`2130706433`, `0x7f.1`, `127.1`) into the address actually dialled.
+        loop = asyncio.get_running_loop()
+        try:
+            infos = await asyncio.wait_for(
+                loop.getaddrinfo(host, port, type=socket.SOCK_STREAM),
+                timeout=cls.DNS_TIMEOUT_SECONDS,
+            )
+        except (OSError, TimeoutError) as e:
+            raise cls._reject(
+                cls.FORBIDDEN_HOST, f"cannot resolve {host}: {e}", repo_uri
+            ) from None
+        addresses = tuple(
+            dict.fromkeys(
+                ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos
+            )
+        )
+        if not addresses:
+            raise cls._reject(
+                cls.FORBIDDEN_HOST, f"{host} resolved to nothing", repo_uri
+            )
+        return addresses
+
+    @classmethod
+    def _is_forbidden(
+        cls, address: ipaddress.IPv4Address | ipaddress.IPv6Address
+    ) -> bool:
+        if (
+            address in cls.METADATA_ADDRESSES
+            or address.is_multicast
+            or not address.is_global
+        ):
+            return True
+        embedded = cls._embedded_ipv4(address)
+        return embedded is not None and cls._is_forbidden(embedded)
+
+    @classmethod
+    def _embedded_ipv4(
+        cls, address: ipaddress.IPv4Address | ipaddress.IPv6Address
+    ) -> ipaddress.IPv4Address | None:
+        if isinstance(address, ipaddress.IPv4Address):
+            return None
+        if address.ipv4_mapped is not None:
+            return address.ipv4_mapped
+        if address.sixtofour is not None:
+            return address.sixtofour
+        if address.teredo is not None:
+            return address.teredo[1]
+        if address in cls.NAT64:
+            return ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
         return None
-    if address.ipv4_mapped is not None:
-        return address.ipv4_mapped
-    if address.sixtofour is not None:
-        return address.sixtofour
-    if address.teredo is not None:
-        return address.teredo[1]
-    if address in _NAT64:
-        return ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
-    return None
 
-
-def _reject(message: str, reason: str, repo_uri: str) -> InvalidRepoURI:
-    parsed = urlsplit(repo_uri)
-    safe_uri = (
-        parsed._replace(netloc=parsed.hostname or "").geturl()
-        if parsed.netloc
-        else repo_uri
-    )
-    logging.warning(f"repo_uri rejected ({reason}): {safe_uri!r}")
-    return InvalidRepoURI(message=message, error_code=400)
+    @staticmethod
+    def _reject(message: str, reason: str, repo_uri: str) -> InvalidRepoURI:
+        parsed = urlsplit(repo_uri)
+        safe_uri = (
+            parsed._replace(netloc=parsed.hostname or "").geturl()
+            if parsed.netloc
+            else repo_uri
+        )
+        logging.warning(f"repo_uri rejected ({reason}): {safe_uri!r}")
+        return InvalidRepoURI(message=message, error_code=400)

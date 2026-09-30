@@ -2,12 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the repository-URI SSRF guard.
-
-DNS is faked by patching ``socket.getaddrinfo`` (what the event loop's
-resolver calls), so the suite runs without network access.
-"""
-
 import ipaddress
 import socket
 import subprocess
@@ -18,7 +12,7 @@ from typing import ClassVar, override
 from unittest.mock import patch
 
 from src.infrastructure.exceptions import InvalidRepoURI
-from src.infrastructure.filesystem.git.remote_guard import CheckedRemote, check_remote
+from src.infrastructure.filesystem.git.remote_guard import CheckedRemote, RemoteGuard
 
 
 def _resolves_to(*addresses: str):
@@ -53,7 +47,7 @@ class TestSchemes(unittest.IsolatedAsyncioTestCase):
         }
         for uri, (scheme, host, port) in cases.items():
             with self.subTest(uri=uri), _resolves_to("140.82.121.3"):
-                remote = await check_remote(uri)
+                remote = await RemoteGuard.check(uri)
                 self.assertEqual(
                     (remote.scheme, remote.host, remote.port), (scheme, host, port)
                 )
@@ -87,7 +81,7 @@ class TestSchemes(unittest.IsolatedAsyncioTestCase):
                 _resolves_to("140.82.121.3"),
                 self.assertRaises(InvalidRepoURI) as ctx,
             ):
-                _ = await check_remote(uri)
+                _ = await RemoteGuard.check(uri)
             self.assertEqual(ctx.exception.error_code, 400)
 
 
@@ -121,30 +115,27 @@ class TestResolvedAddresses(unittest.IsolatedAsyncioTestCase):
                 _resolves_to(address),
                 self.assertRaises(InvalidRepoURI),
             ):
-                _ = await check_remote("https://evil.example/repo.git")
+                _ = await RemoteGuard.check("https://evil.example/repo.git")
 
     async def test_rejects_when_any_resolved_address_is_internal(self):
         with (
             _resolves_to("140.82.121.3", "10.0.0.5"),
             self.assertRaises(InvalidRepoURI),
         ):
-            _ = await check_remote("https://mixed.example/repo.git")
+            _ = await RemoteGuard.check("https://mixed.example/repo.git")
 
     async def test_rejects_unresolvable_host_with_the_same_message(self):
         with (
             patch("socket.getaddrinfo", side_effect=socket.gaierror("nope")),
             self.assertRaises(InvalidRepoURI) as unresolvable,
         ):
-            _ = await check_remote("https://nope.invalid/repo.git")
+            _ = await RemoteGuard.check("https://nope.invalid/repo.git")
         with _resolves_to("10.0.0.5"), self.assertRaises(InvalidRepoURI) as internal:
-            _ = await check_remote("https://internal.example/repo.git")
-        # Same answer either way, so the endpoint is no oracle for which
-        # internal names exist.
+            _ = await RemoteGuard.check("https://internal.example/repo.git")
         self.assertEqual(unresolvable.exception.message, internal.exception.message)
         self.assertNotIn("nope", unresolvable.exception.message)
 
     async def test_numeric_shorthands_are_resolved_not_trusted(self):
-        # Real resolver: these never touch DNS.
         for uri in (
             "https://127.1/repo.git",
             "https://2130706433/repo.git",
@@ -155,11 +146,11 @@ class TestResolvedAddresses(unittest.IsolatedAsyncioTestCase):
             "git@[::1]:repo.git",
         ):
             with self.subTest(uri=uri), self.assertRaises(InvalidRepoURI):
-                _ = await check_remote(uri)
+                _ = await RemoteGuard.check(uri)
 
     async def test_accepts_public_addresses(self):
         with _resolves_to("140.82.121.3", "2606:50c0:8000::153"):
-            remote = await check_remote("https://github.com/org/repo.git")
+            remote = await RemoteGuard.check("https://github.com/org/repo.git")
         self.assertEqual(
             remote.addresses,
             (
@@ -172,7 +163,7 @@ class TestResolvedAddresses(unittest.IsolatedAsyncioTestCase):
 class TestGitConfig(unittest.IsolatedAsyncioTestCase):
     async def test_https_pins_every_checked_address_and_disables_redirects(self):
         with _resolves_to("140.82.121.3", "2606:50c0:8000::153"):
-            remote = await check_remote("https://github.com/org/repo.git")
+            remote = await RemoteGuard.check("https://github.com/org/repo.git")
         self.assertEqual(
             remote.git_config,
             (
@@ -189,12 +180,12 @@ class TestGitConfig(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_ip_literal_host_needs_no_pin(self):
-        remote = await check_remote("https://140.82.121.3/org/repo.git")
+        remote = await RemoteGuard.check("https://140.82.121.3/org/repo.git")
         self.assertEqual(remote.git_config, ("http.followRedirects=false",))
 
     async def test_ssh_has_no_http_config(self):
         with _resolves_to("140.82.121.3"):
-            remote = await check_remote("git@github.com:org/repo.git")
+            remote = await RemoteGuard.check("git@github.com:org/repo.git")
         self.assertEqual(remote.git_config, ())
 
 
@@ -213,9 +204,6 @@ class _RedirectHandler(BaseHTTPRequestHandler):
 
 
 class TestGitHonoursTheConfig(unittest.TestCase):
-    """Runs real git against a local server to prove the emitted config
-    actually pins resolution and stops redirects (not just that we emit it)."""
-
     server: HTTPServer
 
     def setUp(self):
@@ -227,7 +215,6 @@ class TestGitHonoursTheConfig(unittest.TestCase):
 
     def test_pinned_host_reaches_checked_address_and_redirect_is_not_followed(self):
         port = self.server.server_address[1]
-        # A name that cannot resolve: git only reaches the server via the pin.
         remote = CheckedRemote(
             scheme="https",
             host="nebula-pin.invalid",

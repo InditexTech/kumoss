@@ -23,10 +23,8 @@ SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
 
 
 def _allow_local_remotes():
-    """The SSRF guard rejects the file:// fixtures; stand it in with an
-    unpinned pass so these tests exercise the git plumbing."""
     return patch(
-        "src.infrastructure.filesystem.workspace.check_remote",
+        "src.infrastructure.filesystem.workspace.RemoteGuard.check",
         AsyncMock(return_value=CheckedRemote("ssh", "localhost", 22, ())),
     )
 
@@ -96,7 +94,7 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
         )
         with (
             patch(
-                "src.infrastructure.filesystem.workspace.check_remote",
+                "src.infrastructure.filesystem.workspace.RemoteGuard.check",
                 AsyncMock(return_value=remote),
             ),
             patch("src.infrastructure.filesystem.workspace.GitUtils") as git,

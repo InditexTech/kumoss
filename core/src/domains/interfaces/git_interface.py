@@ -16,10 +16,7 @@ class IGit(ABC):
 
     @abstractmethod
     async def ls_remote(self, *git_options: str) -> bool:
-        """Return True if the remote URI is reachable, False otherwise.
-
-        ``git_options`` go between ``git`` and ``ls-remote`` (e.g. ``-c k=v``).
-        """
+        """Return True if the remote URI is reachable, False otherwise."""
         pass
 
     @abstractmethod

@@ -70,9 +70,8 @@ class TestIacRootDetectorIntegration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.uri = _init_fixture_repo(self.tmp)
-        # The SSRF guard rejects file://; pass it so the clone path runs.
         guard = patch(
-            "src.infrastructure.filesystem.iac_root_detector.check_remote",
+            "src.infrastructure.filesystem.iac_root_detector.RemoteGuard.check",
             AsyncMock(return_value=CheckedRemote("ssh", "localhost", 22, ())),
         )
         _ = guard.start()
