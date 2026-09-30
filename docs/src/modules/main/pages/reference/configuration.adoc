@@ -347,14 +347,14 @@ condition fires.
 |`orchestration.max_drift_reports`
 |integer
 |`3`
-|`5`
+|`3`
 |Optional
 |Maximum detect-and-remediate iterations in a drift session.
 
 |`orchestration.max_validation_iteration`
 |integer
-|`5`
 |`8`
+|`5`
 |Optional
 |Maximum generate-then-validate attempts per generation task before the
 round fails with `Validation loop exceeded.`
@@ -369,12 +369,19 @@ or a rejected import is fed back to the generator and counts as one
 attempt. When the attempts run out after a passing plan, the round still
 reports what did import and lists what did not.
 
-|`orchestration.max_tool_chain_executions`
+|`orchestration.max_tool_agent_executions`
 |integer
-|`70`
-|`70`
+|`40`
+|`40`
 |Optional
-|Maximum tool-call iterations inside one agent chain before it aborts.
+|Maximum model turns inside one agent loop. On the last turn only the
+agent's sentinel tool is offered, so the agent can still return what it
+has; a loop that reaches the limit anyway aborts with
+`ToolExecutionsExceeded` and the round fails. Renamed from
+`max_tool_chain_executions`: the old key is ignored, so a file that
+still sets it silently gets the built-in `40`. See
+xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent tool
+loop].
 
 |`orchestration.max_session_events_iteration`
 |integer
@@ -436,7 +443,7 @@ and models].
 |string (LiteLLM model string, or a `model_name` alias when
 `model_list` is set)
 |`anthropic/claude-sonnet-5`
-|`anthropic/claude-sonnet-5`
+|`vertex_ai/claude-sonnet-5-5`
 |Optional (credentials mandatory)
 |High-quality model used by the IaC generator, target generator, and
 report generator chains.
@@ -444,7 +451,7 @@ report generator chains.
 |`llm.small_model`
 |string
 |`anthropic/claude-haiku-4-5`
-|`anthropic/claude-haiku-4-5`
+|`vertex_ai/gemini-3.8-flash`
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
 calls.

@@ -194,7 +194,10 @@ identifier does.
 |optional
 |Repository-relative path to the IaC root, for example
 `environments/dev`. Defaults to the repository root. An absolute path
-or one containing a `..` segment is rejected. First call only —
+or one containing a `..` segment is rejected. After the clone, the path
+must resolve, symlinks included, to an existing directory inside the
+repository, or the session ends `FAILED` with `runner failed: iac_path
+'<path>' is not a directory inside the repository`. First call only —
 iteration calls inherit it from the session.
 
 |`session_id`

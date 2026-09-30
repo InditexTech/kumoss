@@ -66,7 +66,7 @@ class Config:
     def from_env(cls) -> Config:
         return cls(
             expected_token=os.environ.get("NEBULA_IAC_TOKEN", ""),
-            iac_binary=os.environ.get("IAC_BINARY", "undefined"),
+            iac_binary=os.environ.get("IAC_BINARY", "tofu"),
             backend_config=os.environ.get("IAC_BACKEND_CONFIG", "").strip() or None,
         )
 

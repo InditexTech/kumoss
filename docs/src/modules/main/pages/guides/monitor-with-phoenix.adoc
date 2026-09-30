@@ -180,13 +180,16 @@ generation, code generation, reporting, and so on).
   `llm.model_name` on the span is that alias rather than the
   underlying `provider/model-id` string, and `llm.provider` is left
   unset because the alias carries no recognizable prefix.
-* *Invocation parameters:* `llm.invocation_parameters` with the request
-  arguments minus the bulky message and tool payloads (temperature, max
-  tokens, retries, timeout, reasoning effort).
+* *Invocation parameters:* `llm.invocation_parameters` with every
+  request argument sent to LiteLLM, including the raw `messages` and
+  `tools` payloads alongside temperature, max tokens, tool choice,
+  retries, timeout and reasoning effort.
 * *Messages:* `llm.input_messages.N.message.role` and `.content` for the
   system prompt, the conversation history (user, assistant, tool
-  results with their `tool_call_id`), and the current message; assistant
-  tool calls appear under `.message.tool_calls.M.*`.
+  results with their `tool_call_id`), the current message, and, last,
+  any harness notice the agent loop added for that turn only (the
+  budget-exhausted or no-tool-call reminder); assistant tool calls
+  appear under `.message.tool_calls.M.*`.
 * *Available tools:* `llm.tools.N.tool.json_schema`.
 * *Output:* `output.value` (text, or JSON with text and tool calls) and
   `llm.output_messages.0.*` including the tool calls made.
