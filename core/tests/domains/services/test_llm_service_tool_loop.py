@@ -9,6 +9,9 @@
 A single-use tool disappears once it succeeds, and the last round of the
 budget offers only the sentinel, with a notice telling the agent why, so
 the loop closes with the agent's account instead of an exception.
+
+A reply without tool calls never orphans the previous calls: the tool
+results it answered stay in the conversation, paired with those calls.
 """
 
 import unittest
@@ -61,6 +64,16 @@ def _response(name: str, call_id: str, **parameters) -> LLMResponseDTO:
     )
 
 
+def _text_response(text: str) -> LLMResponseDTO:
+    return LLMResponseDTO(
+        text=text,
+        metadata=LLMMetadata(
+            input_tokens=1, output_tokens=1, finish_reason="end_turn", model="m"
+        ),
+        tool_calls=[],
+    )
+
+
 def _result(call: ToolCallDTO) -> ToolResultDTO:
     return ToolResultDTO(
         name=call.name, tool_call_id=call.id, success=True, result="ok"
@@ -89,6 +102,15 @@ class TestToolLoopRounds(unittest.IsolatedAsyncioTestCase):
 
     def _notice(self, round_index: int) -> str | None:
         return self.llm.inference.await_args_list[round_index].kwargs["notice"]
+
+    def _msg(self, round_index: int):
+        return self.llm.inference.await_args_list[round_index].kwargs["msg"]
+
+    def _turns(self) -> list[tuple]:
+        # Every round shares the one local history, so the last call's
+        # history holds all turns recorded before it.
+        history = self.llm.inference.await_args_list[-1].kwargs["history"]
+        return [(turn.user, turn.assistant) for turn in history]
 
     async def test_single_use_tool_is_withdrawn_after_success(self):
         self.llm.inference = AsyncMock(
@@ -135,6 +157,47 @@ class TestToolLoopRounds(unittest.IsolatedAsyncioTestCase):
         await self.service.generate("q", [TASK_COMPLETE], prompt=PROMPT)
 
         self.assertIsNone(self._notice(0))
+
+    async def test_text_reply_keeps_the_tool_results_paired(self):
+        self.llm.inference = AsyncMock(
+            side_effect=[
+                _response("read_file", "c1", target_file="a.tf"),
+                _text_response("I cannot run terraform."),
+                _response("task_complete", "c3"),
+            ]
+        )
+
+        await self.service.generate(
+            "q", [READ_FILE, DIFF_HISTORY], TASK_COMPLETE, PROMPT
+        )
+
+        results, text = self._turns()[1]
+        self.assertEqual([r.tool_call_id for r in results], ["c1"])
+        self.assertEqual(text, "I cannot run terraform.")
+        nudge = self._msg(2)
+        self.assertIsInstance(nudge, str)
+        self.assertIn("`task_complete`", nudge)
+
+    async def test_empty_reply_resends_the_tool_results(self):
+        self.llm.inference = AsyncMock(
+            side_effect=[
+                _response("read_file", "c1", target_file="a.tf"),
+                _text_response(""),
+                _response("task_complete", "c3"),
+            ]
+        )
+
+        await self.service.generate(
+            "q", [READ_FILE, DIFF_HISTORY], TASK_COMPLETE, PROMPT
+        )
+
+        self.assertEqual(self._msg(2), self._msg(1))
+        notice = self._notice(2)
+        assert notice is not None
+        self.assertIn("`task_complete`", notice)
+        results, calls = self._turns()[1]
+        self.assertEqual([r.tool_call_id for r in results], ["c1"])
+        self.assertEqual([c.id for c in calls], ["c3"])
 
 
 if __name__ == "__main__":

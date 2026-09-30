@@ -135,6 +135,12 @@ class LLMOrchestrationService:
         total_executions = 0
         max_executions = system_config.orchestration.max_tool_agent_executions
         loop_state = ToolLoopState(local_tools, sentinel_tool)
+        no_tool_nudge = (
+            "You replied without calling a tool, and only tool calls are read. "
+            + "Continue the work with the tools, or call "
+            + f"`{sentinel_tool.name}` with your answer if you are done or blocked."
+        )
+        nudge: str | None = None
         while not self.__sentinel_executed(sentinel_tool, tools_result, local_tools):
             if total_executions == max_executions:
                 raise ToolExecutionsExceeded(
@@ -142,8 +148,6 @@ class LLMOrchestrationService:
                     + f"{max_executions}",
                     error_code=500,
                 )
-            # Last round: only the sentinel is offered, so the loop closes with
-            # the agent's own account of its work instead of an exception.
             last_round = total_executions == max_executions - 1
             round_tools = (
                 [sentinel_tool] if last_round else loop_state.available_tools()
@@ -154,7 +158,7 @@ class LLMOrchestrationService:
                 + "result the work done so far allows, and state anything left "
                 + "unfinished."
                 if last_round and len(local_tools) > 1
-                else None
+                else nudge
             )
             response: LLMResponseDTO = await self.__select_model(prompt).inference(
                 msg=tools_result,
@@ -168,13 +172,19 @@ class LLMOrchestrationService:
                     message=f"Error: unexpected finish reason - {response.metadata.finish_reason}",
                     error_code=500,
                 )
-            local_history.append_turn(tools_result, response.tool_calls)
-            tools_result = await self.__tool_svc.execute_tool_calls(
-                response.tool_calls, loop_state
-            )
-            if not tools_result:
-                logging.warning(f"Error inference - no tool response: {response}")
-                tools_result = "you MUST use a tool"
+            nudge = None
+            if response.tool_calls:
+                local_history.append_turn(tools_result, response.tool_calls)
+                tools_result = await self.__tool_svc.execute_tool_calls(
+                    response.tool_calls, loop_state
+                )
+            elif response.text:
+                logging.warning(f"Inference without tool calls: {response}")
+                local_history.append_turn(tools_result, response.text)
+                tools_result = no_tool_nudge
+            else:
+                logging.warning(f"Empty inference: {response}")
+                nudge = no_tool_nudge
             total_executions += 1
 
         return tools_result[-1]
