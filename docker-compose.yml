@@ -163,9 +163,7 @@ services:
   object-storage:
     image: rustfs/rustfs:latest
     environment:
-      - RUSTFS_CONSOLE_ENABLE=true
-      - RUSTFS_ACCESS_KEY=rustfsadmin
-      - RUSTFS_SECRET_KEY=rustfsadmin
+      - RUSTFS_CONSOLE_ENABLE=false
     expose:
       - 9000
     volumes:

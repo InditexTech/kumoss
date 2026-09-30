@@ -158,8 +158,11 @@ With authentication disabled this returns a JSON document with an empty
 |===
 
 Port 80 serves the unauthenticated Kumoss application by default, while
-port 9000 exposes presigned artifact downloads and the RustFS console, on
-every interface of the host. Keep the stack on a machine only you can reach.
+port 9000 exposes presigned artifact downloads, on every interface of the
+host. Keep the stack on a machine only you can reach. The RustFS web
+console is disabled; to enable it, see
+xref:main:guides/production/operations.adoc#rustfs-console[RustFS
+console].
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
