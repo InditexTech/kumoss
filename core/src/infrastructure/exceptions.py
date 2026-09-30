@@ -120,7 +120,7 @@ class CliTimeoutError(ExceptionHandler):
 
 
 class InvalidRepoURI(ExceptionHandler):
-    """Raised when `git ls-remote` rejects the URI."""
+    """Raised when the URI fails the SSRF guard or `git ls-remote` rejects it."""
 
     pass
 

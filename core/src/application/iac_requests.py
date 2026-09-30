@@ -66,6 +66,8 @@ class BaseIacRequest(BaseModel):
         Field(
             description=(
                 "Repository URI (first call only). Mutually exclusive with session_id. "
+                "Must be `https://`, `ssh://` or scp-style `git@host:path`, and the "
+                "host must resolve only to public addresses. "
                 "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
                 "but must not embed a password or token."
             ),

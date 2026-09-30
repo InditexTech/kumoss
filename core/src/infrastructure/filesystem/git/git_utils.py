@@ -41,11 +41,11 @@ class GitUtils(IGit):
         return self.__error_msg
 
     @override
-    async def ls_remote(self) -> bool:
+    async def ls_remote(self, *git_options: str) -> bool:
         logging.info(f"git ls-remote {self.__uri}")
         return self._handle_return_code(
             await self.__cli.execute(
-                ["git", "ls-remote", "--exit-code", self.__uri],
+                ["git", *git_options, "ls-remote", "--exit-code", "--", self.__uri],
                 20,
             )
         )
@@ -60,7 +60,7 @@ class GitUtils(IGit):
     ) -> bool:
         cmd = ["git", "clone", "--depth", "1"]
         cmd.extend(extra_args)
-        cmd.extend([repo_url, repository_name])
+        cmd.extend(["--", repo_url, repository_name])
         parsed = urlparse(repo_url)
         safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
         result = await self.__cli.execute(cmd, timeout)
@@ -85,7 +85,7 @@ class GitUtils(IGit):
             30,
         )
         if not self._handle_return_code(result):
-            raise ExceptionHandler(f"git ls-tree failed: {self.error_msg}", 502)
+            raise ExceptionHandler("git ls-tree failed", 502)
         return result.stdout.decode().splitlines()
 
     @override

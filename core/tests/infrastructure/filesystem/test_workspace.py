@@ -2,22 +2,33 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import ipaddress
 import os
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from src.infrastructure.filesystem import (
     WorkspaceService,
     InvalidRepoURI,
 )
+from src.infrastructure.filesystem.git.remote_guard import CheckedRemote
 from src.shared.config import system_config
 
 SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
+
+
+def _allow_local_remotes():
+    """The SSRF guard rejects the file:// fixtures; stand it in with an
+    unpinned pass so these tests exercise the git plumbing."""
+    return patch(
+        "src.infrastructure.filesystem.workspace.check_remote",
+        AsyncMock(return_value=CheckedRemote("ssh", "localhost", 22, ())),
+    )
 
 
 def _init_bare_remote(tmp: Path, files: dict[str, str] | None = None) -> str:
@@ -60,11 +71,39 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
 
     async def test_accepts_reachable_remote(self):
         uri = _init_bare_remote(self.tmp)
-        await WorkspaceService().validate_uri(uri)  # no exception
+        with _allow_local_remotes():
+            await WorkspaceService().validate_uri(uri)  # no exception
 
-    async def test_rejects_unreachable_remote(self):
-        with self.assertRaises(InvalidRepoURI):
+    async def test_rejects_unreachable_remote_without_git_stderr(self):
+        with _allow_local_remotes(), self.assertRaises(InvalidRepoURI) as ctx:
             await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
+        self.assertEqual(ctx.exception.error_code, 400)
+        self.assertNotIn("does-not-exist", ctx.exception.message)
+        self.assertNotIn("fatal", ctx.exception.message)
+
+    async def test_guard_rejects_file_uri_before_git_runs(self):
+        uri = _init_bare_remote(self.tmp)
+        with (
+            patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+            self.assertRaises(InvalidRepoURI),
+        ):
+            await WorkspaceService().validate_uri(uri)
+        git.assert_not_called()
+
+    async def test_ls_remote_runs_with_the_guard_pin(self):
+        remote = CheckedRemote(
+            "https", "github.com", 443, (ipaddress.ip_address("140.82.121.3"),)
+        )
+        with (
+            patch(
+                "src.infrastructure.filesystem.workspace.check_remote",
+                AsyncMock(return_value=remote),
+            ),
+            patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+        ):
+            git.return_value.ls_remote = AsyncMock(return_value=True)
+            await WorkspaceService().validate_uri("https://github.com/org/r.git")
+        git.return_value.ls_remote.assert_awaited_once_with(*remote.command_options)
 
 
 def _current_branch(path: Path) -> str:
@@ -112,6 +151,9 @@ class _WorkspaceBase(unittest.IsolatedAsyncioTestCase):
         )
         identity.start()
         self.addCleanup(identity.stop)
+        guard = _allow_local_remotes()
+        self.guard = guard.start()
+        self.addCleanup(guard.stop)
 
     async def asyncTearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)

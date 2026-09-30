@@ -11,6 +11,7 @@ from urllib.parse import urlparse, urlunparse
 
 from src.domains.interfaces.iac_root_detector_interface import IIacRootDetector
 from src.infrastructure.filesystem.git.git_utils import GitUtils
+from src.infrastructure.filesystem.git.remote_guard import check_remote
 from src.shared.config import system_config
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -94,6 +95,9 @@ class IacRootDetector(IIacRootDetector):
 
     @override
     async def detect_roots(self, repo_uri: str) -> list[str]:
+        # Checked again (not trusted from validate_uri) so the clone is
+        # pinned to addresses resolved just now.
+        remote = await check_remote(repo_uri)
         clone_dir = Path(tempfile.mkdtemp(prefix="iac-root-"))
         try:
             git = GitUtils(
@@ -106,12 +110,11 @@ class IacRootDetector(IIacRootDetector):
                 "repo",
                 "--filter=blob:none",
                 "--no-checkout",
+                *remote.clone_options,
                 timeout=60,
             )
             if not ok:
-                raise ExceptionHandler(
-                    f"Repository could not be cloned: {git.error_msg}", 502
-                )
+                raise ExceptionHandler("Repository could not be cloned.", 502)
 
             repo_path = clone_dir / "repo"
             file_paths = await git.ls_tree(cwd=repo_path)

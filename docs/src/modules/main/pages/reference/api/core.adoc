@@ -176,9 +176,12 @@ neither is a validation error.
 
 |`repo_uri`
 |required
-|Git-cloneable repository URI. May carry a userinfo username (for
-example `\https://org@dev.azure.com/...`) but must not embed a password
-or token; an empty password (`user:@host`) is rejected too.
+|Git-cloneable repository URI: `\https://`, `ssh://` or scp-style
+`git@host:path`, on a host that resolves only to public addresses (see
+xref:main:reference/configuration.adoc#repository-uri-rules[Repository
+URIs]). May carry a userinfo username (for example
+`\https://org@dev.azure.com/...`) but must not embed a password or
+token; an empty password (`user:@host`) is rejected too.
 
 |`scope_id`
 |required
@@ -215,7 +218,8 @@ pass:[<code>Partial drift detection requires a non-empty `q`.</code>]
 Failures on these three routes:
 
 * `400` — the repository URI was rejected as unreachable or not
-  allowed.
+  allowed. The message is generic; git's own error output is only
+  logged on the server.
 * `403` — the operation role is too low, or the caller is not the
   owner of the session named by `session_id`.
 * `404` — an iteration call referenced an unknown session.
@@ -299,8 +303,10 @@ repository URL is entered.
 {"roots": [".", "environments/dev", "environments/prod"]}
 ----
 
-A URI that embeds a password or token is `422`, one that `git ls-remote`
-cannot reach is `400`, and a failed clone or scan is `502`. The
+A URI that embeds a password or token is `422`; one with a disallowed
+scheme or a non-public host, or that `git ls-remote` cannot reach, is
+`400`; and a failed clone or scan is `502`. Error messages are generic
+and never include git's output. The
 detection rules behind the answer are in
 xref:main:reference/repository-layout.adoc[Repository layout].
 

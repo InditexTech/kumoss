@@ -13,8 +13,12 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+from src.infrastructure.exceptions import InvalidRepoURI
+from src.infrastructure.filesystem.git.remote_guard import CheckedRemote
 from src.infrastructure.filesystem.iac_root_detector import IacRootDetector
+from src.shared.exceptions import ExceptionHandler
 
 _GIT = ["git", "-c", "user.email=test@test", "-c", "user.name=test"]
 
@@ -66,6 +70,14 @@ class TestIacRootDetectorIntegration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.uri = _init_fixture_repo(self.tmp)
+        # The SSRF guard rejects file://; pass it so the clone path runs.
+        guard = patch(
+            "src.infrastructure.filesystem.iac_root_detector.check_remote",
+            AsyncMock(return_value=CheckedRemote("ssh", "localhost", 22, ())),
+        )
+        _ = guard.start()
+        self.addCleanup(guard.stop)
+        self.guard = guard
 
     async def asyncTearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -77,5 +89,15 @@ class TestIacRootDetectorIntegration(unittest.IsolatedAsyncioTestCase):
 
     async def test_bogus_uri_raises(self):
         detector = IacRootDetector()
-        with self.assertRaises(Exception):
+        with self.assertRaises(ExceptionHandler) as ctx:
             await detector.detect_roots("file:///no/such/repo.git")
+        self.assertEqual(ctx.exception.message, "Repository could not be cloned.")
+
+    async def test_guard_rejects_file_uri_before_cloning(self):
+        self.guard.stop()
+        with (
+            patch("src.infrastructure.filesystem.iac_root_detector.GitUtils") as git,
+            self.assertRaises(InvalidRepoURI),
+        ):
+            await IacRootDetector().detect_roots(self.uri)
+        git.assert_not_called()

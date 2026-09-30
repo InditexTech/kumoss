@@ -880,6 +880,29 @@ pull-request creation and merge call the provider's REST API with
 an SSH-only setup cannot open or merge pull requests. Repository URLs
 that embed a user name or token are rejected by the API.
 
+[#repository-uri-rules]
+*Repository URIs.* Users supply the repository URI, so the core checks
+it before git runs, and no setting relaxes the check:
+
+* Only `\https://`, `ssh://` (also `git+ssh://` and `ssh+git://`) and
+scp-style `git@host:path` are accepted. `http://`, `git://`, `file://`,
+`ext::` and local paths are rejected with `400`.
+* The host is resolved, and *every* address it resolves to must be
+public. Loopback, private (RFC 1918), link-local (including the cloud
+metadata endpoint `169.254.169.254`), carrier-grade NAT, IPv6
+unique-local and multicast addresses are rejected with `400`, including
+when they are embedded in IPv4-mapped, NAT64, 6to4 or Teredo IPv6
+addresses. That means a Git server on a private network cannot be used.
+* Over HTTPS, git is pinned to the checked addresses
+(`http.curloptResolve`) and does not follow redirects
+(`http.followRedirects=false`). The pin is written into each
+workspace's clone, so later fetches and pushes use it too. Use the
+repository's canonical URL: the redirect a host serves for a renamed
+or moved repository is not followed. SSH connections are checked but
+not pinned.
+* Rejections and git failures reach the caller as generic messages.
+The details, including git's own output, are only in the core's log.
+
 Requires rebuild: yes for the YAML; token values live in `core/.env`.
 
 == Example: minimal local development

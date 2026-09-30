@@ -38,7 +38,9 @@ class StdoutFormatter(logging.Formatter):
         module = f"{LIGHTCYAN_EX}[{module_name}]"
         date_format = getattr(record, "date_format", "%H:%M:%S")
         date = f"{LIGHTBLACK_EX}[%(asctime)s] "
-        msg = f"{RESET}{record.getMessage()}"
+        # The message is spliced into a %-style format string below, so a
+        # literal `%` (URL-encoded repo paths, git stderr) must be escaped.
+        msg = f"{RESET}{record.getMessage().replace('%', '%%')}"
         formats = {
             logging.DEBUG: f"{LIGHTMAGENTA_EX}{level}:{module}{date}{msg}",
             logging.INFO: f"{LIGHTGREEN_EX}{level}:{module}{date}{msg}",

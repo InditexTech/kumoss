@@ -124,6 +124,8 @@ async def parse_repository(
         Body(
             description=(
                 "Git-cloneable repository URI to parse for Terraform roots. "
+                "Must be `https://`, `ssh://` or scp-style `git@host:path`, and the "
+                "host must resolve only to public addresses. "
                 "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
                 "but must not embed a password or token."
             ),

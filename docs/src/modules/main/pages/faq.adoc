@@ -87,7 +87,12 @@ HTTPS URL. Azure DevOps users: the portal's clone URL starts with
 `\https://<org>@dev.azure.com/...`; remove the `<org>@` part. Only
 `github.com`, `gitlab.com` (no subgroups), and `dev.azure.com` are
 supported for pull requests. The repository must also be reachable by
-Kumoss's service account.
+Kumoss's service account, over `\https://` or SSH, on a host with
+public addresses only: private-network Git servers, `http://` and
+`file://` URLs are refused, and redirects (such as a renamed GitHub
+repository) are not followed, so use the canonical URL. The error
+message is deliberately generic; operators find the reason in the core
+log.
 ====
 
 .Why does Kumoss say it found no IaC paths?

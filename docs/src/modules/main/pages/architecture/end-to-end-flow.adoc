@@ -41,8 +41,13 @@ ownership].
 |The URL may carry a userinfo username (the `<org>@` prefix of an Azure
 DevOps clone URL, or `git@`) but must not embed a password or token —
 a request-model validator rejects one that does with `422`, an empty
-`user:` password included — and then `git ls-remote` must succeed:
-unreachable or rejected → `400`. Either way no session is created.
+`user:` password included. Next, the scheme must be https or SSH, and
+every address the host resolves to must be public
+(xref:main:reference/configuration.adoc#repository-uri-rules[Repository
+URIs]). Finally, `git ls-remote`, pinned to those addresses, must
+succeed. A disallowed, unreachable or rejected URI gets `400` with a
+generic message. Either way no session is created. The background
+clone repeats the address check before it runs.
 
 |Session creation
 |A session row owned by the caller is created, or an existing one

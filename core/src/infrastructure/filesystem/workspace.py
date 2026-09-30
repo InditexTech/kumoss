@@ -13,6 +13,7 @@ from src.domains.interfaces.workspace_interface import IWorkspace
 from src.infrastructure.exceptions import GitError, InvalidRepoURI
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
+from src.infrastructure.filesystem.git.remote_guard import check_remote
 from src.shared.config import system_config
 from src.shared.logger import logging
 
@@ -48,16 +49,21 @@ class WorkspaceService(IWorkspace):
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:
-
+        remote = await check_remote(repo_uri)
         git = GitUtils(
             uri=repo_uri,
             git_provider=system_config.git.provider,
             cwd=Path(tempfile.gettempdir()),
         )
-        if not await git.ls_remote():
-            msg = git.error_msg or f"Cannot reach repository: {repo_uri}"
-            logging.warning(f"git ls-remote failed for {repo_uri}: {msg}")
-            raise InvalidRepoURI(message=msg, error_code=400)
+        if not await git.ls_remote(*remote.command_options):
+            # git's stderr stays in the server log: it can echo internal
+            # hostnames, addresses and response bodies back to the caller.
+            logging.warning(f"git ls-remote failed for {remote.host}: {git.error_msg}")
+            raise InvalidRepoURI(
+                message="Repository could not be reached. Check the URI and "
+                + "that Nebula has access to it.",
+                error_code=400,
+            )
 
     @override
     async def setup_call_dir(
@@ -66,6 +72,9 @@ class WorkspaceService(IWorkspace):
         repo_uri: str,
         branch: str,
     ) -> Path:
+        # Re-checked here rather than trusted from validate_uri: this runs
+        # later, in the background, and DNS may answer differently by now.
+        remote = await check_remote(repo_uri)
         call_id = uuid4()
         call_dir = self._base / str(session_id) / str(call_id)
         call_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -78,11 +87,12 @@ class WorkspaceService(IWorkspace):
             cwd=call_dir.parent,
         )
         ok = await git.clone_repository(
-            repo_url=repo_uri,
-            repository_name=str(call_id),
+            repo_uri,
+            str(call_id),
+            *remote.clone_options,
         )
         if not ok:
-            raise GitError(f"git clone failed: {git.error_msg}", 500)
+            raise GitError("git clone failed", 500)
 
         if not self.__add_terraform_gitignore(call_dir):
             logging.warning("terraform gitignore couldn't be created")
