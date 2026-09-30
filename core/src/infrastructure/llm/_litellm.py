@@ -12,6 +12,7 @@ import litellm
 from litellm import Choices, Message, ModelResponse, ResponsesAPIResponse, Usage
 from litellm.router import Router
 from openai import OpenAIError
+from pydantic import BaseModel
 
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.dto import (
@@ -55,8 +56,8 @@ class LiteLLMAdapter(ILLMProvider):
     async def inference(
         self,
         msg: str | list[ToolResultDTO],
-        system_prompt: str = None,
-        tools: list[ToolDefinitionDTO] = None,
+        system_prompt: str | None = None,
+        tools: list[ToolDefinitionDTO] | None = None,
         history: History = None,
         thinking: bool = False,
         web_search: bool = False,
@@ -93,7 +94,7 @@ class LiteLLMAdapter(ILLMProvider):
                     )
                     break
                 except OpenAIError as e:
-                    logging.error(f"LiteLLM aresponses provider error: {str(e)}")
+                    logging.error(f"LiteLLM aresponses provider error: {e!r}")
 
                 logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
                 await asyncio.sleep(30)
@@ -117,7 +118,7 @@ class LiteLLMAdapter(ILLMProvider):
                 kwargs["tool_choice"] = "required"
 
             if thinking:
-                kwargs["reasoning_effort"] = "medium"
+                kwargs["reasoning_effort"] = "low"
 
             if web_search:
                 kwargs["web_search_options"] = {"search_context_size": "medium"}
@@ -129,7 +130,7 @@ class LiteLLMAdapter(ILLMProvider):
                     await self.__router.acompletion(**kwargs, drop_params=True),
                 )
             except OpenAIError as e:
-                logging.error(f"LiteLLM API error: {str(e)}")
+                logging.error(f"LiteLLM API error: {e!r}")
                 raise InferenceCallAPIError(
                     message=f"Inference call to {self.__model} failed.",
                     error_code=getattr(e, "status_code", 502),
@@ -237,16 +238,31 @@ class LiteLLMAdapter(ILLMProvider):
     ) -> list[dict[str, Any]]:
         output: list[dict[str, Any]] = []
         for result in tool_results:
-            dict_r: dict[str, Any] = dataclasses.asdict(result)
-            del dict_r["tool_call_id"]
+            # Content MUST be a string: provider converters (e.g. Anthropic)
+            # silently drop non-string content.
+            payload: dict[str, Any] = (
+                {"success": True, "result": result.result}
+                if result.success
+                else {"success": False, "error": result.error_message}
+            )
             output.append(
                 {
                     "role": "tool",
                     "tool_call_id": result.tool_call_id,
-                    "content": dict_r,
+                    "content": json.dumps(
+                        payload, ensure_ascii=False, default=self.__json_default
+                    ),
                 }
             )
         return output
+
+    @staticmethod
+    def __json_default(obj: Any) -> Any:
+        if isinstance(obj, BaseModel):
+            return obj.model_dump(mode="json")
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)
+        return str(obj)
 
     def __format_tool_calls(
         self, tool_calls: list[ToolCallDTO]
