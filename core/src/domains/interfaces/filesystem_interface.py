@@ -15,6 +15,12 @@ class IFileSystem(ABC):
         """Get the project root path"""
         pass
 
+    @property
+    @abstractmethod
+    def protected_names(self) -> frozenset[str]:
+        """Names of the entries managed by Nebula, hidden from the tools"""
+        pass
+
     @abstractmethod
     def write_file(self, target_file: str, content: str, is_safe: bool = True) -> None:
         """

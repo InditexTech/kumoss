@@ -523,6 +523,18 @@ workspace, carried by the pinned workspace, and executed by `apply`. It
 must be a *single safe filename*: no path separators, no spaces, at
 most 128 characters. Keep the `.plan` suffix so the gitignore rules the
 core injects continue to cover it.
+
+|`paths.backend_override_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}_override\.tf$`
+|`backend_override.tf`
+|Optional
+|Name of the state backend override the core writes into every
+workspace before `init` when `storage.terraform_state_bucket` is set.
+It must be a single safe filename ending in `_override.tf`: Terraform
+only merges files with that suffix over the rest of the configuration,
+and the gitignore rules the core injects only cover that suffix. The
+file holds the state store credentials, so the agent's file tools can
+neither see nor touch it.
 |===
 
 Requires rebuild: yes.
@@ -714,8 +726,9 @@ field default if the key is absent
 |Bucket (or blob container) holding Terraform/OpenTofu state, separate
 from `storage.bucket`. *Non-blank — the shipped value — means Kumoss
 manages state*: the bucket is created at boot if missing and the core
-writes a `backend_override.tf` into every workspace before `init`,
-addressing it with the key `<project_id>/terraform.tfstate`. Backend
+writes `paths.backend_override_filename` into every workspace before
+`init`, addressing it with the key
+`<project_id>/<storage.terraform_state_filename>`. Backend
 type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for
 `STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value,
 `""`, and whitespace-only are all blank, and blank means no bucket is
@@ -725,6 +738,16 @@ own remote backend, whose credentials belong to the IaC sidecar. A bare
 `""`: it parses as YAML null and fails boot with a Pydantic validation
 error. See xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
+
+|`storage.terraform_state_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}$`
+|`terraform.tfstate`
+|Optional
+|Object name of each project's state inside
+`storage.terraform_state_bucket`, stored under the `<project_id>/`
+prefix. It must be a single safe filename: no path separators, no
+spaces, at most 128 characters. Changing it orphans the existing state:
+every project then starts from an empty state under the new key.
 
 |`storage.endpoint_url`
 |string

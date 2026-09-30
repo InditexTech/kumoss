@@ -4,8 +4,8 @@
 
 """Terraform state backend for the workspaces the core hands to the IaC service.
 
-This renders a ``backend_override.tf`` addressing that same store, into
-the workspace, before `init` runs:
+This renders ``paths.backend_override_filename`` addressing that same
+store, into the workspace, before `init` runs:
 
 Terraform merges ``*_override.tf`` over the rest of the configuration and
 it is gitirnored.
@@ -32,16 +32,13 @@ from src.shared.logger import logging
 class TerraformBackend:
     """Writes the state backend of one workspace."""
 
-    _OVERRIDE_FILENAME: str = "backend_override.tf"
-    _STATE_FILENAME: str = "terraform.tfstate"
-
     def __init__(self, project_id: str):
         self.__project_id = project_id
         self.__storage = system_config.storage
 
     @property
     def state_key(self) -> str:
-        return f"{self.__project_id}/{self._STATE_FILENAME}"
+        return f"{self.__project_id}/{self.__storage.terraform_state_filename}"
 
     def apply(self, workspace_path: Path) -> None:
         """Write the override into ``workspace_path``.
@@ -52,7 +49,7 @@ class TerraformBackend:
         on far more legibly than an exception here would.
         """
         content = self.__render()
-        override = workspace_path / self._OVERRIDE_FILENAME
+        override = workspace_path / system_config.paths.backend_override_filename
         try:
             _ = override.write_text(content, encoding="utf-8")
         except OSError as e:

@@ -243,6 +243,7 @@ class TerraformImportHandler:
                             message=fail_msg,
                             error_code=500,
                         )
+                    plan_result = drift
 
                 _ = await self.__report_svc.generate_report(
                     ctx=ctx,
@@ -255,6 +256,7 @@ class TerraformImportHandler:
                                 "imported": [asdict(a) for a in imported],
                                 "failed": [asdict(a) for a in failed],
                             },
+                            "plan": plan_result.stdout,
                         }
                     ),
                 )

@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
+from src.infrastructure.exceptions import InvalidIacPath
 from src.infrastructure.filesystem import (
     WorkspaceService,
     InvalidRepoURI,
@@ -252,3 +253,43 @@ class TestPinnedWorkspace(unittest.TestCase):
         self.svc.discard_pinned(self.sid)  # no exception
 
         self.assertIsNone(self.svc.pinned_plan_path(self.sid))
+
+
+class TestIacRoot(unittest.TestCase):
+    """The IaC root resolves inside the clone, whatever the repo links to."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.svc = WorkspaceService(base_path=self.tmp)
+        self.clone = self.tmp / "session" / "call"
+        (self.clone / "envs" / "dev").mkdir(parents=True)
+        (self.tmp / "session" / "other").mkdir()
+
+    def test_subdirectory_and_repo_root(self):
+        self.assertEqual(
+            self.svc.iac_root(self.clone, "envs/dev"),
+            (self.clone / "envs" / "dev").resolve(),
+        )
+        self.assertEqual(self.svc.iac_root(self.clone, None), self.clone.resolve())
+        self.assertEqual(self.svc.iac_root(self.clone, ""), self.clone.resolve())
+
+    def test_link_inside_the_clone_is_followed(self):
+        (self.clone / "current").symlink_to("envs/dev")
+        self.assertEqual(
+            self.svc.iac_root(self.clone, "current"),
+            (self.clone / "envs" / "dev").resolve(),
+        )
+
+    def test_links_leaving_the_clone_are_rejected(self):
+        (self.clone / "root").symlink_to("/")
+        (self.clone / "sibling").symlink_to("../other")
+        for iac_path in ["root", "sibling", "root/etc"]:
+            with self.assertRaises(InvalidIacPath, msg=iac_path):
+                self.svc.iac_root(self.clone, iac_path)
+
+    def test_missing_or_file_root_is_rejected(self):
+        (self.clone / "main.tf").write_text("\n")
+        for iac_path in ["nope", "main.tf"]:
+            with self.assertRaises(InvalidIacPath, msg=iac_path):
+                self.svc.iac_root(self.clone, iac_path)

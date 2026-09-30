@@ -8,7 +8,9 @@
 
 The system prompt hands the agent the working directory as an absolute
 path, so absolute paths inside it must work like their relative form,
-while anything resolving outside of it (``..``, ``/``) is rejected.
+while anything resolving outside of it (``..``, ``/``) is rejected. The
+entries Nebula manages inside it (git metadata, the gitignore, the backend
+override with the state-store credentials) are never exposed.
 """
 
 import shutil
@@ -16,7 +18,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from src.domains.dto import ToolCallDTO, ToolResultDTO
 from src.infrastructure.filesystem.file_system import FileSystemUtils
@@ -62,7 +64,7 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
 
         result = await self._run("list_dir", relative_workspace_path=".")
         self.assertTrue(result.success, result.error_message)
-        self.assertEqual(result.result["files"], [".gitignore", "main.tf"])
+        self.assertEqual(result.result["files"], ["main.tf"])
         self.assertEqual(result.result["directories"], ["modules"])
 
     async def test_list_dir_missing_directory_reports_relative_path(self):
@@ -113,6 +115,71 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.success, result.error_message)
         self.assertEqual(result.result[0]["matches"], ['main.tf:1:resource "x" "y" {}'])
         self.assertFalse(result.result[0]["truncated"])
+
+    async def test_protected_entries_are_rejected_by_every_tool(self):
+        (self.root / ".git").mkdir()
+        (self.root / ".git" / "config").write_text("[core]\n")
+        (self.root / ".gitignore").write_text("*_override.tf\n")
+        (self.root / "backend_override.tf").write_text('access_key = "k"\n')
+        calls: list[tuple[str, dict[str, Any]]] = [
+            ("read_file", {"target_file": ".git/config"}),
+            ("read_file", {"target_file": "backend_override.tf"}),
+            ("read_file", {"target_file": str(self.root / "backend_override.tf")}),
+            ("list_dir", {"relative_workspace_path": ".git"}),
+            ("delete_file", {"target_file": ".gitignore"}),
+            ("delete_file", {"target_file": "backend_override.tf"}),
+            ("write_to_file", {"target_file": ".git/hooks/x.tf", "content": "x"}),
+            ("write_to_file", {"target_file": "modules/.git/x.tf", "content": "x"}),
+            ("replace_in_file", {"target_file": "backend_override.tf", "diff": "x"}),
+        ]
+        for name, parameters in calls:
+            result = await self._run(name, **parameters)
+            self.assertFalse(result.success, (name, parameters))
+            self.assertIn("managed by Nebula", result.error_message)
+        self.assertTrue((self.root / ".gitignore").exists())
+        self.assertFalse((self.root / ".git" / "hooks").exists())
+
+    async def test_grep_include_pattern_cannot_reach_protected_entries(self):
+        (self.root / ".git").mkdir()
+        (self.root / ".git" / "config").write_text("token = leak\n")
+        (self.root / ".gitignore").write_text("# leak\n")
+        (self.root / "backend_override.tf").write_text('access_key = "leak"\n')
+
+        for include in ["*", "**", ".git/**", "*.tf", "backend_override.tf"]:
+            result = await self._run(
+                "bulk_grep_search",
+                searches=[{"query": "leak", "include_pattern": include}],
+            )
+            self.assertTrue(result.success, result.error_message)
+            self.assertEqual(result.result[0]["matches"], [], include)
+
+    async def test_delete_only_removes_files_the_agent_could_write(self):
+        (self.root / "README.md").write_text("docs\n")
+
+        result = await self._run("delete_file", target_file="README.md")
+        self.assertFalse(result.success)
+        self.assertIn("File extension violation", result.error_message)
+        self.assertTrue((self.root / "README.md").exists())
+
+        result = await self._run("delete_file", target_file="main.tf")
+        self.assertTrue(result.success, result.error_message)
+        self.assertFalse((self.root / "main.tf").exists())
+
+    async def test_diff_history_skips_untracked_links_leaving_the_root(self):
+        (self.root / "new.tf").write_text("new\n")
+        (self.root / "leak.tf").symlink_to(self.tmp / "repo" / "outside.tf")
+        git = MagicMock()
+        git.show_diff = AsyncMock(return_value="")
+        git.get_untracked_files = AsyncMock(return_value=["leak.tf", "new.tf"])
+        registry = ToolRegistryWorkspace(
+            filesystem=FileSystemUtils(self.root), git=git, llm=MagicMock()
+        )
+
+        result = await registry.execute_tool(
+            ToolCallDTO(id="call_1", name="diff_history", parameters={})
+        )
+        self.assertTrue(result.success, result.error_message)
+        self.assertEqual(result.result["changes"], [["new.tf:\nnew\n"]])
 
 
 if __name__ == "__main__":

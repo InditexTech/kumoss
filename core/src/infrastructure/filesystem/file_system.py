@@ -12,6 +12,7 @@ from src.infrastructure.exceptions import (
     RipgrepError,
     SearchReplaceBlockError,
 )
+from src.shared.config import system_config
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -26,13 +27,20 @@ class FileSystemUtils(IFileSystem):
         :param file_ext: Allowed file extensions.
         """
         self.__file_ext = file_ext if file_ext else ["tf", "tfvars"]
-        self.__project_root_path = Path(root)
+        self.__project_root_path = Path(root).resolve()
 
     @property
     @override
     def project_root(self) -> Path:
         """Get the project root path"""
         return Path(self.__project_root_path)
+
+    @property
+    @override
+    def protected_names(self) -> frozenset[str]:
+        return frozenset(
+            {".git", ".gitignore", system_config.paths.backend_override_filename}
+        )
 
     @override
     def write_file(self, target_file: str, content: str, is_safe: bool = True) -> None:
@@ -114,8 +122,9 @@ class FileSystemUtils(IFileSystem):
         :param target_file: Target file path relative to project root
         :returns: True if successful
         """
+        file_path = self.__resolve_path(target_file)
+        self.__validate_file_extension(file_path.name)
         try:
-            file_path = self.__resolve_path(target_file)
             file_path.unlink()
             logging.info(f"Successfully deleted file {target_file}")
         except FileNotFoundError:
@@ -208,13 +217,14 @@ class FileSystemUtils(IFileSystem):
         :returns: Search results
         """
         cmd = ["rg", "--line-number", "--with-filename", "--hidden", "--no-require-git"]
-        cmd.extend(["--glob", "!.git"])
         if not case_sensitive:
             cmd.append("--ignore-case")
         if include_pattern:
             cmd.extend(["--glob", include_pattern])
         if exclude_pattern:
             cmd.extend(["--glob", f"!{exclude_pattern}"])
+        # Last, since the last matching glob wins.
+        cmd.extend(self.__protected_globs())
         cmd.extend(["--regexp", query])
         cmd.append(str(self.project_root))
 
@@ -243,7 +253,8 @@ class FileSystemUtils(IFileSystem):
         :param dir_path: Absolute directory path
         :returns: Files and directories directly under dir_path
         """
-        cmd = ["rg", "--files", "--hidden", "--no-require-git", "--glob", "!.git"]
+        cmd = ["rg", "--files", "--hidden", "--no-require-git"]
+        cmd.extend(self.__protected_globs())
         result = subprocess.run(
             [*cmd, str(dir_path)], capture_output=True, text=True, cwd=dir_path
         )
@@ -256,13 +267,13 @@ class FileSystemUtils(IFileSystem):
             children.add(dir_path / relative.parts[0])
         return list(children)
 
-    def __file_exists(self, target_file: str) -> bool:
-        """Check if a file exists
-        :param target_file: Target file path relative to project root
-        :returns: True if file exists
-        """
-        file_path = self.__resolve_path(target_file)
-        return file_path.exists() and file_path.is_file()
+    def __protected_globs(self) -> list[str]:
+        """ripgrep arguments excluding the protected entries at any depth"""
+        return [
+            arg
+            for name in sorted(self.protected_names)
+            for arg in ("--glob", f"!{name}")
+        ]
 
     def __validate_file_extension(self, file_name: str) -> None:
         """Validate file extension against allowed extensions

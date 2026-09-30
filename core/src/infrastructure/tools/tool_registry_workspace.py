@@ -109,7 +109,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         return {
             "path": relative_path,
             "files": [i.name for i in items if i.is_file()],
-            "directories": [i.name for i in items if i.is_dir() and i.name != ".git"],
+            "directories": [i.name for i in items if i.is_dir()],
         }
 
     def __handle_grep_search(self, parameters: dict[str, Any]) -> list[dict[str, Any]]:
@@ -161,7 +161,9 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         untracked_files: list[str] = []
         for file in await self.__git.get_untracked_files():
             try:
-                content = self.__filesystem.read_file(file)
+                content = self.__filesystem.read_file(
+                    self.__limit_workspace_boundaries(file)
+                )
             except ExceptionHandler as e:
                 logging.warning(f"Error reading file: {e.message}")
                 continue
@@ -179,7 +181,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         """Normalize a tool path to one relative to the working directory.
 
         Absolute paths are accepted when they point inside the working
-        directory; anything resolving outside of it is rejected.
+        directory; anything resolving outside of it, or into an entry
+        Nebula manages (git metadata, backend override), is rejected.
         """
         root: Path = self.__filesystem.project_root.resolve()
         resolved: Path = (root / path).resolve()
@@ -190,4 +193,10 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                 + "use paths relative to it (e.g. 'main.tf', '.').",
                 error_code=400,
             )
-        return resolved.relative_to(root).as_posix()
+        relative = resolved.relative_to(root)
+        if self.__filesystem.protected_names.intersection(relative.parts):
+            raise ToolInferenceParamsError(
+                message=f"Path '{path}' is managed by Nebula and is not accessible.",
+                error_code=403,
+            )
+        return relative.as_posix()

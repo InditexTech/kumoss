@@ -72,7 +72,7 @@ class OidcConfig(BaseModel):
     clock_skew_seconds: int = 60
 
     @model_validator(mode="after")
-    def _validate_and_resolve(self) -> "OidcConfig":
+    def _validate_and_resolve(self) -> OidcConfig:
         if self.issuer_url and not self.client_id:
             raise ConfigError(
                 "oidc.issuer_url is set but oidc.client_id is empty; "
@@ -148,7 +148,7 @@ class LlmConfig(BaseModel):
         ]
 
     @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> "LlmConfig":
+    def _assert_llm_credentials(self) -> LlmConfig:
         """Fail-fast on env vars litellm requires for the configured models."""
         missing: list[str] = []
         for entry in self._effective_model_list():
@@ -228,7 +228,7 @@ class IacServiceConfig(ServiceEndpointConfig):
     job_timeout: float = 3600.0
 
     @model_validator(mode="after")
-    def _assert_endpoint(self) -> "IacServiceConfig":
+    def _assert_endpoint(self) -> IacServiceConfig:
         if not self.endpoint:
             raise ConfigError(
                 "services.iac.endpoint is empty; the IaC service is mandatory. "
@@ -264,6 +264,12 @@ class PathsConfig(BaseModel):
     upload_folder: Path = Path("/workspaces")
     session_plan_filename: str = Field(
         default="session.plan", pattern=r"^[A-Za-z0-9._-]{1,128}$"
+    )
+    # Terraform merges only `*_override.tf` over the configuration, so any
+    # other name would be a second backend block rather than a replacement.
+    backend_override_filename: str = Field(
+        default="backend_override.tf",
+        pattern=r"^[A-Za-z0-9._-]{1,128}_override\.tf$",
     )
 
 
@@ -398,7 +404,8 @@ class StorageConfig(BaseModel):
     state does not inherit whatever lifecycle or presign policy the
     artifacts bucket carries. Empty turns managed state off: no backend
     override is written and each workspace keeps the backend its own
-    configuration declares.
+    configuration declares. ``terraform_state_filename`` is the object
+    name of each project's state under its ``project_id`` prefix.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
@@ -406,6 +413,9 @@ class StorageConfig(BaseModel):
     provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
     bucket: str = "nebula-artifacts"
     terraform_state_bucket: str = "nebula-terraform-state"
+    terraform_state_filename: str = Field(
+        default="terraform.tfstate", pattern=r"^[A-Za-z0-9._-]{1,128}$"
+    )
     endpoint_url: str = "http://object-storage:9000"
     public_endpoint_url: str = "http://localhost:9000"
     region: str = "us-east-1"

@@ -125,6 +125,12 @@ class InvalidRepoURI(ExceptionHandler):
     pass
 
 
+class InvalidIacPath(ExceptionHandler):
+    """Raised when the IaC root does not resolve to a directory inside the clone."""
+
+    pass
+
+
 class GitError(ExceptionHandler):
     """General git error exception"""
 
