@@ -38,7 +38,10 @@ class StdoutFormatter(logging.Formatter):
         module = f"{LIGHTCYAN_EX}[{module_name}]"
         date_format = getattr(record, "date_format", "%H:%M:%S")
         date = f"{LIGHTBLACK_EX}[%(asctime)s] "
-        msg = f"{RESET}{record.getMessage()}"
+        # The message is spliced into a %-style format string, so a literal
+        # `%` in it (a URL-encoded repo_uri, say) must be escaped or the
+        # record is dropped with a formatting error.
+        msg = f"{RESET}{record.getMessage().replace('%', '%%')}"
         formats = {
             logging.DEBUG: f"{LIGHTMAGENTA_EX}{level}:{module}{date}{msg}",
             logging.INFO: f"{LIGHTGREEN_EX}{level}:{module}{date}{msg}",

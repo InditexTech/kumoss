@@ -13,9 +13,26 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from src.infrastructure.filesystem import GitUtils
 from src.shared.constants import GitProviderName
+
+# The fixtures are local file:// remotes, which the repo_uri guard refuses;
+# these tests exercise git itself, so bypass it (it has its own tests).
+_guard = patch(
+    "src.infrastructure.filesystem.git.git_utils.ensure_repo_uri_allowed",
+    AsyncMock(return_value=()),
+)
+
+
+def setUpModule():
+    _ = _guard.start()
+
+
+def tearDownModule():
+    _guard.stop()
+
 
 _TMP_DIR = Path(tempfile.gettempdir())
 _PROVIDER = GitProviderName.GITHUB

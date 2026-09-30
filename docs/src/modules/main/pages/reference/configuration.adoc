@@ -866,6 +866,24 @@ are rejected as malformed at pull-request time.
 |`kumoss@noreply.invalid`
 |Optional
 |Commit author e-mail.
+
+|`git.allowed_hosts`
+|list of hostnames
+|`[]`
+|Optional
+|Hosts a request's `repo_uri` may point at. Empty: any host whose every
+resolved address is publicly routable; loopback, private, link-local,
+shared and metadata addresses are refused, so the core cannot be used to
+reach its own network. When set, only these hosts are accepted (exact,
+case-insensitive match) and the public-address check is skipped for
+them. Setting it is how a git server on a private network is allowed,
+and is recommended in production: left empty, any authenticated user can
+still point the core at a public host of their choosing. Hosts checked by
+address are pinned to the addresses just checked, on every clone and not
+only the first call of a session, so a DNS answer that changes between
+the check and git's own lookup cannot redirect git to an internal
+address; for `ssh://` remotes the pin is set through `core.sshCommand`,
+which a `GIT_SSH_COMMAND` in the core's environment would override.
 |===
 
 At boot the core always sets the global git author identity. If both

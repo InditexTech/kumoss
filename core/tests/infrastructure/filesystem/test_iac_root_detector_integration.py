@@ -13,8 +13,25 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 from src.infrastructure.filesystem.iac_root_detector import IacRootDetector
+
+# The fixtures are local file:// remotes, which the repo_uri guard refuses;
+# these tests exercise git itself, so bypass it (it has its own tests).
+_guard = patch(
+    "src.infrastructure.filesystem.git.git_utils.ensure_repo_uri_allowed",
+    AsyncMock(return_value=()),
+)
+
+
+def setUpModule():
+    _ = _guard.start()
+
+
+def tearDownModule():
+    _guard.stop()
+
 
 _GIT = ["git", "-c", "user.email=test@test", "-c", "user.name=test"]
 

@@ -8,14 +8,18 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 from src.infrastructure.filesystem import (
     WorkspaceService,
     InvalidRepoURI,
 )
+from src.infrastructure.filesystem.git.repo_uri_guard import REJECTED_MESSAGE
 from src.shared.config import system_config
+
+_GUARD = "src.infrastructure.filesystem.workspace.ensure_repo_uri_allowed"
+_GIT_GUARD = "src.infrastructure.filesystem.git.git_utils.ensure_repo_uri_allowed"
 
 SESSION_PLAN_FILENAME = system_config.paths.session_plan_filename
 
@@ -59,12 +63,32 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_accepts_reachable_remote(self):
+        # The guard refuses file:// remotes; bypass it to exercise ls-remote.
         uri = _init_bare_remote(self.tmp)
-        await WorkspaceService().validate_uri(uri)  # no exception
+        with patch(_GUARD, AsyncMock(return_value=())) as guard:
+            await WorkspaceService().validate_uri(uri)  # no exception
+        guard.assert_awaited_once_with(uri)
 
-    async def test_rejects_unreachable_remote(self):
-        with self.assertRaises(InvalidRepoURI):
-            await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
+    async def test_rejects_unreachable_remote_without_reflecting_git_stderr(self):
+        with patch(_GUARD, AsyncMock(return_value=())):
+            with self.assertRaises(InvalidRepoURI) as ctx:
+                await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
+        self.assertEqual(ctx.exception.message, REJECTED_MESSAGE)
+        self.assertNotIn("/nope/", ctx.exception.message)
+
+    async def test_rejects_file_uri_before_running_git(self):
+        uri = _init_bare_remote(self.tmp)
+        with patch("src.infrastructure.filesystem.workspace.GitUtils") as git:
+            with self.assertRaises(InvalidRepoURI) as ctx:
+                await WorkspaceService().validate_uri(uri)
+        self.assertEqual(ctx.exception.error_code, 400)
+        git.assert_not_called()
+
+    async def test_rejects_loopback_host_before_running_git(self):
+        with patch("src.infrastructure.filesystem.workspace.GitUtils") as git:
+            with self.assertRaises(InvalidRepoURI):
+                await WorkspaceService().validate_uri("https://127.0.0.1:8000/x")
+        git.assert_not_called()
 
 
 def _current_branch(path: Path) -> str:
@@ -112,6 +136,10 @@ class _WorkspaceBase(unittest.IsolatedAsyncioTestCase):
         )
         identity.start()
         self.addCleanup(identity.stop)
+        # The fixtures are file:// remotes, which the guard refuses.
+        self.git_guard = patch(_GIT_GUARD, AsyncMock(return_value=()))
+        self.guard = self.git_guard.start()
+        self.addCleanup(self.git_guard.stop)
 
     async def asyncTearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -147,6 +175,8 @@ class TestSetupCallDir(_WorkspaceBase):
             session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
         )
         self.assertNotEqual(first, second)
+        # Each call's clone re-runs the guard, not just the validated first one.
+        self.assertEqual(self.guard.await_count, 2)
         self.assertEqual(_current_branch(second), "Nebula/iter-x")
         self.assertTrue((second / "new.txt").is_file())
 

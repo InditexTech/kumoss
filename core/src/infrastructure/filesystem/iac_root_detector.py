@@ -109,9 +109,8 @@ class IacRootDetector(IIacRootDetector):
                 timeout=60,
             )
             if not ok:
-                raise ExceptionHandler(
-                    f"Repository could not be cloned: {git.error_msg}", 502
-                )
+                # git's stderr is logged by GitUtils; never return it.
+                raise ExceptionHandler("Repository could not be cloned.", 502)
 
             repo_path = clone_dir / "repo"
             file_paths = await git.ls_tree(cwd=repo_path)

@@ -13,6 +13,10 @@ from src.domains.interfaces.workspace_interface import IWorkspace
 from src.infrastructure.exceptions import GitError, InvalidRepoURI
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
+from src.infrastructure.filesystem.git.repo_uri_guard import (
+    REJECTED_MESSAGE,
+    ensure_repo_uri_allowed,
+)
 from src.shared.config import system_config
 from src.shared.logger import logging
 
@@ -48,16 +52,18 @@ class WorkspaceService(IWorkspace):
 
     @override
     async def validate_uri(self, repo_uri: str) -> None:
+        remote_options = await ensure_repo_uri_allowed(repo_uri)
 
         git = GitUtils(
             uri=repo_uri,
             git_provider=system_config.git.provider,
             cwd=Path(tempfile.gettempdir()),
+            remote_options=remote_options,
         )
         if not await git.ls_remote():
-            msg = git.error_msg or f"Cannot reach repository: {repo_uri}"
-            logging.warning(f"git ls-remote failed for {repo_uri}: {msg}")
-            raise InvalidRepoURI(message=msg, error_code=400)
+            # git's stderr names hosts, ports and paths; log it, never return it.
+            logging.warning(f"git ls-remote failed for {repo_uri}: {git.error_msg}")
+            raise InvalidRepoURI(message=REJECTED_MESSAGE, error_code=400)
 
     @override
     async def setup_call_dir(
@@ -72,6 +78,9 @@ class WorkspaceService(IWorkspace):
 
         # GitUtils.clone_repository clones into `cwd / repository_name`.
         # We want it to land at `call_dir`, so cwd=parent and repository_name=call_id.
+        # The clone runs the repo_uri guard again, so every call of a session
+        # (not just the first, validated one) connects to an address vetted
+        # right before it, and the pin lands in the clone's .git/config.
         git = GitUtils(
             uri=repo_uri,
             git_provider=system_config.git.provider,
@@ -82,7 +91,7 @@ class WorkspaceService(IWorkspace):
             repository_name=str(call_id),
         )
         if not ok:
-            raise GitError(f"git clone failed: {git.error_msg}", 500)
+            raise GitError("git clone failed", 500)
 
         if not self.__add_terraform_gitignore(call_dir):
             logging.warning("terraform gitignore couldn't be created")

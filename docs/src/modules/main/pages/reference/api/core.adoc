@@ -176,9 +176,13 @@ neither is a validation error.
 
 |`repo_uri`
 |required
-|Git-cloneable repository URI. May carry a userinfo username (for
+|Git-cloneable repository URI: `\https://`, `ssh://`, or scp-style
+`user@host:path`. Every other transport (`file://`, `http://`, `git://`,
+`ext::`, a local path) is rejected. May carry a userinfo username (for
 example `\https://org@dev.azure.com/...`) but must not embed a password
-or token; an empty password (`user:@host`) is rejected too.
+or token; an empty password (`user:@host`) is rejected too. The host must
+resolve only to public addresses, or be listed in
+xref:main:reference/configuration.adoc#config-git[`git.allowed_hosts`].
 
 |`scope_id`
 |required
@@ -290,7 +294,7 @@ or a session with no pull requests is `404`.
 `POST /api/v1/repository/parse` clones a repository and returns the
 Terraform root-module directories it found, as POSIX paths relative to
 the repository root. The body is `{"repo_uri": "<uri>"}` and the same
-no-password-or-token rule applies. This route takes no session, so
+`repo_uri` rules apply. This route takes no session, so
 there is no ownership check — the wizard calls it as soon as a
 repository URL is entered.
 
@@ -299,8 +303,11 @@ repository URL is entered.
 {"roots": [".", "environments/dev", "environments/prod"]}
 ----
 
-A URI that embeds a password or token is `422`, one that `git ls-remote`
-cannot reach is `400`, and a failed clone or scan is `502`. The
+A URI that embeds a password or token, or uses an unsupported
+transport, is `422`. A host that is not allowed, and a repository that
+`git ls-remote` cannot reach, are both `400` with the same generic
+detail; git's own error output is logged, never returned. A failed
+clone or scan is `502`. The
 detection rules behind the answer are in
 xref:main:reference/repository-layout.adoc[Repository layout].
 

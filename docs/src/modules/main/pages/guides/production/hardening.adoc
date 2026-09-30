@@ -1,11 +1,12 @@
 = Hardening
-:description: Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.
+:description: Runtime and scaling properties inherent to the current implementation, the hardening checklist a production platform must apply on top of the checked-in Compose file, and how to restrict the repository hosts the core connects to.
 
 This is the third of four pages that expand
 xref:main:guides/deploy-to-production.adoc[Deploy to production]: with
 networking and TLS reproduced, this page covers the constraints the
 current implementation places on runtime and scaling, then the
-hardening checklist the platform must apply. The checked-in
+hardening checklist the platform must apply, and last how to restrict
+the repository hosts the core will run git against. The checked-in
 `docker-compose.yml` applies no `cap_drop`, `read_only`, or resource
 limits to the iac container, or to any other container. Everything
 below is a recommendation for your platform, never a description of
@@ -87,8 +88,51 @@ optional for a shared deployment.
 * State bucket private with no public path at all, versioning and soft
   delete enabled, no lifecycle expiry, access limited to the core
   (bucket creation) and the IaC sidecar (read/write).
+* `git.allowed_hosts` set to the git hosts your repositories live on
+  (<<restrict-repository-hosts>>), and core egress limited to those
+  hosts, the LLM provider, and the sidecars.
 * Git token scoped to the repositories in scope; LLM provider configured
   under acceptable data-handling terms.
 * Seeded prompts reviewed and adapted before the first user session;
   they encode a generic policy, including the compliance rules and
   forbidden actions (xref:main:guides/customize-prompts.adoc[]).
+
+[#restrict-repository-hosts]
+== Restrict repository hosts
+
+Every request names the repository it works on, and the core runs `git`
+against that URI from inside its own network. Out of the box the core
+accepts any host whose every resolved address is publicly routable. It
+refuses loopback, private, link-local, shared, and metadata addresses,
+and it pins git to the addresses it checked, so a DNS answer that
+changes between the check and the connection cannot reach an internal
+address. That protects the core's network, but it does not stop an
+authenticated user pointing the core at a public host of their choosing:
+the core still connects out to it, which confirms egress and lets the
+host observe the request.
+
+Setting `git.allowed_hosts` is the only thing that closes that. Set it in
+production to the hosts your repositories live on:
+
+[source,yaml]
+----
+git:
+  allowed_hosts:
+    - github.com
+    - dev.azure.com
+----
+
+Any other host is then refused with `400`, before git runs. Hosts on the
+list are matched exactly, ignoring case and a trailing dot, and skip the
+public-address check, which is also how a git server on a private network
+is allowed. Treat the list as trusted: an entry for an internal host lets
+every user reach it. Because `config.yaml` is baked into the core image,
+changing the list means rebuilding the image, or updating the mounted
+file, and restarting the core. The field is described in the
+xref:main:reference/configuration.adoc#config-git[`git` configuration
+reference].
+
+As a second layer, limit the core container's egress at the network level
+to those git hosts, your LLM provider, and the sidecars. The
+application-level check and the network policy then have to fail
+together before a repository URI reaches anything else.

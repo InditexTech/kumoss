@@ -14,10 +14,17 @@ from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
 from src.infrastructure.filesystem.cli import Cli
 from src.infrastructure.filesystem.git.providers import GitProviderFactory
+from src.infrastructure.filesystem.git.repo_uri_guard import ensure_repo_uri_allowed
 from src.shared.config.system_config import system_config
 from src.shared.constants import GitProviderName
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
+
+# git follows an HTTP redirect on the first request by default, which would
+# let a validated public remote bounce the fetch to an internal address.
+# `clone -c` also persists the setting in the clone's .git/config, so the
+# later fetch and push calls against `origin` inherit it.
+_NO_REDIRECTS = ("-c", "http.followRedirects=false")
 
 
 class GitUtils(IGit):
@@ -26,8 +33,14 @@ class GitUtils(IGit):
         uri: str,
         git_provider: GitProviderName,
         cwd: Path = None,
+        remote_options: tuple[str, ...] | None = None,
     ):
+        """`remote_options` is what `ensure_repo_uri_allowed` returned for
+        `uri`, when the caller has just run it; left as None, every command
+        that takes the URL runs the guard itself right before git starts.
+        """
         self.__uri = uri
+        self.__remote_options = remote_options
         self.__provider = GitProviderFactory(git_provider).get()
         self.__cli: Cli = Cli(
             (cwd if cwd else system_config.paths.upload_folder).resolve().as_posix(),
@@ -40,12 +53,23 @@ class GitUtils(IGit):
     def error_msg(self) -> str:
         return self.__error_msg
 
+    async def _options_for(self, uri: str) -> tuple[str, ...]:
+        """Redirects off, plus the guard's protocol allowlist and address pin.
+
+        Commands against a raw URL carry these; commands against `origin`
+        inherit them from the .git/config that `clone -c` wrote.
+        """
+        if self.__remote_options is not None and uri == self.__uri:
+            return (*_NO_REDIRECTS, *self.__remote_options)
+        return (*_NO_REDIRECTS, *await ensure_repo_uri_allowed(uri))
+
     @override
     async def ls_remote(self) -> bool:
         logging.info(f"git ls-remote {self.__uri}")
+        options = await self._options_for(self.__uri)
         return self._handle_return_code(
             await self.__cli.execute(
-                ["git", "ls-remote", "--exit-code", self.__uri],
+                ["git", *options, "ls-remote", "--exit-code", "--", self.__uri],
                 20,
             )
         )
@@ -58,9 +82,9 @@ class GitUtils(IGit):
         *extra_args: str,
         timeout: int = 300,
     ) -> bool:
-        cmd = ["git", "clone", "--depth", "1"]
+        cmd = ["git", "clone", *await self._options_for(repo_url), "--depth", "1"]
         cmd.extend(extra_args)
-        cmd.extend([repo_url, repository_name])
+        cmd.extend(["--", repo_url, repository_name])
         parsed = urlparse(repo_url)
         safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
         result = await self.__cli.execute(cmd, timeout)
@@ -133,8 +157,10 @@ class GitUtils(IGit):
         if ls_remote:
             cmd = [
                 "git",
+                *await self._options_for(self.__uri),
                 "ls-remote",
                 "--symref",
+                "--",
                 self.__uri,
                 "HEAD",
             ]

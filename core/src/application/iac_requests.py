@@ -16,6 +16,7 @@ from pydantic import (
     model_validator,
 )
 
+from src.infrastructure.filesystem.git.repo_uri_guard import parse_repo_uri
 from src.shared.constants import TerraformProvider
 
 
@@ -38,7 +39,21 @@ def _reject_embedded_credentials(repo_uri: str) -> str:
     return repo_uri
 
 
-RepoUri = Annotated[str, AfterValidator(_reject_embedded_credentials)]
+def _require_supported_transport(repo_uri: str) -> str:
+    """Reject transports and host spellings git must never be pointed at.
+
+    Syntactic only; the resolved-address policy runs in
+    `WorkspaceService.validate_uri` before any git command.
+    """
+    _ = parse_repo_uri(repo_uri)
+    return repo_uri
+
+
+RepoUri = Annotated[
+    str,
+    AfterValidator(_reject_embedded_credentials),
+    AfterValidator(_require_supported_transport),
+]
 
 
 class SessionRequest(BaseModel):

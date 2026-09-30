@@ -41,8 +41,11 @@ ownership].
 |The URL may carry a userinfo username (the `<org>@` prefix of an Azure
 DevOps clone URL, or `git@`) but must not embed a password or token —
 a request-model validator rejects one that does with `422`, an empty
-`user:` password included — and then `git ls-remote` must succeed:
-unreachable or rejected → `400`. Either way no session is created.
+`user:` password included, as it does any transport other than
+`https://`, `ssh://` or `user@host:path`. The host must then resolve
+only to public addresses (or be listed in `git.allowed_hosts`), and
+`git ls-remote` must succeed: either failure → `400` with one generic
+message. Either way no session is created.
 
 |Session creation
 |A session row owned by the caller is created, or an existing one

@@ -90,10 +90,12 @@ for contract completeness and for callers other than the wizard.
 
 |`repo_url`
 |1-2048 chars, required
-|The URL Kumoss clones. Free-form because git accepts many URL shapes
-— `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute
-path. Returning something the deployment's git client can actually
-clone is the implementation's responsibility. When the identifier
+|The URL Kumoss clones. Free-form in the contract, but the core only
+clones `\https://`, `ssh://` and `git@host:path` URLs whose host
+resolves to public addresses or is listed in `git.allowed_hosts`; any
+other URL is rejected when the session is created. Returning something
+the deployment's git client can actually clone is the implementation's
+responsibility. When the identifier
 already is a repository URL, it is passed through unchanged.
 
 |`identifier`

@@ -7,7 +7,8 @@ import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -16,6 +17,7 @@ from src.domains.entities import User
 from src.main import app
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
+from src.infrastructure.filesystem.git.repo_uri_guard import REJECTED_MESSAGE
 from src.shared.config import system_config
 from src.shared.constants import OperationRole
 
@@ -68,6 +70,23 @@ def _bare_remote(tmp: Path) -> str:
     return f"file://{bare}"
 
 
+@contextmanager
+def _trusting_local_remotes():
+    """Let a test's `file://` bare remote past the repo_uri SSRF guard.
+
+    The guard rejects `file://` outright; these tests use a local bare repo
+    as a stand-in for a real remote, so they opt out explicitly.
+    """
+    with (
+        patch("src.application.iac_requests.parse_repo_uri"),
+        patch(
+            "src.infrastructure.filesystem.workspace.ensure_repo_uri_allowed",
+            AsyncMock(),
+        ),
+    ):
+        yield
+
+
 class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -94,7 +113,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
 
     def test_first_call_returns_202_and_session_id(self):
         uri = _bare_remote(self.tmp)
-        with TestClient(app) as client:
+        with _trusting_local_remotes(), TestClient(app) as client:
             resp = client.post(
                 "/v1/iac/generate",
                 json={
@@ -108,7 +127,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         body = resp.json()
         self.assertIn("session_id", body)
 
-    def test_first_call_with_bad_uri_returns_400(self):
+    def test_first_call_with_file_uri_returns_422(self):
         with TestClient(app) as client:
             resp = client.post(
                 "/v1/iac/generate",
@@ -119,7 +138,25 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
                     "q": "hello",
                 },
             )
+        self.assertEqual(resp.status_code, 422, resp.text)
+
+    def test_first_call_with_internal_host_returns_400_without_git(self):
+        with (
+            patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+            TestClient(app) as client,
+        ):
+            resp = client.post(
+                "/v1/iac/generate",
+                json={
+                    "repo_uri": "https://127.0.0.1:8000/api/v1/auth/config",
+                    "terraform_providers": "azure",
+                    "scope_id": "dev",
+                    "q": "hello",
+                },
+            )
         self.assertEqual(resp.status_code, 400, resp.text)
+        self.assertEqual(resp.json()["detail"], REJECTED_MESSAGE)
+        git.assert_not_called()
 
     def test_request_with_neither_uri_nor_session_id_returns_422(self):
         app.dependency_overrides[get_current_user] = lambda: _caller()
@@ -157,7 +194,7 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
 
     def test_drift_first_call_returns_202(self):
         uri = _bare_remote(self.tmp)
-        with TestClient(app) as client:
+        with _trusting_local_remotes(), TestClient(app) as client:
             resp = client.post(
                 "/v1/iac/drift",
                 json={

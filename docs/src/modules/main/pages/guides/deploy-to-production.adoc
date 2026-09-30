@@ -84,12 +84,18 @@ credentials for the IaC engine];
 xref:main:guides/configure-state-backends.adoc[]
 
 |8
+|Set `git.allowed_hosts` to your git hosts; left empty, any user can point
+the core at a public host of their choosing
+|xref:main:guides/production/hardening.adoc#restrict-repository-hosts[Restrict
+repository hosts]
+
+|9
 |Review the seeded prompts before the first user session; they encode a
 generic policy
 |xref:main:guides/production/hardening.adoc#hardening-checklist[Hardening
 checklist]
 
-|9
+|10
 |Plan upgrades by hand: no database migrations, seeds never overwrite
 prompts, `environment` is a prompt tag
 |xref:main:guides/production/operations.adoc#backups-and-upgrades[Backups
@@ -517,7 +523,10 @@ of state; set it to `""` to leave state to each repository's own
 backend instead (xref:main:guides/configure-state-backends.adoc[]).
 
 |`git`
-|Provider matching your repository host, author identity.
+|Provider matching your repository host, author identity, and
+`allowed_hosts` listing the git hosts your repositories live on
+(xref:main:guides/production/hardening.adoc#restrict-repository-hosts[Restrict
+repository hosts]).
 |===
 
 Changing any of these means rebuilding the core image (or updating the

@@ -67,6 +67,25 @@ class TestRepoUri(unittest.TestCase):
         uri = "https://git.example.com:8443/foo/bar.git"
         self.assertEqual(self.adapter.validate_python(uri), uri)
 
+    def test_rejects_transports_other_than_https_and_ssh(self):
+        # vuln-0009: these reach local files, plaintext or internal services.
+        for uri in (
+            "file:///etc/passwd",
+            "http://core:8000/api/v1/auth/config",
+            "git://github.com/foo/bar.git",
+            "ext::sh -c id",
+            "ext::sh%20-c%20id",
+            "/srv/repos/bar.git",
+            "--upload-pack=id",
+        ):
+            with self.subTest(uri=uri), self.assertRaises(ValidationError):
+                _ = self.adapter.validate_python(uri)
+
+    def test_rejects_ssh_option_injection_in_the_username(self):
+        for uri in ("ssh://-oProxyCommand=id@github.com/x", "-oProxyCommand=id@h:x"):
+            with self.subTest(uri=uri), self.assertRaises(ValidationError):
+                _ = self.adapter.validate_python(uri)
+
 
 class TestGenerateRequest(unittest.TestCase):
     def test_first_call_shape(self):

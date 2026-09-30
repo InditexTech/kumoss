@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import unittest
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,9 +12,12 @@ from fastapi.testclient import TestClient
 from src.api.deps import get_current_user
 from src.domains.entities import User
 from src.infrastructure.exceptions import InvalidRepoURI
+from src.infrastructure.filesystem.git.repo_uri_guard import REJECTED_MESSAGE
 from src.main import app
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
+
+_GUARD = "src.infrastructure.filesystem.git.repo_uri_guard"
 
 
 def _mock_service(detect_roots: AsyncMock) -> MagicMock:
@@ -78,7 +82,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         ):
             resp = self.client.post(
                 "/v1/repository/parse",
-                json={"repo_uri": "not-a-valid-url"},
+                json={"repo_uri": "https://github.com/org/missing.git"},
             )
         self.assertEqual(resp.status_code, 400)
         self.assertIn("not a repo", resp.json()["detail"])
@@ -122,10 +126,73 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200)
         svc.detect_roots.assert_awaited_once_with(uri)
 
-    def test_parse_bogus_uri_rejected_by_ls_remote(self):
-        """Unmocked: a URI that fails git ls-remote produces a 400."""
-        resp = self.client.post(
-            "/v1/repository/parse",
-            json={"repo_uri": "file:///nonexistent/repo.git"},
-        )
+    def test_parse_rejects_unsupported_transports_before_git(self):
+        """vuln-0009: file://, http://, git:// and ext:: never reach git."""
+        for uri in (
+            "file:///etc/passwd",
+            "http://core:8000/api/v1/auth/config",
+            "http://redis:6379",
+            "git://core:8000/x",
+            "ext::sh%20-c%20id",
+            "/etc/passwd",
+            "--upload-pack=id",
+        ):
+            with (
+                self.subTest(uri=uri),
+                patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+            ):
+                resp = self.client.post("/v1/repository/parse", json={"repo_uri": uri})
+                self.assertEqual(resp.status_code, 422, resp.text)
+                git.assert_not_called()
+
+    def test_parse_rejects_internal_hosts_with_a_generic_error(self):
+        """vuln-0009: internal targets are refused before git runs, and the
+        detail is identical for every target so it cannot be used as an oracle."""
+        # None: an IP literal, resolved for real. Otherwise what DNS returns.
+        internal = {
+            "https://127.0.0.1:8000/api/v1/auth/config": None,
+            "https://169.254.169.254/latest/meta-data/": None,
+            "https://[::1]/x": None,
+            "ssh://git@core:22/x": {"172.18.0.10"},
+            "https://object-storage:9000": {"172.18.0.7"},
+            "git@phoenix:repo.git": {"172.18.0.5"},
+            "https://notifications:8080": OSError("Name or service not known"),
+        }
+        details = set()
+        for uri, resolved in internal.items():
+            resolve = (
+                patch(f"{_GUARD}._resolve", AsyncMock(side_effect=[resolved]))
+                if resolved is not None
+                else nullcontext()
+            )
+            with (
+                self.subTest(uri=uri),
+                resolve,
+                patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+            ):
+                resp = self.client.post("/v1/repository/parse", json={"repo_uri": uri})
+                self.assertEqual(resp.status_code, 400, resp.text)
+                git.assert_not_called()
+                details.add(resp.json()["detail"])
+        self.assertEqual(details, {REJECTED_MESSAGE})
+
+    def test_parse_does_not_reflect_git_stderr(self):
+        """vuln-0009: a failing ls-remote against an allowed host returns the
+        generic message, not git's stderr."""
+        stderr = "fatal: unable to access 'https://git.example.com/': Empty reply"
+        with (
+            patch(
+                "src.infrastructure.filesystem.workspace.ensure_repo_uri_allowed",
+                AsyncMock(),
+            ),
+            patch("src.infrastructure.filesystem.workspace.GitUtils") as git,
+        ):
+            git.return_value.ls_remote = AsyncMock(return_value=False)
+            git.return_value.error_msg = stderr
+            resp = self.client.post(
+                "/v1/repository/parse",
+                json={"repo_uri": "https://git.example.com/org/repo.git"},
+            )
         self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()["detail"], REJECTED_MESSAGE)
+        self.assertNotIn("Empty reply", resp.text)

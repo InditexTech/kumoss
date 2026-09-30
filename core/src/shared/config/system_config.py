@@ -307,6 +307,12 @@ class GitConfig(BaseModel):
     pat_user_env: str = "GIT_USER"  # env var name holding the username
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 
+    # Hostnames a caller's `repo_uri` may point at. Empty (default): any host
+    # whose every resolved address is publicly routable. Set it to pin
+    # repositories to known hosts; listed hosts skip the public-address check,
+    # so this is also how a git server on a private network is allowed.
+    allowed_hosts: list[str] = []
+
     # git refuses to create a commit without name + email.
     author_name: str = "Nebula"
     author_email: str = "nebula@noreply.invalid"
