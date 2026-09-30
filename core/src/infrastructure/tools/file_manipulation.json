@@ -9,7 +9,7 @@
           "type": "string"
         },
         "target_file": {
-          "description": "The target file to modify. Always specify the target file as the first argument. Always relative to the workspace root.",
+          "description": "The target file to write. Path relative to the working directory (e.g. 'main.tf', 'modules/network/variables.tf'). Do NOT prefix it with the working directory's own name.",
           "type": "string"
         }
       },
@@ -30,7 +30,7 @@
           "type": "string"
         },
         "target_file": {
-          "description": "The target file to modify. Always relative to the workspace root.",
+          "description": "The target file to modify. Path relative to the working directory (e.g. 'main.tf', 'modules/network/variables.tf'). Do NOT prefix it with the working directory's own name.",
           "type": "string"
         }
       },
@@ -51,7 +51,7 @@
           "type": "string"
         },
         "target_file": {
-          "description": "The path of the file to delete, relative to the workspace root.",
+          "description": "The path of the file to delete, relative to the working directory (e.g. 'main.tf', 'modules/network/variables.tf'). Do NOT prefix it with the working directory's own name.",
           "type": "string"
         }
       },

@@ -9,7 +9,7 @@
           "type": "string"
         },
         "target_file": {
-          "description": "The path of the file to read, relative to the workspace root.",
+          "description": "The path of the file to read, relative to the working directory (e.g. 'main.tf', 'modules/network/variables.tf'). Do NOT prefix it with the working directory's own name.",
           "type": "string"
         }
       },
@@ -20,7 +20,7 @@
     }
   },
   {
-    "description": "List the contents of a directory. The quick tool to use for discovery, before using more targeted tools like file reading. Useful to try to understand the file structure before diving deeper into specific files. Can be used to explore the codebase.",
+    "description": "List the files and subdirectories of a directory (non-recursive). The quick tool to use for discovery, before using more targeted tools like file reading. Useful to try to understand the file structure before diving deeper into specific files. Can be used to explore the codebase.",
     "name": "list_dir",
     "parameters": {
       "properties": {
@@ -29,7 +29,7 @@
           "type": "string"
         },
         "relative_workspace_path": {
-          "description": "Path to list contents of, relative to the workspace root.",
+          "description": "Directory to list, relative to the working directory. Use '.' for the working directory itself. Paths outside the working directory are rejected.",
           "type": "string"
         }
       },
@@ -41,7 +41,7 @@
   },
   {
     "name": "bulk_grep_search",
-    "description": "Performs multiple text-based regex searches in a single bulk operation. Each search can have its own specific parameters (query, case sensitivity, include/exclude patterns). This is highly efficient for running several independent searches at once.\nResults for each search will be returned, formatted in the style of ripgrep.\nUse the include or exclude patterns to filter the search scope by file type or specific paths. To avoid overwhelming output, the results for each individual search are capped at 50 matches.",
+    "description": "Performs multiple text-based regex searches in a single bulk operation. Each search can have its own specific parameters (query, case sensitivity, include/exclude patterns). This is highly efficient for running several independent searches at once.\nSearches every file under the working directory. Each search returns its matches as `path:line:content` strings (paths relative to the working directory).\nUse the include or exclude patterns to filter the search scope by file type or specific paths. To avoid overwhelming output, the results for each individual search are capped at 50 matches (`truncated` is true when more exist).",
     "parameters": {
       "type": "object",
       "properties": {

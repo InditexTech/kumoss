@@ -55,7 +55,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         target_file = parameters["target_file"]
         content = parameters["content"]
 
-        _ = self.__limit_workspace_boundaries(target_file)
+        target_file = self.__limit_workspace_boundaries(target_file)
 
         self.__filesystem.write_file(target_file, content)
         return {
@@ -66,7 +66,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         target_file = parameters["target_file"]
         diff = parameters["diff"]
 
-        _ = self.__limit_workspace_boundaries(target_file)
+        target_file = self.__limit_workspace_boundaries(target_file)
 
         self.__filesystem.replace_in_file(target_file, diff)
         return {
@@ -76,7 +76,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
     def __handle_delete_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
 
-        _ = self.__limit_workspace_boundaries(target_file)
+        target_file = self.__limit_workspace_boundaries(target_file)
 
         self.__filesystem.delete_file(target_file)
         return {
@@ -86,7 +86,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
     def __handle_read_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
         target_file = parameters["target_file"]
 
-        _ = self.__limit_workspace_boundaries(target_file)
+        target_file = self.__limit_workspace_boundaries(target_file)
         try:
             content = self.__filesystem.read_file(target_file)
         except CustomFileNotFoundError:
@@ -101,19 +101,19 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         }
 
     def __handle_list_dir(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        relative_path: str = parameters["relative_workspace_path"]
-        resolve_path: Path = self.__limit_workspace_boundaries(relative_path)
+        relative_path = self.__limit_workspace_boundaries(
+            parameters["relative_workspace_path"]
+        )
 
-        items: list[Path] = self.__filesystem.list_directory(relative_path)
+        items: list[Path] = sorted(self.__filesystem.list_directory(relative_path))
         return {
             "path": relative_path,
-            "files": [str(i.relative_to(resolve_path)) for i in items if i.is_file()],
-            "directories": [
-                str(i.relative_to(resolve_path)) for i in items if i.is_dir()
-            ],
+            "files": [i.name for i in items if i.is_file()],
+            "directories": [i.name for i in items if i.is_dir() and i.name != ".git"],
         }
 
     def __handle_grep_search(self, parameters: dict[str, Any]) -> list[dict[str, Any]]:
+        MAX_GREP_MATCHES: int = 50
         searches: list[dict[str, Any]] = parameters["searches"]
 
         if not searches:
@@ -137,8 +137,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             matches: list[str] = []
             workspace_path: str = str(self.__filesystem.project_root) + "/"
             for match in raw_matches:
-                if match.startswith(workspace_path):
-                    match = match[len(workspace_path) :]
+                match = match.removeprefix(workspace_path)
                 matches.append(match)
             search_results.append(
                 {
@@ -147,7 +146,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                     "exclude_pattern": exclude_pattern,
                     "case_sensitive": case_sensitive,
                     "match_count": len(matches),
-                    "matches": matches,
+                    "truncated": len(matches) > MAX_GREP_MATCHES,
+                    "matches": matches[:MAX_GREP_MATCHES],
                 }
             )
 
@@ -175,18 +175,19 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "changes": result,
         }
 
-    def __limit_workspace_boundaries(self, path: str) -> Path:
-        if Path(path).is_absolute():
+    def __limit_workspace_boundaries(self, path: str) -> str:
+        """Normalize a tool path to one relative to the working directory.
+
+        Absolute paths are accepted when they point inside the working
+        directory; anything resolving outside of it is rejected.
+        """
+        root: Path = self.__filesystem.project_root.resolve()
+        resolved: Path = (root / path).resolve()
+        if not resolved.is_relative_to(root):
             raise ToolInferenceParamsError(
-                message="Path must be relative to the workspace."
-                + f" The provided path is absolute - path: '{path}'",
+                message=f"Path '{path}' is outside the working directory '{root}'. "
+                + "Only files inside the working directory are accessible; "
+                + "use paths relative to it (e.g. 'main.tf', '.').",
                 error_code=400,
             )
-        resolve: Path = self.__filesystem.project_root / path
-        if not resolve.is_relative_to(self.__filesystem.project_root.resolve()):
-            raise ToolInferenceParamsError(
-                message="Path escapes workspace. This is not allowed. "
-                + f"Path: '{str(resolve.resolve())}'",
-                error_code=400,
-            )
-        return resolve
+        return resolved.relative_to(root).as_posix()

@@ -118,6 +118,10 @@ class FileSystemUtils(IFileSystem):
             file_path = self.__resolve_path(target_file)
             file_path.unlink()
             logging.info(f"Successfully deleted file {target_file}")
+        except FileNotFoundError:
+            raise CustomFileNotFoundError(
+                error_code=404, message=f"File {target_file} does not exist"
+            )
         except Exception as e:
             logging.error(f"Error deleting file {target_file}: {e!r}")
             raise ExceptionHandler(
@@ -144,6 +148,8 @@ class FileSystemUtils(IFileSystem):
             logging.info(f"Successfully read file {target_file}")
             return content
 
+        except CustomFileNotFoundError:
+            raise
         except FileNotFoundError:
             raise CustomFileNotFoundError(
                 error_code=404, message=f"File {target_file} does not exist"
@@ -151,7 +157,7 @@ class FileSystemUtils(IFileSystem):
         except Exception as e:
             logging.error(f"Error reading file {target_file}: {e!r}")
             raise ExceptionHandler(
-                error_code=500, message=f"Failed to read file {target_file}: {e!r},"
+                error_code=500, message=f"Failed to read file {target_file}: {e!r}"
             )
 
     @override
@@ -206,12 +212,15 @@ class FileSystemUtils(IFileSystem):
             cmd.extend(["--glob", include_pattern])
         if exclude_pattern:
             cmd.extend(["--glob", f"!{exclude_pattern}"])
-        cmd.extend(["--max-count", "50"])  # Limit results
-        cmd.append(query)
+        cmd.extend(["--regexp", query])
         cmd.append(str(self.project_root))
 
         result = subprocess.run(
-            cmd, capture_output=True, text=True, cwd=self.project_root
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=self.project_root,
+            check=False,
         )
 
         if result.returncode == 0:

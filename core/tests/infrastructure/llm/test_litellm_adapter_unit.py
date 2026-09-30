@@ -254,6 +254,39 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
         self.assertIn("tool_calls", messages[1])
         self.assertEqual(messages[2]["role"], "tool")
 
+    async def test_tool_results_are_sent_as_json_strings(self):
+        # Provider converters (e.g. Anthropic) drop non-string tool content.
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
+
+        tool_results = [
+            ToolResultDTO(
+                name="list_dir",
+                tool_call_id="call_1",
+                success=True,
+                result={"path": ".", "files": ["main.tf"]},
+            ),
+            ToolResultDTO(
+                name="read_file",
+                tool_call_id="call_2",
+                success=False,
+                result=None,
+                error_message="variables.tf was not present",
+            ),
+        ]
+
+        await adapter.inference(msg=tool_results)
+
+        messages = router.acompletion.call_args[1]["messages"]
+        self.assertEqual(
+            json.loads(messages[-2]["content"]),
+            {"success": True, "result": {"path": ".", "files": ["main.tf"]}},
+        )
+        self.assertEqual(
+            json.loads(messages[-1]["content"]),
+            {"success": False, "error": "variables.tf was not present"},
+        )
+
 
 class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
