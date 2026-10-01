@@ -1,0 +1,39 @@
+core/src/infrastructure/templates/_fetcher.py
+  s_f4f611e7955f6f::t_8eb77d2b5c3fae 12,26
+core/src/shared/config/system_config.py
+  s_f4f611e7955f6f::t_9405bba38ee889 24,34,510
+core/src/shared/constants.py
+  s_f4f611e7955f6f::t_f049b9ce35d370 6-9
+core/src/infrastructure/templates/prompt_seeder.py
+  s_be4ccfbb49fc02::t_0acc2a66f23ee1 14,23,43-47,62,166-183
+core/tests/infrastructure/templates/test_prompt_seeder.py
+  s_be4ccfbb49fc02::t_59f6b772ae4ca0 1-55
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_be4ccfbb49fc02::t_105a9b7e96b856 157-158,169-172,174-182,733-734
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_f4f611e7955f6f::t_cf434bb4250c60 105-109,111-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "79524d2b1556751c41628e814e63dc2619aef961",
+  "prompts": {},
+  "sessions": {
+    "s_be4ccfbb49fc02": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "80efb600-cedc-4a8e-bb93-76e26ae2bd8e",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_f4f611e7955f6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1664bc26-d70b-47e3-8fea-6f9ebfc1978d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
