@@ -256,7 +256,7 @@ class TerraformImportHandler:
                                 "imported": [asdict(a) for a in imported],
                                 "failed": [asdict(a) for a in failed],
                             },
-                            "plan": plan_result.stdout,
+                            "plan_after_import": plan_result.stdout,
                         }
                     ),
                 )

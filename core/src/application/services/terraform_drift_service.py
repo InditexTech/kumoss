@@ -99,7 +99,8 @@ class TerraformDriftService:
 
             drift = await self.__terraform_svc.drift(plan=plan)
 
-            await self.__store_drift(drift, targets)
+            if not drift.feedback:
+                await self.__store_drift(drift, targets)
 
             if drift.in_sync:
                 break
