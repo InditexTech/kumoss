@@ -46,7 +46,7 @@ class GitUtils(IGit):
         logging.info(f"git ls-remote {self.__uri}")
         try:
             result = await self.__cli.execute(
-                ["git", "ls-remote", "--exit-code", self.__uri],
+                ["git", "ls-remote", "--exit-code", "--", self.__uri],
                 20,
             )
         except CliTimeoutError as e:
@@ -64,7 +64,7 @@ class GitUtils(IGit):
     ) -> bool:
         cmd = ["git", "clone", "--depth", "1"]
         cmd.extend(extra_args)
-        cmd.extend([repo_url, repository_name])
+        cmd.extend(["--", repo_url, repository_name])
         parsed = urlparse(repo_url)
         safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
         try:
