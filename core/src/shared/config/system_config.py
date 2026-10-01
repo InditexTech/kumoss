@@ -21,7 +21,7 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 import yaml
 from pathlib import Path
 from urllib.parse import urlparse
@@ -31,6 +31,7 @@ from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
+    Environment,
     GitProviderName,
     ObjectStorageProvider,
 )
@@ -506,9 +507,7 @@ class StorageConfig(BaseModel):
 
 
 class SystemConfig(BaseModel, frozen=True):
-    environment: Literal["development", "staging", "production"] = (
-        "development"  # development | staging | production
-    )
+    environment: Environment = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
