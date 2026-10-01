@@ -10,9 +10,7 @@ import type { ReportRef, TerraformPlanRef } from "@/types/api";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
-  buildAssistantMessage,
   buildApplyResults,
-  appendAssistantMessage,
   isApplyRound,
   waitForNewRound,
 } from "./session_outcome";
@@ -403,19 +401,25 @@ describe("resolveSessionOutcome", () => {
     expect(buildSessionPatch(outcome).newFiles).toEqual(["vars.tf"]);
   });
 
-  it("requests the conversation history when given a session id", async () => {
+  it("requests the conversation when given a session id", async () => {
+    // The internal record is never asked for: the chat view is rebuilt
+    // from `chat_history` alone.
+    let sawIncludeChatHistory = false;
     let sawIncludeHistory = false;
     mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));
     server.use(
       http.get("/api/v1/sessions", ({ request }) => {
         const params = new URL(request.url).searchParams;
+        sawIncludeChatHistory =
+          params.get("include_chat_history") === "true";
         sawIncludeHistory = params.get("include_history") === "true";
         return HttpResponse.json(mockState.getSession(params.get("id") ?? ""));
       }),
     );
 
     await resolveSessionOutcome("sess-1");
-    expect(sawIncludeHistory).toBe(true);
+    expect(sawIncludeChatHistory).toBe(true);
+    expect(sawIncludeHistory).toBe(false);
   });
 
   it("maps a filter-rejected round (uncompleted) to a rejected outcome", async () => {
@@ -686,10 +690,51 @@ describe("buildSessionPatch", () => {
       code: "<main.tf>\nx\n</main.tf>",
       planTargets: [],
     });
+    // The chat is the backend's `chat_history`, flattened — never the
+    // internal record, which the user route does not even carry.
     expect(patch.history).toEqual([
       { role: "user", content: "deploy a VM" },
-      { role: "assistant", content: "Here is your VM" },
+      {
+        role: "assistant",
+        content: "Done: the plan adds one VM. Need anything else?",
+      },
     ]);
+  });
+
+  it("ignores the internal history even when the payload carries it", () => {
+    const detail = makeSessionDetail({
+      chat_history: [{ user: "deploy a VM", assistant: "Done." }],
+      history: [{ user: "deploy a VM", assistant: "<raw llm summary>" }],
+    });
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: null,
+      code: "",
+    });
+
+    expect(patch.history).toEqual([
+      { role: "user", content: "deploy a VM" },
+      { role: "assistant", content: "Done." },
+    ]);
+  });
+
+  it("leaves a conversation-less payload with an empty chat", () => {
+    // Status polls omit the flag, so a patch built from one carries no
+    // conversation at all rather than a stale or synthesized one.
+    const detail = makeSessionDetail({ chat_history: null });
+    const patch = buildSessionPatch({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: null,
+      code: "",
+    });
+
+    expect(patch.history).toEqual([]);
   });
 
   it("carries the plan's targets onto the session", () => {
@@ -779,104 +824,6 @@ describe("buildSessionPatch", () => {
       passed: false,
       violations: [{ rule_id: "NET-001" }],
     });
-  });
-});
-
-describe("appendAssistantMessage", () => {
-  it("appends when the history does not already end with the message", () => {
-    expect(
-      appendAssistantMessage([{ role: "user", content: "q" }], "summary"),
-    ).toEqual([
-      { role: "user", content: "q" },
-      { role: "assistant", content: "summary" },
-    ]);
-  });
-
-  it("does not duplicate a rationale the backend already persisted", () => {
-    const history = [
-      { role: "user" as const, content: "off-topic query" },
-      { role: "assistant" as const, content: "Query is off-topic" },
-    ];
-    expect(appendAssistantMessage(history, "Query is off-topic")).toEqual(
-      history,
-    );
-  });
-});
-
-describe("buildAssistantMessage", () => {
-  const detail = makeSessionDetail();
-
-  it("prefers the potential impact summary for generate results", () => {
-    expect(
-      buildAssistantMessage({
-        kind: "results",
-        detail,
-        round: detail.rounds[0],
-        report: { potential_impact: { summary: "Adds one VM" } },
-        compliance: null,
-        code: "",
-      }),
-    ).toBe("Adds one VM");
-  });
-
-  it("falls back to plan counts", () => {
-    expect(
-      buildAssistantMessage({
-        kind: "results",
-        detail,
-        round: detail.rounds[0],
-        report: { summary: { create: 2, update: 1, delete: 0, recreate: 0 } },
-        compliance: null,
-        code: "",
-      }),
-    ).toContain("2 to create");
-  });
-
-  it("uses the drift report summary for drift sessions", () => {
-    expect(
-      buildAssistantMessage({
-        kind: "results",
-        detail: makeSessionDetail({ operation: "drift" }),
-        round: detail.rounds[0],
-        report: { summary: "One resource drifted" },
-        compliance: null,
-        code: "",
-      }),
-    ).toBe("One resource drifted");
-  });
-
-  it("uses the import report's execution summary for import sessions", () => {
-    expect(
-      buildAssistantMessage({
-        kind: "results",
-        detail: makeSessionDetail({ operation: "import" }),
-        round: detail.rounds[0],
-        report: {
-          summary: { selected: 1, imported: 1, failed: 0 },
-          execution_summary: "One storage account is now managed",
-        },
-        compliance: null,
-        code: "",
-      }),
-    ).toBe("One storage account is now managed");
-  });
-
-  it("uses execution_summary for apply results and rationale for rejections", () => {
-    expect(
-      buildAssistantMessage({
-        kind: "apply-results",
-        detail,
-        round: detail.rounds[0],
-        report: { execution_summary: "Applied 3 resources" },
-      }),
-    ).toBe("Applied 3 resources");
-    expect(
-      buildAssistantMessage({
-        kind: "rejected",
-        detail,
-        rationale: "Off-topic",
-      }),
-    ).toBe("Off-topic");
   });
 });
 

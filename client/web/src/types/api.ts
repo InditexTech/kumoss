@@ -12,7 +12,7 @@ export const TERRAFORM_PROVIDERS = [
   "kubernetes",
 ] as const;
 export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
-export type HistoryRole = "user" | "assistant" | "validation";
+export type HistoryRole = "user" | "assistant";
 
 export interface HistoryEntry {
   role: HistoryRole;
@@ -20,7 +20,8 @@ export interface HistoryEntry {
 }
 
 // Raw conversation turn as returned by the backend's History.serialize()
-// (exposed via GET /sessions?id={id}&include_history=true).
+// (exposed via GET /sessions?id={id}&include_chat_history=true). One turn
+// per finished round, oldest first.
 export interface RawHistoryTurn {
   user: string;
   assistant: string;
@@ -251,11 +252,23 @@ export interface SessionSummary {
  * `rounds` is ordered by `(number, id)` and each round's statuses by
  * `(created_at, id)`, so that concatenation is chronological.
  * `current_status` is the cheap latest-status field for polling.
- * `history` is populated only when requested via `?include_history=true`.
+ * `chat_history` is populated only when requested via
+ * `?include_chat_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
   scope_id: string;
   rounds: RoundDetail[];
+  chat_history?: RawHistoryTurn[] | null;
+}
+
+/**
+ * The admin aggregate: the same read model plus `history`, the internal
+ * record the backend feeds to the LLM. That record carries no contract —
+ * its shape follows whatever the prompting strategy needs — so render it
+ * as debugging material only, never as the user's conversation. Populated
+ * only when requested via `?include_history=true`.
+ */
+export interface AdminSessionDetail extends SessionDetail {
   history?: RawHistoryTurn[] | null;
 }
 

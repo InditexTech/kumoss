@@ -8,9 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
 import {
-  appendAssistantMessage,
   buildApplyResults,
-  buildAssistantMessage,
   buildSessionPatch,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
@@ -50,13 +48,9 @@ export function useWizardTerraform() {
         return;
       }
 
-      updateSession({
-        ...patch,
-        history: appendAssistantMessage(
-          patch.history,
-          buildAssistantMessage(outcome),
-        ),
-      });
+      // The conversation comes from the backend whole: `patch.history` is
+      // `chat_history`, which already carries this round's reply.
+      updateSession(patch);
       navigate(`/home/results/${outcome.detail.uuid}`, { replace: true });
     },
     [session, updateSession, showNotification, navigate],

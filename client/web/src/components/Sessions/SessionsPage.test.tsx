@@ -8,24 +8,29 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
 import { makeSessionDetail, mockState } from "@/test/factories";
+import { projectAdminDetail } from "@/test/handlers";
 import { renderWithProviders } from "@/test/render";
-import type { PanelRole, SessionDetail } from "@/types/api";
+import type { AdminSessionDetail, PanelRole } from "@/types/api";
 import SessionsPage from "./SessionsPage";
 
 const auth = vi.hoisted(() => ({ panelRole: null as PanelRole | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
-function paginated(items: SessionDetail[]) {
+function paginated(items: AdminSessionDetail[]) {
   return { items, total: items.length, page: 1, page_size: 10, total_pages: 1 };
 }
 
-function mockAdminSession(detail: SessionDetail) {
+function mockAdminSession(detail: AdminSessionDetail) {
   const patches: Array<{ locked: boolean }> = [];
   server.use(
     http.get("/api/v1/admin/sessions/list", () =>
       HttpResponse.json(paginated([detail])),
     ),
-    http.get("/api/v1/admin/sessions", () => HttpResponse.json(detail)),
+    // Projected like the real route, so each record only arrives when the
+    // page actually asks for it.
+    http.get("/api/v1/admin/sessions", ({ request }) =>
+      HttpResponse.json(projectAdminDetail(detail, request)),
+    ),
     http.patch(
       "/api/v1/admin/sessions/:id/toggle_lock",
       async ({ request }) => {
@@ -137,5 +142,39 @@ describe("SessionsPage apply lock in the detail panel", () => {
 
     expect(await screen.findByText("Apply Locked")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /apply locked/i })).toBeNull();
+  });
+});
+
+describe("SessionsPage conversation panels", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("shows the conversation and the internal record in the admin view", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail());
+    renderPage("admin", "/admin?session=sess-1");
+
+    expect(await screen.findByText("Conversation")).toBeInTheDocument();
+    expect(
+      screen.getByText("Done: the plan adds one VM. Need anything else?"),
+    ).toBeInTheDocument();
+    // The internal record is debug material, labelled apart from the
+    // conversation rather than merged into it.
+    expect(screen.getByText("Internal history")).toBeInTheDocument();
+    expect(screen.getByText("<raw llm summary>")).toBeInTheDocument();
+  });
+
+  it("shows only the conversation on the user's own sessions view", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail());
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    expect(await screen.findByText("Conversation")).toBeInTheDocument();
+    expect(
+      screen.getByText("Done: the plan adds one VM. Need anything else?"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Internal history")).toBeNull();
+    expect(screen.queryByText("<raw llm summary>")).toBeNull();
   });
 });

@@ -68,14 +68,15 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(session.provider).toBe("azure");
     expect(session.workspace?.branch).toBe("nebula/sess-1");
     expect(session.is_blocked).toBe(false);
-    // Rebuilt from {user, assistant} turns, plus the appended summary
-    expect(session.history?.[0]).toEqual({
-      role: "user",
-      content: "deploy a VM",
-    });
-    expect(session.history?.[session.history.length - 1].role).toBe(
-      "assistant",
-    );
+    // Flattened from the backend's `chat_history` turns; the hook adds
+    // nothing of its own.
+    expect(session.history).toEqual([
+      { role: "user", content: "deploy a VM" },
+      {
+        role: "assistant",
+        content: "Done: the plan adds one VM. Need anything else?",
+      },
+    ]);
   });
 
   it("apply-results outcome sets applyResults from the apply report", () => {
@@ -114,7 +115,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(applyResults!.applyReport).toEqual(outcome.report);
   });
 
-  it("rejected iteration appends the rationale as an assistant entry and keeps prior results", () => {
+  it("rejected iteration shows the stored rationale and keeps prior results", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -131,9 +132,16 @@ describe("useWizardTerraform — handleOutcome", () => {
       }),
     );
 
+    // A rejected round's turn is written by the backend like any other:
+    // its reply is the rationale, stored unchanged.
     const outcome: SessionOutcome = {
       kind: "rejected",
-      detail: makeSessionDetail({ current_status: "uncompleted" }),
+      detail: makeSessionDetail({
+        current_status: "uncompleted",
+        chat_history: [
+          { user: "deploy a bitcoin miner", assistant: "Query is off-topic" },
+        ],
+      }),
       rationale: "Query is off-topic",
     };
 
@@ -159,7 +167,12 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     const outcome: SessionOutcome = {
       kind: "rejected",
-      detail: makeSessionDetail({ current_status: "uncompleted" }),
+      detail: makeSessionDetail({
+        current_status: "uncompleted",
+        chat_history: [
+          { user: "deploy a bitcoin miner", assistant: "Query is off-topic" },
+        ],
+      }),
       rationale: "Query is off-topic",
     };
 
@@ -176,7 +189,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     });
   });
 
-  it("does not duplicate a rationale the backend already persisted in history", () => {
+  it("never synthesizes a turn the conversation does not carry", () => {
     const { result } = renderHook(
       () => ({
         terraform: useWizardTerraform(),
@@ -185,25 +198,21 @@ describe("useWizardTerraform — handleOutcome", () => {
       { wrapper: Wrapper },
     );
 
-    // The backend appends the rejected turn to the history before saving,
-    // so the fetched detail already ends with the rationale.
+    // A round whose chat reply could not be inferred has no turn at all.
+    // The hook shows the conversation as stored rather than filling the
+    // gap with a client-side summary.
     const outcome: SessionOutcome = {
       kind: "rejected",
       detail: makeSessionDetail({
         current_status: "uncompleted",
-        history: [
-          { user: "deploy a bitcoin miner", assistant: "Query is off-topic" },
-        ],
+        chat_history: [],
       }),
       rationale: "Query is off-topic",
     };
 
     act(() => result.current.terraform.handleOutcome(outcome));
 
-    const history = result.current.session.session.history!;
-    expect(
-      history.filter((m) => m.content === "Query is off-topic"),
-    ).toHaveLength(1);
+    expect(result.current.session.session.history).toEqual([]);
   });
 
   it("failed outcome marks the session unresumable", () => {

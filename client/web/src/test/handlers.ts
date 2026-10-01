@@ -13,6 +13,7 @@
 import { http, HttpResponse } from "msw";
 import { mockState } from "./factories";
 import type {
+  AdminSessionDetail,
   AuthConfigResponse,
   PaginatedSessionSummary,
   SessionDetail,
@@ -116,20 +117,44 @@ export function paginate(
 }
 
 /** Newest first, as the backend orders both list endpoints. */
-export function sortedSessions(): SessionDetail[] {
+export function sortedSessions(): AdminSessionDetail[] {
   return [...mockState.listSessions()].sort((a, b) =>
     b.created_at.localeCompare(a.created_at),
   );
 }
 
-/** `history` is only serialized when explicitly requested. */
+/**
+ * The user route's projection: each conversation record is serialized only
+ * when its own flag asks for it, and the internal `history` is dropped
+ * outright — on that route it is not part of the response model at all.
+ */
 export function projectDetail(
-  detail: SessionDetail,
+  detail: AdminSessionDetail,
   request: Request,
 ): SessionDetail {
-  const includeHistory =
-    new URL(request.url).searchParams.get("include_history") === "true";
-  return includeHistory ? detail : { ...detail, history: null };
+  const params = new URL(request.url).searchParams;
+  const projected: AdminSessionDetail = {
+    ...detail,
+    chat_history:
+      params.get("include_chat_history") === "true"
+        ? (detail.chat_history ?? null)
+        : null,
+  };
+  delete projected.history;
+  return projected;
+}
+
+/** The admin route's projection: both records, each behind its own flag. */
+export function projectAdminDetail(
+  detail: AdminSessionDetail,
+  request: Request,
+): AdminSessionDetail {
+  const params = new URL(request.url).searchParams;
+  return {
+    ...projectDetail(detail, request),
+    history:
+      params.get("include_history") === "true" ? (detail.history ?? null) : null,
+  };
 }
 
 export const sessionHandlers = [

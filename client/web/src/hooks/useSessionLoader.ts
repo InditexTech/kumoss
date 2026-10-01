@@ -8,8 +8,6 @@ import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
-  buildAssistantMessage,
-  appendAssistantMessage,
 } from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
@@ -53,13 +51,10 @@ export function useSessionLoader(
         if (outcome.kind === "apply-results") {
           updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
         } else if (outcome.kind === "rejected") {
-          updateSession({
-            ...patch,
-            history: appendAssistantMessage(
-              patch.history,
-              buildAssistantMessage(outcome),
-            ),
-          });
+          // A rejected round opens no PR of its own, so there is nothing to
+          // rebuild; its chat turn (the stored rationale) already arrived
+          // with `patch.history`.
+          updateSession(patch);
         } else {
           updateSession(patch);
           // PR state is in-memory only; rebuild it from the round so a
