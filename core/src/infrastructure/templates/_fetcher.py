@@ -9,6 +9,7 @@ import httpx
 from phoenix.client import AsyncClient
 
 from src.shared.config import system_config
+from src.shared.constants import Environment
 from src.infrastructure.exceptions import PhoenixPromptFetchError
 
 
@@ -22,7 +23,7 @@ class _PromptFetcher:
         prompt_name: str,
         scope: Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"],
         type: Literal["resources", "guidelines", "compliance"],
-        tag: Literal["production", "development"],
+        tag: Environment,
     ) -> str:
         qualified_name = f"{scope}-{type}-{prompt_name}"
         try:

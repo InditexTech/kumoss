@@ -154,8 +154,8 @@ have been initialised, the seeder:
   (by name, regardless of tags). If it exists, the seed is skipped. If
   not, the seeder creates the prompt with one version whose displayed
   model name is `kumoss-seed` (Phoenix requires a model name; Kumoss
-  ignores it) and tags that version with the value of `environment`
-  from `config.yaml` (`development` by default).
+  ignores it) and tags that version with every `environment` value:
+  `development`, `staging`, and `production`.
 . Logs `Prompt seeding complete: N created, M already present`.
 
 Consequences to plan for:
@@ -166,14 +166,20 @@ Consequences to plan for:
   Phoenix (see below) or delete it there and restart the core.
 * *Only new names are pushed.* Adding a new seed file and restarting the
   core does create the new prompt, even on an existing deployment.
+* *A failed tag is not retried.* If Phoenix rejects one of the three tag
+  writes, boot fails, but the prompt already exists and the next boot
+  skips it. The error names the prompt, its version, and the tags still
+  missing; add them to that version in Phoenix.
 * *The environment tag matters.* The core fetches prompts by name and
-  tag, and the tag is `environment`. If you change `environment` (say
-  from `development` to `production`) on a deployment whose prompts
-  were seeded earlier, the seeder sees the names already exist, skips
-  them, and never applies the new tag. The next session then fails
-  because `general-guidelines-terraform` has no version tagged
-  `production`. Tag a version of every prompt with the new value in
-  Phoenix before switching, or start from an empty Phoenix database.
+  tag, and the tag is `environment`. Seeded versions carry all three
+  tags, so changing `environment` keeps working for them. It does not
+  for versions you create by hand, nor for prompts seeded by a release
+  that applied only the `environment` tag: the seeder sees the names
+  already exist, skips them, and never adds the missing tags. The next
+  session then fails because, say, `general-guidelines-terraform` has
+  no version tagged `production`. Tag a version of every such prompt
+  with the new value in Phoenix before switching, or start from an
+  empty Phoenix database.
 * *Prompt versions are yours to manage.* Kumoss always fetches the
   version currently carrying the environment tag. Publishing a new
   version and moving the tag is how you roll a change out; moving the
@@ -724,8 +730,8 @@ exists, so the catalogue must be edited in Phoenix:
   (new names are created), or create the prompt
   `<cloud>-resources-<name>` directly in Phoenix. In both cases the
   new version must carry the deployment's `environment` tag
-  (`development` by default); the seeder tags what it creates, a
-  manual creation must be tagged by hand.
+  (`development` by default); the seeder tags what it creates with all
+  three environments, a manual creation must be tagged by hand.
 . Open `<cloud>-guidelines-resources_list`, create a new version with
   the extra line, and move the environment tag to it.
 . Run a session that mentions the new resource. No core rebuild or
