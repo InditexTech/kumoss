@@ -756,19 +756,19 @@ tooling = [
 
 [package.metadata]
 requires-dist = [
-    { name = "azure-identity", specifier = ">=1.25" },
-    { name = "boto3", specifier = ">=1.40" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.116.0" },
-    { name = "google-auth", extras = ["requests"], specifier = ">=2.40" },
-    { name = "httpx", specifier = ">=0.28" },
+    { name = "azure-identity", specifier = ">=1.25.3" },
+    { name = "boto3", specifier = ">=1.43.95" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.136.1" },
+    { name = "google-auth", extras = ["requests"], specifier = ">=2.58.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
 ]
 
 [package.metadata.requires-dev]
 tooling = [
     { name = "basedpyright", specifier = ">=1.39.9" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
 ]
 
 [[package]]

@@ -8,12 +8,12 @@ version = "0.1.0"
 description = "Reference implementation of contracts/openapi/notifications.v1.yaml — Slack-backed notification dispatch."
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi[standard]>=0.116.0",
+    "fastapi[standard]>=0.136.1",
     "httpx>=0.28.1",
 ]
 
 [dependency-groups]
 tooling = [
-    "pytest>=8.0",
-    "respx>=0.21",
+    "pytest>=9.0.3",
+    "respx>=0.23.1",
 ]
