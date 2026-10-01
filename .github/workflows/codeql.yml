@@ -72,12 +72,6 @@ jobs:
             build-mode: none
           - language: javascript-typescript
             build-mode: none
-            paths: |
-              client/web
-              docs
-            paths-ignore: |
-              client/web/node_modules
-              docs/node_modules
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -89,8 +83,7 @@ jobs:
         with:
           build-mode: ${{ matrix.build-mode }}
           languages: ${{ matrix.language }}
-          paths: ${{ matrix.paths || '' }}
-          paths-ignore: ${{ matrix.paths-ignore || '' }}
+          config-file: ./.github/codeql-config.yml
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
