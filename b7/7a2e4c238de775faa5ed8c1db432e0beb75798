@@ -1,0 +1,29 @@
+.github/dependabot.yml
+  s_2e91daa7a17dfa::t_917dffdee0f99b 15-16,38-39,49-50,60-61,71-72,82-96,106-107,117-118,128-129,139-140,150-151,161-162,172-173,186-187
+.github/workflows/codeql.yml
+  s_2e91daa7a17dfa::t_abb165b1346c2e 33,41,91-96,108-109
+.github/workflows/pr-verify.yml
+  s_2e91daa7a17dfa::t_2255f6b0af8692 1,13,82-99
+.github/workflows/push-verify.yml
+  s_2e91daa7a17dfa::t_b3f67c5adade75 1
+.github/workflows/scorecard-analysis.yml
+  s_2e91daa7a17dfa::t_24ecdaf0b9ccda 1
+.github/workflows/security-scans.yml
+  s_2e91daa7a17dfa::t_3c05ada7ad1169 27,131,134-173
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b77a2e4c238de775faa5ed8c1db432e0beb75798",
+  "prompts": {},
+  "sessions": {
+    "s_2e91daa7a17dfa": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_2e91daa7a17dfa",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

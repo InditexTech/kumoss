@@ -1,0 +1,37 @@
+.github/workflows/pr-verify.yml
+  s_16ad186f2d3033::t_040e114e05643c 36-44
+.github/workflows/push-verify.yml
+  s_16ad186f2d3033::t_57b4c3cf8cfd1e 36-43
+.github/workflows/codeql.yml
+  s_d71bf40c23668f::t_c7760266160944 92-93,95-96
+.github/workflows/scorecard-analysis.yml
+  s_d71bf40c23668f::t_95b5971978b6f3 93
+.github/workflows/security-scans.yml
+  s_d71bf40c23668f::t_fc68eaf6a47352 141
+.github/workflows/sonar.yml
+  s_d71bf40c23668f::t_957861045c9cdc 82-89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "03a6a7e13b61697cef4e2fe56c821bcec06f4786",
+  "prompts": {},
+  "sessions": {
+    "s_16ad186f2d3033": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a417566-bd6c-4a91-96b8-a5f32ac707af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    },
+    "s_d71bf40c23668f": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_d71bf40c23668f",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

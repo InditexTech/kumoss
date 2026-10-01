@@ -1,0 +1,19 @@
+.github/workflows/codeql.yml
+  s_c17a5fb2faa038::t_19f1b151692266 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a892a55b0b61ba4fb96a5a4aa926090d52f8f0db",
+  "prompts": {},
+  "sessions": {
+    "s_c17a5fb2faa038": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_c17a5fb2faa038",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
