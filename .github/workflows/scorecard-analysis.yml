@@ -30,7 +30,6 @@ jobs:
         id: scanning-availability
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE_ENABLED: ${{ vars.CODE_SCANNING_ENABLED }}
           REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: |
           set -euo pipefail
@@ -41,7 +40,7 @@ jobs:
             seat="unknown"
           fi
           enabled=false
-          if [ "${visibility}" = "public" ] || [ "${seat}" = "enabled" ] || [ "${FORCE_ENABLED:-}" = "true" ]; then
+          if [ "${visibility}" = "public" ] || [ "${seat}" = "enabled" ]; then
             enabled=true
           fi
           echo "Code scanning availability: visibility=${visibility} seat=${seat} enabled=${enabled}"

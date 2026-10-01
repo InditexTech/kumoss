@@ -5,9 +5,10 @@ name: CodeQL
 
 on:
   push:
-    branches: [main, main-*, develop, develop-*]
+    # This repository runs trunk-based development on `main` only.
+    branches: [main]
   pull_request:
-    branches: [main, main-*, develop, develop-*]
+    branches: [main]
   merge_group:
     types: [checks_requested]
   schedule:
@@ -23,24 +24,10 @@ concurrency:
 jobs:
   scanning-availability:
     name: Resolve code scanning availability
-    if: >-
-      github.event_name == 'schedule' ||
-      (
-        vars.DEVELOPMENT_FLOW == 'trunk-based-development' &&
-        (
-          (github.event_name == 'push' && (github.ref_name == 'main' || startsWith(github.ref_name, 'main-'))) ||
-          (github.event_name == 'pull_request' && (github.event.pull_request.base.ref == 'main' || startsWith(github.event.pull_request.base.ref, 'main-'))) ||
-          (github.event_name == 'merge_group' && (github.event.merge_group.base_ref == 'refs/heads/main' || startsWith(github.event.merge_group.base_ref, 'refs/heads/main-')))
-        )
-      ) ||
-      (
-        vars.DEVELOPMENT_FLOW == 'git-flow' &&
-        (
-          (github.event_name == 'push' && (github.ref_name == 'develop' || startsWith(github.ref_name, 'develop-'))) ||
-          (github.event_name == 'pull_request' && (github.event.pull_request.base.ref == 'develop' || startsWith(github.event.pull_request.base.ref, 'develop-'))) ||
-          (github.event_name == 'merge_group' && (github.event.merge_group.base_ref == 'refs/heads/develop' || startsWith(github.event.merge_group.base_ref, 'refs/heads/develop-')))
-        )
-      )
+    # kumoss is not engine-governed: no DEVELOPMENT_FLOW / CODE_SCANNING_ENABLED
+    # repo vars exist. Availability is decided from the repository itself.
+    # Enable GHAS scanning on public repos and private repos with an Advanced
+    # Security seat; the workflow runs regardless of that decision.
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -51,7 +38,6 @@ jobs:
         id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE_ENABLED: ${{ vars.CODE_SCANNING_ENABLED }}
         run: |
           set -euo pipefail
           visibility="$(gh api "/repos/${GITHUB_REPOSITORY}" --jq '.visibility' 2>/dev/null || echo unknown)"
@@ -61,8 +47,6 @@ jobs:
           if [ "${visibility}" = "public" ]; then
             enabled=true
           elif [ "${seat}" = "enabled" ]; then
-            enabled=true
-          elif [ "${FORCE_ENABLED:-}" = "true" ]; then
             enabled=true
           fi
           echo "Code scanning availability: visibility=${visibility} seat=${seat} enabled=${enabled}"
