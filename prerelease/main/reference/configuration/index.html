@@ -1280,15 +1280,15 @@ condition fires.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.max_drift_reports</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">integer</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>3</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>3</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Maximum detect-and-remediate iterations in a drift session.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.max_validation_iteration</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">integer</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>8</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Maximum generate-then-validate attempts per generation task before the
 round fails with <code>Validation loop exceeded.</code></p></td>
@@ -1305,12 +1305,19 @@ attempt. When the attempts run out after a passing plan, the round still
 reports what did import and lists what did not.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.max_tool_chain_executions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.max_tool_agent_executions</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">integer</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>70</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>70</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>40</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>40</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum tool-call iterations inside one agent chain before it aborts.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum model turns inside one agent loop. On the last turn only the
+agent&#8217;s sentinel tool is offered, so the agent can still return what it
+has; a loop that reaches the limit anyway aborts with
+<code>ToolExecutionsExceeded</code> and the round fails. Renamed from
+<code>max_tool_chain_executions</code>: the old key is ignored, so a file that
+still sets it silently gets the built-in <code>40</code>. See
+<a href="../../architecture/end-to-end-flow/#agent-tool-loop" class="xref page">Agent tool
+loop</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.max_session_events_iteration</code></p></td>
@@ -1398,7 +1405,7 @@ and models</a>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (LiteLLM model string, or a <code>model_name</code> alias when
 <code>model_list</code> is set)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-sonnet-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-sonnet-5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/claude-sonnet-5-5</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">High-quality model used by the IaC generator, target generator, and
 report generator chains.</p></td>
@@ -1407,7 +1414,7 @@ report generator chains.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-haiku-4-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-haiku-4-5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/gemini-3.8-flash</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cheaper model used by every other chain and by tool-internal LLM
 calls.</p></td>
@@ -1511,6 +1518,19 @@ workspace, carried by the pinned workspace, and executed by <code>apply</code>. 
 must be a <strong>single safe filename</strong>: no path separators, no spaces, at
 most 128 characters. Keep the <code>.plan</code> suffix so the gitignore rules the
 core injects continue to cover it.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>paths.backend_override_filename</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string matching <code>^[A-Za-z0-9._-]{1,128}_override\.tf$</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>backend_override.tf</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name of the state backend override the core writes into every
+workspace before <code>init</code> when <code>storage.terraform_state_bucket</code> is set.
+It must be a single safe filename ending in <code>_override.tf</code>: Terraform
+only merges files with that suffix over the rest of the configuration,
+and the gitignore rules the core injects only cover that suffix. The
+file holds the state store credentials, so the agent&#8217;s file tools can
+neither see nor touch it.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1812,8 +1832,9 @@ field default if the key is absent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Bucket (or blob container) holding Terraform/OpenTofu state, separate
 from <code>storage.bucket</code>. <strong>Non-blank — the shipped value — means Kumoss
 manages state</strong>: the bucket is created at boot if missing and the core
-writes a <code>backend_override.tf</code> into every workspace before <code>init</code>,
-addressing it with the key <code>&lt;project_id&gt;/terraform.tfstate</code>. Backend
+writes <code>paths.backend_override_filename</code> into every workspace before
+<code>init</code>, addressing it with the key
+<code>&lt;project_id&gt;/&lt;storage.terraform_state_filename&gt;</code>. Backend
 type follows <code>storage.provider</code> (<code>s3</code> for <code>RUSTFS</code>/<code>S3</code>, <code>azurerm</code> for
 <code>STORAGE_ACCOUNT</code>). Set it explicitly to <code>""</code> to opt out — no value,
 <code>""</code>, and whitespace-only are all blank, and blank means no bucket is
@@ -1823,6 +1844,17 @@ own remote backend, whose credentials belong to the IaC sidecar. A bare
 <code>""</code>: it parses as YAML null and fails boot with a Pydantic validation
 error. See <a href="../../guides/configure-state-backends/" class="xref page">Configure state
 backends</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.terraform_state_filename</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string matching <code>^[A-Za-z0-9._-]{1,128}$</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform.tfstate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Object name of each project&#8217;s state inside
+<code>storage.terraform_state_bucket</code>, stored under the <code>&lt;project_id&gt;/</code>
+prefix. It must be a single safe filename: no path separators, no
+spaces, at most 128 characters. Changing it orphans the existing state:
+every project then starts from an empty state under the new key.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.endpoint_url</code></p></td>

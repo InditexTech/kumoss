@@ -823,7 +823,7 @@ the models you prefer. Model strings per provider:
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-4-5"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-5-5"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.8-flash"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
@@ -980,8 +980,11 @@ optional sidecar is unconfigured.</p>
 </table></div></div>
 <div class="paragraph">
 <p>Port 80 serves the unauthenticated Kumoss application by default, while
-port 9000 exposes presigned artifact downloads and the RustFS console, on
-every interface of the host. Keep the stack on a machine only you can reach.</p>
+port 9000 exposes presigned artifact downloads, on every interface of the
+host. Keep the stack on a machine only you can reach. The RustFS web
+console is disabled; to enable it, see
+<a href="../guides/production/operations/#rustfs-console" class="xref page">RustFS
+console</a>.</p>
 </div>
 <div class="paragraph">
 <p>Open <code>http://localhost</code>. With authentication disabled you land directly in

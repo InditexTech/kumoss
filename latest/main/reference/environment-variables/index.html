@@ -909,9 +909,10 @@ is <code>RUSTFS</code> (or <code>S3</code> with static keys). Used for the artif
 and — where Kumoss-managed state is enabled
 (<code>storage.terraform_state_bucket</code> non-blank; that is the shipped
 default) — for the state bucket too, in which case it is also embedded
-into the backend block the IaC sidecar executes. Must match
-<code>RUSTFS_ACCESS_KEY</code> on the <code>object-storage</code> service in
-<code>docker-compose.yml</code>.</p></td>
+into the backend block the IaC sidecar executes. Must match the
+access key of the <code>object-storage</code> service. The bundled
+<code>docker-compose.yml</code> sets none, so RustFS uses its built-in
+<code>rustfsadmin</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: the core creates or checks every configured bucket and aborts
 if the store is unusable</p></td>
 </tr>
@@ -920,8 +921,9 @@ if the store is unusable</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>rustfsadmin</code> when <code>storage.provider</code> is <code>RUSTFS</code> <strong>and the variable is
 unset</strong>; empty otherwise</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Secret key for the artifact store, matching <code>RUSTFS_SECRET_KEY</code> on
-<code>object-storage</code>. For <code>S3</code>, leave both keys unset to use the AWS SDK
+<td class="tableblock halign-left valign-top"><p class="tableblock">Secret key for the artifact store, matching the secret key of
+<code>object-storage</code> (RustFS&#8217;s built-in <code>rustfsadmin</code> with the bundled
+compose file). For <code>S3</code>, leave both keys unset to use the AWS SDK
 default credential chain (an instance role or workload identity), or
 set static keys under these same variable names unless you rename
 <code>storage.access_key_env</code> / <code>storage.secret_key_env</code>.</p></td>
@@ -1626,13 +1628,17 @@ pushes every session&#8217;s branch and opens every pull request. Give it
 the minimum repository permissions your provider offers.</p>
 </li>
 <li>
-<p><strong>Rotate the RustFS keys and database password</strong> from the bundled
-<code>rustfsadmin</code> and <code>postgres</code> defaults in <code>docker-compose.yml</code> before
-exposing the stack beyond a workstation. The same file hard-codes
-<code>PHOENIX_SQL_DATABASE_URL</code> with the <code>phoenix-db</code> password in it,
-and enables the RustFS web console (<code>RUSTFS_CONSOLE_ENABLE=true</code>) —
-change the
-first and disable the second outside a workstation.</p>
+<p><strong>Rotate the RustFS keys and database password</strong> before exposing the
+stack beyond a workstation. <code>docker-compose.yml</code> sets no RustFS keys,
+so RustFS uses its built-in <code>rustfsadmin</code> / <code>rustfsadmin</code>. Set
+<code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> on <code>object-storage</code> and the
+same values in <code>core/.env</code>. The compose file also hard-codes the
+<code>postgres</code> database password. The same file hard-codes
+<code>PHOENIX_SQL_DATABASE_URL</code> with the <code>phoenix-db</code> password in it —
+change it outside a workstation. The RustFS web console is disabled
+(<code>RUSTFS_CONSOLE_ENABLE=false</code>); enabling it is up to you, see
+<a href="../../guides/production/operations/#rustfs-console" class="xref page">RustFS
+console</a>.</p>
 </li>
 <li>
 <p><strong>Restrict who can reach the stack while OIDC is disabled.</strong> With a

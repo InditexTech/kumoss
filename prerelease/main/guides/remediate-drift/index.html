@@ -831,12 +831,13 @@ prompts, and the <code>general-guidelines-targeting_policies</code> prompt.</p>
 </li>
 <li>
 <p><strong>Detect and remediate loop</strong>, up to <code>orchestration.max_drift_reports</code>
-iterations (5 by default). The first iteration runs <code>init</code>, <code>validate</code>
+iterations (3 by default). The first iteration runs <code>init</code>, <code>validate</code>
 and <code>plan -out</code> on the targets; each later one reads the plan its
 predecessor&#8217;s last remediation cycle validated, and only plans for
 itself if that cycle produced nothing. Every iteration then runs
 <code>show -json</code> on the plan artifact, derives the drift from it, stores
-the drift report as an artifact, splits the drift into operations,
+the drift report as an artifact (or the plan output, when the targets
+are already in sync), splits the drift into operations,
 drops the operations covered by the cloud&#8217;s
 <code>&lt;cloud&gt;-guidelines-drift_exceptions</code> rules, groups the survivors in
 batches of <code>orchestration.drift_group_operations</code> (8), and runs a

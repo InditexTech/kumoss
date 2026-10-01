@@ -1049,7 +1049,10 @@ identifier does.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Repository-relative path to the IaC root, for example
 <code>environments/dev</code>. Defaults to the repository root. An absolute path
-or one containing a <code>..</code> segment is rejected. First call only —
+or one containing a <code>..</code> segment is rejected. After the clone, the path
+must resolve, symlinks included, to an existing directory inside the
+repository, or the session ends <code>FAILED</code> with <code>runner failed: iac_path
+'&lt;path&gt;' is not a directory inside the repository</code>. First call only —
 iteration calls inherit it from the session.</p></td>
 </tr>
 <tr>

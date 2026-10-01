@@ -1060,15 +1060,18 @@ underlying <code>provider/model-id</code> string, and <code>llm.provider</code> 
 unset because the alias carries no recognizable prefix.</p>
 </li>
 <li>
-<p><strong>Invocation parameters:</strong> <code>llm.invocation_parameters</code> with the request
-arguments minus the bulky message and tool payloads (temperature, max
-tokens, retries, timeout, reasoning effort).</p>
+<p><strong>Invocation parameters:</strong> <code>llm.invocation_parameters</code> with every
+request argument sent to LiteLLM, including the raw <code>messages</code> and
+<code>tools</code> payloads alongside temperature, max tokens, tool choice,
+retries, timeout and reasoning effort.</p>
 </li>
 <li>
 <p><strong>Messages:</strong> <code>llm.input_messages.N.message.role</code> and <code>.content</code> for the
 system prompt, the conversation history (user, assistant, tool
-results with their <code>tool_call_id</code>), and the current message; assistant
-tool calls appear under <code>.message.tool_calls.M.*</code>.</p>
+results with their <code>tool_call_id</code>), the current message, and, last,
+any harness notice the agent loop added for that turn only (the
+budget-exhausted or no-tool-call reminder); assistant tool calls
+appear under <code>.message.tool_calls.M.*</code>.</p>
 </li>
 <li>
 <p><strong>Available tools:</strong> <code>llm.tools.N.tool.json_schema</code>.</p>

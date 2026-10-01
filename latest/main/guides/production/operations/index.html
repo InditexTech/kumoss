@@ -869,19 +869,15 @@ update <code>KUMOSS_SQL_DATABASE_URL</code> and <code>PHOENIX_SQL_DATABASE_URL</
 match.</p>
 </li>
 <li>
-<p><code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> default to <code>rustfsadmin</code> /
-<code>rustfsadmin</code>. Rotate both to generated values (and update the core&#8217;s
-<code>RUSTFS_ACCESS_KEY</code>/<code>RUSTFS_SECRET_KEY</code>) before onboarding real data.
-Set them explicitly on the core: when <code>storage.provider</code> is <code>RUSTFS</code>
-and the variables are absent, the core silently falls back to
-<code>rustfsadmin</code> — deleting them does not remove the default, only
+<p><code>object-storage</code> sets no <code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code>,
+so RustFS runs with its built-in <code>rustfsadmin</code> / <code>rustfsadmin</code>
+credentials. Before onboarding real data, set both on
+<code>object-storage</code> to generated values and set the same values in the
+core&#8217;s <code>RUSTFS_ACCESS_KEY</code>/<code>RUSTFS_SECRET_KEY</code>. Set them explicitly
+on both sides: when the variables are absent, RustFS and the core
+(with <code>storage.provider</code> set to <code>RUSTFS</code>) both silently fall back to
+<code>rustfsadmin</code>. Deleting them does not remove the default; only
 setting them does.</p>
-</li>
-<li>
-<p><code>RUSTFS_CONSOLE_ENABLE=true</code> exposes the RustFS web console. Disable
-it, or make sure port 9000&#8217;s console path is never reachable outside
-the cluster network — only the presigned-URL data path belongs on the
-public endpoint.</p>
 </li>
 <li>
 <p>Floating image tags (<code>rustfs/rustfs:latest</code>,
@@ -889,6 +885,52 @@ public endpoint.</p>
 <code>node:24-alpine</code>, <code>postgres:17</code>, <code>redis:8.8</code>) are convenient for local
 use but not reproducible. Pin every image you run in production by
 digest.</p>
+</li>
+</ul>
+</div>
+<div id="rustfs-console" class="paragraph">
+<p><strong>RustFS console.</strong> Kumoss does not ship or configure the RustFS web
+console. RustFS turns it on by default, so the compose file sets
+<code>RUSTFS_CONSOLE_ENABLE=false</code> on <code>object-storage</code>. Kumoss only needs the
+S3 API on port 9000, and the nginx reference proxies nothing else. If
+you want the console to browse buckets or manage access keys, set it up
+yourself by following the
+<a href="https://docs.rustfs.com/en/administration/console">RustFS console
+documentation</a>. With the bundled compose file that means:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Set <code>RUSTFS_CONSOLE_ENABLE=true</code> on <code>object-storage</code>. The console
+listens on <code>RUSTFS_CONSOLE_ADDRESS</code>, <code>:9001</code> by default, and is
+served under <code>/rustfs/console/</code>.</p>
+</li>
+<li>
+<p>Make port 9001 reachable. Nothing publishes or proxies it today. For
+a workstation, bind it to loopback only:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  object-storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    environment</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">      - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">RUSTFS_CONSOLE_ENABLE=true</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    ports</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">      - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"127.0.0.1:9001:9001"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then open <code>http://localhost:9001/rustfs/console/</code> and sign in with
+the RustFS credentials: <code>rustfsadmin</code> / <code>rustfsadmin</code> unless you set
+<code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> on <code>object-storage</code>.</p>
+</div>
+</li>
+<li>
+<p>Beyond a workstation, follow the RustFS recommendations: serve the
+console over TLS, restrict network access to its listener, rotate the
+<code>rustfsadmin</code> keys before anyone else can reach it, and use
+least-privilege accounts for routine work. Never put the console on
+the public presigned-URL endpoint (port 9000). The image also ships
+<code>RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=*</code>, so scope that to your
+console&#8217;s origin if you use it cross-origin.</p>
 </li>
 </ul>
 </div>

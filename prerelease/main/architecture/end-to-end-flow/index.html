@@ -1235,7 +1235,7 @@ the round&#8217;s <em>conventions</em>, which every later agent is rendered with
 <div class="sectionbody">
 <div class="paragraph">
 <p>Up to <code>orchestration.max_validation_iteration</code> generate-and-validate
-iterations: 8 in the shipped <code>config.yaml</code>, 5 built in.</p>
+iterations: 5 in the shipped <code>config.yaml</code>, 8 built in.</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -1598,11 +1598,11 @@ iterations: 8 in the shipped <code>config.yaml</code>, 5 built in.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Infrastructure Generation Agent (<code>generating</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The main model edits Terraform files through the tool registry (read,
-write, list, ripgrep search, web search), bounded by
-<code>orchestration.max_tool_chain_executions</code> (70) model turns — one
-increment per inference turn after its tool calls run, the same bound
-every agent loop shares; reaching it raises <code>ToolExecutionsExceeded</code> and
-the round fails — and terminated by the sentinel <code>task_complete</code> tool.</p></td>
+write, list, ripgrep search, web search), confined to the session&#8217;s IaC
+root and bounded by <code>orchestration.max_tool_agent_executions</code> (40) model
+turns — the same bound every agent loop shares — and terminated by the
+sentinel <code>task_complete</code> tool. The guards that keep the loop inside its
+budget are described in <a href="#agent-tool-loop">Agent tool loop</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Persist and push</p></td>
@@ -1628,7 +1628,7 @@ against the shared workspace with the cloud credentials in
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Correct or fail</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Engine errors go back to the generation agent as the next query and the
-loop repeats. After <code>orchestration.max_validation_iteration</code> (8 shipped)
+loop repeats. After <code>orchestration.max_validation_iteration</code> (5 shipped)
 failures the round ends <code>FAILED</code>, the branch keeps the last pushed
 attempt, and the session is <a href="#how-a-session-ends">closed for good</a>.</p></td>
 </tr>
@@ -1659,7 +1659,9 @@ attempt, and the session is <a href="#how-a-session-ends">closed for good</a>.</
 <td class="tableblock halign-left valign-top"><p class="tableblock">Status <code>reconciling</code>. The core runs <code>show -json</code> on the plan artifact
 validation left in the workspace — the round&#8217;s own plan, never a second
 one — and inverts the <code>before</code>/<code>after</code> differences into "make the code
-match the infrastructure" operations, stored as a drift artifact.</p></td>
+match the infrastructure" operations, stored as a drift artifact. When
+the targets are already in sync the plan output is stored instead, as a
+plan artifact, so every iteration leaves one artifact behind.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Split and filter</p></td>
@@ -3025,8 +3027,8 @@ message at that point.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>[at most n …]</code> in a label or band</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A bounded loop with its ceiling, at the shipped values: 70 model turns
-per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+<td class="tableblock halign-left valign-top"><p class="tableblock">A bounded loop with its ceiling, at the shipped values: 40 model turns
+per agent loop, 5 validation iterations, 2 drift pre-check rounds, 8
 operations per drift batch.</p></td>
 </tr>
 </tbody>
@@ -3160,7 +3162,7 @@ output</p></td>
 <div class="paragraph">
 <p>Agents never delegate to one another and there is no supervisor agent:
 the handler classes call each in a fixed order, and every loop has a
-configured ceiling (<code>orchestration.max_tool_chain_executions</code>,
+configured ceiling (<code>orchestration.max_tool_agent_executions</code>,
 <code>max_validation_iteration</code>, <code>max_drift_reports</code>,
 <code>drift_group_operations</code>; the drift pre-check inside a generate round is
 fixed at two iterations).</p>
@@ -3173,6 +3175,108 @@ GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
 calculation (<code>plan_to_drift</code>, DeepDiff); the code-computed compliance
 verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.</p>
+</div>
+<div class="sect2">
+<h3 id="agent-tool-loop"><a class="anchor" href="#agent-tool-loop"></a>Agent tool loop</h3>
+<div class="paragraph">
+<p>Every agent with tools runs the same loop: the model is offered the
+agent&#8217;s tools, the core runs the calls it returns, feeds the results
+back, and repeats until the sentinel tool is called. Each inference is
+one turn of the <code>orchestration.max_tool_agent_executions</code> budget (40
+shipped), whether or not it called a tool. The core guards the loop so
+the budget is spent on work rather than on repeats:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 75%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Guard</th>
+<th class="tableblock halign-left valign-top">Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Last turn</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The final turn of the budget offers only the sentinel tool, with a note
+telling the model to return the best result the work so far allows and
+state what is left unfinished. Only a model that still does not call it
+reaches <code>ToolExecutionsExceeded</code>, which fails the round.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Duplicate calls</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A call whose tool and arguments match one already run in the loop is not
+run again (the free-text <code>explanation</code> argument is ignored for the
+comparison). The model gets a failed result telling it the answer is
+already in the conversation.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Single-use tools</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>diff_history</code> returns the same result whatever its arguments, so it is
+withdrawn from the offered tools once it succeeds.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Workspace changes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A successful <code>write_to_file</code>, <code>replace_in_file</code> or <code>delete_file</code> clears
+both memories: reads made before it may now return something different,
+so they may be repeated and <code>diff_history</code> is offered again.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Replies without tool calls</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tool choice is <code>auto</code>, so a model may answer in plain text. The text is
+kept in the history and the model is told that only tool calls are read:
+continue with the tools, or call the sentinel if it is done or blocked. An
+empty reply gets the same reminder for the next turn only. Both count as a
+turn.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tool errors</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A failing tool call does not fail the round: its error goes back to the
+model as a failed result. Every result reaches the model as JSON,
+<code>{"success": true, "result": &#8230;&#8203;}</code> or <code>{"success": false, "error": &#8230;&#8203;}</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><strong>Workspace confinement.</strong> The agents' working directory is the session&#8217;s
+IaC root: the clone plus <code>iac_path</code>, with symlinks resolved. The root must
+be an existing directory inside the clone, or the run fails with <code>runner
+failed: iac_path '&lt;path&gt;' is not a directory inside the repository</code> before
+any agent starts, so a committed link cannot widen the tools' reach.
+Within it:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Tool paths are relative to the IaC root. An absolute path is accepted
+only when it points inside the root; anything that resolves outside it,
+through <code>..</code> or a symlink, is rejected.</p>
+</li>
+<li>
+<p>The entries Kumoss manages are invisible to the tools at any depth:
+<code>.git</code>, <code>.gitignore</code>, and the state backend override
+(<code>paths.backend_override_filename</code>, which holds the state store
+credentials). <code>list_dir</code> and <code>bulk_grep_search</code> never show them, and
+reading, writing or deleting them is rejected.</p>
+</li>
+<li>
+<p><code>list_dir</code> (non-recursive) and <code>bulk_grep_search</code> apply the same ignore
+rules (<code>.gitignore</code>, <code>.ignore</code>) and include hidden files, so both agree
+on what the workspace contains. Each search returns at most 50
+<code>path:line:content</code> matches, with <code>truncated</code> set when there are more.</p>
+</li>
+<li>
+<p><code>write_to_file</code>, <code>replace_in_file</code> and <code>delete_file</code> only touch <code>.tf</code>
+and <code>.tfvars</code> files.</p>
+</li>
+<li>
+<p><code>read_file</code> on a file that does not exist tells the model to stop
+guessing filenames and rely on the directory listing.</p>
+</li>
+</ul>
+</div>
 </div>
 </div>
 </div>
@@ -3208,8 +3312,8 @@ sends one. The progress stream closes on any of the three.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validation never converged</strong> — phase 5</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">All <code>orchestration.max_validation_iteration</code> attempts are used: 8 in the
-shipped <code>config.yaml</code>, 5 built in</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">All <code>orchestration.max_validation_iteration</code> attempts are used: 5 in the
+shipped <code>config.yaml</code>, 8 built in</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>runner failed: Validation loop exceeded.</code> and a <code>system.exception.failure</code>
 notification. No LLM problem summary is produced. The branch keeps the last
 pushed attempt.</p></td>
@@ -3673,7 +3777,7 @@ planning again.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Full drift takes the whole root module, an empty target list. Partial drift
 takes the targets the Drift Target Generator chooses after the request
 filter.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Up to <code>max_drift_reports</code> (5) iterations, unfiltered — a drift session has
+<td class="tableblock halign-left valign-top"><p class="tableblock">Up to <code>max_drift_reports</code> (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
 lock, does not run the compliance audit and does not pin the workspace —

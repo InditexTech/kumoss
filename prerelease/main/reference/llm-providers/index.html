@@ -854,7 +854,8 @@ make internally (for example web search).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>0.1</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Sampling temperature sent with every chat completion. When a chain
 requests extended thinking, the core sends <code>1.0</code> instead, because
-reasoning-enabled models require it. Tool-internal LLM calls use a
+reasoning-enabled models require it, together with
+<code>reasoning_effort: low</code>. Tool-internal LLM calls use a
 fixed <code>0.5</code>.</p></td>
 </tr>
 <tr>
@@ -891,10 +892,14 @@ must provide:</p>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>OpenAI-style function calling with forced tool choice.</strong> Agent loops
-send a <code>tools</code> list with <code>tool_choice: required</code> and expect
-well-formed JSON arguments back; each loop ends only when the model
-calls its sentinel tool. This applies to agent loops specifically —
+<p><strong>Reliable OpenAI-style function calling.</strong> Agent loops send a <code>tools</code>
+list with <code>tool_choice: auto</code> and expect well-formed JSON arguments
+back; each loop ends only when the model calls its sentinel tool. A
+reply without tool calls is answered with a reminder and costs a turn
+of the loop budget (see
+<a href="../../architecture/end-to-end-flow/#agent-tool-loop" class="xref page">Agent
+tool loop</a>), so a model that often answers in text instead of calling
+tools runs out of turns. This applies to agent loops specifically —
 the status/summary text calls (<code>generate_text</code>) send no tools at all.
 Models without reliable function calling (many small self-hosted
 models) fail every agent session.</p>
@@ -925,10 +930,10 @@ Responses API path, which only works on OpenAI-compatible endpoints.</p>
 </ul>
 </div>
 <div class="paragraph">
-<p>The shipped models (Anthropic Claude direct, <code>anthropic/</code>) satisfy all of
-these, as do the same models on Azure AI Foundry (<code>azure_ai/</code>) and the
-Claude and Gemini models on Vertex AI that the core&#8217;s test suite
-exercises. Kumoss has not tested every provider LiteLLM lists.</p>
+<p>The shipped models (Claude and Gemini on Vertex AI, <code>vertex_ai/</code>, which
+the core&#8217;s test suite exercises) satisfy all of these, as do the built-in defaults (Anthropic Claude direct,
+<code>anthropic/</code>) and the same Claude models on Azure AI Foundry
+(<code>azure_ai/</code>). Kumoss has not tested every provider LiteLLM lists.</p>
 </div>
 </div>
 </div>
