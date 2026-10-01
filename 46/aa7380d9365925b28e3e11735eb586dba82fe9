@@ -1,0 +1,21 @@
+.github/workflows/pr-verify.yml
+  s_b0e0b326112a9c::t_35eb0ff4834d19 69
+.github/workflows/sonar.yml
+  s_b0e0b326112a9c::t_93ba74419cb320 100-108,114-115,117,119,124,131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "46aa7380d9365925b28e3e11735eb586dba82fe9",
+  "prompts": {},
+  "sessions": {
+    "s_b0e0b326112a9c": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_b0e0b326112a9c",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
