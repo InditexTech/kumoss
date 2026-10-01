@@ -1,0 +1,25 @@
+.github/codeql-config.yml
+  s_629fea7dfb3ef8::t_66838722d4104a 1
+.github/workflows/sonar.yml
+  s_629fea7dfb3ef8::t_76377267a732f3 36,42,55-57,131
+CONTRIBUTING.md
+  s_629fea7dfb3ef8::t_f357ecb2f8e96a 54-57,61-62
+docs/src/modules/main/pages/guides/development.adoc
+  s_629fea7dfb3ef8::t_daecb0693b3aa3 37-38,43-44,47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "152fb92b12afd0e29f240f3ae27cfbb61b91c0b5",
+  "prompts": {},
+  "sessions": {
+    "s_629fea7dfb3ef8": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_629fea7dfb3ef8",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
