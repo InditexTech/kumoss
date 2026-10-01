@@ -112,7 +112,7 @@ class LlmConfig(BaseModel):
     LiteLLM model-id strings (``provider/model``).  Credentials are
     resolved from the provider's standard env vars (see the provider
     tables at
-    https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/);
+    https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/);
     the validator fails boot when litellm reports required env vars
     missing.
 

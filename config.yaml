@@ -12,7 +12,7 @@
 # NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
 # repeated here. LLM provider credentials use LiteLLM's own variable
 # names:
-#   https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/
+#   https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
 # Override only if you need a different env var name — see
 # core/src/shared/config/system_config.py for the `*_env` fields.
 #
@@ -23,8 +23,8 @@
 # development | staging | production. Selects the Phoenix tracing project
 # prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
 # Phoenix prompts:
-#   https://inditextech.github.io/nebula/prerelease/main/guides/monitor-with-phoenix/
-#   https://inditextech.github.io/nebula/prerelease/main/guides/customize-prompts/
+#   https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-phoenix/
+#   https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/
 # No security gates are keyed on it.
 environment: "development"
 
@@ -32,7 +32,7 @@ environment: "development"
 # entirely (dev default: every request acts as a local developer with
 # top roles). Optional overrides (`audience`, `scope`), per-IdP setup
 # and quirks (Entra ID, Keycloak, Auth0):
-#   https://inditextech.github.io/nebula/prerelease/main/guides/enable-authentication/
+#   https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/
 # clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
@@ -46,7 +46,7 @@ oidc:
 # login for existing ones. IdPs that never emit `email_verified` (Entra
 # ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
 # table instead — see "Bootstrap admin" at
-#   https://inditextech.github.io/nebula/prerelease/main/guides/enable-authentication/
+#   https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/
 # Elevation is one-way: clearing this field later never demotes anyone.
 # Leave blank to skip.
 admin:
@@ -103,7 +103,7 @@ services:
 #
 # max_drift_reports: maximum detect-and-remediate iterations in a drift
 # session. Every knob is described at
-#   https://inditextech.github.io/nebula/prerelease/main/reference/configuration/
+#   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
@@ -130,7 +130,7 @@ orchestration:
 # fallbacks between different models are not configurable.
 #
 # Refer to:
-#   - https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/  — Nebula's LiteLLM guide
+#   - https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/  — Nebula's LiteLLM guide
 #   - https://models.litellm.ai/                                                     — model IDs
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
@@ -224,7 +224,7 @@ http:
 # than an empty value — the field is a string, and a YAML null fails
 # validation at boot. Deleting the key restores the default, which is
 # this same bucket name. See
-#   https://inditextech.github.io/nebula/prerelease/main/guides/configure-state-backends/
+#   https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/
 #
 # `terraform_state_filename` is the object name of each project's state,
 # stored at `<project_id>/<terraform_state_filename>` in that bucket; it
@@ -260,7 +260,7 @@ storage:
 # `provider` defaults to GITHUB and must be a GitProviderName enum name
 # or value (see core/src/shared/constants.py::GitProviderName): GITHUB,
 # AZURE_DEVOPS, GITLAB. Full field reference:
-#   https://inditextech.github.io/nebula/prerelease/main/reference/configuration/
+#   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 git:
   provider: "GITHUB"
   author_name: "Nebula"
