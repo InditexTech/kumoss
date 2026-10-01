@@ -390,9 +390,7 @@ class GitUtils(IGit):
     async def _are_there_changes(self) -> bool:
         cmd = await self.__cli.execute(["git", "status", "--porcelain"])
         logging.info(f"git status {cmd.stdout.decode('utf-8').strip()}")
-        if cmd.stdout.decode("utf-8").strip():
-            return True
-        return False
+        return cmd.stdout.decode("utf-8").strip()
 
     async def _add_all(self) -> bool:
         return self._handle_return_code(await self.__cli.execute(["git", "add", "-A"]))
