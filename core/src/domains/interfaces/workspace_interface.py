@@ -23,7 +23,7 @@ class IWorkspace(ABC):
 
     @abstractmethod
     async def validate_uri(self, repo_uri: str) -> None:
-        """Verify the URI is reachable. Raises InvalidRepoURI on failure."""
+        """Verify the URI is reachable. Raises RepositoryUnreachable on failure."""
 
     @abstractmethod
     async def setup_call_dir(

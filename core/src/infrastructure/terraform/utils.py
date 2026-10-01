@@ -26,9 +26,9 @@ class TerraformUtils:
         directory, recreated per call, cannot express.
 
         The repository URI is normalized first: it reaches here in
-        whatever form the caller used, and credentials embedded for
-        push, a ``.git`` suffix or a different case must not split one
-        project into several.
+        whatever form the caller used, and a userinfo username, a
+        ``.git`` suffix or a different case must not split one project
+        into several.
         """
         seed = "\n".join(
             (
@@ -41,10 +41,7 @@ class TerraformUtils:
 
     @staticmethod
     def __normalize_repo_uri(repo_uri: str) -> str:
-        uri = repo_uri.strip()
-        if "://" not in uri and "@" in uri:
-            uri = "ssh://" + uri.replace(":", "/", 1)
-        parsed = urlparse(uri)
+        parsed = urlparse(repo_uri.strip())
         host = (parsed.hostname or "").lower()
         path = parsed.path.strip("/").removesuffix(".git").strip("/").lower()
         return f"{host}/{path}"

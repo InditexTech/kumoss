@@ -13,8 +13,8 @@ from uuid import uuid4
 
 from src.infrastructure.exceptions import InvalidIacPath
 from src.infrastructure.filesystem import (
+    RepositoryUnreachable,
     WorkspaceService,
-    InvalidRepoURI,
 )
 from src.shared.config import system_config
 
@@ -63,9 +63,14 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
         uri = _init_bare_remote(self.tmp)
         await WorkspaceService().validate_uri(uri)  # no exception
 
-    async def test_rejects_unreachable_remote(self):
-        with self.assertRaises(InvalidRepoURI):
+    async def test_rejects_unreachable_remote_without_git_output(self):
+        with self.assertRaises(RepositoryUnreachable) as ctx:
             await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
+        self.assertEqual(ctx.exception.error_code, 400)
+        self.assertEqual(
+            ctx.exception.message,
+            "Repository is not reachable or access was denied.",
+        )
 
 
 def _current_branch(path: Path) -> str:

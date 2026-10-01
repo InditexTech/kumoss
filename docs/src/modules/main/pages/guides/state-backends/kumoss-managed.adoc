@@ -298,9 +298,10 @@ State is keyed by *project*, not by session or directory:
 . the *normalized root-module path* within the repository (`iac_path`)
 
 Normalization means two spellings of the same project never split into
-two states: the repository URI is lowercased, loses a `.git` suffix,
-loses embedded push credentials, and accepts SCP-style SSH form; the
-module path is trimmed of surrounding and duplicate slashes.
+two states: the repository URI is lowercased, loses a `.git` suffix
+and a userinfo username; the module path is trimmed of surrounding and
+duplicate slashes. Only `https://` URIs reach this point — the API
+rejects every other scheme.
 
 [cols="1",options="header"]
 |===
@@ -308,9 +309,8 @@ module path is trimmed of surrounding and duplicate slashes.
 
 |`\https://github.com/acme/infra.git`
 |`\https://github.com/acme/infra`
-|`\https://x-access-token:ghp_secret@github.com/acme/infra.git`
+|`\https://acme@github.com/acme/infra.git`
 |`HTTPS://GitHub.com/Acme/Infra.git`
-|`git@github.com:acme/infra.git`
 |===
 
 An empty `iac_path` is a valid project — the root module is the

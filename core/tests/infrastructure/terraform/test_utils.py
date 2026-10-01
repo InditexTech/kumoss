@@ -290,26 +290,19 @@ class TestProjectId(unittest.TestCase):
 
     def test_repo_uri_spelling_does_not_split_a_project(self):
         """The same repository reaches here in whatever form the caller
-        used; credentials embedded for push, a .git suffix, a trailing
-        slash or a different case must all resolve to one project."""
+        used; a userinfo username, a .git suffix, a trailing slash or a
+        different case must all resolve to one project."""
         baseline = self._id()
 
         for variant in (
             "https://github.example.com/org/infra",
             "https://github.example.com/org/infra/",
-            "https://x-access-token:ghp_secret@github.example.com/org/infra.git",
+            "https://org@github.example.com/org/infra.git",
             "HTTPS://GitHub.Example.com/Org/Infra.git",
             "  https://github.example.com/org/infra.git  ",
         ):
             with self.subTest(variant=variant):
                 self.assertEqual(baseline, self._id(repo=variant))
-
-    def test_ssh_and_https_remotes_agree(self):
-        """A clone over SSH and one over HTTPS are the same project."""
-        self.assertEqual(
-            self._id(repo="git@github.example.com:org/infra.git"),
-            self._id(repo="https://github.example.com/org/infra.git"),
-        )
 
     def test_iac_path_spelling_does_not_split_a_project(self):
         baseline = self._id()

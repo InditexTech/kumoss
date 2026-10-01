@@ -902,13 +902,13 @@ At boot the core always sets the global git author identity. If both
 credential variables are non-empty it also writes
 `\https://<user>:<token>@<provider-host>` to `~/.git-credentials` and
 enables the `store` credential helper. If either is empty it logs a
-warning and continues; pushes then need credentials from another source
-(a pre-populated `~/.git-credentials`, or mounted SSH keys with an
-`ssh://` repository URL). Note that SSH covers clone and push only:
-pull-request creation and merge call the provider's REST API with
-`GIT_TOKEN` and require an HTTPS repository URL on the public host, so
-an SSH-only setup cannot open or merge pull requests. Repository URLs
-that embed a user name or token are rejected by the API.
+warning and continues; pushes then need a pre-populated
+`~/.git-credentials`, and pull-request creation and merge — which call
+the provider's REST API with `GIT_TOKEN` — fail. Repository URLs must
+be `https://`: SSH, `git://`, `http://`, `file://` and local paths are
+rejected by the API, so SSH keys are never an alternative. URLs that
+embed a password or token are rejected too; a bare userinfo username
+is accepted.
 
 Requires rebuild: yes for the YAML; token values live in `core/.env`.
 

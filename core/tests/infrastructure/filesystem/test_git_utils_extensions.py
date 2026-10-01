@@ -13,8 +13,11 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+from src.infrastructure.exceptions import CliTimeoutError, RepositoryUnreachable
 from src.infrastructure.filesystem import GitUtils
+from src.infrastructure.filesystem.cli import Cli
 from src.shared.constants import GitProviderName
 
 _TMP_DIR = Path(tempfile.gettempdir())
@@ -69,6 +72,55 @@ class TestLsRemote(unittest.IsolatedAsyncioTestCase):
         )
         result = await git.ls_remote()
         self.assertFalse(result)
+
+    async def test_returns_false_when_the_remote_times_out(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=_TMP_DIR)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            result = await git.ls_remote()
+        self.assertFalse(result)
+
+
+class TestRemoteErrorsAreMasked(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.bare, self.uri = _init_bare_remote(self.tmp)
+
+    async def asyncTearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    async def test_default_branch_lookup_on_a_bogus_remote_hides_git_output(self):
+        git = GitUtils(
+            uri="file:///no/such/repo.git", git_provider=_PROVIDER, cwd=_TMP_DIR
+        )
+        with self.assertRaises(RepositoryUnreachable) as ctx:
+            _ = await git.get_default_branch(ls_remote=True)
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertEqual(
+            ctx.exception.message,
+            "Repository is not reachable or access was denied.",
+        )
+        self.assertTrue(git.error_msg)
+
+    async def test_default_branch_lookup_timeout_is_masked(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=_TMP_DIR)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            with self.assertRaises(RepositoryUnreachable) as ctx:
+                _ = await git.get_default_branch(ls_remote=True)
+        self.assertEqual(ctx.exception.error_code, 502)
+
+    async def test_clone_timeout_returns_false(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=self.tmp)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            ok = await git.clone_repository(
+                repo_url=self.uri, repository_name="timedout"
+            )
+        self.assertFalse(ok)
 
 
 class TestCloneRepositoryExtensions(unittest.IsolatedAsyncioTestCase):
