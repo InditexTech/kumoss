@@ -23,3 +23,11 @@ os.environ.setdefault(
     "NEBULA_SQL_DATABASE_URL",
     "postgresql://nebula:nebula@localhost:5432/nebula_test",
 )
+
+# ``system_config`` also requires a bearer token for every sidecar the core
+# calls; ``services.iac`` is mandatory and cannot be opted out, so give it a
+# placeholder too. Real values in the environment always win.
+os.environ.setdefault(
+    "NEBULA_IAC_TOKEN",
+    "test-placeholder-not-a-real-token",
+)
