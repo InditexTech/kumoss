@@ -16,10 +16,10 @@ Kumoss is an orchestration platform: a FastAPI core, a React web application, an
 
 ## Documentation
 
-The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss)**.
+The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss/stable/)**.
 
-- [Quickstart](https://inditextech.github.io/kumoss/prerelease/main/quickstart/): run the full stack locally with Docker Compose.
-- [Architecture](https://inditextech.github.io/kumoss/prerelease/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
+- [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/): run the full stack locally with Docker Compose.
+- [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
 
 ## Contributing
 
