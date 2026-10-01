@@ -1,0 +1,29 @@
+core/pyproject.toml
+  s_c8486b329bdfb1::t_2e8a8d56274046 39-40
+.github/workflows/sonar.yml
+  s_c8486b329bdfb1::t_5fcedbec2b7b2d 1-113
+services/authz/pyproject.toml
+  s_c8486b329bdfb1::t_a2bc22701c7e12 18
+services/iac/pyproject.toml
+  s_c8486b329bdfb1::t_163fa49f3eb536 24
+services/notifications/pyproject.toml
+  s_c8486b329bdfb1::t_aea2bfc442c729 19
+services/mapping/pyproject.toml
+  s_c8486b329bdfb1::t_46275a81ae8e0c 19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a45b95a9ce3e551ed139cd96cc05c07018b3bb2",
+  "prompts": {},
+  "sessions": {
+    "s_c8486b329bdfb1": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_c8486b329bdfb1",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
