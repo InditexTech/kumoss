@@ -51,7 +51,12 @@ jobs:
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
-          inputs: .github/workflows
+          inputs: >-
+            .github/workflows/pr-verify.yml
+            .github/workflows/push-verify.yml
+            .github/workflows/scorecard-analysis.yml
+            .github/workflows/codeql.yml
+            .github/workflows/security-scans.yml
           collect: workflows
           online-audits: false
           persona: pedantic

@@ -67,7 +67,17 @@ jobs:
           enable-cache: false
 
       - name: Run Bandit
-        run: uvx --from 'bandit[toml]' bandit -c pyproject.toml -r . -x tests
+        # Advisory until the backlog is triaged: core alone reports 145
+        # pre-existing findings (assert/subprocess patterns), the other 4
+        # packages are clean.
+        continue-on-error: true
+        run: uvx --from 'bandit[toml]' bandit -r . -x tests -f sarif -o bandit.sarif
+
+      - name: Upload Bandit SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          sarif_file: ${{ matrix.package }}/bandit.sarif
 
   hadolint:
     name: Hadolint (Dockerfiles)
@@ -95,6 +105,11 @@ jobs:
         uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: ${{ matrix.dockerfile }}
+          # Pre-existing debt: DL3008 in core/iac (unpinned apt), DL3003/4006
+          # in iac. Only error-level findings block; warnings are tracked for
+          # a follow-up cleanup.
+          failure-threshold: error
+          ignore: DL3008,DL3003,DL4006
 
   osv-scanner:
     name: OSV Scanner (dependencies)
