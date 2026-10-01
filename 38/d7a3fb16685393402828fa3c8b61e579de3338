@@ -1,0 +1,23 @@
+CONTRIBUTING.md
+  s_c5e881eb0649b1::t_8c11386786c6eb 65
+core/tests/conftest.py
+  s_c5e881eb0649b1::t_7a3e54d44c3df5 9-13,16
+docs/src/modules/main/pages/guides/development.adoc
+  s_c5e881eb0649b1::t_1494f11aec049b 50-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "38d7a3fb16685393402828fa3c8b61e579de3338",
+  "prompts": {},
+  "sessions": {
+    "s_c5e881eb0649b1": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_c5e881eb0649b1",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
