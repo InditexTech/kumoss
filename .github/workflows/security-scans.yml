@@ -67,17 +67,11 @@ jobs:
           enable-cache: false
 
       - name: Run Bandit
-        # Advisory until the backlog is triaged: core alone reports 145
-        # pre-existing findings (assert/subprocess patterns), the other 4
-        # packages are clean.
-        continue-on-error: true
-        run: uvx --from 'bandit[toml]' bandit -r . -x tests -f sarif -o bandit.sarif
-
-      - name: Upload Bandit SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
-        with:
-          sarif_file: ${{ matrix.package }}/bandit.sarif
+        # Complementarity: block only on HIGH-severity findings (-lll).
+        # Everything below HIGH overlaps with what Sonar/semgrep already
+        # report (asserts, subprocess patterns); the pre-existing backlog
+        # is tracked for triage, not used to block PRs here.
+        run: uvx --from 'bandit[toml]' bandit -r . -x tests -lll
 
   hadolint:
     name: Hadolint (Dockerfiles)
