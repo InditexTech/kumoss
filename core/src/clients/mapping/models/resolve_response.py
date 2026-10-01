@@ -19,12 +19,13 @@ T = TypeVar("T", bound="ResolveResponse")
 class ResolveResponse:
     """
     Attributes:
-        repo_url (str): URL Nebula should clone. Free-form because git accepts many
-            URL shapes (https://, ssh+git://, git@host:path, file://,
-            absolute paths). Implementations are responsible for returning
-            something the deployment's git client can clone. When the
-            identifier already is a repository URL, implementations pass
-            it through unchanged.
+        repo_url (str): HTTPS URL Nebula should clone. Must use the `https://` scheme
+            (case-insensitive) and name a host: Nebula clones, pushes and
+            opens pull requests over HTTPS only, and rejects SSH,
+            `git://`, `http://`, `file://` and local paths. When the
+            identifier already is an `https://` repository URL,
+            implementations pass it through unchanged; an identifier
+            that cannot be mapped to one answers `404`.
         identifier (str): The request's `identifier`, echoed verbatim. Normative rather
             than conventional: callers correlate responses on it.
         terraform_provider (None | TerraformProvider | Unset): Provider the deployment targets. Echoes the request's

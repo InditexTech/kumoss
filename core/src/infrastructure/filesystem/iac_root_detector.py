@@ -10,9 +10,9 @@ from typing import final, override
 from urllib.parse import urlparse, urlunparse
 
 from src.domains.interfaces.iac_root_detector_interface import IIacRootDetector
+from src.infrastructure.exceptions import RepositoryUnreachable
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
-from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 _EXCLUDED_SEGMENTS = {"modules", "examples", "example", ".terraform"}
@@ -109,9 +109,7 @@ class IacRootDetector(IIacRootDetector):
                 timeout=60,
             )
             if not ok:
-                raise ExceptionHandler(
-                    f"Repository could not be cloned: {git.error_msg}", 502
-                )
+                raise RepositoryUnreachable(502)
 
             repo_path = clone_dir / "repo"
             file_paths = await git.ls_tree(cwd=repo_path)

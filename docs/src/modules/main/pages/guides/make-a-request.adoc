@@ -15,8 +15,9 @@ so the filter accepts it as a change.
   xref:main:guides/administer-users-and-locks.adoc[Administer users and
   locks]).
 * *A repository URL* that holds Terraform-compatible code and that
-  Kumoss's service account can clone and push to. Enter the plain URL;
-  URLs with a user name or token embedded are rejected.
+  Kumoss's service account can clone and push to. Enter the plain
+  `https://` URL; SSH, `file://` and other non-HTTPS URLs, and URLs with
+  a password or token embedded, are rejected.
 * *The cloud scope* your change targets. The wizard asks for it in the
   provider's own terms: "What is the Azure subscription ID?", "What is the
   GCP project ID?", "What is the AWS account ID?", "What is the OCI
@@ -84,16 +85,16 @@ The session then starts and you are taken to the progress screen.
 *Errors at this stage.* The wizard always shows the fixed message "Could
 not resolve repository. Please try again." when the reachability check
 fails, whatever the underlying cause. It runs before the session is
-created — Kumoss answers an error and nothing is started. The more
-specific reason — the Git client's own text, or "Cannot reach repository:
-<url>" when the client said nothing — is the API response's `detail`
-field: visible to direct API callers, and to the wizard itself only if a
-later request (for example the first generate step) fails with a 400, in
-which case the UI falls back to showing that `detail`. Check that the URL
-is reachable and that Kumoss's service account has access. A repository
-that becomes unreachable later, when the session clones it for real, is a
-different failure: the round ends with "git clone failed: ..." and the
-session is failed and cannot be resumed.
+created — Kumoss answers an error and nothing is started. The API
+response's `detail` is just as generic — "Repository is not reachable or
+access was denied." for a missing repository, a refused credential, an
+unknown host or a timeout alike — so a request cannot be used to probe
+what sits behind a URL; the Git client's own text is written only to the
+core log, where an operator can read it. Check that the URL is reachable
+and that Kumoss's service account has access. A repository that becomes
+unreachable later, when the session clones it for real, is a different
+failure: the round ends with the same generic message and the session is
+failed and cannot be resumed.
 
 == Writing a request that gets accepted
 

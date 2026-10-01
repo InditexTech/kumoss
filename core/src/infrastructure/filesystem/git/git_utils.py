@@ -12,6 +12,7 @@ from urllib.parse import urlparse, urlunparse
 
 from src.domains.dto import PullRequestDTO
 from src.domains.interfaces.git_interface import IGit
+from src.infrastructure.exceptions import CliTimeoutError, RepositoryUnreachable
 from src.infrastructure.filesystem.cli import Cli
 from src.infrastructure.filesystem.git.providers import GitProviderFactory
 from src.shared.config.system_config import system_config
@@ -43,12 +44,15 @@ class GitUtils(IGit):
     @override
     async def ls_remote(self) -> bool:
         logging.info(f"git ls-remote {self.__uri}")
-        return self._handle_return_code(
-            await self.__cli.execute(
+        try:
+            result = await self.__cli.execute(
                 ["git", "ls-remote", "--exit-code", self.__uri],
                 20,
             )
-        )
+        except CliTimeoutError as e:
+            self.__error_msg = e.message
+            return False
+        return self._handle_return_code(result)
 
     @override
     async def clone_repository(
@@ -63,7 +67,12 @@ class GitUtils(IGit):
         cmd.extend([repo_url, repository_name])
         parsed = urlparse(repo_url)
         safe_uri = urlunparse(parsed._replace(netloc=parsed.hostname or ""))
-        result = await self.__cli.execute(cmd, timeout)
+        try:
+            result = await self.__cli.execute(cmd, timeout)
+        except CliTimeoutError as e:
+            self.__error_msg = e.message
+            logging.error(f"git clone timed out for {safe_uri}")
+            return False
         if not self._handle_return_code(result):
             logging.error(
                 f"git clone failed for {safe_uri}"
@@ -150,19 +159,25 @@ class GitUtils(IGit):
             if ls_remote
             else cmd
         )
-        if not self._handle_return_code(cmd := await self.__cli.execute(cmd)):
+        try:
+            result = await self.__cli.execute(cmd)
+        except CliTimeoutError as e:
+            raise RepositoryUnreachable(502) from e
+        if not self._handle_return_code(result):
+            if ls_remote:
+                raise RepositoryUnreachable(502)
             raise ExceptionHandler(
                 message=self.__error_msg,
                 error_code=502,
             )
         if ls_remote:
-            match = re.search(r"ref:\s+refs/heads/(\S+)\s+HEAD", cmd.stdout.decode())
+            match = re.search(r"ref:\s+refs/heads/(\S+)\s+HEAD", result.stdout.decode())
             if match is None:
                 raise ExceptionHandler(
                     message="No match git default branch ls-remote", error_code=500
                 )
             return match.group(1)
-        return cmd.stdout.decode().strip().rsplit("/", 1)[-1]
+        return result.stdout.decode().strip().rsplit("/", 1)[-1]
 
     @override
     async def show_diff(
@@ -334,26 +349,26 @@ class GitUtils(IGit):
         return cmd.stdout.decode("utf-8").strip("\n")
 
     async def _check_branch_exists(self, branch: str) -> bool:
-        cmd = await self.__cli.execute(
-            [
-                "git",
-                "ls-remote",
-                "--exit-code",
-                "--heads",
-                "origin",
-                branch,
-            ],
-            20,
-        )
+        try:
+            cmd = await self.__cli.execute(
+                [
+                    "git",
+                    "ls-remote",
+                    "--exit-code",
+                    "--heads",
+                    "origin",
+                    branch,
+                ],
+                20,
+            )
+        except CliTimeoutError as e:
+            raise RepositoryUnreachable(502) from e
         if cmd.returncode == 0:
             return True
         if cmd.returncode == 2:
             return False
         _ = self._handle_return_code(cmd)
-        raise ExceptionHandler(
-            error_code=502,
-            message=f"Git error when checking branch '{branch}': {self.__error_msg}",
-        )
+        raise RepositoryUnreachable(502)
 
     async def _delete_branch(self, target_branch: str) -> bool:
         output_checkout = await self._checkout_branch(
@@ -375,9 +390,7 @@ class GitUtils(IGit):
     async def _are_there_changes(self) -> bool:
         cmd = await self.__cli.execute(["git", "status", "--porcelain"])
         logging.info(f"git status {cmd.stdout.decode('utf-8').strip()}")
-        if cmd.stdout.decode("utf-8").strip():
-            return True
-        return False
+        return cmd.stdout.decode("utf-8").strip()
 
     async def _add_all(self) -> bool:
         return self._handle_return_code(await self.__cli.execute(["git", "add", "-A"]))

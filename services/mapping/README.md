@@ -9,10 +9,11 @@ SPDX-License-Identifier: Apache-2.0
 Reference implementation of [`contracts/openapi/mapping.v1.yaml`](../../contracts/openapi/mapping.v1.yaml).
 
 The OSS default for the Kumoss mapping contract: identity passthrough.
-Whatever `identifier` the caller sends is returned as both the
-`repo_url` and the `identifier`. Useful for users who pass real git
-URLs directly and don't have (or need) a business-product → IaC
-catalogue.
+An `identifier` that is an `https://` URL is returned as both the
+`repo_url` and the `identifier`; anything else (a bare name, an SSH or
+`file://` URL, a path) cannot be resolved and answers `404`. Useful for
+users who pass real HTTPS git URLs directly and don't have (or need) a
+business-product → IaC catalogue.
 
 Enterprise implementations of this contract resolve identifiers against
 an internal source of truth (CMDB, Backstage, a spreadsheet, …) and
@@ -31,9 +32,10 @@ browser directly.
 
 ## What it does
 
-- `POST /v1/resolve` — returns `{repo_url: identifier, identifier: identifier,
+- `POST /v1/resolve` — for an `https://` identifier, returns
+  `{repo_url: identifier, identifier: identifier,
   terraform_provider: <whatever was sent, or null>, scope_id: null}`.
-  Nothing is truncated.
+  Nothing is truncated. Any other identifier answers `404`.
 - `GET /healthz` — liveness probe.
 - Bearer-token auth on `/v1/resolve` if `KUMOSS_MAPPING_TOKEN` is set.
   Leave it blank in a shared network only for local experimentation —
@@ -42,9 +44,9 @@ browser directly.
 
 The contract documents `400`/`403`/`404`/`502` for real catalogue
 backends (bad identifier, no access, unknown identifier, catalogue
-unreachable). This identity-passthrough reference never produces any
-of them — it only ever emits `200`, `401` (bad/missing token), `422`
-(malformed request body), or `500`.
+unreachable). This identity-passthrough reference only ever emits
+`200`, `401` (bad/missing token), `404` (identifier is not an
+`https://` URL), `422` (malformed request body), or `500`.
 
 ## Configuration
 

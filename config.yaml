@@ -253,9 +253,9 @@ storage:
 # Git push provider + author. Credentials (username + PAT) are read from
 # env at boot (default GIT_USER / GIT_TOKEN). When either is empty the
 # core logs a warning and skips the credential setup (push will then
-# need a mounted ~/.git-credentials or SSH keys; note that pull-request
-# creation and merge call the provider REST API with GIT_TOKEN over
-# HTTPS, so SSH alone cannot open or merge pull requests).
+# need a mounted ~/.git-credentials, and pull-request creation and merge,
+# which call the provider REST API with GIT_TOKEN, will fail). Repository
+# URLs must be https://; SSH and every other scheme are rejected.
 #
 # `provider` defaults to GITHUB and must be a GitProviderName enum name
 # or value (see core/src/shared/constants.py::GitProviderName): GITHUB,

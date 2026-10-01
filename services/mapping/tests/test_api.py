@@ -47,12 +47,15 @@ def test_resolve_echoes_terraform_provider_when_sent() -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/resolve",
-            json={"identifier": "my-project", "terraform_provider": "azure"},
+            json={
+                "identifier": "https://github.com/me/my-iac.git",
+                "terraform_provider": "azure",
+            },
         )
     assert response.status_code == 200
     assert response.json() == {
-        "repo_url": "my-project",
-        "identifier": "my-project",
+        "repo_url": "https://github.com/me/my-iac.git",
+        "identifier": "https://github.com/me/my-iac.git",
         "terraform_provider": "azure",
         "scope_id": None,
     }
@@ -74,7 +77,10 @@ def test_resolve_scope_is_always_null() -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/resolve",
-            json={"identifier": "my-project", "terraform_provider": "gcp"},
+            json={
+                "identifier": "https://github.com/me/my-iac.git",
+                "terraform_provider": "gcp",
+            },
         )
     assert response.status_code == 200
     assert response.json()["scope_id"] is None
@@ -84,10 +90,39 @@ def test_resolve_accepts_explicit_null_provider() -> None:
     with _client_with() as client:
         response = client.post(
             "/v1/resolve",
-            json={"identifier": "my-project", "terraform_provider": None},
+            json={
+                "identifier": "https://github.com/me/my-iac.git",
+                "terraform_provider": None,
+            },
         )
     assert response.status_code == 200
     assert response.json()["terraform_provider"] is None
+
+
+def test_resolve_cannot_resolve_a_non_https_identifier() -> None:
+    with _client_with() as client:
+        for identifier in (
+            "my-project",
+            "git@github.com:me/my-iac.git",
+            "ssh://git@github.com/me/my-iac.git",
+            "http://github.com/me/my-iac.git",
+            "file:///srv/git/my-iac.git",
+            "https://",
+        ):
+            response = client.post("/v1/resolve", json={"identifier": identifier})
+            assert response.status_code == 404, identifier
+            assert response.headers["content-type"].startswith(
+                "application/problem+json"
+            )
+
+
+def test_resolve_accepts_a_mixed_case_https_scheme() -> None:
+    with _client_with() as client:
+        response = client.post(
+            "/v1/resolve", json={"identifier": "HTTPS://github.com/me/my-iac.git"}
+        )
+    assert response.status_code == 200
+    assert response.json()["repo_url"] == "HTTPS://github.com/me/my-iac.git"
 
 
 def test_resolve_rejects_provider_outside_the_enum() -> None:
