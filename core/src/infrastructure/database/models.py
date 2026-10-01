@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -160,13 +161,23 @@ class PullRequest(Base):
 
 @final
 class History(Base):
-    """"""
+    """Both conversation records for a session.
+
+    ``payload`` is the internal record fed to the LLM; ``chat_payload``
+    is the user-facing conversation the session API exposes. The
+    ``server_default`` matches the startup ``ALTER`` that adds this
+    column to databases created before it existed, so a fresh and a
+    migrated database agree on its shape.
+    """
 
     __tablename__ = "histories"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     first_query: Mapped[str] = mapped_column(Text)
     payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    chat_payload: Mapped[list[dict[str, str]]] = mapped_column(
+        JSON, default=list, server_default=text("'[]'")
+    )
 
     @override
     def __repr__(self) -> str:

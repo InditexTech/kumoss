@@ -723,12 +723,29 @@ class SessionDetail(SessionSummary):
     concatenated in round order *is* the session timeline.
     ``current_status`` (inherited) is the cheap latest-status field the
     list view and the client's status polling rely on. Pull requests live
-    inside their round. ``history`` is populated only when requested via
-    ``include_history``.
+    inside their round. ``chat_history`` is populated only when requested
+    via ``include_chat_history``.
+
+    ``chat_history`` is the user-facing conversation — the query the user
+    sent for each finished round and a reply written for them. The
+    internal record the backend feeds to the LLM is deliberately absent:
+    it is shaped for inference and free to change, and only
+    ``AdminSessionDetail`` exposes it.
     """
 
     scope_id: str
     rounds: list[RoundDetail]
+    chat_history: list[dict[str, str]] | None = None
+
+
+class AdminSessionDetail(SessionDetail):
+    """Admin read model: the session aggregate plus the internal history.
+
+    ``history`` is the inference record, for debugging only. It carries
+    no contract: its shape follows whatever the prompting strategy needs.
+    Populated only when requested via ``include_history``.
+    """
+
     history: list[dict[str, str]] | None = None
 
 

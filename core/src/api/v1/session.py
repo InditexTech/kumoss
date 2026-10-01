@@ -59,9 +59,9 @@ async def sessions_list(
 async def session_detail(
     session_id: Annotated[UUID, Query(alias="id")],
     user: Annotated[User, Depends(get_current_user)],
-    include_history: Annotated[
+    include_chat_history: Annotated[
         bool,
-        Query(description="Include the session's serialized conversation history."),
+        Query(description="Include the session's user-facing conversation."),
     ] = False,
 ) -> SessionDetail:
     """The complete read model for the session detail view.
@@ -72,10 +72,11 @@ async def session_detail(
     URLs. The session's timeline is the rounds' statuses concatenated in
     round order; ``current_status`` carries the latest one.
 
-    Pass ``include_history=true`` to also populate ``history`` with the
-    session's conversation turns (``[{"user": ..., "assistant": ...}]``);
-    this variant always reads fresh from the database, so keep status
-    polls on the default.
+    Pass ``include_chat_history=true`` to also populate ``chat_history``
+    with the session's conversation — one turn per finished round, as
+    ``[{"user": ..., "assistant": ...}]`` oldest first. This variant
+    always reads fresh from the database, so keep status polls on the
+    default.
 
     Clients subscribed to the push channel should refetch this endpoint
     whenever a `session.updated` nudge arrives for this session id.
@@ -83,7 +84,7 @@ async def session_detail(
     await assert_session_access(user, session_id, write=False)
     try:
         return await DatabaseService.get_session_detail(
-            session_id, include_history=include_history
+            session_id, include_chat_history=include_chat_history
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

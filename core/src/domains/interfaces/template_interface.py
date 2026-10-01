@@ -91,6 +91,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    def render_chat_reply(self) -> str:
+        pass
+
+    @abstractmethod
     async def render_compliance_checker(
         self,
         resources: list[str],

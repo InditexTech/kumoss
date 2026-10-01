@@ -24,6 +24,7 @@ class SessionContext:
         iac_path: str,
         operation_type: OperationType,
         history: list[dict[str, str]],
+        chat_history: list[dict[str, str]] = None,
     ):
         self.__id = id
         self.__user_id = user_id
@@ -35,6 +36,7 @@ class SessionContext:
         self.__iac_path = iac_path
         self.__operation = operation_type
         self.__history: History = History(history)
+        self.__chat_history: History = History(chat_history)
         self.__call_dir: Path | None = None
 
     @property
@@ -78,7 +80,13 @@ class SessionContext:
 
     @property
     def history(self) -> History:
+        """Internal record fed to the LLM. Not part of any public contract."""
         return self.__history
+
+    @property
+    def chat_history(self) -> History:
+        """User-facing conversation: one turn per finished round."""
+        return self.__chat_history
 
     @property
     def call_dir(self) -> Path:

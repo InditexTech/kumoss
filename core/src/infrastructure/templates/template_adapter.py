@@ -121,6 +121,11 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
+    def render_chat_reply(self) -> str:
+        t = self._get_template(self._message + "chat_reply.jinja")
+        return t.render()
+
+    @override
     async def render_import_filter(
         self,
         unmanaged_ids: list[str],
