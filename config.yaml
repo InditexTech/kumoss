@@ -130,7 +130,7 @@ orchestration:
 # fallbacks between different models are not configurable.
 #
 # Refer to:
-#   - https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/  — Nebula's LiteLLM guide
+#   - https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/  — Kumoss's LiteLLM guide
 #   - https://models.litellm.ai/                                                     — model IDs
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
