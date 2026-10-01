@@ -1,0 +1,19 @@
+.github/workflows/security-scans.yml
+  s_be44624d83b051::t_29fba6bc45a24c 1-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3802759bb34ce1d56609b5ec69ec5237f218436b",
+  "prompts": {},
+  "sessions": {
+    "s_be44624d83b051": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_be44624d83b051",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
