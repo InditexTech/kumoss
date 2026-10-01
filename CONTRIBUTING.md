@@ -51,13 +51,15 @@ The repository is a monorepo: the FastAPI core in `core/`, four sidecar services
 
 **Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/) is the step-by-step guide. `docker compose up --watch` syncs `core/` into the running container, but the server runs without `--reload`, so run `docker compose restart core` after a sync.
 
-**Core tests** (Python 3.13, `uv`):
+**Core tests** (Python 3.13, `uv`): `pytest` and `pytest-cov` live in the
+`tooling` dependency group, so sync the project first. **Async tests use
+`unittest.IsolatedAsyncioTestCase`** (no pytest-asyncio plugin required,
+so no `--asyncio-mode` flag):
 
 ```bash
 cd core
-uv pip install --system --prerelease=allow -r pyproject.toml
-uv pip install --system pytest pytest-asyncio
-python -m pytest tests/ --asyncio-mode=auto
+uv sync --frozen --group tooling
+uv run --no-sync pytest tests/
 ```
 
 Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).

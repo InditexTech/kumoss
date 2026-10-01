@@ -34,20 +34,18 @@ image.
 
 == Core tests
 
-Python 3.13, `uv`. `pytest` is *not* declared in `core/pyproject.toml`
-(its `tooling` dependency group holds `basedpyright`, `debugpy`,
-`openapi-python-client`, and `ipython`, not `pytest`), so install it
-explicitly before running the suite:
+Python 3.13, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
+dependency group, so sync the project first:
 
 [source,bash]
 ----
 cd core
-uv pip install --system --prerelease=allow -r pyproject.toml
-uv pip install --system pytest pytest-asyncio
-python -m pytest tests/ --asyncio-mode=auto
+uv sync --frozen --group tooling
+uv run --no-sync pytest tests/
 ----
 
-Async tests are unmarked, so `--asyncio-mode=auto` is required.
+Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio
+plugin, no `--asyncio-mode` flag).
 `core/tests/conftest.py` supplies placeholder values for the LLM
 credential and database URL that the configuration module validates at
 import; suites that talk to PostgreSQL or Redis need the compose stack

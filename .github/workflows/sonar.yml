@@ -33,13 +33,13 @@ jobs:
             project_name: kumoss-python
             conformance_dir_list: contracts/conformance/authz,contracts/conformance/iac,contracts/conformance/mapping,contracts/conformance/notifications
             coverage_paths: >-
-              services/authz/coverage.xml,services/iac/coverage.xml,services/mapping/coverage.xml,services/notifications/coverage.xml
+              core/coverage.xml,services/authz/coverage.xml,services/iac/coverage.xml,services/mapping/coverage.xml,services/notifications/coverage.xml
           - technology: web
             project_key: InditexTech_kumoss-web
             project_name: kumoss-web
             coverage_paths: client/web/coverage/lcov.info
     env:
-      PY_PACKAGES: services/authz services/iac services/mapping services/notifications
+      PY_PACKAGES: core services/authz services/iac services/mapping services/notifications
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -52,7 +52,9 @@ jobs:
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
-          cache-dependency-glob: services/*/uv.lock
+          cache-dependency-glob: |
+            core/uv.lock
+            services/*/uv.lock
 
       - name: Verify SONAR_TOKEN is configured
         shell: bash
@@ -126,6 +128,7 @@ jobs:
           else
             args+=(
               "-Dsonar.sources=client/web/src"
+              "-Dsonar.tests=client/web/src"
               "-Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**"
               "-Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.test.mjs,**/*.test.cjs,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx"
               "-Dsonar.javascript.lcov.reportPaths=${SONAR_COVERAGE_PATHS}"
