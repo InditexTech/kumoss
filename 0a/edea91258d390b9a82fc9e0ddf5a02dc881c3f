@@ -1,0 +1,14 @@
+core/prompts/seed/general/compliance/report.yaml
+  h_f224e8cf34c0b8 19-20,23,28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0aedea91258d390b9a82fc9e0ddf5a02dc881c3f",
+  "prompts": {},
+  "humans": {
+    "h_f224e8cf34c0b8": {
+      "author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
