@@ -923,13 +923,15 @@ shipped value enables Kumoss-managed state by default.</p></td>
 <div class="paragraph">
 <p>Operational effect: it selects the Phoenix tracing project prefix
 (<code>dev-</code>, <code>pre-</code>, <code>pro-</code>; see <a href="../../guides/monitor-with-phoenix/" class="xref page">Monitoring
-with Phoenix</a>) and it is the <strong>tag</strong> used both when seeding prompts into
-Phoenix and when fetching them at runtime (see
-<a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a>). It
+with Phoenix</a>) and it is the <strong>tag</strong> used when fetching prompts from
+Phoenix at runtime (see
+<a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a>). The
+seeder tags every prompt it creates with all three values, so switching
+between them finds the seeded prompts without re-tagging. It
 does <strong>not</strong> enable any security control: setting <code>production</code> does not
-turn on authentication, authorization, or stricter defaults. Changing
-it after prompts have been seeded requires tagging prompt versions with
-the new value in Phoenix, otherwise runtime prompt lookups fail.</p>
+turn on authentication, authorization, or stricter defaults. A prompt
+created or re-versioned by hand in Phoenix is found only if its version
+carries the tag for the current value.</p>
 </div>
 <div class="paragraph">
 <p>Requires rebuild: yes.</p>
