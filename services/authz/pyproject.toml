@@ -8,11 +8,11 @@ version = "0.1.0"
 description = "Reference implementation of contracts/openapi/authz.v1.yaml — header-asserted identity + JSON-file role store + permissive cloud check."
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi[standard]>=0.116.0",
+    "fastapi[standard]>=0.136.1",
 ]
 
 [dependency-groups]
 tooling = [
-    "pytest>=8.0",
-    "httpx>=0.28",
+    "pytest>=9.0.3",
+    "httpx>=0.28.1",
 ]

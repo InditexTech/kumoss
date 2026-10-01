@@ -391,14 +391,14 @@ tooling = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.116.0" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.136.1" },
     { name = "httpx", specifier = ">=0.28.1" },
 ]
 
 [package.metadata.requires-dev]
 tooling = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "respx", specifier = ">=0.21" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "respx", specifier = ">=0.23.1" },
 ]
 
 [[package]]

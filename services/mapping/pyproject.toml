@@ -8,12 +8,12 @@ version = "0.1.0"
 description = "Reference implementation of contracts/openapi/mapping.v1.yaml — identity passthrough."
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi[standard]>=0.116.0",
+    "fastapi[standard]>=0.136.1",
 ]
 
 [dependency-groups]
 tooling = [
     "basedpyright>=1.39.9",
-    "pytest>=8.0",
-    "httpx>=0.28",
+    "pytest>=9.0.3",
+    "httpx>=0.28.1",
 ]

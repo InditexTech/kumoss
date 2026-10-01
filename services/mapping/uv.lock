@@ -402,13 +402,13 @@ tooling = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "fastapi", extras = ["standard"], specifier = ">=0.116.0" }]
+requires-dist = [{ name = "fastapi", extras = ["standard"], specifier = ">=0.136.1" }]
 
 [package.metadata.requires-dev]
 tooling = [
     { name = "basedpyright", specifier = ">=1.39.9" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "pytest", specifier = ">=8.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
 ]
 
 [[package]]
