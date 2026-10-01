@@ -1,0 +1,21 @@
+.github/codeql-config.yml
+  s_10d1af64ef8682::t_e61a383bcf52b5 1-22
+.github/workflows/codeql.yml
+  s_10d1af64ef8682::t_fa5671be55e1a1 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3794d3c4de79e8acb78d58c77e7843b2c881b80d",
+  "prompts": {},
+  "sessions": {
+    "s_10d1af64ef8682": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_10d1af64ef8682",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
