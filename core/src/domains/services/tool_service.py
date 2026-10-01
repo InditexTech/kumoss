@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from src.domains.dto import ToolCallDTO, ToolResultDTO, ToolDefinitionDTO
+from src.domains.entities.tool_loop_state import ToolLoopState
 from src.domains.exceptions import ToolsDefinitionEmpty
 from src.domains.interfaces.tool_registry_interface import IToolRegistry
 from src.domains.services.tracer_service import trace_tool
@@ -53,21 +54,47 @@ class ToolOrchestrationService:
         return tools_context
 
     async def execute_tool_calls(
-        self, tool_calls: list[ToolCallDTO]
+        self,
+        tool_calls: list[ToolCallDTO],
+        loop_state: ToolLoopState | None = None,
     ) -> list[ToolResultDTO]:
         """
         Execute multiple tool calls sequentially
 
         Args:
             tool_calls: list of tool calls to execute
+            loop_state: memory of the enclosing agent loop, updated in place.
+                A call identical to one it already executed is rejected
+                instead of run: its result is already in the conversation, and
+                repeating it only burns the loop budget.
 
         Returns:
             list of tool execution results
         """
         results = []
         for tool_call in tool_calls:
+            if loop_state is not None and loop_state.is_duplicate(tool_call):
+                logging.warning(f"Rejected duplicate tool call {tool_call.name}")
+                results.append(
+                    ToolResultDTO(
+                        name=tool_call.name,
+                        tool_call_id=tool_call.id,
+                        success=False,
+                        result=None,
+                        error_message="Duplicate call: this exact "
+                        + f"{tool_call.name} call was already made and its result "
+                        + "is already in the conversation above; repeating it "
+                        + "cannot return anything new. Act on the information you "
+                        + "have: write the files, or call task_complete explaining "
+                        + "what blocks you.",
+                    )
+                )
+                continue
             try:
-                results.append(await self.__execute_single_tool(tool_call=tool_call))
+                result = await self.__execute_single_tool(tool_call=tool_call)
+                results.append(result)
+                if loop_state is not None:
+                    loop_state.record(tool_call, result)
             except ExceptionHandler as e:
                 error_result = ToolResultDTO(
                     name=tool_call.name,
@@ -77,7 +104,7 @@ class ToolOrchestrationService:
                     error_message=e.message,
                 )
                 results.append(error_result)
-                logging.error(f"Tool {tool_call.name} failed: {str(e)}")
+                logging.error(f"Tool {tool_call.name} failed: {e!r}")
 
         return results
 

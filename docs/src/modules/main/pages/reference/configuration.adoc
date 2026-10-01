@@ -347,14 +347,14 @@ condition fires.
 |`orchestration.max_drift_reports`
 |integer
 |`3`
-|`5`
+|`3`
 |Optional
 |Maximum detect-and-remediate iterations in a drift session.
 
 |`orchestration.max_validation_iteration`
 |integer
-|`5`
 |`8`
+|`5`
 |Optional
 |Maximum generate-then-validate attempts per generation task before the
 round fails with `Validation loop exceeded.`
@@ -369,12 +369,19 @@ or a rejected import is fed back to the generator and counts as one
 attempt. When the attempts run out after a passing plan, the round still
 reports what did import and lists what did not.
 
-|`orchestration.max_tool_chain_executions`
+|`orchestration.max_tool_agent_executions`
 |integer
-|`70`
-|`70`
+|`40`
+|`40`
 |Optional
-|Maximum tool-call iterations inside one agent chain before it aborts.
+|Maximum model turns inside one agent loop. On the last turn only the
+agent's sentinel tool is offered, so the agent can still return what it
+has; a loop that reaches the limit anyway aborts with
+`ToolExecutionsExceeded` and the round fails. Renamed from
+`max_tool_chain_executions`: the old key is ignored, so a file that
+still sets it silently gets the built-in `40`. See
+xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent tool
+loop].
 
 |`orchestration.max_session_events_iteration`
 |integer
@@ -436,7 +443,7 @@ and models].
 |string (LiteLLM model string, or a `model_name` alias when
 `model_list` is set)
 |`anthropic/claude-sonnet-5`
-|`anthropic/claude-sonnet-5`
+|`vertex_ai/claude-sonnet-5-5`
 |Optional (credentials mandatory)
 |High-quality model used by the IaC generator, target generator, and
 report generator chains.
@@ -444,7 +451,7 @@ report generator chains.
 |`llm.small_model`
 |string
 |`anthropic/claude-haiku-4-5`
-|`anthropic/claude-haiku-4-5`
+|`vertex_ai/gemini-3.8-flash`
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
 calls.
@@ -523,6 +530,18 @@ workspace, carried by the pinned workspace, and executed by `apply`. It
 must be a *single safe filename*: no path separators, no spaces, at
 most 128 characters. Keep the `.plan` suffix so the gitignore rules the
 core injects continue to cover it.
+
+|`paths.backend_override_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}_override\.tf$`
+|`backend_override.tf`
+|Optional
+|Name of the state backend override the core writes into every
+workspace before `init` when `storage.terraform_state_bucket` is set.
+It must be a single safe filename ending in `_override.tf`: Terraform
+only merges files with that suffix over the rest of the configuration,
+and the gitignore rules the core injects only cover that suffix. The
+file holds the state store credentials, so the agent's file tools can
+neither see nor touch it.
 |===
 
 Requires rebuild: yes.
@@ -714,8 +733,9 @@ field default if the key is absent
 |Bucket (or blob container) holding Terraform/OpenTofu state, separate
 from `storage.bucket`. *Non-blank — the shipped value — means Kumoss
 manages state*: the bucket is created at boot if missing and the core
-writes a `backend_override.tf` into every workspace before `init`,
-addressing it with the key `<project_id>/terraform.tfstate`. Backend
+writes `paths.backend_override_filename` into every workspace before
+`init`, addressing it with the key
+`<project_id>/<storage.terraform_state_filename>`. Backend
 type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for
 `STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value,
 `""`, and whitespace-only are all blank, and blank means no bucket is
@@ -725,6 +745,16 @@ own remote backend, whose credentials belong to the IaC sidecar. A bare
 `""`: it parses as YAML null and fails boot with a Pydantic validation
 error. See xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
+
+|`storage.terraform_state_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}$`
+|`terraform.tfstate`
+|Optional
+|Object name of each project's state inside
+`storage.terraform_state_bucket`, stored under the `<project_id>/`
+prefix. It must be a single safe filename: no path separators, no
+spaces, at most 128 characters. Changing it orphans the existing state:
+every project then starts from an empty state under the new key.
 
 |`storage.endpoint_url`
 |string

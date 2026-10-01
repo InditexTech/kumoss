@@ -169,6 +169,8 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
             description="Search files",
             parameters={"type": "object", "properties": {"query": {"type": "string"}}},
             context=ToolContext.WORKSPACE_INSPECTION,
+            single_use=False,
+            mutates_workspace=False,
         )
         result = await adapter.inference(msg="find vault references", tools=[tool_def])
 
@@ -187,6 +189,8 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
             description="Read a file",
             parameters={"type": "object", "properties": {"path": {"type": "string"}}},
             context=ToolContext.WORKSPACE_INSPECTION,
+            single_use=False,
+            mutates_workspace=False,
         )
         await adapter.inference(msg="read main.tf", tools=[tool_def])
 
@@ -194,7 +198,7 @@ class TestInferenceWithTools(unittest.IsolatedAsyncioTestCase):
         self.assertIn("tools", call_kwargs)
         self.assertEqual(call_kwargs["tools"][0]["type"], "function")
         self.assertEqual(call_kwargs["tools"][0]["function"]["name"], "read_file")
-        self.assertEqual(call_kwargs["tool_choice"], "required")
+        self.assertEqual(call_kwargs["tool_choice"], "auto")
 
 
 class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
@@ -254,6 +258,55 @@ class TestInferenceWithHistory(unittest.IsolatedAsyncioTestCase):
         self.assertIn("tool_calls", messages[1])
         self.assertEqual(messages[2]["role"], "tool")
 
+    async def test_tool_results_are_sent_as_json_strings(self):
+        # Provider converters (e.g. Anthropic) drop non-string tool content.
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
+
+        tool_results = [
+            ToolResultDTO(
+                name="list_dir",
+                tool_call_id="call_1",
+                success=True,
+                result={"path": ".", "files": ["main.tf"]},
+            ),
+            ToolResultDTO(
+                name="read_file",
+                tool_call_id="call_2",
+                success=False,
+                result=None,
+                error_message="variables.tf was not present",
+            ),
+        ]
+
+        await adapter.inference(msg=tool_results)
+
+        messages = router.acompletion.call_args[1]["messages"]
+        self.assertEqual(
+            json.loads(messages[-2]["content"]),
+            {"success": True, "result": {"path": ".", "files": ["main.tf"]}},
+        )
+        self.assertEqual(
+            json.loads(messages[-1]["content"]),
+            {"success": False, "error": "variables.tf was not present"},
+        )
+
+    async def test_notice_follows_the_tool_results(self):
+        adapter, router = _make_adapter()
+        router.acompletion.return_value = _model_response()
+
+        tool_results = [
+            ToolResultDTO(
+                name="list_dir", tool_call_id="call_1", success=True, result="ok"
+            )
+        ]
+
+        await adapter.inference(msg=tool_results, notice="last turn")
+
+        messages = router.acompletion.call_args[1]["messages"]
+        self.assertEqual(messages[-2]["role"], "tool")
+        self.assertEqual(messages[-1], {"role": "user", "content": "last turn"})
+
 
 class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -279,6 +332,8 @@ class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
             description="test",
             parameters={},
             context=ToolContext.WORKSPACE_INSPECTION,
+            single_use=False,
+            mutates_workspace=False,
         )
         with self.assertRaises(InferenceCallThinkingToolError):
             await adapter.inference(msg="test", tools=[tool_def], thinking=True)
@@ -340,6 +395,8 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
             description="test",
             parameters={},
             context=ToolContext.WORKSPACE_INSPECTION,
+            single_use=False,
+            mutates_workspace=False,
         )
         with self.assertRaises(InferenceCallWebSearchTools):
             await adapter.inference(msg="test", tools=[tool_def], web_search=True)

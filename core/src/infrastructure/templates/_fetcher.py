@@ -50,27 +50,3 @@ class _PromptFetcher:
 
 # singleton for caching prompts across different sessions
 remote_fetcher = _PromptFetcher()
-
-if __name__ == "__main__":
-    import time
-
-    async def main():
-        prompt_fetcher = _PromptFetcher()
-        tags = ["development", "development", "development", "development"]
-        for i in range(len(tags)):
-            start = time.time()
-            prompt = await prompt_fetcher.fetch(
-                prompt_name="networking",
-                scope="azure",
-                type="guidelines",
-                tag=tags[i],
-                # date=datetime.now(UTC).strftime('%Y-%m-%d') if i < 2 else "hey"
-            )
-            print(time.time() - start)
-            print(prompt)
-
-        print()
-
-    import asyncio
-
-    asyncio.run(main())

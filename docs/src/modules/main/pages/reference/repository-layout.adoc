@@ -46,7 +46,11 @@ Kumoss manages state (see
 xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
 keys]). The web application offers only detected paths; API callers
 may pass any repository-relative `iac_path` that contains no `..`
-segment, and an omitted `iac_path` means the repository root.
+segment and resolves, symlinks included, to an existing directory inside
+the repository; an omitted `iac_path` means the repository root. The
+agents' file tools are confined to that directory (see
+xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent tool
+loop]).
 
 [cols="3,2,4",options="header"]
 |===

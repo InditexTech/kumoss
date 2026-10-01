@@ -43,7 +43,7 @@ xref:main:reference/llm-providers.adoc[LLM providers and models].
 [source,yaml]
 ----
 llm:
-  model: "vertex_ai/claude-sonnet-4-5"
+  model: "vertex_ai/claude-sonnet-5-5"
   small_model: "vertex_ai/gemini-3.8-flash"
 
 orchestration:

@@ -312,7 +312,6 @@ class ApplicationFactory:
     def _get_drift_service(
         self,
         session_service: SessionService,
-        template_service: TemplateOrchestrationService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
@@ -321,7 +320,6 @@ class ApplicationFactory:
         return TerraformDriftService(
             session_context=self.__ctx,
             session_service=session_service,
-            template_service=template_service,
             validation_service=validation_service,
             terraform_service=terraform_service,
             split_service=split_service,
@@ -404,7 +402,6 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             session_service=session_svc,
-            template_service=template_svc,
             validation_service=validation_svc,
             terraform_service=validator_prv,
             split_service=split_svc,
@@ -457,7 +454,6 @@ class ApplicationFactory:
         )
         drift_svc = self._get_drift_service(
             session_service=session_svc,
-            template_service=template_svc,
             validation_service=validation_svc,
             terraform_service=validator_prv,
             split_service=split_svc,
@@ -548,6 +544,7 @@ class ApplicationFactory:
             terraform_service=terraform_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
+            session_service=session_svc,
         )
         return TerraformImportHandler(
             session_ctx=self.__ctx,

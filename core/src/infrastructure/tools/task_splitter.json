@@ -2,6 +2,8 @@
   {
     "name": "report_decomposed_task_operations",
     "description": "Reports the final list of operations. Call it once, as the concluding action, following the criteria defined in the system prompt. The list may be empty.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

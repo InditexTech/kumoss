@@ -195,6 +195,38 @@ class TestPlanToDriftTagValues(unittest.TestCase):
         self.assertIn("dictionary_item_added", changes)
         self.assertNotIn("dictionary_item_removed", changes)
 
+    def test_reversed_keeps_values_and_paths_with_keywords(self):
+        """Reversal must not rewrite old/new/added/removed inside values or paths."""
+        before = {
+            "name": "stappnew1ba2edc3",
+            "tags": {"keep": "yes", "removed_tag": "golden"},
+        }
+        after = {
+            "name": "stappold1ba2edc3",
+            "tags": {"keep": "yes", "new_tag": "renewal"},
+        }
+        plan = _make_plan(
+            [
+                _make_resource(
+                    "azurerm_resource.test", ["delete", "create"], before, after
+                )
+            ]
+        )
+
+        result = TerraformUtils.plan_to_drift(plan, reversed=True)
+
+        changes = result[0]["changes"]
+        self.assertEqual(
+            changes["values_changed"]["root['name']"],
+            {"old_value": "stappold1ba2edc3", "new_value": "stappnew1ba2edc3"},
+        )
+        self.assertEqual(
+            changes["dictionary_item_added"], {"root['tags']['removed_tag']": "golden"}
+        )
+        self.assertEqual(
+            changes["dictionary_item_removed"], {"root['tags']['new_tag']": "renewal"}
+        )
+
     def test_no_drift_when_tags_identical(self):
         """No output when before and after tags are the same."""
         resource_data = {

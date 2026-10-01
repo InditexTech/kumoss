@@ -125,6 +125,12 @@ class InvalidRepoURI(ExceptionHandler):
     pass
 
 
+class InvalidIacPath(ExceptionHandler):
+    """Raised when the IaC root does not resolve to a directory inside the clone."""
+
+    pass
+
+
 class GitError(ExceptionHandler):
     """General git error exception"""
 
@@ -139,7 +145,9 @@ class TerraformBackendError(ExceptionHandler):
     """Raised when Terraform backend override found an error."""
 
 
+class CustomFileNotFoundError(ExceptionHandler):
+    """FileNotFoundError custom exception"""
+
+
 class SearchReplaceBlockError(ExceptionHandler):
     """Raised when replace_in_file receives malformed or non-applicable SEARCH/REPLACE blocks"""
-
-    pass

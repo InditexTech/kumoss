@@ -19,10 +19,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from src.infrastructure.terraform.backend import (
-    OVERRIDE_FILENAME,
-    TerraformBackend,
-)
+from src.infrastructure.terraform.backend import TerraformBackend
+from src.shared.config import system_config
 from src.shared.config.system_config import StorageConfig
 from src.shared.constants import ObjectStorageProvider
 
@@ -87,7 +85,9 @@ class TestStateKey(unittest.TestCase):
         """The merge semantics this relies on come from the `_override`
         suffix; any other name would be a second backend block rather
         than a replacement."""
-        self.assertTrue(OVERRIDE_FILENAME.endswith("_override.tf"))
+        self.assertTrue(
+            system_config.paths.backend_override_filename.endswith("_override.tf")
+        )
 
 
 class TestRustfsRendering(unittest.TestCase):
@@ -194,7 +194,7 @@ class TestApply(unittest.TestCase):
 
         self.assertTrue(backend.apply(self.workspace))
 
-        override = self.workspace / OVERRIDE_FILENAME
+        override = self.workspace / system_config.paths.backend_override_filename
         self.assertEqual(override.read_text(encoding="utf-8"), backend.render())
 
     def test_it_rewrites_a_stale_override(self):
@@ -205,7 +205,8 @@ class TestApply(unittest.TestCase):
         _ = TerraformBackend(other, config).apply(self.workspace)
         _ = TerraformBackend(PROJECT_ID, config).apply(self.workspace)
 
-        rendered = (self.workspace / OVERRIDE_FILENAME).read_text(encoding="utf-8")
+        override = self.workspace / system_config.paths.backend_override_filename
+        rendered = override.read_text(encoding="utf-8")
         self.assertIn(PROJECT_ID, rendered)
         self.assertNotIn(other, rendered)
 

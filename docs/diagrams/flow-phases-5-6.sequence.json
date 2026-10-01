@@ -38,7 +38,7 @@
     {
       "from": 150,
       "to": 496,
-      "label": "PHASE 5 · Generate, validate, correct — at most 8 iterations"
+      "label": "PHASE 5 · Generate, validate, correct — at most 5 iterations"
     },
     {
       "from": 500,
@@ -51,7 +51,7 @@
       "from": "ct",
       "to": "ag",
       "y": 180,
-      "label": "14 · Infrastructure Generation Agent (main model, at most 70 tool calls, ends via task_complete)",
+      "label": "14 · Infrastructure Generation Agent (main model, bounded tool calls, ends via task_complete)",
       "variant": "default"
     },
     {

@@ -185,7 +185,10 @@ class PhoenixTracer(ITracer):
             *_llm_model_name_attributes(model),
             *_llm_invocation_parameters_attributes(invocation_params),
             *_llm_input_messages_attributes(
-                kwargs["msg"], kwargs.get("history"), kwargs.get("system_prompt")
+                kwargs["msg"],
+                kwargs.get("history"),
+                kwargs.get("system_prompt"),
+                kwargs.get("notice"),
             ),
             *_llm_tools(kwargs.get("tools")),
             *_output_llm_attributes(response),
@@ -356,15 +359,6 @@ def _llm_model_name_attributes(model: str) -> Iterator[tuple[str, str]]:
         yield SpanAttributes.LLM_PROVIDER, oi_provider
 
 
-_BULKY_INVOCATION_KEYS = {
-    "messages",
-    "contents",
-    "system",
-    "system_instruction",
-    "tools",
-}
-
-
 def _llm_invocation_parameters_attributes(
     invocation_parameters: dict[str, Any],
 ) -> Iterator[tuple[str, str]]:
@@ -375,13 +369,10 @@ def _llm_invocation_parameters_attributes(
     """
     params: dict[str, Any] = {}
     for k, v in invocation_parameters.items():
-        if k in _BULKY_INVOCATION_KEYS:
-            continue
-        if hasattr(v, "model_dump"):  # e.g. Gemini's GenerateContentConfig
+        if hasattr(v, "model_dump"):
             v = {
                 ck: cv
                 for ck, cv in v.model_dump(exclude_none=True, mode="json").items()
-                if ck not in _BULKY_INVOCATION_KEYS
             }
         params[k] = v
     yield (
@@ -413,6 +404,7 @@ def _llm_input_messages_attributes(
     query: str | list[ToolResultDTO],
     history: History | None,
     system_prompt: str | None = None,
+    notice: str | None = None,
 ) -> Iterator[tuple[str, str]]:
     """
     Yields the OpenInference input messages attributes for each message in the list.
@@ -432,7 +424,7 @@ def _llm_input_messages_attributes(
             )
             yield (
                 f"{SpanAttributes.LLM_INPUT_MESSAGES}.{msg_idx + i}.{MessageAttributes.MESSAGE_CONTENT}",
-                str(t.result) if t.result else str(t.error_message),
+                str(t.result) if t.success else str(t.error_message),
             )
 
     def _trace_tool_calls(
@@ -490,8 +482,12 @@ def _llm_input_messages_attributes(
             idx += 1
     if isinstance(query, list):
         yield from _trace_tool_results(query, idx)
+        idx += len(query)
     else:
         yield from _trace_text_msg(query, "user", idx)
+        idx += 1
+    if notice:
+        yield from _trace_text_msg(notice, "user", idx)
 
 
 def _output_llm_attributes(response: LLMResponseDTO) -> Iterator[tuple[str, str]]:

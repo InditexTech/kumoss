@@ -52,17 +52,7 @@ Your final output must be a list of target strings representing the resources th
 - Do NOT include Terraform `data` sources in your output
 - **CRITICAL**: When a resource is created by a module, target the MODULE, not any data sources that reference it
 - ONLY include resources that currently exist in the Terraform files
-- You MUST use the `generate_terraform_targets` tool as your final output
-- Maximum of 10-15 workspace inspection tool calls before generating targets
 </constraints>
-
-<tool_calling>
-You have tools at your disposal:
-1. **REQUIRED**: First use `list_dir` to see the Terraform file structure
-2. **REQUIRED**: Use `read_file` to read relevant .tf files and identify existing resources
-3. Analyze the user's request to identify drifted resources
-4. **REQUIRED**: Call `generate_terraform_targets` with your identified resources
-</tool_calling>
 
 {% if RELEVANT_TEMPLATES %}
 <relevant_resource_templates>

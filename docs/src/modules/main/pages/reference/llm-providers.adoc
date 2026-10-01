@@ -55,7 +55,8 @@ Three extra settings apply to both roles:
 |`0.1`
 |Sampling temperature sent with every chat completion. When a chain
 requests extended thinking, the core sends `1.0` instead, because
-reasoning-enabled models require it. Tool-internal LLM calls use a
+reasoning-enabled models require it, together with
+`reasoning_effort: low`. Tool-internal LLM calls use a
 fixed `0.5`.
 
 |`llm.max_output_tokens`
@@ -82,10 +83,14 @@ Kumoss's agents are tool-calling loops, so the configuration accepting
 a model string does not mean the model can run a session. Both roles
 must provide:
 
-* *OpenAI-style function calling with forced tool choice.* Agent loops
-  send a `tools` list with `tool_choice: required` and expect
-  well-formed JSON arguments back; each loop ends only when the model
-  calls its sentinel tool. This applies to agent loops specifically —
+* *Reliable OpenAI-style function calling.* Agent loops send a `tools`
+  list with `tool_choice: auto` and expect well-formed JSON arguments
+  back; each loop ends only when the model calls its sentinel tool. A
+  reply without tool calls is answered with a reminder and costs a turn
+  of the loop budget (see
+  xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent
+  tool loop]), so a model that often answers in text instead of calling
+  tools runs out of turns. This applies to agent loops specifically —
   the status/summary text calls (`generate_text`) send no tools at all.
   Models without reliable function calling (many small self-hosted
   models) fail every agent session.
@@ -105,10 +110,10 @@ must provide:
   per model. Without it the web-search tool falls back to the OpenAI
   Responses API path, which only works on OpenAI-compatible endpoints.
 
-The shipped models (Anthropic Claude direct, `anthropic/`) satisfy all of
-these, as do the same models on Azure AI Foundry (`azure_ai/`) and the
-Claude and Gemini models on Vertex AI that the core's test suite
-exercises. Kumoss has not tested every provider LiteLLM lists.
+The shipped models (Claude and Gemini on Vertex AI, `vertex_ai/`, which
+the core's test suite exercises) satisfy all of these, as do the built-in defaults (Anthropic Claude direct,
+`anthropic/`) and the same Claude models on Azure AI Foundry
+(`azure_ai/`). Kumoss has not tested every provider LiteLLM lists.
 
 == The `provider/model-id` notation
 

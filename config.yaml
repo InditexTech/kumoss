@@ -107,9 +107,9 @@ services:
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
-  max_drift_reports: 5
-  max_validation_iteration: 8
-  max_tool_chain_executions: 70
+  max_drift_reports: 3
+  max_validation_iteration: 5
+  max_tool_agent_executions: 40
   max_session_events_iteration: 2160
   drift_group_operations: 8
   pull_request_readiness_seconds: 10
@@ -135,7 +135,7 @@ orchestration:
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-6"
+  model: "vertex_ai/claude-sonnet-5-5"
   # Simple tasks model
   small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
@@ -150,9 +150,15 @@ llm:
 # workspace (written by plan, carried by the pinned workspace, executed
 # by apply); it must be a bare filename (single path segment) and should
 # keep the `.plan` suffix so the injected terraform gitignore covers it.
+# `backend_override_filename` names the state backend override written
+# into every workspace before `init` when `storage.terraform_state_bucket`
+# is set. It must be a bare filename ending in `_override.tf`: Terraform
+# only merges `*_override.tf` over the configuration, and the injected
+# gitignore only covers that suffix. The agent's file tools cannot see it.
 paths:
   upload_folder: "/workspaces"
   session_plan_filename: "session.plan"
+  backend_override_filename: "backend_override.tf"
 
 # Nebula Postgres database. Connection URLs embed credentials, so they are
 # referenced indirectly: this key names the env var that holds the actual URL.
@@ -220,6 +226,11 @@ http:
 # this same bucket name. See
 #   https://inditextech.github.io/nebula/prerelease/main/guides/configure-state-backends/
 #
+# `terraform_state_filename` is the object name of each project's state,
+# stored at `<project_id>/<terraform_state_filename>` in that bucket; it
+# must be a bare filename. Changing it orphans existing state: projects
+# then start from an empty state under the new key.
+#
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
 # (108000) or over the SigV4 7-day limit (604800).
@@ -230,6 +241,7 @@ storage:
   provider: "RUSTFS"
   bucket: "nebula-artifacts"
   terraform_state_bucket: "nebula-terraform-state"
+  terraform_state_filename: "terraform.tfstate"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
