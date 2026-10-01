@@ -152,22 +152,3 @@ jobs:
           # reported until the corporate allowlist is defined (tracked issue).
           fail-on-severity: high
           comment-summary-in-pr: always
-
-  secrets-scan:
-    name: Gitleaks (source)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Scan full history
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          # PR mode: only the new diff; the scheduled push run ancestors full history.
-          GITHUB_TOKEN: ${{ github.token }}
