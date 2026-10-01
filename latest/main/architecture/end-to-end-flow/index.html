@@ -1161,11 +1161,15 @@ ownership</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Repository reachability</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The URL may carry a userinfo username (the <code>&lt;org&gt;@</code> prefix of an Azure
-DevOps clone URL, or <code>git@</code>) but must not embed a password or token —
-a request-model validator rejects one that does with <code>422</code>, an empty
-<code>user:</code> password included — and then <code>git ls-remote</code> must succeed:
-unreachable or rejected → <code>400</code>. Either way no session is created.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The URL must be <code>https://</code> with a host — SSH (<code>git@host:path</code>,
+<code>ssh://</code>), <code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are rejected
+with <code>422</code> by a request-model validator. It may carry a userinfo
+username (the <code>&lt;org&gt;@</code> prefix of an Azure DevOps clone URL) but must not
+embed a password or token — also <code>422</code>, an empty <code>user:</code> password
+included. Then <code>git ls-remote</code> must succeed: unreachable, rejected or
+timed out → <code>400</code> with the fixed detail "Repository is not reachable or
+access was denied."; git&#8217;s own output goes only to the core log. Either
+way no session is created.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Session creation</p></td>

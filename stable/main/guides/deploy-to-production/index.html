@@ -1301,11 +1301,11 @@ the cloud identity it needs.</p>
 <div class="sect2">
 <h3 id="mapping-optional"><a class="anchor" href="#mapping-optional"></a>Mapping (optional)</h3>
 <div class="paragraph">
-<p>The bundled implementation is a <strong>direct passthrough</strong>: the identifier the
-user types is returned as the repository URL, and it answers nothing
-else. It adds nothing over leaving the integration disabled, in which case the core
-performs the same mapping itself. Enable it only with an implementation
-that resolves your business identifiers (CMDB, Backstage, a catalogue)
+<p>The bundled implementation is a <strong>direct passthrough</strong> for <code>https://</code>
+identifiers: the value the user types is returned as the repository URL.
+Unlike leaving the integration disabled, which echoes every identifier,
+the bundled service answers <code>404</code> for anything else. Enable it only with
+an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
 against the canonical IaC repository. Once enabled, a slow or
 unreachable sidecar makes the wizard&#8217;s resolve step fail with
 <code>504</code>/<code>502</code>.</p>

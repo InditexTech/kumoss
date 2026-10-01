@@ -781,8 +781,8 @@ detection.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>After the repository URL is entered, the wizard calls <code>POST
-/api/v1/repository/parse</code>. The core validates the URL with <code>git
-ls-remote</code>, clones only the repository metadata (<code>--filter=blob:none
+/api/v1/repository/parse</code>. The core accepts only <code>https://</code> URLs,
+validates the URL with <code>git ls-remote</code>, clones only the repository metadata (<code>--filter=blob:none
 --no-checkout</code>, 60-second limit), lists every file committed on the
 <strong>default branch</strong> with <code>git ls-tree -r HEAD --name-only</code>, and applies
 these rules to the directory paths. File contents are never read, and

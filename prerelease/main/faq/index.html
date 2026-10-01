@@ -858,12 +858,19 @@ same branch.</p>
 <summary class="title">Why was my repository URL rejected?</summary>
 <div class="content">
 <div class="paragraph">
-<p>URLs that embed a user name or token are refused; enter the plain
-HTTPS URL. Azure DevOps users: the portal&#8217;s clone URL starts with
-<code>https://&lt;org&gt;@dev.azure.com/&#8230;&#8203;</code>; remove the <code>&lt;org&gt;@</code> part. Only
-<code>github.com</code>, <code>gitlab.com</code> (no subgroups), and <code>dev.azure.com</code> are
-supported for pull requests. The repository must also be reachable by
-Kumoss&#8217;s service account.</p>
+<p>Only <code>https://</code> URLs are accepted: SSH (<code>git@host:path</code>, <code>ssh://</code>),
+<code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are refused, and so are
+URLs that embed a password or token. Enter the plain HTTPS URL. Azure
+DevOps users: the portal&#8217;s clone URL starts with
+<code>https://&lt;org&gt;@dev.azure.com/&#8230;&#8203;</code>; that <code>&lt;org&gt;@</code> prefix is accepted,
+but it must match <code>GIT_USER</code> (see
+<a href="../guides/production/secrets-and-credentials/#git-credentials" class="xref page">Git
+credentials</a>), so removing it is the safe choice. Only <code>github.com</code>,
+<code>gitlab.com</code> (no subgroups), and <code>dev.azure.com</code> are supported for pull
+requests. The repository must also be reachable by Kumoss&#8217;s service
+account; when it is not, the answer is always "Repository is not
+reachable or access was denied." whatever the cause, and the exact git
+error is only in the core log.</p>
 </div>
 </div>
 </details><details>

@@ -1028,9 +1028,11 @@ neither is a validation error.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>repo_uri</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Git-cloneable repository URI. May carry a userinfo username (for
-example <code>https://org@dev.azure.com/&#8230;&#8203;</code>) but must not embed a password
-or token; an empty password (<code>user:@host</code>) is rejected too.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>https://</code> repository URI with a host; SSH (<code>git@host:path</code>,
+<code>ssh://</code>), <code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are <code>422</code>. May
+carry a userinfo username (for example <code>https://org@dev.azure.com/&#8230;&#8203;</code>)
+but must not embed a password or token; an empty password
+(<code>user:@host</code>) is rejected too.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope_id</code></p></td>
@@ -1183,7 +1185,7 @@ or a session with no pull requests is <code>404</code>.</p>
 <p><code>POST /api/v1/repository/parse</code> clones a repository and returns the
 Terraform root-module directories it found, as POSIX paths relative to
 the repository root. The body is <code>{"repo_uri": "&lt;uri&gt;"}</code> and the same
-no-password-or-token rule applies. This route takes no session, so
+https-only, no-password-or-token rules apply. This route takes no session, so
 there is no ownership check — the wizard calls it as soon as a
 repository URL is entered.</p>
 </div>
@@ -1193,8 +1195,11 @@ repository URL is entered.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>A URI that embeds a password or token is <code>422</code>, one that <code>git ls-remote</code>
-cannot reach is <code>400</code>, and a failed clone or scan is <code>502</code>. The
+<p>A URI that is not <code>https://</code> or embeds a password or token is <code>422</code>,
+one that <code>git ls-remote</code> cannot reach is <code>400</code>, and a failed clone or
+scan is <code>502</code>. The <code>400</code> and the clone <code>502</code> carry the fixed detail
+"Repository is not reachable or access was denied."; git&#8217;s own output
+is only logged. The
 detection rules behind the answer are in
 <a href="../../repository-layout/" class="xref page">Repository layout</a>.</p>
 </div>

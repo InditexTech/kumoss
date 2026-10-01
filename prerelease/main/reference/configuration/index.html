@@ -2041,13 +2041,13 @@ are rejected as malformed at pull-request time.</p></td>
 credential variables are non-empty it also writes
 <code>https://&lt;user&gt;:&lt;token&gt;@&lt;provider-host&gt;</code> to <code>~/.git-credentials</code> and
 enables the <code>store</code> credential helper. If either is empty it logs a
-warning and continues; pushes then need credentials from another source
-(a pre-populated <code>~/.git-credentials</code>, or mounted SSH keys with an
-<code>ssh://</code> repository URL). Note that SSH covers clone and push only:
-pull-request creation and merge call the provider&#8217;s REST API with
-<code>GIT_TOKEN</code> and require an HTTPS repository URL on the public host, so
-an SSH-only setup cannot open or merge pull requests. Repository URLs
-that embed a user name or token are rejected by the API.</p>
+warning and continues; pushes then need a pre-populated
+<code>~/.git-credentials</code>, and pull-request creation and merge — which call
+the provider&#8217;s REST API with <code>GIT_TOKEN</code> — fail. Repository URLs must
+be <code>https://</code>: SSH, <code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are
+rejected by the API, so SSH keys are never an alternative. URLs that
+embed a password or token are rejected too; a bare userinfo username
+is accepted.</p>
 </div>
 <div class="paragraph">
 <p>Requires rebuild: yes for the YAML; token values live in <code>core/.env</code>.</p>

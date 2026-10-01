@@ -1133,9 +1133,10 @@ trimmed and lowercased</p>
 </div>
 <div class="paragraph">
 <p>Normalization means two spellings of the same project never split into
-two states: the repository URI is lowercased, loses a <code>.git</code> suffix,
-loses embedded push credentials, and accepts SCP-style SSH form; the
-module path is trimmed of surrounding and duplicate slashes.</p>
+two states: the repository URI is lowercased, loses a <code>.git</code> suffix
+and a userinfo username; the module path is trimmed of surrounding and
+duplicate slashes. Only <code>https://</code> URIs reach this point — the API
+rejects every other scheme.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1154,13 +1155,10 @@ module path is trimmed of surrounding and duplicate slashes.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>https://github.com/acme/infra</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>https://x-access-token:ghp_secret@github.com/acme/infra.git</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>https://acme@github.com/acme/infra.git</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>HTTPS://GitHub.com/Acme/Infra.git</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>git@github.com:acme/infra.git</code></p></td>
 </tr>
 </tbody>
 </table></div></div>

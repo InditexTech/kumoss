@@ -989,7 +989,10 @@ the core container at boot and used for every push, pull-request
 creation, and merge. Use a dedicated service account, restrict the
 token to the repositories Kumoss may change, and set <code>git.provider</code> to
 the matching host (<code>GITHUB</code>, <code>AZURE_DEVOPS</code>, or <code>GITLAB</code>). The core
-needs outbound HTTPS to the Git host. Repository URLs entered by users
+needs outbound HTTPS to the Git host, and HTTPS is the only transport:
+repository URLs must be <code>https://</code> — SSH (<code>git@host:path</code>, <code>ssh://</code>),
+<code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are rejected with <code>422</code>,
+so mounted SSH keys are never used. Repository URLs entered by users
 must not embed a password or token (<code>https://user:&lt;secret&gt;@host/&#8230;&#8203;</code>,
 and <code>https://user:@host/&#8230;&#8203;</code> too); the API rejects those with <code>422</code>. A
 bare userinfo username is accepted and kept as typed, so the <code>&lt;org&gt;@</code>
@@ -1004,9 +1007,16 @@ hosts only: <code>github.com</code>, <code>gitlab.com</code> (top-level namespac
 project; subgroups are rejected), and <code>dev.azure.com</code>. GitHub Enterprise
 Server, self-managed GitLab, and <code>*.visualstudio.com</code> URLs are not
 supported today and fail at pull-request time with <code>Malformed
-repository URL</code>. SSH keys can replace <code>GIT_TOKEN</code> for clone and push
-only; pull-request creation and merge always use the REST API over
-HTTPS.</p>
+repository URL</code>. Pull-request creation and merge always use the REST
+API over HTTPS with <code>GIT_TOKEN</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Error messages.</strong> Every failure to reach or read the repository —
+<code>git ls-remote</code> when a URL is entered, the default-branch and
+branch-existence lookups, and clones — answers the fixed message
+"Repository is not reachable or access was denied.". Git&#8217;s own output,
+which can name internal hosts, addresses or proxy errors, is written
+only to the core log.</p>
 </div>
 </div>
 </div>

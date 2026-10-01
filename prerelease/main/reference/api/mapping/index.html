@@ -909,11 +909,13 @@ for contract completeness and for callers other than the wizard.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>repo_url</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">1-2048 chars, required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The URL Kumoss clones. Free-form because git accepts many URL shapes
-— <code>https://</code>, <code>ssh+git://</code>, <code>git@host:path</code>, <code>file://</code>, an absolute
-path. Returning something the deployment&#8217;s git client can actually
-clone is the implementation&#8217;s responsibility. When the identifier
-already is a repository URL, it is passed through unchanged.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The <code>https://</code> URL Kumoss clones (scheme case-insensitive, host
+required; the spec enforces the scheme with a <code>pattern</code>). Kumoss
+clones, pushes and opens pull requests over HTTPS only, so SSH,
+<code>git://</code>, <code>http://</code>, <code>file://</code> and local paths are off-contract and the
+core answers <code>502</code> for them. When the identifier already is an
+<code>https://</code> repository URL, it is passed through unchanged; an
+identifier that cannot be mapped to one is <code>404</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>identifier</code></p></td>
@@ -1014,15 +1016,18 @@ surfaces a timeout as <code>504</code> and an unreachable sidecar as <code>502</
 more answers are also <code>502</code>: a body the core cannot parse, and a
 <code>terraform_provider</code> outside the contract&#8217;s enum (the generated client
 hands the raw string through, and the core refuses it rather than
-letting it fail later). There is no silent fallback once the sidecar is
-enabled.</p>
+letting it fail later), and a <code>repo_url</code> that is not an <code>https://</code> URL.
+There is no silent fallback once the sidecar is enabled.</p>
 </div>
 <div class="paragraph">
 <p>When the sidecar is disabled (the shipped default) the core answers
-byte-for-byte what the bundled service would: <code>repo_url</code> and
-<code>identifier</code> both echo the input, <code>terraform_provider</code> echoes whatever
-was sent, and <code>scope_id</code> is <code>null</code>. Toggling <code>services.mapping.enabled</code>
-therefore changes nothing for a user who pastes a repository URL.</p>
+byte-for-byte what the bundled service would for an <code>https://</code> URL:
+<code>repo_url</code> and <code>identifier</code> both echo the input, <code>terraform_provider</code>
+echoes whatever was sent, and <code>scope_id</code> is <code>null</code>. Toggling
+<code>services.mapping.enabled</code> therefore changes nothing for a user who
+pastes an HTTPS repository URL. Any other input is echoed unchecked too
+(where the bundled service answers <code>404</code>); the next request that uses
+it as <code>repo_uri</code> is rejected with <code>422</code>.</p>
 </div>
 </div>
 </div>
@@ -1030,15 +1035,17 @@ therefore changes nothing for a user who pastes a repository URL.</p>
 <h2 id="the-bundled-implementation"><a class="anchor" href="#the-bundled-implementation"></a>The bundled implementation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>services/mapping/</code> is an <strong>identity passthrough</strong>. Whatever
-<code>identifier</code> arrives comes back as both <code>repo_url</code> and <code>identifier</code>,
+<p><code>services/mapping/</code> is an <strong>identity passthrough</strong>. An <code>https://</code>
+<code>identifier</code> comes back as both <code>repo_url</code> and <code>identifier</code>,
 <code>terraform_provider</code> echoes what the caller sent, and <code>scope_id</code> is
 always <code>null</code>. Nothing is truncated and nothing is guessed: sniffing
 <code>azure</code> out of a <code>dev.azure.com</code> URL would conflate "hosted on Azure
 DevOps" with "deploys to Azure", and a guess is a question the user
-never gets to correct. It exists so a fresh deployment works end to end
-without anyone writing a real mapper, and it is exactly right for users
-who pass real git URLs already.</p>
+never gets to correct. Any other identifier — a bare name, an SSH or
+<code>file://</code> URL, a path — cannot be resolved and answers <code>404</code>. It exists
+so a fresh deployment works end to end without anyone writing a real
+mapper, and it is exactly right for users who pass real HTTPS git URLs
+already.</p>
 </div>
 <div class="paragraph">
 <p>A catalogue-backed implementation replaces it: look the identifier up
@@ -1051,9 +1058,10 @@ nothing about where the lookup data lives.</p>
 <h3 id="responses-it-never-produces"><a class="anchor" href="#responses-it-never-produces"></a>Responses it never produces</h3>
 <div class="paragraph">
 <p>The contract documents <code>400</code>, <code>403</code>, <code>404</code>, and <code>502</code> for real
-catalogue backends. The passthrough emits none of them — it has no
-catalogue to miss in and no authorization concept beyond the bearer
-token. It only ever answers <code>200</code>, <code>401</code>, <code>422</code>, or <code>500</code>. A caller
+catalogue backends. The passthrough emits only <code>404</code>, for an identifier
+that is not an <code>https://</code> URL — it has no catalogue to miss in and no
+authorization concept beyond the bearer token. It only ever answers
+<code>200</code>, <code>401</code>, <code>404</code>, <code>422</code>, or <code>500</code>. A caller
 must still handle the full set, because a catalogue implementation
 will use it.</p>
 </div>

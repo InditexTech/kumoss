@@ -791,8 +791,9 @@ locks</a>).</p>
 </li>
 <li>
 <p><strong>A repository URL</strong> that holds Terraform-compatible code and that
-Kumoss&#8217;s service account can clone and push to. Enter the plain URL;
-URLs with a user name or token embedded are rejected.</p>
+Kumoss&#8217;s service account can clone and push to. Enter the plain
+<code>https://</code> URL; SSH, <code>file://</code> and other non-HTTPS URLs, and URLs with
+a password or token embedded, are rejected.</p>
 </li>
 <li>
 <p><strong>The cloud scope</strong> your change targets. The wizard asks for it in the
@@ -887,16 +888,16 @@ default, the answer is always yes and the step passes straight through.</p>
 <p><strong>Errors at this stage.</strong> The wizard always shows the fixed message "Could
 not resolve repository. Please try again." when the reachability check
 fails, whatever the underlying cause. It runs before the session is
-created — Kumoss answers an error and nothing is started. The more
-specific reason — the Git client&#8217;s own text, or "Cannot reach repository:
-&lt;url&gt;" when the client said nothing — is the API response&#8217;s <code>detail</code>
-field: visible to direct API callers, and to the wizard itself only if a
-later request (for example the first generate step) fails with a 400, in
-which case the UI falls back to showing that <code>detail</code>. Check that the URL
-is reachable and that Kumoss&#8217;s service account has access. A repository
-that becomes unreachable later, when the session clones it for real, is a
-different failure: the round ends with "git clone failed: &#8230;&#8203;" and the
-session is failed and cannot be resumed.</p>
+created — Kumoss answers an error and nothing is started. The API
+response&#8217;s <code>detail</code> is just as generic — "Repository is not reachable or
+access was denied." for a missing repository, a refused credential, an
+unknown host or a timeout alike — so a request cannot be used to probe
+what sits behind a URL; the Git client&#8217;s own text is written only to the
+core log, where an operator can read it. Check that the URL is reachable
+and that Kumoss&#8217;s service account has access. A repository that becomes
+unreachable later, when the session clones it for real, is a different
+failure: the round ends with the same generic message and the session is
+failed and cannot be resumed.</p>
 </div>
 </div>
 </div>
