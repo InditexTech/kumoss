@@ -6,5 +6,8 @@ from urllib.parse import urlparse
 
 
 def is_https_url(uri: str) -> bool:
-    parsed = urlparse(uri.strip())
-    return parsed.scheme.lower() == "https" and bool(parsed.hostname)
+    try:
+        parsed = urlparse(uri.strip())
+        return parsed.scheme.lower() == "https" and bool(parsed.hostname)
+    except ValueError:
+        return False

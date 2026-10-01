@@ -388,11 +388,11 @@ execution environment* are the security decisions you must make:
 
 === Mapping (optional)
 
-The bundled implementation is a *direct passthrough*: an `https://`
-identifier the user types is returned as the repository URL, anything
-else answers `404`, and it answers nothing else. It adds nothing over leaving the integration disabled, in which case the core
-performs the same mapping itself. Enable it only with an implementation
-that resolves your business identifiers (CMDB, Backstage, a catalogue)
+The bundled implementation is a *direct passthrough* for `https://`
+identifiers: the value the user types is returned as the repository URL.
+Unlike leaving the integration disabled, which echoes every identifier,
+the bundled service answers `404` for anything else. Enable it only with
+an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
 against the canonical IaC repository. Once enabled, a slow or
 unreachable sidecar makes the wizard's resolve step fail with
 `504`/`502`.

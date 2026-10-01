@@ -83,8 +83,11 @@ Authenticated = Depends(require_bearer_token)
 
 
 def _is_https_url(uri: str) -> bool:
-    parsed = urlparse(uri.strip())
-    return parsed.scheme.lower() == "https" and bool(parsed.hostname)
+    try:
+        parsed = urlparse(uri.strip())
+        return parsed.scheme.lower() == "https" and bool(parsed.hostname)
+    except ValueError:
+        return False
 
 
 @app.get("/healthz", response_model=Health, tags=["ops"])
