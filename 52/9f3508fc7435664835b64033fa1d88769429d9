@@ -1,0 +1,21 @@
+config.yaml
+  s_54bdd99a291e25::t_74e79f86f88fb3 133
+core/env.sample
+  s_54bdd99a291e25::t_c30dca070bfd5e 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "529f3508fc7435664835b64033fa1d88769429d9",
+  "prompts": {},
+  "sessions": {
+    "s_54bdd99a291e25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a26a758c-cdba-4e15-8dd3-2a31009bde37",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
