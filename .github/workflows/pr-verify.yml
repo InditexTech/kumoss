@@ -66,6 +66,7 @@ jobs:
             .github/workflows/scorecard-analysis.yml
             .github/workflows/codeql.yml
             .github/workflows/security-scans.yml
+            .github/workflows/sonar.yml
           collect: workflows
           online-audits: false
           persona: pedantic

@@ -97,30 +97,38 @@ jobs:
           npm run test:coverage
 
       - name: Build Sonar arguments
+        # matrix fields come from the controlled workflow matrix, but zizmor
+        # (correctly) flags direct ${{ }} interpolation inside run: as
+        # template-injection risk; route them through job-level env instead.
+        env:
+          SONAR_TECH: ${{ matrix.technology }}
+          SONAR_PROJECT_KEY: ${{ matrix.project_key }}
+          SONAR_PROJECT_NAME: ${{ matrix.project_name }}
+          SONAR_CONFORMANCE_DIRS: ${{ matrix.conformance_dir_list }}
+          SONAR_COVERAGE_PATHS: ${{ matrix.coverage_paths }}
         shell: bash
         run: |
           set -euo pipefail
-          tech='${{ matrix.technology }}'
           args=(
             "-Dsonar.organization=inditextech"
-            "-Dsonar.projectKey=${{ matrix.project_key }}"
-            "-Dsonar.projectName=${{ matrix.project_name }}"
+            "-Dsonar.projectKey=${SONAR_PROJECT_KEY}"
+            "-Dsonar.projectName=${SONAR_PROJECT_NAME}"
           )
-          if [ "$tech" = "python" ]; then
+          if [ "$SONAR_TECH" = "python" ]; then
             sources="core/src,services/authz/src,services/iac/src,services/mapping/src,services/notifications/src"
-            tests="core/tests,services/authz/tests,services/iac/tests,services/mapping/tests,services/notifications/tests,${{ matrix.conformance_dir_list }}"
+            tests="core/tests,services/authz/tests,services/iac/tests,services/mapping/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
             args+=(
               "-Dsonar.sources=$sources"
               "-Dsonar.tests=$tests"
               "-Dsonar.test.inclusions=**/test_*.py,**/test_conformance.py,**/conftest.py"
-              "-Dsonar.python.coverage.reportPaths=${{ matrix.coverage_paths }}"
+              "-Dsonar.python.coverage.reportPaths=${SONAR_COVERAGE_PATHS}"
             )
           else
             args+=(
               "-Dsonar.sources=client/web/src"
               "-Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**"
               "-Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.test.mjs,**/*.test.cjs,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx"
-              "-Dsonar.javascript.lcov.reportPaths=${{ matrix.coverage_paths }}"
+              "-Dsonar.javascript.lcov.reportPaths=${SONAR_COVERAGE_PATHS}"
             )
           fi
           {
