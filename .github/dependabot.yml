@@ -1,0 +1,149 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    groups:
+      first-party-actions:
+        patterns:
+          - InditexTech/gh-actions/*
+      # init and analyze are entrypoints of the same github/codeql-action repo
+      # and share one release version; CodeQL rejects a run whose init and
+      # analyze versions differ. Grouping the family forces one PR that bumps
+      # every entrypoint to the same version together.
+      codeql-action:
+        patterns:
+          - github/codeql-action/*
+
+  # Python packages live in uv-managed projects (core + services/*).
+  - package-ecosystem: pip
+    directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /services/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /services/iac
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: pip
+    directory: /services/notifications
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /nginx
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /services/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /services/iac
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /services/notifications
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /client/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    groups:
+      client-web-dev-deps:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    groups:
+      docs-dev-deps:
+        dependency-type: development
