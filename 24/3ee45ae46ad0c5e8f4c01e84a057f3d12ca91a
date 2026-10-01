@@ -1,0 +1,23 @@
+.github/workflows/pr-verify.yml
+  s_0a3c70024f992f::t_94c956f3f7ab96 1,12-15,17-22,25,28,31-35,37-42,45,48,51-60,62-65,68,71,74-83,85-90,94-104,107,110,113
+.github/workflows/push-verify.yml
+  s_0a3c70024f992f::t_4ae92c4166fa51 1,5-7,11-13,16-22,24,26-27,29,31-32,34-35,38-40,42-43,46-48,54-56,58-59,62-64,67
+.github/workflows/scorecard-analysis.yml
+  s_0a3c70024f992f::t_a71bc85849df3c 1-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "243ee45ae46ad0c5e8f4c01e84a057f3d12ca91a",
+  "prompts": {},
+  "sessions": {
+    "s_0a3c70024f992f": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_0a3c70024f992f",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
