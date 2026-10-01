@@ -62,7 +62,7 @@ uv sync --frozen --group tooling
 uv run --no-sync pytest tests/
 ```
 
-Async tests are unmarked, so `--asyncio-mode=auto` is required. `core/tests/conftest.py` supplies placeholder values for the LLM credential and database URL that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
+Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra flag. `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `NEBULA_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
 
 **Frontend checks** (Node 24): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
 
