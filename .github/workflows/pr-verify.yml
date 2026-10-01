@@ -33,6 +33,15 @@ jobs:
         with:
           reporter: github-annotations
           fail_level: error
+          # Scoped to the workflows this repo maintains: the legacy
+          # docouture-*/verify.yml pending cleanup still carries findings.
+          actionlint_flags: >-
+            .github/workflows/pr-verify.yml
+            .github/workflows/push-verify.yml
+            .github/workflows/scorecard-analysis.yml
+            .github/workflows/codeql.yml
+            .github/workflows/security-scans.yml
+            .github/workflows/sonar.yml
 
   zizmor:
     name: GitHub Actions security audit

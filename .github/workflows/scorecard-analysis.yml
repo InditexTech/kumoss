@@ -90,6 +90,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       actions: read # Lets SARIF upload read run metadata.
+      contents: read # Lets the action read the artifact content.
       security-events: write # Lets CodeQL upload Scorecard SARIF.
     steps:
       - name: Download artifact

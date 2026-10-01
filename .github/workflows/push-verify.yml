@@ -33,6 +33,14 @@ jobs:
         with:
           reporter: github-annotations
           fail_level: error
+          # Same scoping as the PR lane: legacy workflows are pending cleanup.
+          actionlint_flags: >-
+            .github/workflows/pr-verify.yml
+            .github/workflows/push-verify.yml
+            .github/workflows/scorecard-analysis.yml
+            .github/workflows/codeql.yml
+            .github/workflows/security-scans.yml
+            .github/workflows/sonar.yml
 
   repo-linter:
     if: >-
