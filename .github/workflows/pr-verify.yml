@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: {{ CURRENT_YEAR }} INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 # SPDX-License-Identifier: Apache-2.0
 
 name: Pull Request Verification
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: pr-verify-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: pr-verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -78,6 +78,24 @@ jobs:
 
       - name: 'Run Repolinter'
         uses: newrelic/repolinter-action@3f4448f855c351e9695b24524a4111c7847b84cb # v1.7.0
+
+  links:
+    name: Links
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Link Checker
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
+        with:
+          args: --no-progress --offline --include-fragments 'README.md' 'CONTRIBUTING.md' 'SECURITY.md' 'docs/**/*.md' 'services/**/*.md' 'contracts/**/*.md' 'client/web/README.md'
+          fail: true
 
   reuse-compliance:
     name: REUSE Compliance

@@ -12,6 +12,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       first-party-actions:
         patterns:
@@ -33,6 +35,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: pip
     directory: /services/authz
@@ -42,6 +46,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: pip
     directory: /services/iac
@@ -51,6 +57,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: pip
     directory: /services/mapping
@@ -60,6 +68,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: pip
     directory: /services/notifications
@@ -69,6 +79,21 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  # Only contracts/conformance/authz ships its own uv.lock; the other
+  # conformance suites are workspace members of their service projects.
+  - package-ecosystem: pip
+    directory: /contracts/conformance/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /core
@@ -78,6 +103,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /nginx
@@ -87,6 +114,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /services/authz
@@ -96,6 +125,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /services/iac
@@ -105,6 +136,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /services/mapping
@@ -114,6 +147,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /services/notifications
@@ -123,6 +158,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: npm
     directory: /client/web
@@ -132,6 +169,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       client-web-dev-deps:
         dependency-type: development
@@ -144,6 +183,8 @@ updates:
       time: '04:00'
       timezone: UTC
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       docs-dev-deps:
         dependency-type: development

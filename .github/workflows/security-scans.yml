@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      security-events: write # Lets the SARIF upload publish Semgrep results.
     container:
       image: semgrep/semgrep@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b # 1.178.0
     steps:
@@ -127,5 +128,46 @@ jobs:
             ./services/iac/uv.lock
             ./services/mapping/uv.lock
             ./services/notifications/uv.lock
+            ./contracts/conformance/authz/uv.lock
             ./client/web/package-lock.json
             ./docs/package-lock.json
+
+  dependencies-review:
+    name: Dependency Review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review changes to dependencies
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          # Dependency policy: CVEs on the diff block the PR; licenses are
+          # reported until the corporate allowlist is defined (tracked issue).
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+  secrets-scan:
+    name: Gitleaks (source)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan full history
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          # PR mode: only the new diff; the scheduled push run ancestors full history.
+          GITHUB_TOKEN: ${{ github.token }}
