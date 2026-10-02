@@ -25,7 +25,7 @@ dependencies = [
     "pyjwt[crypto]>=2.15.0",
     "pyyaml>=6.0.3",
     "redis==8.0.1",
-    "mcp==1.28.1",
+    "mcp==2.2.0",
     "litellm>=1.103.2",
     "google-cloud-aiplatform>=1.165.1",
 ]
