@@ -31,10 +31,10 @@ for their names. Every `.env` file is gitignored; never commit one.
 is baked into the core image at build time, so every edit needs
 `docker compose build core`.
 
-The minimum is the two model strings for your LLM provider and the two
-orchestration gates. Fields not shown use the core's code defaults; use the
-shipped file or the configuration reference when you need its non-default
-tuning.
+The key parameters to check or modify in `config.yaml` are your LLM choices
+`llm.model` and `llm.small_model` and your repository host `git.provider`.
+All other settings automatically rely on defaults, so you can leave them
+untouched unless your setup requires custom adjustments.
 
 The `llm` values below are only an example: replace both model strings with
 the models you prefer. Model strings per provider:
@@ -42,13 +42,13 @@ xref:main:reference/llm-providers.adoc[LLM providers and models].
 
 [source,yaml]
 ----
-llm:
-  model: "vertex_ai/claude-sonnet-5-5"
-  small_model: "vertex_ai/gemini-3.8-flash"
-
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
+
+llm:
+  model: "vertex_ai/claude-sonnet-5-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
 ----
 
 Apart from the Git credentials you set in the next step, you may need to
@@ -59,44 +59,137 @@ the file:
 [source,yaml]
 ----
 git:
-  provider: "GITLAB"  # or "AZURE_DEVOPS"
+  provider: "GITHUB"  # or "AZURE_DEVOPS", "GITLAB", etc
 ----
 
 Accepted values and the supported hosts:
 xref:main:reference/configuration.adoc#config-git[`git` configuration].
 
-=== 3. Fill in core/.env
+Here is an example of the minimum configuration required for a secure, isolated workstation use case. Authentication is disabled, so everyone reaching port 80 is the local developer with full roles.
 
-Set:
+[source,yaml]
+----
+environment: "development"
 
-* *LLM provider credentials* — the variables LiteLLM reads for the
-  provider prefix of `llm.model` and `llm.small_model`. See
-  xref:main:reference/llm-providers.adoc#provider-credentials[provider
-  credential variables]. The core will not run without them.
-* `GIT_USER`, `GIT_TOKEN` — the account and personal access token for the
-  provider named by `git.provider` defined in the above `config.yaml`.
+oidc:
+  issuer_url: ""
+  client_id: ""
 
-Keep the remaining sample values: they match the bundled containers. Every
-variable: xref:main:reference/environment-variables.adoc[Environment
-variables and secrets].
+services:
+  iac:
+    endpoint: "http://iac:8082"
+    token_env: "KUMOSS_IAC_TOKEN"
 
-=== 4. Fill in services/iac/.env
+orchestration:
+  enable_compliance_checker: true
+  block_on_high_impact: true
 
-Set:
+llm:
+  model: "vertex_ai/claude-sonnet-5-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
 
-* *Cloud provider credentials* — the variables your OpenTofu or Terraform
-  providers read. See
-  xref:main:reference/terraform-providers.adoc[Terraform providers] for
-  the minimum set per cloud and authentication method.
+telemetry:
+  collector_url: "http://phoenix:6006/"
 
-The sidecar runs OpenTofu {opentofu-version} by default. Set
-`IAC_BINARY=terraform` to use the bundled HashiCorp Terraform
-{terraform-version} instead; it is BUSL-1.1 licensed, and selecting it
-makes your use subject to that license.
+storage:
+  provider: "RUSTFS"
+  endpoint_url: "http://object-storage:9000"
+  public_endpoint_url: "http://localhost:9000"
+  # Shipped default: Kumoss keeps Terraform state in the bundled
+  # RustFS, in its own bucket, so a scratch repository with no backend
+  # of its own works out of the box. Set it to "" to use the backend
+  # each repository declares instead.
+  terraform_state_bucket: "kumoss-terraform-state"
 
-Invalid or missing cloud credentials do not stop the container. The engine
-runs anyway and its own authentication error appears in the session as a
-failed `init`, `plan`, or `apply`.
+git:
+  provider: "GITHUB"
+----
+
+=== 3. Fill in `core/.env`
+
+The `core/.env` file (created by copying `core/env.sample` to `core/.env`) supplies sensitive runtime secrets and authentication credentials directly to the core Kumoss container. Its main purpose is to securely inject the mandatory API keys and access tokens the core engine needs to operate—keeping private secrets out of version control while leaving general system settings in `config.yaml`.
+
+WARNING: Every `.env` file is gitignored by default. Never commit a `.env` file containing real credentials to version control.
+
+==== What to Edit vs. Keep as Default
+
+* *Variables You MUST Set:*
+** *LLM provider credentials:* Set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See xref:main:reference/llm-providers.adoc#provider-credentials[provider credential variables]. The core will not run without them.
+** `GIT_USER`, `GIT_TOKEN`: The account username and personal access token for the provider named by `git.provider` defined in `config.yaml`.
+* *Variables to KEEP AS DEFAULT:*
+** *All other sample values in `core/env.sample`:* Leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup. For a complete reference of every variable, see xref:main:reference/environment-variables.adoc[Environment variables and secrets].
+
+TIP: If you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will *not* reload `.env` variables.
+
+==== Brief `core/.env` examples
+
+[.example]
+--
+[source,env]
+----
+# --- LLM Provider Credentials (Set according to your provider prefix) ---
+# Direct Anthropic example:
+ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Google Vertex AI example:
+VERTEXAI_PROJECT="your-gcp-project-id"
+VERTEXAI_LOCATION="us-central1"
+VERTEXAI_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
+
+# Azure OpenAI example:
+AZURE_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+AZURE_API_BASE="https://your-resource.openai.azure.com"
+AZURE_API_VERSION="2025-01-01-preview"
+
+# --- Git Credentials ---
+GIT_USER="your-git-username"
+GIT_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"
+----
+--
+
+=== 4. Fill in `services/iac/.env`
+
+The `services/iac/.env` file (created by copying `services/iac/env.sample` to `services/iac/.env`) supplies cloud authentication credentials and engine settings to the IaC (Infrastructure as Code) sidecar container. Its primary purpose is to pass your cloud provider access keys to the underlying execution engine so Kumoss can provision and manage infrastructure on your cloud account.
+
+NOTE: Missing or invalid cloud credentials in `services/iac/.env` do not stop the container. The engine runs anyway, but authentication errors will appear inside the session as a failed `init`, `plan`, or `apply` operation.
+
+==== What to Edit vs. Keep as Default
+
+* *Variables You MUST Set:*
+** *Cloud provider credentials:* Set the specific authentication variables required by your OpenTofu or Terraform providers. See xref:main:reference/terraform-providers.adoc[Terraform providers] for the minimum set per cloud and authentication method.
+* *Optional / Conditional Settings:*
+** `IAC_BINARY`: The sidecar runs OpenTofu {opentofu-version} by default. Set `IAC_BINARY=terraform` only if you explicitly want to use the bundled HashiCorp Terraform {terraform-version} instead (selecting Terraform makes your use subject to its BUSL-1.1 license).
+* *Variables to KEEP AS DEFAULT:*
+** *Internal service settings (e.g., `KUMOSS_IAC_TOKEN`):* Leave these pre-populated values intact so they remain synchronized with `core/.env` and the container stack.
+
+TIP: Recreate the sidecar using `docker compose up -d iac` whenever you update `services/iac/.env`.
+
+==== Brief `services/iac/.env` examples
+
+[.example]
+--
+*AWS Credentials Example:*
+[source,env]
+----
+AWS_ACCESS_KEY_ID="AKIAXXXXXXXXXXXXXXXX"
+AWS_SECRET_ACCESS_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+AWS_REGION="us-east-1"
+----
+
+*GCP Credentials Example:*
+[source,env]
+----
+GOOGLE_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
+----
+
+*Azure Credentials Example:*
+[source,env]
+----
+ARM_CLIENT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+ARM_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ARM_TENANT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+----
+--
 
 === 5. Build and start Kumoss
 
