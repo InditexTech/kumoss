@@ -27,7 +27,7 @@ updates:
           - github/codeql-action/*
 
   # Python packages live in uv-managed projects (core + services/*).
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /core
     schedule:
       interval: weekly
@@ -38,7 +38,7 @@ updates:
     cooldown:
       default-days: 7
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /services/authz
     schedule:
       interval: weekly
@@ -49,7 +49,7 @@ updates:
     cooldown:
       default-days: 7
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /services/iac
     schedule:
       interval: weekly
@@ -60,7 +60,7 @@ updates:
     cooldown:
       default-days: 7
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /services/mapping
     schedule:
       interval: weekly
@@ -71,7 +71,7 @@ updates:
     cooldown:
       default-days: 7
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /services/notifications
     schedule:
       interval: weekly
@@ -84,7 +84,7 @@ updates:
 
   # Only contracts/conformance/authz ships its own uv.lock; the other
   # conformance suites are workspace members of their service projects.
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /contracts/conformance/authz
     schedule:
       interval: weekly

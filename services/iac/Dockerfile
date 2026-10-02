@@ -6,7 +6,9 @@
 # install method the OpenTofu project documents for custom images).
 FROM ghcr.io/opentofu/opentofu:1.12.7-minimal@sha256:1349f86c125d1e72d63b9ef7f9492b5a4368820a7bc7c1e1f0f8374e02543973 AS tofu
 
-FROM python:3.13-slim AS base
+FROM ghcr.io/astral-sh/uv:0.12.22@sha256:f513a91fc62fe7c17567eee97230dd198e43edb8a9fbecca843714a4358fe1bc AS uv
+
+FROM python:3.13-slim@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 AS base
 
 # Unprivileged runtime identity. The uid/gid MUST match the core image's
 # (same ARG names and defaults in core/Dockerfile): both containers
@@ -20,7 +22,7 @@ RUN groupadd --gid "${NEBULA_GID}" nebula \
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv /uv /uvx /bin/
 
 # Terraform CLI installation
 ARG TERRAFORM_VERSION=1.16.0
@@ -45,7 +47,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY services/iac/pyproject.toml services/iac/uv.lock ./
 
-RUN uv sync --frozen --no-default-groups
+RUN uv sync --locked --no-default-groups
 
 COPY --chown=nebula:nebula services/iac/src ./src
 

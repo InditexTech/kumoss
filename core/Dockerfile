@@ -1,4 +1,6 @@
-FROM python:3.13-bookworm
+FROM ghcr.io/astral-sh/uv:0.12.22@sha256:f513a91fc62fe7c17567eee97230dd198e43edb8a9fbecca843714a4358fe1bc AS uv
+
+FROM python:3.13-bookworm@sha256:ab62bdaec8f090e565b8c76a8cac990229c28a42725f356cc32d9f4dea29806d
 
 # Minimal apt deps the core actually uses at runtime: git for cloning user
 # repos, ripgrep for the workspace inspection tools, curl for general use.
@@ -21,7 +23,7 @@ RUN groupadd --gid "${NEBULA_GID}" nebula \
 # config.yaml
 COPY config.yaml /etc/nebula/
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /usr/src/app
 
@@ -33,7 +35,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 COPY core/pyproject.toml core/uv.lock ./
 
-RUN uv sync --frozen --no-install-project --no-default-groups
+RUN uv sync --locked --no-install-project --no-default-groups
 
 COPY --chown=nebula:nebula core/src ./src
 COPY --chown=nebula:nebula core/prompts ./prompts
