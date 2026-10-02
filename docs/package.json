@@ -21,7 +21,7 @@
     "@inditextech/docouture-antora-extensions": "1.1.1",
     "@inditextech/docouture-publish-gh-pages": "1.1.1",
     "antora": "3.2.0",
-    "linkinator": "8.0.4"
+    "linkinator": "8.1.0"
   },
   "docouture": {
     "branching": "trunk-based",
