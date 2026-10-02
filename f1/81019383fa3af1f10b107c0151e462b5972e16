@@ -1,0 +1,21 @@
+docs/antora-playbook.local.yml
+  s_e0e37102de7ca6::t_8e6e64311cc411 42-43
+docs/antora-playbook.yml
+  s_e0e37102de7ca6::t_e41b4dcc02f23c 30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f181019383fa3af1f10b107c0151e462b5972e16",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "unknown"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
