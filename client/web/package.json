@@ -21,7 +21,7 @@
     "@mui/material": "^9.4.0",
     "classnames": "^2.5.1",
     "dompurify": "^3.4.16",
-    "lottie-react": "^2.4.1",
+    "lottie-react": "^3.1.2",
     "monaco-editor": "^0.53.0",
     "oidc-client-ts": "^3.5.0",
     "react": "^19.3.0",
