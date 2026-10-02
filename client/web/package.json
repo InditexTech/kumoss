@@ -22,7 +22,7 @@
     "classnames": "^2.5.1",
     "dompurify": "^3.4.16",
     "lottie-react": "^2.4.1",
-    "monaco-editor": "^0.53.0",
+    "monaco-editor": "^0.57.0",
     "oidc-client-ts": "^3.5.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
