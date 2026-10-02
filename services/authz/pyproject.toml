@@ -15,4 +15,5 @@ dependencies = [
 tooling = [
     "pytest>=9.0.3",
     "httpx>=0.28.1",
+    "pytest-cov>=6.0",
 ]

@@ -36,4 +36,6 @@ tooling = [
     "debugpy>=1.8.21",
     "openapi-python-client==0.29.0",
     "ipython>=9.16.1",
+    "pytest>=9.0.3",
+    "pytest-cov>=6.0",
 ]
