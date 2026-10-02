@@ -121,7 +121,7 @@ WARNING: Every `.env` file is gitignored by default. Never commit a `.env` file 
 
 TIP: If you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will *not* reload `.env` variables.
 
-==== Brief `core/.env` Example
+==== Brief `core/.env` examples
 
 [.example]
 --
@@ -164,7 +164,7 @@ NOTE: Missing or invalid cloud credentials in `services/iac/.env` do not stop th
 
 TIP: Recreate the sidecar using `docker compose up -d iac` whenever you update `services/iac/.env`.
 
-==== Brief `services/iac/.env` Examples
+==== Brief `services/iac/.env` examples
 
 [.example]
 --
