@@ -27,15 +27,10 @@ site:
   # contributes no segment.
   start_page: ROOT::index.adoc
   # Side-menu brand mark (nav-brand.hbs) and browser tab icon (head-icons.hbs)
-  # — placeholder artwork under supplemental-ui/, wired via
-  # ui.supplemental_files below. Supplemental files land under the UI's own
-  # output dir (ui.output_dir, default `_`), not the site root, hence the
-  # `/_/` prefix. Swap these two files (and product-logo-dark.png, used
-  # automatically under the dark theme) for real artwork, or remove the keys
-  # entirely to fall back to a text-only brand block and no favicon.
+  # — intentionally not set: the site falls back to a text-only brand block
+  # ("Kumoss") in the header, which avoids duplicating the product name next
+  # to the site title. The favicon is kept (Kumoss "K" monogram).
   keys:
-    product_logo: /_/product-logo.png
-    product_logo_dark: /_/product-logo-dark.png
     favicon: /_/favicon.ico
 
 content:
