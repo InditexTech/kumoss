@@ -36,4 +36,9 @@ body: |
   | Secrets Manager secret         | sm     |
   | KMS key                        | kms    |
 
+  If the resource you are creating is not in this list, you may use the first letter 
+  of each word in the resource type as a prefix. For example, for a resource type 
+  `aws_some_random_resource_created`, you could use the prefix `srrc`. Never add the 
+  letter of the cloud provider.
+
   Replace this list with your organization's naming standard.

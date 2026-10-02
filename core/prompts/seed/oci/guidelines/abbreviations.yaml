@@ -32,4 +32,8 @@ body: |
   | DNS Zone                       | dns    |
   | Dynamic Group                  | dg     |
 
+  If the resource you are creating is not in this list, you may use the first letter 
+  of each word in the resource type as a prefix. For example, for a resource type 
+  `oci_some_random_resource_created`, you could use the prefix `srrc`.
+
   Replace this list with your organization's naming standard.

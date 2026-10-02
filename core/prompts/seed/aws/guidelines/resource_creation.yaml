@@ -31,27 +31,15 @@ body: |
     and `aws_region` data sources rather than hardcoding values.
 
   ## Tagging
-  Every resource that supports `tags` carries at minimum:
+  Every resource that supports `tags` could carry the following baseline tags,
+  not obligatory but strongly recommended, this could be defined in the resource
+  or in the provider's `default_tags` block:
   - `Environment` — `dev`, `staging`, or `prod`.
   - `Owner` — team or individual responsible.
   - `ManagedBy` — set to `terraform`.
 
-  Use a `default_tags` block on the provider to apply baseline tags to
-  all resources without repeating them:
-
-  ```hcl
-  provider "aws" {
-    region = var.region
-    default_tags {
-      tags = {
-        Environment = var.environment
-        ManagedBy   = "terraform"
-      }
-    }
-  }
-  ```
-
-  No `tags_all` block should be used, defined or reconciled; it is a read-only view of the effective tags on a resource.
+  Note: No `tags_all` block should be used, defined or reconciled outside of the 
+  providers block; it is a read-only view of the effective tags on a resource.
 
   ## Regions
   - Default to a single primary region per environment.
