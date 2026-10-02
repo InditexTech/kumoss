@@ -375,8 +375,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "schemathesis", specifier = ">=4.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "schemathesis", specifier = ">=4.17.0" },
 ]
 
 [[package]]
