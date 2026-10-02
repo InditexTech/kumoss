@@ -5,11 +5,11 @@
 # pyright: reportAttributeAccessIssue=false
 from typing import cast
 
-from src.domains.entities import SessionContext, History
+from src.domains.dto import PromptTemplateDTO
+from src.domains.entities import History, SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
-from src.domains.dto import PromptTemplateDTO
 from src.shared.constants import PromptsLibrary, SessionStatus
 from src.shared.logger import logging
 
@@ -112,7 +112,7 @@ class SessionService:
     async def __chat_reply(self, query: str) -> str:
         """Infer the user-facing reply from the internal history alone."""
         return await self.__llm_service.generate_text(
-            query=query,
+            query=f'Write the chat reply for the latest round history. The user asked: "{query}"',
             prompt=await self.__template_svc.render(PromptsLibrary.CHAT_REPLY),
             history=self.__ctx.history,
         )
