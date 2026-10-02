@@ -16,8 +16,8 @@ variables and secrets], xref:main:reference/llm-providers.adoc[LiteLLM
 providers and models], xref:main:guides/enable-authentication.adoc[OIDC
 setup], xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
 Phoenix], xref:main:guides/customize-prompts.adoc[Phoenix prompt
-templates], xref:main:guides-overview.adoc[Guides], and
-xref:main:guides/administer-users-and-locks.adoc[Administer users and locks] — and the
+templates], xref:main:guides-overview.adoc[Guides],
+xref:main:guides/administer-users-and-locks.adoc[Administer users and locks], and the
 sidecar READMEs under `services/`.
 
 == How the file is loaded
@@ -45,7 +45,7 @@ sidecar READMEs under `services/`.
   below. Section errors are aggregated: a file with a bad `oidc`, `llm`,
   and `storage` section reports all three at once, and inside `llm`
   every missing credential variable is listed together. One check is
-  the exception — the bearer-token check on `services.*` runs on the
+  the exception: the bearer-token check on `services.*` runs on the
   assembled model, only after every section has validated, so it can
   surface on the next boot attempt after a section error is fixed.
 * *Secrets never belong in `config.yaml`.* Fields whose name ends in
@@ -56,7 +56,7 @@ Changing any field therefore means: edit `config.yaml`, rebuild the
 core image, restart. "Requires rebuild" in the tables below always
 refers to that sequence. If you instead mount the file at the path in
 `KUMOSS_CONFIG`, the equivalent is: update the mounted file and restart
-the core — no image rebuild needed, because the container reads the
+the core; no image rebuild is needed, because the container reads the
 file from disk at startup rather than from the baked-in copy.
 
 == Requirement summary
@@ -78,7 +78,7 @@ variable of every other enabled sidecar; the variable named by
 `storage.account_key_env` when `storage.provider` is
 `STORAGE_ACCOUNT`; a derivable account name in `storage.endpoint_url`
 for `STORAGE_ACCOUNT`; a remote backend declared by every target
-repository while `storage.terraform_state_bucket` is blank — which
+repository while `storage.terraform_state_bucket` is blank, which
 only happens if a deployment explicitly sets it to `""`, since the
 shipped value enables Kumoss-managed state by default.
 
@@ -174,7 +174,7 @@ yes. The public route `GET /api/v1/auth/config` returns the effective
 values.
 
 Related: `admin.default_root_email` in `config.yaml` bootstraps the
-first administrator from this same login flow — see
+first administrator from this same login flow; see
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Bootstrap
 admin] (one-way; blank to skip).
 
@@ -255,7 +255,7 @@ every call. *A sidecar the core will call whose variable resolves to
 an empty value aborts the boot* with `Services the core calls have no
 bearer token in the environment: services.<name> → $<VAR>. Set the
 listed env vars; the optional sidecars can also be flipped to
-enabled: false (services.iac cannot — it is mandatory).`
+enabled: false (services.iac cannot; it is mandatory).`
 
 |`services.<name>.timeout`
 |float (seconds)
@@ -330,7 +330,7 @@ the rules in the `general-compliance-report` prompt. The session is
 report is stored as a round artifact and shown in the portal. A lock
 also sends an `iac.compliance.failed` notification. When `false` the
 audit is skipped entirely and reported as an empty passing result, so
-it can never lock and nothing is stored. Generate rounds only — drift
+it can never lock and nothing is stored. Generate rounds only; drift
 rounds do not audit, and apply does not re-audit.
 
 |`orchestration.block_on_high_impact`
@@ -340,8 +340,8 @@ rounds do not audit, and apply does not re-audit.
 |Optional
 |*Locks* the session when the generate report's impact banner comes
 back `high`, and sends an `iac.impact.high` notification. The banner
-itself — `low`, `medium`, or `high`, judged against the
-`general-compliance-impact` prompt criteria — is part of every report
+itself (`low`, `medium`, or `high`, judged against the
+`general-compliance-impact` prompt criteria) is part of every report
 either way; this flag decides only whether it gates. It is evaluated
 independently of the auditor above: the round ends locked if *either*
 condition fires.
@@ -423,7 +423,7 @@ with a non-`high` banner, or when a panel `editor` toggles it in the
 xref:main:guides/administer-users-and-locks.adoc[admin panel]; drift
 rounds never set or clear it. Because both default to `false` in code
 and `true` in the shipped file, an `orchestration` block that omits
-them silently turns both gates off — spell them out in any file you
+them silently turns both gates off; spell them out in any file you
 write yourself. The full round-by-round flow is in
 xref:main:architecture/end-to-end-flow.adoc#compliance[Compliance gate].
 
@@ -733,13 +733,13 @@ Created at boot if missing.
 field default if the key is absent
 |Optional
 |Bucket (or blob container) holding Terraform/OpenTofu state, separate
-from `storage.bucket`. *Non-blank — the shipped value — means Kumoss
+from `storage.bucket`. *Non-blank (the shipped value) means Kumoss
 manages state*: the bucket is created at boot if missing and the core
 writes `paths.backend_override_filename` into every workspace before
 `init`, addressing it with the key
 `<project_id>/<storage.terraform_state_filename>`. Backend
 type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for
-`STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value,
+`STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out: no value,
 `""`, and whitespace-only are all blank, and blank means no bucket is
 created, no override is written, and each repository must declare its
 own remote backend, whose credentials belong to the IaC sidecar. A bare
@@ -790,9 +790,9 @@ Ignored for `STORAGE_ACCOUNT`.
 |Optional
 |Variable holding the access key. Falls back to `rustfsadmin` for
 `RUSTFS` when unset; empty for `S3`, which then uses the AWS SDK
-default credential chain. A non-empty value always wins, so *blank
-`RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` in `core/.env` when
-switching to `S3`* (the sample ships them set to `rustfsadmin`).
+default credential chain. A non-empty value always wins, so when
+switching to `S3`, blank both keys in `core/.env` (the sample ships
+them set to `rustfsadmin`).
 
 |`storage.secret_key_env`
 |string (variable name)
@@ -845,7 +845,7 @@ consequences follow. The sidecar container must be able to reach
 `bridge-network`, so `\http://object-storage:9000` resolves). And
 unless *both* `access_key_env` and `secret_key_env` resolve to
 non-empty values, the backend block omits the credential lines entirely
-— a single one being set is not enough — and the engine falls back to
+(a single one being set is not enough), and the engine falls back to
 the *sidecar's* ambient credentials; an instance profile on the core
 alone is not enough.
 
@@ -905,8 +905,8 @@ credential variables are non-empty it also writes
 `\https://<user>:<token>@<provider-host>` to `~/.git-credentials` and
 enables the `store` credential helper. If either is empty it logs a
 warning and continues; pushes then need a pre-populated
-`~/.git-credentials`, and pull-request creation and merge — which call
-the provider's REST API with `GIT_TOKEN` — fail. Repository URLs must
+`~/.git-credentials`, and pull-request creation and merge, which call
+the provider's REST API with `GIT_TOKEN`, fail. Repository URLs must
 be `https://`: SSH, `git://`, `http://`, `file://` and local paths are
 rejected by the API, so SSH keys are never an alternative. URLs that
 embed a password or token are rejected too; a bare userinfo username

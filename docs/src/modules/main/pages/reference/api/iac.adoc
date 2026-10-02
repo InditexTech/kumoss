@@ -1,5 +1,5 @@
 = IaC sidecar API
-:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
+:description: The mandatory IaC sidecar contract (one engine command per asynchronous job, polled by the core), plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
 
 The IaC service is a *raw executor* for an IaC engine's command-line
 interface. It is the one mandatory sidecar: without it the core cannot
@@ -24,7 +24,7 @@ lives in the core.
 
 Jobs targeting the same `workspace_path` run one at a time in
 submission order. Jobs for different workspaces may run concurrently.
-A submission is never refused because the workspace is busy — it
+A submission is never refused because the workspace is busy; it
 queues.
 
 [NOTE]
@@ -199,7 +199,7 @@ surfaces in the job result instead.
 
 |`503`
 |The implementation is running but lacks a prerequisite needed to
-accept jobs at all — no engine binary, no configured state backend.
+accept jobs at all: no engine binary, no configured state backend.
 Faults that only surface once the job runs end the job as `failed`
 instead.
 |===
@@ -212,8 +212,8 @@ prerequisite failures by other routes. A missing or unresolvable
 engine binary is asserted at startup, so the process exits with a
 configuration error and is never running to answer anything. A missing
 or wrong `IAC_BACKEND_CONFIG` path is not checked at all and surfaces
-on `init`, in that job's `stderr`. Its only `503` is a job-level one —
-`Service shut down before the job finished.` in the job's `error` — so
+on `init`, in that job's `stderr`. Its only `503` is a job-level one
+(`Service shut down before the job finished.` in the job's `error`), so
 it appears on `GET /v1/jobs/\{job_id}`, never on a POST. Nor does it
 ever emit the job-level `504`: it puts no time limit on the engine
 command, so a hung command stays `running` instead of ending `failed`
@@ -271,12 +271,12 @@ tell them apart.*
 * *Engine-level failures are a normal outcome.* The job ends
   `succeeded` and its `result` carries the process's `exit_code`
   (non-zero on failure) with `stdout` and `stderr` passed through
-  verbatim — including the engine's own provider authentication
+  verbatim, including the engine's own provider authentication
   errors. Failures of the underlying cloud query in a discovery job
   ride this same plane.
-* *Service-level faults* — an unexpected exception, shutdown
+* *Service-level faults* (an unexpected exception, shutdown
   mid-job, a subprocess timeout where the implementation enforces
-  one — end the job as `failed` with an RFC 7807 problem document in
+  one) end the job as `failed` with an RFC 7807 problem document in
   `error` and no result. The problem's embedded `status` member is the
   HTTP status an equivalent synchronous API would have returned: `500`
   for an unexpected execution failure, `504` for a subprocess timeout,
@@ -384,9 +384,9 @@ deployment's responsibility. The pair stays required on the wire so
 the intended scope is always stated, and so an implementation that can
 enforce it has what it needs.
 
-An implementation may scope a command by another mechanism instead —
+An implementation may scope a command by another mechanism instead:
 an AWS AssumeRole into the account, a provider alias, a credential
-broker — as long as the command runs against `scope_id`. Callers need
+broker, as long as the command runs against `scope_id`. Callers need
 to know nothing about which mechanism was used.
 
 Where the overlay is applied it sits on top of the service's own
@@ -402,7 +402,7 @@ minimums].
 
 `POST /v1/import/scope-resource-ids` is the exception: it launches no
 subprocess, so there is no environment to overlay. Its `scope_id` is
-the argument of the inventory query itself — the subscription,
+the argument of the inventory query itself: the subscription,
 project, or account whose contents are listed.
 
 [#import-discovery]
@@ -419,7 +419,7 @@ resources still need an `import` job.
 
 `POST /v1/import/state-resource-ids` runs `state pull` and extracts
 the provider-assigned identifier of every managed resource instance in
-the state — its `arn` attribute when it has one, otherwise its `id` —
+the state (its `arn` attribute when it has one, otherwise its `id`),
 deduplicated. An instance with neither contributes nothing. An empty
 state answers `[]`. A `state pull` that exits 0 but prints something
 other than a state document ends the job with exit code 1 and `state
@@ -491,7 +491,7 @@ would put Terraform in a fight it loses.
   App Service's, and any resource carrying a `hidden-link*` tag. The
   tag filter matches the serialized tags, so a tag *value* containing
   `"hidden-link` drops the row too, and it is applied to resources
-  only — resource groups and role assignments are not tag filtered.
+  only; resource groups and role assignments are not tag filtered.
 * *GCP* — the project asset itself, both the Resource Manager and the
   Compute one; anything labelled `goog-*`, which covers GKE-created
   disks and `goog-terraform-provisioned`; resources whose name ends in
@@ -526,8 +526,8 @@ The service, not the caller, decides the identifier shape.
   the number they arrived with. Project IAM produces one entry per
   role and member in the provider's own space-delimited form,
   `<project-id> <role> <member>`, which is both the `id`
-  `google_project_iam_member` stores in state — so the two listings
-  line up — and the identifier `import` takes verbatim. `deleted:`
+  `google_project_iam_member` stores in state (so the two listings
+  line up) and the identifier `import` takes verbatim. `deleted:`
   members are dropped, and so is every `*.gserviceaccount.com` member
   that does not end in `@<project-id>.iam.gserviceaccount.com`:
   Google's own service agents, and with them any service account owned
@@ -536,7 +536,7 @@ The service, not the caller, decides the identifier shape.
   are skipped without comment.
 * *AWS* emits ARNs. `POST /v1/import/state-resource-ids` prefers a
   resource's `arn` attribute over its `id` for exactly this reason, so
-  the two lists line up. That preference is not AWS-specific — the
+  the two lists line up. That preference is not AWS-specific: the
   endpoint takes no `terraform_provider`, so it applies to every state
   document, a no-op for `azurerm` and `google` resources, which expose
   no `arn`.
@@ -553,7 +553,7 @@ The service, not the caller, decides the identifier shape.
   and `roles/viewer`, which grants the
   `resourcemanager.projects.get` and
   `resourcemanager.projects.getIamPolicy` the lister calls.
-  `projects.get` runs first and is not optional — it resolves the
+  `projects.get` runs first and is not optional; it resolves the
   project number the asset names are rewritten with, so a `403` there
   fails the whole listing.
 * *AWS* — *Resource Explorer must be enabled for the account.* Create
@@ -564,7 +564,7 @@ The service, not the caller, decides the identifier shape.
   aggregator index and the default view exist. Then grant the identity
   `sts:GetCallerIdentity`, `resource-explorer-2:ListIndexes`,
   `resource-explorer-2:GetDefaultView`, and
-  `resource-explorer-2:Search` — the last of which is what authorizes
+  `resource-explorer-2:Search`, the last of which is what authorizes
   the `ListResources` call, since that call has no IAM action of its
   own. `ListIndexes` is called in `AWS_REGION` and the other two in
   the aggregator's region, so the grant has to be effective in both,
@@ -576,7 +576,7 @@ The service, not the caller, decides the identifier shape.
   exclusions above read the rows' `tags` property and a view that
   leaves it out makes every one of them silently do nothing. Finally,
   `AWS_REGION` or `AWS_DEFAULT_REGION` must be set in the
-  environment — it is where the index lookup starts, and a region that
+  environment: it is where the index lookup starts, and a region that
   only a profile or `~/.aws/config` names does not count. Only the
   account the ambient credentials belong to can be listed; a
   `scope_id` naming another account is refused before any Resource
@@ -619,8 +619,8 @@ The service, not the caller, decides the identifier shape.
   request-URL flows, and the `ARM_CLIENT_ID_FILE_PATH` and
   `ARM_CLIENT_SECRET_FILE_PATH` credential forms are not supported for
   discovery, although provider commands still accept all of them. The
-  credential cases at least say so — `no Azure credentials configured
-  for scope discovery` — but `ARM_ENVIRONMENT` is not read at all, so
+  credential cases at least say so (`no Azure credentials configured
+  for scope discovery`), but `ARM_ENVIRONMENT` is not read at all, so
   a sovereign deployment fails against the public endpoints rather
   than being told the cloud is unsupported.
 * Each cloud is paged to a bounded number of requests: 100 pages for
@@ -646,7 +646,7 @@ workspace before calling `init`, pinning state to the object store it
 already holds credentials for. The engine merges `*_override.tf` over
 the rest of the configuration, so an override both introduces a
 backend where the workspace declares none and replaces one that it
-does declare — any caller can use the same trick.
+does declare; any caller can use the same trick.
 
 `IAC_BACKEND_CONFIG` is the escape hatch for a deployment that owns
 the decision instead. Set it to the path of a backend configuration
@@ -682,10 +682,10 @@ backends].
 The bundled image ships both engines and `IAC_BINARY` selects one at
 runtime, with no rebuild needed to switch:
 
-* *OpenTofu {opentofu-version}* (MPL-2.0) — the default, `IAC_BINARY=tofu`.
+* *OpenTofu {opentofu-version}* (MPL-2.0), the default: `IAC_BINARY=tofu`.
   Installed from the official minimal OpenTofu image, pinned by
   digest.
-* *HashiCorp Terraform {terraform-version}* (BUSL-1.1) — `IAC_BINARY=terraform`.
+* *HashiCorp Terraform {terraform-version}* (BUSL-1.1): `IAC_BINARY=terraform`.
   Fetched at build time and checksum-verified. Use of it is subject to
   its license terms.
 
@@ -706,7 +706,7 @@ Terraform at the default OpenTofu engine:
   `stderr`.
 * State remains readable in both directions until OpenTofu first
   applies. After that, going back to Terraform requires restoring a
-  state backup — see OpenTofu's
+  state backup; see OpenTofu's
   https://opentofu.org/docs/intro/migration/[migration guide].
 
 == Workspace and runtime ownership
@@ -717,7 +717,7 @@ got there. The compose deployment mounts a named `workspaces` volume
 at `/workspaces` in both the core and the IaC containers, so the core
 writes the cloned repository there and references the same path when
 submitting jobs. Other deployments may use a PersistentVolumeClaim, an
-NFS mount, object storage, or an upload endpoint — same contract,
+NFS mount, object storage, or an upload endpoint; same contract,
 different mechanics.
 
 The bundled image runs as an unprivileged user, `kumoss`, uid and gid
@@ -740,8 +740,8 @@ user. Override the two arguments together or not at all.
   topology: whatever backs the shared workspace must be owned by the
   unprivileged user the images were built with, and every component
   that stages repositories into it must run as that same identity. How
-  a platform expresses that — a pod security context, export options,
-  a one-off `chown` — is deployment-specific; the ownership itself is
+  a platform expresses that (a pod security context, export options,
+  a one-off `chown`) is deployment-specific; the ownership itself is
   not.
 * *Provider credentials.* Credential files you mount must be readable
   by uid `10001`.
@@ -811,7 +811,7 @@ authentication. Both values may also come from `KUMOSS_IAC_URL` and
 The suite generates requests from the OpenAPI document and checks that
 every status the service answers is one the contract documents for
 that operation, and that response bodies match the declared schemas.
-It does not check that every documented status is reachable — a status
+It does not check that every documented status is reachable: a status
 the implementation never emits, such as the submission-time `503`,
 leaves the run green. Nor does it check that the commands the jobs run
 produce accurate output for your modules, cloud-provider

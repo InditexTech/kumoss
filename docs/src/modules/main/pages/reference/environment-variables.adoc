@@ -108,9 +108,9 @@ credentials come from elsewhere
 unset*; empty otherwise
 |Access key for the S3-compatible store, read when `storage.provider`
 is `RUSTFS` (or `S3` with static keys). Used for the artifacts bucket
-and — where Kumoss-managed state is enabled
+and, where Kumoss-managed state is enabled
 (`storage.terraform_state_bucket` non-blank; that is the shipped
-default) — for the state bucket too, in which case it is also embedded
+default), for the state bucket too, in which case it is also embedded
 into the backend block the IaC sidecar executes. Must match the
 access key of the `object-storage` service. The bundled
 `docker-compose.yml` sets none, so RustFS uses its built-in
@@ -150,7 +150,7 @@ initialisation fails if unreachable
 |Optional; not present in `core/env.sample`
 |`redis://redis:6379/0` from `redis.default_url`
 |Redis URL for the session cache. Add it only to point at an external
-Redis — for example when the URL embeds a password or sits outside the
+Redis, for example when the URL embeds a password or sits outside the
 compose network. Cache operations fail open at runtime, but the
 boot-time ping must succeed.
 |At boot: Redis initialisation fails if unreachable
@@ -231,7 +231,7 @@ the bundled Phoenix.
 
 |`OTEL_EXPORTER_OTLP_HEADERS`
 |the OpenTelemetry SDK
-|Comma-separated `key=value` headers added to OTLP exports — the usual
+|Comma-separated `key=value` headers added to OTLP exports, the usual
 way to authenticate against a hosted collector. The core builds its
 `OTLPSpanExporter` with the endpoint only and passes no headers of its own.
 
@@ -243,10 +243,10 @@ and supplies no credential.
 |===
 
 Because the core passes the endpoint and base URL programmatically,
-whether each library still picks these variables up from the
-environment in that configuration is *not verified in this
-repository* — consult the OpenTelemetry Python and Phoenix client
-documentation for the version you run before relying on them.
+this repository does not verify whether each library still picks these
+variables up from the environment in that configuration. Consult the
+OpenTelemetry Python and Phoenix client documentation for the version
+you run before relying on them.
 
 == IaC sidecar (`services/iac/env.sample`)
 
@@ -277,14 +277,14 @@ engine on `PATH` works.
 to every `init` as `-backend-config=<path>`. Absolute paths resolve
 *inside the sidecar container*, so mount the file there yourself;
 relative paths resolve against the workspace, so the target repository
-can carry the file. It supplies values only — the backend _type_ still
+can carry the file. It supplies values only; the backend _type_ still
 comes from the workspace's own `terraform { backend "..." }` block.
 Its values take precedence over the core's `backend_override.tf`, which
 in turn beats the repository's own block; keys the file does not
 declare fall through, so setting it _together with_ Kumoss-managed
 state (`storage.terraform_state_bucket` set) merges the two backends
-key by key instead of picking one — a misconfiguration to avoid, not a
-layering feature. Blank or whitespace counts as unset. See
+key by key instead of picking one. That is a misconfiguration to
+avoid, not a layering feature. Blank or whitespace counts as unset. See
 xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
 backend].
 |No: unlike `IAC_BINARY` this path is not checked at startup, so a
@@ -377,9 +377,9 @@ xref:main:reference/terraform-providers.adoc[Terraform providers].
 These are the *provider* credentials, the ones `plan` and `apply` use
 on the resources themselves. `init` needs a second, separate grant on
 the state store, which may be a different account or even a different
-cloud, and which some variables serve exclusively — `ARM_ACCESS_KEY`,
+cloud, and some variables serve only that grant (`ARM_ACCESS_KEY`,
 `ARM_SAS_TOKEN`, `ARM_USE_AZUREAD`, `GOOGLE_BACKEND_CREDENTIALS`,
-`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`. Both grants live in the same
+`GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`). Both grants live in the same
 `services/iac/.env`; which variables you need for which is in
 xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[Two
 sets of credentials on the sidecar].
@@ -392,7 +392,7 @@ the image runs as (`kumoss`, uid and gid `10001` by default).
 The sidecar is the process that reads and writes Terraform state, so
 state-backend credentials are always a sidecar concern.
 
-* *By default* (`storage.terraform_state_bucket` non-blank — that is the
+* *By default* (`storage.terraform_state_bucket` non-blank, that is the
   shipped value), Kumoss manages state. When the core's rendered
   backend block *contains* static keys (`RUSTFS`, or
   `S3`/`STORAGE_ACCOUNT` with keys set in `core/.env`), the sidecar
@@ -402,7 +402,7 @@ state-backend credentials are always a sidecar concern.
   the engine resolves credentials from the sidecar's own environment:
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an
   attached instance role or IRSA token. Granting that role to the
-  *core* container only is the common mistake — the core creates
+  *core* container only is the common mistake; the core creates
   the bucket at boot.
 * With Kumoss-managed state on, the sidecar must also reach
   `storage.endpoint_url`. In the Compose stack `core` and `iac` share
@@ -410,8 +410,8 @@ state-backend credentials are always a sidecar concern.
   elsewhere, allow that egress.
 * If a deployment sets `storage.terraform_state_bucket` to `""`, the
   backend comes from the target repository instead, and the sidecar
-  must hold whatever that backend needs — S3 keys or a role, an Azure
-  identity, a GCS service account. Nothing on the core side helps
+  must hold whatever that backend needs (S3 keys or a role, an Azure
+  identity, a GCS service account). Nothing on the core side helps
   here.
 
 Where state lives, and how each provider is configured, is covered in
@@ -435,7 +435,7 @@ backends].
 The bundled mapping service is an identity passthrough: it returns the
 identifier it receives as both `repo_url` and `identifier`, echoes back
 any `terraform_provider` it was sent, and always answers `null` for
-`scope_id` — it knows nothing it was not told, and `null` means "ask the
+`scope_id`: it knows nothing it was not told, and `null` means "ask the
 user". While `services.mapping.enabled` is `false` (the default) the
 core performs that same mapping itself and never calls the service.
 Once enabled, a sidecar that times out or is unreachable makes the
@@ -489,7 +489,7 @@ Because Compose starts every sidecar regardless of `config.yaml`, a
 notifications container that exits immediately is expected and harmless
 while `services.notifications.enabled` is `false`. No restart policy is
 set for it (only `proxy` carries `restart: on-failure`), so it exits once and then shows as
-`Exited` in `docker compose ps` — it is not restarted in a loop. Remove
+`Exited` in `docker compose ps`; it is not restarted in a loop. Remove
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
 
@@ -615,7 +615,7 @@ entirely.
   `KUMOSS_UID` / `KUMOSS_GID` build args). The `proxy` service is the
   upstream nginx image, which starts as root and drops privileges for
   its worker processes. Apply your platform's pod or container security
-  defaults on top regardless — the Compose file adds no `cap_drop`,
+  defaults on top regardless; the Compose file adds no `cap_drop`,
   `read_only`, or resource limits.
 * *Prefer a secret manager or orchestrator secrets* (Docker secrets,
   Kubernetes Secrets, a vault) over plaintext `.env` files in shared and
@@ -630,7 +630,7 @@ entirely.
   `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` on `object-storage` and the
   same values in `core/.env`. The compose file also hard-codes the
   `postgres` database password. The same file hard-codes
-  `PHOENIX_SQL_DATABASE_URL` with the `phoenix-db` password in it —
+  `PHOENIX_SQL_DATABASE_URL` with the `phoenix-db` password in it;
   change it outside a workstation. The RustFS web console is disabled
   (`RUSTFS_CONSOLE_ENABLE=false`); enabling it is up to you, see
   xref:main:guides/production/operations.adoc#rustfs-console[RustFS
@@ -647,7 +647,7 @@ All values below are fictitious. Replace every token and URL.
 === Core plus IaC sidecar only (Anthropic models)
 
 Only the IaC sidecar is enabled, and the model strings are the shipped
-ones — `anthropic/*` is both what the checked-in `config.yaml` selects
+ones: `anthropic/*` is both what the checked-in `config.yaml` selects
 and what the core falls back to when no `config.yaml` is loaded at all.
 The Vertex AI set is shown in the next example.
 
@@ -690,7 +690,7 @@ KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss
 KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 IAC_BINARY=tofu
 
-# Unset: the backend comes from the workspace — the target repository's
+# Unset: the backend comes from the workspace: the target repository's
 # own block, or the override the core writes when Kumoss-managed state
 # is on (the shipped default). If set, this file's values win over that
 # override, key by key (see Terraform/OpenTofu state backends), so set

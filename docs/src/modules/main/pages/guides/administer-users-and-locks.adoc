@@ -226,7 +226,7 @@ been reviewed and accepted.
 . The new panel user finds the *Admin Panel* button on their user page
   after reloading.
 
-Remember that granting a panel role does not change what the user can do
+Granting a panel role does not change what the user can do
 to infrastructure; adjust the operation role separately if needed.
 
 == Next steps

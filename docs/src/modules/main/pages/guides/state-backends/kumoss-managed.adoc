@@ -1,7 +1,7 @@
 = Kumoss-managed state
-:description: The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
+:description: The shipped default: the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 
-With the state bucket set to a name — the shipped configuration — Kumoss
+With the state bucket set to a name (the shipped configuration), Kumoss
 owns state:
 
 [source,yaml]
@@ -15,8 +15,8 @@ storage:
   region: "us-east-1"
 ----
 
-This is why it ships on: it is the quickest way to get a working remote
-backend when there is none yet, on `RUSTFS` the bucket name is the only
+This is why it ships on. It is the quickest way to get a working remote
+backend when there is none yet: on `RUSTFS` the bucket name is the only
 value involved, and the repositories need no backend block at all.
 
 State goes to the *same object-storage provider as artifacts*, in a
@@ -45,7 +45,7 @@ the state bucket with a key derived from the project.
 
 |Per project
 |The state key is assigned from a digest of the repository, cloud scope,
-and root-module path — no configuration, no per-repository setup.
+and root-module path; no configuration, no per-repository setup.
 
 |On apply
 |The pinned workspace is _moved_, not copied, so the override and the
@@ -78,9 +78,9 @@ different stores.
 --
 [tab,label="RUSTFS"]
 ****
-The bundled store, or any S3-compatible server — the default
-`storage.provider`, and the least work: in the Compose stack the bucket
-name is the only value to add.
+The bundled store, or any S3-compatible server: the default
+`storage.provider` and the least work, since in the Compose stack the
+bucket name is the only value to add.
 
 [source,yaml]
 ----
@@ -159,7 +159,7 @@ terraform {
 }
 ----
 
-With *no* static keys — the recommended production shape — the
+With *no* static keys (the recommended production shape), the
 credential lines are omitted entirely and the engine resolves
 credentials as any AWS SDK client does, from an instance profile, IRSA,
 or a workload identity on the *IaC sidecar's* container:
@@ -249,7 +249,7 @@ IRSA, instance profile)
 |===
 
 This split is easy to get wrong: with `provider: S3` and no static keys,
-giving the *core* an instance role is not enough — the engine runs in
+giving the *core* an instance role is not enough: the engine runs in
 the *IaC sidecar*, so that container needs the role too. The sidecar
 must also be able to *reach* `storage.endpoint_url`; in the Compose
 stack both `core` and `iac` are on `bridge-network`, so
@@ -293,14 +293,14 @@ State is keyed by *project*, not by session or directory:
 `project_id` is the SHA-256 hex digest of three newline-joined values:
 
 . the *normalized repository URI*, as `host/path`
-. the *cloud scope* (`scope_id` — subscription, project, or account),
+. the *cloud scope* (`scope_id`: subscription, project, or account),
   trimmed and lowercased
 . the *normalized root-module path* within the repository (`iac_path`)
 
 Normalization means two spellings of the same project never split into
 two states: the repository URI is lowercased, loses a `.git` suffix
 and a userinfo username; the module path is trimmed of surrounding and
-duplicate slashes. Only `https://` URIs reach this point — the API
+duplicate slashes. Only `https://` URIs reach this point; the API
 rejects every other scheme.
 
 [cols="1",options="header"]
@@ -313,7 +313,7 @@ rejects every other scheme.
 |`HTTPS://GitHub.com/Acme/Infra.git`
 |===
 
-An empty `iac_path` is a valid project — the root module is the
+An empty `iac_path` is a valid project: the root module is the
 repository root. The path comes from the root detection described in
 xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout]; note that the web application sends `.` for a
@@ -324,7 +324,7 @@ of them is a different project and therefore a different state file.
 
 == Locking
 
-State locking is enabled and is *native to the store* — Kumoss
+State locking is enabled and is *native to the store*; Kumoss
 provisions no extra infrastructure for it.
 
 [cols="1,2,4",options="header"]
@@ -335,8 +335,8 @@ provisions no extra infrastructure for it.
 |`use_lockfile = true`
 |The engine's S3-native lock: a `<key>.tflock` object written with a
 conditional put next to the state. *No DynamoDB table* is used or
-needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 — per those
-engines' release notes — and an S3 implementation that supports
+needed. Requires OpenTofu ≥ 1.10 or Terraform ≥ 1.10 (per those
+engines' release notes) and an S3 implementation that supports
 conditional writes (the bundled engines are {opentofu-version} and {terraform-version}).
 
 |`STORAGE_ACCOUNT`

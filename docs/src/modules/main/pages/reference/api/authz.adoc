@@ -2,7 +2,7 @@
 :description: The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
 
 The authorization service answers *may this user operate on this
-cloud resource?* — a question about a subscription, a project, or an
+cloud resource?*: a question about a subscription, a project, or an
 account, asked before Kumoss runs anything against a live environment.
 
 Contract: `contracts/openapi/authz.v1.yaml`. Default endpoint:
@@ -25,7 +25,7 @@ xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 
 The contract describes seven paths. *The core calls one of them.*
 
-`POST /api/v1/auth/authorize` — and nothing else in the core — forwards
+`POST /api/v1/auth/authorize`, and nothing else in the core, forwards
 to `POST /v1/check`. The other five `/v1` paths exist for callers of
 this service directly, or for an organization building on the bundled
 implementation, to administer that service's own user and role store.
@@ -51,7 +51,7 @@ enabled, the core *never* fails open:
 |===
 
 A `422` from the sidecar is therefore visible at the browser as a
-`502`, which matters for one specific shape of request — see
+`502`, which matters for one specific shape of request; see
 <<the-bundled-implementation>>.
 
 == Endpoints
@@ -107,7 +107,7 @@ OIDC token validation lives entirely in the core, so this service
 makes no assumption about the upstream identity provider and does not
 verify the assertion. That is only safe because the service is
 reachable from the core alone. *The core sends neither header on any
-live path* — they matter only if you call these endpoints yourself.
+live path*; they matter only if you call these endpoints yourself.
 
 == POST /v1/check
 
@@ -208,7 +208,7 @@ challenge.
 
 `services/authz/` is *permissive by default*: `POST /v1/check` returns
 `authorized: true` unconditionally. It exists so a fresh deployment
-works end to end, and it is the reason the service ships disabled — an
+works end to end, and it is the reason the service ships disabled: an
 enabled permissive authorizer is worse than none, because it looks
 like a control.
 
@@ -219,7 +219,7 @@ document summary and the `POST /v1/check` description say the
 reference implementation answers "based on whether the service's own
 Service Principal can resolve the resource". It does not: the handler
 makes no cloud call, resolves no credentials, and has no Service
-Principal. It branches on `KUMOSS_AUTHZ_PERMISSIVE` alone — true
+Principal. It branches on `KUMOSS_AUTHZ_PERMISSIVE` alone: true
 returns `authorized: true`, false returns `authorized: false` with a
 `reason` naming the cloud and project. This page describes the code's
 actual behaviour.
@@ -229,8 +229,8 @@ actual behaviour.
 exercises. Setting it to `false` flips the default to `authorized:
 false`, which makes a misconfiguration visible instead of silently
 allowing everything. A production deployment replaces the body of
-`/v1/check` with real logic — directory groups, a CMDB-driven policy,
-a cloud IAM query — rather than tuning this flag.
+`/v1/check` with real logic (directory groups, a CMDB-driven policy,
+a cloud IAM query) rather than tuning this flag.
 
 The other endpoints are backed by a JSON file at
 `KUMOSS_AUTHZ_ROLE_STORE`, default `/data/roles.json`, a
@@ -246,7 +246,7 @@ own administrative endpoints.
 *A long IaC path produces a `502`.* The web application sends the
 repository URL as `project` and the IaC path as `environment`. The
 contract caps `environment` at 32 characters, so a longer path fails
-schema validation with `422` — which the core, refusing to fail open,
+schema validation with `422`, which the core, refusing to fail open,
 surfaces as `502`. This only bites when `services.authz.enabled` is
 `true`.
 ====
@@ -298,7 +298,7 @@ authentication.
 
 The suite checks schema conformance of the responses and that invalid
 bodies do not produce undocumented `5xx` answers. It cannot check that
-the decisions are *correct* — a permissive implementation that grants
+the decisions are *correct*; a permissive implementation that grants
 everything passes it. Correctness of the policy is your own test
 suite's job.
 

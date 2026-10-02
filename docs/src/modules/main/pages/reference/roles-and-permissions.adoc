@@ -1,5 +1,5 @@
 = Roles and permissions
-:description: The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
+:description: The two independent role groups that gate Kumoss (operation roles for IaC actions and admin-panel roles for the admin panel), with the complete permission matrix and default role assignment.
 
 Every user record in Kumoss's database carries two roles from two
 independent groups: an *operation role*, which decides which
@@ -13,7 +13,7 @@ enforces, and who receives which role by default.
 Roles live in the core database, not in the authorization sidecar. The
 authorization sidecar is consulted only by `POST
 /api/v1/auth/authorize`, which calls the sidecar's `POST /v1/check` to
-decide whether the caller may work against a given cloud project — a
+decide whether the caller may work against a given cloud project: a
 check that is disabled by default (`services.authz.enabled: false`)
 and has no bearing on operation or panel roles. See
 xref:main:guides/deploy-to-production.adoc[Deploy to production] for
@@ -24,7 +24,7 @@ when to enable it.
 The two groups solve different problems and do not affect each other.
 A panel `admin` with operation role `developer` cannot run drift
 remediation, and cannot apply or merge a pull request on somebody
-else's session — acting on a session belongs to its owner only,
+else's session; acting on a session belongs to its owner only,
 whatever the panel role. Conversely, a `devops` user with no panel
 role sees only their own sessions.
 

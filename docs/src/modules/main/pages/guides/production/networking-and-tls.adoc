@@ -21,7 +21,7 @@ configuration implements:
 |Static bundle built from `client/web`
 |Single-page application fallback to `index.html`. The reference config
 sets `expires 1d` on this location, which also caches `index.html` for
-a day — serve `index.html` itself with `Cache-Control: no-cache` (or an
+a day; serve `index.html` itself with `Cache-Control: no-cache` (or an
 equivalent short-lived directive) so a new deploy is picked up
 promptly, while still caching hashed static assets aggressively.
 
@@ -45,14 +45,14 @@ admin panel links to `/monitoring/projects`.
 |The bucket's endpoint (`storage.public_endpoint_url`)
 |Reachable by browsers; the reference forwards port 9000 to RustFS and
 adds an unconditional `Access-Control-Allow-Origin: *` header. Do not
-reproduce the wildcard CORS header in production — scope it to your
+reproduce the wildcard CORS header in production; scope it to your
 real origin. With S3 or Azure this is the provider's own endpoint and
 its own CORS configuration applies instead.
 
 The endpoint must also expose two artifact metadata headers. `type`
-tells a drift diff from the plan that resolved it — without it the
+tells a drift diff from the plan that resolved it; without it the
 session timeline labels both as plain plans. `new_file` says whether a
-code change holds a whole file or a `git diff` — without it every new
+code change holds a whole file or a `git diff`; without it every new
 file renders as plain text instead of a tinted addition. The reference
 proxy sets `Access-Control-Expose-Headers: x-amz-meta-type,
 x-amz-meta-new_file`; a swapped-in S3 bucket needs
@@ -63,7 +63,7 @@ rule, and Azure Blob needs
 The client does not guess between those two spellings. The core derives
 the prefix from `storage.provider` and serves it on
 `GET /api/v1/auth/config` as `artifact_metadata_header_prefix`, so a
-prefix mismatch is impossible — only the expose-list can go wrong.
+prefix mismatch is impossible; only the expose-list can go wrong.
 |===
 
 Other settings that follow from the origin:

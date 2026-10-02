@@ -1,5 +1,5 @@
 = Configure state backends
-:description: Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.
+:description: Choose which party owns Terraform and OpenTofu state (the repository, Kumoss, or the deployment) and how core and sidecar configuration interact.
 
 Kumoss's workspaces are *ephemeral by design*: every call clones the
 repository into a fresh directory on the shared `workspaces` volume and
@@ -9,7 +9,7 @@ backend is not optional:
 
 . *A local state file would be lost.* `terraform.tfstate` written next
   to the configuration dies with the clone directory, and the next
-  session plans against empty state — proposing to create infrastructure
+  session plans against empty state, proposing to create infrastructure
   that already exists.
 . *State must be shared across runs, not across directories.* Two
   sessions on the same project get two different clone paths, so only
@@ -54,7 +54,7 @@ storage:
 `terraform_state_bucket: ""`; whitespace-only counts too. Deleting the
 key does not: the field's default in code is `kumoss-terraform-state`,
 so a `config.yaml` without `terraform_state_bucket` still manages state.
-Nor does writing the key with *no value after it* — YAML reads that as
+Nor does writing the key with *no value after it*: YAML reads that as
 null, the field is typed `str`, and the core dies at boot with
 `storage.terraform_state_bucket / Input should be a valid string
 [type=string_type, input_value=None]`.
@@ -136,7 +136,7 @@ Kumoss
 
 == How core and sidecar configuration interact
 
-The two settings are meant as *alternatives, not layers* — but if you
+The two settings are meant as *alternatives, not layers*, but if you
 set both, the engine merges them rather than picking one.
 
 [source]
@@ -171,7 +171,7 @@ the result is a backend neither side fully describes. The common
 failure is the mounted file supplying a single `key`: Kumoss's
 per-project `key = <project_id>/terraform.tfstate` is then gone and
 *every project shares one state object*. *Set
-`terraform_state_bucket: ""` whenever you set `IAC_BACKEND_CONFIG`* —
+`terraform_state_bucket: ""` whenever you set `IAC_BACKEND_CONFIG`*:
 managed state is on as shipped, so blanking it is a step you have to
 take, not a default you inherit.
 
@@ -203,7 +203,7 @@ take, not a default you inherit.
 *Any change to `config.yaml` needs an image rebuild* (`docker compose
 build core && docker compose up -d core`), because the file is baked
 into the core image. To vary it per environment without rebuilding,
-mount `config.yaml` and point `KUMOSS_CONFIG` at it — see
+mount `config.yaml` and point `KUMOSS_CONFIG` at it; see
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 
@@ -226,9 +226,9 @@ previous initialization would fail hard. What that means for you:
   deliberately skips the migration `-migrate-state` would perform.
   Kumoss never copies state between backends.
 * *A project therefore starts from empty state* after any change that
-  alters its backend or its key — switching `storage.provider`,
+  alters its backend or its key (switching `storage.provider`,
   renaming `terraform_state_bucket`, moving the root module, changing
-  the cloud scope — and the next plan proposes creating resources that
+  the cloud scope) and the next plan proposes creating resources that
   already exist.
 
 Migrate deliberately, before the next session runs, with the engine
@@ -253,7 +253,7 @@ is yours:
 * *No state migration.* Never, between any two backends. See above.
 * *No versioning or backups.* Kumoss does not enable bucket versioning,
   object lock, soft delete, or point-in-time restore on the state
-  bucket. Turn them on yourself — for state this matters far more than
+  bucket. Turn them on yourself: for state this matters far more than
   for artifacts.
 * *No lifecycle or retention policy*, and no deletion: Kumoss never
   removes a state object, so state for a decommissioned project persists
@@ -283,7 +283,7 @@ is yours:
 
 This section assumes model 2, which is what ships. If you turned it off
 with `terraform_state_bucket: ""`, the state bucket is not Kumoss's, so
-its operation — versioning, access, backups — belongs to whoever owns
+its operation (versioning, access, backups) belongs to whoever owns
 the backend each repository declares.
 
 *Find a project's state.* The core logs the target before every `init`:
@@ -318,7 +318,7 @@ elsewhere.
 encryption at rest with your own key if policy requires it; access
 restricted to the core and the IaC sidecar identities; excluded from any
 lifecycle expiry you apply to the artifacts bucket; and included in your
-backup and restore drills — this bucket is the record of what Kumoss has
+backup and restore drills, since this bucket is the record of what Kumoss has
 built.
 
 [#state-troubleshooting]
@@ -338,8 +338,8 @@ bucket name.
 
 |Core fails at boot: `Failed to initialize object storage`
 |Model 2, which is on as shipped: the state bucket cannot be created or
-reached — wrong credentials, missing `CreateBucket` permission, or an
-unreachable endpoint.
+reached (wrong credentials, missing `CreateBucket` permission, or an
+unreachable endpoint).
 |Pre-create the bucket, or grant creation rights. The artifact bucket
 and the state bucket are checked in the same step, so verify both.
 
@@ -348,13 +348,13 @@ and the state bucket are checked in the same step, so verify both.
 |`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still set to
 `rustfsadmin` in `core/.env` and got embedded into the backend block.
 |Blank both variables, rebuild the core image, and let the AWS default
-chain resolve credentials — on the *IaC sidecar*.
+chain resolve credentials, on the *IaC sidecar*.
 
 |`init` fails with a credentials or `AccessDenied` error, and the
 override contains no `access_key`
 |The *IaC sidecar* container has no ambient cloud credentials, or they
 lack access to the state bucket.
-|Give the sidecar the role/keys, not just the core. See
+|Give the sidecar its own role/keys; do not reuse the core's. See
 xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
 required].
 
@@ -377,7 +377,7 @@ the lock error) in an equivalent workspace, or remove the `.tflock`
 object / break the blob lease.
 
 |Two repositories collide on one state file
-|A shared `-backend-config` file supplies one `key` — under model 3, or
+|A shared `-backend-config` file supplies one `key`: under model 3, or
 under the mixed model 2 + model 3 case, where the mounted file's `key`
 overrides Kumoss's per-project one.
 |Declare distinct keys per repository, or use model 2 alone (leave
@@ -427,8 +427,8 @@ uid/gid `10001`. A volume from a stack that ran as root needs
 |`kumoss-terraform-state` _(shipped, and the field default)_
 |Names the bucket (blob container on `STORAGE_ACCOUNT`) that holds
 Kumoss-managed state; it is created at boot if missing. Set it to `""`
-to leave state to the repository instead — `""` and whitespace-only
-both count as blank. *Deleting the key falls back to the same field
+to leave state to the repository instead (`""` and whitespace-only
+both count as blank). *Deleting the key falls back to the same field
 default and keeps managed state on*, and a key written with no value is
 null, not blank: the core fails validation at boot.
 

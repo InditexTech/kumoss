@@ -232,7 +232,7 @@ Phoenix.
 8082; user `kumoss` 10001)
 |Core only
 |Shared workspace volume
-|*Mandatory.* *As a starting point* — harden the image and container,
+|*Mandatory.* *As a starting point*: harden the image and container,
 or implement the contract yourself to your organization's requirements.
 
 |Mapping sidecar
@@ -323,7 +323,7 @@ timeout, and in-memory job state.
 For production the recommendation is to *implement the IaC contract
 (xref:main:reference/api/iac.adoc[`contracts/openapi/iac.v1.yaml`])
 according to your organization's
-requirements*, not only to harden the bundled image. Typical reasons:
+requirements*; hardening the bundled image alone is not the goal. Typical reasons:
 running the engine on your existing Terraform or OpenTofu execution
 platform, using a workspace and state strategy other than a shared
 volume, enforcing per-project cloud identities, adding policy or
@@ -365,8 +365,8 @@ execution environment* are the security decisions you must make:
   `terraform` runs the bundled HashiCorp Terraform {terraform-version}, which is
   BUSL-1.1 licensed and makes your use subject to its terms.
 * *State backend.* The sidecar is always the process that _executes_
-  the backend, so it always needs reach to it and credentials for it —
-  whichever model you pick. By default (`storage.terraform_state_bucket`
+  the backend, so whichever model you pick, it needs network access to
+  the store and credentials for it. By default (`storage.terraform_state_bucket`
   set to `kumoss-terraform-state`, as shipped) the core configures it:
   state goes to that bucket in the same object store as artifacts, keyed
   per project, and the sidecar needs network reach to
@@ -380,7 +380,7 @@ execution environment* are the security decisions you must make:
 * *Blast radius of the sidecar's environment.* `KUMOSS_IAC_TOKEN` and
   every other variable in the IaC sidecar's environment are reachable by
   the provider plugins the generated HCL invokes, and by any
-  `local-exec` provisioner in that HCL — generated code runs with the
+  `local-exec` provisioner in that HCL: generated code runs with the
   same privileges as the sidecar process. The job's `workspace_path` is
   not restricted to `/workspaces` by the sidecar itself. Treat the
   sidecar as reachable only from the core and give it nothing more than
@@ -402,7 +402,7 @@ Your implementation may also answer `terraform_provider` and `scope_id`
 Both are optional and both are a promise: the wizard stops asking the
 user for any field your service fills in, so a value it cannot stand
 behind is a wrong answer nobody gets the chance to correct. Return
-`null` — meaning "I do not know" — whenever the catalogue is silent, and
+`null`, meaning "I do not know", whenever the catalogue is silent, and
 never infer a provider from the shape of the repository URL.
 
 === Notifications (optional, recommended)

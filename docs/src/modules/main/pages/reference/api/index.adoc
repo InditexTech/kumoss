@@ -1,5 +1,5 @@
 = HTTP APIs
-:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
+:description: The two HTTP surfaces in a Kumoss deployment: the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
 
 A Kumoss deployment has two kinds of HTTP surface, and they are
 documented from two different sources.
@@ -15,7 +15,7 @@ The *sidecar contracts* are four hand-written OpenAPI 3.1 documents in
 `contracts/openapi/`. They define what the core expects of the
 authorization, IaC, mapping, and notifications services. Here the
 specification is the source of truth and the services under
-`services/` are reference implementations of it — the core calls them
+`services/` are reference implementations of it; the core calls them
 through a generated client and never imports an implementation
 directly. Each sidecar page below documents its contract and folds in
 the behaviour of the bundled reference implementation.
@@ -63,8 +63,8 @@ the raw OpenAPI document at `/api/openapi.json`.
 
 == Where the sidecar contracts live
 
-`contracts/` is the source of truth for what every Kumoss service —
-including third-party and enterprise implementations — must satisfy:
+`contracts/` is the source of truth for what every Kumoss service,
+including third-party and enterprise implementations, must satisfy:
 
 * `contracts/openapi/<service>.v1.yaml` — one hand-written OpenAPI 3.1
   document per service. The major version is in the file name and in

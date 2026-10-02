@@ -59,14 +59,14 @@ server's audience, e.g. `api://default`)
 
 |Google Identity
 |Not supported
-|access tokens are opaque strings, not JWTs — nothing to validate against
+|access tokens are opaque strings, not JWTs; nothing to validate against
 JWKS
 |===
 
 Auth0 and Okta list `audience` because they issue access tokens for a
 registered API resource whose identifier is an arbitrary string chosen
 when you set it up at the IdP (an Auth0 API identifier, an Okta
-authorization server audience) — it cannot be derived from `client_id`,
+authorization server audience); it cannot be derived from `client_id`,
 so copy it into `audience`. Entra ID and Keycloak issue tokens whose
 `aud` is the client id itself, which the core already accepts when
 `audience` is blank.
@@ -116,14 +116,14 @@ oidc:
 That is all: for `login.microsoftonline.com` issuers the core
 automatically appends `api://\{client_id}/.default` to the login scopes,
 which requests the exposed scope(s) without needing their names. Leave
-`audience` blank — both the bare client id and `api://<client-id>` are
+`audience` blank: both the bare client id and `api://<client-id>` are
 accepted as the token audience, covering both Entra access-token
 versions.
 
 *Gotchas.* The auto-scope only triggers when `scope` is left at its
 default value (`openid profile email`); set it explicitly to request
 specific scopes (`scope: "openid profile email
-api://\{client_id}/access_as_user"` — `\{client_id}` is expanded
+api://\{client_id}/access_as_user"`; `\{client_id}` is expanded
 automatically). Sovereign clouds (`login.microsoftonline.us`, …) are not
 auto-detected: set `scope` explicitly there too. Without any `api://…`
 scope in the request, Entra issues the access token for Microsoft Graph
@@ -131,7 +131,7 @@ and the core rejects it with a 401 audience mismatch. Entra access tokens
 omit the `email` claim unless you add it (*Token configuration → Add
 optional claim → Access → `email`*); without it the panel shows
 `preferred_username` instead. Entra never emits `email_verified`, so
-`admin.default_root_email` cannot elevate an Entra user — see
+`admin.default_root_email` cannot elevate an Entra user; see
 link:#bootstrap-admin[Grant the first administrator access].
 ****
 
@@ -161,7 +161,7 @@ marked verified in Keycloak.
 ****
 . Create a Single Page Application with callback URL
   `<origin>/auth/callback` and logout URL `<origin>`.
-. Create an API (its identifier becomes the token audience) — Auth0 only
+. Create an API (its identifier becomes the token audience): Auth0 only
   issues JWT access tokens when an audience is requested.
 . Configure:
 +
@@ -173,7 +173,7 @@ oidc:
   audience: "<api-identifier>"
 ----
 +
-The frontend forwards `audience` on the authorize request — Auth0
+The frontend forwards `audience` on the authorize request: Auth0
 requires it there to issue a JWT access token. Auth0 emits `iss` with a
 trailing slash; the core accepts the issuer with or without it, so the
 `issuer_url` above works as written.
@@ -181,7 +181,7 @@ trailing slash; the core accepts the issuer with or without it, so the
 Auth0 access tokens for a custom API carry neither `email` nor
 `email_verified`, and Auth0 does not allow adding standard OIDC claims to
 them: users show without an email and `admin.default_root_email` cannot
-elevate anyone — see link:#bootstrap-admin[Grant the first administrator
+elevate anyone; see link:#bootstrap-admin[Grant the first administrator
 access].
 ****
 
@@ -210,7 +210,7 @@ suffices. Okta access tokens carry no `email` claim by default; add one
 on that authorization server (*Security → API → Authorization Servers →
 Claims*, value `user.email`) so the panel shows emails. Okta emits no
 `email_verified`, so `admin.default_root_email` cannot elevate an Okta
-user — see link:#bootstrap-admin[Grant the first administrator access].
+user; see link:#bootstrap-admin[Grant the first administrator access].
 ****
 --
 
@@ -223,8 +223,8 @@ groups only when the access token carries a matching `email` claim and
 `email_verified` never elevates. Of the providers above only Keycloak
 emits both claims in access tokens.
 
-The elevation is re-applied on every authenticated request, not only at
-login: demoting that user in the admin panel reverts on their next
+The elevation is re-applied on every authenticated request: demoting
+that user in the admin panel reverts on their next
 request. To demote them, clear `admin.default_root_email` and rebuild
 the core image.
 
@@ -251,7 +251,7 @@ curl http://localhost/api/v1/auth/config
 ----
 +
 The response carries your `issuer_url` and `client_id` (and `scope`
-with `\{client_id}` already expanded) — the exact values the frontend
+with `\{client_id}` already expanded), the exact values the frontend
 receives. An empty `issuer_url` means the running image predates the
 change.
 
@@ -259,8 +259,8 @@ change.
   provider and back to `<origin>/auth/callback`; after signing in you
   land in the wizard.
 
-. `GET /api/v1/users/me` — which the SPA calls on load, with the bearer
-  token it obtained — returns your `operation_role` and `panel_role`:
+. `GET /api/v1/users/me` (which the SPA calls on load, with the bearer
+  token it obtained) returns your `operation_role` and `panel_role`:
   `devops` and `admin` for the bootstrap administrator, `developer` and
   `null` for anyone else.
 

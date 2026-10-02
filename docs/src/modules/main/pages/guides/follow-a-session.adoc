@@ -32,9 +32,8 @@ these stages:
 
 |Validating
 |Running `init`, `validate`, and `plan` in the engine; feeding errors back
-to the generator (up to eight attempts). The drift pre-check on the touched
-to the generator (up to eight attempts). The drift pre-check on the touched
-Generating and Validating stages again, before the report starts
+to the generator (up to eight attempts). A drift pre-check re-runs
+Generating and Validating on the touched targets before the report starts
 |Minutes; longer for large roots
 
 |Report
@@ -44,8 +43,9 @@ Generating and Validating stages again, before the report starts
 
 A session is bounded: eight generate-and-validate attempts, then a drift
 check of at most two passes, then the report.
-("Pipeline completed", "Request rejected", "Session blocked", "Pipeline
-failed") can be enabled from the *Configuration* icon in the header.
+Notifications for these outcomes ("Pipeline completed", "Request
+rejected", "Session blocked", "Pipeline failed") can be enabled from the
+*Configuration* icon in the header.
 
 You can close the tab. The session continues on the server; reopen it from
 the *Sessions* panel in the footer or from your user page.
@@ -104,7 +104,7 @@ For drift sessions the report shows a *Drift Summary*, an outcome
 file, the change, and the reason for each. Two further sections appear
 only when the round left drift behind, and they mean different things:
 
-* *Drift Not Reconciled.* Drift Kumoss could *not* fix — the remediation
+* *Drift Not Reconciled.* Drift Kumoss could *not* fix: the remediation
   ran out of iterations, or the drift could not be read at all. Each
   entry gives the reason and what still differs. This is what makes an
   outcome *Partial*; act on it.

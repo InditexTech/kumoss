@@ -1,3 +1,3 @@
-The command-line tool — OpenTofu by default, or HashiCorp Terraform — that
+The command-line tool (OpenTofu by default, or HashiCorp Terraform) that
 the `iac` sidecar runs to initialize, validate, plan, and apply
 infrastructure code.

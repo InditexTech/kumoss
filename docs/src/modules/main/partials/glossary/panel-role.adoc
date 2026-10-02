@@ -1,3 +1,3 @@
-An optional, hierarchical role — `viewer`, `editor`, or `admin` — that
+An optional, hierarchical role (`viewer`, `editor`, or `admin`) that
 gates the admin panel: `viewer` reads cross-user sessions, `editor` also
 toggles a session lock, and `admin` also manages users and roles.

@@ -98,7 +98,7 @@ vendor endpoint) receives the spans. Two caveats:
   such as `OTEL_EXPORTER_OTLP_HEADERS` (for example
   `authorization=Bearer%20<token>`) may be honoured by the OpenTelemetry
   SDK when it reads the core's environment, but this is not verified in
-  this codebase — treat it as unconfirmed. The Phoenix client used for
+  this codebase; treat it as unconfirmed. The Phoenix client used for
   prompts separately reads `PHOENIX_API_KEY`. Put an authenticating
   proxy or collector in front of Phoenix if you need auth on the
   trace-export path.
@@ -212,14 +212,14 @@ generation, code generation, reporting, and so on).
 
 * *Name:* `Terraform <operation> - <outcome>`, where the operation is
   the verb that ran (`plan`, `drift` or `apply`) and the outcome is
-  `True` or `False` — so `Terraform plan - True`, `Terraform drift -
+  `True` or `False`, so `Terraform plan - True`, `Terraform drift -
   False`, `Terraform apply - True`. The operation comes from the name of
   the traced method, and the outcome is validation for `plan`, being in
   sync for `drift`, and success for `apply`.
 * *Kind:* `EVALUATOR`.
 * *Input:* the keyword arguments of the call: the targets for `plan`,
   the plan reference being read for `drift` (its workspace, plan file,
-  targets and workspace fingerprint — never the plan text), empty for
+  targets and workspace fingerprint, never the plan text), empty for
   `apply`.
 * *Output:* the Terraform plan text for a successful `plan`, the drift
   summary for a drifted workspace, the apply output for a successful

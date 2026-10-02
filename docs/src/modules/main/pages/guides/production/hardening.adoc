@@ -34,7 +34,7 @@ options:
   artifacts bucket, the Terraform state bucket (created by default,
   since `storage.terraform_state_bucket` ships non-blank; skipped only
   if you blank it explicitly to `""`), Phoenix prompt seeding, then git
-  credentials — the last only logs a warning on failure; every other
+  credentials. Only the last step logs a warning on failure; every other
   step exits the process. Readiness should be derived from the API answering `GET
   /api/v1/auth/config`; the core has no dedicated health route.
 * *The checked-in compose has no healthchecks and no restart policies*
@@ -45,7 +45,7 @@ options:
   down* under Compose. On your platform, give the core: a restart
   policy, a startup probe with a generous failure threshold (allow for
   the ~30-second Phoenix wait), and a liveness probe on `GET
-  /api/v1/auth/config` — otherwise a transient dependency race at boot
+  /api/v1/auth/config`; otherwise a transient dependency race at boot
   becomes a permanent outage.
 * *A remote state backend is mandatory, and by default Kumoss provides
   it.* The workspace is deleted after each run and the pinned workspace
@@ -56,8 +56,8 @@ options:
   under a per-project key. Set the key to `""` to make it yours to
   provide instead: every repository you onboard must then declare its
   own remote backend and the sidecar must be able to authenticate to
-  it — verify this before the first real session. Either way, *Kumoss
-  never migrates state* between backends — `init` always runs
+  it; verify this before the first real session. Either way, *Kumoss
+  never migrates state* between backends: `init` always runs
   `-reconfigure`. See xref:main:guides/configure-state-backends.adoc[].
 
 [#hardening-checklist]
@@ -77,7 +77,7 @@ optional for a shared deployment.
 * Mapping, notifications, and authorization containers already run as
   the unprivileged `kumoss` user (10001) in the bundled images; the
   `proxy` (nginx) image starts as root and drops privileges only for
-  its workers — give it a non-root image or a Kubernetes
+  its workers; give it a non-root image or a Kubernetes
   `runAsNonRoot` treatment if your policy requires it.
 * Phoenix behind authentication or network isolation; retention policy
   for traces.

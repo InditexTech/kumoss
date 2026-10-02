@@ -54,7 +54,7 @@ clears the lock. Your own sessions list shows the lock state in the
   `Failed`, shown on the apply-results screen as *Succeeded*, *Partially
   Applied*, or *Failed*, together with the execution summary, the
   resources created, updated, destroyed, or failed, and recommendations. A
-  failed apply still closes the session normally — it is not retried and
+  failed apply still closes the session normally: it is not retried and
   nothing is rolled back; read the error and start a new request.
 
 == Verify

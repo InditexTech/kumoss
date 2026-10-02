@@ -19,11 +19,11 @@ A router added without one of these is public.
 
 The dependency behaves in one of two ways:
 
-* *Blank `oidc.issuer_url`* (the checked-in default) — authentication
+* *Blank `oidc.issuer_url`* (the checked-in default): authentication
   is disabled. Every request resolves to a fixed local development
   identity, provisioned as a real row in the users table with the top
   role of both groups.
-* *`oidc.issuer_url` set* — the dependency requires an
+* *`oidc.issuer_url` set*: the dependency requires an
   `Authorization: Bearer <jwt>`, validates it against the issuer's
   JWKS, and maps the `(issuer, subject)` pair to a users row, creating
   it on first sight. A missing or invalid token is `401` with a
@@ -199,7 +199,7 @@ identifier does.
 or one containing a `..` segment is rejected. After the clone, the path
 must resolve, symlinks included, to an existing directory inside the
 repository, or the session ends `FAILED` with `runner failed: iac_path
-'<path>' is not a directory inside the repository`. First call only —
+'<path>' is not a directory inside the repository`. First call only;
 iteration calls inherit it from the session.
 
 |`session_id`
@@ -231,7 +231,7 @@ Failures on these three routes:
 A `202` is a promise that a round was scheduled, not that it
 succeeded. If the session is already running, or already finished, the
 background runner cannot take the session lock and exits without
-starting — the `202` has already been sent. Everything after the `202`
+starting; the `202` has already been sent. Everything after the `202`
 is visible only on the event stream and in the session detail.
 
 == Events
@@ -240,7 +240,7 @@ Prefix `/v1/events`. One route.
 
 `GET /api/v1/events/subscribe/\{session_id}` streams a session's
 progress as Server-Sent Events. It requires a signed-in caller with
-read access to the session — the owner, or any user with a panel role.
+read access to the session: the owner, or any user with a panel role.
 
 The response is `text/event-stream` with `Cache-Control: no-cache`,
 `Connection: keep-alive`, and `X-Accel-Buffering: no`, the last of
@@ -296,7 +296,7 @@ or a session with no pull requests is `404`.
 Terraform root-module directories it found, as POSIX paths relative to
 the repository root. The body is `{"repo_uri": "<uri>"}` and the same
 https-only, no-password-or-token rules apply. This route takes no session, so
-there is no ownership check — the wizard calls it as soon as a
+there is no ownership check; the wizard calls it as soon as a
 repository URL is entered.
 
 [source,json]
@@ -319,7 +319,7 @@ Prefix `/v1/auth`. Two routes.
 `GET /api/v1/auth/config` is *the only public route under `/v1`*,
 deliberately so: the single-page application has to read it before it
 can log in at all. Outside `/v1`, the framework's interactive
-documentation — `/api/docs`, `/api/redoc`, and `/api/openapi.json` —
+documentation (`/api/docs`, `/api/redoc`, and `/api/openapi.json`)
 is served without authentication as well. It returns the four
 non-secret OIDC settings, taken straight from `config.yaml`:
 
@@ -339,8 +339,8 @@ and it should use the local development identity. See
 xref:main:guides/enable-authentication.adoc[Enable authentication].
 
 `artifact_metadata_header_prefix` is not configurable. It is derived
-from `storage.provider` — `x-amz-meta-` for S3 and RustFS,
-`x-ms-meta-` for an Azure storage account — and is how the browser
+from `storage.provider` (`x-amz-meta-` for S3 and RustFS,
+`x-ms-meta-` for an Azure storage account) and is how the browser
 knows which header names carry an artifact's metadata when it reads one
 from a pre-signed URL. The core never reads that metadata itself, so
 this is the only way the client can learn it. See
@@ -365,7 +365,7 @@ the sidecar's `POST /v1/check`.
 
 `result` is the sidecar's `authorized` flag, `message` is its `reason`
 or a generated sentence, and `portalUrl` renames the sidecar's
-`portal_url`. When the sidecar is disabled — the shipped default — the
+`portal_url`. When the sidecar is disabled (the shipped default), the
 core answers authorized without calling anything. When it is enabled
 and unreachable the answer is `502` or `504`, and when it answers with
 a `4xx` or `5xx` the answer is `502`. It is never an allow. See
@@ -399,7 +399,7 @@ Prefix `/v1/sessions`. Two routes, both open to
 any signed-in user.
 
 `GET /api/v1/sessions/list` returns a page of session summaries. The list
-is *always* scoped to the caller's own sessions — there is no
+is *always* scoped to the caller's own sessions; there is no
 parameter that widens it.
 
 [cols="2,1,4",options="header"]
@@ -434,7 +434,7 @@ renders: `uuid`, `username`, `operation`, `provider`, `first_query`,
 `workspace` (URI, branch, root path), `current_status`, the
 `in_flight` and `is_blocked` flags, and the timestamps. `username` is
 the owning user's e-mail, or `user-<id>` when the user has none; the
-name is historical, and it is a response field only — there is no
+name is historical, and it is a response field only; there is no
 `username` query parameter.
 
 `GET /api/v1/sessions?id=\{session_id}` returns the full session
@@ -518,7 +518,7 @@ their own admin role.`
 
 Note what is *not* here. There is no route to delete a user or a
 session, and a panel role never grants the right to act on another
-user's session — continuing it, opening or merging its pull request,
+user's session: continuing it, opening or merging its pull request,
 and applying it all remain owner-only.
 
 == Mapping
@@ -542,7 +542,7 @@ mapper knows about that identifier:
 ----
 
 Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are
-the mapper's best effort, and `null` means "unknown, ask the user" —
+the mapper's best effort, and `null` means "unknown, ask the user",
 never "there is none". The wizard skips its provider and scope questions
 for whichever of them comes back non-null. A body with extra keys is
 `422`; a sidecar that times out is `504`, and one that is unreachable,
@@ -559,8 +559,8 @@ xref:main:reference/api/mapping.adoc[Mapping sidecar API].
 Prefix `/v1/notifications`. One route,
 open to any signed-in user.
 
-`POST /api/v1/notifications` submits a user-originated notification —
-today, the support request typed into the web application's header —
+`POST /api/v1/notifications` submits a user-originated notification
+(today, the support request typed into the web application's header),
 and the core relays it to the notifications sidecar. The body mirrors
 the sidecar contract's `NotificationRequest` with one deliberate
 difference: it has *no* `audience` field. The core derives the

@@ -4,12 +4,12 @@
 The mapping service answers one question: *given what my organization
 calls this thing, which repository holds its IaC?* The identifier can
 be a project name, a subscription code, a product slug, or a full git
-URL — whatever the organization already uses. The service returns the
+URL, whatever the organization already uses. The service returns the
 clone URL and, when its catalogue knows them, the Terraform provider
 the identifier deploys with and the cloud scope it deploys into.
 
 Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are
-best effort, and *`null` means "I do not know, ask the user"* — never
+best effort, and *`null` means "I do not know, ask the user"*, never
 "there is none". The wizard skips its provider and scope questions for
 any field the mapper answers, so a confident wrong answer is worse than
 `null`: the user is never prompted and never sees it. An implementation
@@ -107,14 +107,14 @@ conventional: callers correlate responses on it.
 |enum, nullable
 |The provider the deployment targets. Echoes the request's value when
 one was sent; otherwise the implementation's best-effort answer, or
-`null` for "I do not know, ask the user". Never a guess — the caller
+`null` for "I do not know, ask the user". Never a guess: the caller
 skips its provider prompt when this is non-null, so a wrong value is
 never seen or corrected.
 
 |`scope_id`
 |1-1024 chars, nullable
-|The cloud scope the deployment targets — Azure: subscription id, GCP:
-project id, AWS: account id, OCI: compartment OCID — as a best-effort
+|The cloud scope the deployment targets (Azure: subscription id, GCP:
+project id, AWS: account id, OCI: compartment OCID), as a best-effort
 answer, or `null` for "I do not know, ask the user". Same warning as
 `terraform_provider`: a wrong value sends the user into a plan against
 the wrong scope with nothing to catch it. The core does not validate
@@ -190,8 +190,8 @@ it as `repo_uri` is rejected with `422`.
 always `null`. Nothing is truncated and nothing is guessed: sniffing
 `azure` out of a `dev.azure.com` URL would conflate "hosted on Azure
 DevOps" with "deploys to Azure", and a guess is a question the user
-never gets to correct. Any other identifier — a bare name, an SSH or
-`file://` URL, a path — cannot be resolved and answers `404`. It exists
+never gets to correct. Any other identifier (a bare name, an SSH or
+`file://` URL, a path) cannot be resolved and answers `404`. It exists
 so a fresh deployment works end to end without anyone writing a real
 mapper, and it is exactly right for users who pass real HTTPS git URLs
 already.
@@ -206,7 +206,7 @@ nothing about where the lookup data lives.
 
 The contract documents `400`, `403`, `404`, and `502` for real
 catalogue backends. The passthrough emits only `404`, for an identifier
-that is not an `https://` URL — it has no catalogue to miss in and no
+that is not an `https://` URL; it has no catalogue to miss in and no
 authorization concept beyond the bearer token. It only ever answers
 `200`, `401`, `404`, `422`, or `500`. A caller
 must still handle the full set, because a catalogue implementation
@@ -246,7 +246,7 @@ authentication.
 The suite generates requests from the OpenAPI document and checks
 schema conformance of the responses. It cannot check that the
 identifiers your catalogue resolves are the *right* repositories, nor
-that a provider or scope it answers is true — that is what the
+that a provider or scope it answers is true; that is what the
 implementation's own tests are for.
 
 == Next steps

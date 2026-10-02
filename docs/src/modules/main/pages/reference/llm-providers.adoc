@@ -90,15 +90,15 @@ must provide:
   of the loop budget (see
   xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent
   tool loop]), so a model that often answers in text instead of calling
-  tools runs out of turns. This applies to agent loops specifically —
+  tools runs out of turns. This applies to agent loops specifically:
   the status/summary text calls (`generate_text`) send no tools at all.
   Models without reliable function calling (many small self-hosted
   models) fail every agent session.
 * *A completion cap of at least `llm.max_output_tokens`* (32000 by
   default), or lower that setting to what the provider allows.
-* *A finish reason of `tool_use` or `end_turn`.* Any other finish reason
-  — `length` (the completion was truncated), `content_filter`, and so
-  on — aborts the chain with `UnhandledInferenceFinishReason` instead of
+* *A finish reason of `tool_use` or `end_turn`.* Any other finish reason,
+  such as `length` (the completion was truncated), `content_filter`, and
+  so on, aborts the chain with `UnhandledInferenceFinishReason` instead of
   being retried or degraded gracefully. In practice this means
   `max_output_tokens` must comfortably fit within the model's own output
   limit, or a long response gets truncated and the session fails
@@ -657,8 +657,8 @@ provider still rejects a value (for example a completion cap below
 `litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE`
 is set to `PRODUCTION`. Running the core, or `pytest`, on your
 workstation (rather than inside the container) therefore silently
-loads `core/.env` into the process environment — including any real
-secrets it holds — even though nothing in Kumoss's own code does this.
+loads `core/.env` into the process environment (including any real
+secrets it holds), even though nothing in Kumoss's own code does this.
 The working directory does not matter: python-dotenv searches upwards
 from the directory of the *calling package*, so with the virtual
 environment at `core/.venv` the file `core/.env` is found from any

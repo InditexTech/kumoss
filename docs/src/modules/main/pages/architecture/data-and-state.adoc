@@ -32,8 +32,8 @@ xref:main:reference/database-schema.adoc[Database schema].
 == phoenix-db
 
 *phoenix-db (PostgreSQL 17)* belongs exclusively to Phoenix and stores
-traces and prompt versions — operational/LLM telemetry, fully separate
-from Kumoss's domain data.
+traces and prompt versions (operational/LLM telemetry, fully separate
+from Kumoss's domain data).
 
 == Redis
 
@@ -83,7 +83,7 @@ There is no dedicated Google Cloud Storage adapter; a GCS bucket could
 only be reached through its S3-compatible interoperability endpoint
 with the `RUSTFS` provider, which the repository does not test. For
 *state*, a first-class `gcs` backend remains available by letting the
-repository declare it — see xref:#terraform-state[below]. Presign
+repository declare it; see xref:#terraform-state[below]. Presign
 expiry is 48 hours by default, floored at 30 hours so links outlive
 cached session aggregates.
 
@@ -98,21 +98,21 @@ Because `storage.terraform_state_bucket` ships set to
 `kumoss-terraform-state`, the default is that *Kumoss manages state
 itself*, in a second bucket in the same store kept separate from the
 artifacts bucket. A deployment can instead set the value to `""` so
-that *each repository declares its own remote backend* — `azurerm`,
-`s3`, `gcs`, or anything else the engine supports — authenticated with
+that *each repository declares its own remote backend* (`azurerm`,
+`s3`, `gcs`, or anything else the engine supports), authenticated with
 the cloud credentials given to the IaC sidecar, or hand the sidecar a
 backend configuration file through `IAC_BACKEND_CONFIG` instead.
 
 As shipped, the core creates that second bucket at boot and renders its
 backend into a `backend_override.tf` in the workspace before every
-`init` — so a repository's own backend block is overridden without
+`init`, so a repository's own backend block is overridden without
 editing its committed HCL, and the iac sidecar is the container that
 must reach the store. Setting the value to `""` turns all of that off:
 no bucket is created, no override is written, and the workspace falls
 back to whatever backend the repository's own Terraform files declare.
 A bare `terraform_state_bucket:` key with no value is *not* the same as
-`""` — it parses as YAML null and fails boot with a Pydantic validation
-error — and *deleting* the key entirely also leaves managed state on,
+`""` (it parses as YAML null and fails boot with a Pydantic validation
+error), and *deleting* the key entirely also leaves managed state on,
 since the configuration default is the same
 `kumoss-terraform-state` value.
 
@@ -124,8 +124,8 @@ how core and sidecar configuration interact.
 
 The `workspaces` volume is per-run: each run clones the repository into
 a unique directory shared with the iac container, and the runner
-removes it in a `finally` block. A *successful generate round* is the
-exception — it renames its directory to `/workspaces/<session>/pinned`
+removes it in a `finally` block. A *successful generate round* is the exception: it renames its
+directory to `/workspaces/<session>/pinned`
 before the cleanup runs, so that
 directory survives on the volume until apply's `discard_pinned` or
 the next generate round replaces it. That pinned directory keeps the

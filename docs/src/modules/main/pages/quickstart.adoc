@@ -157,9 +157,9 @@ With authentication disabled this returns a JSON document with an empty
 
 |===
 
-Port 80 serves the unauthenticated Kumoss application by default, while
-port 9000 exposes presigned artifact downloads, on every interface of the
-host. Keep the stack on a machine only you can reach. The RustFS web
+By default, port 80 serves the unauthenticated Kumoss application and
+port 9000 exposes presigned artifact downloads, both on every interface
+of the host. Keep the stack on a machine only you can reach. The RustFS web
 console is disabled; to enable it, see
 xref:main:guides/production/operations.adoc#rustfs-console[RustFS
 console].
@@ -191,7 +191,7 @@ docker compose down -v         # stop and delete all volumes
 prompts survive a restart.
 
 *`down -v` deletes the session database, the artifacts, the Phoenix traces
-and prompts, and any in-progress workspaces* — and, by default, the
+and prompts, and any in-progress workspaces*, and, by default, the
 Terraform state too, since Kumoss manages it in that same object-storage
 volume. State survives only if you set `storage.terraform_state_bucket` to
 `""` so that each repository declares its own backend instead.
@@ -209,8 +209,8 @@ volume. State survives only if you set `storage.terraform_state_bucket` to
 * Decide where Terraform state should live before you point Kumoss at
   anything real:
   xref:main:guides/configure-state-backends.adoc[Configure state backends].
-* Turn on the optional sidecars — Slack notifications, resource mapping,
-  external authorization — from
+* Turn on the optional sidecars (Slack notifications, resource mapping,
+  external authorization) from
   xref:main:reference/configuration.adoc#config-services[`services`] and
   xref:main:reference/environment-variables.adoc[Environment variables and
   secrets].
@@ -221,7 +221,7 @@ volume. State survives only if you set `storage.terraform_state_bucket` to
 == Troubleshooting
 
 * *The core exits during boot.* Boot is strict and the reason is in
-  `docker compose logs core` — most often missing LLM credentials, an
+  `docker compose logs core`: most often missing LLM credentials, an
   empty `KUMOSS_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not
   yet reachable. The stack has no healthchecks, so a dependency that was
   simply slower to start leaves the core stopped rather than retrying: run

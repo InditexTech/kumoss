@@ -3,8 +3,8 @@
 
 Thank you for your interest in contributing to Kumoss. Any contribution
 is valued and appreciated; the guidelines below keep the project
-collaborative and respectful. For the local development loop —
-running the stack, the test suites, type checking, and linting — see
+collaborative and respectful. For the local development loop
+(running the stack, the test suites, type checking, and linting), see
 xref:main:guides/development.adoc[].
 
 == Prerequisites
@@ -63,7 +63,7 @@ Keep the commit history clean and organized: divide your changes into
 logical, descriptive commits. Commit subjects must follow the
 https://www.conventionalcommits.org/en/v1.0.0/[Conventional Commits
 Specification] (for example `fix(core): release session lock`); CI
-rejects other subjects. Sign your commits (`git commit -S`) — signing
+rejects other subjects. Sign your commits (`git commit -S`): signing
 is required by policy and checked in review, not enforced by any CI
 workflow.
 

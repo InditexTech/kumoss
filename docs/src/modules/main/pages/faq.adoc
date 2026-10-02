@@ -258,7 +258,7 @@ looking at it, and your organization can adapt the rule.
 The API allows a direct apply, but the web application does not offer
 a standalone Apply button. You reach apply through *Approve PR and
 Apply*, which merges the pull request and then applies, so in the web
-application the pull request is the route to apply — which is also the
+application the pull request is the route to apply, which is also the
 recommended one, because it brings your team's review and CI into the
 decision.
 ====
@@ -312,8 +312,8 @@ with one state file per project (repository + cloud scope + path).
 Your platform team can instead configure Kumoss to leave it in the
 remote backend your repository's own Terraform files declare, exactly
 as it would if you ran the engine yourself. Either way your pull
-request contains only your infrastructure code — no state file and no
-backend file — and there is nothing for you to set per session; the
+request contains only your infrastructure code (no state file and no
+backend file), and there is nothing for you to set per session; the
 details are in
 xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
@@ -325,8 +325,8 @@ backends].
 The session is planning against empty state. The usual causes are that
 your platform team turned off Kumoss-managed state and your repository
 declares no remote backend of its own, that the project's identity
-changed — the root-module path moved, the repository was renamed, or a
-different cloud scope was selected — or that your platform team changed
+changed (the root-module path moved, the repository was renamed, or a
+different cloud scope was selected), or that your platform team changed
 the state backend, which Kumoss never migrates. Report it with the
 session id; an operator can check the state location.
 ====

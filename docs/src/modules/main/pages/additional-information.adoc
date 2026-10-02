@@ -97,12 +97,12 @@ Three channels, each with its own purpose:
 
 Any signed-in user can send a support request from inside the web
 application. It goes to the people who hold the reviewer roles in your
-own Kumoss deployment — colleagues on your platform team, not the
-Kumoss project — through the channel your platform team connected
+own Kumoss deployment (colleagues on your platform team, not the
+Kumoss project) through the channel your platform team connected
 (Slack in the reference setup), with a copy addressed to you.
 
 From the browser, the chat-bubble *Support* icon in the header opens a
-form for up to 500 characters, plain text only — HTML and code
+form for up to 500 characters, plain text only: HTML and code
 formatting are rejected. The message carries your e-mail, the session
 id, the repository, branch, request, status, and a link to the session
 automatically, so you do not need to copy those in yourself. *Contact
@@ -112,7 +112,7 @@ session, and flagged as a warning when the plan deletes or recreates
 resources. "Your question has been sent successfully" confirms
 delivery; "Your question could not be sent. Notifications are
 disabled." means your deployment has not connected a notification
-channel — use your organization's usual support route and quote the
+channel; use your organization's usual support route and quote the
 session id.
 
 The form calls `POST /api/v1/notifications`. The core forwards the
@@ -127,7 +127,7 @@ Notification was not delivered.`
 === Security
 
 Report a security vulnerability through the
-https://vdp.inditex.com[disclosure submission program], in English —
+https://vdp.inditex.com[disclosure submission program], in English,
 never through a public GitHub issue. The security team acknowledges a
 report within 48 hours, investigates its severity, and develops,
 tests, and publishes a fix and an advisory. See the
@@ -138,8 +138,8 @@ researchers who report in good faith.
 == Release notes
 
 Kumoss has not published a tagged release yet. When it does, the curated
-highlights of each release — what is new and what it changes for the
-people using it — will be listed here and on the project's
+highlights of each release (what is new and what it changes for the
+people using it) will be listed here and on the project's
 https://github.com/InditexTech/kumoss/releases[GitHub Releases] page.
 
 == Changelog

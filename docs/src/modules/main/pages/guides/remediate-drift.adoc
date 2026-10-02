@@ -52,8 +52,8 @@ partial drift request with an empty text.
   generate and validate cycle per group. When every operation is
   excluded the loop stops there: re-planning would only rediscover the
   same drift. `init` is submitted once per
-  round — the initialized flag lives on the engine client built for that
-  background run — and is re-run automatically when the engine's output
+  round (the initialized flag lives on the engine client built for that
+  background run) and is re-run automatically when the engine's output
   asks for `terraform init`, for example after a remediation cycle adds a
   provider or module block.
 . *Report.* A `drift` JSON report with a summary, an outcome
@@ -61,7 +61,7 @@ partial drift request with an empty text.
   two blocks that appear only when they apply: `unreconciled_drift` for
   drift the round could not fix and `whitelisted_exceptions` for drift
   left alone on purpose under the exception rules. The report generator
-  derives the remediated resources from the branch's own changes — it
+  derives the remediated resources from the branch's own changes: it
   must call `diff_history` before reporting anything, and the diff is the
   only source it may name a remediated resource from. The two leftover
   blocks come from the round instead, not from the diff. Whitelisted
@@ -82,9 +82,9 @@ drift-only session is
 accepted with `202`, and then the background round fails with `No
 reviewed plan is pinned for this session; run a generate or drift round
 before applying.` Take the "or drift" in that message with a pinch of
-salt — only a generate round pins a plan, so a drift round does not clear
-the error. That marks the *session* `FAILED`, not just the round, so it
-can no longer be continued, applied, or reused — only a new session will
+salt: only a generate round pins a plan, so a drift round does not clear
+the error. That marks the *session* `FAILED`, and the round with it, so it
+can no longer be continued, applied, or reused; only a new session will
 do.
 
 *Apply, pull requests, compliance, locks.* You can create a pull request

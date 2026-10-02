@@ -24,8 +24,8 @@ being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
 into the phoenix node, so the eleventh container of the stack is not a
 box of its own. Two edges are left out because the
 xref:main:architecture.adoc[system architecture diagram] already
-carries them — the core's OTLP traces and prompt calls to Phoenix, and
-the proxy's port 9000 path to object storage — and the connections that
+carries them (the core's OTLP traces and prompt calls to Phoenix, and
+the proxy's port 9000 path to object storage), and the connections that
 leave the stack (LLM and git provider APIs from the core, the Slack
 webhook from notifications) appear in the notes beside the diagram
 rather than as external nodes.
@@ -116,7 +116,7 @@ to plan for before running more than one:
   the single PAT in `GIT_TOKEN`, and commits are authored, by default,
   as `Kumoss <kumoss@noreply.invalid>` (`git.author_name` /
   `git.author_email`), so
-  repository history attributes nothing to the requesting user — the
+  repository history attributes nothing to the requesting user; the
   session record in core-db is the audit trail.
 * *The artifact proxy on port 9000 answers*
   `Access-Control-Allow-Origin: *`. Presigned
@@ -149,7 +149,7 @@ to plan for before running more than one:
   therefore visible in the logs and the session status, not as error
   spans, and the sidecars are not instrumented at all.
 * *LLM audits LLM, code decides.* The compliance auditor is a separate
-  agent loop with no repository access at all — its only tool is the
+  agent loop with no repository access at all: its only tool is the
   sentinel `report_compliance_findings`; the
   pass/fail verdict is computed deterministically from the structured
   violations it reports, and the resulting database lock is what

@@ -25,7 +25,7 @@ so the filter accepts it as a change.
   wants the compartment *name* (placeholder `my-compartment`), not its
   OCID: the value is lowercased and limited to letters, digits, and
   hyphens, which an OCID never passes. Kubernetes has no cloud scope of
-  its own — the API asks for "any stable identifier", so use whatever your
+  its own: the API asks for "any stable identifier", so use whatever your
   team agreed on (a namespace name works).
 
 Kumoss never asks you for cloud or Git credentials. It uses the identity
@@ -53,7 +53,7 @@ your platform team configured.
 . *"Which IaC path?"* If the repository has more than one Terraform root,
   pick the directory to work in. With exactly one root this step is
   skipped. If none is found you see "No IaC paths found in this
-  repository. Please check the repository and try again." — usually
+  repository. Please check the repository and try again.", usually
   because the `.tf` files are not committed on the default branch or live
   under a `modules` or `examples` directory. Top-level `.tf` files are
   offered as the path `.`.
@@ -68,13 +68,13 @@ your platform team configured.
   Kubernetes namespace?". The value is trimmed and lowercased, and only
   letters, digits, and hyphens are accepted (up to 64 characters); the
   field does not advance until the value is valid. For OCI this means the
-  compartment *name*, not its OCID — an OCID contains dots and is never
+  compartment *name*, not its OCID: an OCID contains dots and is never
   accepted here. The API's own description of `scope_id` still says
   "compartment OCID", so an OCID can only be sent by calling the API
   directly.
 . *Permissions check.* Kumoss asks your organization's authorization
   service whether you may work there, sending the cloud, the repository
-  URL, and the IaC path — not the scope you just typed ("Checking
+  URL, and the IaC path, not the scope you just typed ("Checking
   permissions on ..."). If the answer is no, the reason is shown with two
   buttons: *Try again* (back to the scope) and *Start over*. In a
   deployment that has not connected such a service, which is the shipped
@@ -85,10 +85,10 @@ The session then starts and you are taken to the progress screen.
 *Errors at this stage.* The wizard always shows the fixed message "Could
 not resolve repository. Please try again." when the reachability check
 fails, whatever the underlying cause. It runs before the session is
-created — Kumoss answers an error and nothing is started. The API
-response's `detail` is just as generic — "Repository is not reachable or
+created: Kumoss answers with an error and nothing is started. The API
+response's `detail` is just as generic ("Repository is not reachable or
 access was denied." for a missing repository, a refused credential, an
-unknown host or a timeout alike — so a request cannot be used to probe
+unknown host or a timeout alike), so a request cannot be used to probe
 what sits behind a URL; the Git client's own text is written only to the
 core log, where an operator can read it. Check that the URL is reachable
 and that Kumoss's service account has access. A repository that becomes

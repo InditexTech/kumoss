@@ -2,8 +2,8 @@
 :description: The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
 
 core-db is Kumoss's system of record: who the users are, what they asked
-for, and what each run produced. Thirteen tables hold it. Everything else —
-traces, cached session facts, the generated files themselves — lives
+for, and what each run produced. Thirteen tables hold it. Everything else
+(traces, cached session facts, the generated files themselves) lives
 outside this database.
 
 :diagram-name: database-schema
@@ -18,8 +18,8 @@ rather than repeated per table:
 
 * Each table has an auto-incrementing integer `id` primary key, plus
   `created_at` and `updated_at` timestamps that carry a time zone.
-* A child's foreign key is named after its parent — `session_id`,
-  `round_id`, `user_id`, `artifact_id` — and is indexed.
+* A child's foreign key is named after its parent (`session_id`,
+  `round_id`, `user_id`, `artifact_id`) and is indexed.
 * Two uniqueness rules exist: `users` is unique on `(issuer, subject)`,
   and `rounds` is unique on `(session_id, number)`.
 
@@ -41,7 +41,7 @@ rather than repeated per table:
 
 |`rounds`
 |`sessions`
-|One turn within a session — its `number` and the `query` that drove it.
+|One turn within a session: its `number` and the `query` that drove it.
 Numbers restart at each session.
 
 |`workspaces`
@@ -92,8 +92,8 @@ full findings in the stored object.
 |One generated or modified file, by `file_name`.
 |===
 
-The four artifact-metadata tables — `terraform_plans`, `reports`,
-`compliance_checks`, and `code_changes` — each point at both a round and
+The four artifact-metadata tables (`terraform_plans`, `reports`,
+`compliance_checks`, and `code_changes`) each point at both a round and
 an artifact. The round says which turn produced it; the artifact says
 where the bytes are. The bytes themselves are never in the database.
 
@@ -111,7 +111,7 @@ Seven columns are constrained to a fixed set of values:
 
 |`panel_role`
 |`users`
-|`viewer`, `editor`, `admin` — nullable; no panel access when unset
+|`viewer`, `editor`, `admin`; nullable, no panel access when unset
 
 |`operation`
 |`sessions`
@@ -135,7 +135,7 @@ Seven columns are constrained to a fixed set of values:
 |`github.com`, `dev.azure.com`, `gitlab.com`
 |===
 
-Note that `apply` is a report type and a progress status, but not a
+`apply` is a report type and a progress status, but not a
 session operation: an apply runs inside the session that generated the
 plan rather than starting one of its own.
 
@@ -144,8 +144,8 @@ xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 
 == Deleting a session
 
-Deleting a session removes the five tables that hang off it — its
-workspaces, terraform providers, histories, statuses, and rounds — and,
+Deleting a session removes the five tables that hang off it (its
+workspaces, terraform providers, histories, statuses, and rounds) and,
 through the rounds, their pull requests, plans, reports, compliance
 checks, and code changes. Deleting a user removes that user's sessions
 the same way. This is the dashed region in the diagram.
@@ -153,7 +153,7 @@ the same way. This is the dashed region in the diagram.
 Two things stay behind. `artifacts` rows are shared and are never removed
 with a session; the objects they describe are managed in object storage
 on their own schedule. And the link from a round to its statuses does not
-cascade — statuses are cleaned up through the session that owns them, not
+cascade: statuses are cleaned up through the session that owns them, not
 through the round. That is the dashed edge in the diagram.
 
 [IMPORTANT]
@@ -175,6 +175,6 @@ by hand or recreated whenever the model changes. The upgrade that introduced
 authentication is the case most deployments hit: sessions used to be keyed by
 a `username` column and there was no `users` table at all.
 
-For the other stores — Phoenix, Redis, object storage, and the workspaces
-volume — see
+For the other stores (Phoenix, Redis, object storage, and the workspaces
+volume), see
 xref:main:architecture/data-and-state.adoc[Data and state].

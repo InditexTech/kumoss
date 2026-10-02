@@ -15,7 +15,7 @@ Kumoss turns natural-language infrastructure requests into reviewed,
 compliant Terraform-compatible code. Platform engineers and application
 developers describe what they need; Kumoss generates the code, validates
 it against the target cloud, and audits it for compliance, then hands
-over a pull request that a developer applies explicitly — every blocking
+over a pull request that a developer applies explicitly; every blocking
 decision is computed by application code, never by a model.
 
 == Get started
@@ -66,14 +66,14 @@ a reviewer clears it.
 [card]
 .xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
 Kumoss opens a pull request from the reviewed plan and applies it only
-after an explicit apply request — never on its own.
+after an explicit apply request, never on its own.
 ====
 
 == Free & open source
 
 [cta]
 ====
-Kumoss is open source and actively developed — issues, feedback, and
+Kumoss is open source and actively developed: issues, feedback, and
 contributions are welcome; see how each default component is licensed
 in xref:main:additional-information.adoc#licensing-of-the-default-stack[the licensing table].
 
@@ -99,7 +99,7 @@ Either way, your pull request never contains a state or backend file.
 .Which cloud credentials does Kumoss use?
 [%collapsible]
 ====
-The identity your platform team configured for the execution engine —
+The identity your platform team configured for the execution engine,
 never yours. An optional external authorization service can also be
 asked, at the start of each session, whether you may work on that cloud,
 repository, and path.
@@ -119,7 +119,7 @@ review.
 ====
 The API allows a direct apply, but the web application has no
 standalone Apply button. As a `developer`, the pull request is your
-route to apply — the recommended path, since it brings your team's
+route to apply, the recommended path, since it brings your team's
 review and CI into the decision.
 ====
 

@@ -52,8 +52,8 @@ configuration.
 |Delegates to application handlers
 
 |Application layer (`core/src/application`)
-|The generate, drift and apply handlers, and the services they orchestrate
-— filtering, reporting, pull requests, session orchestration. A factory
+|The generate, drift and apply handlers, and the services they orchestrate:
+filtering, reporting, pull requests, session orchestration. A factory
 builds a fresh object graph per run.
 |Composes domain services
 
@@ -67,20 +67,20 @@ compliance audit, artifact storage, persistence and tracing.
 |Adapters behind those ports: OIDC, the LiteLLM router, git and workspaces,
 the iac-sidecar driver, Jinja layouts, object storage, PostgreSQL, Redis
 and OpenTelemetry. The generated sidecar clients are *not* part of this
-layer — they live in `core/src/clients`, a sibling package.
+layer; they live in `core/src/clients`, a sibling package.
 |Implements domain ports
 
 |authz service
 |Cloud project access checks, disabled by default. Disabled, the core
 answers "authorized" without calling it; enabled, an unreachable sidecar is
-an error, never an allow. Its user and role endpoints are unused — Kumoss
+an error, never an allow. Its user and role endpoints are unused; Kumoss
 keeps those in core-db.
 |Called from the authorize route with the caller's identity; container-local
 JSON role store
 
 |iac service
-|Runs one IaC engine command per asynchronous job — `init`, `validate`,
-`plan`, `show`, `apply` — returning a job id to poll. OpenTofu by default,
+|Runs one IaC engine command per asynchronous job (`init`, `validate`,
+`plan`, `show`, `apply`), returning a job id to poll. OpenTofu by default,
 selected with `IAC_BINARY`. A reference implementation; production
 deployments are expected to supply their own.
 |Shares the `workspaces` volume with the core
@@ -117,7 +117,7 @@ aggregates. No pub/sub, no locks.
 drift JSON and code changes, served to the browser by presigned URL.
 `storage.provider` switches to AWS S3, Azure Blob Storage or any other
 S3-compatible endpoint. Engine state lives in the *separate*
-`storage.terraform_state_bucket` — on by default as shipped.
+`storage.terraform_state_bucket`, on by default as shipped.
 |Core through the SDK, browser through Nginx :9000, and the iac sidecar for
 state
 
@@ -146,8 +146,8 @@ environment file
 
 |Git hosting
 |Clone and push over the git CLI; pull requests through the GitHub, Azure
-DevOps or GitLab REST APIs. Public SaaS hosts only — `github.com`,
-`gitlab.com` without subgroups, `dev.azure.com` — over HTTPS. GitHub
+DevOps or GitLab REST APIs. Public SaaS hosts only (`github.com`,
+`gitlab.com` without subgroups, `dev.azure.com`) over HTTPS. GitHub
 Enterprise Server and self-managed GitLab are not supported today.
 |Selected by `git.provider`
 |===

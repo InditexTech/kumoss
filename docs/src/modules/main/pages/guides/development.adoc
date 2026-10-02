@@ -1,7 +1,7 @@
 = Development
 :description: Contribute to Kumoss: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
 
-This guide covers contributing to Kumoss itself — running the repository's
+This guide covers contributing to Kumoss itself: running the repository's
 own test suites, checks, and tooling. It does not cover deploying or
 operating Kumoss; for that, see xref:main:quickstart.adoc[] and
 xref:main:guides/deploy-to-production.adoc[].
@@ -65,7 +65,7 @@ uv pip install --system --group tooling -r pyproject.toml
 basedpyright
 ----
 
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+`pyrightconfig.json` only includes `src/`: tests are not type-checked.
 
 == Frontend checks
 

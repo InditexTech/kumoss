@@ -23,7 +23,7 @@ services:
 ----
 
 `init` then runs with `-backend-config=/etc/kumoss/backend.hcl`. The
-file holds backend _values_ only — a `.hcl` or `.tfbackend` partial
+file holds backend _values_ only: a `.hcl` or `.tfbackend` partial
 configuration:
 
 [source,hcl]
@@ -34,7 +34,7 @@ region = "eu-west-1"
 
 The file names the state store but carries no credentials for it: as
 under the repository-declared model, the sidecar's ambient credentials
-must be granted access to that store as well as to the provider — see
+must be granted access to that store as well as to the provider; see
 xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
 two credential grants].
 

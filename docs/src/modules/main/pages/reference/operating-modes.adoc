@@ -34,7 +34,7 @@ calls `POST /api/v1/auth/authorize`. With the shipped configuration
 (`services.authz.enabled: false`) no external check runs at all: the core
 answers "authorized" without contacting anything. When the sidecar is
 enabled, the core sends the cloud, the *repository URL* as the project
-name, and the *IaC path* as the environment — the scope id is never part
+name, and the *IaC path* as the environment; the scope id is never part
 of that check.
 
 *Asynchronous execution.* Every IaC route answers `202 Accepted` with a
@@ -57,8 +57,8 @@ run is in progress; a failed session must be replaced by a new one.
 (the request was declined or answered without changes), or `failed`.
 
 *Artifacts.* The core uploads artifacts to object storage under
-`sessions/<session>/rounds/<round>/` — code-change files, plan text, drift
-reports, and JSON reports — and the session detail view renders them
+`sessions/<session>/rounds/<round>/` (code-change files, plan text, drift
+reports, and JSON reports), and the session detail view renders them
 inline, fetched through presigned URLs; nothing is offered as a file
 download. Panel users can also see them in the admin panel (see
 xref:main:guides/administer-users-and-locks.adoc[Administer users and

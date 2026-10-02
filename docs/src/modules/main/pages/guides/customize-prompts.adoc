@@ -65,8 +65,8 @@ The loader rejects any other depth, scope, type, or name at startup
 with a `PromptSeedLoadError`, for example `Invalid prompt name
 'Bad-Name' in ...; must match ^[a-z0-9_]+$`. That check only applies to
 files it actually loads: the loader globs `*.yaml` only, so a `.yml`
-file, or any other extension, is silently skipped rather than rejected
-— a typo in the extension produces no error at all, just a missing
+file, or any other extension, is silently skipped rather than rejected:
+a typo in the extension produces no error at all, just a missing
 prompt.
 
 === Qualified name
@@ -137,7 +137,7 @@ Phoenix.
 
 Every shipped seed provides both keys and starts with the repository's
 SPDX comment header. The loader reads `body` and `description` and
-ignores everything else in the mapping — an extra key is neither
+ignores everything else in the mapping: an extra key is neither
 rejected nor surfaced anywhere; it is dead weight in the file.
 
 == How seeding works
@@ -415,7 +415,7 @@ set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
 an already seeded Phoenix database does not receive them until the core
 restarts, because only new names are pushed.)
 
-Also note that the loader's name pattern permits a leading underscore
+The loader's name pattern permits a leading underscore
 while Phoenix rejects names starting with `_`; avoid them.
 
 [#drift-exception-rules]
@@ -453,7 +453,7 @@ bullet, and name the resource address, type, attribute, tag, namespace
 or naming pattern precisely enough that an agent can match it against a
 sentence like "In `main.tf`, for `azurerm_key_vault.kvt_001`: update the
 tag `owner` from `platform` to `payments`." Say what must not be
-reconciled, and why — the reason is what the agent quotes back in the
+reconciled, and why; the reason is what the agent quotes back in the
 report.
 
 The shipped seed has three sections, and they are the rule kinds the
@@ -491,7 +491,7 @@ useful as rules that name a whole resource.
 With those rules in place, a drift round that found "Delete resource
 `azurerm_storage_account.sta_shared_001` in `rg-shared-platform`"
 remediates nothing, stops rather than re-planning, and lists the resource
-under `whitelisted_exceptions` in the report, quoting the carve-out — with
+under `whitelisted_exceptions` in the report, quoting the carve-out, with
 the outcome still `Succeeded`, because nothing was left unreconciled
 involuntarily.
 
@@ -606,7 +606,7 @@ only pick names that appear in `resources_list`, and every name it
 picks is then fetched, so a name listed there without a matching
 resource prompt aborts the run. The reverse is just as important: a
 resource prompt that exists but is not named in the cloud's
-`resources_list` is never selected — the compositor has no other way to
+`resources_list` is never selected: the compositor has no other way to
 discover it, and the loader does no cross-check between the seed files
 on disk and the `resources_list` catalogue at startup. Whenever you add
 a resource seed, add its name to `resources_list` in the same change,
@@ -620,7 +620,7 @@ All examples are fictitious and use the repository conventions.
 === A provider-wide guideline seed
 
 File `core/prompts/seed/aws/guidelines/networking.yaml` (shipped; body
-shortened here for space — see the file for the full text), producing the
+shortened here for space; see the file for the full text), producing the
 Phoenix prompt `aws-guidelines-networking`:
 
 [source,yaml]
@@ -650,7 +650,7 @@ body: |
 === A resource (component) seed
 
 File `core/prompts/seed/aws/resources/s3_bucket.yaml` (shipped; body
-shortened here for space — see the file for the full text), producing
+shortened here for space; see the file for the full text), producing
 `aws-resources-s3_bucket`:
 
 [source,yaml]
@@ -703,8 +703,8 @@ entry with no matching resource prompt aborts the run when picked.
 *List style is not uniform across clouds.* AWS, Azure, GCP, and OCI name
 entries in backticks with a trailing description, as above; the
 Kubernetes `resources_list` uses plain bullets with no backticks at all
-(`- namespace`, `- deployment`, and so on). There is no enforced format
-— the compositor only needs the bare name to appear somewhere in the
+(`- namespace`, `- deployment`, and so on). There is no enforced format:
+the compositor only needs the bare name to appear somewhere in the
 body. When you edit a `resources_list`, follow the style already used
 in that specific file rather than copying another cloud's convention.
 

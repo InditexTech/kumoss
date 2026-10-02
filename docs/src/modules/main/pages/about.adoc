@@ -8,12 +8,12 @@ and Kumoss's agents generate the corresponding code, guided by the
 organization's own standards.
 
 It runs as a layered FastAPI orchestration core alongside four
-contract-first FastAPI sidecars — the IaC engine, repository mapping,
-notifications, and authorization — behind an nginx edge that also serves a
+contract-first FastAPI sidecars (the IaC engine, repository mapping,
+notifications, and authorization) behind an nginx edge that also serves a
 React single-page application and proxies the API.
 
-Every state change and every blocking decision — the in-flight guard,
-validation, the compliance verdict, the session lock, apply — is computed
+Every state change and every blocking decision (the in-flight guard,
+validation, the compliance verdict, the session lock, apply) is computed
 by application code, not by a model, and applying a reviewed plan is always
 a human action.
 
@@ -24,9 +24,9 @@ a human action.
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
-The core platform components — the `core` orchestration API, the `proxy`
+The core platform components (the `core` orchestration API, the `proxy`
 (nginx), `core-db` (PostgreSQL), `redis`, `object-storage`, and the
-`phoenix` observability stack — run as shipped and are configured through
+`phoenix` observability stack) run as shipped and are configured through
 `config.yaml` and the `.env` files. You never reimplement them; in
 production you replace only the bundled datastores.
 

@@ -1,5 +1,5 @@
 = Repository layout
-:description: How Kumoss finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
+:description: How Kumoss finds Terraform roots in a repository: the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
 
 When a repository URL is entered, Kumoss looks inside it for the
 directories that hold Terraform-compatible code and offers them as the
@@ -21,9 +21,9 @@ the temporary clone is deleted afterwards.
   file.
 . A candidate is *dropped* when any segment of its path is `modules`,
   `examples`, `example`, or `.terraform`.
-. A candidate is a *root* when it contains a marker file —
-  `main.tf`, `provider.tf`, `providers.tf`, `backend.tf`,
-  `terraform.tf`, `versions.tf` — or any `.tfvars` / `.tfvars.json`
+. A candidate is a *root* when it contains a marker file
+  (`main.tf`, `provider.tf`, `providers.tf`, `backend.tf`,
+  `terraform.tf`, `versions.tf`) or any `.tfvars` / `.tfvars.json`
   file.
 . A candidate without a marker is still a root when it is the deepest
   `.tf` directory on its branch of the tree and does not sit under a
