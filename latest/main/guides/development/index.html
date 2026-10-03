@@ -819,25 +819,24 @@ image.</p>
 <h2 id="core-tests"><a class="anchor" href="#core-tests"></a>Core tests</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Python 3.13, <code>uv</code>. <code>pytest</code> is <strong>not</strong> declared in <code>core/pyproject.toml</code>
-(its <code>tooling</code> dependency group holds <code>basedpyright</code>, <code>debugpy</code>,
-<code>openapi-python-client</code>, and <code>ipython</code>, not <code>pytest</code>), so install it
-explicitly before running the suite:</p>
+<p>Python 3.13, <code>uv</code>. <code>pytest</code> and <code>pytest-cov</code> are part of the <code>tooling</code>
+dependency group, so sync the project first:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pip</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> install</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --system</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --prerelease=allow</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -r</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pyproject.toml</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pip</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> install</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --system</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pytest</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pytest-asyncio</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">python</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -m</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pytest</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --asyncio-mode=auto</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> sync</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --frozen</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --group</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tooling</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --no-sync</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pytest</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Async tests are unmarked, so <code>--asyncio-mode=auto</code> is required.
+<p>Async tests use <code>unittest.IsolatedAsyncioTestCase</code> (no pytest-asyncio
+plugin, no <code>--asyncio-mode</code> flag).
 <code>core/tests/conftest.py</code> supplies placeholder values for the LLM
-credential and database URL that the configuration module validates at
-import; suites that talk to PostgreSQL or Redis need the compose stack
-(or point <code>KUMOSS_SQL_DATABASE_URL</code> and <code>KUMOSS_REDIS_URL</code> at your own
+credential, the database URL and the mandatory <code>NEBULA_IAC_TOKEN</code> that
+the configuration module validates at import; suites that talk to
+PostgreSQL or Redis need the compose stack (or point
+<code>NEBULA_SQL_DATABASE_URL</code> and <code>NEBULA_REDIS_URL</code> at your own
 instances).</p>
 </div>
 </div>
