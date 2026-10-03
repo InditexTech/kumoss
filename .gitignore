@@ -118,6 +118,10 @@ docs/diagrams/*.html
 # is docs/src/modules/main/images/<diagram>.png
 docs/diagrams/*.visual-check.*
 
+# Source video masters; the published, web-encoded copy is
+# docs/src/modules/main/images/kumoss-overview.mp4
+docs/media/
+
 # Coverage artifacts (python)
 coverage.xml
 .coverage*
