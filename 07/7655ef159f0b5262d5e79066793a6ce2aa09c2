@@ -1,0 +1,21 @@
+.github/workflows/pr-verify.yml
+  s_19d47b833d6463::t_aaf3254de7e655 54-59
+.github/workflows/security-scans.yml
+  s_19d47b833d6463::t_5cb40ddedfa603 70-80,108-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "077655ef159f0b5262d5e79066793a6ce2aa09c2",
+  "prompts": {},
+  "sessions": {
+    "s_19d47b833d6463": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_19d47b833d6463",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

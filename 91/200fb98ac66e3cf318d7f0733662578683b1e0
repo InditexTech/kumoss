@@ -1,0 +1,135 @@
+docs/src/modules/main/pages/reference/repository-layout.adoc
+  s_139bec6131e6b2::t_df4988bea67212 2,24-26
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_139bec6131e6b2::t_a0243a47719d26 111,113,153,234,246-249,280,286-287,380,382,395,405,413-414,438,492,618,633,650,693
+docs/src/modules/main/pages/additional-information.adoc
+  s_139bec6131e6b2::t_d7e6c2c8b0f2d7 100-101,105,115,130,141-142
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_139bec6131e6b2::t_1d9c05e0a27de5 93,99-101,660-661
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_139bec6131e6b2::t_06138ec7176d90 140,418,456,494,609,623,653
+  s_139bec6131e6b2::t_e36e57b13715e8 68-69,706-707
+docs/src/modules/main/partials/glossary/drift.adoc
+  s_e0e37102de7ca6::t_958a685126a9c8 1-2
+docs/src/modules/main/pages/reference/api/index.adoc
+  s_139bec6131e6b2::t_4730f13b6be47e 2
+  s_139bec6131e6b2::t_284d35adcc3a60 18,66-67
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_771fc9498deddb::t_d8ed4de51e0240 55-56,64,85-87
+docs/src/modules/main/pages/reference/api/authz.adoc
+  s_139bec6131e6b2::t_8d4a245d2d1a17 5,28,54,110,211,222,232-233,249,301
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_139bec6131e6b2::t_51541327af9421 41,45-46,85,114,153-154,219,265-266,294,306,308,395,664,732,751,761-762,796,802,813,826,848-849,883,893-894,934-935,946-947,949-950,987,989,1021-1022,1054,1068
+docs/src/modules/main/pages/guides/state-backends/kumoss-managed.adoc
+  s_139bec6131e6b2::t_80b759f8bfae67 4,48,81,162,252,296,303,316,327,338-339
+  s_139bec6131e6b2::t_9fa7467bdc0774 2
+docs/src/modules/main/pages/faq.adoc
+  s_139bec6131e6b2::t_0e1ff1fee61d21 261,315-316,328-329
+docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc
+  s_139bec6131e6b2::t_456b01f982115f 26,29,74-75,103-105
+docs/src/modules/main/pages/guides/production/operations.adoc
+  s_139bec6131e6b2::t_bf8b212c518c88 29,55,66-67,135-136
+docs/src/modules/main/partials/glossary/iac-engine.adoc
+  s_e0e37102de7ca6::t_62e2850945ea34 1
+docs/src/modules/main/pages/architecture/deployment-view.adoc
+  s_139bec6131e6b2::t_d6d72c02f84b96 27-28,119,152
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_139bec6131e6b2::t_1c8e736d0b0026 28,56,71,77,88-89,91
+docs/src/modules/ROOT/pages/index.adoc
+  s_139bec6131e6b2::t_52183951c8bc3e 18,69,76,102,122
+docs/src/modules/main/pages/reference/database-schema.adoc
+  s_139bec6131e6b2::t_a9b51c7bbf36ad 5-6,21-22,44,95-96,114,138,147-148,156,178-179
+docs/src/modules/main/pages/reference/roles-and-permissions.adoc
+  s_139bec6131e6b2::t_fdbc8c68108452 2,16,27
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_139bec6131e6b2::t_09fcb9602cefca 12,57,139,174,206,229,231,256,286,321,341-342,351,357,380,430-431
+  s_139bec6131e6b2::t_5811c22778f4ca 2
+docs/src/modules/main/pages/quickstart.adoc
+  s_139bec6131e6b2::t_7d56b994184f46 194,212-213,224
+docs/src/modules/main/pages/guides/state-backends/sidecar-supplied.adoc
+  s_139bec6131e6b2::t_620dc0b350a8db 26,37
+docs/src/modules/main/pages/reference/terraform-providers.adoc
+  s_139bec6131e6b2::t_14ab98d9929440 49-50
+  s_139bec6131e6b2::t_df0a32662ed2e7 67,77,99,105,119,132,175,199,206,228,273,282,309,333,381,385,392-393,414,422,425,434,503,558,580-581,654,813
+docs/src/modules/main/partials/glossary/pinned-plan.adoc
+  s_e0e37102de7ca6::t_d6bdc2239af0ff 4
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_139bec6131e6b2::t_6aaca7ef8c3acb 229
+docs/src/modules/main/pages/architecture/data-and-state.adoc
+  s_139bec6131e6b2::t_4bd447ce21c5dd 35-36,86,101-102,108,114-115,127-128
+docs/src/modules/main/partials/glossary/compliance-audit.adoc
+  s_e0e37102de7ca6::t_c910d7dc2b10e3 2
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_139bec6131e6b2::t_0dbc4718f88678 22,26,202,234,243,299,322,342-343,368,402,437,521
+  s_139bec6131e6b2::t_8fc48e014aff03 545,562-563
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_139bec6131e6b2::t_be0031955acaa5 2
+  s_139bec6131e6b2::t_9544914a666962 27,202,215-216,274,277,279,387,389,405,422,494,529-530,539,556,567,579,622-623,649,685,688,709,720,743-744,814
+docs/src/modules/main/pages/guides/development.adoc
+  s_139bec6131e6b2::t_d2f22d5e429413 4,68
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_771fc9498deddb::t_d7b6387e0feda4 101,215,222
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_139bec6131e6b2::t_2d9f999cf20366 106
+docs/src/modules/main/pages/guides/production/hardening.adoc
+  s_139bec6131e6b2::t_271ef15f80440d 37,48,59-60,80
+docs/src/modules/main/pages/about.adoc
+  s_139bec6131e6b2::t_9c19cef14ae16e 11-12,15-16,27,29
+docs/src/modules/main/pages/reference/api/mapping.adoc
+  s_139bec6131e6b2::t_f6896fe215bb43 7,12,110,116-117,193-194,209,249
+docs/src/modules/main/pages/contributing.adoc
+  s_139bec6131e6b2::t_60f2e9ca4144a4 6-7,66
+docs/src/modules/main/pages/reference/api/notifications.adoc
+  s_139bec6131e6b2::t_fc89c206665ddf 7,26,64,147,173,222,236
+  s_139bec6131e6b2::t_0e54b98a007f8b 2
+docs/src/modules/main/pages/guides/production/networking-and-tls.adoc
+  s_139bec6131e6b2::t_76e7aa22a2365e 24,48,53,55,66
+docs/src/modules/main/pages/architecture.adoc
+  s_139bec6131e6b2::t_77383f6a28f462 55-56,70,76,82-83,120,149-150
+docs/src/modules/main/partials/glossary/panel-role.adoc
+  s_e0e37102de7ca6::t_1e7ae828e0ed86 1
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_139bec6131e6b2::t_5bbb434f5492db 235,326,368,383,405
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_139bec6131e6b2::t_6fb82155bc1d04 20,48,59,81,177,258,333,343-344,426,736,742,848,908-909
+docs/src/modules/main/pages/guides/merge-and-apply.adoc
+  s_139bec6131e6b2::t_8280741be66dca 57
+docs/src/modules/main/pages/guides/enable-authentication.adoc
+  s_139bec6131e6b2::t_6807caba2a60e6 62,69,119,126,134,164,176,184,213,226-227,254,262-263
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_139bec6131e6b2::t_244f654ddd71d2 7,29,79,86,89,111,142,167,174,186-188,229-230
+docs/src/modules/main/pages/reference/operating-modes.adoc
+  s_139bec6131e6b2::t_d4cb05aa3ed060 37,60-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "91200fb98ac66e3cf318d7f0733662578683b1e0",
+  "prompts": {},
+  "sessions": {
+    "s_139bec6131e6b2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "c0799409-51d8-4290-80d0-61d13add7a82",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    },
+    "s_771fc9498deddb": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "803f5d37-a799-4383-9922-c70d725b7152",
+        "model": "unknown"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    },
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}

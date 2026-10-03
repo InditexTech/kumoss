@@ -1,0 +1,21 @@
+.github/workflows/sonar.yml
+  s_1c032065daa355::t_4cd43d43a34057 36,42,72-76
+core/tests/conftest.py
+  s_1c032065daa355::t_734884da7b55da 26-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b938c7e937f0f093347ca4939323899913966d58",
+  "prompts": {},
+  "sessions": {
+    "s_1c032065daa355": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_1c032065daa355",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+services/iac/pyproject.toml
+  s_c8486b329bdfb1::t_163fa49f3eb536 24
+.github/workflows/sonar.yml
+  s_c8486b329bdfb1::t_5fcedbec2b7b2d 1-131
+services/authz/pyproject.toml
+  s_c8486b329bdfb1::t_a2bc22701c7e12 18
+services/notifications/pyproject.toml
+  s_c8486b329bdfb1::t_aea2bfc442c729 19
+core/pyproject.toml
+  s_c8486b329bdfb1::t_2e8a8d56274046 39-40
+services/mapping/pyproject.toml
+  s_c8486b329bdfb1::t_46275a81ae8e0c 19
+.gitignore
+  s_16ad186f2d3033::t_46087034e599a5 120-123
+client/web/vitest.config.ts
+  s_16ad186f2d3033::t_89b660e41845f9 19
+core/uv.lock
+  s_16ad186f2d3033::t_99e32722749ede 728-811,1859-1867,2439-2440,2473-2474,2869,2885-2893,3382-3411,3914-3915
+services/authz/uv.lock
+  s_16ad186f2d3033::t_0cbdd1953ec373 69-152,473,483,632-645
+services/iac/uv.lock
+  s_16ad186f2d3033::t_c134c5fcd6fc42 326-409,839,857,1078-1091
+services/mapping/uv.lock
+  s_16ad186f2d3033::t_d8f1ed4bc3ac2a 81-164,486,497,662-675
+services/notifications/uv.lock
+  s_16ad186f2d3033::t_2de0e662cb5ffe 69-152,473,486,636-649
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56bea7340bef68bf949de81de279d40163f166e1",
+  "prompts": {},
+  "sessions": {
+    "s_16ad186f2d3033": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a417566-bd6c-4a91-96b8-a5f32ac707af",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    },
+    "s_c8486b329bdfb1": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_c8486b329bdfb1",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+.github/workflows/codeql.yml
+  s_a92e55edbf7530::t_f2e57c2125d7a6 8-9,11,27-30
+.github/workflows/scorecard-analysis.yml
+  s_a92e55edbf7530::t_c4313e7307193c 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6005e53679078e64b2e37d8b8f8f7cb3dc70c9f",
+  "prompts": {},
+  "sessions": {
+    "s_a92e55edbf7530": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_a92e55edbf7530",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

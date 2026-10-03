@@ -1,0 +1,25 @@
+.github/workflows/docouture-kroki-cache-warm.yml
+  s_86ed2e78e0e184::t_9e5609c891b66d 84
+.github/workflows/docouture-pr-verify.yml
+  s_86ed2e78e0e184::t_af9f0167454a57 63
+.github/workflows/docouture-publish.yml
+  s_86ed2e78e0e184::t_e0a94b1f1dd0e8 69
+.github/workflows/docouture-release.yml
+  s_86ed2e78e0e184::t_016bea3b7579ba 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8c97374200beedb5d615a96da350fa525e45f8a0",
+  "prompts": {},
+  "sessions": {
+    "s_86ed2e78e0e184": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_86ed2e78e0e184",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
