@@ -1,0 +1,27 @@
+docs/src/modules/main/pages/guides/configure-state-backends.adoc
+  s_b8981db57dcd26::t_f002cdc702cdaf 2,6-9,15,17-18,20-30,32-33,35,37-60,65-69,81-85,87-95,97-108,111-115,117-118,120-135,137-157,160-162,164,166-168,170-172,174-176,178-180,183,185-196,198-203,206-219,228-230,237-250,253-254,256-257,265,267-269,271-276,278-281,283-286,288-291,294-298,301-309,313-316,318-320,322-324,327-329,331-334,336-339,342,344-348,350-353,355,358,360-365,367
+docs/src/modules/main/pages/guides/production/operations.adoc
+  s_b8981db57dcd26::t_4927acc00a907e 57
+docs/src/modules/main/pages/guides/state-backends/kumoss-managed.adoc
+  s_b8981db57dcd26::t_ef182ceef9c389 22-27,228-233,254-257,358-415
+docs/src/modules/main/pages/guides/state-backends/repository-declared.adoc
+  s_b8981db57dcd26::t_5a706775b2a20b 4-36,42-72,74-81,83-98,111-173,178-180,195-199,215-216,219-227
+docs/src/modules/main/pages/guides/state-backends/sidecar-supplied.adoc
+  s_b8981db57dcd26::t_a786e9e3422170 4-7,9-36,38-54,56-64,66-67,76-99,101,103-108,110-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8cc5a69038a098dd12212612ec49c36aa1ea9ddf",
+  "prompts": {},
+  "sessions": {
+    "s_b8981db57dcd26": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3f2a24d5-d7fb-4f28-9486-f6de3a1ffe4a",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
