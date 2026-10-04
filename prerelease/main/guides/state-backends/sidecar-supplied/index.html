@@ -767,19 +767,82 @@
 </aside>
 
 <article class="doc">
+<div id="preamble">
+<div class="sectionbody">
 <div class="paragraph">
-<p>For a deployment that owns the backend decision centrally, the IaC
-sidecar accepts a backend configuration file. An absolute path is
-resolved <strong>inside the sidecar container</strong>, so mount the file there; a
-relative path is resolved against the workspace, which is how a file
-carried by the target repository is reached:</p>
+<p>Use this model when the platform team, not each repository, decides
+where state goes. The IaC sidecar passes a backend configuration file to
+every <code>init</code> as <code>-backend-config=&lt;file&gt;</code>, and its values override the
+repository&#8217;s backend block key by key.</p>
 </div>
-<div class="listingblock">
+</div>
+</div>
+<div class="sect1">
+<h2 id="prerequisites"><a class="anchor" href="#prerequisites"></a>Prerequisites</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Kumoss-managed state turned off with <code>storage.terraform_state_bucket:
+""</code> (see
+<a href="../../configure-state-backends/#turn-managed-state-off" class="xref page">Turn
+managed state off</a>). Combined with managed state, the file merges into
+the core&#8217;s override and produces a backend neither side fully
+describes (see
+<a href="../../configure-state-backends/#precedence" class="xref page">Which value
+wins</a>).</p>
+</li>
+<li>
+<p><strong>Every repository declares the backend type</strong>, even with an empty
+body, for example <code>terraform { backend "azurerm" {} }</code>. A file holds
+values only and cannot introduce a backend where none is declared.</p>
+</li>
+<li>
+<p>An identity for the IaC sidecar that can read and write the state
+store. The file carries no credentials; see
+<a href="../repository-declared/#two-credential-grants" class="xref page">the
+two credential grants</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="steps"><a class="anchor" href="#steps"></a>Steps</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Write the backend values as a <code>.hcl</code> or <code>.tfbackend</code> partial
+configuration:</p>
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-1-tab-1" role="tab" aria-selected="true" aria-controls="tabs-1-panel-1" tabindex="0" data-tab-value="Azure"><span class="dt-tabs-item__label">Azure</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-2" role="tab" aria-selected="false" aria-controls="tabs-1-panel-2" tabindex="-1" data-tab-value="AWS"><span class="dt-tabs-item__label">AWS</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-1-panel-1" role="tabpanel" aria-labelledby="tabs-1-tab-1" tabindex="0" data-tab-value="Azure"><div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># services/iac/.env</span></span>
-<span class="line"><span>IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># backend.hcl</span></span>
+<span class="line"><span>subscription_id      = "_STATE_SUBSCRIPTION_ID_"</span></span>
+<span class="line"><span>resource_group_name  = "tfstate-rg"</span></span>
+<span class="line"><span>storage_account_name = "acmecentraltfstate"</span></span>
+<span class="line"><span>container_name       = "tfstates"</span></span>
+<span class="line"><span>use_azuread_auth     = true</span></span></span></code></pre>
 </div>
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-2" role="tabpanel" aria-labelledby="tabs-1-tab-2" tabindex="0" data-tab-value="AWS"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># backend.hcl</span></span>
+<span class="line"><span>bucket       = "acme-central-tfstate"</span></span>
+<span class="line"><span>region       = "eu-west-1"</span></span>
+<span class="line"><span>use_lockfile = true</span></span></span></code></pre>
 </div>
+</div></section></div></div>
+<div class="paragraph">
+<p><strong>Leave <code>key</code> out of a file every repository shares.</strong> <code>key</code> is a single
+value, so a shared file that sets it makes every project share one
+state object. Let each repository declare its own <code>key</code> in its backend
+block; per-project keys are only automatic under
+<a href="../kumoss-managed/" class="xref page">Kumoss-managed
+state</a>.</p>
+</div>
+</li>
+<li>
+<p>Mount the file into the sidecar and point <code>IAC_BACKEND_CONFIG</code> at it:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># docker-compose.override.yml</span></span>
@@ -789,57 +852,79 @@ carried by the target repository is reached:</p>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">      - </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">./backend.hcl:/etc/kumoss/backend.hcl:ro</span></span></span></code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p><code>init</code> then runs with <code>-backend-config=/etc/kumoss/backend.hcl</code>. The
-file holds backend <em>values</em> only — a <code>.hcl</code> or <code>.tfbackend</code> partial
-configuration:</p>
-</div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>bucket = "acme-central-tfstate"</span></span>
-<span class="line"><span>region = "eu-west-1"</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># services/iac/.env</span></span>
+<span class="line"><span>IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The file names the state store but carries no credentials for it: as
-under the repository-declared model, the sidecar&#8217;s ambient credentials
-must be granted access to that store as well as to the provider — see
-<a href="../repository-declared/#two-credential-grants" class="xref page">the
-two credential grants</a>.</p>
+<p>An absolute path resolves <strong>inside the sidecar container</strong>. A relative
+path resolves against the workspace, which is how a file carried by the
+target repository is reached. The file must be readable by uid <code>10001</code>
+(<code>kumoss</code>), the user the image runs as. An empty or whitespace-only
+value counts as unset.</p>
+</div>
+</li>
+<li>
+<p>Restart the sidecar:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> iac</span></span></span></code></pre>
+</div>
 </div>
 <div class="paragraph">
-<p>Three constraints follow from how <code>-backend-config</code> works:</p>
+<p>The sidecar does <strong>not</strong> check the path at startup: a workspace-relative
+file exists only after the clone. A wrong path surfaces as an <code>init</code>
+failure on the first job, in that job&#8217;s stderr rather than in the
+container&#8217;s startup log.</p>
 </div>
-<div class="olist arabic">
-<ol class="arabic">
-<li>
-<p><strong>The backend <em>type</em> still comes from the workspace.</strong> The repository
-must declare <code>terraform { backend "s3" {} }</code> (possibly with an empty
-body); a file alone cannot introduce a backend where none is
-declared.</p>
-</li>
-<li>
-<p><strong>You are responsible for state keys.</strong> Terraform&#8217;s <code>key</code> is a single
-value, so if every project reads the same file, every project shares
-one state file unless the repositories declare distinct keys
-themselves. Per-project keying is a feature of
-<a href="../kumoss-managed/" class="xref page">Kumoss-managed
-state</a> only.</p>
-</li>
-<li>
-<p><strong>Blank means unset.</strong> An empty or whitespace-only <code>IAC_BACKEND_CONFIG</code>
-is treated as not set.</p>
 </li>
 </ol>
 </div>
-<div class="paragraph">
-<p>The sidecar does <strong>not</strong> check this path at startup, unlike <code>IAC_BINARY</code>.
-A workspace-relative file exists only once the target repository has
-been cloned, so there is nothing to verify at boot. A wrong path
-therefore surfaces as an <code>init</code> failure on the first job that uses it,
-in that job&#8217;s stderr rather than in the container&#8217;s startup log. A file
-you mount must be readable by uid <code>10001</code> (<code>kumoss</code>), the unprivileged
-user the image runs as.</p>
+</div>
+</div>
+<div class="sect1">
+<h2 id="verify"><a class="anchor" href="#verify"></a>Verify</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Run a session, then confirm that the core wrote <strong>no</strong> override. This
+command must print nothing:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>In the session&#8217;s <code>init</code> output, check that the engine bound the
+backend from the file, for example <code>Successfully configured the
+backend "azurerm"!</code>, and that the state object appears under the key
+the repository declares.</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="next-steps"><a class="anchor" href="#next-steps"></a>Next steps</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../../reference/environment-variables/" class="xref page">Environment variables
+and secrets</a>: the <code>IAC_BACKEND_CONFIG</code> entry and the other sidecar
+variables.</p>
+</li>
+<li>
+<p><a href="../../../reference/terraform-providers/#backend-minimums" class="xref page">Backend
+minimums</a>: the credentials the sidecar needs per backend.</p>
+</li>
+</ul>
+</div>
+</div>
 </div>
 </article>
   </div>

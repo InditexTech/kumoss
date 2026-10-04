@@ -789,6 +789,22 @@ owns state:</p>
 backend when there is none yet, on <code>RUSTFS</code> the bucket name is the only
 value involved, and the repositories need no backend block at all.</p>
 </div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+Under this model, a backend block the repository declares is
+<strong>replaced</strong>, not combined: none of its values survive. If your
+repositories already keep state in their own backend, use
+<a href="../repository-declared/" class="xref page">Repository-declared
+backend</a> instead.
+</td>
+</tr>
+</table>
+</div>
 <div class="paragraph">
 <p>State goes to the <strong>same object-storage provider as artifacts</strong>, in a
 <strong>separate bucket</strong> (a blob container on <code>STORAGE_ACCOUNT</code>). The separation
@@ -1011,10 +1027,12 @@ to boot with <code>provider: STORAGE_ACCOUNT</code> and an empty
 var STORAGE_ACCOUNT_KEY.</code>), because the artifact adapter needs that key
 to sign SAS download URLs. The renderer contains an Entra ID branch
 (<code>use_azuread_auth = true</code>) for a keyless account, but <strong>no supported
-configuration reaches it</strong> in this release. Treat managed identity for
-Azure <em>state</em> as unavailable today; if you need it, use
-<a href="../sidecar-supplied/" class="xref page">Sidecar-supplied
-backend</a>.</p>
+configuration reaches it</strong> in this release. Treat managed identity and
+Entra ID for Azure <em>state</em> as unavailable under this model. If you need
+keyless state, turn managed state off and declare an <code>azurerm</code> block with
+<code>use_azuread_auth = true</code>, as shown in
+<a href="../repository-declared/" class="xref page">Repository-declared
+backend</a>; the artifacts keep using the shared key.</p>
 </div></section></div></div>
 </div>
 </div>
@@ -1048,9 +1066,10 @@ the AWS default chain, or <code>STORAGE_ACCOUNT_KEY</code></p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC sidecar</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Reads and writes state on every <code>init</code>, <code>plan</code>, and <code>apply</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The static keys embedded in <code>backend_override.tf</code> when present;
-otherwise the sidecar container&#8217;s own ambient credentials (<code>AWS_*</code>,
-IRSA, instance profile)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The static keys embedded in <code>backend_override.tf</code>: always on <code>RUSTFS</code>
+and <code>STORAGE_ACCOUNT</code> (the Azure shared key), and on <code>S3</code> when keys are
+configured. Otherwise, on <code>S3</code> only, the sidecar container&#8217;s own ambient
+credentials (<code>AWS_*</code>, IRSA, instance profile)</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1214,6 +1233,88 @@ conditional writes (the bundled engines are 1.12.6 and 1.16.0).</p></td>
 <div class="paragraph">
 <p>Whether RustFS honours the conditional-write semantics <code>use_lockfile</code>
 relies on has not been verified in this repository.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="verify"><a class="anchor" href="#verify"></a>Verify</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Run a session, then confirm that the core wrote the override and
+which key it chose:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>List the state bucket and check that the logged key exists after the
+first <code>init</code>. For the bundled RustFS store, see
+<a href="#operations">Operations</a> below.</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="operations"><a class="anchor" href="#operations"></a>Operations</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Inspect the bundled store.</strong> RustFS speaks the S3 API, so any S3 client
+works. From the host, through the nginx server on port 9000 (it forwards
+the <code>Host</code> header unchanged, so SigV4 signatures verify):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># One-off: the backend uses path-style addressing, so the client must too.</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">aws</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> configure</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> default.s3.addressing_style</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> path</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">AWS_ACCESS_KEY_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE"> AWS_SECRET_ACCESS_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> \</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">AWS_DEFAULT_REGION=us-east-1 </span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D">\</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  aws</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --endpoint-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost:9000</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  s3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ls</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3://kumoss-terraform-state/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --recursive</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Reset local state.</strong> <code>docker compose down -v</code> removes the
+<code>object_storage_data</code> volume and with it all state <em>and</em> all artifacts.
+That is usually what you want on a workstation and never what you want
+elsewhere.</p>
+</div>
+<div class="paragraph">
+<p><strong>In production</strong>, on the state bucket: versioning and soft delete on;
+encryption at rest with your own key if policy requires it; access
+restricted to the core and the IaC sidecar identities; excluded from any
+lifecycle expiry you apply to the artifacts bucket; and included in your
+backup and restore drills. This bucket is the record of what Kumoss has
+built, and Kumoss never deletes an object from it. See also
+<a href="../../production/operations/#data-and-persistence" class="xref page">Operations
+— Data services and persistence</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="next-steps"><a class="anchor" href="#next-steps"></a>Next steps</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../configure-state-backends/#state-troubleshooting" class="xref page">Troubleshooting</a>:
+boot, <code>init</code>, and empty-state failures.</p>
+</li>
+<li>
+<p><a href="../../../reference/configuration/#storage" class="xref page">Configuration reference
+— the <code>storage</code> section</a>: every field used on this page.</p>
+</li>
+</ul>
 </div>
 </div>
 </div>

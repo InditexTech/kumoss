@@ -770,53 +770,133 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Blank the state bucket with an explicit empty string and Kumoss steps out
-of the way:</p>
+<p>Use this model when your repositories already declare a backend that
+must keep working: the same state then serves Kumoss, your CI, and your
+engineers' laptops. Kumoss writes no backend configuration and reads the
+repository&#8217;s block as committed.</p>
 </div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>While Kumoss-managed state is on, which is the shipped default, the
+repository&#8217;s backend block is <strong>ignored</strong>: the core&#8217;s
+<code>backend_override.tf</code> replaces it, and every plan runs against a
+different, usually empty, state. Step 1 below is not optional.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="prerequisites"><a class="anchor" href="#prerequisites"></a>Prerequisites</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>Every repository Kumoss operates on declares a <strong>remote</strong> backend
+(<code>azurerm</code>, <code>s3</code>, <code>gcs</code>, or any other the engine supports). Without
+one, the engine falls back to local state, which is lost with the
+workspace.</p>
+</li>
+<li>
+<p>An identity for the IaC sidecar that can read and write that state
+store.</p>
+</li>
+<li>
+<p><code>IAC_BACKEND_CONFIG</code> unset in <code>services/iac/.env</code>. If it is set, you
+are in the
+<a href="../sidecar-supplied/" class="xref page">Sidecar-supplied
+backend</a> model instead.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="steps"><a class="anchor" href="#steps"></a>Steps</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Turn Kumoss-managed state off in <code>config.yaml</code> with an explicit empty
+string. Deleting the key does not turn it off (see
+<a href="../../configure-state-backends/#turn-managed-state-off" class="xref page">Turn
+managed state off</a>):</p>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-artifacts"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  terraform_state_bucket</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">""</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p><code>""</code> and whitespace-only (<code>"   "</code>) are equally blank. A key with no value
-after it is not blank but null, and fails validation at boot; deleting the
-key is not blank either, because its default in code is
-<code>kumoss-terraform-state</code>, which leaves
-<a href="../kumoss-managed/" class="xref page">Kumoss-managed state</a>
-on. What blanking it means:</p>
+<p>Rebuild the core so the baked-in configuration changes:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> build</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x26;&#x26; </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>No state bucket is created at boot, and no <code>backend_override.tf</code> is
+written from now on.</p>
+</div>
+</li>
+<li>
+<p>Make sure the repository declares its backend, and give the IaC
+sidecar the credentials to reach it in <code>services/iac/.env</code>:</p>
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-1-tab-1" role="tab" aria-selected="true" aria-controls="tabs-1-panel-1" tabindex="0" data-tab-value="Azure"><span class="dt-tabs-item__label">Azure</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-2" role="tab" aria-selected="false" aria-controls="tabs-1-panel-2" tabindex="-1" data-tab-value="AWS"><span class="dt-tabs-item__label">AWS</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-3" role="tab" aria-selected="false" aria-controls="tabs-1-panel-3" tabindex="-1" data-tab-value="Google Cloud"><span class="dt-tabs-item__label">Google Cloud</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-1-panel-1" role="tabpanel" aria-labelledby="tabs-1-tab-1" tabindex="0" data-tab-value="Azure"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
+<span class="line"><span>  backend "azurerm" {</span></span>
+<span class="line"><span>    subscription_id      = "_STATE_SUBSCRIPTION_ID_"</span></span>
+<span class="line"><span>    resource_group_name  = "tfstate-rg"</span></span>
+<span class="line"><span>    storage_account_name = "acmetfstate"</span></span>
+<span class="line"><span>    container_name       = "tfstates"</span></span>
+<span class="line"><span>    key                  = "platform.tfstate"</span></span>
+<span class="line"><span>    use_azuread_auth     = true</span></span>
+<span class="line"><span>  }</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># services/iac/.env</span></span>
+<span class="line"><span>ARM_TENANT_ID=_TENANT_ID_</span></span>
+<span class="line"><span>ARM_CLIENT_ID=_CLIENT_ID_</span></span>
+<span class="line"><span>ARM_CLIENT_SECRET=_CLIENT_SECRET_</span></span>
+<span class="line"><span>ARM_USE_AZUREAD=true</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Grant the service principal <strong>Storage Blob Data Contributor</strong> on the
+storage account or on the <code>tfstates</code> container.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>No state bucket or container is created at boot.</p>
+<p><strong>Keep <code>subscription_id</code> in the block.</strong> <code>init</code> runs with
+<code>ARM_SUBSCRIPTION_ID</code> set from the request&#8217;s cloud scope, so without
+it the backend looks for the storage account in the <em>workload&#8217;s</em>
+subscription and fails when the two differ.</p>
 </li>
 <li>
-<p><strong>No <code>backend_override.tf</code> is written.</strong> Each workspace keeps the backend
-its own committed configuration declares.</p>
+<p><strong>Without <code>use_azuread_auth</code></strong>, the backend fetches the account key
+through the management plane, which needs <code>listKeys</code> (Contributor, or
+Storage Account Key Operator) rather than a blob data role.</p>
 </li>
 <li>
-<p><strong>Every repository Kumoss operates on must declare a working remote
-backend</strong> — <code>azurerm</code>, <code>s3</code>, <code>gcs</code>, or any other the engine supports.
-With <strong>no</strong> backend block the engine falls back to local state, lost with
-the workspace, so the next session plans against nothing.</p>
-</li>
-<li>
-<p>The engine resolves that backend with the <strong>IaC sidecar&#8217;s</strong> credentials —
-a second grant alongside the provider credentials (see
-<a href="#two-credential-grants">Two sets of credentials on the sidecar</a>
-below).</p>
+<p><strong>To use the account key instead of RBAC</strong>, set <code>ARM_ACCESS_KEY</code> to it
+and drop <code>use_azuread_auth</code>.</p>
 </li>
 </ul>
-</div>
-<div class="paragraph">
-<p>A typical repository therefore carries its own backend block, which
-Kumoss reads and leaves alone:</p>
-</div>
-<div class="listingblock">
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-2" role="tabpanel" aria-labelledby="tabs-1-tab-2" tabindex="0" data-tab-value="AWS"><div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
 <span class="line"><span>  backend "s3" {</span></span>
@@ -828,10 +908,79 @@ Kumoss reads and leaves alone:</p>
 <span class="line"><span>}</span></span></span></code></pre>
 </div>
 </div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># services/iac/.env</span></span>
+<span class="line"><span>AWS_ACCESS_KEY_ID=_ACCESS_KEY_ID_</span></span>
+<span class="line"><span>AWS_SECRET_ACCESS_KEY=_SECRET_ACCESS_KEY_</span></span></span></code></pre>
+</div>
+</div>
 <div class="paragraph">
-<p>Nothing here is Kumoss-specific: the same backend serves your CI and your
-engineers' laptops, which is the main reason to prefer this model when
-the repositories already have one.</p>
+<p>The identity needs <code>s3:ListBucket</code> on the bucket and <code>s3:GetObject</code>,
+<code>s3:PutObject</code>, and <code>s3:DeleteObject</code> on <code>&lt;bucket&gt;/*</code>. When the state
+bucket lives in another account, set <code>AWS_PROFILE</code> or <code>AWS_ROLE_ARN</code> to
+an identity in that account.</p>
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-3" role="tabpanel" aria-labelledby="tabs-1-tab-3" tabindex="0" data-tab-value="Google Cloud"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
+<span class="line"><span>  backend "gcs" {</span></span>
+<span class="line"><span>    bucket = "acme-team-tfstate"</span></span>
+<span class="line"><span>    prefix = "envs/prod"</span></span>
+<span class="line"><span>  }</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># services/iac/.env</span></span>
+<span class="line"><span>GOOGLE_APPLICATION_CREDENTIALS=/etc/kumoss/gcp-sa.json</span></span>
+<span class="line"><span># Optional, when state uses a different identity than the providers:</span></span>
+<span class="line"><span># GOOGLE_BACKEND_CREDENTIALS=/etc/kumoss/gcp-state-sa.json</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The identity needs <strong>Storage Object Admin</strong> on the bucket.</p>
+</div></section></div></div>
+<div class="paragraph">
+<p>Per-authentication-method variable sets (OIDC, managed identity,
+profiles, and local CLI logins) are in
+<a href="../../../reference/terraform-providers/#backend-minimums" class="xref page">Backend
+minimums</a>.</p>
+</div>
+</li>
+<li>
+<p>Restart the sidecar so it reads the new variables:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> iac</span></span></span></code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="verify"><a class="anchor" href="#verify"></a>Verify</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Run a session against the repository, then confirm that the core wrote
+<strong>no</strong> override. This command must print nothing:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>In the session&#8217;s <code>init</code> output, check that the engine bound the
+repository&#8217;s backend, for example <code>Successfully configured the backend
+"azurerm"!</code>, and that the first plan shows your existing resources as
+unchanged rather than to be created.</p>
+</li>
+</ol>
 </div>
 </div>
 </div>
@@ -839,9 +988,9 @@ the repositories already have one.</p>
 <h2 id="two-credential-grants"><a class="anchor" href="#two-credential-grants"></a>Two sets of credentials on the sidecar</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>services/iac/.env</code> must satisfy <strong>two different authentications</strong>, and a
-setup that only covers the first fails at <code>init</code>, before a single
-resource is planned:</p>
+<p><code>services/iac/.env</code> must satisfy <strong>two different authentications</strong>. A setup
+that only covers the first fails at <code>init</code>, before a single resource is
+planned:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -870,13 +1019,11 @@ resource is planned:</p>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>They are separate because they address separate resources. Often the
-<em>same</em> variables serve both — an <code>s3</code> backend and the <code>aws</code> provider both
-read <code>AWS_ACCESS_KEY_ID</code>/<code>AWS_SECRET_ACCESS_KEY</code> — but even then the
-identity behind them must be granted access to the state bucket, which
-commonly lives in a different account, subscription, or project. Some
-backends read variables the providers never look at, precisely so the
-two identities can differ:</p>
+<p>Often the <em>same</em> variables serve both (an <code>s3</code> backend and the <code>aws</code>
+provider both read <code>AWS_ACCESS_KEY_ID</code>), but the identity behind them
+must still be granted access to the state store, which commonly lives in
+a different account, subscription, or project. Some backends read
+variables the providers never look at, so the two identities can differ:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -905,22 +1052,29 @@ two identities can differ:</p>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Per-cloud, per-authentication-method minimums for both sets are in
-<a href="../../../reference/terraform-providers/" class="xref page">Terraform providers</a>
-(provider minimums, then
-<a href="../../../reference/terraform-providers/#backend-minimums" class="xref page">Backend
-minimums</a>); the variable-level view is in
-<a href="../../../reference/environment-variables/#iac-cloud-credentials" class="xref page">Cloud
-credentials for the IaC engine</a>.</p>
-</div>
-<div class="paragraph">
-<p>Model 2 — what ships — can spare you the second set: Kumoss writes the
-backend itself, and where the rendered block embeds static keys — the
-<code>RUSTFS</code> case, and <code>S3</code>/<code>STORAGE_ACCOUNT</code> with keys in <code>core/.env</code> — the
-sidecar needs nothing for state. Where it does not embed them, the
-sidecar still has to resolve them; see
+<p>Kumoss-managed state can spare you the second set: where the core embeds
+static keys in the override, the sidecar needs nothing for state. See
 <a href="../kumoss-managed/#credentials-required" class="xref page">Credentials
 required</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="next-steps"><a class="anchor" href="#next-steps"></a>Next steps</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../configure-state-backends/#changing-backend-configuration" class="xref page">Change
+models safely</a>: move state Kumoss already stored into your own
+backend.</p>
+</li>
+<li>
+<p><a href="../../../reference/environment-variables/#iac-cloud-credentials" class="xref page">Cloud
+credentials for the IaC engine</a>: every variable the sidecar passes to
+the engine.</p>
+</li>
+</ul>
 </div>
 </div>
 </div>
