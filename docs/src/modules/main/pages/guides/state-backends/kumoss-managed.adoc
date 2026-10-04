@@ -19,6 +19,12 @@ This is why it ships on: it is the quickest way to get a working remote
 backend when there is none yet, on `RUSTFS` the bucket name is the only
 value involved, and the repositories need no backend block at all.
 
+IMPORTANT: Under this model, a backend block the repository declares is
+*replaced*, not combined: none of its values survive. If your
+repositories already keep state in their own backend, use
+xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
+backend] instead.
+
 State goes to the *same object-storage provider as artifacts*, in a
 *separate bucket* (a blob container on `STORAGE_ACCOUNT`). The separation
 is deliberate: state must not inherit the lifecycle, expiry, or presign
@@ -219,10 +225,12 @@ to boot with `provider: STORAGE_ACCOUNT` and an empty
 var STORAGE_ACCOUNT_KEY.`), because the artifact adapter needs that key
 to sign SAS download URLs. The renderer contains an Entra ID branch
 (`use_azuread_auth = true`) for a keyless account, but *no supported
-configuration reaches it* in this release. Treat managed identity for
-Azure _state_ as unavailable today; if you need it, use
-xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
-backend].
+configuration reaches it* in this release. Treat managed identity and
+Entra ID for Azure _state_ as unavailable under this model. If you need
+keyless state, turn managed state off and declare an `azurerm` block with
+`use_azuread_auth = true`, as shown in
+xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
+backend]; the artifacts keep using the shared key.
 ****
 --
 
@@ -243,9 +251,10 @@ the AWS default chain, or `STORAGE_ACCOUNT_KEY`
 
 |IaC sidecar
 |Reads and writes state on every `init`, `plan`, and `apply`
-|The static keys embedded in `backend_override.tf` when present;
-otherwise the sidecar container's own ambient credentials (`AWS_*`,
-IRSA, instance profile)
+|The static keys embedded in `backend_override.tf`: always on `RUSTFS`
+and `STORAGE_ACCOUNT` (the Azure shared key), and on `S3` when keys are
+configured. Otherwise, on `S3` only, the sidecar container's own ambient
+credentials (`AWS_*`, IRSA, instance profile)
 |===
 
 This split is easy to get wrong: with `provider: S3` and no static keys,
@@ -346,3 +355,61 @@ conditional writes (the bundled engines are {opentofu-version} and {terraform-ve
 
 Whether RustFS honours the conditional-write semantics `use_lockfile`
 relies on has not been verified in this repository.
+
+== Verify
+
+. Run a session, then confirm that the core wrote the override and
+  which key it chose:
++
+[source,bash]
+----
+docker compose logs core | grep "Terraform state:"
+----
++
+[source]
+----
+Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
+----
+
+. List the state bucket and check that the logged key exists after the
+  first `init`. For the bundled RustFS store, see
+  <<operations,Operations>> below.
+
+[#operations]
+== Operations
+
+*Inspect the bundled store.* RustFS speaks the S3 API, so any S3 client
+works. From the host, through the nginx server on port 9000 (it forwards
+the `Host` header unchanged, so SigV4 signatures verify):
+
+[source,bash]
+----
+# One-off: the backend uses path-style addressing, so the client must too.
+aws configure set default.s3.addressing_style path
+
+AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
+AWS_DEFAULT_REGION=us-east-1 \
+  aws --endpoint-url http://localhost:9000 \
+  s3 ls s3://kumoss-terraform-state/ --recursive
+----
+
+*Reset local state.* `docker compose down -v` removes the
+`object_storage_data` volume and with it all state _and_ all artifacts.
+That is usually what you want on a workstation and never what you want
+elsewhere.
+
+*In production*, on the state bucket: versioning and soft delete on;
+encryption at rest with your own key if policy requires it; access
+restricted to the core and the IaC sidecar identities; excluded from any
+lifecycle expiry you apply to the artifacts bucket; and included in your
+backup and restore drills. This bucket is the record of what Kumoss has
+built, and Kumoss never deletes an object from it. See also
+xref:main:guides/production/operations.adoc#data-and-persistence[Operations
+— Data services and persistence].
+
+== Next steps
+
+* xref:main:guides/configure-state-backends.adoc#state-troubleshooting[Troubleshooting]:
+  boot, `init`, and empty-state failures.
+* xref:main:reference/configuration.adoc#storage[Configuration reference
+  — the `storage` section]: every field used on this page.

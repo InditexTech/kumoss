@@ -1,100 +1,76 @@
 = Configure state backends
-:description: Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and how core and sidecar configuration interact.
+:description: Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and understand which value wins when more than one is set.
 
 Kumoss's workspaces are *ephemeral by design*: every call clones the
 repository into a fresh directory on the shared `workspaces` volume and
-deletes it in a `finally` block, and the workspace pinned for an apply is
-removed once the apply completes. Nothing there survives. Hence a remote
-backend is not optional:
-
-. *A local state file would be lost.* `terraform.tfstate` written next
-  to the configuration dies with the clone directory, and the next
-  session plans against empty state — proposing to create infrastructure
-  that already exists.
-. *State must be shared across runs, not across directories.* Two
-  sessions on the same project get two different clone paths, so only
-  something that describes _the project_ can bring their state together.
-  Kumoss derives that identity itself (see
-  xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
-  keys]).
+deletes it afterwards. A local `terraform.tfstate` dies with that
+directory, and the next session plans against empty state, proposing to
+create infrastructure that already exists. Every project therefore needs
+a *remote backend*, and this page helps you decide who provides it.
 
 The seeded `.gitignore` excludes `*.tfstate`, `*.tfstate.*`, and
 `*_override.tf`, so state and the generated backend file never reach a
 commit or a pull request.
 
-== What ships by default
+== Choose a model
 
-*The shipped `config.yaml` sets
-`storage.terraform_state_bucket: "kumoss-terraform-state"`, so Kumoss
-manages state itself.* It takes over the backend entirely: it creates
-the bucket or container at boot in the store that `storage.provider`
-selects (RustFS by default), writes the backend into every workspace,
-and assigns a state key per project. The repositories Kumoss operates on
-need no backend block of their own, and there is nothing to set up in a
-cloud account first.
+Exactly one party decides where state goes. Answer these questions in
+order and stop at the first *yes*:
 
-If your repositories already declare their own backends and must keep
-them, *set `storage.terraform_state_bucket` to the empty string* and
-Kumoss configures no backend at all. The backend is then yours to
-provide: every repository must declare its own remote backend, and the
-IaC sidecar must hold the credentials to reach it. A repository with no
-backend block falls back to local state, which is lost with the
-workspace.
+. *Does every repository already declare a backend that must keep
+  working* (shared with CI or with engineers' laptops)? Use
+  xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
+  backend].
+. *Must one central backend, defined by the platform team, serve every
+  repository?* Use
+  xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
+  backend].
+. *Otherwise*, keep the shipped default,
+  xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
+  state]: the repositories need no backend block at all.
 
-[source,yaml]
-----
-# As shipped: Kumoss-managed state. Nothing else to configure on RUSTFS.
-storage:
-  provider: "RUSTFS"
-  bucket: "kumoss-artifacts"
-  terraform_state_bucket: "kumoss-terraform-state"
-----
+Two settings select the model, one on the core and one on the IaC
+sidecar:
 
-*Only an explicit empty string turns managed state off.* Write
-`terraform_state_bucket: ""`; whitespace-only counts too. Deleting the
-key does not: the field's default in code is `kumoss-terraform-state`,
-so a `config.yaml` without `terraform_state_bucket` still manages state.
-Nor does writing the key with *no value after it* — YAML reads that as
-null, the field is typed `str`, and the core dies at boot with
-`storage.terraform_state_bucket / Input should be a valid string
-[type=string_type, input_value=None]`.
-
-== The three ownership models
-
-Exactly one party decides where state goes. Pick deliberately.
-
-[cols="1,3,3,3",options="header"]
+[cols="2,2,3,3",options="header"]
 |===
-|# |Model |Who decides |Selected by
+|`storage.terraform_state_bucket` _(core `config.yaml`)_
+|`IAC_BACKEND_CONFIG` _(`services/iac/.env`)_
+|Effective model
+|Who decides where state goes
 
-|1
-|*Repository-declared backend* — _opt-in_
-|Each *repository's own HCL*
-|`terraform_state_bucket: ""` and `IAC_BACKEND_CONFIG` unset
+|a bucket name _(shipped)_
+|unset _(shipped)_
+|*Kumoss-managed*
+|The core, from `storage.*`
 
-|2
-|*Kumoss-managed state* — _shipped default_
-|The *core*, from `storage.*`
-|`terraform_state_bucket` set to a bucket name — as shipped,
-`kumoss-terraform-state`
+|`""`
+|unset
+|*Repository-declared*
+|Each repository's own `backend` block
 
-|3
-|*Sidecar-supplied backend configuration* — _opt-in_
-|The *deployment*, via a mounted file
-|`terraform_state_bucket: ""` and `IAC_BACKEND_CONFIG` set
+|`""`
+|a file path
+|*Sidecar-supplied*
+|The deployment, through a mounted file
+
+|a bucket name
+|a file path
+|*Mixed — a misconfiguration*
+|Nobody fully; see <<precedence,Which value wins>>
 |===
 
 [cards,columns="1 s:2 m:3"]
 ====
 [card]
+.xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed state]
+The shipped default: the core creates the bucket and writes the backend
+for you.
+
+[card]
 .xref:main:guides/state-backends/repository-declared.adoc[Repository-declared backend]
 Blank the state bucket and let each repository's own backend block own
 state.
-
-[card]
-.xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed state]
-Keep the shipped default: the core creates the bucket and writes the
-backend for you.
 
 [card]
 .xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied backend]
@@ -102,137 +78,145 @@ Mount a backend configuration file on the IaC sidecar and own the
 decision centrally.
 ====
 
-Which one is appropriate:
+[#turn-managed-state-off]
+== Turn managed state off
 
-[cols="3,2,5",options="header"]
-|===
-|Deployment |Recommended model |Why
+Kumoss-managed state is *on as shipped*, so the two other models start
+by turning it off. *Only an explicit empty string does that:*
 
-|Local / non-production, no backend set up yet
-|*2* with `RUSTFS`, as shipped
-|No configuration at all, no cloud account, no credentials; state
-survives restarts in the bundled store.
-
-|Local / non-production against a real cloud project
-|*1*, by blanking the state bucket
-|Reuses the backend your repositories already declare, so local runs and
-CI plan against the same state.
-
-|Production, repositories already have backends you must not change
-|*1*, by blanking the state bucket
-|Kumoss writes nothing; each repository keeps the backend its team
-declared.
-
-|Production, Kumoss owns the projects it generates
-|*2* with `S3` or `STORAGE_ACCOUNT`
-|One managed store, one credential set, one lifecycle policy, state keys
-assigned automatically.
-
-|Production, one central backend for every project, defined outside
-Kumoss
-|*3*
-|Backend values live in a file your platform mounts and rotates.
-|===
-
-== How core and sidecar configuration interact
-
-The two settings are meant as *alternatives, not layers* — but if you
-set both, the engine merges them rather than picking one.
-
-[source]
+[source,yaml]
 ----
-storage.terraform_state_bucket (core)        IAC_BACKEND_CONFIG (iac sidecar)
-            │                                            │
-            ▼                                            ▼
-  writes backend_override.tf                  adds -backend-config=<file>
-  into the workspace                          to the init command line
-            │                                            │
-            └──────────────► engine merge ◄──────────────┘
-                                   │
-                   -backend-config values win over
-                   *_override.tf, which wins over the
-                   repository's own backend block
+storage:
+  terraform_state_bucket: ""    # "" or whitespace-only: managed state off
 ----
 
-Precedence, highest first: *`-backend-config` values* from
-`IAC_BACKEND_CONFIG`, passed as `-backend-config=<file>` on `init`, then the core-written
-*`backend_override.tf`* (model 2), then *the repository's own
-`terraform { backend }` block* (model 1). This was verified empirically
-by running `tofu init` (and `terraform init`) against a local backend
-with the same key set in all three layers, and reading back which value
-the engine bound.
+The other spellings do not behave the same way:
 
-Keys absent from a higher layer fall through to the next one, so
-*setting both model 2 and model 3 produces a partial merge, not a clean
-override*: for every key the mounted file declares (`bucket`, `key`,
-`region`, credentials) it replaces Kumoss's value, and Kumoss's
-remaining keys survive. That is worse than either model alone, because
-the result is a backend neither side fully describes. The common
-failure is the mounted file supplying a single `key`: Kumoss's
-per-project `key = <project_id>/terraform.tfstate` is then gone and
-*every project shares one state object*. *Set
-`terraform_state_bucket: ""` whenever you set `IAC_BACKEND_CONFIG`* —
-managed state is on as shipped, so blanking it is a step you have to
-take, not a default you inherit.
-
-[cols="2,2,3",options="header"]
+[cols="2,3",options="header"]
 |===
-|`terraform_state_bucket` |`IAC_BACKEND_CONFIG` |Effective model
+|What you write |Result
 
-|`""`
-|unset _(shipped)_
-|*1* — repository-declared
+|`terraform_state_bucket: ""`
+|Managed state off.
 
-|set _(shipped)_
-|unset _(shipped)_
-|*2* — Kumoss-managed
+|The key deleted
+|The field default `kumoss-terraform-state` applies: managed state *stays
+on*.
 
-|`""`
-|set
-|*3* — sidecar-supplied
-
-|set
-|set
-|mixed — `IAC_BACKEND_CONFIG` keys override the core's
-`backend_override.tf`; misconfiguration
+|`terraform_state_bucket:` with nothing after it
+|YAML null: the core fails at boot with `storage.terraform_state_bucket
+/ Input should be a valid string`.
 |===
 
-[#changing-backend-configuration]
-== Changing backend configuration
-
-*Any change to `config.yaml` needs an image rebuild* (`docker compose
-build core && docker compose up -d core`), because the file is baked
-into the core image. To vary it per environment without rebuilding,
-mount `config.yaml` and point `KUMOSS_CONFIG` at it — see
+`config.yaml` is baked into the core image, so rebuild after the change
+(`docker compose build core && docker compose up -d core`), or mount the
+file and point `KUMOSS_CONFIG` at it, as described in
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 
-*Switching models moves nothing.* Turning managed state on does not
-import the state your repositories' backends hold; turning it off
-leaves whatever Kumoss stored in its bucket, where those backends will
-not look for it. Migrate first, or accept that the affected projects
-start from empty state.
+[#precedence]
+== Which value wins
+
+When several layers configure the backend, the engine *merges them key
+by key*. Highest priority first:
+
+. *`IAC_BACKEND_CONFIG`*: the file the sidecar passes to `init` as
+  `-backend-config=<file>`.
+. *`backend_override.tf`*: written by the core when managed state is on.
+. *The repository's own `terraform { backend }` block.*
+
+A key that a higher layer does not set falls through to the next one.
+The backend _type_ (`azurerm`, `s3`, ...) always comes from the
+workspace, either from the repository or from the override.
+
+*Example.* A repository declares a backend, managed state is left on,
+and the sidecar also mounts a file:
+
+[source,hcl]
+----
+# 3. The repository's main.tf
+terraform {
+  backend "azurerm" {
+    storage_account_name = "acmetfstate"
+    container_name       = "tfstates"
+    key                  = "platform.tfstate"
+  }
+}
+
+# 2. backend_override.tf, written by the core (managed state on)
+terraform {
+  backend "azurerm" {
+    storage_account_name = "acmekumoss"
+    container_name       = "kumoss-terraform-state"
+    key                  = "<project_id>/terraform.tfstate"
+    access_key           = "..."
+  }
+}
+
+# 1. The file IAC_BACKEND_CONFIG points at
+key = "central.tfstate"
+----
+
+What `init` binds:
+
+[cols="2,2,2",options="header"]
+|===
+|Key |Effective value |Taken from
+
+|`key`
+|`central.tfstate`
+|The sidecar file
+
+|`storage_account_name`
+|`acmekumoss`
+|The core's override
+
+|`container_name`
+|`kumoss-terraform-state`
+|The core's override
+
+|`access_key`
+|the core's key
+|The core's override
+|===
+
+Two lessons follow:
+
+* *A repository backend is ignored whenever managed state is on.* None
+  of the repository's values survive, and Kumoss logs no warning about
+  it. The plan runs against whatever the managed key holds, usually
+  nothing. Turn managed state off to keep a repository's backend.
+* *Never combine managed state with `IAC_BACKEND_CONFIG`.* The result is
+  a backend that neither side fully describes. A file that supplies a
+  single `key` also removes Kumoss's per-project key, so every project
+  shares one state object.
+
+The order was verified empirically by running `tofu init` and
+`terraform init` against a local backend with the same key set in all
+three layers.
+
+[#changing-backend-configuration]
+== Change models safely
+
+*Switching models moves no state.* Turning managed state on does not
+import the state your repositories' backends hold; turning it off leaves
+what Kumoss stored in its bucket where those backends do not look.
 
 `init` *always* runs with `-reconfigure` (`tofu init -no-color
--input=false -reconfigure`): Kumoss runs the engine non-interactively,
-and `-input=false` cannot answer the _"Backend configuration changed"_
-prompt, so without it any workspace whose backend differs from its
-previous initialization would fail hard. What that means for you:
+-input=false -reconfigure`), because `-input=false` cannot answer the
+_"Backend configuration changed"_ prompt. As a result:
 
-* *State already in the new backend is adopted.* Re-pointing a project
-  at a backend that already holds its state is safe and needs no
-  action.
-* *State under the previous backend is not migrated.* `-reconfigure`
-  deliberately skips the migration `-migrate-state` would perform.
-  Kumoss never copies state between backends.
-* *A project therefore starts from empty state* after any change that
-  alters its backend or its key — switching `storage.provider`,
-  renaming `terraform_state_bucket`, moving the root module, changing
-  the cloud scope — and the next plan proposes creating resources that
-  already exist.
+* *State already in the new backend is adopted.* Re-pointing a project at
+  a backend that already holds its state is safe.
+* *State under the previous backend is not migrated.* Kumoss never
+  copies state between backends.
+* *A project starts from empty state* after any change to its backend or
+  its key: switching `storage.provider`, renaming
+  `terraform_state_bucket`, moving the root module, or changing the
+  cloud scope. The next plan proposes creating resources that already
+  exist.
 
-Migrate deliberately, before the next session runs, with the engine
-itself:
+Migrate before the next session runs, with the engine itself:
 
 [source,bash]
 ----
@@ -241,52 +225,36 @@ tofu init -reconfigure -backend-config=...  # point at the new backend
 tofu state push project.tfstate
 ----
 
-`tofu init -migrate-state` run by hand in an equivalent workspace works
-too. Either way, keep the pulled file as a backup and verify with a plan
-that shows no changes before letting Kumoss run again.
+`tofu init -migrate-state`, run by hand in an equivalent workspace,
+works too. Keep the pulled file as a backup, and verify with a plan that
+shows no changes before letting Kumoss run again.
 
 == What Kumoss does not do
 
 State ownership stops at "write the backend and key". Everything below
 is yours:
 
-* *No state migration.* Never, between any two backends. See above.
-* *No versioning or backups.* Kumoss does not enable bucket versioning,
-  object lock, soft delete, or point-in-time restore on the state
-  bucket. Turn them on yourself — for state this matters far more than
-  for artifacts.
-* *No lifecycle or retention policy*, and no deletion: Kumoss never
-  removes a state object, so state for a decommissioned project persists
-  until you delete it.
-* *No DynamoDB lock table.* Locking uses the S3-native lockfile; there is
-  nothing to provision.
-* *No `gcs` backend adapter.* The storage provider setting has exactly three
-  members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). A Google Cloud Storage
-  bucket can only be reached through its S3-compatible interoperability
-  endpoint with `provider: RUSTFS`, which the repository does not test.
-  For a first-class `gcs` backend, use
-  xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
-  backend] or
-  xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
-  backend]: set `terraform_state_bucket: ""` and let the repository's
-  own block, or a mounted backend file, declare `gcs` itself.
-* *No state encryption beyond the store's own.* State contains resource
-  attributes and can contain secrets; rely on bucket-level encryption at
-  rest and restrict access accordingly.
-* *Import writes to managed state during the round.* The import modes
-  run `terraform import` through the IaC sidecar's `/v1/import` while
-  the round is still running, so imported resources enter the state
-  Kumoss manages before any pull request is reviewed. See
+* *No state migration*, between any two backends (see above).
+* *No versioning, backups, or retention.* Kumoss does not enable
+  versioning, object lock, soft delete, or point-in-time restore, and it
+  never deletes a state object.
+* *No DynamoDB lock table.* Locking uses the S3-native lockfile or the
+  Azure blob lease; there is nothing to provision.
+* *No `gcs` backend adapter.* `storage.provider` has three members
+  (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). For a `gcs` backend, use the
+  repository-declared or sidecar-supplied model and let the repository's
+  block, or a mounted file, declare `gcs`.
+* *No state encryption beyond the store's own.* State can contain
+  secrets; rely on encryption at rest and restrict access accordingly.
+* *Import writes to state during the round.* The import modes run
+  `terraform import` before any pull request is reviewed. See
   xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
-== Operations
+[#state-troubleshooting]
+== Troubleshooting
 
-This section assumes model 2, which is what ships. If you turned it off
-with `terraform_state_bucket: ""`, the state bucket is not Kumoss's, so
-its operation — versioning, access, backups — belongs to whoever owns
-the backend each repository declares.
-
-*Find a project's state.* The core logs the target before every `init`:
+Start by checking whether the core wrote an override. It logs one line
+before every `init` when managed state is on, and nothing otherwise:
 
 [source,bash]
 ----
@@ -294,207 +262,106 @@ docker compose logs core | grep "Terraform state:"
 # Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
 ----
 
-*Inspect the bundled store.* RustFS speaks the S3 API, so any S3 client
-works. From the host, through the nginx server on port 9000 (it forwards
-the `Host` header unchanged, so SigV4 signatures verify):
+=== Plans against empty state
 
-[source,bash]
-----
-# One-off: the backend uses path-style addressing, so the client must too.
-aws configure set default.s3.addressing_style path
-
-AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
-AWS_DEFAULT_REGION=us-east-1 \
-  aws --endpoint-url http://localhost:9000 \
-  s3 ls s3://kumoss-terraform-state/ --recursive
-----
-
-*Reset local state.* `docker compose down -v` removes the
-`object_storage_data` volume and with it all state _and_ all artifacts.
-That is usually what you want on a workstation and never what you want
-elsewhere.
-
-*In production*, on the state bucket: versioning and soft delete on;
-encryption at rest with your own key if policy requires it; access
-restricted to the core and the IaC sidecar identities; excluded from any
-lifecycle expiry you apply to the artifacts bucket; and included in your
-backup and restore drills — this bucket is the record of what Kumoss has
-built.
-
-[#state-troubleshooting]
-== Troubleshooting
-
-[cols="3,3,3",options="header"]
+[cols="3,4",options="header"]
 |===
-|Symptom |Cause |Fix
+|Symptom |Cause and fix
+
+|The repository declares a backend, yet every plan proposes creating
+resources that already exist
+|*Managed state is on and its override replaces the repository's
+backend* (see <<precedence,Which value wins>>). The log line above
+appears. Set `storage.terraform_state_bucket: ""` and rebuild the core
+image.
 
 |Every session plans against empty state, and nothing is ever recorded
-|A deployment that blanked `storage.terraform_state_bucket` (model 1)
-but whose repositories declare no backend: `init` succeeds against the
-_local_ backend, and the state file dies with the throwaway clone.
-|Add a `terraform { backend ... }` block to the repository, or go back
-to the shipped model 2 by setting `storage.terraform_state_bucket` to a
-bucket name.
+|Managed state is off, but the repository declares no backend: `init`
+succeeds against the _local_ backend, and the state dies with the clone.
+Add a `terraform { backend ... }` block, or turn managed state back on.
+
+|Plans propose recreating everything after a configuration change
+|The project's state key or backend changed and the state was not
+migrated. Compare the logged `key=` with the bucket contents, then
+migrate (see <<changing-backend-configuration,Change models safely>>).
+
+|Two repositories collide on one state file
+|An `IAC_BACKEND_CONFIG` file supplies a single `key` for every
+repository. Declare distinct keys per repository, or use managed state
+alone.
+|===
+
+=== Boot and `init` failures
+
+[cols="3,4",options="header"]
+|===
+|Symptom |Cause and fix
 
 |Core fails at boot: `Failed to initialize object storage`
-|Model 2, which is on as shipped: the state bucket cannot be created or
-reached — wrong credentials, missing `CreateBucket` permission, or an
-unreachable endpoint.
-|Pre-create the bucket, or grant creation rights. The artifact bucket
-and the state bucket are checked in the same step, so verify both.
+|Managed state is on and the state bucket cannot be created or reached
+(credentials, `CreateBucket` permission, endpoint). The artifact and
+state buckets are checked together; verify both, or pre-create them.
 
-|`init` fails with `InvalidAccessKeyId` after switching to
-`provider: S3`
-|`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still set to
-`rustfsadmin` in `core/.env` and got embedded into the backend block.
-|Blank both variables, rebuild the core image, and let the AWS default
-chain resolve credentials — on the *IaC sidecar*.
-
-|`init` fails with a credentials or `AccessDenied` error, and the
-override contains no `access_key`
-|The *IaC sidecar* container has no ambient cloud credentials, or they
-lack access to the state bucket.
-|Give the sidecar the role/keys, not just the core. See
+|`init` fails with a credentials or `AccessDenied` error
+|The *IaC sidecar* lacks credentials for the state store, or its
+identity has no access to it. The core's credentials do not count. See
+xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
+two credential grants] and
 xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credentials
 required].
 
+|`init` on `azurerm` cannot find the storage account
+|`init` runs with `ARM_SUBSCRIPTION_ID` set from the request's cloud
+scope. Pin `subscription_id` in the backend block when the state account
+lives in another subscription.
+
+|`init` fails with `InvalidAccessKeyId` after switching to `provider: S3`
+|`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still `rustfsadmin` in
+`core/.env` and were embedded in the override. Blank both and rebuild.
+
 |`init` fails to dial the endpoint (`connection refused`, DNS failure)
-|The sidecar cannot reach `storage.endpoint_url`.
-|Put the sidecar on the same network as the store, or allow that
-egress. In Compose both must be on `bridge-network`.
-
-|Every plan proposes creating resources that already exist
-|The project's state key changed, or state was never migrated after a
-backend change.
-|Check the logged `key=` against what is in the bucket; migrate the old
-state. See <<changing-backend-configuration,Changing backend
-configuration>>.
-
-|`Error acquiring the state lock`
-|Another run holds the lock, or a crashed run left it stale.
-|Wait; if stale, run `tofu force-unlock <LOCK_ID>` (the id is printed in
-the lock error) in an equivalent workspace, or remove the `.tflock`
-object / break the blob lease.
-
-|Two repositories collide on one state file
-|A shared `-backend-config` file supplies one `key` — under model 3, or
-under the mixed model 2 + model 3 case, where the mounted file's `key`
-overrides Kumoss's per-project one.
-|Declare distinct keys per repository, or use model 2 alone (leave
-`IAC_BACKEND_CONFIG` unset).
+|The sidecar cannot reach the state store. Put it on the same network
+(`bridge-network` in Compose) or allow that egress.
 
 |`init` fails on the backend configuration file
-|`IAC_BACKEND_CONFIG` is not checked at startup, so the sidecar starts
-and the error lands in the failing job's stderr. The path is wrong, the
-file is not mounted, or it is not readable by uid `10001`.
-|Fix the mount and ownership, or unset the variable.
+|`IAC_BACKEND_CONFIG` is not checked at startup: the path is wrong, the
+file is not mounted, or uid `10001` cannot read it. The error is in the
+failing job's stderr.
 
-|A `backend_override.tf` shows up in a pull request
-|The workspace `.gitignore` write failed, so the seeded rule that
-ignores `*_override.tf` never took effect. The core logs `terraform
-gitignore couldn't be created` and carries on, and the next commit
-(`git add -A`) picks the override file up. A repository that carried no
-`.gitignore` is not the cause: the seeded file is honoured for the
-working tree even though it ignores itself and is never committed. A
-repository that already tracks a `.gitignore` gets Kumoss's template
-appended to it, and that modification is committed and pushed to the
-session branch.
-|Look for the warning in the core log and check that the `workspaces`
-volume is writable by uid/gid `10001`. Remove the file from the branch
-and re-run the round once the write succeeds.
+|`Error acquiring the state lock`
+|Another run holds the lock, or a crashed run left it stale. If stale,
+run `tofu force-unlock _LOCK_ID_` in an equivalent workspace, or remove
+the `.tflock` object or break the blob lease.
 
 |Session fails with a Terraform backend error before `init` runs
-|The core could not write `backend_override.tf` into the workspace.
-|Check ownership of the `workspaces` volume: it must be writable by
-uid/gid `10001`. A volume from a stack that ran as root needs
-`chown -R 10001:10001`.
+|The core could not write `backend_override.tf`. The `workspaces` volume
+must be writable by uid/gid `10001` (`chown -R 10001:10001` on a volume
+from a root-running stack).
 |===
 
-== Reference
+=== The override file in a pull request
 
-=== `config.yaml`
+If a `backend_override.tf` shows up in a pull request, the workspace
+`.gitignore` write failed: the core logs `terraform gitignore couldn't be
+created`, carries on, and `git add -A` picks the file up. Check that the
+`workspaces` volume is writable by uid/gid `10001`, remove the file from
+the branch, and re-run the round.
 
-[cols="2,3,5",options="header"]
-|===
-|Key |Default |Meaning
+A repository without a `.gitignore` is not the cause: the seeded file is
+honored for the working tree even though it is never committed. A
+repository that already tracks a `.gitignore` gets Kumoss's template
+appended, and that change is committed to the session branch.
 
-|`storage.provider`
-|`RUSTFS`
-|Selects the backend type for state as well as artifacts: `RUSTFS`/`S3`
-→ `s3`, `STORAGE_ACCOUNT` → `azurerm`.
-
-|`storage.terraform_state_bucket`
-|`kumoss-terraform-state` _(shipped, and the field default)_
-|Names the bucket (blob container on `STORAGE_ACCOUNT`) that holds
-Kumoss-managed state; it is created at boot if missing. Set it to `""`
-to leave state to the repository instead — `""` and whitespace-only
-both count as blank. *Deleting the key falls back to the same field
-default and keeps managed state on*, and a key written with no value is
-null, not blank: the core fails validation at boot.
-
-|`storage.endpoint_url`
-|`\http://object-storage:9000`
-|Rendered into the `endpoints.s3` block for `RUSTFS`; supplies the
-account name for `STORAGE_ACCOUNT`; ignored for `S3`. Must be reachable
-*from the IaC sidecar*.
-
-|`storage.region`
-|`us-east-1`
-|Rendered as the backend `region` for `RUSTFS` and `S3`. Ignored for
-`STORAGE_ACCOUNT`.
-
-|`storage.access_key_env` / `storage.secret_key_env`
-|`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`
-|When *both* resolve non-empty, the keys are embedded in the backend
-block; otherwise the credential lines are omitted. On `RUSTFS` an unset
-or empty variable falls back to `rustfsadmin`, so the credential lines
-are always present there; only `S3` omits them when the variables are
-blank.
-
-|`storage.account_key_env`
-|`STORAGE_ACCOUNT_KEY`
-|Azure shared key, embedded as the backend `access_key`. Mandatory for
-`STORAGE_ACCOUNT`.
-|===
-
-`storage.bucket`, `storage.public_endpoint_url`, and
-`storage.presign_expiry_seconds` affect artifacts only and play no part
-in the state backend. Changing any of these requires rebuilding the
-core image, because `config.yaml` is baked in.
-
-=== `services/iac/.env`
-
-[cols="2,2,5",options="header"]
-|===
-|Variable |Default |Meaning
-
-|`IAC_BACKEND_CONFIG`
-|unset
-|Path *inside the sidecar container* to a `.hcl`/`.tfbackend` backend
-configuration file passed to `init` as `-backend-config`. Not checked
-at startup; a wrong path fails the first `init` job (error in that job's
-stderr). Overrides model 2 values key by key (the file's keys win over
-the core's `backend_override.tf`, the core's remaining keys survive); do
-not combine the two.
-
-|`IAC_BINARY`
-|`tofu`
-|The engine that executes the backend. OpenTofu {opentofu-version} or the bundled
-Terraform {terraform-version}; both support `use_lockfile`.
-|===
-
-=== Related documentation
+== Related documentation
 
 * xref:main:reference/configuration.adoc#storage[Configuration reference
-  — the `storage` section] — every field, default, and validation rule.
+  — the `storage` section]: every field, default, and validation rule.
 * xref:main:reference/environment-variables.adoc[Environment variables
-  and secrets] — `core/.env` and the sidecar `.env` files.
-* xref:main:reference/api/iac.adoc#state-backend[IaC sidecar API —
-  State backend] — the contract-level view.
-* xref:main:reference/terraform-providers.adoc[Terraform providers] —
-  per-cloud backend credential minimums.
+  and secrets]: `core/.env`, `IAC_BACKEND_CONFIG`, and the sidecar
+  `.env` files.
+* xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+  minimums]: per-cloud backend credentials.
+* xref:main:reference/api/iac.adoc#state-backend[IaC sidecar API — State
+  backend]: the contract-level view.
 * xref:main:architecture/data-and-state.adoc#terraform-state[Architecture
-  — Data and state] — where state sits among Kumoss's stores.
-* xref:main:guides/production/operations.adoc#data-and-persistence[Operations
-  — Data services and persistence] — persistence expectations in
-  production.
+  — Data and state]: where state sits among Kumoss's stores.
