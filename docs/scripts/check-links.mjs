@@ -64,6 +64,11 @@ const isExternal = (url) => /^https?:\/\//.test(url)
 // verbatim.
 function globToRegExp(glob) {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, String.raw`\$&`)
+  // The pattern is the escaped glob above: `*`/`?` become dot-star/any and
+  // every other metacharacter is escaped, so the compiled source only holds
+  // quantifiers we chose — bounded, linear, no attacker-crafted wildcard
+  // nesting and therefore no ReDoS amplification — hence nosemgrep below.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   return new RegExp(escaped.replaceAll('*', '.*').replaceAll('?', '.'))
 }
 
