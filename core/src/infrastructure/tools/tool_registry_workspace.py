@@ -182,7 +182,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
 
         Absolute paths are accepted when they point inside the working
         directory; anything resolving outside of it, or into an entry
-        Nebula manages (git metadata, backend override), is rejected.
+        Kumoss manages (git metadata, backend override), is rejected.
         """
         root: Path = self.__filesystem.project_root.resolve()
         resolved: Path = (root / path).resolve()
@@ -196,7 +196,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         relative = resolved.relative_to(root)
         if self.__filesystem.protected_names.intersection(relative.parts):
             raise ToolInferenceParamsError(
-                message=f"Path '{path}' is managed by Nebula and is not accessible.",
+                message=f"Path '{path}' is managed by Kumoss and is not accessible.",
                 error_code=403,
             )
         return relative.as_posix()

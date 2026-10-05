@@ -20,7 +20,7 @@ class ResolveResponse:
     """
     Attributes:
         repo_url (str): HTTPS URL Kumoss should clone. Must use the `https://` scheme
-            (case-insensitive) and name a host: Nebula clones, pushes and
+            (case-insensitive) and name a host: Kumoss clones, pushes and
             opens pull requests over HTTPS only, and rejects SSH,
             `git://`, `http://`, `file://` and local paths. When the
             identifier already is an `https://` repository URL,
