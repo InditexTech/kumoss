@@ -4,8 +4,8 @@
 
 import cn from "classnames";
 import {useEffect, useRef} from "react";
-import Lottie from "lottie-react";
-import type {LottieRefCurrentProps} from "lottie-react";
+import {Lottie} from "lottie-react";
+import type {LottieHandle} from "lottie-react";
 import animations from "./animations";
 import styles from './AssistantAnimatedIcon.module.css';
 
@@ -34,14 +34,8 @@ export const AssistantAnimatedIcon = ({
                                           theme = "blue",
                                           width = 30,
                                       }: AssistantAnimatedIconProps) => {
-    const lottieRef = useRef<LottieRefCurrentProps>(null);
+    const lottieRef = useRef<LottieHandle>(null);
     const currentAnimation = animations[theme][phase];
-
-    useEffect(() => {
-        if (lottieRef.current) {
-            lottieRef.current.setSpeed(speed);
-        }
-    }, [speed]);
 
     useEffect(() => {
         if (!lottieRef.current) return;
@@ -60,8 +54,9 @@ export const AssistantAnimatedIcon = ({
         >
             <Lottie
                 lottieRef={lottieRef}
-                animationData={currentAnimation}
+                src={currentAnimation}
                 loop={loop}
+                speed={speed}
                 autoplay={autoplay}
                 style={{width, height}}
             />

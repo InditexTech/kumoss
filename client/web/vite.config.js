@@ -22,7 +22,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
-        'lottie-react': 'lottie-react/build/index.es.js',
       },
       dedupe: ['react', 'react-dom'],
     },
