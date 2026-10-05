@@ -337,6 +337,9 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("JSON drift report", prompt)
         self.assertIn("dictionary_item_added", prompt)
+        self.assertIn("The real infrastructure is the source of truth", prompt)
+        self.assertIn("Describe the Change Only", prompt)
+        self.assertNotIn("fewest possible side effects", prompt)
         self.assertNotIn("Troubleshooting Strategist", prompt)
         self.assertNotIn("Root Cause", prompt)
         self.assertIn("`report_decomposed_task_operations`", prompt)
@@ -353,7 +356,9 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
                 self.assertIn("Troubleshooting Strategist", prompt)
                 self.assertIn("Identify Root Causes", prompt)
+                self.assertIn("fewest possible side effects", prompt)
                 self.assertNotIn("drift report", prompt)
+                self.assertNotIn("source of truth", prompt)
                 self.assertNotIn("dictionary_item_added", prompt)
                 self.assertIn("`report_decomposed_task_operations`", prompt)
                 self.assertNotIn("{{", prompt)
