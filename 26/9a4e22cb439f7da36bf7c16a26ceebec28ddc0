@@ -1,0 +1,21 @@
+docs/scripts/check-links.mjs
+  s_eebfb44878e5a6::t_22a218beb0562f 65-70
+nginx/nginx.conf
+  s_eebfb44878e5a6::t_6d2a06f778c834 89-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "269a4e22cb439f7da36bf7c16a26ceebec28ddc0",
+  "prompts": {},
+  "sessions": {
+    "s_eebfb44878e5a6": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_eebfb44878e5a6",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}
