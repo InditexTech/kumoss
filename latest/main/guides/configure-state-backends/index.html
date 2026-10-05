@@ -1128,15 +1128,189 @@ secrets; rely on encryption at rest and restrict access accordingly.</p>
 <div class="sect1">
 <h2 id="state-troubleshooting"><a class="anchor" href="#state-troubleshooting"></a>Troubleshooting</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="find-active-state"><a class="anchor" href="#find-active-state"></a>Find the active state</h3>
 <div class="paragraph">
-<p>Start by checking whether the core wrote an override. It logs one line
-before every <code>init</code> when managed state is on, and nothing otherwise:</p>
+<p>Start here whenever you are unsure which state file a project uses. The
+answer depends on three layers (see <a href="#precedence">Which value wins</a>), so
+check all three, highest priority first. The commands read the
+<strong>running</strong> containers, not your local files, so they show what is
+actually deployed.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Sidecar layer.</strong> Check whether the IaC sidecar overrides the backend:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> exec</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> iac</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> sh</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -c</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> 'echo "IAC_BACKEND_CONFIG=${IAC_BACKEND_CONFIG:-&#x3C;unset>}"; [ -n "$IAC_BACKEND_CONFIG" ] &#x26;&#x26; cat "$IAC_BACKEND_CONFIG"'</span></span></span></code></pre>
+</div>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span>
-<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>IAC_BACKEND_CONFIG=&#x3C;unset></span></span></span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>A path that does not start with <code>/</code> is relative to each cloned
+workspace, so <code>cat</code> fails here even when <code>init</code> finds the file. Read
+that file in the repository instead.</p>
+</div>
+</li>
+<li>
+<p><strong>Core layer.</strong> Check whether Kumoss-managed state is on in the image
+that is running:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> exec</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> python</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -c</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">from src.shared.config import system_config as c</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">s = c.storage</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">print('managed state :', 'ON' if s.state_bucket else 'OFF')</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">print('provider      :', s.provider.name)</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">print('bucket        :', s.state_bucket or '-')</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">print('endpoint      :', s.endpoint_url)</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>managed state : ON</span></span>
+<span class="line"><span>provider      : RUSTFS</span></span>
+<span class="line"><span>bucket        : kumoss-terraform-state</span></span>
+<span class="line"><span>endpoint      : http://object-storage:9000</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p><strong>Repository layer.</strong> When managed state is <code>OFF</code>, read the backend block
+the repository commits:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">git</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -C</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> _REPOSITORY_PATH_</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> grep</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -A8</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> 'backend "'</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>main.tf:2:  backend "azurerm" {</span></span>
+<span class="line"><span>main.tf-3-    resource_group_name  = "tfstate-rg"</span></span>
+<span class="line"><span>main.tf-4-    storage_account_name = "acmetfstate"</span></span>
+<span class="line"><span>main.tf-5-    container_name       = "tfstates"</span></span>
+<span class="line"><span>main.tf-6-    key                  = "platform.tfstate"</span></span></span></code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Read the results together:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Sidecar layer</th>
+<th class="tableblock halign-left valign-top">Core layer</th>
+<th class="tableblock halign-left valign-top">The active state is…</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;unset&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ON</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;bucket&gt;/&lt;project_id&gt;/terraform.tfstate</code> in the store at <code>endpoint</code>.
+Get the <code>project_id</code> from the core log (see below).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;unset&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OFF</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Wherever the repository&#8217;s backend block points. In the example above:
+container <code>tfstates</code>, blob <code>platform.tfstate</code> in account <code>acmetfstate</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">a path</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OFF</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The repository&#8217;s backend block, with every key the file sets replacing
+the repository&#8217;s value.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">a path</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ON</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mixed: a misconfiguration. Fix it before trusting any state (see
+<a href="#precedence">Which value wins</a>).</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><strong>Get the <code>project_id</code> under managed state.</strong> The core logs the bucket and
+key each time it writes the override, before every <code>init</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> logs</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">grep</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "Terraform state:"</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=3f9a…c41e/terraform.tfstate</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Use this line to <strong>find the key</strong>, not to decide which model is active. It
+is written by the core, so:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It appears <strong>only</strong> when managed state is on. No line does not tell you
+where state is, only that the repository or the sidecar decides.</p>
+</li>
+<li>
+<p>It does <strong>not</strong> include <code>IAC_BACKEND_CONFIG</code> overrides, which the core
+never sees.</p>
+</li>
+<li>
+<p>It prints no account or endpoint; those come from
+<code>storage.endpoint_url</code>.</p>
+</li>
+<li>
+<p>It appears only after a session has run <code>init</code> since the container was
+last created, and an apply logs nothing new: it reuses the workspace
+the plan initialized, so it writes to the same state.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Confirm the object exists and is the one being written.</strong> After an
+apply, the state object&#8217;s modification time must change:</p>
+</div>
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-1-tab-1" role="tab" aria-selected="true" aria-controls="tabs-1-panel-1" tabindex="0" data-tab-value="Azure"><span class="dt-tabs-item__label">Azure</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-2" role="tab" aria-selected="false" aria-controls="tabs-1-panel-2" tabindex="-1" data-tab-value="AWS"><span class="dt-tabs-item__label">AWS</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-1-tab-3" role="tab" aria-selected="false" aria-controls="tabs-1-panel-3" tabindex="-1" data-tab-value="RustFS (bundled)"><span class="dt-tabs-item__label">RustFS (bundled)</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-1-panel-1" role="tabpanel" aria-labelledby="tabs-1-tab-1" tabindex="0" data-tab-value="Azure"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">az</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> storage</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> blob</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> show</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --auth-mode</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> login</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --account-name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> acmetfstate</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --container-name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tfstates</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> platform.tfstate</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --query</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "{size: properties.contentLength, modified: properties.lastModified}"</span></span></span></code></pre>
+</div>
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-2" role="tabpanel" aria-labelledby="tabs-1-tab-2" tabindex="0" data-tab-value="AWS"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">aws</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3api</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> head-object</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --bucket</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> acme-team-tfstate</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --key</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> envs/prod/terraform.tfstate</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --query</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "{size: ContentLength, modified: LastModified}"</span></span></span></code></pre>
+</div>
+</div></section><section class="docouture-tabs__panel" id="tabs-1-panel-3" role="tabpanel" aria-labelledby="tabs-1-tab-3" tabindex="0" data-tab-value="RustFS (bundled)"><div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># One-off: the backend uses path-style addressing, so the client must too.</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">aws</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> configure</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> default.s3.addressing_style</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> path</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">AWS_ACCESS_KEY_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE"> AWS_SECRET_ACCESS_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">rustfsadmin</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> \</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">AWS_DEFAULT_REGION=us-east-1 </span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D">\</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  aws</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --endpoint-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost:9000</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  s3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ls</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> s3://kumoss-terraform-state/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --recursive</span></span></span></code></pre>
+</div>
+</div></section></div></div>
 </div>
 <div class="sect2">
 <h3 id="plans-against-empty-state"><a class="anchor" href="#plans-against-empty-state"></a>Plans against empty state</h3>
