@@ -8,8 +8,7 @@ import { loadAuthConfig } from '@/services/auth';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 
 vi.mock("lottie-react", () => ({
-  default: () => null,
-  __esModule: true,
+  Lottie: () => null,
 }));
 
 Element.prototype.scrollIntoView = vi.fn();
