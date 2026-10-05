@@ -21,8 +21,8 @@
     "@mui/material": "^9.4.0",
     "classnames": "^2.5.1",
     "dompurify": "^3.4.16",
-    "lottie-react": "^2.4.1",
-    "monaco-editor": "^0.53.0",
+    "lottie-react": "^3.1.2",
+    "monaco-editor": "^0.57.0",
     "oidc-client-ts": "^3.5.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -53,5 +53,10 @@
     "typescript": "^6.0.3",
     "vite": "^8.3.1",
     "vitest": "^5.0.1"
+  },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "$dompurify"
+    }
   }
 }
