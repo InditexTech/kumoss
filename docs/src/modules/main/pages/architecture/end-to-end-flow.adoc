@@ -38,11 +38,15 @@ xref:#auth[Authentication] and xref:#authz[Authorization and
 ownership].
 
 |Repository reachability
-|The URL may carry a userinfo username (the `<org>@` prefix of an Azure
-DevOps clone URL, or `git@`) but must not embed a password or token —
-a request-model validator rejects one that does with `422`, an empty
-`user:` password included — and then `git ls-remote` must succeed:
-unreachable or rejected → `400`. Either way no session is created.
+|The URL must be `https://` with a host — SSH (`git@host:path`,
+`ssh://`), `git://`, `http://`, `file://` and local paths are rejected
+with `422` by a request-model validator. It may carry a userinfo
+username (the `<org>@` prefix of an Azure DevOps clone URL) but must not
+embed a password or token — also `422`, an empty `user:` password
+included. Then `git ls-remote` must succeed: unreachable, rejected or
+timed out → `400` with the fixed detail "Repository is not reachable or
+access was denied."; git's own output goes only to the core log. Either
+way no session is created.
 
 |Session creation
 |A session row owned by the caller is created, or an existing one

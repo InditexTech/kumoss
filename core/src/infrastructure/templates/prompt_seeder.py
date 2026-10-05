@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Bootstraps a fresh Phoenix instance with the example prompts needed for
-Nebula's IaC flows. Runs at application startup and creates only the prompts
+Kumoss's IaC flows. Runs at application startup and creates only the prompts
 that don't already exist, so user-curated prompts are never overwritten.
 """
 
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from typing import get_args
 
 import httpx
 from phoenix.client import AsyncClient
@@ -19,6 +20,7 @@ from phoenix.client.types.prompts import PromptVersion
 from src.infrastructure.exceptions import PromptSeedPushError
 from src.infrastructure.templates._seed_loader import SeedEntry, SeedLoader
 from src.shared.config import system_config
+from src.shared.constants import Environment
 from src.shared.logger import logging
 
 
@@ -38,10 +40,13 @@ class PromptSeeder:
 
     _SEED_MODEL_NAME: str = "nebula-seed"
 
-    def __init__(self, seed_dir: Path, phoenix_base_url: str, tag: str):
+    # Every environment, so changing `environment` later still finds the
+    # seeded prompts without re-tagging them by hand in Phoenix.
+    _TAGS: tuple[Environment, ...] = get_args(Environment)
+
+    def __init__(self, seed_dir: Path, phoenix_base_url: str):
         self._loader = SeedLoader(seed_dir)
         self._client = AsyncClient(base_url=phoenix_base_url)
-        self._tag = tag
 
     async def ensure_seeded(self) -> None:
         """Load YAML seeds and push any that are missing from Phoenix.
@@ -54,7 +59,7 @@ class PromptSeeder:
         entries = self._loader.load()
         logging.info(
             f"Prompt seeder loaded {len(entries)} entries from disk "
-            + f"(env tag='{self._tag}')"
+            + f"(tags={', '.join(self._TAGS)})"
         )
 
         await self._probe_phoenix()
@@ -83,7 +88,7 @@ class PromptSeeder:
         rejects names with leading underscores with 422, which would
         masquerade as a real failure here.
         """
-        probe_name = "nebula_seed_probe_does_not_exist"
+        probe_name = "kumoss_seed_probe_does_not_exist"
         last_err: Exception | None = None
         for attempt, delay in enumerate(self._CONNECT_BACKOFF, start=1):
             try:
@@ -158,19 +163,24 @@ class PromptSeeder:
                 error_code=502,
             )
 
-        try:
-            await self._client.prompts.tags.create(
-                prompt_version_id=version_id,
-                name=self._tag,
-            )
-        except httpx.HTTPError as e:
-            raise PromptSeedPushError(
-                message=(
-                    f"Failed to tag '{entry.qualified_name}' "
-                    f"(version {version_id}) with '{self._tag}': {e}"
-                ),
-                error_code=502,
-            ) from e
+        # The prompt exists from here on, so the next boot skips it by name:
+        # a failure leaves the remaining tags for the operator to add by hand.
+        for i, tag in enumerate(self._TAGS):
+            try:
+                await self._client.prompts.tags.create(
+                    prompt_version_id=version_id,
+                    name=tag,
+                )
+            except httpx.HTTPError as e:
+                raise PromptSeedPushError(
+                    message=(
+                        f"Failed to tag '{entry.qualified_name}' "
+                        f"(version {version_id}) with '{tag}': {e}. The prompt "
+                        f"now exists and the next boot will skip it; tag that "
+                        f"version by hand with: {', '.join(self._TAGS[i:])}"
+                    ),
+                    error_code=502,
+                ) from e
 
         logging.info(f"Created prompt: {entry.qualified_name}")
 
@@ -185,5 +195,4 @@ def build_default_seeder() -> PromptSeeder:
     return PromptSeeder(
         seed_dir=seed_dir,
         phoenix_base_url=system_config.telemetry.collector_url,
-        tag=system_config.environment,
     )

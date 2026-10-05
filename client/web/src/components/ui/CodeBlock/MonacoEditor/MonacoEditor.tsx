@@ -12,8 +12,8 @@ import type {
   DiffOnMount,
 } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/language/json/json.worker?worker";
 import ThumbUpAltOutlined from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlined from "@mui/icons-material/ThumbDownAltOutlined";
 import { useShell } from "@/contexts/ShellContext";
@@ -57,7 +57,7 @@ let themesRegistered = false;
 function defineCustomThemes(monacoInstance: typeof monaco): void {
   if (themesRegistered) return;
 
-  monacoInstance.editor.defineTheme("nebula-light", {
+  monacoInstance.editor.defineTheme("kumoss-light", {
     base: "vs",
     inherit: true,
     rules: [],
@@ -68,7 +68,7 @@ function defineCustomThemes(monacoInstance: typeof monaco): void {
     },
   });
 
-  monacoInstance.editor.defineTheme("nebula-dark", {
+  monacoInstance.editor.defineTheme("kumoss-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [],
@@ -321,7 +321,7 @@ const MonacoEditor = ({
     renderOverviewRuler: false,
   };
 
-  const monacoTheme = editorTheme ? "nebula-dark" : "nebula-light";
+  const monacoTheme = editorTheme ? "kumoss-dark" : "kumoss-light";
 
   const containerStyle = { height };
   const editorWrapperStyle = showTabs

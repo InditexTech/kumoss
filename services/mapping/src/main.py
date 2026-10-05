@@ -4,17 +4,19 @@
 
 """FastAPI application for the mapping reference implementation.
 
-Identity passthrough: the input ``identifier`` is returned unchanged as
-the ``repo_url``, ``terraform_provider`` echoes whatever the caller
-sent, and ``scope_id`` is always ``null``. This is enough for OSS users
-who clone real repo URLs directly; production deployments substitute
-their own implementation against the same contract.
+Identity passthrough: an ``identifier`` that is an https URL is returned
+unchanged as the ``repo_url``, ``terraform_provider`` echoes whatever
+the caller sent, and ``scope_id`` is always ``null``. Any other
+identifier cannot be resolved and answers 404. This is enough for OSS
+users who clone real repo URLs directly; production deployments
+substitute their own implementation against the same contract.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -30,7 +32,7 @@ config = Config.from_env()
 
 
 app = FastAPI(
-    title="Nebula Mapping Service",
+    title="Kumoss Mapping Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/mapping.v1.yaml.",
 )
@@ -80,6 +82,14 @@ async def require_bearer_token(
 Authenticated = Depends(require_bearer_token)
 
 
+def _is_https_url(uri: str) -> bool:
+    try:
+        parsed = urlparse(uri.strip())
+        return parsed.scheme.lower() == "https" and bool(parsed.hostname)
+    except ValueError:
+        return False
+
+
 @app.get("/healthz", response_model=Health, tags=["ops"])
 async def healthz() -> Health:
     return Health(status="ok")
@@ -93,6 +103,11 @@ async def healthz() -> Health:
     dependencies=[Authenticated],
 )
 async def resolve(body: ResolveRequest) -> ResolveResponse:
+    if not _is_https_url(body.identifier):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Identifier is not an https:// repository URL",
+        )
     # Identity passthrough: the identifier IS the repo URL, and nothing
     # is guessed. Sniffing `azure` out of a `dev.azure.com` URL would
     # conflate "hosted on Azure DevOps" with "deploys to Azure", and the

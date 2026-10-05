@@ -15,11 +15,11 @@ class TestOidcConfig(unittest.TestCase):
     def test_scope_placeholder_expands_to_client_id(self):
         cfg = OidcConfig(
             issuer_url="https://idp.example.com",
-            client_id="nebula-spa",
+            client_id="kumoss-spa",
             scope="openid profile email api://{client_id}/access_as_user",
         )
         self.assertEqual(
-            cfg.scope, "openid profile email api://nebula-spa/access_as_user"
+            cfg.scope, "openid profile email api://kumoss-spa/access_as_user"
         )
 
     def test_repeated_placeholders_all_expand(self):
@@ -53,8 +53,8 @@ class TestOidcConfig(unittest.TestCase):
 
     def test_non_entra_issuer_keeps_default_scope(self):
         cfg = OidcConfig(
-            issuer_url="https://keycloak.example.com/realms/nebula",
-            client_id="nebula-spa",
+            issuer_url="https://keycloak.example.com/realms/kumoss",
+            client_id="kumoss-spa",
         )
         self.assertEqual(cfg.scope, "openid profile email")
 
@@ -77,7 +77,7 @@ class TestOidcConfig(unittest.TestCase):
         self.assertIn("oidc.client_id is empty", str(ctx.exception))
 
     def test_audience_defaults_to_blank(self):
-        cfg = OidcConfig(issuer_url="https://idp.example.com", client_id="nebula-spa")
+        cfg = OidcConfig(issuer_url="https://idp.example.com", client_id="kumoss-spa")
         self.assertEqual(cfg.audience, "")
 
 

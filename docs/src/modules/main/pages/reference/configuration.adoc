@@ -102,13 +102,15 @@ shipped value enables Kumoss-managed state by default.
 
 Operational effect: it selects the Phoenix tracing project prefix
 (`dev-`, `pre-`, `pro-`; see xref:main:guides/monitor-with-phoenix.adoc[Monitoring
-with Phoenix]) and it is the *tag* used both when seeding prompts into
-Phoenix and when fetching them at runtime (see
-xref:main:guides/customize-prompts.adoc[Customize prompts]). It
+with Phoenix]) and it is the *tag* used when fetching prompts from
+Phoenix at runtime (see
+xref:main:guides/customize-prompts.adoc[Customize prompts]). The
+seeder tags every prompt it creates with all three values, so switching
+between them finds the seeded prompts without re-tagging. It
 does *not* enable any security control: setting `production` does not
-turn on authentication, authorization, or stricter defaults. Changing
-it after prompts have been seeded requires tagging prompt versions with
-the new value in Phoenix, otherwise runtime prompt lookups fail.
+turn on authentication, authorization, or stricter defaults. A prompt
+created or re-versioned by hand in Phoenix is found only if its version
+carries the tag for the current value.
 
 Requires rebuild: yes.
 
@@ -902,13 +904,13 @@ At boot the core always sets the global git author identity. If both
 credential variables are non-empty it also writes
 `\https://<user>:<token>@<provider-host>` to `~/.git-credentials` and
 enables the `store` credential helper. If either is empty it logs a
-warning and continues; pushes then need credentials from another source
-(a pre-populated `~/.git-credentials`, or mounted SSH keys with an
-`ssh://` repository URL). Note that SSH covers clone and push only:
-pull-request creation and merge call the provider's REST API with
-`GIT_TOKEN` and require an HTTPS repository URL on the public host, so
-an SSH-only setup cannot open or merge pull requests. Repository URLs
-that embed a user name or token are rejected by the API.
+warning and continues; pushes then need a pre-populated
+`~/.git-credentials`, and pull-request creation and merge — which call
+the provider's REST API with `GIT_TOKEN` — fail. Repository URLs must
+be `https://`: SSH, `git://`, `http://`, `file://` and local paths are
+rejected by the API, so SSH keys are never an alternative. URLs that
+embed a password or token are rejected too; a bare userinfo username
+is accepted.
 
 Requires rebuild: yes for the YAML; token values live in `core/.env`.
 

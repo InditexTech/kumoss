@@ -10,8 +10,8 @@ detection.
 == How Kumoss finds Terraform roots
 
 After the repository URL is entered, the wizard calls `POST
-/api/v1/repository/parse`. The core validates the URL with `git
-ls-remote`, clones only the repository metadata (`--filter=blob:none
+/api/v1/repository/parse`. The core accepts only `https://` URLs,
+validates the URL with `git ls-remote`, clones only the repository metadata (`--filter=blob:none
 --no-checkout`, 60-second limit), lists every file committed on the
 *default branch* with `git ls-tree -r HEAD --name-only`, and applies
 these rules to the directory paths. File contents are never read, and

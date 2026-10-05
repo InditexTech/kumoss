@@ -35,11 +35,11 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
-            expected_token=os.environ.get("NEBULA_AUTHZ_TOKEN", ""),
+            expected_token=os.environ.get("KUMOSS_AUTHZ_TOKEN", ""),
             role_store_path=os.environ.get(
-                "NEBULA_AUTHZ_ROLE_STORE", "/data/roles.json"
+                "KUMOSS_AUTHZ_ROLE_STORE", "/data/roles.json"
             ),
-            root_admin_email=os.environ.get("NEBULA_AUTHZ_ROOT_ADMIN_EMAIL", ""),
-            permissive_check=os.environ.get("NEBULA_AUTHZ_PERMISSIVE", "true").lower()
+            root_admin_email=os.environ.get("KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL", ""),
+            permissive_check=os.environ.get("KUMOSS_AUTHZ_PERMISSIVE", "true").lower()
             == "true",
         )

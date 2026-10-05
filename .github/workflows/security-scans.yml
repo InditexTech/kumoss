@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+name: Security Scans
+
+on:
+  pull_request:
+  schedule:
+    # Mondays 05:23 UTC, after the weekly dependabot wave.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep (advisory)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write # Lets the SARIF upload publish Semgrep results.
+    container:
+      image: semgrep/semgrep@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b # 1.178.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan (report only)
+        continue-on-error: true
+        run: semgrep scan --config auto --exclude-rule generic.secrets.security.detected-generic-secret --sarif --output semgrep.sarif --error
+
+      - name: Upload SARIF
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4
+        with:
+          sarif_file: semgrep.sarif
+
+  bandit:
+    name: Bandit (python)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [core, services/authz, services/iac, services/mapping, services/notifications]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Run Bandit
+        # Complementarity: block only on HIGH-severity findings (-lll).
+        # Everything below HIGH overlaps with what Sonar/semgrep already
+        # report (asserts, subprocess patterns); the pre-existing backlog
+        # is tracked for triage, not used to block PRs here.
+        run: uvx --from 'bandit[toml]' bandit -r . -x tests -lll
+
+  hadolint:
+    name: Hadolint (Dockerfiles)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - core/Dockerfile
+          - nginx/Dockerfile
+          - services/authz/Dockerfile
+          - services/iac/Dockerfile
+          - services/mapping/Dockerfile
+          - services/notifications/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint ${{ matrix.dockerfile }}
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          # Pre-existing debt: DL3008 in core/iac (unpinned apt), DL3003/4006
+          # in iac. Only error-level findings block; warnings are tracked for
+          # a follow-up cleanup.
+          failure-threshold: error
+          ignore: DL3008,DL3003,DL4006
+
+  osv-scanner:
+    name: OSV Scanner (dependencies)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan lockfiles
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            --format=table
+            ./core/uv.lock
+            ./services/authz/uv.lock
+            ./services/iac/uv.lock
+            ./services/mapping/uv.lock
+            ./services/notifications/uv.lock
+            ./contracts/conformance/authz/uv.lock
+            ./client/web/package-lock.json
+            ./docs/package-lock.json
+
+  dependencies-review:
+    name: Dependency Review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # Lets the action post its summary comment.
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review changes to dependencies
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Dependency policy: CVEs on the diff block the PR; licenses are
+          # reported until the corporate allowlist is defined (tracked issue).
+          fail-on-severity: high
+          comment-summary-in-pr: always

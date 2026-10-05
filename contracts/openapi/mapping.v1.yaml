@@ -4,20 +4,20 @@
 
 openapi: 3.1.0
 info:
-  title: Nebula Mapping Service
+  title: Kumoss Mapping Service
   version: "1.0.0"
   summary: Resolve a business identifier into an IaC repository reference.
   description: |
     The mapping service translates a "business identifier" (project name,
     subscription code, product slug, full repo URL — whatever an
-    organization uses) into the repository Nebula should clone, plus
+    organization uses) into the repository Kumoss should clone, plus
     whatever else the organization's catalogue already knows about that
     identifier: the Terraform provider it deploys with and the cloud
     scope it deploys into.
 
     Only `repo_url` is guaranteed. `terraform_provider` and `scope_id`
     are best effort, and **`null` means "I do not know, ask the user"** —
-    never "there is none". Nebula skips the wizard step for any field the
+    never "there is none". Kumoss skips the wizard step for any field the
     mapper answers, so a confident wrong answer is worse than `null`: the
     user is never prompted and never sees it. Return `null` whenever the
     catalogue is not authoritative.
@@ -34,12 +34,12 @@ info:
     canonical IaC repo for it. The contract carries the result and says
     nothing about where the lookup data lives.
 
-    The mapping service is invoked only by the Nebula core; browser
+    The mapping service is invoked only by the Kumoss core; browser
     callers reach it through the core passthrough at
     `POST /v1/mapping/resolve`.
   contact:
-    name: Nebula maintainers
-    url: https://github.com/InditexTech/nebula
+    name: Kumoss maintainers
+    url: https://github.com/InditexTech/kumoss
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -61,7 +61,7 @@ paths:
       tags: [resolve]
       summary: Resolve a business identifier into an IaC repository reference.
       description: |
-        Translates `identifier` into the repository the rest of Nebula
+        Translates `identifier` into the repository the rest of Kumoss
         operates on, and optionally into the Terraform provider and cloud
         scope the caller would otherwise have to ask the user for.
 
@@ -155,7 +155,7 @@ components:
       description: |
         Per-service bearer token. The token value is the contents of the
         environment variable named in the system config (default
-        `NEBULA_MAPPING_TOKEN`). Implementations MAY accept all requests
+        `KUMOSS_MAPPING_TOKEN`). Implementations MAY accept all requests
         when no token is configured for local development.
 
   responses:
@@ -219,14 +219,16 @@ components:
         repo_url:
           type: string
           description: |
-            URL Nebula should clone. Free-form because git accepts many
-            URL shapes (https://, ssh+git://, git@host:path, file://,
-            absolute paths). Implementations are responsible for returning
-            something the deployment's git client can clone. When the
-            identifier already is a repository URL, implementations pass
-            it through unchanged.
+            HTTPS URL Kumoss should clone. Must use the `https://` scheme
+            (case-insensitive) and name a host: Nebula clones, pushes and
+            opens pull requests over HTTPS only, and rejects SSH,
+            `git://`, `http://`, `file://` and local paths. When the
+            identifier already is an `https://` repository URL,
+            implementations pass it through unchanged; an identifier
+            that cannot be mapped to one answers `404`.
           minLength: 1
           maxLength: 2048
+          pattern: "^[Hh][Tt][Tt][Pp][Ss]://"
         identifier:
           type: string
           description: |

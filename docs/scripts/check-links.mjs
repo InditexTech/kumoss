@@ -176,6 +176,7 @@ const result = await check({
   statusCodes: {
     403: 'warn',
     429: 'warn',
+    503: 'warn',
   },
 })
 

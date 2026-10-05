@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: SonarCloud Analysis
+run-name: SonarCloud analysis on ${{ github.head_ref || github.ref_name }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarcloud-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: SonarCloud / ${{ matrix.technology }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - technology: python
+            project_key: InditexTech_kumoss-python
+            project_name: kumoss-python
+            conformance_dir_list: contracts/conformance/authz,contracts/conformance/iac,contracts/conformance/mapping,contracts/conformance/notifications
+            coverage_paths: >-
+              services/authz/coverage.xml,services/iac/coverage.xml,services/mapping/coverage.xml,services/notifications/coverage.xml
+          - technology: web
+            project_key: InditexTech_kumoss-web
+            project_name: kumoss-web
+            coverage_paths: client/web/coverage/lcov.info
+    env:
+      PY_PACKAGES: services/authz services/iac services/mapping services/notifications
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up uv
+        if: matrix.technology == 'python'
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            core/uv.lock
+            services/*/uv.lock
+
+      - name: Verify SONAR_TOKEN is configured
+        shell: bash
+        run: |
+          if [ -z "${SONAR_TOKEN:-}" ]; then
+            echo "::error title=Missing SONAR_TOKEN::Configure the SONAR_TOKEN repository secret before running SonarCloud analysis."
+            exit 1
+          fi
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Test with coverage (python)
+        if: matrix.technology == 'python'
+        shell: bash
+        # The core suite is not run in CI: its DB-backed and terraform-backed
+        # tests need the compose stack (documented policy). Core is analyzed
+        # without coverage rather than with failing runs.
+        # pytest-asyncio is not used: core async tests are
+        # unittest.IsolatedAsyncioTestCase-driven.
+        run: |
+          set -euo pipefail
+          export UV_PYTHON=3.13
+          for pkg in $PY_PACKAGES; do
+            (
+              cd "$pkg"
+              uv lock --check
+              uv sync --frozen --group tooling
+              uv run --no-sync pytest --cov --cov-report=xml:coverage.xml
+            )
+          done
+
+      - name: Set up Node
+        if: matrix.technology == 'web'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: client/web/package-lock.json
+
+      - name: Test with coverage (web)
+        if: matrix.technology == 'web'
+        working-directory: client/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run test:coverage
+
+      - name: Build Sonar arguments
+        # matrix fields come from the controlled workflow matrix, but zizmor
+        # (correctly) flags direct ${{ }} interpolation inside run: as
+        # template-injection risk; route them through job-level env instead.
+        env:
+          SONAR_TECH: ${{ matrix.technology }}
+          SONAR_PROJECT_KEY: ${{ matrix.project_key }}
+          SONAR_PROJECT_NAME: ${{ matrix.project_name }}
+          SONAR_CONFORMANCE_DIRS: ${{ matrix.conformance_dir_list }}
+          SONAR_COVERAGE_PATHS: ${{ matrix.coverage_paths }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            "-Dsonar.organization=inditextech"
+            "-Dsonar.projectKey=${SONAR_PROJECT_KEY}"
+            "-Dsonar.projectName=${SONAR_PROJECT_NAME}"
+          )
+          if [ "$SONAR_TECH" = "python" ]; then
+            sources="core/src,services/authz/src,services/iac/src,services/mapping/src,services/notifications/src"
+            tests="core/tests,services/authz/tests,services/iac/tests,services/mapping/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
+            args+=(
+              "-Dsonar.sources=$sources"
+              "-Dsonar.tests=$tests"
+              "-Dsonar.test.inclusions=**/test_*.py,**/test_conformance.py,**/conftest.py"
+              "-Dsonar.python.coverage.reportPaths=${SONAR_COVERAGE_PATHS}"
+            )
+          else
+            args+=(
+              "-Dsonar.sources=client/web/src"
+              "-Dsonar.tests=client/web/src"
+              "-Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**"
+              "-Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.test.mjs,**/*.test.cjs,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx"
+              "-Dsonar.javascript.lcov.reportPaths=${SONAR_COVERAGE_PATHS}"
+            )
+          fi
+          {
+            echo "SONAR_ARGS<<SONAR_ARGS_EOF"
+            printf '%s\n' "${args[@]}"
+            echo "SONAR_ARGS_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Run SonarCloud analysis
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: |-
+            ${{ env.SONAR_ARGS }}

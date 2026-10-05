@@ -10,7 +10,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.exceptions import GitError, InvalidIacPath, InvalidRepoURI
+from src.infrastructure.exceptions import InvalidIacPath, RepositoryUnreachable
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
@@ -55,9 +55,8 @@ class WorkspaceService(IWorkspace):
             cwd=Path(tempfile.gettempdir()),
         )
         if not await git.ls_remote():
-            msg = git.error_msg or f"Cannot reach repository: {repo_uri}"
-            logging.warning(f"git ls-remote failed for {repo_uri}: {msg}")
-            raise InvalidRepoURI(message=msg, error_code=400)
+            logging.warning(f"git ls-remote failed for {repo_uri}: {git.error_msg}")
+            raise RepositoryUnreachable(400)
 
     @override
     async def setup_call_dir(
@@ -82,7 +81,7 @@ class WorkspaceService(IWorkspace):
             repository_name=str(call_id),
         )
         if not ok:
-            raise GitError(f"git clone failed: {git.error_msg}", 500)
+            raise RepositoryUnreachable(500)
 
         if not self.__add_terraform_gitignore(call_dir):
             logging.warning("terraform gitignore couldn't be created")

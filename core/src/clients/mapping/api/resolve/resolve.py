@@ -97,7 +97,7 @@ def sync_detailed(
 ) -> Response[Problem | ResolveResponse | ResolveResponse400]:
     """Resolve a business identifier into an IaC repository reference.
 
-     Translates `identifier` into the repository the rest of Nebula
+     Translates `identifier` into the repository the rest of Kumoss
     operates on, and optionally into the Terraform provider and cloud
     scope the caller would otherwise have to ask the user for.
 
@@ -136,7 +136,7 @@ def sync(
 ) -> Problem | ResolveResponse | ResolveResponse400 | None:
     """Resolve a business identifier into an IaC repository reference.
 
-     Translates `identifier` into the repository the rest of Nebula
+     Translates `identifier` into the repository the rest of Kumoss
     operates on, and optionally into the Terraform provider and cloud
     scope the caller would otherwise have to ask the user for.
 
@@ -170,7 +170,7 @@ async def asyncio_detailed(
 ) -> Response[Problem | ResolveResponse | ResolveResponse400]:
     """Resolve a business identifier into an IaC repository reference.
 
-     Translates `identifier` into the repository the rest of Nebula
+     Translates `identifier` into the repository the rest of Kumoss
     operates on, and optionally into the Terraform provider and cloud
     scope the caller would otherwise have to ask the user for.
 
@@ -207,7 +207,7 @@ async def asyncio(
 ) -> Problem | ResolveResponse | ResolveResponse400 | None:
     """Resolve a business identifier into an IaC repository reference.
 
-     Translates `identifier` into the repository the rest of Nebula
+     Translates `identifier` into the repository the rest of Kumoss
     operates on, and optionally into the Terraform provider and cloud
     scope the caller would otherwise have to ask the user for.
 

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 # SPDX-License-Identifier: Apache-2.0
 
 name: Pull Request Verification
@@ -9,41 +9,96 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: pr-verify-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  repo-linter:
-    name: Repo Linter
-    runs-on: ubuntu-latest
+  workflow-quality:
+    name: Workflow and Template Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Lint GitHub Actions workflows
+        uses: reviewdog/action-actionlint@2085657ab2c7f48c58edcc767fba576f63bea76b # v1.77.0
+        with:
+          reporter: github-annotations
+          fail_level: error
+          # Scoped to the workflows this repo maintains: the legacy
+          # docouture-*/verify.yml pending cleanup still carries findings.
+          actionlint_flags: >-
+            .github/workflows/pr-verify.yml
+            .github/workflows/push-verify.yml
+            .github/workflows/scorecard-analysis.yml
+            .github/workflows/codeql.yml
+            .github/workflows/security-scans.yml
+            .github/workflows/sonar.yml
+
+  zizmor:
+    name: GitHub Actions security audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Run zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          inputs: >-
+            .github/workflows/pr-verify.yml
+            .github/workflows/push-verify.yml
+            .github/workflows/scorecard-analysis.yml
+            .github/workflows/codeql.yml
+            .github/workflows/security-scans.yml
+            .github/workflows/sonar.yml
+          collect: workflows
+          online-audits: false
+          persona: pedantic
+          version: 1.29.0
+          advanced-security: false
+          annotations: true
+
+  repo-linter:
+    name: Repo Linter
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: 'Run Repolinter'
         uses: newrelic/repolinter-action@3f4448f855c351e9695b24524a4111c7847b84cb # v1.7.0
 
-  reuse-compliance:
-    name: REUSE Compliance
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: REUSE Compliance Check
-        uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
-
   links:
     name: Links
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Link Checker
@@ -52,14 +107,31 @@ jobs:
           args: --no-progress --offline --include-fragments 'README.md' 'CONTRIBUTING.md' 'SECURITY.md' 'docs/**/*.md' 'services/**/*.md' 'contracts/**/*.md' 'client/web/README.md'
           fail: true
 
-  conventional-commits:
-    name: Conventional Commits
-    runs-on: ubuntu-latest
+  reuse-compliance:
+    name: REUSE Compliance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: webiny/action-conventional-commits@8bc41ff4e7d423d56fa4905f6ff79209a78776c7 # v1.3.0
+      - name: REUSE Compliance Check
+        uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+  conventional-commits:
+    name: Conventional Commits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: webiny/action-conventional-commits@7f91b1595ca1951cdb671ddc9f07a49081ec5b69 # v1.4.2
