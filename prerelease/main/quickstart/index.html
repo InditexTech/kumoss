@@ -809,11 +809,24 @@ for their names. Every <code>.env</code> file is gitignored; never commit one.</
 is baked into the core image at build time, so every edit needs
 <code>docker compose build core</code>.</p>
 </div>
-<div class="paragraph">
-<p>The minimum is the two model strings for your LLM provider and the two
-orchestration gates. Fields not shown use the core&#8217;s code defaults; use the
-shipped file or the configuration reference when you need its non-default
-tuning.</p>
+<div class="sect3">
+<h4 id="what-to-edit-vs-keep-as-default"><a class="anchor" href="#what-to-edit-vs-keep-as-default"></a>What to Edit vs. Keep as Default</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Must Modify / Verify:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>llm.model</code>: set your primary LLM provider model string.</p>
+</li>
+<li>
+<p><code>llm.small_model</code>: set your lightweight model string.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
 </div>
 <div class="paragraph">
 <p>The <code>llm</code> values below are only an example: replace both model strings with
@@ -824,12 +837,154 @@ the models you prefer. Model strings per provider:
 <div class="content">
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/claude-sonnet-5-5"</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.8-flash"</span></span>
-<span class="line"></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">orchestration</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  enable_compliance_checker</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  block_on_high_impact</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"vertex_ai/gemini-3.8-flash"</span></span></span></code></pre>
 </div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Optional / Conditional:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>git.provider</code>: only modify if you are using GitLab (<code>"GITLAB"</code>) or Azure DevOps (<code>"AZURE_DEVOPS"</code>). Defaults to <code>"GITHUB"</code>. Accepted values and the supported hosts:
+<a href="../reference/configuration/#config-git" class="xref page"><code>git</code> configuration</a>.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">git</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"GITHUB"</span><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # or "AZURE_DEVOPS", "GITLAB"</span></span></span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Keep as Default:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p>All unmentioned configuration fields automatically fall back to core code defaults.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="3-fill-in-core-env"><a class="anchor" href="#3-fill-in-core-env"></a>3. Fill in core/.env</h3>
+<div class="paragraph">
+<p>The <code>core/.env</code> passes mandatory runtime secrets such as LLM API keys and Git access tokens. The core will not run without them.</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+every <code>.env</code> file is gitignored by default. Never commit a <code>.env</code> file containing real credentials to version control.
+</td>
+</tr>
+</table>
+</div>
+<div class="sect3">
+<h4 id="what-to-edit-vs-keep-as-default-2"><a class="anchor" href="#what-to-edit-vs-keep-as-default-2"></a>What to Edit vs. Keep as Default</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Variables you MUST set:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>LLM provider credentials:</strong> set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in <code>llm.model</code> and <code>llm.small_model</code>. See examples below. For more info see <a href="../reference/llm-providers/#provider-credentials" class="xref page">provider credential variables</a>.</p>
+</li>
+<li>
+<p><code>GIT_USER</code>, <code>GIT_TOKEN</code>: the account username and personal access token for the provider named by <code>git.provider</code> defined in <code>config.yaml</code>. See examples below.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Variables to Keep as Default:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>All other sample values in <code>core/env.sample</code>:</strong> leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup. For a complete reference of every variable, see <a href="../reference/environment-variables/" class="xref page">environment variables and secrets</a>.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+if you modify <code>core/.env</code> after the stack is already running, recreate the container using <code>docker compose up -d core</code> to apply changes. Running <code>docker compose restart</code> will <strong>not</strong> reload <code>.env</code> variables.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="brief-core-env-examples"><a class="anchor" href="#brief-core-env-examples"></a>Brief core/.env examples</h4>
+<div class="openblock example">
+<div class="content">
+<div class="paragraph">
+<p><strong>Anthropic example:</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Google Vertex AI example::</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>VERTEXAI_PROJECT="your-gcp-project-id"</span></span>
+<span class="line"><span>VERTEXAI_LOCATION="us-central1"</span></span>
+<span class="line"><span>VERTEXAI_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Azure OpenAI example:</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>AZURE_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</span></span>
+<span class="line"><span>AZURE_API_BASE="https://your-resource.openai.azure.com"</span></span>
+<span class="line"><span>AZURE_API_VERSION="2025-01-01-preview"</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Git Credentials example:</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>GIT_USER="your-git-username"</span></span>
+<span class="line"><span>GIT_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"</span></span></span></code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="4-fill-in-servicesiac-env"><a class="anchor" href="#4-fill-in-servicesiac-env"></a>4. Fill in services/iac/.env</h3>
+<div class="paragraph">
+<p>The <code>services/iac/.env</code> file passes your cloud provider access keys and execution engine settings directly to the IaC sidecar.</p>
 </div>
 <div class="admonitionblock note">
 <table>
@@ -838,82 +993,94 @@ the models you prefer. Model strings per provider:
 <i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-The defaults include <strong>Terraform state</strong>. Kumoss stores it for you in
-the bundled RustFS object store, one state file per project, and
-<strong>ignores any <code>backend</code> block in the target repository</strong>. That suits a
-first run. To keep a repository&#8217;s own backend instead, see
-<a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a>.
+missing or invalid cloud credentials in <code>services/iac/.env</code> do not stop the container. The engine runs anyway, but authentication errors will appear inside the session as a failed <code>init</code>, <code>plan</code>, or <code>apply</code> operation.
 </td>
 </tr>
 </table>
 </div>
+<div class="sect3">
+<h4 id="what-to-edit-vs-keep-as-default-3"><a class="anchor" href="#what-to-edit-vs-keep-as-default-3"></a>What to Edit vs. Keep as Default</h4>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Variables you MUST set:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Cloud provider credentials:</strong> set the specific authentication variables required by your OpenTofu or Terraform providers. See <a href="../reference/terraform-providers/" class="xref page">terraform providers</a> for the minimum set per cloud and authentication method.</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Optional / Conditional Settings:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><code>IAC_BINARY</code>: the sidecar runs OpenTofu 1.12.6 by default. Set <code>IAC_BINARY=terraform</code> only if you explicitly want to use the bundled HashiCorp Terraform 1.16.0 instead (selecting Terraform makes your use subject to its BUSL-1.1 license).</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p><strong>Variables to Keep as Default:</strong></p>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Internal service settings (e.g., <code>KUMOSS_IAC_TOKEN</code>):</strong> leave these pre-populated values intact so they remain synchronized with <code>core/.env</code> and the container stack.</p>
+</li>
+</ul>
+</div>
+</li>
+</ul>
+</div>
+<div class="admonitionblock tip">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-tip" title="Tip"></i>
+</td>
+<td class="content">
+recreate the sidecar using <code>docker compose up -d iac</code> whenever you update <code>services/iac/.env</code>.
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect3">
+<h4 id="brief-servicesiac-env-examples"><a class="anchor" href="#brief-servicesiac-env-examples"></a>Brief services/iac/.env examples</h4>
+<div class="openblock example">
+<div class="content">
 <div class="paragraph">
-<p>Apart from the Git credentials you set in the next step, you may need to
-change the Git provider. <code>git.provider</code> must name the host of your
-repository and defaults to <code>GITHUB</code>; for Azure DevOps or GitLab, add it to
-the file:</p>
+<p><strong>AWS Credentials Example:</strong></p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">git</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"GITLAB"</span><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">  # or "AZURE_DEVOPS"</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>AWS_ACCESS_KEY_ID="AKIAXXXXXXXXXXXXXXXX"</span></span>
+<span class="line"><span>AWS_SECRET_ACCESS_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</span></span>
+<span class="line"><span>AWS_REGION="us-east-1"</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Accepted values and the supported hosts:
-<a href="../reference/configuration/#config-git" class="xref page"><code>git</code> configuration</a>.</p>
+<p><strong>GCP Credentials Example:</strong></p>
 </div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>GOOGLE_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'</span></span></span></code></pre>
 </div>
-<div class="sect2">
-<h3 id="3-fill-in-core-env"><a class="anchor" href="#3-fill-in-core-env"></a>3. Fill in core/.env</h3>
-<div class="paragraph">
-<p>Set:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>LLM provider credentials</strong> — the variables LiteLLM reads for the
-provider prefix of <code>llm.model</code> and <code>llm.small_model</code>. See
-<a href="../reference/llm-providers/#provider-credentials" class="xref page">provider
-credential variables</a>. The core will not run without them.</p>
-</li>
-<li>
-<p><code>GIT_USER</code>, <code>GIT_TOKEN</code> — the account and personal access token for the
-provider named by <code>git.provider</code> defined in the above <code>config.yaml</code>.</p>
-</li>
-</ul>
 </div>
 <div class="paragraph">
-<p>Keep the remaining sample values: they match the bundled containers. Every
-variable: <a href="../reference/environment-variables/" class="xref page">Environment
-variables and secrets</a>.</p>
+<p><strong>Azure Credentials Example:</strong></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="env"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>ARM_CLIENT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"</span></span>
+<span class="line"><span>ARM_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"</span></span>
+<span class="line"><span>ARM_TENANT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"</span></span></span></code></pre>
 </div>
 </div>
-<div class="sect2">
-<h3 id="4-fill-in-servicesiac-env"><a class="anchor" href="#4-fill-in-servicesiac-env"></a>4. Fill in services/iac/.env</h3>
-<div class="paragraph">
-<p>Set:</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p><strong>Cloud provider credentials</strong> — the variables your OpenTofu or Terraform
-providers read. See
-<a href="../reference/terraform-providers/" class="xref page">Terraform providers</a> for
-the minimum set per cloud and authentication method.</p>
-</li>
-</ul>
 </div>
-<div class="paragraph">
-<p>The sidecar runs OpenTofu 1.12.6 by default. Set
-<code>IAC_BINARY=terraform</code> to use the bundled HashiCorp Terraform
-1.16.0 instead; it is BUSL-1.1 licensed, and selecting it
-makes your use subject to that license.</p>
-</div>
-<div class="paragraph">
-<p>Invalid or missing cloud credentials do not stop the container. The engine
-runs anyway and its own authentication error appears in the session as a
-failed <code>init</code>, <code>plan</code>, or <code>apply</code>.</p>
 </div>
 </div>
 <div class="sect2">
