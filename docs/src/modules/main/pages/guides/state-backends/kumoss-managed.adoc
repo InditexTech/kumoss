@@ -358,6 +358,10 @@ relies on has not been verified in this repository.
 
 == Verify
 
+To check all three layers in a deployed environment, see
+xref:main:guides/configure-state-backends.adoc#find-active-state[Find the
+active state].
+
 . Run a session, then confirm that the core wrote the override and
   which key it chose:
 +
