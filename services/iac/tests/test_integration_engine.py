@@ -82,7 +82,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         _ = run("/v1/apply", {"plan_file": "smoke.plan", **SCOPE})
 
 
-_IMPORTED_ID = "nebula-import-probe-1"
+_IMPORTED_ID = "kumoss-import-probe-1"
 
 
 @pytest.mark.parametrize("binary", [_engine("tofu"), _engine("terraform")])

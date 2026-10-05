@@ -13,12 +13,12 @@ FROM python:3.13-slim@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245
 # Unprivileged runtime identity. The uid/gid MUST match the core image's
 # (same ARG names and defaults in core/Dockerfile): both containers
 # share the `workspaces` volume read-write.
-ARG NEBULA_UID=10001
-ARG NEBULA_GID=10001
-RUN groupadd --gid "${NEBULA_GID}" nebula \
-    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
-        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
-    && mkdir -p /workspaces && chown nebula:nebula /workspaces
+ARG KUMOSS_UID=10001
+ARG KUMOSS_GID=10001
+RUN groupadd --gid "${KUMOSS_GID}" kumoss \
+    && useradd --uid "${KUMOSS_UID}" --gid "${KUMOSS_GID}" \
+        --create-home --home-dir /home/kumoss --shell /usr/sbin/nologin kumoss \
+    && mkdir -p /workspaces && chown kumoss:kumoss /workspaces
 
 WORKDIR /app
 
@@ -43,15 +43,15 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_HTTP_TIMEOUT=120 \
     UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH" \
-    HOME=/home/nebula
+    HOME=/home/kumoss
 
 COPY services/iac/pyproject.toml services/iac/uv.lock ./
 
 RUN uv sync --locked --no-default-groups
 
-COPY --chown=nebula:nebula services/iac/src ./src
+COPY --chown=kumoss:kumoss services/iac/src ./src
 
-USER ${NEBULA_UID}:${NEBULA_GID}
+USER ${KUMOSS_UID}:${KUMOSS_GID}
 
 EXPOSE 8082
 

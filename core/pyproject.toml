@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "Nebula"
+name = "Kumoss"
 version = "0.1.0"
 description = "FastAPI-based API with Terraform support"
 requires-python = ">=3.13"

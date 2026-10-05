@@ -1,15 +1,15 @@
-# Default Nebula system config bundled with the docker-compose stack.
+# Default Kumoss system config bundled with the docker-compose stack.
 #
-# This file is baked into the nebula-core image at build time (the
-# Dockerfile copies it to /etc/nebula/config.yaml, the path the core
-# reads by default; set NEBULA_CONFIG to load a different file). Edits
+# This file is baked into the kumoss-core image at build time (the
+# Dockerfile copies it to /etc/kumoss/config.yaml, the path the core
+# reads by default; set KUMOSS_CONFIG to load a different file). Edits
 # here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
 # so rebuild after changing it: `docker compose build core`. It carries
 # deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
-# names (GIT_USER, GIT_TOKEN, NEBULA_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
-# NEBULA_<SERVICE>_TOKEN, …) are defined in code and don't need to be
+# names (GIT_USER, GIT_TOKEN, KUMOSS_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
+# KUMOSS_<SERVICE>_TOKEN, …) are defined in code and don't need to be
 # repeated here. LLM provider credentials use LiteLLM's own variable
 # names:
 #   https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
@@ -18,7 +18,7 @@
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
 # true and point it at a self-hosted mapper) or override per-environment
-# via a docker-compose.override.yml / your own NEBULA_CONFIG path.
+# via a docker-compose.override.yml / your own KUMOSS_CONFIG path.
 
 # development | staging | production. Selects the Phoenix tracing project
 # prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
@@ -64,21 +64,21 @@ services:
   notifications:
     enabled: true
     endpoint: "http://notifications:8080"
-    token_env: "NEBULA_NOTIFICATIONS_TOKEN"
+    token_env: "KUMOSS_NOTIFICATIONS_TOKEN"
     timeout: 30.0
   mapping:
     enabled: false
     endpoint: "http://mapping:8081"
-    token_env: "NEBULA_MAPPING_TOKEN"
+    token_env: "KUMOSS_MAPPING_TOKEN"
     timeout: 30.0
   authz:
     enabled: false
     endpoint: "http://authz:8083"
-    token_env: "NEBULA_AUTHZ_TOKEN"
+    token_env: "KUMOSS_AUTHZ_TOKEN"
     timeout: 30.0
   iac:
     endpoint: "http://iac:8082"
-    token_env: "NEBULA_IAC_TOKEN"
+    token_env: "KUMOSS_IAC_TOKEN"
     timeout: 30.0
     job_poll_interval: 5.0
     job_timeout: 3600.0
@@ -160,12 +160,12 @@ paths:
   session_plan_filename: "session.plan"
   backend_override_filename: "backend_override.tf"
 
-# Nebula Postgres database. Connection URLs embed credentials, so they are
+# Kumoss Postgres database. Connection URLs embed credentials, so they are
 # referenced indirectly: this key names the env var that holds the actual URL.
 # Override only to read different env var names.
 # The core refuses to boot when the env var resolves empty.
 database:
-  nebula_database_url_env: "NEBULA_SQL_DATABASE_URL"
+  kumoss_database_url_env: "KUMOSS_SQL_DATABASE_URL"
 
 # Redis session store / cache. The URL may embed a password, so it is
 # read from the env var named by `redis_url_env`; when that env var is
@@ -175,7 +175,7 @@ database:
 # database instead of stalling requests. `pool_timeout` is how long a
 # request may wait for a free pooled connection under a burst.
 redis:
-  redis_url_env: "NEBULA_REDIS_URL"
+  redis_url_env: "KUMOSS_REDIS_URL"
   default_url: "redis://redis:6379/0"
   max_connections: 20
   socket_connect_timeout: 2.0
@@ -210,7 +210,7 @@ http:
 # the shared key from the STORAGE_ACCOUNT_KEY env var; `region` is
 # ignored).
 #
-# `terraform_state_bucket` ships SET, so Nebula owns Terraform state out
+# `terraform_state_bucket` ships SET, so Kumoss owns Terraform state out
 # of the box: a second bucket (blob container on STORAGE_ACCOUNT) in the
 # same store as `bucket`, created at boot, with a matching backend
 # written into every workspace before `init`, keyed by project. It is
@@ -218,7 +218,7 @@ http:
 # bucket's lifecycle or presign policy, and it is what lets a repository
 # that declares no backend of its own work unchanged.
 #
-# Set it to "" to turn managed state off: Nebula then writes no backend
+# Set it to "" to turn managed state off: Kumoss then writes no backend
 # override and every repository must declare its own, with the iac
 # sidecar holding that backend's credentials. Use an explicit "" rather
 # than an empty value — the field is a string, and a YAML null fails
@@ -239,8 +239,8 @@ http:
 # `max_attempts` is the botocore standard-mode retry count.
 storage:
   provider: "RUSTFS"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
   terraform_state_filename: "terraform.tfstate"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
@@ -263,7 +263,7 @@ storage:
 #   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 git:
   provider: "GITHUB"
-  author_name: "Nebula"
-  author_email: "nebula@noreply.invalid"
+  author_name: "Kumoss"
+  author_email: "kumoss@noreply.invalid"
 
 

@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Nebula Authorization Service",
+    title="Kumoss Authorization Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/authz.v1.yaml.",
     lifespan=lifespan,

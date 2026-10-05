@@ -44,7 +44,7 @@ describe("support notification builders", () => {
         uuid: "s1",
         workspace: {
           uri: "https://github.com/org/bucket-infra",
-          branch: "nebula/s1",
+          branch: "kumoss/s1",
           root_path: "envs/dev",
         },
       },
@@ -53,7 +53,7 @@ describe("support notification builders", () => {
     expect(ctx).toMatchObject({
       project: "bucket-infra",
       repository: "https://github.com/org/bucket-infra",
-      branch: "nebula/s1",
+      branch: "kumoss/s1",
       environment: "envs/dev",
       pull_request: "https://github.com/org/bucket-infra/pull/3",
     });
@@ -61,12 +61,12 @@ describe("support notification builders", () => {
 
   it("buildSupportLinks adds the session page and the PR when present", () => {
     expect(
-      buildSupportLinks({ uuid: "s1" }, { url: "https://x/pr/1" }, "https://nebula.example"),
+      buildSupportLinks({ uuid: "s1" }, { url: "https://x/pr/1" }, "https://kumoss.example"),
     ).toEqual([
-      { label: "Open session", url: "https://nebula.example/home/results/s1" },
+      { label: "Open session", url: "https://kumoss.example/home/results/s1" },
       { label: "Pull request", url: "https://x/pr/1" },
     ]);
-    expect(buildSupportLinks({}, {}, "https://nebula.example")).toEqual([]);
+    expect(buildSupportLinks({}, {}, "https://kumoss.example")).toEqual([]);
   });
 
   it("buildSupportSubject names the user and the session", () => {

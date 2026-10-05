@@ -6,11 +6,11 @@ FROM ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce2459468
 
 FROM python:3.13-slim@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 AS base
 
-ARG NEBULA_UID=10001
-ARG NEBULA_GID=10001
-RUN groupadd --gid "${NEBULA_GID}" nebula \
-    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
-        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula
+ARG KUMOSS_UID=10001
+ARG KUMOSS_GID=10001
+RUN groupadd --gid "${KUMOSS_GID}" kumoss \
+    && useradd --uid "${KUMOSS_UID}" --gid "${KUMOSS_GID}" \
+        --create-home --home-dir /home/kumoss --shell /usr/sbin/nologin kumoss
 
 COPY --from=uv /uv /uvx /bin/
 
@@ -26,9 +26,9 @@ COPY services/notifications/pyproject.toml services/notifications/uv.lock ./
 
 RUN uv sync --locked --no-default-groups
 
-COPY --chown=nebula:nebula services/notifications/src ./src
+COPY --chown=kumoss:kumoss services/notifications/src ./src
 
-USER ${NEBULA_UID}:${NEBULA_GID}
+USER ${KUMOSS_UID}:${KUMOSS_GID}
 
 EXPOSE 8080
 

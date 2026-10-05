@@ -19,7 +19,7 @@ T = TypeVar("T", bound="ResolveResponse")
 class ResolveResponse:
     """
     Attributes:
-        repo_url (str): HTTPS URL Nebula should clone. Must use the `https://` scheme
+        repo_url (str): HTTPS URL Kumoss should clone. Must use the `https://` scheme
             (case-insensitive) and name a host: Nebula clones, pushes and
             opens pull requests over HTTPS only, and rejects SSH,
             `git://`, `http://`, `file://` and local paths. When the
