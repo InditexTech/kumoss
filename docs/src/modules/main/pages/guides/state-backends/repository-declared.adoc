@@ -159,6 +159,10 @@ docker compose up -d iac
 
 == Verify
 
+To check all three layers in a deployed environment, see
+xref:main:guides/configure-state-backends.adoc#find-active-state[Find the
+active state].
+
 . Run a session against the repository, then confirm that the core wrote
   *no* override. This command must print nothing:
 +

@@ -253,14 +253,164 @@ is yours:
 [#state-troubleshooting]
 == Troubleshooting
 
-Start by checking whether the core wrote an override. It logs one line
-before every `init` when managed state is on, and nothing otherwise:
+[#find-active-state]
+=== Find the active state
+
+Start here whenever you are unsure which state file a project uses. The
+answer depends on three layers (see <<precedence,Which value wins>>), so
+check all three, highest priority first. The commands read the
+*running* containers, not your local files, so they show what is
+actually deployed.
+
+. *Sidecar layer.* Check whether the IaC sidecar overrides the backend:
++
+[source,bash]
+----
+docker compose exec iac sh -c 'echo "IAC_BACKEND_CONFIG=${IAC_BACKEND_CONFIG:-<unset>}"; [ -n "$IAC_BACKEND_CONFIG" ] && cat "$IAC_BACKEND_CONFIG"'
+----
++
+[source]
+----
+IAC_BACKEND_CONFIG=<unset>
+----
++
+A path that does not start with `/` is relative to each cloned
+workspace, so `cat` fails here even when `init` finds the file. Read
+that file in the repository instead.
+
+. *Core layer.* Check whether Kumoss-managed state is on in the image
+  that is running:
++
+[source,bash]
+----
+docker compose exec core python -c "
+from src.shared.config import system_config as c
+s = c.storage
+print('managed state :', 'ON' if s.state_bucket else 'OFF')
+print('provider      :', s.provider.name)
+print('bucket        :', s.state_bucket or '-')
+print('endpoint      :', s.endpoint_url)
+"
+----
++
+[source]
+----
+managed state : ON
+provider      : RUSTFS
+bucket        : kumoss-terraform-state
+endpoint      : http://object-storage:9000
+----
+
+. *Repository layer.* When managed state is `OFF`, read the backend block
+  the repository commits:
++
+[source,bash]
+----
+git -C _REPOSITORY_PATH_ grep -n -A8 'backend "'
+----
++
+[source]
+----
+main.tf:2:  backend "azurerm" {
+main.tf-3-    resource_group_name  = "tfstate-rg"
+main.tf-4-    storage_account_name = "acmetfstate"
+main.tf-5-    container_name       = "tfstates"
+main.tf-6-    key                  = "platform.tfstate"
+----
+
+Read the results together:
+
+[cols="2,2,4",options="header"]
+|===
+|Sidecar layer |Core layer |The active state is…
+
+|`<unset>`
+|`ON`
+|`<bucket>/<project_id>/terraform.tfstate` in the store at `endpoint`.
+Get the `project_id` from the core log (see below).
+
+|`<unset>`
+|`OFF`
+|Wherever the repository's backend block points. In the example above:
+container `tfstates`, blob `platform.tfstate` in account `acmetfstate`.
+
+|a path
+|`OFF`
+|The repository's backend block, with every key the file sets replacing
+the repository's value.
+
+|a path
+|`ON`
+|Mixed: a misconfiguration. Fix it before trusting any state (see
+<<precedence,Which value wins>>).
+|===
+
+*Get the `project_id` under managed state.* The core logs the bucket and
+key each time it writes the override, before every `init`:
 
 [source,bash]
 ----
 docker compose logs core | grep "Terraform state:"
-# Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
 ----
+
+[source]
+----
+Terraform state: rustfs bucket=kumoss-terraform-state key=3f9a…c41e/terraform.tfstate
+----
+
+Use this line to *find the key*, not to decide which model is active. It
+is written by the core, so:
+
+* It appears *only* when managed state is on. No line does not tell you
+  where state is, only that the repository or the sidecar decides.
+* It does *not* include `IAC_BACKEND_CONFIG` overrides, which the core
+  never sees.
+* It prints no account or endpoint; those come from
+  `storage.endpoint_url`.
+* It appears only after a session has run `init` since the container was
+  last created, and an apply logs nothing new: it reuses the workspace
+  the plan initialized, so it writes to the same state.
+
+*Confirm the object exists and is the one being written.* After an
+apply, the state object's modification time must change:
+
+[tabs]
+--
+[tab,label="Azure"]
+****
+[source,bash]
+----
+az storage blob show --auth-mode login \
+  --account-name acmetfstate --container-name tfstates \
+  --name platform.tfstate \
+  --query "{size: properties.contentLength, modified: properties.lastModified}"
+----
+****
+
+[tab,label="AWS"]
+****
+[source,bash]
+----
+aws s3api head-object --bucket acme-team-tfstate \
+  --key envs/prod/terraform.tfstate \
+  --query "{size: ContentLength, modified: LastModified}"
+----
+****
+
+[tab,label="RustFS (bundled)"]
+****
+[source,bash]
+----
+# One-off: the backend uses path-style addressing, so the client must too.
+aws configure set default.s3.addressing_style path
+
+AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
+AWS_DEFAULT_REGION=us-east-1 \
+  aws --endpoint-url http://localhost:9000 \
+  s3 ls s3://kumoss-terraform-state/ --recursive
+----
+****
+--
 
 === Plans against empty state
 
