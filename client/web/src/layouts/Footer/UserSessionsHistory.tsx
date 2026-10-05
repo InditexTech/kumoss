@@ -99,7 +99,7 @@ export default function UserSessionsHistory({
           <Typography variant="h5" component="span" className={styles.title}>
             Sessions
           </Typography>
-          <Stack direction="row" alignItems="center" spacing={2}>
+          <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
             <ButtonBase
               className={styles.viewAll}
               onClick={() => navigate("/user/sessions")}

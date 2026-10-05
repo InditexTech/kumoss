@@ -15,8 +15,14 @@ class IFileSystem(ABC):
         """Get the project root path"""
         pass
 
+    @property
     @abstractmethod
-    def write_file(self, target_file: str, content: str, is_safe: bool = True) -> bool:
+    def protected_names(self) -> frozenset[str]:
+        """Names of the entries managed by Nebula, hidden from the tools"""
+        pass
+
+    @abstractmethod
+    def write_file(self, target_file: str, content: str, is_safe: bool = True) -> None:
         """
         Write content to a single file.
         If the file doesn't exist, a new one is created.
@@ -25,36 +31,27 @@ class IFileSystem(ABC):
             target_file: Target file path relative to project root
             content: Content to write
             is_safe: flag that checks a valid file extension
-
-        Returns:
-            True if successful
         """
         pass
 
     @abstractmethod
-    def replace_in_file(self, target_file: str, search_replace_blocks: str) -> bool:
+    def replace_in_file(self, target_file: str, search_replace_blocks: str) -> None:
         """
         Replace content in a file using search/replace blocks
 
         Args:
             target_file: Target file path relative to project root
             search_replace_blocks: Search/replace blocks in the expected format
-
-        Returns:
-            True if successful
         """
         pass
 
     @abstractmethod
-    def delete_file(self, target_file: str) -> bool:
+    def delete_file(self, target_file: str) -> None:
         """
         Delete a single file
 
         Args:
             target_file: Target file path relative to project root
-
-        Returns:
-            True if successful
         """
         pass
 
@@ -72,7 +69,7 @@ class IFileSystem(ABC):
         pass
 
     @abstractmethod
-    def list_directory(self, relative_path: str = ".") -> list[str]:
+    def list_directory(self, relative_path: str = ".") -> list[Path]:
         """
         List contents of a directory
 

@@ -23,7 +23,7 @@ class IWorkspace(ABC):
 
     @abstractmethod
     async def validate_uri(self, repo_uri: str) -> None:
-        """Verify the URI is reachable. Raises InvalidRepoURI on failure."""
+        """Verify the URI is reachable. Raises RepositoryUnreachable on failure."""
 
     @abstractmethod
     async def setup_call_dir(
@@ -33,6 +33,15 @@ class IWorkspace(ABC):
         branch: str,
     ) -> Path:
         """Shallow-clone into the per-call directory. Returns the dir path."""
+
+    @abstractmethod
+    def iac_root(self, call_dir: Path, iac_path: str | None) -> Path:
+        """Resolve the IaC root of a call directory.
+
+        Symlinks are resolved: the root must be an existing directory
+        inside ``call_dir``, so a committed link cannot widen the scope
+        of the tools working in it. Raises InvalidIacPath otherwise.
+        """
 
     @abstractmethod
     def cleanup(self, call_dir: Path) -> None:

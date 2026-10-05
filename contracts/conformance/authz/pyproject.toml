@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "Schemathesis-driven conformance suite for contracts/openapi/authz.v1.yaml."
 requires-python = ">=3.13"
 dependencies = [
-    "schemathesis>=4.0",
-    "pytest>=8.0",
+    "schemathesis>=4.17.0",
+    "pytest>=9.0.3",
 ]
 
 [tool.pytest.ini_options]

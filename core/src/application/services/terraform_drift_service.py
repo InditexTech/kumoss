@@ -9,7 +9,6 @@ from src.domains.services import (
     ArtifactStorageService,
     SessionService,
     TaskService,
-    TemplateOrchestrationService,
     TerraformValidationService,
 )
 from src.domains.value_objects import Conventions, PlanRef
@@ -27,7 +26,6 @@ class TerraformDriftService:
         self,
         session_context: SessionContext,
         session_service: SessionService,
-        template_service: TemplateOrchestrationService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
@@ -35,7 +33,6 @@ class TerraformDriftService:
     ):
         self.__ctx = session_context
         self.__session_svc = session_service
-        self.__template_svc = template_service
         self.__validation_svc = validation_service
         self.__terraform_svc = terraform_service
         self.__split_svc = split_service
@@ -102,10 +99,11 @@ class TerraformDriftService:
 
             drift = await self.__terraform_svc.drift(plan=plan)
 
+            if not drift.feedback:
+                await self.__store_drift(drift, targets)
+
             if drift.in_sync:
                 break
-
-            await self.__store_drift(drift, targets)
 
             if drift.feedback:
                 logging.error(f"Drift could not be read: {drift.feedback}")
@@ -169,11 +167,15 @@ class TerraformDriftService:
         targets: list[str],
     ) -> None:
         if drift.drift:
-            _ = await self.__artifact_svc.store_terraform_plan(
-                session_id=self.__ctx.id,
-                round_id=self.__ctx.round_id,
-                targets=targets,
-                content=drift.drift,
-                content_type=ContentType.TEXT,
-                metadata={"type": "drift"},
-            )
+            type, content = "drift", drift.drift
+        else:
+            type, content = "plan", drift.stdout
+
+        _ = await self.__artifact_svc.store_terraform_plan(
+            session_id=self.__ctx.id,
+            round_id=self.__ctx.round_id,
+            targets=targets,
+            content=content,
+            content_type=ContentType.TEXT,
+            metadata={"type": type},
+        )

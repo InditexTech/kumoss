@@ -103,7 +103,6 @@ You have tools at your disposal to assess the USER's request. Follow these rules
 1. ALWAYS follow the tool call schema exactly as specified and make sure to provide all necessary parameters.
 2. The use of tools is MANDATORY. You will use the tools at your disposal to reach the goal and nothing else.
 3. Use the inspection tools (`list_dir`, `read_file`, `bulk_grep_search`, `diff_history`) only to gather the evidence needed for your assessment or answer. CRITICAL: once you have gathered sufficient information (typically after reading 3-5 relevant files), you MUST stop using information-gathering tools and call `requests_filter`.
-4. You may execute a maximum of 25 tool calls. Optimize every call to ensure the assessment is completed before reaching this limit.
 </tool_calling>
 
 <constraints>

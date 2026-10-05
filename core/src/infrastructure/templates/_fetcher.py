@@ -9,6 +9,7 @@ import httpx
 from phoenix.client import AsyncClient
 
 from src.shared.config import system_config
+from src.shared.constants import Environment
 from src.infrastructure.exceptions import PhoenixPromptFetchError
 
 
@@ -22,7 +23,7 @@ class _PromptFetcher:
         prompt_name: str,
         scope: Literal["general", "azure", "gcp", "aws", "oci", "kubernetes"],
         type: Literal["resources", "guidelines", "compliance"],
-        tag: Literal["production", "development"],
+        tag: Environment,
     ) -> str:
         qualified_name = f"{scope}-{type}-{prompt_name}"
         try:
@@ -50,27 +51,3 @@ class _PromptFetcher:
 
 # singleton for caching prompts across different sessions
 remote_fetcher = _PromptFetcher()
-
-if __name__ == "__main__":
-    import time
-
-    async def main():
-        prompt_fetcher = _PromptFetcher()
-        tags = ["development", "development", "development", "development"]
-        for i in range(len(tags)):
-            start = time.time()
-            prompt = await prompt_fetcher.fetch(
-                prompt_name="networking",
-                scope="azure",
-                type="guidelines",
-                tag=tags[i],
-                # date=datetime.now(UTC).strftime('%Y-%m-%d') if i < 2 else "hey"
-            )
-            print(time.time() - start)
-            print(prompt)
-
-        print()
-
-    import asyncio
-
-    asyncio.run(main())

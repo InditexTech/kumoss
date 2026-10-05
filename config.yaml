@@ -12,7 +12,7 @@
 # KUMOSS_<SERVICE>_TOKEN, …) are defined in code and don't need to be
 # repeated here. LLM provider credentials use LiteLLM's own variable
 # names:
-#   https://inditextech.github.io/kumoss/prerelease/main/reference/llm-providers/
+#   https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
 # Override only if you need a different env var name — see
 # core/src/shared/config/system_config.py for the `*_env` fields.
 #
@@ -23,8 +23,8 @@
 # development | staging | production. Selects the Phoenix tracing project
 # prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
 # Phoenix prompts:
-#   https://inditextech.github.io/kumoss/prerelease/main/guides/monitor-with-phoenix/
-#   https://inditextech.github.io/kumoss/prerelease/main/guides/customize-prompts/
+#   https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-phoenix/
+#   https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/
 # No security gates are keyed on it.
 environment: "development"
 
@@ -32,7 +32,7 @@ environment: "development"
 # entirely (dev default: every request acts as a local developer with
 # top roles). Optional overrides (`audience`, `scope`), per-IdP setup
 # and quirks (Entra ID, Keycloak, Auth0):
-#   https://inditextech.github.io/kumoss/prerelease/main/guides/enable-authentication/
+#   https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/
 # clock_skew_seconds is the allowed leeway on exp/iat/nbf.
 oidc:
   issuer_url: ""
@@ -46,7 +46,7 @@ oidc:
 # login for existing ones. IdPs that never emit `email_verified` (Entra
 # ID, Auth0, Okta) cannot bootstrap this way: set the roles in the users
 # table instead — see "Bootstrap admin" at
-#   https://inditextech.github.io/kumoss/prerelease/main/guides/enable-authentication/
+#   https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/
 # Elevation is one-way: clearing this field later never demotes anyone.
 # Leave blank to skip.
 admin:
@@ -103,13 +103,13 @@ services:
 #
 # max_drift_reports: maximum detect-and-remediate iterations in a drift
 # session. Every knob is described at
-#   https://inditextech.github.io/kumoss/prerelease/main/reference/configuration/
+#   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
-  max_drift_reports: 5
-  max_validation_iteration: 8
-  max_tool_chain_executions: 70
+  max_drift_reports: 3
+  max_validation_iteration: 5
+  max_tool_agent_executions: 40
   max_session_events_iteration: 2160
   drift_group_operations: 8
   pull_request_readiness_seconds: 10
@@ -130,12 +130,12 @@ orchestration:
 # fallbacks between different models are not configurable.
 #
 # Refer to:
-#   - https://inditextech.github.io/kumoss/prerelease/main/reference/llm-providers/  — Kumoss's LiteLLM guide
+#   - https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/  — Kumoss's LiteLLM guide
 #   - https://models.litellm.ai/                                                     — model IDs
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-4-6"
+  model: "vertex_ai/claude-sonnet-5-5"
   # Simple tasks model
   small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
@@ -150,9 +150,15 @@ llm:
 # workspace (written by plan, carried by the pinned workspace, executed
 # by apply); it must be a bare filename (single path segment) and should
 # keep the `.plan` suffix so the injected terraform gitignore covers it.
+# `backend_override_filename` names the state backend override written
+# into every workspace before `init` when `storage.terraform_state_bucket`
+# is set. It must be a bare filename ending in `_override.tf`: Terraform
+# only merges `*_override.tf` over the configuration, and the injected
+# gitignore only covers that suffix. The agent's file tools cannot see it.
 paths:
   upload_folder: "/workspaces"
   session_plan_filename: "session.plan"
+  backend_override_filename: "backend_override.tf"
 
 # Kumoss Postgres database. Connection URLs embed credentials, so they are
 # referenced indirectly: this key names the env var that holds the actual URL.
@@ -218,7 +224,12 @@ http:
 # than an empty value — the field is a string, and a YAML null fails
 # validation at boot. Deleting the key restores the default, which is
 # this same bucket name. See
-#   https://inditextech.github.io/kumoss/prerelease/main/guides/configure-state-backends/
+#   https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/
+#
+# `terraform_state_filename` is the object name of each project's state,
+# stored at `<project_id>/<terraform_state_filename>` in that bucket; it
+# must be a bare filename. Changing it orphans existing state: projects
+# then start from an empty state under the new key.
 #
 # `presign_expiry_seconds` must outlive the 24h cached finished-session
 # aggregate that embeds these URLs: the core refuses values under 30h
@@ -230,6 +241,7 @@ storage:
   provider: "RUSTFS"
   bucket: "kumoss-artifacts"
   terraform_state_bucket: "kumoss-terraform-state"
+  terraform_state_filename: "terraform.tfstate"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
@@ -241,14 +253,14 @@ storage:
 # Git push provider + author. Credentials (username + PAT) are read from
 # env at boot (default GIT_USER / GIT_TOKEN). When either is empty the
 # core logs a warning and skips the credential setup (push will then
-# need a mounted ~/.git-credentials or SSH keys; note that pull-request
-# creation and merge call the provider REST API with GIT_TOKEN over
-# HTTPS, so SSH alone cannot open or merge pull requests).
+# need a mounted ~/.git-credentials, and pull-request creation and merge,
+# which call the provider REST API with GIT_TOKEN, will fail). Repository
+# URLs must be https://; SSH and every other scheme are rejected.
 #
 # `provider` defaults to GITHUB and must be a GitProviderName enum name
 # or value (see core/src/shared/constants.py::GitProviderName): GITHUB,
 # AZURE_DEVOPS, GITLAB. Full field reference:
-#   https://inditextech.github.io/kumoss/prerelease/main/reference/configuration/
+#   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 git:
   provider: "GITHUB"
   author_name: "Kumoss"

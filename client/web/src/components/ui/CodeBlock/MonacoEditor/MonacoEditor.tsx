@@ -12,8 +12,8 @@ import type {
   DiffOnMount,
 } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/language/json/json.worker?worker";
 import ThumbUpAltOutlined from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlined from "@mui/icons-material/ThumbDownAltOutlined";
 import { useShell } from "@/contexts/ShellContext";

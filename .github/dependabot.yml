@@ -1,0 +1,197 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      first-party-actions:
+        patterns:
+          - InditexTech/gh-actions/*
+      # init and analyze are entrypoints of the same github/codeql-action repo
+      # and share one release version; CodeQL rejects a run whose init and
+      # analyze versions differ. Grouping the family forces one PR that bumps
+      # every entrypoint to the same version together.
+      codeql-action:
+        patterns:
+          - github/codeql-action/*
+
+  # Python packages live in uv-managed projects (core + services/*).
+  - package-ecosystem: uv
+    directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: uv
+    directory: /services/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: uv
+    directory: /services/iac
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: uv
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: uv
+    directory: /services/notifications
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  # Only contracts/conformance/authz ships its own uv.lock; the other
+  # conformance suites are workspace members of their service projects.
+  - package-ecosystem: uv
+    directory: /contracts/conformance/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /nginx
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /services/authz
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /services/iac
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: /services/notifications
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: npm
+    directory: /client/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      client-web-dev-deps:
+        dependency-type: development
+    # eslint-plugin-react (latest 7.37.5) only supports eslint <= 9, so
+    # eslint 10 cannot install. Drop these once it supports eslint 10.
+    ignore:
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      docs-dev-deps:
+        dependency-type: development

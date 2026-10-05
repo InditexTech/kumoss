@@ -90,11 +90,13 @@ for contract completeness and for callers other than the wizard.
 
 |`repo_url`
 |1-2048 chars, required
-|The URL Kumoss clones. Free-form because git accepts many URL shapes
-— `https://`, `ssh+git://`, `git@host:path`, `file://`, an absolute
-path. Returning something the deployment's git client can actually
-clone is the implementation's responsibility. When the identifier
-already is a repository URL, it is passed through unchanged.
+|The `https://` URL Kumoss clones (scheme case-insensitive, host
+required; the spec enforces the scheme with a `pattern`). Kumoss
+clones, pushes and opens pull requests over HTTPS only, so SSH,
+`git://`, `http://`, `file://` and local paths are off-contract and the
+core answers `502` for them. When the identifier already is an
+`https://` repository URL, it is passed through unchanged; an
+identifier that cannot be mapped to one is `404`.
 
 |`identifier`
 |1-1024 chars, required
@@ -168,26 +170,31 @@ surfaces a timeout as `504` and an unreachable sidecar as `502`. Two
 more answers are also `502`: a body the core cannot parse, and a
 `terraform_provider` outside the contract's enum (the generated client
 hands the raw string through, and the core refuses it rather than
-letting it fail later). There is no silent fallback once the sidecar is
-enabled.
+letting it fail later), and a `repo_url` that is not an `https://` URL.
+There is no silent fallback once the sidecar is enabled.
 
 When the sidecar is disabled (the shipped default) the core answers
-byte-for-byte what the bundled service would: `repo_url` and
-`identifier` both echo the input, `terraform_provider` echoes whatever
-was sent, and `scope_id` is `null`. Toggling `services.mapping.enabled`
-therefore changes nothing for a user who pastes a repository URL.
+byte-for-byte what the bundled service would for an `https://` URL:
+`repo_url` and `identifier` both echo the input, `terraform_provider`
+echoes whatever was sent, and `scope_id` is `null`. Toggling
+`services.mapping.enabled` therefore changes nothing for a user who
+pastes an HTTPS repository URL. Any other input is echoed unchecked too
+(where the bundled service answers `404`); the next request that uses
+it as `repo_uri` is rejected with `422`.
 
 == The bundled implementation
 
-`services/mapping/` is an *identity passthrough*. Whatever
-`identifier` arrives comes back as both `repo_url` and `identifier`,
+`services/mapping/` is an *identity passthrough*. An `https://`
+`identifier` comes back as both `repo_url` and `identifier`,
 `terraform_provider` echoes what the caller sent, and `scope_id` is
 always `null`. Nothing is truncated and nothing is guessed: sniffing
 `azure` out of a `dev.azure.com` URL would conflate "hosted on Azure
 DevOps" with "deploys to Azure", and a guess is a question the user
-never gets to correct. It exists so a fresh deployment works end to end
-without anyone writing a real mapper, and it is exactly right for users
-who pass real git URLs already.
+never gets to correct. Any other identifier — a bare name, an SSH or
+`file://` URL, a path — cannot be resolved and answers `404`. It exists
+so a fresh deployment works end to end without anyone writing a real
+mapper, and it is exactly right for users who pass real HTTPS git URLs
+already.
 
 A catalogue-backed implementation replaces it: look the identifier up
 in a CMDB, Backstage, or a shared spreadsheet and return the canonical
@@ -198,9 +205,10 @@ nothing about where the lookup data lives.
 === Responses it never produces
 
 The contract documents `400`, `403`, `404`, and `502` for real
-catalogue backends. The passthrough emits none of them — it has no
-catalogue to miss in and no authorization concept beyond the bearer
-token. It only ever answers `200`, `401`, `422`, or `500`. A caller
+catalogue backends. The passthrough emits only `404`, for an identifier
+that is not an `https://` URL — it has no catalogue to miss in and no
+authorization concept beyond the bearer token. It only ever answers
+`200`, `401`, `404`, `422`, or `500`. A caller
 must still handle the full set, because a catalogue implementation
 will use it.
 

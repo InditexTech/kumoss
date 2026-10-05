@@ -30,7 +30,9 @@ class ResolveRequest(BaseModel):
 class ResolveResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    repo_url: str = Field(min_length=1, max_length=2048)
+    repo_url: str = Field(
+        min_length=1, max_length=2048, pattern=r"^[Hh][Tt][Tt][Pp][Ss]://"
+    )
     identifier: str = Field(min_length=1, max_length=1024)
     terraform_provider: TerraformProvider | None = None
     scope_id: str | None = Field(default=None, min_length=1, max_length=1024)

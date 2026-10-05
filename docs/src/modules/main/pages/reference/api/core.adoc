@@ -176,9 +176,11 @@ neither is a validation error.
 
 |`repo_uri`
 |required
-|Git-cloneable repository URI. May carry a userinfo username (for
-example `\https://org@dev.azure.com/...`) but must not embed a password
-or token; an empty password (`user:@host`) is rejected too.
+|`https://` repository URI with a host; SSH (`git@host:path`,
+`ssh://`), `git://`, `http://`, `file://` and local paths are `422`. May
+carry a userinfo username (for example `\https://org@dev.azure.com/...`)
+but must not embed a password or token; an empty password
+(`user:@host`) is rejected too.
 
 |`scope_id`
 |required
@@ -194,7 +196,10 @@ identifier does.
 |optional
 |Repository-relative path to the IaC root, for example
 `environments/dev`. Defaults to the repository root. An absolute path
-or one containing a `..` segment is rejected. First call only —
+or one containing a `..` segment is rejected. After the clone, the path
+must resolve, symlinks included, to an existing directory inside the
+repository, or the session ends `FAILED` with `runner failed: iac_path
+'<path>' is not a directory inside the repository`. First call only —
 iteration calls inherit it from the session.
 
 |`session_id`
@@ -290,7 +295,7 @@ or a session with no pull requests is `404`.
 `POST /api/v1/repository/parse` clones a repository and returns the
 Terraform root-module directories it found, as POSIX paths relative to
 the repository root. The body is `{"repo_uri": "<uri>"}` and the same
-no-password-or-token rule applies. This route takes no session, so
+https-only, no-password-or-token rules apply. This route takes no session, so
 there is no ownership check — the wizard calls it as soon as a
 repository URL is entered.
 
@@ -299,8 +304,11 @@ repository URL is entered.
 {"roots": [".", "environments/dev", "environments/prod"]}
 ----
 
-A URI that embeds a password or token is `422`, one that `git ls-remote`
-cannot reach is `400`, and a failed clone or scan is `502`. The
+A URI that is not `https://` or embeds a password or token is `422`,
+one that `git ls-remote` cannot reach is `400`, and a failed clone or
+scan is `502`. The `400` and the clone `502` carry the fixed detail
+"Repository is not reachable or access was denied."; git's own output
+is only logged. The
 detection rules behind the answer are in
 xref:main:reference/repository-layout.adoc[Repository layout].
 

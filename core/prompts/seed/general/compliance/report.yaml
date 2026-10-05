@@ -16,21 +16,16 @@ body: |
 
   ## scope_exceeded (severity: error)
   Every individual change in the plan must be traceable to the user's
-  request: either explicitly asked for, or strictly required for a requested
-  change to apply (a dependency the requested change cannot exist without,
-  named in the finding). Any other change is a violation, reported per
+  request: either explicitly asked for, or a indirect change or dependency
+  required for the request. Any other change is a violation, reported per
   resource with the offending attribute or block in the message.
 
-  Two things never count as required auxiliary changes:
+  Never count as required auxiliary changes:
   - A removal. Adding or allowing something never requires removing or
     disallowing something else. A removed nested block (`- block_name {`),
     an attribute set to null (`-> null`), or an element dropped from a list
     or set is always a change in its own right.
-  - A change to a security boundary the request did not mention: network
-    or IP access rules, firewall rules, CORS, TLS and client-certificate
-    settings, authentication, identity, roles and permissions, encryption,
-    public exposure. When such a change appears alongside a requested one
-    in the same resource, report it even if the requested one is correct.
+
 
   Treat as a strong signal of an unintended change: a value the request
   names (an address, origin, name or identifier) that the plan also removes

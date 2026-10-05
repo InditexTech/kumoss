@@ -119,14 +119,18 @@ class CliTimeoutError(ExceptionHandler):
     pass
 
 
-class InvalidRepoURI(ExceptionHandler):
-    """Raised when `git ls-remote` rejects the URI."""
+class RepositoryUnreachable(ExceptionHandler):
+    """Raised when git cannot reach or read a remote; git's output is only logged."""
 
-    pass
+    def __init__(self, error_code: int):
+        super().__init__(
+            message="Repository is not reachable or access was denied.",
+            error_code=error_code,
+        )
 
 
-class GitError(ExceptionHandler):
-    """General git error exception"""
+class InvalidIacPath(ExceptionHandler):
+    """Raised when the IaC root does not resolve to a directory inside the clone."""
 
     pass
 
@@ -139,7 +143,9 @@ class TerraformBackendError(ExceptionHandler):
     """Raised when Terraform backend override found an error."""
 
 
+class CustomFileNotFoundError(ExceptionHandler):
+    """FileNotFoundError custom exception"""
+
+
 class SearchReplaceBlockError(ExceptionHandler):
     """Raised when replace_in_file receives malformed or non-applicable SEARCH/REPLACE blocks"""
-
-    pass

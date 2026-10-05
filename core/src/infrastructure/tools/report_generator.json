@@ -2,6 +2,8 @@
   {
     "name": "generate_terraform_plan_report",
     "description": "Analyzes an infrastructure-as-code plan (e.g., from Terraform) and generates a structured, human-readable summary of the proposed changes, including potential impacts and estimated costs.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {
@@ -214,6 +216,8 @@
   {
     "name": "generate_terraform_drift_report",
     "description": "Creates a structured report summarizing the actions taken to remediate a Terraform configuration drift. The remediated resources are the code changes reported by the `diff_history` tool; the two optional blocks state the drift that was left in place, either because it could not be reconciled or because a drift exception rule covers it.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {
@@ -348,6 +352,8 @@
   {
     "name": "generate_terraform_apply_report",
     "description": "Analyzes the output of a Terraform apply operation and generates a comprehensive report detailing what resources were created, updated, or destroyed, including their status and any errors encountered.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {
@@ -467,6 +473,8 @@
   {
     "name": "generate_terraform_import_report",
     "description": "Reports the outcome of an import round: which unmanaged cloud resources were brought under Terraform management, which failed, and whether the generated configuration now matches the imported state. The resources already exist, so nothing is created and no cost is introduced.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

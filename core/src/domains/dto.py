@@ -36,6 +36,12 @@ class ToolDefinitionDTO:
     description: str
     parameters: dict[str, Any]
     context: ToolContext
+    # Harness metadata, never sent to the model.
+    # single_use: the result does not depend on the arguments, so the tool is
+    # withdrawn once it succeeds (until the workspace changes).
+    single_use: bool
+    # mutates_workspace: a success invalidates earlier reads of the workspace.
+    mutates_workspace: bool
 
 
 @dataclass

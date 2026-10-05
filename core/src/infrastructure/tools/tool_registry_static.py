@@ -75,6 +75,8 @@ class ToolRegistryStatic(IToolRegistry):
                 description=tool_data["description"],
                 parameters=tool_data["parameters"],
                 context=context,
+                single_use=tool_data["single_use"],
+                mutates_workspace=tool_data["mutates_workspace"],
             )
             self.__tool_definitions[tool_def.name] = tool_def
             logging.info(f"Loaded tool: {tool_def.name} from {file_path.name}")
@@ -105,7 +107,7 @@ class ToolRegistryStatic(IToolRegistry):
         """Get available tools for a specific context in LLM-compatible format"""
         filtered_tools: list[ToolDefinitionDTO] = []
 
-        for _, tool_def in self.__tool_definitions.items():
+        for tool_def in self.__tool_definitions.values():
             if tool_def.context == context:
                 filtered_tools.append(tool_def)
 
@@ -200,7 +202,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
                 message=f"Target generation inference hasn't returned the expected structure. got={targets}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "targets": targets,
@@ -224,7 +226,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_drift_generator(
@@ -244,7 +246,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_apply_generator(
@@ -266,7 +268,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_import_generator(
@@ -303,7 +305,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(status, bool):
             raise ToolInferenceParamsError(
                 message=f"Requests filter inference hasn't returned the expected structure. got={status}",
-                error_code=500,
+                error_code=400,
             )
         return {"status": status, "explanation": explanation}
 
@@ -314,7 +316,7 @@ class ToolRegistryStatic(IToolRegistry):
             raise ToolInferenceParamsError(
                 message="PR generation inference hasn't returned the expected structure."
                 + f" got={parameters}",
-                error_code=500,
+                error_code=400,
             )
         return {"title": title, "description": description}
 
@@ -348,7 +350,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(operations, list):
             raise ToolInferenceParamsError(
                 message=f"Task Splitter inference hasn't returned the expected structure. got={operations}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "operations": operations,
@@ -366,7 +368,7 @@ class ToolRegistryStatic(IToolRegistry):
             )
         return {"status": status, "summary": summary, "imports": imports}
 
-    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
         try:
             response = await self.__llm.inference(msg=query, web_search=True)
@@ -374,11 +376,20 @@ class ToolRegistryStatic(IToolRegistry):
             InferenceCallWebSearchNotSupported,
             InferenceCallAPIError,
         ) as e:
-            return f"Web search is unavailable: {e.message}. Do NOT retry web_search."
+            return {
+                "query": query,
+                "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
+            }
 
         if not response.text:
-            return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
-        return response.text
+            return {
+                "query": query,
+                "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+            }
+        return {
+            "query": query,
+            "result": response.text,
+        }
 
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]
@@ -397,5 +408,5 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )

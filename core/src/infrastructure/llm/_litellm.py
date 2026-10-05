@@ -2,16 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# pyright: reportArgumentType=false, reportOptionalMemberAccess=false
 import asyncio
+import dataclasses
 import json
 
-from typing import Any
+from typing import Any, cast
 
 import litellm
+from litellm import Choices, Message, ModelResponse, ResponsesAPIResponse, Usage
 from litellm.router import Router
-from litellm.types.utils import ModelResponse, Choices, Message, Usage
 from openai import OpenAIError
+from pydantic import BaseModel
 
 from src.domains.interfaces.llm_interface import ILLMProvider
 from src.domains.dto import (
@@ -55,11 +56,12 @@ class LiteLLMAdapter(ILLMProvider):
     async def inference(
         self,
         msg: str | list[ToolResultDTO],
-        system_prompt: str = None,
-        tools: list[ToolDefinitionDTO] = None,
+        system_prompt: str | None = None,
+        tools: list[ToolDefinitionDTO] | None = None,
         history: History = None,
         thinking: bool = False,
         web_search: bool = False,
+        notice: str | None = None,
     ) -> LLMResponseDTO:
         if tools and thinking:
             raise InferenceCallThinkingToolError(
@@ -81,6 +83,8 @@ class LiteLLMAdapter(ILLMProvider):
         model_id = self.__model
         max_tokens = self.__max_tokens
         local_history = self.__format_history(history, msg)
+        if notice:
+            local_history.append({"role": "user", "content": notice})
 
         if system_prompt:
             local_history.insert(0, {"role": "system", "content": system_prompt})
@@ -93,7 +97,7 @@ class LiteLLMAdapter(ILLMProvider):
                     )
                     break
                 except OpenAIError as e:
-                    logging.error(f"LiteLLM aresponses provider error: {str(e)}")
+                    logging.error(f"LiteLLM aresponses provider error: {e!r}")
 
                 logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
                 await asyncio.sleep(30)
@@ -114,33 +118,37 @@ class LiteLLMAdapter(ILLMProvider):
 
             if tools:
                 kwargs["tools"] = self.__format_tools(tools)
-                kwargs["tool_choice"] = "required"
+                kwargs["tool_choice"] = "auto"
 
             if thinking:
-                kwargs["reasoning_effort"] = "medium"
+                kwargs["reasoning_effort"] = "low"
 
             if web_search:
                 kwargs["web_search_options"] = {"search_context_size": "medium"}
 
             self._last_invocation_params = kwargs
             try:
-                response = await self.__router.acompletion(**kwargs, drop_params=True)
+                response = cast(
+                    ModelResponse,
+                    await self.__router.acompletion(**kwargs, drop_params=True),
+                )
             except OpenAIError as e:
-                logging.error(f"LiteLLM API error: {str(e)}")
+                logging.error(f"LiteLLM API error: {e!r}")
                 raise InferenceCallAPIError(
                     message=f"Inference call to {self.__model} failed.",
                     error_code=getattr(e, "status_code", 502),
                 )
 
         message = response.choices[0].message
+        usage: Usage | None = getattr(response, "usage", None)
 
         return LLMResponseDTO(
             text=message.content or "",
             metadata=LLMMetadata(
                 finish_reason=self.__map_stop_reason(response.choices[0].finish_reason),
                 model=response.model,
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=response.usage.completion_tokens,
+                input_tokens=usage.prompt_tokens if usage else 0,
+                output_tokens=usage.completion_tokens if usage else 0,
             ),
             tool_calls=[
                 ToolCallDTO(
@@ -164,14 +172,14 @@ class LiteLLMAdapter(ILLMProvider):
         return "web_search_options" in params
 
     async def __aresponses_web_search(
-        self, messages: list[dict], max_tokens: int
+        self, messages: list[dict[str, Any]], max_tokens: int
     ) -> ModelResponse:
         """Use aresponses to perform web search with models that don't support native web search.
         Like gpt-5-mini, gpt-5, gpt-4o, gpt-4.1, ...
         """
         model_id = self.__model
 
-        aresponses_kwargs = {
+        aresponses_kwargs: dict[str, Any] = {
             "model": model_id,
             "input": messages,
             "tools": [{"type": "web_search_preview", "search_context_size": "medium"}],
@@ -180,14 +188,20 @@ class LiteLLMAdapter(ILLMProvider):
             "timeout": self.__timeout,
         }
         self._last_invocation_params = aresponses_kwargs
-        resp = await self.__router.aresponses(**aresponses_kwargs, drop_params=True)
+        resp = cast(
+            ResponsesAPIResponse,
+            await self.__router.aresponses(**aresponses_kwargs, drop_params=True),
+        )
 
         text = ""
-        for item in resp.output:
-            if hasattr(item, "content"):
-                for block in item.content:
-                    if hasattr(block, "text"):
-                        text += block.text or ""
+        for item in cast(list[Any], resp.output):
+            content = getattr(item, "content", None)
+            if not isinstance(content, list):
+                continue
+            for block in cast(list[Any], content):
+                block_text = getattr(block, "text", None)
+                if isinstance(block_text, str):
+                    text += block_text
 
         usage = resp.usage
         return ModelResponse(
@@ -222,22 +236,41 @@ class LiteLLMAdapter(ILLMProvider):
             )
         return output
 
-    def __format_tool_results(self, tool_results: list[ToolResultDTO]) -> list[dict]:
-        output: list[dict] = []
+    def __format_tool_results(
+        self, tool_results: list[ToolResultDTO]
+    ) -> list[dict[str, Any]]:
+        output: list[dict[str, Any]] = []
         for result in tool_results:
+            # Content MUST be a string: provider converters (e.g. Anthropic)
+            # silently drop non-string content.
+            payload: dict[str, Any] = (
+                {"success": True, "result": result.result}
+                if result.success
+                else {"success": False, "error": result.error_message}
+            )
             output.append(
                 {
                     "role": "tool",
                     "tool_call_id": result.tool_call_id,
-                    "content": str(result.result)
-                    if result.success
-                    else result.error_message,
+                    "content": json.dumps(
+                        payload, ensure_ascii=False, default=self.__json_default
+                    ),
                 }
             )
         return output
 
-    def __format_tool_calls(self, tool_calls: list[ToolCallDTO]) -> list[dict]:
-        output: list[dict] = []
+    @staticmethod
+    def __json_default(obj: Any) -> Any:
+        if isinstance(obj, BaseModel):
+            return obj.model_dump(mode="json")
+        if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
+            return dataclasses.asdict(obj)
+        return str(obj)
+
+    def __format_tool_calls(
+        self, tool_calls: list[ToolCallDTO]
+    ) -> list[dict[str, Any]]:
+        output: list[dict[str, Any]] = []
         for call in tool_calls:
             output.append(
                 {
@@ -253,10 +286,10 @@ class LiteLLMAdapter(ILLMProvider):
 
     def __format_history(
         self, history: History, last_usr_msg: str | list[ToolResultDTO]
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         if not history:
             history = History()
-        formatted_history = []
+        formatted_history: list[dict[str, Any]] = []
         for turn in history:
             if isinstance(turn.user, list):
                 formatted_history.extend(self.__format_tool_results(turn.user))

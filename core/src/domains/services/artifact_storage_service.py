@@ -136,7 +136,7 @@ class ArtifactStorageService:
         targets: list[str],
         content: str | bytes,
         content_type: ContentType,
-        metadata: dict[str, str] = None,
+        metadata: dict[str, str] | None = None,
     ) -> int:
         """Persist a round terraform plan; returns the terraform_plans row pk.
 
@@ -176,7 +176,7 @@ class ArtifactStorageService:
         file_name: str,
         content: str | bytes,
         content_type: ContentType,
-        metadata: dict[str, str] = None,
+        metadata: dict[str, str] | None = None,
     ) -> int:
         """Persist a round code change; returns the code_changes row pk.
 

@@ -2,6 +2,8 @@
   {
     "name": "report_compliance_findings",
     "description": "Call this tool just before calling `task_complete` or any other sentinel tool. Report every compliance violation found. If no violations were found, report passed=true with an empty violations list.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

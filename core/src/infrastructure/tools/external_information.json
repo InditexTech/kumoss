@@ -2,6 +2,8 @@
   {
     "description": "Perform a web search. Use this tool when you need to search the internet for up-to-date information, facts, or general knowledge.",
     "name": "web_search",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "properties": {
         "query": {

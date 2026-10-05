@@ -26,9 +26,9 @@ class TerraformUtils:
         directory, recreated per call, cannot express.
 
         The repository URI is normalized first: it reaches here in
-        whatever form the caller used, and credentials embedded for
-        push, a ``.git`` suffix or a different case must not split one
-        project into several.
+        whatever form the caller used, and a userinfo username, a
+        ``.git`` suffix or a different case must not split one project
+        into several.
         """
         seed = "\n".join(
             (
@@ -41,10 +41,7 @@ class TerraformUtils:
 
     @staticmethod
     def __normalize_repo_uri(repo_uri: str) -> str:
-        uri = repo_uri.strip()
-        if "://" not in uri and "@" in uri:
-            uri = "ssh://" + uri.replace(":", "/", 1)
-        parsed = urlparse(uri)
+        parsed = urlparse(repo_uri.strip())
         host = (parsed.hostname or "").lower()
         path = parsed.path.strip("/").removesuffix(".git").strip("/").lower()
         return f"{host}/{path}"
@@ -113,14 +110,28 @@ class TerraformUtils:
     def __reverse_output(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         for resource in changes:
             if resource["action"] == "update resource":
-                changed_resource = (
-                    json.dumps(resource["changes"])
-                    .replace("old", "%old%")
-                    .replace("new", "old")
-                    .replace("%old%", "new")
-                    .replace("added", "%added%")
-                    .replace("removed", "added")
-                    .replace("%added%", "removed")
-                )
-                resource["changes"] = json.loads(changed_resource)
+                resource["changes"] = {
+                    TerraformUtils.__swap_word(
+                        category, ("added", "removed")
+                    ): TerraformUtils.__reverse_items(items)
+                    if category in ("values_changed", "type_changes")
+                    else items
+                    for category, items in resource["changes"].items()
+                }
         return changes
+
+    @staticmethod
+    def __reverse_items(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        return {
+            path: {
+                TerraformUtils.__swap_word(field, ("old", "new")): value
+                for field, value in change.items()
+            }
+            for path, change in items.items()
+        }
+
+    @staticmethod
+    def __swap_word(key: str, pair: tuple[str, str]) -> str:
+        a, b = pair
+        parts = key.split("_")
+        return "_".join(b if p == a else a if p == b else p for p in parts)

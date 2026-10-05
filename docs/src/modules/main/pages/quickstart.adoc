@@ -43,13 +43,19 @@ xref:main:reference/llm-providers.adoc[LLM providers and models].
 [source,yaml]
 ----
 llm:
-  model: "vertex_ai/claude-sonnet-4-5"
+  model: "vertex_ai/claude-sonnet-5-5"
   small_model: "vertex_ai/gemini-3.8-flash"
 
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
 ----
+
+NOTE: The defaults include *Terraform state*. Kumoss stores it for you in
+the bundled RustFS object store, one state file per project, and
+*ignores any `backend` block in the target repository*. That suits a
+first run. To keep a repository's own backend instead, see
+xref:main:guides/configure-state-backends.adoc[Configure state backends].
 
 Apart from the Git credentials you set in the next step, you may need to
 change the Git provider. `git.provider` must name the host of your
@@ -158,8 +164,16 @@ With authentication disabled this returns a JSON document with an empty
 |===
 
 Port 80 serves the unauthenticated Kumoss application by default, while
-port 9000 exposes presigned artifact downloads and the RustFS console, on
-every interface of the host. Keep the stack on a machine only you can reach.
+port 9000 exposes presigned artifact downloads, on every interface of the
+host. Keep the stack on a machine only you can reach. The RustFS web
+console is disabled; to enable it, see
+xref:main:guides/production/operations.adoc#rustfs-console[RustFS
+console].
+
+WARNING: Use a *test repository and a sandbox cloud scope* for this first
+run. Kumoss starts every project with empty state in RustFS, so a
+repository whose infrastructure already exists gets a plan that creates
+it all again.
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
@@ -188,10 +202,10 @@ docker compose down -v         # stop and delete all volumes
 prompts survive a restart.
 
 *`down -v` deletes the session database, the artifacts, the Phoenix traces
-and prompts, and any in-progress workspaces* — and, by default, the
-Terraform state too, since Kumoss manages it in that same object-storage
-volume. State survives only if you set `storage.terraform_state_bucket` to
-`""` so that each repository declares its own backend instead.
+and prompts, any in-progress workspaces, and the Terraform state*, which by
+default lives in the same RustFS volume. To keep state outside the stack,
+see xref:main:guides/configure-state-backends.adoc[Configure state
+backends].
 
 == Next steps
 

@@ -38,11 +38,15 @@ xref:#auth[Authentication] and xref:#authz[Authorization and
 ownership].
 
 |Repository reachability
-|The URL may carry a userinfo username (the `<org>@` prefix of an Azure
-DevOps clone URL, or `git@`) but must not embed a password or token —
-a request-model validator rejects one that does with `422`, an empty
-`user:` password included — and then `git ls-remote` must succeed:
-unreachable or rejected → `400`. Either way no session is created.
+|The URL must be `https://` with a host — SSH (`git@host:path`,
+`ssh://`), `git://`, `http://`, `file://` and local paths are rejected
+with `422` by a request-model validator. It may carry a userinfo
+username (the `<org>@` prefix of an Azure DevOps clone URL) but must not
+embed a password or token — also `422`, an empty `user:` password
+included. Then `git ls-remote` must succeed: unreachable, rejected or
+timed out → `400` with the fixed detail "Repository is not reachable or
+access was denied."; git's own output goes only to the core log. Either
+way no session is created.
 
 |Session creation
 |A session row owned by the caller is created, or an existing one
@@ -90,7 +94,7 @@ the round's _conventions_, which every later agent is rendered with.
 == Phase 5: generate, validate, correct
 
 Up to `orchestration.max_validation_iteration` generate-and-validate
-iterations: 8 in the shipped `config.yaml`, 5 built in.
+iterations: 5 in the shipped `config.yaml`, 8 built in.
 
 :diagram-name: flow-phases-5-6
 :diagram-alt: Kumoss request flow, phases 5 and 6: generate, validate, correct, then the implicit drift pre-check
@@ -105,11 +109,11 @@ Messages 14 to 25; the diagram also covers phase 6.
 
 |Infrastructure Generation Agent (`generating`)
 |The main model edits Terraform files through the tool registry (read,
-write, list, ripgrep search, web search), bounded by
-`orchestration.max_tool_chain_executions` (70) model turns — one
-increment per inference turn after its tool calls run, the same bound
-every agent loop shares; reaching it raises `ToolExecutionsExceeded` and
-the round fails — and terminated by the sentinel `task_complete` tool.
+write, list, ripgrep search, web search), confined to the session's IaC
+root and bounded by `orchestration.max_tool_agent_executions` (40) model
+turns — the same bound every agent loop shares — and terminated by the
+sentinel `task_complete` tool. The guards that keep the loop inside its
+budget are described in xref:#agent-tool-loop[Agent tool loop].
 
 |Persist and push
 |Every changed or new file is uploaded as a code-change artifact and
@@ -131,7 +135,7 @@ against the shared workspace with the cloud credentials in
 
 |Correct or fail
 |Engine errors go back to the generation agent as the next query and the
-loop repeats. After `orchestration.max_validation_iteration` (8 shipped)
+loop repeats. After `orchestration.max_validation_iteration` (5 shipped)
 failures the round ends `FAILED`, the branch keeps the last pushed
 attempt, and the session is xref:#how-a-session-ends[closed for good].
 |===
@@ -148,7 +152,9 @@ Runs on the targets validation has just produced, at most twice.
 |Status `reconciling`. The core runs `show -json` on the plan artifact
 validation left in the workspace — the round's own plan, never a second
 one — and inverts the `before`/`after` differences into "make the code
-match the infrastructure" operations, stored as a drift artifact.
+match the infrastructure" operations, stored as a drift artifact. When
+the targets are already in sync the plan output is stored instead, as a
+plan artifact, so every iteration leaves one artifact behind.
 
 |Split and filter
 |The Drift Task Splitter (main model) turns the differences into
@@ -396,8 +402,8 @@ length, so `13a` with no `13b` means only the first arm still has a
 message at that point.
 
 |`[at most n …]` in a label or band
-|A bounded loop with its ceiling, at the shipped values: 70 model turns
-per agent loop, 8 validation iterations, 2 drift pre-check rounds, 8
+|A bounded loop with its ceiling, at the shipped values: 40 model turns
+per agent loop, 5 validation iterations, 2 drift pre-check rounds, 8
 operations per drift batch.
 |===
 
@@ -499,7 +505,7 @@ output
 
 Agents never delegate to one another and there is no supervisor agent:
 the handler classes call each in a fixed order, and every loop has a
-configured ceiling (`orchestration.max_tool_chain_executions`,
+configured ceiling (`orchestration.max_tool_agent_executions`,
 `max_validation_iteration`, `max_drift_reports`,
 `drift_group_operations`; the drift pre-check inside a generate round is
 fixed at two iterations).
@@ -511,6 +517,78 @@ GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
 calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
 verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.
+
+[#agent-tool-loop]
+=== Agent tool loop
+
+Every agent with tools runs the same loop: the model is offered the
+agent's tools, the core runs the calls it returns, feeds the results
+back, and repeats until the sentinel tool is called. Each inference is
+one turn of the `orchestration.max_tool_agent_executions` budget (40
+shipped), whether or not it called a tool. The core guards the loop so
+the budget is spent on work rather than on repeats:
+
+[cols="1,3",options="header"]
+|===
+|Guard |Behaviour
+
+|Last turn
+|The final turn of the budget offers only the sentinel tool, with a note
+telling the model to return the best result the work so far allows and
+state what is left unfinished. Only a model that still does not call it
+reaches `ToolExecutionsExceeded`, which fails the round.
+
+|Duplicate calls
+|A call whose tool and arguments match one already run in the loop is not
+run again (the free-text `explanation` argument is ignored for the
+comparison). The model gets a failed result telling it the answer is
+already in the conversation.
+
+|Single-use tools
+|`diff_history` returns the same result whatever its arguments, so it is
+withdrawn from the offered tools once it succeeds.
+
+|Workspace changes
+|A successful `write_to_file`, `replace_in_file` or `delete_file` clears
+both memories: reads made before it may now return something different,
+so they may be repeated and `diff_history` is offered again.
+
+|Replies without tool calls
+|Tool choice is `auto`, so a model may answer in plain text. The text is
+kept in the history and the model is told that only tool calls are read:
+continue with the tools, or call the sentinel if it is done or blocked. An
+empty reply gets the same reminder for the next turn only. Both count as a
+turn.
+
+|Tool errors
+|A failing tool call does not fail the round: its error goes back to the
+model as a failed result. Every result reaches the model as JSON,
+`{"success": true, "result": ...}` or `{"success": false, "error": ...}`.
+|===
+
+*Workspace confinement.* The agents' working directory is the session's
+IaC root: the clone plus `iac_path`, with symlinks resolved. The root must
+be an existing directory inside the clone, or the run fails with `runner
+failed: iac_path '<path>' is not a directory inside the repository` before
+any agent starts, so a committed link cannot widen the tools' reach.
+Within it:
+
+* Tool paths are relative to the IaC root. An absolute path is accepted
+  only when it points inside the root; anything that resolves outside it,
+  through `..` or a symlink, is rejected.
+* The entries Kumoss manages are invisible to the tools at any depth:
+  `.git`, `.gitignore`, and the state backend override
+  (`paths.backend_override_filename`, which holds the state store
+  credentials). `list_dir` and `bulk_grep_search` never show them, and
+  reading, writing or deleting them is rejected.
+* `list_dir` (non-recursive) and `bulk_grep_search` apply the same ignore
+  rules (`.gitignore`, `.ignore`) and include hidden files, so both agree
+  on what the workspace contains. Each search returns at most 50
+  `path:line:content` matches, with `truncated` set when there are more.
+* `write_to_file`, `replace_in_file` and `delete_file` only touch `.tf`
+  and `.tfvars` files.
+* `read_file` on a file that does not exist tells the model to stop
+  guessing filenames and rely on the directory listing.
 
 [#how-a-session-ends]
 == How a session ends
@@ -532,8 +610,8 @@ sends one. The progress stream closes on any of the three.
 |Outcome |Reached when |Status message and side effects
 
 |*Validation never converged* — phase 5
-|All `orchestration.max_validation_iteration` attempts are used: 8 in the
-shipped `config.yaml`, 5 built in
+|All `orchestration.max_validation_iteration` attempts are used: 5 in the
+shipped `config.yaml`, 8 built in
 |`runner failed: Validation loop exceeded.` and a `system.exception.failure`
 notification. No LLM problem summary is produced. The branch keeps the last
 pushed attempt.
@@ -865,7 +943,7 @@ planning again.
 |Full drift takes the whole root module, an empty target list. Partial drift
 takes the targets the Drift Target Generator chooses after the request
 filter.
-|Up to `max_drift_reports` (5) iterations, unfiltered — a drift session has
+|Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
 lock, does not run the compliance audit and does not pin the workspace —

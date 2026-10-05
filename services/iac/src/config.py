@@ -63,7 +63,7 @@ class Config:
             raise ConfigError(msg)
 
     @classmethod
-    def from_env(cls) -> "Config":
+    def from_env(cls) -> Config:
         return cls(
             expected_token=os.environ.get("KUMOSS_IAC_TOKEN", ""),
             iac_binary=os.environ.get("IAC_BINARY", "tofu"),
