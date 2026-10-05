@@ -1102,7 +1102,8 @@ infrastructure</a>.</p>
 <div class="paragraph">
 <p>Not in the repository, and not in the working copy Kumoss creates. Out
 of the box, Kumoss keeps state for you, in a bucket dedicated to state
-with one state file per project (repository + cloud scope + path).
+with one state file per project (repository + cloud scope + path), and
+ignores any <code>backend</code> block your repository declares.
 Your platform team can instead configure Kumoss to leave it in the
 remote backend your repository&#8217;s own Terraform files declare, exactly
 as it would if you ran the engine yourself. Either way your pull
@@ -1117,7 +1118,10 @@ backends</a>.</p>
 <summary class="title">My plan wants to create resources that already exist. Why?</summary>
 <div class="content">
 <div class="paragraph">
-<p>The session is planning against empty state. The usual causes are that
+<p>The session is planning against empty state. The most common cause is
+that your repository keeps its state in its own backend while Kumoss
+manages state, which is the default: Kumoss then ignores that backend.
+Other causes are that
 your platform team turned off Kumoss-managed state and your repository
 declares no remote backend of its own, that the project&#8217;s identity
 changed — the root-module path moved, the repository was renamed, or a

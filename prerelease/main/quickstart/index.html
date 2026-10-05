@@ -831,6 +831,22 @@ the models you prefer. Model strings per provider:
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  block_on_high_impact</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span></span></code></pre>
 </div>
 </div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The defaults include <strong>Terraform state</strong>. Kumoss stores it for you in
+the bundled RustFS object store, one state file per project, and
+<strong>ignores any <code>backend</code> block in the target repository</strong>. That suits a
+first run. To keep a repository&#8217;s own backend instead, see
+<a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a>.
+</td>
+</tr>
+</table>
+</div>
 <div class="paragraph">
 <p>Apart from the Git credentials you set in the next step, you may need to
 change the Git provider. <code>git.provider</code> must name the host of your
@@ -986,6 +1002,21 @@ console is disabled; to enable it, see
 <a href="../guides/production/operations/#rustfs-console" class="xref page">RustFS
 console</a>.</p>
 </div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+Use a <strong>test repository and a sandbox cloud scope</strong> for this first
+run. Kumoss starts every project with empty state in RustFS, so a
+repository whose infrastructure already exists gets a plan that creates
+it all again.
+</td>
+</tr>
+</table>
+</div>
 <div class="paragraph">
 <p>Open <code>http://localhost</code>. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
@@ -1020,10 +1051,10 @@ prompts survive a restart.</p>
 </div>
 <div class="paragraph">
 <p><strong><code>down -v</code> deletes the session database, the artifacts, the Phoenix traces
-and prompts, and any in-progress workspaces</strong> — and, by default, the
-Terraform state too, since Kumoss manages it in that same object-storage
-volume. State survives only if you set <code>storage.terraform_state_bucket</code> to
-<code>""</code> so that each repository declares its own backend instead.</p>
+and prompts, any in-progress workspaces, and the Terraform state</strong>, which by
+default lives in the same RustFS volume. To keep state outside the stack,
+see <a href="../guides/configure-state-backends/" class="xref page">Configure state
+backends</a>.</p>
 </div>
 </div>
 </div>
