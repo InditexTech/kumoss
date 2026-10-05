@@ -2159,6 +2159,8 @@ tooling = [
     { name = "debugpy" },
     { name = "ipython" },
     { name = "openapi-python-client" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [package.metadata]
@@ -2169,20 +2171,20 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.43.54" },
     { name = "deepdiff", specifier = ">=9.1.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2" },
-    { name = "google-cloud-aiplatform", specifier = ">=1.163.0" },
-    { name = "graphql-core", specifier = "<3.3.0" },
+    { name = "google-cloud-aiplatform", specifier = ">=1.165.1" },
+    { name = "graphql-core", specifier = "<3.4.0" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "litellm", specifier = ">=1.93.0" },
-    { name = "mcp", specifier = "==1.28.1" },
+    { name = "litellm", specifier = ">=1.103.2" },
+    { name = "mcp", specifier = "==2.2.0" },
     { name = "openinference-semantic-conventions", specifier = ">=0.1.30" },
     { name = "opentelemetry-api", specifier = ">=1.44.0" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.44.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.44.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.1" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "redis", specifier = "==8.0.1" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.0" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "redis", specifier = "==8.1.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
 ]
 
 [package.metadata.requires-dev]
@@ -2190,7 +2192,9 @@ tooling = [
     { name = "basedpyright", specifier = ">=1.39.9" },
     { name = "debugpy", specifier = ">=1.8.21" },
     { name = "ipython", specifier = ">=9.16.1" },
-    { name = "openapi-python-client", specifier = "==0.29.0" },
+    { name = "openapi-python-client", specifier = "==0.29.1" },
+    { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-cov", specifier = ">=6.0" },
 ]
 
 [[package]]
@@ -2477,77 +2481,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/2b/1d/58946e5aab18393e793bd4add6985b95d0e01c3a2d832f38f54468b10dcd/narwhals-2.24.0.tar.gz", hash = "sha256:b5c0f684ccd9d7475b564111e319a4964abcf2baf79d3cf6b1003d06ac9b828d", size = 661143, upload-time = "2026-07-13T10:49:19.086Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7e/85/a5bfaebfd305ac18b57b0854d74e37e586809061a91fda62f0bd50c8518e/narwhals-2.24.0-py3-none-any.whl", hash = "sha256:42fdedf44e5b2ca7505630d45b4ac3058f38d8485cba9fe1652ca23152df7489", size = 461030, upload-time = "2026-07-13T10:49:17.571Z" },
-]
-
-[[package]]
-name = "nebula"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "arize-phoenix" },
-    { name = "asyncpg" },
-    { name = "azure-storage-blob" },
-    { name = "boto3" },
-    { name = "deepdiff" },
-    { name = "fastapi", extra = ["standard"] },
-    { name = "google-cloud-aiplatform" },
-    { name = "graphql-core" },
-    { name = "httpx", extra = ["http2"] },
-    { name = "jinja2" },
-    { name = "litellm" },
-    { name = "mcp" },
-    { name = "openinference-semantic-conventions" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp" },
-    { name = "opentelemetry-sdk" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "pyyaml" },
-    { name = "redis" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-]
-
-[package.dev-dependencies]
-tooling = [
-    { name = "basedpyright" },
-    { name = "debugpy" },
-    { name = "ipython" },
-    { name = "openapi-python-client" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "arize-phoenix", specifier = ">=19.4.0" },
-    { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "azure-storage-blob", specifier = ">=12.30.0" },
-    { name = "boto3", specifier = ">=1.43.54" },
-    { name = "deepdiff", specifier = ">=9.1.0" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2" },
-    { name = "google-cloud-aiplatform", specifier = ">=1.165.1" },
-    { name = "graphql-core", specifier = "<3.4.0" },
-    { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
-    { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "litellm", specifier = ">=1.103.2" },
-    { name = "mcp", specifier = "==2.2.0" },
-    { name = "openinference-semantic-conventions", specifier = ">=0.1.30" },
-    { name = "opentelemetry-api", specifier = ">=1.44.0" },
-    { name = "opentelemetry-exporter-otlp", specifier = ">=1.44.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.44.0" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.0" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "redis", specifier = "==8.1.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.51" },
-]
-
-[package.metadata.requires-dev]
-tooling = [
-    { name = "basedpyright", specifier = ">=1.39.9" },
-    { name = "debugpy", specifier = ">=1.8.21" },
-    { name = "ipython", specifier = ">=9.16.1" },
-    { name = "openapi-python-client", specifier = "==0.29.1" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=6.0" },
 ]
 
 [[package]]
