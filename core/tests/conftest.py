@@ -9,7 +9,7 @@ import time and validates the environment while doing so: the default
 ``llm.model`` (``anthropic/...``) demands ``ANTHROPIC_API_KEY``, the database
 section demands ``KUMOSS_SQL_DATABASE_URL``, and the sidecar section demands a
 bearer token for every service the core calls (`services.iac` is mandatory, so
-``NEBULA_IAC_TOKEN``). Without them every test module that transitively
+``KUMOSS_IAC_TOKEN``). Without them every test module that transitively
 imports ``src`` fails at *collection*.
 
 This file runs before any test module is imported, so it supplies placeholder
