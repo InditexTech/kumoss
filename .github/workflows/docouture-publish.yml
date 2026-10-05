@@ -38,6 +38,9 @@ concurrency:
   group: docouture-publish
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     name: Build and publish
@@ -58,7 +61,7 @@ jobs:
         working-directory: docs
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Antora aggregates every ref content.sources[] matches into one
           # build, not just whichever ref triggered this run — a shallow,
@@ -99,7 +102,7 @@ jobs:
       - name: Kroki / Docker image cache
         id: kroki-cache
         if: steps.kroki-check.outputs.enabled == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/kroki-images.tar
           key: ${{ runner.os }}-kroki-images-${{ hashFiles('**/kroki-compose.yml') }}
@@ -143,7 +146,7 @@ jobs:
       # GitHub App is bypass-listed on this site's rules.
       - name: Git app token
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
