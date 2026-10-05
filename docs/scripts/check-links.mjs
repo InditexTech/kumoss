@@ -62,12 +62,14 @@ const isExternal = (url) => /^https?:\/\//.test(url)
 // far more likely to be meant literally than as "any character". Escapes
 // every other regex metacharacter so the rest of the string is matched
 // verbatim.
+// The compiled pattern is not linear-time for every input — globs whose
+// wildcards overlap, e.g. `*a*a*a*…b`, backtrack combinatorially on a
+// nonmatch — so the safety here is the trust boundary, not the regex: these
+// globs come only from this repository's own `package.json`
+// (`docouture.checkLinks.ignore`), are contributor-reviewed, and semgrep's
+// nosemgrep below suppresses the non-literal-regexp advisory on that basis.
 function globToRegExp(glob) {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, String.raw`\$&`)
-  // The pattern is the escaped glob above: `*`/`?` become dot-star/any and
-  // every other metacharacter is escaped, so the compiled source only holds
-  // quantifiers we chose — bounded, linear, no attacker-crafted wildcard
-  // nesting and therefore no ReDoS amplification — hence nosemgrep below.
   // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   return new RegExp(escaped.replaceAll('*', '.*').replaceAll('?', '.'))
 }
