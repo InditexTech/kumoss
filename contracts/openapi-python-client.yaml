@@ -26,7 +26,7 @@ package_name_override: client_pkg
 
 # Project name only matters when generating with --meta=poetry/setup; we use
 # --meta=none, but set it for completeness.
-project_name_override: nebula-clients
+project_name_override: kumoss-clients
 
 # Don't prefix model names with the path they came from.
 use_path_prefixes_for_title_model_names: false

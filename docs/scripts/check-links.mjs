@@ -162,7 +162,11 @@ const result = await check({
   // correctly stay off `docouture.checkLinks.ignore` (see ignorePatterns()
   // above) so a genuinely broken one still fails the build.
   timeout: 10_000,
-  // A plain 403/429/503 from a real external host (most commonly GitHub's own
+  // Retry transient server/network failures with bounded exponential backoff;
+  // persistent failures and missing pages still fail the check.
+  retryErrors: true,
+  retryErrorsCount: 3,
+  // A plain 403/429 from a real external host (most commonly GitHub's own
   // bot/rate-limit protection kicking in on repo links, hit repeatedly
   // across every page of a freshly built site) can't be told apart from a
   // genuinely dead link — linkinator's own README documents the same

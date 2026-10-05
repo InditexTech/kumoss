@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-notifications"
+name = "kumoss-notifications"
 version = "0.1.0"
 description = "Reference implementation of contracts/openapi/notifications.v1.yaml — Slack-backed notification dispatch."
 requires-python = ">=3.13"

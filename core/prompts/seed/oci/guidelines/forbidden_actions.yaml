@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: OCI actions Nebula must never generate (security and cost guardrails).
+description: OCI actions Kumoss must never generate (security and cost guardrails).
 body: |
   # STRICTLY FORBIDDEN OCI ACTIONS
 

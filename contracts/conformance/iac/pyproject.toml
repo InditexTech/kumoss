@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-iac-conformance"
+name = "kumoss-iac-conformance"
 version = "0.1.0"
 description = "Schemathesis-driven conformance suite for contracts/openapi/iac.v1.yaml."
 requires-python = ">=3.13"

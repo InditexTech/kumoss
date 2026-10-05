@@ -23,5 +23,5 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
-            expected_token=os.environ.get("NEBULA_MAPPING_TOKEN", ""),
+            expected_token=os.environ.get("KUMOSS_MAPPING_TOKEN", ""),
         )

@@ -305,7 +305,7 @@ describe("ArtifactContent plan targets", () => {
 describe("artifactLabel for plans", () => {
   const SIG = "X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc123";
   const KEYED = (flavour: string) =>
-    `${STORAGE}/nebula-artifacts/sessions/s1/rounds/8/plans/${flavour}-ee05fba7.txt?${SIG}`;
+    `${STORAGE}/kumoss-artifacts/sessions/s1/rounds/8/plans/${flavour}-ee05fba7.txt?${SIG}`;
 
   function planRef(url = KEYED("plan")): TerraformPlanRef {
     return {

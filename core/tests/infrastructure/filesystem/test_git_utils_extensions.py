@@ -172,7 +172,7 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
 
         clone_dir = self.clone_root / clone_name
         subprocess.check_call(
-            ["git", "-C", str(clone_dir), "checkout", "-b", "Nebula/push-branch"]
+            ["git", "-C", str(clone_dir), "checkout", "-b", "Kumoss/push-branch"]
         )
         # Make a commit so there's something to push
         (clone_dir / "new.txt").write_text("content\n")
@@ -193,14 +193,14 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
         )
 
         git_push = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=clone_dir)
-        pushed = await git_push.push_branch("Nebula/push-branch")
+        pushed = await git_push.push_branch("Kumoss/push-branch")
         self.assertTrue(pushed)
 
         # Verify the branch exists on the bare remote
         out = subprocess.check_output(
-            ["git", "ls-remote", "--heads", self.uri, "Nebula/push-branch"]
+            ["git", "ls-remote", "--heads", self.uri, "Kumoss/push-branch"]
         ).decode()
-        self.assertIn("Nebula/push-branch", out)
+        self.assertIn("Kumoss/push-branch", out)
 
     async def test_push_branch_returns_false_when_remote_missing(self):
         # Clone with no remote configured -> push should fail.

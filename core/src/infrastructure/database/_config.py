@@ -18,11 +18,11 @@ class DatabaseConfig(BaseSettings):
     @property
     def database_url(self) -> str:
         """Get PostgreSQL connection URL from environment."""
-        url = system_config.database.nebula_database_url
+        url = system_config.database.kumoss_database_url
 
         if not url:
             raise ValueError(
-                "NEBULA_SQL_DATABASE_URL environment variable is not set. "
+                "KUMOSS_SQL_DATABASE_URL environment variable is not set. "
                 + "Please set it to connect to PostgreSQL."
             )
 
