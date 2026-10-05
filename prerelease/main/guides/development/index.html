@@ -833,10 +833,10 @@ dependency group, so sync the project first:</p>
 <p>Async tests use <code>unittest.IsolatedAsyncioTestCase</code> (no pytest-asyncio
 plugin, no <code>--asyncio-mode</code> flag).
 <code>core/tests/conftest.py</code> supplies placeholder values for the LLM
-credential, the database URL and the mandatory <code>NEBULA_IAC_TOKEN</code> that
+credential, the database URL and the mandatory <code>KUMOSS_IAC_TOKEN</code> that
 the configuration module validates at import; suites that talk to
 PostgreSQL or Redis need the compose stack (or point
-<code>NEBULA_SQL_DATABASE_URL</code> and <code>NEBULA_REDIS_URL</code> at your own
+<code>KUMOSS_SQL_DATABASE_URL</code> and <code>KUMOSS_REDIS_URL</code> at your own
 instances).</p>
 </div>
 </div>
