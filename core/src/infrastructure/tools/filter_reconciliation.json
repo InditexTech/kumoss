@@ -1,0 +1,64 @@
+[
+  {
+    "name": "report_reconciliation_verdicts",
+    "description": "Reports the verdict for every input operation. Call it once, as the concluding action, with one verdict per input operation, following the criteria defined in the system prompt.",
+    "single_use": false,
+    "mutates_workspace": false,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "verdicts": {
+          "type": "array",
+          "description": "One verdict per input operation, in input order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "type": "integer",
+                "description": "The `index` of the input operation this verdict is about."
+              },
+              "changes": {
+                "type": "array",
+                "description": "Every individual change the operation describes, one entry per change, none left out.",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "type": "string",
+                      "description": "The change, quoted or closely paraphrased from the operation."
+                    },
+                    "reverts_session_change": {
+                      "type": "boolean",
+                      "description": "True only when `diff_history` shows the session made the change this one would undo."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The evidence for the flag: the diff line it reverts, or why the diff does not touch it."
+                    }
+                  },
+                  "required": [
+                    "description",
+                    "reverts_session_change",
+                    "reason"
+                  ]
+                }
+              },
+              "operation": {
+                "type": "string",
+                "description": "Required when some changes revert the session and others do not: the operation rewritten with only the changes that do not. Leave empty otherwise."
+              }
+            },
+            "required": [
+              "index",
+              "changes"
+            ]
+          }
+        }
+      },
+      "required": [
+        "verdicts"
+      ]
+    }
+  }
+]

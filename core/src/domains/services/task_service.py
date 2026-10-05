@@ -4,7 +4,11 @@
 
 import json
 
-from src.domains.dto import FilteredImportsDTO, FilteredOperationsDTO
+from src.domains.dto import (
+    FilteredImportsDTO,
+    FilteredOperationsDTO,
+    ReconciliationReport,
+)
 from src.domains.entities import History
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
@@ -12,6 +16,7 @@ from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.value_objects import Conventions
 from src.shared.constants import OperationType, PromptsLibrary, ToolContext
 from src.shared.config import system_config
+from src.shared.logger import logging
 
 
 class TaskService:
@@ -69,18 +74,54 @@ class TaskService:
     async def filter_reconciliation(
         self, operations: list[list[str]]
     ) -> list[list[str]]:
+        """Take the session's own changes out of the drift operations.
+
+        Each operation goes out numbered and comes back as a verdict that
+        itemises its changes, so one bundling a session change with
+        genuine drift is trimmed to the drift rather than kept or dropped
+        whole. An operation the agent left without a verdict is dropped:
+        a missed remediation stays visible as remaining drift, while a
+        reverted session change would silently undo the session's work.
+        """
         flat_operations: list[str] = [op for group in operations for op in group]
         if not flat_operations:
             return []
         response = await self.__llm_svc.generate(
-            query=json.dumps(flat_operations),
+            query=json.dumps(
+                [
+                    {"index": i, "operation": op}
+                    for i, op in enumerate(flat_operations, 1)
+                ]
+            ),
             prompt=await self.__template_svc.render(
                 PromptsLibrary.FILTER_RECONCILIATION
             ),
             tools=self.__tool_svc.get_available_tools(ToolContext.WORKSPACE_INSPECTION),
-            sentinel_tool=self.__tool_svc.get_sentinel_tool(ToolContext.TASK_SPLITTER),
+            sentinel_tool=self.__tool_svc.get_sentinel_tool(
+                ToolContext.FILTER_RECONCILIATION
+            ),
         )
-        return self.__group(response.result["operations"])
+        report: ReconciliationReport = response.result
+        verdicts = {verdict.index: verdict for verdict in report.verdicts}
+        kept: list[str] = []
+        for i, op in enumerate(flat_operations, 1):
+            verdict = verdicts.get(i)
+            if verdict is None:
+                logging.warning(
+                    f"Reconciliation filter returned no verdict for operation {i}, dropping it: {op}"
+                )
+                continue
+            if verdict.removed:
+                removed = "; ".join(
+                    f"{c.description} ({c.reason})" for c in verdict.removed
+                )
+                logging.warning(
+                    f"Reconciliation filter removed session changes from operation {i}: {removed}"
+                )
+            reconciled = verdict.reconciled(op)
+            if reconciled is not None:
+                kept.append(reconciled)
+        return self.__group(kept)
 
     async def filter_exceptions(
         self, operations: list[list[str]]
