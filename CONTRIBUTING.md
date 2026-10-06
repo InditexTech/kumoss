@@ -74,4 +74,6 @@ Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra f
 
 **Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
 
+**Releases.** [release-please](https://github.com/googleapis/release-please) keeps a release pull request open against `main`, built from the Conventional Commit subjects merged since the last release: `fix` bumps the patch version, `feat` the minor, and a breaking change (`!` or a `BREAKING CHANGE:` footer) the major. Merging it updates `CHANGELOG.md` and every component's version, tags `vX.Y.Z`, and publishes the GitHub Release. Never edit those versions by hand; to force a specific version, add a `Release-As: X.Y.Z` footer to a commit.
+
 **Pull requests.** Fill in the pull-request template (signed commits, Conventional Commits, documentation updated, CLA signed) and link the issue. Include UI screenshots for visible changes.

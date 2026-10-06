@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+# Keeps a release PR open against main that bumps every version field listed
+# in release-please-config.json and prepends the CHANGELOG entry; merging it
+# tags vX.Y.Z and publishes the GitHub Release.
+#
+# Everything is done with the GitHub App token rather than GITHUB_TOKEN:
+# events raised by GITHUB_TOKEN don't trigger other workflows, so the release
+# PR would skip pr-verify/verify and the published Release would never reach
+# docouture-release.yml (which republishes docs/stable on `release: published`).
+name: Release Please
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Git app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          # The `autorelease: pending|tagged` labels go through the issues API.
+          permission-issues: write
+
+      - name: Release Please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

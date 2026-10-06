@@ -165,9 +165,10 @@ missing file silently falls back to built-in defaults.
 
 |`APP_VERSION`
 |Optional; not present in `env.sample`
-|`0.0.0-dev`
-|Version string reported by the API's OpenAPI document. Set it from
-your release pipeline.
+|The release version of the source the core was built from
+|Version string reported by the API's OpenAPI document. Leave it unset
+to report the built release; set it only to override that, for example
+on a patched build.
 |never
 |===
 

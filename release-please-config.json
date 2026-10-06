@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "d33307c708dda83fa81a927409241437493e7a72",
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "kumoss",
+      "release-as": "1.0.0",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "perf", "section": "Performance Improvements" },
+        { "type": "revert", "section": "Reverts" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "refactor", "section": "Code Refactoring", "hidden": true },
+        { "type": "style", "section": "Styles", "hidden": true },
+        { "type": "test", "section": "Tests", "hidden": true },
+        { "type": "build", "section": "Build System", "hidden": true },
+        { "type": "ci", "section": "Continuous Integration", "hidden": true },
+        { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
+      ],
+      "extra-files": [
+        { "type": "toml", "path": "core/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "generic", "path": "core/src/main.py" },
+        { "type": "toml", "path": "core/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss')].version" },
+        { "type": "toml", "path": "services/authz/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/authz/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-authz')].version" },
+        { "type": "toml", "path": "services/iac/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/iac/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-iac')].version" },
+        { "type": "toml", "path": "services/mapping/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/mapping/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-mapping')].version" },
+        { "type": "toml", "path": "services/notifications/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/notifications/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-notifications')].version" },
+        { "type": "toml", "path": "contracts/conformance/authz/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "contracts/conformance/authz/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-authz-conformance')].version" },
+        { "type": "toml", "path": "contracts/conformance/iac/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "contracts/conformance/mapping/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "contracts/conformance/notifications/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "json", "path": "client/web/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "client/web/package-lock.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "client/web/package-lock.json", "jsonpath": "$.packages[''].version" }
+      ]
+    }
+  }
+}
