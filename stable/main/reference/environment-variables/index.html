@@ -969,9 +969,10 @@ missing file silently falls back to built-in defaults.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>APP_VERSION</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional; not present in <code>env.sample</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>0.0.0-dev</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Version string reported by the API&#8217;s OpenAPI document. Set it from
-your release pipeline.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The release version of the source the core was built from</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Version string reported by the API&#8217;s OpenAPI document. Leave it unset
+to report the built release; set it only to override that, for example
+on a patched build.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">never</p></td>
 </tr>
 </tbody>
