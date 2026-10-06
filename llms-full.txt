@@ -1386,6 +1386,12 @@ curl http://localhost/api/v1/auth/config
 
 With authentication disabled this returns a JSON document with an empty `issuer_url`.
 
+## Where Terraform state lives
+
+By default, Kumoss keeps Terraform state in the bundled RustFS object storage, in the `kumoss-terraform-state` bucket. Each project (repository, cloud scope, and root-module path) gets its own state file, which starts **empty** the first time Kumoss works on it. Any `backend` block in the repository is ignored.
+
+To use your own external state instead, new or already existing, in AWS S3, Azure Storage, or Google Cloud Storage, see [Configure state backends](../guides/configure-state-backends/).
+
 ## See it working
 
 | URL | What it serves |
@@ -1397,9 +1403,9 @@ Port 80 serves the unauthenticated Kumoss application by default, while port 900
 
 > **Warning**
 > Use a **test repository and a sandbox cloud scope** for this first
-> run. Kumoss starts every project with empty state in RustFS, so a
-> repository whose infrastructure already exists gets a plan that creates
-> it all again.
+> run. Because every project starts with
+> [empty state](#default-state), a repository whose infrastructure already
+> exists gets a plan that creates it all again.
 
 Open `http://localhost`. With authentication disabled you land directly in the wizard as the local developer. Enter a repository your Git token can push to, choose the cloud and scope, describe the infrastructure you need, and follow the session. What each mode does is explained in [Guides](../guides-overview/); your sessions and the admin panel are described in [Administer users and locks](../guides/administer-users-and-locks/).
 
@@ -1414,7 +1420,7 @@ docker compose down -v         # stop and delete all volumes
 
 `down` keeps the databases, artifacts, and workspaces, so sessions and prompts survive a restart.
 
-**`down -v` deletes the session database, the artifacts, the Phoenix traces and prompts, any in-progress workspaces, and the Terraform state**, which by default lives in the same RustFS volume. To keep state outside the stack, see [Configure state backends](../guides/configure-state-backends/).
+**`down -v` deletes the session database, the artifacts, the Phoenix traces and prompts, any in-progress workspaces, and the Terraform state** kept in RustFS.
 
 ## Next steps
 
@@ -10574,6 +10580,102 @@ The stack is designed as one core process. These are the consequences to plan fo
 
 ---
 
+# Additional information
+
+Source: /stable/main/additional-information/
+
+This page gathers what does not fit under Guides or Reference: licensing of the default stack, how to reach the people behind a Kumoss deployment, where release notes and the changelog will be published, and where the FAQ lives.
+
+## Licensing of the default stack
+
+Every component that runs by default in the checked-in Compose stack is open source, with one source-available exception that is disclosed rather than hidden (the bundled but inactive Terraform binary is a second, opt-in exception). Identity has no licensing footprint at all: Kumoss speaks standard OpenID Connect and trusts any spec-faithful issuer, so a fully open-source deployment can pair it with Keycloak (Apache-2.0, CNCF Incubating) while an enterprise can point it at Entra ID, Auth0, or Okta without changing a line of code.
+
+| Component | Role | Licence | Notes |
+| --- | --- | --- | --- |
+| Kumoss (core, sidecars, SPA, contracts) | The platform | Apache-2.0 | REUSE-compliant SPDX headers |
+| OpenTofu 1.12.6 | Default IaC engine in the iac sidecar | MPL-2.0 (Linux Foundation) | Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and selectable via `IAC_BINARY=terraform`; running it makes your use subject to its licence terms |
+| RustFS | Default, bundled S3-compatible object storage for artifacts (and for Terraform state where that is enabled) | Apache-2.0 | Rust implementation of the S3 API; AWS S3 or Azure Blob Storage selectable via `storage.provider`, or any other S3-compatible endpoint via the `RUSTFS` provider |
+| PostgreSQL 17 | core-db and phoenix-db | PostgreSQL Licence | — |
+| Redis 8 | Fail-open cache | Tri-licensed: AGPLv3 (OSI) / RSALv2 / SSPLv1 | AGPLv3 option restored in Redis 8.0 |
+| nginx | Reverse proxy and SPA host | BSD-2-Clause | — |
+| FastAPI, LiteLLM, React, oidc-client-ts | Framework, model router, portal, OIDC client | MIT | — |
+| OpenTelemetry / OpenInference | Tracing standard and semantic conventions | Apache-2.0 | OpenTelemetry is CNCF Graduated (2026-05-21) |
+| Arize Phoenix | Trace UI and runtime prompt registry | **Elastic License 2.0 (source-available, not OSI-approved)** | The only non-OSI component; disclosed in all public material |
+| OpenID Connect | Authentication protocol | Open standard (OpenID Foundation) | No component shipped; any compliant IdP |
+
+## Contact and support
+
+Three channels, each with its own purpose:
+
+- **Support request in the web application** — questions about your own Kumoss deployment or about one of your sessions. It reaches the reviewers in your deployment, not the Kumoss project.
+- [Issue tracker](https://github.com/InditexTech/kumoss/issues) — bugs and feature requests in Kumoss itself. Check the existing issues first; [Contributing](../contributing/) covers what happens next.
+- [Disclosure submission program](https://vdp.inditex.com) — security vulnerabilities, reported privately and never through a public GitHub issue.
+
+### Support requests
+
+Any signed-in user can send a support request from inside the web application. It goes to the people who hold the reviewer roles in your own Kumoss deployment — colleagues on your platform team, not the Kumoss project — through the channel your platform team connected (Slack in the reference setup), with a copy addressed to you.
+
+From the browser, the chat-bubble **Support** icon in the header opens a form for up to 500 characters, plain text only — HTML and code formatting are rejected. The message carries your e-mail, the session id, the repository, branch, request, status, and a link to the session automatically, so you do not need to copy those in yourself. **Contact Team** (on a locked session) and **Request Review** (on the apply confirmation) send the same kind of message, pre-filled for that session, and flagged as a warning when the plan deletes or recreates resources. "Your question has been sent successfully" confirms delivery; "Your question could not be sent. Notifications are disabled." means your deployment has not connected a notification channel — use your organization’s usual support route and quote the session id.
+
+The form calls `POST /api/v1/notifications`. The core forwards the request to the notifications sidecar with an audience made of the caller’s e-mail plus every user holding a panel role of `editor` or higher, and the bundled sidecar posts it to Slack. When `services.notifications.enabled` is `false` the route answers `503 Notifications are disabled.`; when delivery fails it answers `502 Notification was not delivered.`
+
+### Security
+
+Report a security vulnerability through the [disclosure submission program](https://vdp.inditex.com), in English — never through a public GitHub issue. The security team acknowledges a report within 48 hours, investigates its severity, and develops, tests, and publishes a fix and an advisory. See the [security policy](https://github.com/InditexTech/kumoss/blob/main/SECURITY.md) for the full process and the safe-harbor terms covering researchers who report in good faith.
+
+## Release notes
+
+Kumoss has not published a tagged release yet. When it does, the curated highlights of each release — what is new and what it changes for the people using it — will be listed here and on the project’s [GitHub Releases](https://github.com/InditexTech/kumoss/releases) page.
+
+## Changelog
+
+The unabridged, commit-level record of changes is the repository’s [commit history](https://github.com/InditexTech/kumoss/commits/main); it is not duplicated here. Once releases exist, each GitHub Release carries the complete list of additions, changes, fixes, and deprecations since the previous one.
+
+## Sections
+
+[FAQ](../faq/)
+
+Answers to common questions about roles, requests, sessions, locks, and getting help.
+
+---
+
+# Contributing
+
+Source: /stable/main/contributing/
+
+Thank you for your interest in contributing to Kumoss. Any contribution is valued and appreciated; the guidelines below keep the project collaborative and respectful. For the local development loop — running the stack, the test suites, type checking, and linting — see [Development](../guides/development/).
+
+## Prerequisites
+
+- Before contributing code, sign the Contributor License Agreement (CLA). Instructions are at [InditexTech/foss](https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md).
+- By participating in the project you agree to abide by the rules and principles set out in the [code of conduct](https://github.com/InditexTech/kumoss/blob/main/CODE_OF_CONDUCT.md). Kumoss adheres to the general [Inditex Tech Code of Conduct](https://github.com/InditexTech/foss/blob/main/CODE_OF_CONDUCT.md); direct any inquiry about it to [oso@inditex.com](mailto:oso@inditex.com).
+- Check existing [issues](https://github.com/InditexTech/kumoss/issues) and [pull requests](https://github.com/InditexTech/kumoss/pulls) before starting work, to avoid duplication. If you take on an existing issue, comment on it so other contributors know it is in progress.
+- Discuss and gather feedback from the community before making significant changes to the project’s structure or architecture.
+
+## How to contribute
+
+1. Open an issue to discuss and gather feedback on the feature or fix you wish to address. Security vulnerabilities are the exception: report them through the [disclosure submission program](https://vdp.inditex.com) as described in the [security policy](https://github.com/InditexTech/kumoss/blob/main/SECURITY.md), never through a public issue.
+2. Fork the repository and clone it to your local machine.
+3. Create a new branch to work on your contribution: `git checkout -b your-branch-name`.
+4. Make the necessary changes in your local branch, following [Development](../guides/development/) to run the stack and its checks.
+5. Ensure that your code follows the established project style and formatting guidelines.
+6. Perform testing to ensure your changes do not introduce errors.
+7. Make clear and descriptive commits that explain your changes.
+8. Push your branch to the remote repository: `git push origin your-branch-name`.
+9. Open a pull request describing your changes and linking the corresponding issue.
+10. Await comments and discussions on your pull request. Make any necessary modifications based on the feedback you receive.
+11. Once your pull request is approved, your contribution is merged into the main branch.
+
+## Pull requests
+
+Fill in the pull-request template ([.github/PULL_REQUEST_TEMPLATE.md](https://github.com/InditexTech/kumoss/blob/main/.github/PULL_REQUEST_TEMPLATE.md)) and link the issue it addresses. Include UI screenshots for visible changes. Document any new changes or features you add, so other contributors and users understand your work and its purpose.
+
+Keep the commit history clean and organized: divide your changes into logical, descriptive commits. Commit subjects must follow the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`) — signing is required by policy and checked in review, not enforced by any CI workflow.
+
+Every new file starts with an SPDX header following the [REUSE Specification](https://reuse.software/spec-3.3/#licensing-information) (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check on every pull request, alongside Repolinter and the Conventional Commits check above.
+
+---
+
 # Administer users and locks
 
 Source: /stable/main/guides/administer-users-and-locks/
@@ -10793,102 +10895,6 @@ Everyone else is then managed from the admin panel’s Users tab.
 - **Login redirect rejected by the IdP.** The redirect URI `<origin>/auth/callback` is not registered exactly (scheme, host, port).
 - **Config changes have no effect.** Rebuild the core image (`docker compose build core`); the file is baked in.
 - **A `core_db_data` volume predates authentication.** A volume created before OIDC support was added keyed sessions by `username` instead of the current `users` table; migrate it by hand or drop it before pointing a current core at it.
-
----
-
-# Additional information
-
-Source: /stable/main/additional-information/
-
-This page gathers what does not fit under Guides or Reference: licensing of the default stack, how to reach the people behind a Kumoss deployment, where release notes and the changelog will be published, and where the FAQ lives.
-
-## Licensing of the default stack
-
-Every component that runs by default in the checked-in Compose stack is open source, with one source-available exception that is disclosed rather than hidden (the bundled but inactive Terraform binary is a second, opt-in exception). Identity has no licensing footprint at all: Kumoss speaks standard OpenID Connect and trusts any spec-faithful issuer, so a fully open-source deployment can pair it with Keycloak (Apache-2.0, CNCF Incubating) while an enterprise can point it at Entra ID, Auth0, or Okta without changing a line of code.
-
-| Component | Role | Licence | Notes |
-| --- | --- | --- | --- |
-| Kumoss (core, sidecars, SPA, contracts) | The platform | Apache-2.0 | REUSE-compliant SPDX headers |
-| OpenTofu 1.12.6 | Default IaC engine in the iac sidecar | MPL-2.0 (Linux Foundation) | Digest-pinned. The same image also bundles HashiCorp Terraform 1.16.0 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and selectable via `IAC_BINARY=terraform`; running it makes your use subject to its licence terms |
-| RustFS | Default, bundled S3-compatible object storage for artifacts (and for Terraform state where that is enabled) | Apache-2.0 | Rust implementation of the S3 API; AWS S3 or Azure Blob Storage selectable via `storage.provider`, or any other S3-compatible endpoint via the `RUSTFS` provider |
-| PostgreSQL 17 | core-db and phoenix-db | PostgreSQL Licence | — |
-| Redis 8 | Fail-open cache | Tri-licensed: AGPLv3 (OSI) / RSALv2 / SSPLv1 | AGPLv3 option restored in Redis 8.0 |
-| nginx | Reverse proxy and SPA host | BSD-2-Clause | — |
-| FastAPI, LiteLLM, React, oidc-client-ts | Framework, model router, portal, OIDC client | MIT | — |
-| OpenTelemetry / OpenInference | Tracing standard and semantic conventions | Apache-2.0 | OpenTelemetry is CNCF Graduated (2026-05-21) |
-| Arize Phoenix | Trace UI and runtime prompt registry | **Elastic License 2.0 (source-available, not OSI-approved)** | The only non-OSI component; disclosed in all public material |
-| OpenID Connect | Authentication protocol | Open standard (OpenID Foundation) | No component shipped; any compliant IdP |
-
-## Contact and support
-
-Three channels, each with its own purpose:
-
-- **Support request in the web application** — questions about your own Kumoss deployment or about one of your sessions. It reaches the reviewers in your deployment, not the Kumoss project.
-- [Issue tracker](https://github.com/InditexTech/kumoss/issues) — bugs and feature requests in Kumoss itself. Check the existing issues first; [Contributing](../contributing/) covers what happens next.
-- [Disclosure submission program](https://vdp.inditex.com) — security vulnerabilities, reported privately and never through a public GitHub issue.
-
-### Support requests
-
-Any signed-in user can send a support request from inside the web application. It goes to the people who hold the reviewer roles in your own Kumoss deployment — colleagues on your platform team, not the Kumoss project — through the channel your platform team connected (Slack in the reference setup), with a copy addressed to you.
-
-From the browser, the chat-bubble **Support** icon in the header opens a form for up to 500 characters, plain text only — HTML and code formatting are rejected. The message carries your e-mail, the session id, the repository, branch, request, status, and a link to the session automatically, so you do not need to copy those in yourself. **Contact Team** (on a locked session) and **Request Review** (on the apply confirmation) send the same kind of message, pre-filled for that session, and flagged as a warning when the plan deletes or recreates resources. "Your question has been sent successfully" confirms delivery; "Your question could not be sent. Notifications are disabled." means your deployment has not connected a notification channel — use your organization’s usual support route and quote the session id.
-
-The form calls `POST /api/v1/notifications`. The core forwards the request to the notifications sidecar with an audience made of the caller’s e-mail plus every user holding a panel role of `editor` or higher, and the bundled sidecar posts it to Slack. When `services.notifications.enabled` is `false` the route answers `503 Notifications are disabled.`; when delivery fails it answers `502 Notification was not delivered.`
-
-### Security
-
-Report a security vulnerability through the [disclosure submission program](https://vdp.inditex.com), in English — never through a public GitHub issue. The security team acknowledges a report within 48 hours, investigates its severity, and develops, tests, and publishes a fix and an advisory. See the [security policy](https://github.com/InditexTech/kumoss/blob/main/SECURITY.md) for the full process and the safe-harbor terms covering researchers who report in good faith.
-
-## Release notes
-
-Kumoss has not published a tagged release yet. When it does, the curated highlights of each release — what is new and what it changes for the people using it — will be listed here and on the project’s [GitHub Releases](https://github.com/InditexTech/kumoss/releases) page.
-
-## Changelog
-
-The unabridged, commit-level record of changes is the repository’s [commit history](https://github.com/InditexTech/kumoss/commits/main); it is not duplicated here. Once releases exist, each GitHub Release carries the complete list of additions, changes, fixes, and deprecations since the previous one.
-
-## Sections
-
-[FAQ](../faq/)
-
-Answers to common questions about roles, requests, sessions, locks, and getting help.
-
----
-
-# Contributing
-
-Source: /stable/main/contributing/
-
-Thank you for your interest in contributing to Kumoss. Any contribution is valued and appreciated; the guidelines below keep the project collaborative and respectful. For the local development loop — running the stack, the test suites, type checking, and linting — see [Development](../guides/development/).
-
-## Prerequisites
-
-- Before contributing code, sign the Contributor License Agreement (CLA). Instructions are at [InditexTech/foss](https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md).
-- By participating in the project you agree to abide by the rules and principles set out in the [code of conduct](https://github.com/InditexTech/kumoss/blob/main/CODE_OF_CONDUCT.md). Kumoss adheres to the general [Inditex Tech Code of Conduct](https://github.com/InditexTech/foss/blob/main/CODE_OF_CONDUCT.md); direct any inquiry about it to [oso@inditex.com](mailto:oso@inditex.com).
-- Check existing [issues](https://github.com/InditexTech/kumoss/issues) and [pull requests](https://github.com/InditexTech/kumoss/pulls) before starting work, to avoid duplication. If you take on an existing issue, comment on it so other contributors know it is in progress.
-- Discuss and gather feedback from the community before making significant changes to the project’s structure or architecture.
-
-## How to contribute
-
-1. Open an issue to discuss and gather feedback on the feature or fix you wish to address. Security vulnerabilities are the exception: report them through the [disclosure submission program](https://vdp.inditex.com) as described in the [security policy](https://github.com/InditexTech/kumoss/blob/main/SECURITY.md), never through a public issue.
-2. Fork the repository and clone it to your local machine.
-3. Create a new branch to work on your contribution: `git checkout -b your-branch-name`.
-4. Make the necessary changes in your local branch, following [Development](../guides/development/) to run the stack and its checks.
-5. Ensure that your code follows the established project style and formatting guidelines.
-6. Perform testing to ensure your changes do not introduce errors.
-7. Make clear and descriptive commits that explain your changes.
-8. Push your branch to the remote repository: `git push origin your-branch-name`.
-9. Open a pull request describing your changes and linking the corresponding issue.
-10. Await comments and discussions on your pull request. Make any necessary modifications based on the feedback you receive.
-11. Once your pull request is approved, your contribution is merged into the main branch.
-
-## Pull requests
-
-Fill in the pull-request template ([.github/PULL_REQUEST_TEMPLATE.md](https://github.com/InditexTech/kumoss/blob/main/.github/PULL_REQUEST_TEMPLATE.md)) and link the issue it addresses. Include UI screenshots for visible changes. Document any new changes or features you add, so other contributors and users understand your work and its purpose.
-
-Keep the commit history clean and organized: divide your changes into logical, descriptive commits. Commit subjects must follow the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`) — signing is required by policy and checked in review, not enforced by any CI workflow.
-
-Every new file starts with an SPDX header following the [REUSE Specification](https://reuse.software/spec-3.3/#licensing-information) (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check on every pull request, alongside Repolinter and the Conventional Commits check above.
 
 ---
 
@@ -11260,374 +11266,6 @@ terraform init -backend-config=env/prod.s3.tfbackend
 
 - [Configure state backends](../../guides/configure-state-backends/) for how these credentials fit into the backend model Kumoss chooses.
 - [Environment variables and secrets](../environment-variables/) for every other variable the stack reads.
-
----
-
-# Configure state backends
-
-Source: /stable/main/guides/configure-state-backends/
-
-Kumoss’s workspaces are **ephemeral by design**: every call clones the repository into a fresh directory on the shared `workspaces` volume and deletes it afterwards. A local `terraform.tfstate` dies with that directory, and the next session plans against empty state, proposing to create infrastructure that already exists. Every project therefore needs a **remote backend**, and this page helps you decide who provides it.
-
-The seeded `.gitignore` excludes .tfstate, `.tfstate.*`, and
-`*_override.tf`, so state and the generated backend file never reach a
-commit or a pull request.
-
-## Choose a model
-
-Exactly one party decides where state goes. Answer these questions in order and stop at the first **yes**:
-
-1. **Does every repository already declare a backend that must keep working** (shared with CI or with engineers' laptops)? Use [Repository-declared backend](../state-backends/repository-declared/).
-2. **Must one central backend, defined by the platform team, serve every repository?** Use [Sidecar-supplied backend](../state-backends/sidecar-supplied/).
-3. **Otherwise**, keep the shipped default, [Kumoss-managed state](../state-backends/kumoss-managed/): the repositories need no backend block at all.
-
-Two settings select the model, one on the core and one on the IaC sidecar:
-
-| `storage.terraform_state_bucket` *(core `config.yaml`)* | `IAC_BACKEND_CONFIG` *(`services/iac/.env`)* | Effective model | Who decides where state goes |
-| --- | --- | --- | --- |
-| a bucket name *(shipped)* | unset *(shipped)* | **Kumoss-managed** | The core, from `storage.*` |
-| `""` | unset | **Repository-declared** | Each repository’s own `backend` block |
-| `""` | a file path | **Sidecar-supplied** | The deployment, through a mounted file |
-| a bucket name | a file path | **Mixed — a misconfiguration** | Nobody fully; see [Which value wins](#precedence) |
-
-[Kumoss-managed state](../state-backends/kumoss-managed/)
-
-The shipped default: the core creates the bucket and writes the backend for you.
-
-[Repository-declared backend](../state-backends/repository-declared/)
-
-Blank the state bucket and let each repository’s own backend block own state.
-
-[Sidecar-supplied backend](../state-backends/sidecar-supplied/)
-
-Mount a backend configuration file on the IaC sidecar and own the decision centrally.
-
-## Turn managed state off
-
-Kumoss-managed state is **on as shipped**, so the two other models start by turning it off. **Only an explicit empty string does that:**
-
-```
-storage:
-  terraform_state_bucket: ""    # "" or whitespace-only: managed state off
-```
-
-The other spellings do not behave the same way:
-
-| What you write | Result |
-| --- | --- |
-| `terraform_state_bucket: ""` | Managed state off. |
-| The key deleted | The field default `kumoss-terraform-state` applies: managed state **stays on**. |
-| `terraform_state_bucket:` with nothing after it | YAML null: the core fails at boot with `storage.terraform_state_bucket / Input should be a valid string`. |
-
-`config.yaml` is baked into the core image, so rebuild after the change (`docker compose build core && docker compose up -d core`), or mount the file and point `KUMOSS_CONFIG` at it, as described in [Images and configuration delivery](../production/networking-and-tls/#images-and-config-delivery).
-
-## Which value wins
-
-When several layers configure the backend, the engine **merges them key by key**. Highest priority first:
-
-1. **`IAC_BACKEND_CONFIG`**: the file the sidecar passes to `init` as `-backend-config=<file>`.
-2. **`backend_override.tf`**: written by the core when managed state is on.
-3. **The repository’s own `terraform { backend }` block.**
-
-A key that a higher layer does not set falls through to the next one. The backend *type* (`azurerm`, `s3`, …​) always comes from the workspace, either from the repository or from the override.
-
-**Example.** A repository declares a backend, managed state is left on, and the sidecar also mounts a file:
-
-```
-# 3. The repository's main.tf
-terraform {
-  backend "azurerm" {
-    storage_account_name = "acmetfstate"
-    container_name       = "tfstates"
-    key                  = "platform.tfstate"
-  }
-}
-
-# 2. backend_override.tf, written by the core (managed state on)
-terraform {
-  backend "azurerm" {
-    storage_account_name = "acmekumoss"
-    container_name       = "kumoss-terraform-state"
-    key                  = "<project_id>/terraform.tfstate"
-    access_key           = "..."
-  }
-}
-
-# 1. The file IAC_BACKEND_CONFIG points at
-key = "central.tfstate"
-```
-
-What `init` binds:
-
-| Key | Effective value | Taken from |
-| --- | --- | --- |
-| `key` | `central.tfstate` | The sidecar file |
-| `storage_account_name` | `acmekumoss` | The core’s override |
-| `container_name` | `kumoss-terraform-state` | The core’s override |
-| `access_key` | the core’s key | The core’s override |
-
-Two lessons follow:
-
-- **A repository backend is ignored whenever managed state is on.** None of the repository’s values survive, and Kumoss logs no warning about it. The plan runs against whatever the managed key holds, usually nothing. Turn managed state off to keep a repository’s backend.
-- **Never combine managed state with `IAC_BACKEND_CONFIG`.** The result is a backend that neither side fully describes. A file that supplies a single `key` also removes Kumoss’s per-project key, so every project shares one state object.
-
-The order was verified empirically by running `tofu init` and `terraform init` against a local backend with the same key set in all three layers.
-
-## Change models safely
-
-**Switching models moves no state.** Turning managed state on does not import the state your repositories' backends hold; turning it off leaves what Kumoss stored in its bucket where those backends do not look.
-
-`init` **always** runs with `-reconfigure` (`tofu init -no-color -input=false -reconfigure`), because `-input=false` cannot answer the *"Backend configuration changed"* prompt. As a result:
-
-- **State already in the new backend is adopted.** Re-pointing a project at a backend that already holds its state is safe.
-- **State under the previous backend is not migrated.** Kumoss never copies state between backends.
-- **A project starts from empty state** after any change to its backend or its key: switching `storage.provider`, renaming `terraform_state_bucket`, moving the root module, or changing the cloud scope. The next plan proposes creating resources that already exist.
-
-Migrate before the next session runs, with the engine itself:
-
-```
-tofu state pull > project.tfstate           # against the old backend
-tofu init -reconfigure -backend-config=...  # point at the new backend
-tofu state push project.tfstate
-```
-
-`tofu init -migrate-state`, run by hand in an equivalent workspace, works too. Keep the pulled file as a backup, and verify with a plan that shows no changes before letting Kumoss run again.
-
-## What Kumoss does not do
-
-State ownership stops at "write the backend and key". Everything below is yours:
-
-- **No state migration**, between any two backends (see above).
-- **No versioning, backups, or retention.** Kumoss does not enable versioning, object lock, soft delete, or point-in-time restore, and it never deletes a state object.
-- **No DynamoDB lock table.** Locking uses the S3-native lockfile or the Azure blob lease; there is nothing to provision.
-- **No `gcs` backend adapter.** `storage.provider` has three members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). For a `gcs` backend, use the repository-declared or sidecar-supplied model and let the repository’s block, or a mounted file, declare `gcs`.
-- **No state encryption beyond the store’s own.** State can contain secrets; rely on encryption at rest and restrict access accordingly.
-- **Import writes to state during the round.** The import modes run `terraform import` before any pull request is reviewed. See [Import infrastructure](../import-infrastructure/).
-
-## Troubleshooting
-
-### Find the active state
-
-Start here whenever you are unsure which state file a project uses. The answer depends on three layers (see [Which value wins](#precedence)), so check all three, highest priority first. The commands read the **running** containers, not your local files, so they show what is actually deployed.
-
-1. **Sidecar layer.** Check whether the IaC sidecar overrides the backend: ``` docker compose exec iac sh -c 'echo "IAC_BACKEND_CONFIG=${IAC_BACKEND_CONFIG:-<unset>}"; [ -n "$IAC_BACKEND_CONFIG" ] && cat "$IAC_BACKEND_CONFIG"' ``` ``` IAC_BACKEND_CONFIG=<unset> ``` A path that does not start with `/` is relative to each cloned workspace, so `cat` fails here even when `init` finds the file. Read that file in the repository instead.
-2. **Core layer.** Check whether Kumoss-managed state is on in the image that is running: ``` docker compose exec core python -c " from src.shared.config import system_config as c s = c.storage print('managed state :', 'ON' if s.state_bucket else 'OFF') print('provider :', s.provider.name) print('bucket :', s.state_bucket or '-') print('endpoint :', s.endpoint_url) " ``` ``` managed state : ON provider : RUSTFS bucket : kumoss-terraform-state endpoint : http://object-storage:9000 ```
-3. **Repository layer.** When managed state is `OFF`, read the backend block the repository commits: ``` git -C _REPOSITORY_PATH_ grep -n -A8 'backend "' ``` ``` main.tf:2: backend "azurerm" { main.tf-3- resource_group_name = "tfstate-rg" main.tf-4- storage_account_name = "acmetfstate" main.tf-5- container_name = "tfstates" main.tf-6- key = "platform.tfstate" ```
-
-Read the results together:
-
-| Sidecar layer | Core layer | The active state is… |
-| --- | --- | --- |
-| `<unset>` | `ON` | `<bucket>/<project_id>/terraform.tfstate` in the store at `endpoint`. Get the `project_id` from the core log (see below). |
-| `<unset>` | `OFF` | Wherever the repository’s backend block points. In the example above: container `tfstates`, blob `platform.tfstate` in account `acmetfstate`. |
-| a path | `OFF` | The repository’s backend block, with every key the file sets replacing the repository’s value. |
-| a path | `ON` | Mixed: a misconfiguration. Fix it before trusting any state (see [Which value wins](#precedence)). |
-
-**Get the `project_id` under managed state.** The core logs the bucket and key each time it writes the override, before every `init`:
-
-```
-docker compose logs core | grep "Terraform state:"
-```
-
-```
-Terraform state: rustfs bucket=kumoss-terraform-state key=3f9a…c41e/terraform.tfstate
-```
-
-Use this line to **find the key**, not to decide which model is active. It is written by the core, so:
-
-- It appears **only** when managed state is on. No line does not tell you where state is, only that the repository or the sidecar decides.
-- It does **not** include `IAC_BACKEND_CONFIG` overrides, which the core never sees.
-- It prints no account or endpoint; those come from `storage.endpoint_url`.
-- It appears only after a session has run `init` since the container was last created, and an apply logs nothing new: it reuses the workspace the plan initialized, so it writes to the same state.
-
-**Confirm the object exists and is the one being written.** After an apply, the state object’s modification time must change:
-
-- Azure
-- AWS
-- RustFS (bundled)
-
-```
-az storage blob show --auth-mode login \
-  --account-name acmetfstate --container-name tfstates \
-  --name platform.tfstate \
-  --query "{size: properties.contentLength, modified: properties.lastModified}"
-```
-
-```
-aws s3api head-object --bucket acme-team-tfstate \
-  --key envs/prod/terraform.tfstate \
-  --query "{size: ContentLength, modified: LastModified}"
-```
-
-```
-# One-off: the backend uses path-style addressing, so the client must too.
-aws configure set default.s3.addressing_style path
-
-AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
-AWS_DEFAULT_REGION=us-east-1 \
-  aws --endpoint-url http://localhost:9000 \
-  s3 ls s3://kumoss-terraform-state/ --recursive
-```
-
-### Plans against empty state
-
-| Symptom | Cause and fix |
-| --- | --- |
-| The repository declares a backend, yet every plan proposes creating resources that already exist | **Managed state is on and its override replaces the repository’s backend** (see [Which value wins](#precedence)). The log line above appears. Set `storage.terraform_state_bucket: ""` and rebuild the core image. |
-| Every session plans against empty state, and nothing is ever recorded | Managed state is off, but the repository declares no backend: `init` succeeds against the *local* backend, and the state dies with the clone. Add a `terraform { backend …​ }` block, or turn managed state back on. |
-| Plans propose recreating everything after a configuration change | The project’s state key or backend changed and the state was not migrated. Compare the logged `key=` with the bucket contents, then migrate (see [Change models safely](#changing-backend-configuration)). |
-| Two repositories collide on one state file | An `IAC_BACKEND_CONFIG` file supplies a single `key` for every repository. Declare distinct keys per repository, or use managed state alone. |
-
-### Boot and `init` failures
-
-| Symptom | Cause and fix |
-| --- | --- |
-| Core fails at boot: `Failed to initialize object storage` | Managed state is on and the state bucket cannot be created or reached (credentials, `CreateBucket` permission, endpoint). The artifact and state buckets are checked together; verify both, or pre-create them. |
-| `init` fails with a credentials or `AccessDenied` error | The **IaC sidecar** lacks credentials for the state store, or its identity has no access to it. The core’s credentials do not count. See [the two credential grants](../state-backends/repository-declared/#two-credential-grants) and [Credentials required](../state-backends/kumoss-managed/#credentials-required). |
-| `init` on `azurerm` cannot find the storage account | `init` runs with `ARM_SUBSCRIPTION_ID` set from the request’s cloud scope. Pin `subscription_id` in the backend block when the state account lives in another subscription. |
-| `init` fails with `InvalidAccessKeyId` after switching to `provider: S3` | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still `rustfsadmin` in `core/.env` and were embedded in the override. Blank both and rebuild. |
-| `init` fails to dial the endpoint (`connection refused`, DNS failure) | The sidecar cannot reach the state store. Put it on the same network (`bridge-network` in Compose) or allow that egress. |
-| `init` fails on the backend configuration file | `IAC_BACKEND_CONFIG` is not checked at startup: the path is wrong, the file is not mounted, or uid `10001` cannot read it. The error is in the failing job’s stderr. |
-| `Error acquiring the state lock` | Another run holds the lock, or a crashed run left it stale. If stale, run `tofu force-unlock LOCK_ID` in an equivalent workspace, or remove the `.tflock` object or break the blob lease. |
-| Session fails with a Terraform backend error before `init` runs | The core could not write `backend_override.tf`. The `workspaces` volume must be writable by uid/gid `10001` (`chown -R 10001:10001` on a volume from a root-running stack). |
-
-### The override file in a pull request
-
-If a `backend_override.tf` shows up in a pull request, the workspace `.gitignore` write failed: the core logs `terraform gitignore couldn’t be created`, carries on, and `git add -A` picks the file up. Check that the `workspaces` volume is writable by uid/gid `10001`, remove the file from the branch, and re-run the round.
-
-A repository without a `.gitignore` is not the cause: the seeded file is honored for the working tree even though it is never committed. A repository that already tracks a `.gitignore` gets Kumoss’s template appended, and that change is committed to the session branch.
-
-## Related documentation
-
-- [Configuration reference — the `storage` section](../../reference/configuration/#storage): every field, default, and validation rule.
-- [Environment variables and secrets](../../reference/environment-variables/): `core/.env`, `IAC_BACKEND_CONFIG`, and the sidecar `.env` files.
-- [Backend minimums](../../reference/terraform-providers/#backend-minimums): per-cloud backend credentials.
-- [IaC sidecar API — State backend](../../reference/api/iac/#state-backend): the contract-level view.
-- [Architecture — Data and state](../../architecture/data-and-state/#terraform-state): where state sits among Kumoss’s stores.
-
----
-
-# Follow a session
-
-Source: /stable/main/guides/follow-a-session/
-
-After you submit a request, Kumoss takes you to the progress screen. This guide covers what happens while a session runs, what a declined or answered round looks like, how to read the results, and how to come back to a session later.
-
-## Prerequisites
-
-- A session opened by following [Make a request](../make-a-request/).
-
-## Progress stages
-
-The progress screen shows an assistant animation, a progress bar, and one short first-person status sentence at a time, such as what is being generated or which validation error is being fixed. Progress moves through these stages:
-
-| Stage | What Kumoss is doing | Typical duration |
-| --- | --- | --- |
-| Filtering | Reading and classifying your request | Seconds |
-| Generating | Writing or editing Terraform files and pushing them to the session branch | Minutes |
-| Validating | Running `init`, `validate`, and `plan` in the engine; feeding errors back to the generator (up to eight attempts). The drift pre-check on the touched to the generator (up to eight attempts). The drift pre-check on the touched Generating and Validating stages again, before the report starts | Minutes; longer for large roots |
-| Report | Writing the report and, when enabled, running the compliance audit | Minutes |
-
-A session is bounded: eight generate-and-validate attempts, then a drift check of at most two passes, then the report. ("Pipeline completed", "Request rejected", "Session blocked", "Pipeline failed") can be enabled from the **Configuration** icon in the header.
-
-You can close the tab. The session continues on the server; reopen it from the **Sessions** panel in the footer or from your user page.
-
-**If it fails.** The round is marked failed with a reason: most often "runner failed: Validation loop exceeded." when the engine kept rejecting the code after eight attempts, or an engine or repository error. A failed session cannot be resumed ("This session failed and can’t be resumed"); start a new one, usually with a more specific request. Long inactivity shows "Connection timed out — no response from server"; reload the page and open the session from the footer.
-
-**If your login expires** you see "Your session has expired. Please sign in again." The Kumoss session keeps running; sign in and reopen it.
-
-## When the request is declined or answered
-
-You are taken to the results screen with the chat on the left. The filter’s explanation, or the answer to your question, is the last assistant message. Nothing was changed and no branch was pushed for that round. Type a new request in "Ask a follow-up question…​" to continue in the same session; earlier rounds' results stay visible on the right.
-
-## Reading the results
-
-The results screen has the chat on the left and a panel with three tabs on the right.
-
-**Plan tab.** The engine’s plan text as produced by `plan`. This is the authoritative description of what would change.
-
-**Code tab.** Every file the session has created or modified so far, across rounds, as diffs.
-
-**Report tab.** Kumoss’s summary of the plan:
-
-- **Execution Summary.** A paragraph describing the change.
-- **Potential Impact.** One of **Low Impact**, **Medium Impact**, or **High Impact**, with a description. With the default criteria, high means destructive actions, restarts, downtime, or critical networking changes; medium means significant configuration updates that change behavior without guaranteed downtime; low means isolated new resources or non-disruptive updates such as tags or locks. Click the card for the status, description, and detail bullets.
-- **Estimated Cost.** A monthly figure (and the derived hourly figure) for resources with a **fixed** price. Usage-based and free resources are listed in the breakdown as "Usage-based" or "Free" and are not included in the total. Treat the figure as an approximation for comparison, not as a quote; prices come from public pricing pages at generation time.
-- **Changes table.** Filter by **All**, **Created**, **Updated**, **Deleted**, **Recreated**. Each row names the resource with a short note; click it for the description and the raw plan detail.
-
-For drift sessions the report shows a **Drift Summary**, an outcome (Succeeded, Partial, Failed), and a **Remediated Resources** list with the file, the change, and the reason for each. Two further sections appear only when the round left drift behind, and they mean different things:
-
-- **Drift Not Reconciled.** Drift Kumoss could **not** fix — the remediation ran out of iterations, or the drift could not be read at all. Each entry gives the reason and what still differs. This is what makes an outcome **Partial**; act on it.
-- **Left Alone by Exception Rules.** Drift Kumoss deliberately did not touch, because one of your platform’s drift exception rules covers it. Each entry names the change and quotes the rule. This is the intended behaviour and does not lower the outcome, so a report can say **Succeeded** and still list entries here.
-
-**What you do not see.** The compliance audit that runs after the report produces rule-level findings, but they are not displayed in the application. If the audit fails you see its consequence, the lock (see [If the session is locked](../merge-and-apply/#session-locked)), and the reviewers who receive the notification see the summary. Ask your reviewer or platform team for the details.
-
-**Reading order that works.** Impact level first, then the Deleted and Recreated filters, then the plan for anything you do not expect, then the cost.
-
-## Return to a session later
-
-- **Footer.** On the start screen, the **Sessions** panel lists your most recent sessions with date, request, and project. **View all** opens the full list.
-- **User page** (the user icon in the header). **Profile** (name, e-mail, **Log out**), **Session History** with **View all sessions**, and, for reviewers, **Admin Panel**.
-- **Your sessions list.** Search by project, request text, or session id; filter by type and status. Open a row for the timeline of rounds, the statuses, the artifacts (report, plan, changed files, viewed inline), the session id, path, scope, repository link, and pull request links. **Reload Session** reopens it in the wizard so you can create the pull request, apply, or continue the conversation. Failed sessions cannot be reloaded.
-
-Only you and reviewers with a panel role can see your sessions. Nobody else can act on them.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
-
----
-
-# Generate infrastructure
-
-Source: /stable/main/guides/generate-infrastructure/
-
-Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
-
-## Prerequisites
-
-- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
-
-## Use case
-
-Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
-
-## Workflow
-
-1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
-2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
-3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
-5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
-7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
-8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
-
-## What generate produces
-
-- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
-- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
-- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
-- **Plan pinned.** Yes.
-
-## Apply, pull requests, and locks
-
-After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
-
-## Example
-
-Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
-
-## Limitations
-
-- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
-- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
-- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 
@@ -12009,6 +11647,374 @@ The diagram condenses some detail. The four sidecars share one node (`authz :808
 - [End-to-end flow](end-to-end-flow/) — the ten phases of one generate session, from the request to the applied infrastructure, and the mechanisms behind them.
 - [Data and state](data-and-state/) — what core-db, phoenix-db, Redis, object storage, and the `workspaces` volume each hold.
 - [Deployment view](deployment-view/) — the Compose topology, operational notes, and single-instance limits.
+
+---
+
+# Configure state backends
+
+Source: /stable/main/guides/configure-state-backends/
+
+Kumoss’s workspaces are **ephemeral by design**: every call clones the repository into a fresh directory on the shared `workspaces` volume and deletes it afterwards. A local `terraform.tfstate` dies with that directory, and the next session plans against empty state, proposing to create infrastructure that already exists. Every project therefore needs a **remote backend**, and this page helps you decide who provides it.
+
+The seeded `.gitignore` excludes .tfstate, `.tfstate.*`, and
+`*_override.tf`, so state and the generated backend file never reach a
+commit or a pull request.
+
+## Choose a model
+
+Exactly one party decides where state goes. Answer these questions in order and stop at the first **yes**:
+
+1. **Does every repository already declare a backend that must keep working** (shared with CI or with engineers' laptops)? Use [Repository-declared backend](../state-backends/repository-declared/).
+2. **Must one central backend, defined by the platform team, serve every repository?** Use [Sidecar-supplied backend](../state-backends/sidecar-supplied/).
+3. **Otherwise**, keep the shipped default, [Kumoss-managed state](../state-backends/kumoss-managed/): the repositories need no backend block at all.
+
+Two settings select the model, one on the core and one on the IaC sidecar:
+
+| `storage.terraform_state_bucket` *(core `config.yaml`)* | `IAC_BACKEND_CONFIG` *(`services/iac/.env`)* | Effective model | Who decides where state goes |
+| --- | --- | --- | --- |
+| a bucket name *(shipped)* | unset *(shipped)* | **Kumoss-managed** | The core, from `storage.*` |
+| `""` | unset | **Repository-declared** | Each repository’s own `backend` block |
+| `""` | a file path | **Sidecar-supplied** | The deployment, through a mounted file |
+| a bucket name | a file path | **Mixed — a misconfiguration** | Nobody fully; see [Which value wins](#precedence) |
+
+[Kumoss-managed state](../state-backends/kumoss-managed/)
+
+The shipped default: the core creates the bucket and writes the backend for you.
+
+[Repository-declared backend](../state-backends/repository-declared/)
+
+Blank the state bucket and let each repository’s own backend block own state.
+
+[Sidecar-supplied backend](../state-backends/sidecar-supplied/)
+
+Mount a backend configuration file on the IaC sidecar and own the decision centrally.
+
+## Turn managed state off
+
+Kumoss-managed state is **on as shipped**, so the two other models start by turning it off. **Only an explicit empty string does that:**
+
+```
+storage:
+  terraform_state_bucket: ""    # "" or whitespace-only: managed state off
+```
+
+The other spellings do not behave the same way:
+
+| What you write | Result |
+| --- | --- |
+| `terraform_state_bucket: ""` | Managed state off. |
+| The key deleted | The field default `kumoss-terraform-state` applies: managed state **stays on**. |
+| `terraform_state_bucket:` with nothing after it | YAML null: the core fails at boot with `storage.terraform_state_bucket / Input should be a valid string`. |
+
+`config.yaml` is baked into the core image, so rebuild after the change (`docker compose build core && docker compose up -d core`), or mount the file and point `KUMOSS_CONFIG` at it, as described in [Images and configuration delivery](../production/networking-and-tls/#images-and-config-delivery).
+
+## Which value wins
+
+When several layers configure the backend, the engine **merges them key by key**. Highest priority first:
+
+1. **`IAC_BACKEND_CONFIG`**: the file the sidecar passes to `init` as `-backend-config=<file>`.
+2. **`backend_override.tf`**: written by the core when managed state is on.
+3. **The repository’s own `terraform { backend }` block.**
+
+A key that a higher layer does not set falls through to the next one. The backend *type* (`azurerm`, `s3`, …​) always comes from the workspace, either from the repository or from the override.
+
+**Example.** A repository declares a backend, managed state is left on, and the sidecar also mounts a file:
+
+```
+# 3. The repository's main.tf
+terraform {
+  backend "azurerm" {
+    storage_account_name = "acmetfstate"
+    container_name       = "tfstates"
+    key                  = "platform.tfstate"
+  }
+}
+
+# 2. backend_override.tf, written by the core (managed state on)
+terraform {
+  backend "azurerm" {
+    storage_account_name = "acmekumoss"
+    container_name       = "kumoss-terraform-state"
+    key                  = "<project_id>/terraform.tfstate"
+    access_key           = "..."
+  }
+}
+
+# 1. The file IAC_BACKEND_CONFIG points at
+key = "central.tfstate"
+```
+
+What `init` binds:
+
+| Key | Effective value | Taken from |
+| --- | --- | --- |
+| `key` | `central.tfstate` | The sidecar file |
+| `storage_account_name` | `acmekumoss` | The core’s override |
+| `container_name` | `kumoss-terraform-state` | The core’s override |
+| `access_key` | the core’s key | The core’s override |
+
+Two lessons follow:
+
+- **A repository backend is ignored whenever managed state is on.** None of the repository’s values survive, and Kumoss logs no warning about it. The plan runs against whatever the managed key holds, usually nothing. Turn managed state off to keep a repository’s backend.
+- **Never combine managed state with `IAC_BACKEND_CONFIG`.** The result is a backend that neither side fully describes. A file that supplies a single `key` also removes Kumoss’s per-project key, so every project shares one state object.
+
+The order was verified empirically by running `tofu init` and `terraform init` against a local backend with the same key set in all three layers.
+
+## Change models safely
+
+**Switching models moves no state.** Turning managed state on does not import the state your repositories' backends hold; turning it off leaves what Kumoss stored in its bucket where those backends do not look.
+
+`init` **always** runs with `-reconfigure` (`tofu init -no-color -input=false -reconfigure`), because `-input=false` cannot answer the *"Backend configuration changed"* prompt. As a result:
+
+- **State already in the new backend is adopted.** Re-pointing a project at a backend that already holds its state is safe.
+- **State under the previous backend is not migrated.** Kumoss never copies state between backends.
+- **A project starts from empty state** after any change to its backend or its key: switching `storage.provider`, renaming `terraform_state_bucket`, moving the root module, or changing the cloud scope. The next plan proposes creating resources that already exist.
+
+Migrate before the next session runs, with the engine itself:
+
+```
+tofu state pull > project.tfstate           # against the old backend
+tofu init -reconfigure -backend-config=...  # point at the new backend
+tofu state push project.tfstate
+```
+
+`tofu init -migrate-state`, run by hand in an equivalent workspace, works too. Keep the pulled file as a backup, and verify with a plan that shows no changes before letting Kumoss run again.
+
+## What Kumoss does not do
+
+State ownership stops at "write the backend and key". Everything below is yours:
+
+- **No state migration**, between any two backends (see above).
+- **No versioning, backups, or retention.** Kumoss does not enable versioning, object lock, soft delete, or point-in-time restore, and it never deletes a state object.
+- **No DynamoDB lock table.** Locking uses the S3-native lockfile or the Azure blob lease; there is nothing to provision.
+- **No `gcs` backend adapter.** `storage.provider` has three members (`RUSTFS`, `S3`, `STORAGE_ACCOUNT`). For a `gcs` backend, use the repository-declared or sidecar-supplied model and let the repository’s block, or a mounted file, declare `gcs`.
+- **No state encryption beyond the store’s own.** State can contain secrets; rely on encryption at rest and restrict access accordingly.
+- **Import writes to state during the round.** The import modes run `terraform import` before any pull request is reviewed. See [Import infrastructure](../import-infrastructure/).
+
+## Troubleshooting
+
+### Find the active state
+
+Start here whenever you are unsure which state file a project uses. The answer depends on three layers (see [Which value wins](#precedence)), so check all three, highest priority first. The commands read the **running** containers, not your local files, so they show what is actually deployed.
+
+1. **Sidecar layer.** Check whether the IaC sidecar overrides the backend: ``` docker compose exec iac sh -c 'echo "IAC_BACKEND_CONFIG=${IAC_BACKEND_CONFIG:-<unset>}"; [ -n "$IAC_BACKEND_CONFIG" ] && cat "$IAC_BACKEND_CONFIG"' ``` ``` IAC_BACKEND_CONFIG=<unset> ``` A path that does not start with `/` is relative to each cloned workspace, so `cat` fails here even when `init` finds the file. Read that file in the repository instead.
+2. **Core layer.** Check whether Kumoss-managed state is on in the image that is running: ``` docker compose exec core python -c " from src.shared.config import system_config as c s = c.storage print('managed state :', 'ON' if s.state_bucket else 'OFF') print('provider :', s.provider.name) print('bucket :', s.state_bucket or '-') print('endpoint :', s.endpoint_url) " ``` ``` managed state : ON provider : RUSTFS bucket : kumoss-terraform-state endpoint : http://object-storage:9000 ```
+3. **Repository layer.** When managed state is `OFF`, read the backend block the repository commits: ``` git -C _REPOSITORY_PATH_ grep -n -A8 'backend "' ``` ``` main.tf:2: backend "azurerm" { main.tf-3- resource_group_name = "tfstate-rg" main.tf-4- storage_account_name = "acmetfstate" main.tf-5- container_name = "tfstates" main.tf-6- key = "platform.tfstate" ```
+
+Read the results together:
+
+| Sidecar layer | Core layer | The active state is… |
+| --- | --- | --- |
+| `<unset>` | `ON` | `<bucket>/<project_id>/terraform.tfstate` in the store at `endpoint`. Get the `project_id` from the core log (see below). |
+| `<unset>` | `OFF` | Wherever the repository’s backend block points. In the example above: container `tfstates`, blob `platform.tfstate` in account `acmetfstate`. |
+| a path | `OFF` | The repository’s backend block, with every key the file sets replacing the repository’s value. |
+| a path | `ON` | Mixed: a misconfiguration. Fix it before trusting any state (see [Which value wins](#precedence)). |
+
+**Get the `project_id` under managed state.** The core logs the bucket and key each time it writes the override, before every `init`:
+
+```
+docker compose logs core | grep "Terraform state:"
+```
+
+```
+Terraform state: rustfs bucket=kumoss-terraform-state key=3f9a…c41e/terraform.tfstate
+```
+
+Use this line to **find the key**, not to decide which model is active. It is written by the core, so:
+
+- It appears **only** when managed state is on. No line does not tell you where state is, only that the repository or the sidecar decides.
+- It does **not** include `IAC_BACKEND_CONFIG` overrides, which the core never sees.
+- It prints no account or endpoint; those come from `storage.endpoint_url`.
+- It appears only after a session has run `init` since the container was last created, and an apply logs nothing new: it reuses the workspace the plan initialized, so it writes to the same state.
+
+**Confirm the object exists and is the one being written.** After an apply, the state object’s modification time must change:
+
+- Azure
+- AWS
+- RustFS (bundled)
+
+```
+az storage blob show --auth-mode login \
+  --account-name acmetfstate --container-name tfstates \
+  --name platform.tfstate \
+  --query "{size: properties.contentLength, modified: properties.lastModified}"
+```
+
+```
+aws s3api head-object --bucket acme-team-tfstate \
+  --key envs/prod/terraform.tfstate \
+  --query "{size: ContentLength, modified: LastModified}"
+```
+
+```
+# One-off: the backend uses path-style addressing, so the client must too.
+aws configure set default.s3.addressing_style path
+
+AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
+AWS_DEFAULT_REGION=us-east-1 \
+  aws --endpoint-url http://localhost:9000 \
+  s3 ls s3://kumoss-terraform-state/ --recursive
+```
+
+### Plans against empty state
+
+| Symptom | Cause and fix |
+| --- | --- |
+| The repository declares a backend, yet every plan proposes creating resources that already exist | **Managed state is on and its override replaces the repository’s backend** (see [Which value wins](#precedence)). The log line above appears. Set `storage.terraform_state_bucket: ""` and rebuild the core image. |
+| Every session plans against empty state, and nothing is ever recorded | Managed state is off, but the repository declares no backend: `init` succeeds against the *local* backend, and the state dies with the clone. Add a `terraform { backend …​ }` block, or turn managed state back on. |
+| Plans propose recreating everything after a configuration change | The project’s state key or backend changed and the state was not migrated. Compare the logged `key=` with the bucket contents, then migrate (see [Change models safely](#changing-backend-configuration)). |
+| Two repositories collide on one state file | An `IAC_BACKEND_CONFIG` file supplies a single `key` for every repository. Declare distinct keys per repository, or use managed state alone. |
+
+### Boot and `init` failures
+
+| Symptom | Cause and fix |
+| --- | --- |
+| Core fails at boot: `Failed to initialize object storage` | Managed state is on and the state bucket cannot be created or reached (credentials, `CreateBucket` permission, endpoint). The artifact and state buckets are checked together; verify both, or pre-create them. |
+| `init` fails with a credentials or `AccessDenied` error | The **IaC sidecar** lacks credentials for the state store, or its identity has no access to it. The core’s credentials do not count. See [the two credential grants](../state-backends/repository-declared/#two-credential-grants) and [Credentials required](../state-backends/kumoss-managed/#credentials-required). |
+| `init` on `azurerm` cannot find the storage account | `init` runs with `ARM_SUBSCRIPTION_ID` set from the request’s cloud scope. Pin `subscription_id` in the backend block when the state account lives in another subscription. |
+| `init` fails with `InvalidAccessKeyId` after switching to `provider: S3` | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still `rustfsadmin` in `core/.env` and were embedded in the override. Blank both and rebuild. |
+| `init` fails to dial the endpoint (`connection refused`, DNS failure) | The sidecar cannot reach the state store. Put it on the same network (`bridge-network` in Compose) or allow that egress. |
+| `init` fails on the backend configuration file | `IAC_BACKEND_CONFIG` is not checked at startup: the path is wrong, the file is not mounted, or uid `10001` cannot read it. The error is in the failing job’s stderr. |
+| `Error acquiring the state lock` | Another run holds the lock, or a crashed run left it stale. If stale, run `tofu force-unlock LOCK_ID` in an equivalent workspace, or remove the `.tflock` object or break the blob lease. |
+| Session fails with a Terraform backend error before `init` runs | The core could not write `backend_override.tf`. The `workspaces` volume must be writable by uid/gid `10001` (`chown -R 10001:10001` on a volume from a root-running stack). |
+
+### The override file in a pull request
+
+If a `backend_override.tf` shows up in a pull request, the workspace `.gitignore` write failed: the core logs `terraform gitignore couldn’t be created`, carries on, and `git add -A` picks the file up. Check that the `workspaces` volume is writable by uid/gid `10001`, remove the file from the branch, and re-run the round.
+
+A repository without a `.gitignore` is not the cause: the seeded file is honored for the working tree even though it is never committed. A repository that already tracks a `.gitignore` gets Kumoss’s template appended, and that change is committed to the session branch.
+
+## Related documentation
+
+- [Configuration reference — the `storage` section](../../reference/configuration/#storage): every field, default, and validation rule.
+- [Environment variables and secrets](../../reference/environment-variables/): `core/.env`, `IAC_BACKEND_CONFIG`, and the sidecar `.env` files.
+- [Backend minimums](../../reference/terraform-providers/#backend-minimums): per-cloud backend credentials.
+- [IaC sidecar API — State backend](../../reference/api/iac/#state-backend): the contract-level view.
+- [Architecture — Data and state](../../architecture/data-and-state/#terraform-state): where state sits among Kumoss’s stores.
+
+---
+
+# Follow a session
+
+Source: /stable/main/guides/follow-a-session/
+
+After you submit a request, Kumoss takes you to the progress screen. This guide covers what happens while a session runs, what a declined or answered round looks like, how to read the results, and how to come back to a session later.
+
+## Prerequisites
+
+- A session opened by following [Make a request](../make-a-request/).
+
+## Progress stages
+
+The progress screen shows an assistant animation, a progress bar, and one short first-person status sentence at a time, such as what is being generated or which validation error is being fixed. Progress moves through these stages:
+
+| Stage | What Kumoss is doing | Typical duration |
+| --- | --- | --- |
+| Filtering | Reading and classifying your request | Seconds |
+| Generating | Writing or editing Terraform files and pushing them to the session branch | Minutes |
+| Validating | Running `init`, `validate`, and `plan` in the engine; feeding errors back to the generator (up to eight attempts). The drift pre-check on the touched to the generator (up to eight attempts). The drift pre-check on the touched Generating and Validating stages again, before the report starts | Minutes; longer for large roots |
+| Report | Writing the report and, when enabled, running the compliance audit | Minutes |
+
+A session is bounded: eight generate-and-validate attempts, then a drift check of at most two passes, then the report. ("Pipeline completed", "Request rejected", "Session blocked", "Pipeline failed") can be enabled from the **Configuration** icon in the header.
+
+You can close the tab. The session continues on the server; reopen it from the **Sessions** panel in the footer or from your user page.
+
+**If it fails.** The round is marked failed with a reason: most often "runner failed: Validation loop exceeded." when the engine kept rejecting the code after eight attempts, or an engine or repository error. A failed session cannot be resumed ("This session failed and can’t be resumed"); start a new one, usually with a more specific request. Long inactivity shows "Connection timed out — no response from server"; reload the page and open the session from the footer.
+
+**If your login expires** you see "Your session has expired. Please sign in again." The Kumoss session keeps running; sign in and reopen it.
+
+## When the request is declined or answered
+
+You are taken to the results screen with the chat on the left. The filter’s explanation, or the answer to your question, is the last assistant message. Nothing was changed and no branch was pushed for that round. Type a new request in "Ask a follow-up question…​" to continue in the same session; earlier rounds' results stay visible on the right.
+
+## Reading the results
+
+The results screen has the chat on the left and a panel with three tabs on the right.
+
+**Plan tab.** The engine’s plan text as produced by `plan`. This is the authoritative description of what would change.
+
+**Code tab.** Every file the session has created or modified so far, across rounds, as diffs.
+
+**Report tab.** Kumoss’s summary of the plan:
+
+- **Execution Summary.** A paragraph describing the change.
+- **Potential Impact.** One of **Low Impact**, **Medium Impact**, or **High Impact**, with a description. With the default criteria, high means destructive actions, restarts, downtime, or critical networking changes; medium means significant configuration updates that change behavior without guaranteed downtime; low means isolated new resources or non-disruptive updates such as tags or locks. Click the card for the status, description, and detail bullets.
+- **Estimated Cost.** A monthly figure (and the derived hourly figure) for resources with a **fixed** price. Usage-based and free resources are listed in the breakdown as "Usage-based" or "Free" and are not included in the total. Treat the figure as an approximation for comparison, not as a quote; prices come from public pricing pages at generation time.
+- **Changes table.** Filter by **All**, **Created**, **Updated**, **Deleted**, **Recreated**. Each row names the resource with a short note; click it for the description and the raw plan detail.
+
+For drift sessions the report shows a **Drift Summary**, an outcome (Succeeded, Partial, Failed), and a **Remediated Resources** list with the file, the change, and the reason for each. Two further sections appear only when the round left drift behind, and they mean different things:
+
+- **Drift Not Reconciled.** Drift Kumoss could **not** fix — the remediation ran out of iterations, or the drift could not be read at all. Each entry gives the reason and what still differs. This is what makes an outcome **Partial**; act on it.
+- **Left Alone by Exception Rules.** Drift Kumoss deliberately did not touch, because one of your platform’s drift exception rules covers it. Each entry names the change and quotes the rule. This is the intended behaviour and does not lower the outcome, so a report can say **Succeeded** and still list entries here.
+
+**What you do not see.** The compliance audit that runs after the report produces rule-level findings, but they are not displayed in the application. If the audit fails you see its consequence, the lock (see [If the session is locked](../merge-and-apply/#session-locked)), and the reviewers who receive the notification see the summary. Ask your reviewer or platform team for the details.
+
+**Reading order that works.** Impact level first, then the Deleted and Recreated filters, then the plan for anything you do not expect, then the cost.
+
+## Return to a session later
+
+- **Footer.** On the start screen, the **Sessions** panel lists your most recent sessions with date, request, and project. **View all** opens the full list.
+- **User page** (the user icon in the header). **Profile** (name, e-mail, **Log out**), **Session History** with **View all sessions**, and, for reviewers, **Admin Panel**.
+- **Your sessions list.** Search by project, request text, or session id; filter by type and status. Open a row for the timeline of rounds, the statuses, the artifacts (report, plan, changed files, viewed inline), the session id, path, scope, repository link, and pull request links. **Reload Session** reopens it in the wizard so you can create the pull request, apply, or continue the conversation. Failed sessions cannot be reloaded.
+
+Only you and reviewers with a panel role can see your sessions. Nobody else can act on them.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
+
+---
+
+# Generate infrastructure
+
+Source: /stable/main/guides/generate-infrastructure/
+
+Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
+
+## Prerequisites
+
+- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
+
+## Use case
+
+Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
+
+## Workflow
+
+1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
+2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
+3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
+5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
+8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
+
+## What generate produces
+
+- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
+- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
+- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
+- **Plan pinned.** Yes.
+
+## Apply, pull requests, and locks
+
+After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
+
+## Example
+
+Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
+
+## Limitations
+
+- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
+- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
+- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 
