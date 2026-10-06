@@ -125,7 +125,7 @@ app = FastAPI(
     title="Kumoss",
     summary="Browser-facing orchestration API of the Kumoss core engine.",
     description="Generate compliant Infrastructure as Code with a couple of clicks",
-    version=os.getenv("APP_VERSION", "0.0.0-dev"),
+    version=os.getenv("APP_VERSION", "0.1.0"),  # x-release-please-version
     contact={
         "name": "Kumoss maintainers",
         "url": "https://github.com/InditexTech/kumoss",

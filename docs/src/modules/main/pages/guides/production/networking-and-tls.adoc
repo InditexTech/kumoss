@@ -109,7 +109,8 @@ sidecar to `hooks.slack.com` (or your channel).
 * Build the core and IaC images with the *same* `KUMOSS_UID` and
   `KUMOSS_GID` build arguments (default `10001`) and run both with that
   identity.
-* Set `APP_VERSION` on the core to your release version; it is reported
-  in the OpenAPI document.
+* Build the images from a release tag (`vX.Y.Z`). The core reports the
+  version of the source it was built from in its OpenAPI document; set
+  `APP_VERSION` only to override it, for example on a patched build.
 * `docker compose watch` and bind-mounted source directories are
   development conveniences; do not use them in production.
