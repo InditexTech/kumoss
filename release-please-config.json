@@ -32,6 +32,7 @@
         { "type": "toml", "path": "services/notifications/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "services/notifications/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-notifications')].version" },
         { "type": "toml", "path": "contracts/conformance/authz/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "contracts/conformance/authz/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-authz-conformance')].version" },
         { "type": "toml", "path": "contracts/conformance/iac/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "contracts/conformance/mapping/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "contracts/conformance/notifications/pyproject.toml", "jsonpath": "$.project.version" },
