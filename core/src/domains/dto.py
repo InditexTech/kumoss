@@ -585,6 +585,50 @@ class ComplianceCheckReport(BaseModel):
         )
 
 
+class ReconciliationChange(BaseModel):
+    """One change a drift operation describes, judged against the session diff."""
+
+    description: str
+    reverts_session_change: bool
+    reason: str
+
+
+class ReconciliationVerdict(BaseModel):
+    """The reconciliation filter's account of a single drift operation.
+
+    The agent itemises every change the operation bundles and flags the
+    ones that would undo the session, and what survives follows from
+    those flags rather than from a verdict on the whole operation: an
+    operation that mixes both cannot be dropped for the sake of one
+    reversal. ``operation`` is the agent's rewrite without the flagged
+    changes, and is only read when some, but not all, of them are.
+    """
+
+    index: int
+    changes: list[ReconciliationChange]
+    operation: str = ""
+
+    @property
+    def kept(self) -> list[ReconciliationChange]:
+        return [c for c in self.changes if not c.reverts_session_change]
+
+    @property
+    def removed(self) -> list[ReconciliationChange]:
+        return [c for c in self.changes if c.reverts_session_change]
+
+    def reconciled(self, original: str) -> str | None:
+        """The operation left once the session's own changes are out of it."""
+        if not self.removed:
+            return original
+        if not self.kept:
+            return None
+        return self.operation
+
+
+class ReconciliationReport(BaseModel):
+    verdicts: list[ReconciliationVerdict]
+
+
 @dataclass
 class TerraformPlanResource:
     type: str  # tf resource type

@@ -38,7 +38,7 @@ class PromptSeeder:
         10.0,
     )
 
-    _SEED_MODEL_NAME: str = "nebula-seed"
+    _SEED_MODEL_NAME: str = "kumoss-seed"
 
     # Every environment, so changing `environment` later still finds the
     # seeded prompts without re-tagging them by hand in Phoenix.

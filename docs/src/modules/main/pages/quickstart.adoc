@@ -199,6 +199,19 @@ curl http://localhost/api/v1/auth/config
 With authentication disabled this returns a JSON document with an empty
 `issuer_url`.
 
+[#default-state]
+== Where Terraform state lives
+
+By default, Kumoss keeps Terraform state in the bundled RustFS object
+storage, in the `kumoss-terraform-state` bucket. Each project (repository,
+cloud scope, and root-module path) gets its own state file, which starts
+*empty* the first time Kumoss works on it. Any `backend` block in the
+repository is ignored.
+
+To use your own external state instead, new or already existing, in AWS
+S3, Azure Storage, or Google Cloud Storage, see
+xref:main:guides/configure-state-backends.adoc[Configure state backends].
+
 [#see-it-working]
 == See it working
 
@@ -222,9 +235,9 @@ xref:main:guides/production/operations.adoc#rustfs-console[RustFS
 console].
 
 WARNING: Use a *test repository and a sandbox cloud scope* for this first
-run. Kumoss starts every project with empty state in RustFS, so a
-repository whose infrastructure already exists gets a plan that creates
-it all again.
+run. Because every project starts with
+<<default-state,empty state>>, a repository whose infrastructure already
+exists gets a plan that creates it all again.
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
@@ -253,10 +266,8 @@ docker compose down -v         # stop and delete all volumes
 prompts survive a restart.
 
 *`down -v` deletes the session database, the artifacts, the Phoenix traces
-and prompts, any in-progress workspaces, and the Terraform state*, which by
-default lives in the same RustFS volume. To keep state outside the stack,
-see xref:main:guides/configure-state-backends.adoc[Configure state
-backends].
+and prompts, any in-progress workspaces, and the Terraform state* kept in
+RustFS.
 
 == Next steps
 
