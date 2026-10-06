@@ -37,6 +37,7 @@ jobs:
           actionlint_flags: >-
             .github/workflows/pr-verify.yml
             .github/workflows/push-verify.yml
+            .github/workflows/release-please.yml
             .github/workflows/scorecard-analysis.yml
             .github/workflows/codeql.yml
             .github/workflows/security-scans.yml
