@@ -98,4 +98,5 @@ antora:
   extensions:
     # Same as the real antora-playbook.yml — see its own comment and the
     # docs-internals skill's reference/antora-extensions.md.
-    - '@inditextech/docouture-antora-extensions'
+    - require: '@inditextech/docouture-antora-extensions'
+      changelog_path: ../CHANGELOG.md
