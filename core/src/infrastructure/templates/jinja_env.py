@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-jinja_environment: Environment = Environment(
+jinja_environment: Environment = Environment(  # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     loader=PackageLoader(
         package_name="src.infrastructure",
         package_path="templates",
