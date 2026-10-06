@@ -59,10 +59,10 @@
 - [Configure state backends](/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and understand which value wins when more than one is set.
 - [Follow a session](/stable/main/guides/follow-a-session/): Track a Kumoss session's progress and read the results it produces.
 - [Generate infrastructure](/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
-- [Quickstart](/stable/main/quickstart/): Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [Remediate drift](/stable/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
 - [Database schema](/stable/main/reference/database-schema/): The thirteen tables of core-db, what each one records, the enumerated columns, and how rows are deleted.
+- [Quickstart](/stable/main/quickstart/): Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [Additional information](/stable/main/additional-information/): Kumoss's licensing, support channels, and how to report a security vulnerability.
 - [Deployment view](/stable/main/architecture/deployment-view/): The Compose deployment topology, operational notes, single-instance limits, and the resulting architectural characteristics.
 - [Contributing](/stable/main/contributing/): Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Kumoss's checks.
@@ -94,5 +94,5 @@
 - [Networking and TLS](/stable/main/guides/production/networking-and-tls/): Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.
 - [HTTP APIs](/stable/main/reference/api/): The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
 - [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
-- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 - [Deploy to production](/stable/main/guides/deploy-to-production/): What a production deployment of Kumoss commits you to, the reference topology, the sidecars as integration boundaries, and the config.yaml checklist.
+- [Customize prompts](/stable/main/guides/customize-prompts/): Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
