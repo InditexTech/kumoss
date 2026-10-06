@@ -1137,6 +1137,23 @@ optional sidecar is unconfigured.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="default-state"><a class="anchor" href="#default-state"></a>Where Terraform state lives</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>By default, Kumoss keeps Terraform state in the bundled RustFS object
+storage, in the <code>kumoss-terraform-state</code> bucket. Each project (repository,
+cloud scope, and root-module path) gets its own state file, which starts
+<strong>empty</strong> the first time Kumoss works on it. Any <code>backend</code> block in the
+repository is ignored.</p>
+</div>
+<div class="paragraph">
+<p>To use your own external state instead, new or already existing, in AWS
+S3, Azure Storage, or Google Cloud Storage, see
+<a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="see-it-working"><a class="anchor" href="#see-it-working"></a>See it working</h2>
 <div class="sectionbody">
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1177,9 +1194,9 @@ console</a>.</p>
 </td>
 <td class="content">
 Use a <strong>test repository and a sandbox cloud scope</strong> for this first
-run. Kumoss starts every project with empty state in RustFS, so a
-repository whose infrastructure already exists gets a plan that creates
-it all again.
+run. Because every project starts with
+<a href="#default-state">empty state</a>, a repository whose infrastructure already
+exists gets a plan that creates it all again.
 </td>
 </tr>
 </table>
@@ -1218,10 +1235,8 @@ prompts survive a restart.</p>
 </div>
 <div class="paragraph">
 <p><strong><code>down -v</code> deletes the session database, the artifacts, the Phoenix traces
-and prompts, any in-progress workspaces, and the Terraform state</strong>, which by
-default lives in the same RustFS volume. To keep state outside the stack,
-see <a href="../guides/configure-state-backends/" class="xref page">Configure state
-backends</a>.</p>
+and prompts, any in-progress workspaces, and the Terraform state</strong> kept in
+RustFS.</p>
 </div>
 </div>
 </div>
