@@ -922,8 +922,9 @@ call (init/validate/plan/apply), not at boot.</p>
 identity.</p>
 </li>
 <li>
-<p>Set <code>APP_VERSION</code> on the core to your release version; it is reported
-in the OpenAPI document.</p>
+<p>Build the images from a release tag (<code>vX.Y.Z</code>). The core reports the
+version of the source it was built from in its OpenAPI document; set
+<code>APP_VERSION</code> only to override it, for example on a patched build.</p>
 </li>
 <li>
 <p><code>docker compose watch</code> and bind-mounted source directories are
