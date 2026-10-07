@@ -1159,27 +1159,93 @@ the only public entry point.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="key-features"><a class="anchor" href="#key-features"></a>Key features</h2>
+<h2 id="key-capabilities"><a class="anchor" href="#key-capabilities"></a>Key capabilities</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p><strong>What Kumoss does for you</strong></p>
+</div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Layered orchestration core</strong> — sessions run through filtering,
-generation, validation, and reporting phases, computed by application
-code, see <a href="../architecture/" class="xref page">Architecture</a>.</p>
+<p><strong>Compliant infrastructure from plain language</strong> — a developer-friendly
+assistant needs only the request and the project you are working on.</p>
 </li>
 <li>
-<p><strong>Four replaceable sidecars</strong> — the IaC engine, repository mapping,
-notifications, and authorization each implement an OpenAPI contract, so
-an organization can swap in its own implementation.</p>
+<p><strong>A validated plan, every time</strong> — Kumoss reads your IaC code and the
+infrastructure deployed in the cloud, treats what is deployed as the
+source of truth, and transparently corrects existing and impacted drift,
+including day-2 changes. The result is a successful Terraform or OpenTofu
+plan that complies with your organization&#8217;s architecture, security, and
+governance standards, see
+<a href="../guides/generate-infrastructure/" class="xref page">Generate infrastructure</a>.</p>
 </li>
 <li>
-<p><strong>Human-gated apply</strong> — every blocking decision is computed by code, and
-applying a reviewed plan is always an explicit human action.</p>
+<p><strong>Human review where it matters</strong> — a high-impact or non-compliant request
+locks the session until your administrator team reviews it, and applying
+a plan is always an explicit human action.</p>
 </li>
 <li>
-<p><strong>OpenTofu by default</strong> — the bundled <code>iac</code> sidecar runs OpenTofu, with
-HashiCorp Terraform also bundled and selectable via <code>IAC_BINARY</code>.</p>
+<p><strong>A report people can read</strong> — every session ends with a summary of the
+proposal, its impact, and a cost estimate.</p>
+</li>
+<li>
+<p><strong>Several modes of operation</strong> — generate, remediate drift, or import, for
+part of a project or all of it, see
+<a href="../reference/operating-modes/" class="xref page">Operating modes</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Built to fit your organization</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Works with what you already have</strong> — your existing IaC repositories,
+Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).</p>
+</li>
+<li>
+<p><strong>Multicloud</strong> — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and
+Kubernetes.</p>
+</li>
+<li>
+<p><strong>Your rules, your definition of critical</strong> — you decide what is allowed,
+what is high risk, and which compliance checks apply, from special
+projects to every production environment or a cost threshold, see
+<a href="../guides/customize-prompts/" class="xref page">Customize prompts</a>.</p>
+</li>
+<li>
+<p><strong>Full traceability</strong> — an admin panel over users, sessions, and roles, all
+stored in a database.</p>
+</li>
+<li>
+<p><strong>Observability built in</strong> — every agent and every system prompt read at
+runtime is traced with OpenTelemetry and Arize Phoenix.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Bring your own</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Model</strong> — any LiteLLM-supported model, see
+<a href="../reference/llm-providers/" class="xref page">LLM providers and models</a>.</p>
+</li>
+<li>
+<p><strong>Identity provider</strong> — any OIDC provider for sign-in.</p>
+</li>
+<li>
+<p><strong>Authorization logic</strong> — your own rules for who may request
+infrastructure, and where, by implementing the authorization OpenAPI
+contract.</p>
+</li>
+<li>
+<p><strong>IaC executor</strong> — your own Terraform or OpenTofu runtime, version, and
+environment, by implementing the IaC OpenAPI contract. The bundled <code>iac</code>
+sidecar runs OpenTofu by default, with HashiCorp Terraform selectable via
+<code>IAC_BINARY</code>.</p>
 </li>
 </ul>
 </div>
