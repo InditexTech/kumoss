@@ -117,6 +117,78 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["uuid"], str(sid))
 
+    async def test_admin_detail_both_histories(self):
+        _, sid = await self._seed_session("a@example.com")
+        ctx = await DatabaseService.get_session_context(sid)
+        ctx.history.append_turn("create a resource group", "<raw llm summary>")
+        ctx.chat_history.append_turn(
+            "create a resource group", "Done: the plan adds rg-main."
+        )
+        await DatabaseService.update_history(ctx)
+
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={
+                "id": str(sid),
+                "include_chat_history": "true",
+                "include_history": "true",
+            },
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(
+            body["chat_history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "Done: the plan adds rg-main.",
+                }
+            ],
+        )
+        self.assertEqual(
+            body["history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "<raw llm summary>",
+                }
+            ],
+        )
+
+    async def test_admin_detail_flags_are_independent(self):
+        _, sid = await self._seed_session("a@example.com")
+        ctx = await DatabaseService.get_session_context(sid)
+        ctx.history.append_turn("add a vnet", "<raw>")
+        ctx.chat_history.append_turn("add a vnet", "Done.")
+        await DatabaseService.update_history(ctx)
+
+        # Only chat_history requested.
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={"id": str(sid), "include_chat_history": "true"},
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNotNone(body["chat_history"])
+        self.assertIsNone(body["history"])
+
+        # Only internal history requested.
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={"id": str(sid), "include_history": "true"},
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNone(body["chat_history"])
+        self.assertIsNotNone(body["history"])
+
+        # Neither requested.
+        resp = await self.client.get("/v1/admin/sessions", params={"id": str(sid)})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNone(body["chat_history"])
+        self.assertIsNone(body["history"])
+
     async def test_toggle_lock_round_trip(self):
         _, sid = await self._seed_session("a@example.com")
         resp = await self.client.patch(

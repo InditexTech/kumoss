@@ -42,6 +42,8 @@ class DatabaseClient:
     __COLUMN_MIGRATIONS: tuple[str, ...] = (
         "ALTER TABLE histories "
         "ADD COLUMN IF NOT EXISTS chat_payload JSON NOT NULL DEFAULT '[]'",
+        "UPDATE histories SET chat_payload = payload "
+        "WHERE chat_payload::text = '[]' AND payload::text != '[]'",
     )
 
     async def __create_tables(self) -> None:

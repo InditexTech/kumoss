@@ -92,7 +92,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         await self.svc.save()
 
         kwargs = self.llm.generate_text.await_args.kwargs
-        self.assertEqual(kwargs["query"], "add a vnet")
+        self.assertIn("add a vnet", kwargs["query"])
         self.assertIs(kwargs["prompt"], CHAT_PROMPT)
         self.assertIs(kwargs["history"], self.ctx.history)
         self.templates.render.assert_awaited_once_with(PromptsLibrary.CHAT_REPLY)

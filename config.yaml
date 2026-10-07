@@ -218,7 +218,7 @@ http:
 # bucket's lifecycle or presign policy, and it is what lets a repository
 # that declares no backend of its own work unchanged.
 #
-# Set it to "" to turn managed state off: Kumoss then writes no backend
+# Set it to "" to turn managed state off: Nebula then writes no backend
 # override and every repository must declare its own, with the iac
 # sidecar holding that backend's credentials. Use an explicit "" rather
 # than an empty value — the field is a string, and a YAML null fails

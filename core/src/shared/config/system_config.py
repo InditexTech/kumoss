@@ -27,6 +27,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import litellm
+import yaml
 from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
