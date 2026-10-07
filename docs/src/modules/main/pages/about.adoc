@@ -42,18 +42,55 @@ The React single-page application is the user-facing portal, served by the
 `proxy`. The whole stack runs from one Docker Compose stack, with nginx as
 the only public entry point.
 
-== Key features
+== Key capabilities
 
-* *Layered orchestration core* — sessions run through filtering,
-  generation, validation, and reporting phases, computed by application
-  code, see xref:main:architecture.adoc[Architecture].
-* *Four replaceable sidecars* — the IaC engine, repository mapping,
-  notifications, and authorization each implement an OpenAPI contract, so
-  an organization can swap in its own implementation.
-* *Human-gated apply* — every blocking decision is computed by code, and
-  applying a reviewed plan is always an explicit human action.
-* *OpenTofu by default* — the bundled `iac` sidecar runs OpenTofu, with
-  HashiCorp Terraform also bundled and selectable via `IAC_BINARY`.
+*What Kumoss does for you*
+
+* *Compliant infrastructure from plain language* — a developer-friendly
+  assistant needs only the request and the project you are working on.
+* *A validated plan, every time* — Kumoss reads your IaC code and the
+  infrastructure deployed in the cloud, treats what is deployed as the
+  source of truth, and transparently corrects existing and impacted drift,
+  including day-2 changes. The result is a successful Terraform or OpenTofu
+  plan that complies with your organization's architecture, security, and
+  governance standards, see
+  xref:main:guides/generate-infrastructure.adoc[Generate infrastructure].
+* *Human review where it matters* — a high-impact or non-compliant request
+  locks the session until your administrator team reviews it, and applying
+  a plan is always an explicit human action.
+* *A report people can read* — every session ends with a summary of the
+  proposal, its impact, and a cost estimate.
+* *Several modes of operation* — generate, remediate drift, or import, for
+  part of a project or all of it, see
+  xref:main:reference/operating-modes.adoc[Operating modes].
+
+*Built to fit your organization*
+
+* *Works with what you already have* — your existing IaC repositories,
+  Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
+* *Multicloud* — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and
+  Kubernetes.
+* *Your rules, your definition of critical* — you decide what is allowed,
+  what is high risk, and which compliance checks apply, from special
+  projects to every production environment or a cost threshold, see
+  xref:main:guides/customize-prompts.adoc[Customize prompts].
+* *Full traceability* — an admin panel over users, sessions, and roles, all
+  stored in a database.
+* *Observability built in* — every agent and every system prompt read at
+  runtime is traced with OpenTelemetry and Arize Phoenix.
+
+*Bring your own*
+
+* *Model* — any LiteLLM-supported model, see
+  xref:main:reference/llm-providers.adoc[LLM providers and models].
+* *Identity provider* — any OIDC provider for sign-in.
+* *Authorization logic* — your own rules for who may request
+  infrastructure, and where, by implementing the authorization OpenAPI
+  contract.
+* *IaC executor* — your own Terraform or OpenTofu runtime, version, and
+  environment, by implementing the IaC OpenAPI contract. The bundled `iac`
+  sidecar runs OpenTofu by default, with HashiCorp Terraform selectable via
+  `IAC_BINARY`.
 
 Kumoss's runtime components, internal layering, and end-to-end request flow
 are covered in xref:main:architecture.adoc[Architecture]. To run the bundled

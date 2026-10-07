@@ -46,28 +46,95 @@ merging and applying the result.
 
 == Key capabilities
 
-[cards,columns="1 s:2 m:2"]
+=== What Kumoss does for you
+
+[cards,columns="1 s:2 m:3"]
 ====
 [card]
-.xref:main:guides/make-a-request.adoc[Describe what you need, in plain language]
-Open a session and phrase a request; Kumoss fills in naming conventions,
-resource defaults, and the placement it finds in your repository.
+.xref:main:guides/make-a-request.adoc[Ask in plain language]
+Describe what you need and pick the project you are working on. The
+assistant takes it from there.
 
 [card]
-.xref:main:guides/generate-infrastructure.adoc[Get back validated Terraform code]
-Kumoss writes Terraform-compatible HCL on a new branch and runs it through
-the engine's own `init`, `validate`, and `plan` until it passes.
+.xref:main:guides/generate-infrastructure.adoc[Get a validated, compliant plan]
+Kumoss reads your code and the infrastructure deployed in the cloud,
+treats what is deployed as the source of truth, corrects impacted drift,
+and delivers a successful Terraform or OpenTofu plan that meets your
+organization's standards.
 
 [card]
-.xref:main:guides/merge-and-apply.adoc#session-locked[Catch compliance issues before they ship]
-An LLM auditor reviews every generated plan against your organization's
-rules; a failing finding or a high-impact change locks the session until
-a reviewer clears it.
+.xref:main:guides/merge-and-apply.adoc#session-locked[Review what is risky]
+A high-impact or non-compliant request locks the session until your
+administrator team reviews it.
+
+[card]
+.xref:main:guides/follow-a-session.adoc[Read a clear report]
+Every session ends with a human-readable summary of the proposal, its
+impact, and a cost estimate.
+
+[card]
+.xref:main:reference/operating-modes.adoc[Generate, remediate, or import]
+Create new infrastructure, remediate drift, or import existing resources,
+for part of a project or all of it.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Apply only when a developer says so]
 Kumoss opens a pull request from the reviewed plan and applies it only
-after an explicit apply request — never on its own.
+after an explicit apply request, never on its own.
+====
+
+=== Built to fit your organization
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/customize-prompts.adoc[Enforce your own rules]
+You define what is allowed, what is high risk, and which compliance
+checks apply, from special projects to all of production.
+
+[card]
+.xref:main:guides/configure-state-backends.adoc[Keep your repositories and state]
+Use your existing IaC repositories, Terraform state, and Git provider:
+GitHub, Azure DevOps, or GitLab.
+
+[card]
+.xref:main:reference/operating-modes.adoc#session-inputs[Work on any major cloud]
+AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and Kubernetes.
+
+[card]
+.xref:main:guides/administer-users-and-locks.adoc[Trace every session]
+An admin panel shows users, sessions, and roles, all stored in a
+database.
+
+[card]
+.xref:main:guides/monitor-with-phoenix.adoc[Observe every agent]
+Every agent run and every system prompt read at runtime is traced with
+OpenTelemetry and Arize Phoenix.
+====
+
+=== Bring your own
+
+Each integration point is a sidecar behind an
+xref:main:reference/api/index.adoc[OpenAPI contract]: implement the
+contract and Kumoss uses your service instead of the bundled one.
+
+[cards,columns="1 s:2 m:4"]
+====
+[card]
+.xref:main:reference/llm-providers.adoc[Model]
+Any LiteLLM-supported model.
+
+[card]
+.xref:main:guides/enable-authentication.adoc[Identity provider]
+Any OIDC provider for sign-in.
+
+[card]
+.xref:main:reference/api/authz.adoc[Authorization logic]
+Your rules for who may request infrastructure, and where.
+
+[card]
+.xref:main:reference/api/iac.adoc[IaC executor]
+Your own Terraform or OpenTofu runtime, version, and environment.
 ====
 
 == Free & open source
