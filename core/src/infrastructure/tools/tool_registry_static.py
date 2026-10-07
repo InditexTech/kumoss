@@ -19,6 +19,7 @@ from src.domains.dto import (
     TerraformPlanReport,
     TerraformApplyReport,
     TerraformImportReport,
+    ReconciliationReport,
 )
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
@@ -47,6 +48,7 @@ class ToolRegistryStatic(IToolRegistry):
         return {
             "requests_filter.json": ToolContext.REQUESTS_FILTER,
             "task_splitter.json": ToolContext.TASK_SPLITTER,
+            "filter_reconciliation.json": ToolContext.FILTER_RECONCILIATION,
             "prompt_compositor.json": ToolContext.PROMPT_COMPOSITOR,
             "target_generator.json": ToolContext.TARGET_GENERATOR,
             "report_generator.json": ToolContext.REPORT_GENERATOR,
@@ -95,6 +97,7 @@ class ToolRegistryStatic(IToolRegistry):
             "construct_information": self.__handle_construct_information,
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
+            "report_reconciliation_verdicts": self.__handle_reconciliation_verdicts,
             "task_complete": self.__handle_task_completion,
             "import_addresses": self.__handle_import_addresses,
             "report_compliance_findings": self._handle_compliance_findings,
@@ -356,6 +359,32 @@ class ToolRegistryStatic(IToolRegistry):
             "operations": operations,
             "explanation": explanation,
         }
+
+    def __handle_reconciliation_verdicts(
+        self, parameters: dict[str, Any]
+    ) -> ReconciliationReport:
+        try:
+            report = ReconciliationReport(verdicts=parameters["verdicts"])
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=400,
+            )
+        for verdict in report.verdicts:
+            if not verdict.changes:
+                raise ToolInferenceParamsError(
+                    message=f"Operation {verdict.index} has no changes: list every"
+                    + " change it describes.",
+                    error_code=400,
+                )
+            if verdict.removed and verdict.kept and not verdict.operation.strip():
+                raise ToolInferenceParamsError(
+                    message=f"Operation {verdict.index} keeps some changes and removes"
+                    + " others, so `operation` must hold its rewrite without the"
+                    + " removed ones.",
+                    error_code=400,
+                )
+        return report
 
     def __handle_import_addresses(self, parameters: dict[str, Any]) -> dict[str, Any]:
         status = parameters["status"]

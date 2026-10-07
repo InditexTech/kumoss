@@ -316,7 +316,7 @@ describe("useTerraformActions", () => {
       await vi.waitFor(() => {
         expect(mockNotifyIfHidden).toHaveBeenCalledWith(
           "Session blocked",
-          expect.objectContaining({ tag: "nebula-session-blocked" }),
+          expect.objectContaining({ tag: "kumoss-session-blocked" }),
         );
       });
     });

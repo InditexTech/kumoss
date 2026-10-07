@@ -18,7 +18,7 @@ class IFileSystem(ABC):
     @property
     @abstractmethod
     def protected_names(self) -> frozenset[str]:
-        """Names of the entries managed by Nebula, hidden from the tools"""
+        """Names of the entries managed by Kumoss, hidden from the tools"""
         pass
 
     @abstractmethod

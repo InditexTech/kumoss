@@ -6,6 +6,11 @@ import json
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
+from src.domains.dto import (
+    ReconciliationChange,
+    ReconciliationReport,
+    ReconciliationVerdict,
+)
 from src.domains.services.task_service import TaskService
 from src.domains.value_objects import Conventions
 from src.shared.config import system_config
@@ -103,16 +108,45 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(query, "Error: Unsupported argument")
 
-    async def test_filter_reconciliation_sends_flat_json_and_regroups(self):
-        kept = self._ops(self.group_size + 2)
-        self._llm_returns(kept)
-        incoming = [["a", "b"], ["c"]]
+    def _verdict(
+        self, index: int, *flags: bool, operation: str = ""
+    ) -> ReconciliationVerdict:
+        return ReconciliationVerdict(
+            index=index,
+            changes=[
+                ReconciliationChange(
+                    description=f"change-{index}-{n}",
+                    reverts_session_change=flag,
+                    reason="diff",
+                )
+                for n, flag in enumerate(flags)
+            ],
+            operation=operation,
+        )
 
-        groups = await self.service.filter_reconciliation(operations=incoming)
+    def _verdicts_returned(self, *verdicts: ReconciliationVerdict) -> None:
+        self.llm_svc.generate.return_value = MagicMock(
+            result=ReconciliationReport(verdicts=list(verdicts))
+        )
 
-        self.assertEqual(groups, [kept[: self.group_size], kept[self.group_size :]])
+    async def test_filter_reconciliation_sends_indexed_json_and_regroups(self):
+        incoming = self._ops(self.group_size + 2)
+        self._verdicts_returned(
+            *(self._verdict(i, False) for i in range(1, len(incoming) + 1))
+        )
+
+        groups = await self.service.filter_reconciliation(
+            operations=[incoming[:2], incoming[2:]]
+        )
+
+        self.assertEqual(
+            groups, [incoming[: self.group_size], incoming[self.group_size :]]
+        )
         kwargs = self.llm_svc.generate.await_args.kwargs
-        self.assertEqual(json.loads(kwargs["query"]), ["a", "b", "c"])
+        self.assertEqual(
+            json.loads(kwargs["query"]),
+            [{"index": i, "operation": op} for i, op in enumerate(incoming, 1)],
+        )
         self.assertEqual(kwargs["prompt"], "rendered prompt")
         self.assertEqual(kwargs["sentinel_tool"], "sentinel")
         self.template_svc.render.assert_awaited_once_with(
@@ -122,11 +156,37 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
             ToolContext.WORKSPACE_INSPECTION
         )
         self.tool_svc.get_sentinel_tool.assert_called_once_with(
-            ToolContext.TASK_SPLITTER
+            ToolContext.FILTER_RECONCILIATION
         )
 
+    async def test_filter_reconciliation_trims_an_operation_mixing_both(self):
+        self._verdicts_returned(
+            self._verdict(1, True),
+            self._verdict(2, False, True, False, operation="add cert mode and ip"),
+        )
+
+        groups = await self.service.filter_reconciliation(
+            operations=[["delete fw rule", "add cert mode, drop cors, add ip"]]
+        )
+
+        self.assertEqual(groups, [["add cert mode and ip"]])
+
+    async def test_filter_reconciliation_keeps_untouched_operations_verbatim(self):
+        self._verdicts_returned(self._verdict(1, False, operation="reworded"))
+
+        groups = await self.service.filter_reconciliation(operations=[["a"]])
+
+        self.assertEqual(groups, [["a"]])
+
+    async def test_filter_reconciliation_drops_operations_without_a_verdict(self):
+        self._verdicts_returned(self._verdict(2, False), self._verdict(9, False))
+
+        groups = await self.service.filter_reconciliation(operations=[["a", "b"]])
+
+        self.assertEqual(groups, [["b"]])
+
     async def test_filter_reconciliation_returns_empty_when_everything_filtered(self):
-        self._llm_returns([])
+        self._verdicts_returned(self._verdict(1, True, True))
 
         groups = await self.service.filter_reconciliation(operations=[["a"]])
 

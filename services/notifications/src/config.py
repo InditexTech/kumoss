@@ -48,6 +48,6 @@ class Config:
     def from_env(cls) -> "Config":
         return cls(
             slack_webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
-            expected_token=os.environ.get("NEBULA_NOTIFICATIONS_TOKEN", ""),
+            expected_token=os.environ.get("KUMOSS_NOTIFICATIONS_TOKEN", ""),
             log_level=os.environ.get("LOG_LEVEL", "INFO").upper(),
         )

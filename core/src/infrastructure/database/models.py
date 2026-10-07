@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Database models for Nebula application."""
+"""Database models for Kumoss application."""
 
 from datetime import datetime, timezone
 from typing import final, override

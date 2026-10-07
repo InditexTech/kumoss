@@ -66,7 +66,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(session.uuid).toBe("sess-1");
     expect(session.code).toContain("<main.tf>");
     expect(session.provider).toBe("azure");
-    expect(session.workspace?.branch).toBe("nebula/sess-1");
+    expect(session.workspace?.branch).toBe("kumoss/sess-1");
     expect(session.is_blocked).toBe(false);
     // Flattened from the backend's `chat_history` turns; the hook adds
     // nothing of its own.
@@ -257,7 +257,7 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     expect(result.current.session.session.workspace).toEqual({
       uri: "https://dev.azure.com/org/project/_git/repo",
-      branch: "nebula/sess-1",
+      branch: "kumoss/sess-1",
       root_path: "environments/dev",
     });
   });

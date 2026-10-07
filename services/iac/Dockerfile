@@ -6,21 +6,23 @@
 # install method the OpenTofu project documents for custom images).
 FROM ghcr.io/opentofu/opentofu:1.12.7-minimal@sha256:1349f86c125d1e72d63b9ef7f9492b5a4368820a7bc7c1e1f0f8374e02543973 AS tofu
 
-FROM python:3.13-slim AS base
+FROM ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 AS uv
+
+FROM python:3.13-slim@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 AS base
 
 # Unprivileged runtime identity. The uid/gid MUST match the core image's
 # (same ARG names and defaults in core/Dockerfile): both containers
 # share the `workspaces` volume read-write.
-ARG NEBULA_UID=10001
-ARG NEBULA_GID=10001
-RUN groupadd --gid "${NEBULA_GID}" nebula \
-    && useradd --uid "${NEBULA_UID}" --gid "${NEBULA_GID}" \
-        --create-home --home-dir /home/nebula --shell /usr/sbin/nologin nebula \
-    && mkdir -p /workspaces && chown nebula:nebula /workspaces
+ARG KUMOSS_UID=10001
+ARG KUMOSS_GID=10001
+RUN groupadd --gid "${KUMOSS_GID}" kumoss \
+    && useradd --uid "${KUMOSS_UID}" --gid "${KUMOSS_GID}" \
+        --create-home --home-dir /home/kumoss --shell /usr/sbin/nologin kumoss \
+    && mkdir -p /workspaces && chown kumoss:kumoss /workspaces
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=uv /uv /uvx /bin/
 
 # Terraform CLI installation
 ARG TERRAFORM_VERSION=1.16.0
@@ -41,15 +43,15 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_HTTP_TIMEOUT=120 \
     UV_CONCURRENT_DOWNLOADS=4 \
     PATH="/app/.venv/bin:$PATH" \
-    HOME=/home/nebula
+    HOME=/home/kumoss
 
 COPY services/iac/pyproject.toml services/iac/uv.lock ./
 
-RUN uv sync --frozen --no-default-groups
+RUN uv sync --locked --no-default-groups
 
-COPY --chown=nebula:nebula services/iac/src ./src
+COPY --chown=kumoss:kumoss services/iac/src ./src
 
-USER ${NEBULA_UID}:${NEBULA_GID}
+USER ${KUMOSS_UID}:${KUMOSS_GID}
 
 EXPOSE 8082
 

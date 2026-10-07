@@ -19,7 +19,7 @@ jobs:
         working-directory: client/web
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -52,7 +52,7 @@ jobs:
         working-directory: services/${{ matrix.service }}
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
 
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -61,7 +61,27 @@ jobs:
           cache-dependency-glob: services/${{ matrix.service }}/uv.lock
 
       - name: Install dependencies
-        run: uv sync --frozen --group tooling
+        run: uv sync --locked --group tooling
 
       - name: Tests
         run: uv run --no-sync pytest
+
+  lockfiles:
+    name: lockfile/${{ matrix.project }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [core, contracts/conformance/authz]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Check uv.lock matches pyproject.toml
+        run: uv lock --check

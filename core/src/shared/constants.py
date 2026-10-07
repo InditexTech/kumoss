@@ -110,6 +110,7 @@ class ToolContext(Enum):
     WORKSPACE_INSPECTION = "workspace_inspection"
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
+    FILTER_RECONCILIATION = "filter_reconciliation"
     GENERAL_TASK_COMPLETION = "general_task_completion"
     IMPORT_ADDRESSES = "import_addresses"
     COMPLIANCE_CHECK = "compliance_check"

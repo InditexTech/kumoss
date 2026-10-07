@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-iac"
-version = "0.1.0"
+name = "kumoss-iac"
+version = "1.0.0"
 description = "Reference implementation of contracts/openapi/iac.v1.yaml — local IaC engine CLI (OpenTofu by default)."
 requires-python = ">=3.13"
 dependencies = [

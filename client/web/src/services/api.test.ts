@@ -82,7 +82,7 @@ describe("apiFetch", () => {
         {
           resource: "PullRequest",
           code: "custom",
-          message: "No commits between main and Nebula/2026-08-20_114938",
+          message: "No commits between main and Kumoss/2026-08-20_114938",
         },
       ],
       documentation_url:
@@ -98,7 +98,7 @@ describe("apiFetch", () => {
     await expect(apiFetch(TEST_PATH)).rejects.toMatchObject({
       status: 422,
       detail:
-        "Validation Failed: No commits between main and Nebula/2026-08-20_114938",
+        "Validation Failed: No commits between main and Kumoss/2026-08-20_114938",
     });
   });
 

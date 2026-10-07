@@ -147,7 +147,7 @@ function SupportButton({
   }, [user, session, prDetails, context, message, onSupportRequest, showNotification]);
 
   useEffect(() => {
-    const notificationKey = `nebulaai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
+    const notificationKey = `kumossai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
     const alreadySent = getSessionItem(notificationKey) === "true";
 
     if (autoTrigger && !hasAutoTriggered.current && !alreadySent && user) {

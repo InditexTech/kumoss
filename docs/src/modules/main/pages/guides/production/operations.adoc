@@ -54,7 +54,7 @@ not from users; and it should carry versioning and soft delete, be
 excluded from any artifact expiry rule, and be included in your restore
 drills — it is the record of what Kumoss has built. Kumoss never
 deletes a state object. Details and per-provider IAM minimums:
-xref:main:guides/configure-state-backends.adoc#operations[Operations].
+xref:main:guides/state-backends/kumoss-managed.adoc#operations[Operations].
 
 *Phoenix.* Required at core start-up (prompt seeding retries for about
 27 seconds and then aborts the boot) and on every request (prompt

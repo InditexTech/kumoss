@@ -23,8 +23,8 @@ class TestBackendOverrideFilename(unittest.TestCase):
         self.assertEqual(PathsConfig().backend_override_filename, "backend_override.tf")
 
     def test_other_override_names_are_accepted(self):
-        cfg = PathsConfig(backend_override_filename="nebula_override.tf")
-        self.assertEqual(cfg.backend_override_filename, "nebula_override.tf")
+        cfg = PathsConfig(backend_override_filename="kumoss_override.tf")
+        self.assertEqual(cfg.backend_override_filename, "kumoss_override.tf")
 
     def test_names_terraform_would_not_merge_are_rejected(self):
         for name in [

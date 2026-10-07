@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-authz"
-version = "0.1.0"
+name = "kumoss-authz"
+version = "1.0.0"
 description = "Reference implementation of contracts/openapi/authz.v1.yaml — header-asserted identity + JSON-file role store + permissive cloud check."
 requires-python = ">=3.13"
 dependencies = [

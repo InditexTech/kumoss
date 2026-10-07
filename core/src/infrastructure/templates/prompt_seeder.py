@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """Bootstraps a fresh Phoenix instance with the example prompts needed for
-Nebula's IaC flows. Runs at application startup and creates only the prompts
+Kumoss's IaC flows. Runs at application startup and creates only the prompts
 that don't already exist, so user-curated prompts are never overwritten.
 """
 
@@ -38,7 +38,7 @@ class PromptSeeder:
         10.0,
     )
 
-    _SEED_MODEL_NAME: str = "nebula-seed"
+    _SEED_MODEL_NAME: str = "kumoss-seed"
 
     # Every environment, so changing `environment` later still finds the
     # seeded prompts without re-tagging them by hand in Phoenix.
@@ -88,7 +88,7 @@ class PromptSeeder:
         rejects names with leading underscores with 422, which would
         masquerade as a real failure here.
         """
-        probe_name = "nebula_seed_probe_does_not_exist"
+        probe_name = "kumoss_seed_probe_does_not_exist"
         last_err: Exception | None = None
         for attempt, delay in enumerate(self._CONNECT_BACKOFF, start=1):
             try:

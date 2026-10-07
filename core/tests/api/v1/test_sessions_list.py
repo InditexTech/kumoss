@@ -42,7 +42,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-123",
-            branch_name="Nebula/x",
+            branch_name="Kumoss/x",
             query="create a resource group",
             iac_path="infra",
         )
@@ -117,7 +117,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["uuid"], str(self.sid))
         self.assertEqual(body["operation"], "generate")
         self.assertEqual(body["scope_id"], "sub-123")
-        self.assertEqual(body["workspace"]["branch"], "Nebula/x")
+        self.assertEqual(body["workspace"]["branch"], "Kumoss/x")
         self.assertEqual(body["workspace"]["root_path"], "infra")
         # Pull requests live inside their round, not at session level.
         self.assertNotIn("pull_request", body)

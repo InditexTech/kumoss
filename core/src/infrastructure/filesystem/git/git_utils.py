@@ -402,7 +402,7 @@ class GitUtils(IGit):
         if await self._are_there_changes():
             logging.info("git changes commited")
             return self._handle_return_code(
-                await self.__cli.execute(["git", "commit", "-m", "Nebula changes"])
+                await self.__cli.execute(["git", "commit", "-m", "Kumoss changes"])
             )
         return True
 

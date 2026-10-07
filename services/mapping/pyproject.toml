@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "nebula-mapping"
-version = "0.1.0"
+name = "kumoss-mapping"
+version = "1.0.0"
 description = "Reference implementation of contracts/openapi/mapping.v1.yaml — identity passthrough."
 requires-python = ">=3.13"
 dependencies = [

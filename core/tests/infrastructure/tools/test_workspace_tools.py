@@ -9,7 +9,7 @@
 The system prompt hands the agent the working directory as an absolute
 path, so absolute paths inside it must work like their relative form,
 while anything resolving outside of it (``..``, ``/``) is rejected. The
-entries Nebula manages inside it (git metadata, the gitignore, the backend
+entries Kumoss manages inside it (git metadata, the gitignore, the backend
 override with the state-store credentials) are never exposed.
 """
 
@@ -135,7 +135,7 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
         for name, parameters in calls:
             result = await self._run(name, **parameters)
             self.assertFalse(result.success, (name, parameters))
-            self.assertIn("managed by Nebula", result.error_message)
+            self.assertIn("managed by Kumoss", result.error_message)
         self.assertTrue((self.root / ".gitignore").exists())
         self.assertFalse((self.root / ".git" / "hooks").exists())
 

@@ -62,7 +62,7 @@ uv sync --frozen --group tooling
 uv run --no-sync pytest tests/
 ```
 
-Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra flag. `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `NEBULA_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `NEBULA_SQL_DATABASE_URL` and `NEBULA_REDIS_URL` at your own instances).
+Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra flag. `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
 
 **Frontend checks** (Node 24): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
 
@@ -73,5 +73,7 @@ Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra f
 **CI.** Pull requests run Repolinter, the REUSE check, the Conventional Commits check, and an offline Markdown link and anchor check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The core suite is not run in CI, so run it locally against the compose stack before opening a pull request.
 
 **Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
+
+**Releases.** [release-please](https://github.com/googleapis/release-please) keeps a release pull request open against `main`, built from the Conventional Commit subjects merged since the last release: `fix` bumps the patch version, `feat` the minor, and a breaking change (`!` or a `BREAKING CHANGE:` footer) the major. Merging it updates `CHANGELOG.md` and every component's version, tags `vX.Y.Z`, and publishes the GitHub Release. Never edit those versions by hand; to force a specific version, add a `Release-As: X.Y.Z` footer to a commit.
 
 **Pull requests.** Fill in the pull-request template (signed commits, Conventional Commits, documentation updated, CLA signed) and link the issue. Include UI screenshots for visible changes.

@@ -1,18 +1,70 @@
 = Sidecar-supplied backend
 :description: Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
 
-For a deployment that owns the backend decision centrally, the IaC
-sidecar accepts a backend configuration file. An absolute path is
-resolved *inside the sidecar container*, so mount the file there; a
-relative path is resolved against the workspace, which is how a file
-carried by the target repository is reached:
+Use this model when the platform team, not each repository, decides
+where state goes. The IaC sidecar passes a backend configuration file to
+every `init` as `-backend-config=<file>`, and its values override the
+repository's backend block key by key.
 
-[source,dotenv]
-----
-# services/iac/.env
-IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl
-----
+== Prerequisites
 
+* Kumoss-managed state turned off with `storage.terraform_state_bucket:
+  ""` (see
+  xref:main:guides/configure-state-backends.adoc#turn-managed-state-off[Turn
+  managed state off]). Combined with managed state, the file merges into
+  the core's override and produces a backend neither side fully
+  describes (see
+  xref:main:guides/configure-state-backends.adoc#precedence[Which value
+  wins]).
+* *Every repository declares the backend type*, even with an empty
+  body, for example `terraform { backend "azurerm" {} }`. A file holds
+  values only and cannot introduce a backend where none is declared.
+* An identity for the IaC sidecar that can read and write the state
+  store. The file carries no credentials; see
+  xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
+  two credential grants].
+
+== Steps
+
+. Write the backend values as a `.hcl` or `.tfbackend` partial
+  configuration:
++
+[tabs]
+--
+[tab,label="Azure"]
+****
+[source,hcl]
+----
+# backend.hcl
+subscription_id      = "_STATE_SUBSCRIPTION_ID_"
+resource_group_name  = "tfstate-rg"
+storage_account_name = "acmecentraltfstate"
+container_name       = "tfstates"
+use_azuread_auth     = true
+----
+****
+
+[tab,label="AWS"]
+****
+[source,hcl]
+----
+# backend.hcl
+bucket       = "acme-central-tfstate"
+region       = "eu-west-1"
+use_lockfile = true
+----
+****
+--
++
+*Leave `key` out of a file every repository shares.* `key` is a single
+value, so a shared file that sets it makes every project share one
+state object. Let each repository declare its own `key` in its backend
+block; per-project keys are only automatic under
+xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
+state].
+
+. Mount the file into the sidecar and point `IAC_BACKEND_CONFIG` at it:
++
 [source,yaml]
 ----
 # docker-compose.override.yml
@@ -21,42 +73,54 @@ services:
     volumes:
       - ./backend.hcl:/etc/kumoss/backend.hcl:ro
 ----
-
-`init` then runs with `-backend-config=/etc/kumoss/backend.hcl`. The
-file holds backend _values_ only — a `.hcl` or `.tfbackend` partial
-configuration:
-
-[source,hcl]
++
+[source,dotenv]
 ----
-bucket = "acme-central-tfstate"
-region = "eu-west-1"
+# services/iac/.env
+IAC_BACKEND_CONFIG=/etc/kumoss/backend.hcl
+----
++
+An absolute path resolves *inside the sidecar container*. A relative
+path resolves against the workspace, which is how a file carried by the
+target repository is reached. The file must be readable by uid `10001`
+(`kumoss`), the user the image runs as. An empty or whitespace-only
+value counts as unset.
+
+. Restart the sidecar:
++
+[source,bash]
+----
+docker compose up -d iac
+----
++
+The sidecar does *not* check the path at startup: a workspace-relative
+file exists only after the clone. A wrong path surfaces as an `init`
+failure on the first job, in that job's stderr rather than in the
+container's startup log.
+
+== Verify
+
+To check all three layers in a deployed environment, see
+xref:main:guides/configure-state-backends.adoc#find-active-state[Find the
+active state].
+
+. Run a session, then confirm that the core wrote *no* override. This
+  command must print nothing:
++
+[source,bash]
+----
+docker compose logs core | grep "Terraform state:"
 ----
 
-The file names the state store but carries no credentials for it: as
-under the repository-declared model, the sidecar's ambient credentials
-must be granted access to that store as well as to the provider — see
-xref:main:guides/state-backends/repository-declared.adoc#two-credential-grants[the
-two credential grants].
+. In the session's `init` output, check that the engine bound the
+  backend from the file, for example `Successfully configured the
+  backend "azurerm"!`, and that the state object appears under the key
+  the repository declares.
 
-Three constraints follow from how `-backend-config` works:
+== Next steps
 
-. *The backend _type_ still comes from the workspace.* The repository
-  must declare `terraform { backend "s3" {} }` (possibly with an empty
-  body); a file alone cannot introduce a backend where none is
-  declared.
-. *You are responsible for state keys.* Terraform's `key` is a single
-  value, so if every project reads the same file, every project shares
-  one state file unless the repositories declare distinct keys
-  themselves. Per-project keying is a feature of
-  xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
-  state] only.
-. *Blank means unset.* An empty or whitespace-only `IAC_BACKEND_CONFIG`
-  is treated as not set.
-
-The sidecar does *not* check this path at startup, unlike `IAC_BINARY`.
-A workspace-relative file exists only once the target repository has
-been cloned, so there is nothing to verify at boot. A wrong path
-therefore surfaces as an `init` failure on the first job that uses it,
-in that job's stderr rather than in the container's startup log. A file
-you mount must be readable by uid `10001` (`kumoss`), the unprivileged
-user the image runs as.
+* xref:main:reference/environment-variables.adoc[Environment variables
+  and secrets]: the `IAC_BACKEND_CONFIG` entry and the other sidecar
+  variables.
+* xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
+  minimums]: the credentials the sidecar needs per backend.

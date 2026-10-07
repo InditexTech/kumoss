@@ -4,11 +4,11 @@
 
 openapi: 3.1.0
 info:
-  title: Nebula Notifications Service
+  title: Kumoss Notifications Service
   version: "1.0.0"
-  summary: Channel-agnostic notification dispatch for Nebula.
+  summary: Channel-agnostic notification dispatch for Kumoss.
   description: |
-    The notifications service accepts a notification request from the Nebula
+    The notifications service accepts a notification request from the Kumoss
     core and delivers it through whatever channel(s) the implementation
     supports. The contract is intentionally channel-agnostic: callers do not
     name a channel, they describe an event and identify an audience. The
@@ -19,8 +19,8 @@ info:
     a single Slack channel via webhook. Enterprise and third-party
     implementations can route by `kind`, `severity`, or `audience`.
   contact:
-    name: Nebula maintainers
-    url: https://github.com/InditexTech/nebula
+    name: Kumoss maintainers
+    url: https://github.com/InditexTech/kumoss
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -137,7 +137,7 @@ components:
       description: |
         Per-service bearer token. The token value is the contents of the
         environment variable named in the system config (default
-        `NEBULA_NOTIFICATIONS_TOKEN`). If the implementation has no token
+        `KUMOSS_NOTIFICATIONS_TOKEN`). If the implementation has no token
         configured, it MAY accept all requests for local development.
 
   responses:
