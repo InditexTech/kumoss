@@ -35,9 +35,15 @@ path = [
     "docs/**/*.adoc",
     "docs/**/*.yml",
     "docs/**/*.mjs",
-    "docs/src/modules/*/attachments/*.html",
+    "docs/src/modules/*/attachments/**/*.html",
     "docs/.tool-versions",
     ".github/workflows/docouture-*.yml",
 ]
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "THIRD-PARTY-LICENSES/**"
+precedence = "override"
+SPDX-FileCopyrightText = "NOASSERTION"
 SPDX-License-Identifier = "Apache-2.0"
