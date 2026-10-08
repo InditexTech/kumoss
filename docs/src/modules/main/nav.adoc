@@ -51,3 +51,5 @@
 * xref:main:faq.adoc[FAQ]
 * Contributing
 * xref:main:contributing.adoc[Contributing]
+* Events
+* xref:main:events.adoc[Events]
