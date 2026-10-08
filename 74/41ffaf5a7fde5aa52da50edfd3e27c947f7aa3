@@ -1,0 +1,31 @@
+docs/src/modules/main/attachments/events/kernel-panic/index.html
+  s_e0e37102de7ca6::t_23f70779058163 394
+  s_e0e37102de7ca6::t_0c3d48306da1a0 391-393
+  s_e0e37102de7ca6::t_8eaee42a3279d8 395-397
+  s_e0e37102de7ca6::t_e7a0f3505fae64 1-390,398-1131
+docs/src/modules/main/nav.adoc
+  s_e0e37102de7ca6::t_46bfc11793a931 54
+  s_e0e37102de7ca6::t_9ec26de2c24845 55
+docs/src/modules/main/pages/events.adoc
+  s_e0e37102de7ca6::t_547290fba59633 10
+  s_e0e37102de7ca6::t_eed30ae333c8a6 3,9
+  s_e0e37102de7ca6::t_b5554036ab3e85 1-2,4-8,11
+docs/src/modules/ROOT/pages/index.adoc
+  s_e0e37102de7ca6::t_e03aff64cca533 10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7441ffaf5a7fde5aa52da50edfd3e27c947f7aa3",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
