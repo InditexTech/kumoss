@@ -12,7 +12,7 @@ Kumoss turns natural-language requests into reviewed, compliant Infrastructure a
 
 Kumoss is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization.
 
-https://github.com/user-attachments/assets/9613c8b4-f0f3-487f-9fdd-8a38c17c730a
+https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
 
 ## Key capabilities
 

@@ -119,7 +119,7 @@ docs/diagrams/*.html
 docs/diagrams/*.visual-check.*
 
 # Source video masters; the published, web-encoded copy is
-# docs/src/modules/main/images/kumoss-overview.mp4
+# docs/src/modules/main/images/kumoss-overview.webm
 docs/media/
 
 # Coverage artifacts (python)
