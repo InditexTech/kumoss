@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/9613c8b4-f0f3-487f-9fdd-8a38c17c730a
 - **A validated plan, every time.** Kumoss reads your IaC code and the infrastructure actually deployed in the cloud, then proposes a change that fulfills the request. It treats what is deployed as the source of truth and transparently corrects existing and impacted drift, including day-2 changes. The result is a successful Terraform/OpenTofu plan that complies with the architecture, security, and governance rules your organization defines.
 - **Human review where it matters.** Any request detected as high impact or non-compliant locks the session until your administrator team reviews it.
 - **A report people can read.** Every session ends with a summary of the proposal, its impact, and a cost estimate.
-- **Several modes of operation.** Generate new infrastructure, remediate drift, or import existing resources, for part of a project or all of it.
+- **Several modes of operation.** Generate new infrastructure, remediate drift, or import console created resources, for part of a project or all of it.
 
 **Built to fit your organization**
 
@@ -38,11 +38,24 @@ https://github.com/user-attachments/assets/9613c8b4-f0f3-487f-9fdd-8a38c17c730a
 - **Identity provider.** Any OIDC provider for sign-in.
 - **Authorization logic.** You decide who may request infrastructure, and where, by implementing the authorization OpenAPI contract.
 - **IaC executor.** Keep your own Terraform or OpenTofu runtime, version, and execution environment by implementing the IaC OpenAPI contract.
+- **Notification system.** Send session outcomes and review requests to any channel, such as Slack, Microsoft Teams, email, Discord, or WhatsApp, by implementing the notifications OpenAPI contract.
 
 Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/), so you can replace the bundled reference implementation with your own.
 
 > [!NOTE]
 > Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.
+
+## How it works
+
+1. **You ask.** Describe the infrastructure you need in plain language and pick the project.
+2. **Kumoss checks who you are.** It authenticates you and confirms you are authorized to work on that project.
+3. **Kumoss gathers context.** It reads the infrastructure deployed in your cloud, your existing IaC repository, your request, and the architecture, security, and governance standards your organization defined.
+4. **Kumoss builds a plan that passes.** It generates the code and runs a Terraform/OpenTofu plan. If the plan fails, Kumoss fixes the code and tries again until it passes.
+5. **Kumoss fixes drift along the way.** The infrastructure deployed in the cloud is the source of truth, not the repository. Any drift is fixed by updating the code to match what really runs in production.
+6. **You get a clear report.** It summarizes the impact, the main changes, and the estimated cost.
+7. **A compliance agent reviews the proposal.** It checks the change against your organization's policies and flags it as high impact when it matches the criteria your organization defined. Kumoss then opens a pull request.
+8. **Risky changes wait for review.** If the proposal is not compliant or is high impact, apply is blocked and your administrator team is notified to accept or reject it.
+9. **You apply.** Once the proposal is cleared, you approve and apply it, and Kumoss gives you a new report with the result.
 
 ## Documentation
 
