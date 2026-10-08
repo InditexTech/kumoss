@@ -1,0 +1,23 @@
+docs/package.json
+  s_e0e37102de7ca6::t_4ae50272319ae3 12
+docs/scripts/copy-slides.mjs
+  s_e0e37102de7ca6::t_561faafd3c6beb 1-6
+docs/src/modules/ROOT/pages/index.adoc
+  s_e0e37102de7ca6::t_e8b687de8dd119 84-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c7fe647bbcbee8d8cd00fecf1c0d7304ec18b77",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "unknown"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
