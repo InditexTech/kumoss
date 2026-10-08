@@ -1,0 +1,21 @@
+docs/src/modules/main/nav.adoc
+  s_e0e37102de7ca6::t_9ec26de2c24845 55
+docs/src/modules/main/pages/events.adoc
+  s_e0e37102de7ca6::t_b5554036ab3e85 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd8c9aed6468f8926feaab5c9ca630563231fda7",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "unknown"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
