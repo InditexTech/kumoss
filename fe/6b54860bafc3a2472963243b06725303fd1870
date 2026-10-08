@@ -1,0 +1,23 @@
+docs/scripts/copy-events.mjs
+  s_e0e37102de7ca6::t_e34714a5bb3510 4-6
+docs/package.json
+  s_e0e37102de7ca6::t_7645845f8b8b5c 12
+docs/src/modules/main/nav.adoc
+  s_e0e37102de7ca6::t_46bfc11793a931 54-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fe6b54860bafc3a2472963243b06725303fd1870",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
