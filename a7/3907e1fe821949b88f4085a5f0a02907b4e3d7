@@ -1,0 +1,19 @@
+.gitignore
+  s_619d3ffdeed2c6::t_e0b370929c771e 124-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a73907e1fe821949b88f4085a5f0a02907b4e3d7",
+  "prompts": {},
+  "sessions": {
+    "s_619d3ffdeed2c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3730c88a-717c-4ef5-a70a-8441a5fd1c94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}

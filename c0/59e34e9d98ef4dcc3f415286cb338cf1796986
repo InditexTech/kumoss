@@ -1,0 +1,25 @@
+core/src/infrastructure/templates/jinja_env.py
+  s_d60b8b6e0c5fd4::t_d2325c9ce0cec7 15
+docs/scripts/check-links.mjs
+  s_d60b8b6e0c5fd4::t_436d5178b4b240 67-71
+docs/supplemental-ui/partials/home-hero.hbs
+  s_d60b8b6e0c5fd4::t_618a06a5b4643d 98,101,103,115,119,151,154
+nginx/nginx.conf
+  s_d60b8b6e0c5fd4::t_a2317dce4cec2b 89-92,94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c059e34e9d98ef4dcc3f415286cb338cf1796986",
+  "prompts": {},
+  "sessions": {
+    "s_d60b8b6e0c5fd4": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "s_d60b8b6e0c5fd4",
+        "model": "unknown"
+      },
+      "human_author": "Ivan Alvarez Sabin <ivanasabi@ext.inditex.com>"
+    }
+  }
+}

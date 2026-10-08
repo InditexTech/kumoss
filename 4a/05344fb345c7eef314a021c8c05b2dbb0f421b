@@ -1,0 +1,21 @@
+docs/src/modules/ROOT/pages/index.adoc
+  s_e5868e4a48655d::t_f4f9a499a07d85 12
+docs/supplemental-ui/partials/home-hero.hbs
+  s_e5868e4a48655d::t_ed79e847f48248 1-157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a05344fb345c7eef314a021c8c05b2dbb0f421b",
+  "prompts": {},
+  "sessions": {
+    "s_e5868e4a48655d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2e960dd-e4f0-4143-8623-7827b0a3936c",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}

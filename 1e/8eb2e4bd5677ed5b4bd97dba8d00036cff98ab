@@ -1,0 +1,24 @@
+.gitignore
+  s_619d3ffdeed2c6::t_93021ded712214 121-123
+  s_619d3ffdeed2c6::t_e0b370929c771e 124
+docs/src/modules/ROOT/pages/index.adoc
+  s_619d3ffdeed2c6::t_867f425e26d662 10-11
+README.md
+  s_619d3ffdeed2c6::t_966309c9e9cd65 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e8eb2e4bd5677ed5b4bd97dba8d00036cff98ab",
+  "prompts": {},
+  "sessions": {
+    "s_619d3ffdeed2c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3730c88a-717c-4ef5-a70a-8441a5fd1c94",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
