@@ -1,0 +1,25 @@
+docs/antora-extensions/copy-events.js
+  s_e0e37102de7ca6::t_f06c9dcbeb3591 1,4-50
+docs/antora-playbook.local.yml
+  s_e0e37102de7ca6::t_ad0780171c7a1b 102-103
+docs/antora-playbook.yml
+  s_e0e37102de7ca6::t_bb381e029ee4c3 189-192
+docs/package.json
+  s_e0e37102de7ca6::t_bc2b5bc3108ccc 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d923253324f79d1c97535938d15d42cb0a0acbc",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "unknown"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
