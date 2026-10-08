@@ -1,0 +1,21 @@
+docs/src/modules/ROOT/pages/index.adoc
+  s_e0e37102de7ca6::t_e03aff64cca533 10-11
+docs/src/modules/main/pages/events.adoc
+  s_e0e37102de7ca6::t_547290fba59633 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbd304bd44e0b2b678f9dfab626a3ecc0e652d6c",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
