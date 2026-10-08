@@ -1,0 +1,19 @@
+docs/supplemental-ui/slides/kernel-panic/index.html
+  s_e0e37102de7ca6::t_5f31aa7c8100dd 1-1135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c1fe4dc533cf6e6406a3db2dd267eac56169713",
+  "prompts": {},
+  "sessions": {
+    "s_e0e37102de7ca6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "17191291-551e-4083-bd83-1a2dbb63746a",
+        "model": "zai-org/GLM-5.3-Flash"
+      },
+      "human_author": "amagan <andreamr@ext.zara.com>"
+    }
+  }
+}
