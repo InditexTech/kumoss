@@ -7,5 +7,5 @@ Talks and meetups where the team has presented Kumoss.
 [cols="2,3"]
 |===
 |Event |https://kernelpanic.helmcode.com/[kernelpanic.helmcode.com]
-|Slides |link:../_attachments/events/kernel-panic/index.html[Kernel Panic · Kumoss^]
+|Slides |link:{attachmentsdir}/events/kernel-panic/index.html[Kernel Panic · Kumoss^]
 |===
