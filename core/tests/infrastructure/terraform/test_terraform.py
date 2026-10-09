@@ -450,6 +450,24 @@ class TestTerraformDrift(_TerraformTestCase):
             {"old_value": "dev", "new_value": "prod"},
         )
 
+    async def test_create_before_destroy_replacement_is_not_in_sync(self):
+        self._use_config()
+        plan_json = json.loads(DRIFTED_PLAN_JSON)
+        plan_json["resource_changes"][0]["change"]["actions"] = ["create", "delete"]
+        self._patch_ops(init=_ok(), show=_ok(stdout=json.dumps(plan_json)))
+
+        result = await self.terraform.drift(plan=_ref())
+
+        self.assertFalse(result.in_sync)
+        drift = json.loads(result.drift)
+        self.assertEqual(len(drift), 1)
+        self.assertEqual(drift[0]["address"], "azurerm_resource_group.main")
+        self.assertEqual(drift[0]["action"], "update resource")
+        self.assertEqual(
+            drift[0]["changes"]["values_changed"]["root['tags']['env']"],
+            {"old_value": "dev", "new_value": "prod"},
+        )
+
     async def test_a_clean_plan_is_in_sync(self):
         self._use_config()
         self._patch_ops(init=_ok(), show=_ok(stdout=NO_CHANGES_PLAN_JSON))
