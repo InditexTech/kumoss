@@ -70,5 +70,36 @@ class TestLlmConfigCreateRouter(unittest.TestCase):
         self.assertEqual(router.get_model_names(), ["openai/gpt-4o"])
 
 
+class TestLlmConfigWebSearchModel(unittest.TestCase):
+    """The optional third role used when the main models cannot search."""
+
+    def test_defaults_to_empty(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "dummy"}, clear=True):
+            config = LlmConfig(model="openai/gpt-4o", small_model="openai/gpt-4o-mini")
+        self.assertEqual(config.web_search_model, "")
+
+    def test_gets_a_router_entry(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "dummy"}, clear=True):
+            config = LlmConfig(
+                model="openai/gpt-4o",
+                small_model="openai/gpt-4o-mini",
+                web_search_model="openai/gpt-5-mini",
+            )
+            router = config.create_router()
+        self.assertIn("openai/gpt-5-mini", router.get_model_names())
+
+    def test_credentials_are_validated_at_boot(self):
+        # Vertex is the only role needing VERTEXAI_*; the search model
+        # brings its own provider and must be checked too.
+        with patch.dict(os.environ, {"VERTEXAI_PROJECT": "p"}, clear=True):
+            with self.assertRaises(ValidationError) as ctx:
+                LlmConfig(
+                    model="openai/gpt-4o",
+                    small_model="openai/gpt-4o-mini",
+                    web_search_model="anthropic/claude-sonnet-5",
+                )
+        self.assertIn("ANTHROPIC_API_KEY", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -34,4 +34,5 @@ class LLMFactory:
             max_tokens=self.__max_tokens,
             timeout=system_config.llm.timeout,
             router=_default_router(),
+            web_search_model=system_config.llm.web_search_model,
         )

@@ -69,8 +69,9 @@ file from disk at startup rather than from the baked-in copy.
 |The environment variable named by `database.kumoss_database_url_env`
 must be set; the variable named by `services.iac.token_env` must be set
 (the IaC sidecar is always called and has no `enabled` flag); the
-credentials that LiteLLM requires for `llm.model` and `llm.small_model`
-must be set for providers LiteLLM can validate.
+credentials that LiteLLM requires for `llm.model`, `llm.small_model`
+and `llm.web_search_model` (when set) must be set for providers LiteLLM
+can validate.
 
 |*Conditionally mandatory*
 |`oidc.client_id` when `oidc.issuer_url` is set; the `token_env`
@@ -458,6 +459,18 @@ report generator chains.
 |Cheaper model used by every other chain and by tool-internal LLM
 calls.
 
+|`llm.web_search_model`
+|string
+|`""`
+|`""`
+|Optional
+|Model used only by the `web_search` tool. Blank runs the search call
+on whichever role model the chain is already using; set it when
+neither role can reach the web, as with a self-hosted endpoint. Blank
+in such a deployment, the agent is told web search is unavailable. See
+xref:main:reference/llm-providers.adoc#web-search-model[The web-search
+role].
+
 |`llm.temperature`
 |float
 |`0.1`
@@ -491,8 +504,9 @@ internal retries gets a fresh budget.
 `model_name`, per-entry endpoints, and `os.environ/VAR` credential
 references. Router-level fallbacks between different models are *not*
 configurable today; the core passes only `model_list` to the Router.
-When non-empty, `model` and `small_model` must match a `model_name` and
-boot validation runs against the listed entries.
+When non-empty, `model`, `small_model` and `web_search_model` must
+match a `model_name` and boot validation runs against the listed
+entries.
 |===
 
 Validation: at boot the core asks LiteLLM which environment variables

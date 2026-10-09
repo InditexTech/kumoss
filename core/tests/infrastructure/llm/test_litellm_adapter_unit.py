@@ -32,6 +32,7 @@ from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallThinkingToolError,
+    InferenceCallWebSearchNotSupported,
     InferenceCallWebSearchTools,
 )
 from src.shared.constants import ToolContext
@@ -364,7 +365,12 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
 
     @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
     async def test_fallback_web_search_calls_aresponses(self, mock_model_info):
-        mock_model_info.return_value = {"supported_openai_params": []}
+        # The gpt-5-mini shape: mapped and search-capable, but only
+        # through the responses API.
+        mock_model_info.return_value = {
+            "supported_openai_params": [],
+            "supports_web_search": True,
+        }
 
         content_block = MagicMock()
         content_block.text = "search result"
@@ -405,6 +411,117 @@ class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
         adapter, _ = _make_adapter()
         with self.assertRaises(InferenceCallThinkingToolError):
             await adapter.inference(msg="test", thinking=True, web_search=True)
+
+
+class TestInferenceWebSearchUnsupportedModel(unittest.IsolatedAsyncioTestCase):
+    """A self-hosted model is absent from LiteLLM's model map.
+
+    Being unmapped means its capabilities are unknown, not that it can
+    reach the web: the aresponses fallback would post a
+    `web_search_preview` tool the server has never heard of.
+    """
+
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_unmapped_model_raises_not_supported(self, mock_model_info):
+        mock_model_info.side_effect = Exception("This model isn't mapped yet.")
+        adapter, _ = _make_adapter(model="hosted_vllm/zai-org/GLM-5.3-Flash")
+
+        with self.assertRaises(InferenceCallWebSearchNotSupported):
+            await adapter.inference(msg="latest news", web_search=True)
+
+    @patch("src.infrastructure.llm._litellm.asyncio.sleep", new_callable=AsyncMock)
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_unmapped_model_fails_fast_without_retrying(
+        self, mock_model_info, mock_sleep
+    ):
+        mock_model_info.side_effect = Exception("This model isn't mapped yet.")
+        adapter, router = _make_adapter(model="hosted_vllm/zai-org/GLM-5.3-Flash")
+
+        with self.assertRaises(InferenceCallWebSearchNotSupported):
+            await adapter.inference(msg="latest news", web_search=True)
+
+        mock_sleep.assert_not_awaited()
+        router.aresponses.assert_not_awaited()
+
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_model_without_any_web_search_support_raises(self, mock_model_info):
+        mock_model_info.return_value = {
+            "supported_openai_params": ["max_tokens"],
+            "supports_web_search": False,
+        }
+        adapter, _ = _make_adapter(model="hosted_vllm/zai-org/GLM-5.3-Flash")
+
+        with self.assertRaises(InferenceCallWebSearchNotSupported):
+            await adapter.inference(msg="latest news", web_search=True)
+
+
+class TestInferenceDedicatedWebSearchModel(unittest.IsolatedAsyncioTestCase):
+    """`web_search_model` lets an unmapped main model keep web search.
+
+    The call is routed to a search-capable deployment; every other
+    inference stays on the configured model.
+    """
+
+    def setUp(self):
+        _setup_mock_tracer(self)
+
+    def tearDown(self):
+        _teardown_mock_tracer(self)
+
+    @staticmethod
+    def _model_info(model: str) -> dict:
+        if model == "search":
+            return {"supported_openai_params": ["web_search_options"]}
+        raise Exception("This model isn't mapped yet.")
+
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_web_search_is_routed_to_the_search_model(self, mock_model_info):
+        mock_model_info.side_effect = self._model_info
+        adapter, router = _make_adapter(
+            model="hosted_vllm/zai-org/GLM-5.3-Flash", web_search_model="search"
+        )
+        router.acompletion.return_value = _model_response(text="search result")
+
+        result = await adapter.inference(msg="latest news", web_search=True)
+
+        call_kwargs = router.acompletion.call_args[1]
+        self.assertEqual(call_kwargs["model"], "search")
+        self.assertIn("web_search_options", call_kwargs)
+        self.assertEqual(result.text, "search result")
+
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_regular_inference_stays_on_the_configured_model(
+        self, mock_model_info
+    ):
+        mock_model_info.side_effect = self._model_info
+        adapter, router = _make_adapter(
+            model="hosted_vllm/zai-org/GLM-5.3-Flash", web_search_model="search"
+        )
+        router.acompletion.return_value = _model_response()
+
+        await adapter.inference(msg="write terraform")
+
+        self.assertEqual(
+            router.acompletion.call_args[1]["model"],
+            "hosted_vllm/zai-org/GLM-5.3-Flash",
+        )
+
+    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
+    async def test_unmapped_search_model_raises_not_supported(self, mock_model_info):
+        mock_model_info.side_effect = Exception("This model isn't mapped yet.")
+        adapter, _ = _make_adapter(
+            model="hosted_vllm/zai-org/GLM-5.3-Flash",
+            web_search_model="hosted_vllm/also-unmapped",
+        )
+
+        with self.assertRaises(InferenceCallWebSearchNotSupported):
+            await adapter.inference(msg="latest news", web_search=True)
 
 
 class TestInferenceAPIError(unittest.IsolatedAsyncioTestCase):

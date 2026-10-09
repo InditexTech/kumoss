@@ -116,6 +116,16 @@ class LlmConfig(BaseModel):
     the validator fails boot when litellm reports required env vars
     missing.
 
+    ``web_search_model`` is an optional third role used only by the
+    ``web_search`` tool.  Leave it blank while ``model`` and
+    ``small_model`` can reach the web themselves; set it when they
+    cannot, which is the case for a self-hosted model served from a
+    private endpoint — the weights carry no search backend, so the call
+    has to go somewhere that does.  Blank in a deployment whose models
+    cannot search, the adapter raises
+    ``InferenceCallWebSearchNotSupported`` and the agent is told web
+    search is unavailable rather than waiting out a doomed retry loop.
+
     ``temperature``, ``max_output_tokens`` and ``timeout`` apply to both
     roles. ``timeout`` is the per-request budget in seconds LiteLLM
     enforces on a single inference call (retries get a fresh budget);
@@ -124,9 +134,9 @@ class LlmConfig(BaseModel):
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
     format (fallbacks, load balancing, custom credential env var names
     via ``os.environ/VAR_NAME``).  When non-empty it is passed to the
-    Router verbatim, ``model`` / ``small_model`` must match its
-    ``model_name`` entries, and boot validation runs against the listed
-    entries instead of the two role models.
+    Router verbatim, ``model`` / ``small_model`` / ``web_search_model``
+    must match its ``model_name`` entries, and boot validation runs
+    against the listed entries instead of the role models.
 
     Refer to https://docs.litellm.ai/docs/providers for provider-specific
     credential keys and to https://models.litellm.ai/ for model IDs.
@@ -134,18 +144,23 @@ class LlmConfig(BaseModel):
 
     model: str = "anthropic/claude-sonnet-5"
     small_model: str = "anthropic/claude-haiku-4-5"
+    web_search_model: str = ""
     temperature: float = 0.1
     max_output_tokens: int = 32000
     timeout: float = Field(default=600.0, gt=0)
 
     model_list: list[dict[str, Any]] = Field(default_factory=list)
 
+    def _role_models(self) -> tuple[str, ...]:
+        roles = (self.model, self.small_model, self.web_search_model)
+        return tuple(dict.fromkeys(role for role in roles if role))
+
     def _effective_model_list(self) -> list[dict[str, Any]]:
         if self.model_list:
             return self.model_list
         return [
             {"model_name": model_id, "litellm_params": {"model": model_id}}
-            for model_id in dict.fromkeys((self.model, self.small_model))
+            for model_id in self._role_models()
         ]
 
     @model_validator(mode="after")

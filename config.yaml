@@ -133,11 +133,37 @@ orchestration:
 #   - https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/  — Kumoss's LiteLLM guide
 #   - https://models.litellm.ai/                                                     — model IDs
 #   - https://docs.litellm.ai/docs/providers                                         — provider credential keys
+# llm:
+#   # Complex tasks model
+#   model: "vertex_ai/claude-sonnet-5-5"
+#   # Simple tasks model
+#   small_model: "vertex_ai/gemini-3.8-flash"
+#   # Optional: Web Search task if previous models cannot handle it themselves
+#   web_search_model: ""
+#   # Applied to both models
+#   temperature: 0.1
+#   max_output_tokens: 32000
+#   timeout: 600
+
 llm:
   # Complex tasks model
-  model: "vertex_ai/claude-sonnet-5-5"
+  model: "main"
   # Simple tasks model
-  small_model: "vertex_ai/gemini-3.8-flash"
+  small_model: "small"
+  # Web Search model
+  web_search_model: "search"
+  model_list:
+    - model_name: "small"
+      litellm_params:
+        model: "vertex_ai/claude-sonnet-5-5"
+    - model_name: "main"
+      litellm_params:
+        model: "hosted_vllm/zai-org/GLM-5.3-Flash"
+        api_base: "http://glm-5-3-flash.apps.ax1ocpgpu001.ecommerce.inditex.grp/v1"
+        api_key: "os.environ/ONPREM_GLM_KEY"
+    - model_name: "search"
+      litellm_params:
+        model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
   temperature: 0.1
   max_output_tokens: 32000

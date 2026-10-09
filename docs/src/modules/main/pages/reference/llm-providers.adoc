@@ -71,6 +71,12 @@ value.
 Each of the three internal retries gets a fresh budget, so the worst
 case for one inference is four times this value. Raise it for slow
 reasoning models, lower it to fail faster on a stalled provider.
+
+|`llm.web_search_model`
+|`""`
+|Optional third role, used only by the `web_search` tool. Blank means
+the search call runs on whichever role model the chain is already
+using. See <<web-search-model,The web-search role>>.
 |===
 
 The core passes `drop_params=True` to LiteLLM, so a provider that does
@@ -106,9 +112,9 @@ must provide:
 * *Long context.* The generator receives the composed conventions, the
   repository excerpts it reads, and the plan output; models with short
   context windows truncate silently.
-* Optional: native `web_search_options` support, which LiteLLM reports
-  per model. Without it the web-search tool falls back to the OpenAI
-  Responses API path, which only works on OpenAI-compatible endpoints.
+* Optional: a way to reach the web, needed only by the `web_search`
+  tool. See <<web-search-model,The web-search role>> for the three
+  cases and for what to configure when a model has no route at all.
 
 The shipped models (Claude and Gemini on Vertex AI, `vertex_ai/`, which
 the core's test suite exercises) satisfy all of these, as do the built-in defaults (Anthropic Claude direct,
@@ -157,6 +163,64 @@ Changing a model identifier to a different provider means changing the
 credential variables too. `config.yaml` is baked into the core image,
 so a model change requires `docker compose build core`; a credential
 change in `core/.env` only requires restarting the core container.
+
+[#web-search-model]
+== The web-search role
+
+Only one tool needs the web: `web_search`, used by the plan and apply
+report chains (for pricing) and available to the agent loops. How that
+call is made depends on what LiteLLM knows about the model:
+
+[cols="1,3",options="header"]
+|===
+|LiteLLM reports |How the call is made
+
+|`web_search_options` among the model's supported parameters
+|Sent on the normal completion call. This is the native path and the
+one the shipped Vertex AI models take.
+
+|`supports_web_search`, but not the parameter
+|Routed through the OpenAI Responses API with a `web_search_preview`
+tool. This is the `openai/gpt-5-mini` shape.
+
+|Neither — including any model absent from LiteLLM's model map
+|No route. The core raises `InferenceCallWebSearchNotSupported`, the
+tool returns "Web search is unavailable", and the agent continues
+without it.
+|===
+
+That third row is what a self-hosted model hits. Search is a *platform*
+service, not something carried in the weights: a provider that offers
+it runs the crawler and index on its own side. A model you serve from
+your own endpoint has no such backend, and being absent from LiteLLM's
+map means its capabilities are unknown rather than present — so the
+core treats it as having no route instead of guessing.
+
+Set `llm.web_search_model` to keep web search working in that
+deployment. Only web-search calls are routed to it; every other
+inference stays on `llm.model` or `llm.small_model`.
+
+[source,yaml]
+----
+# config.yaml (fictitious)
+llm:
+  model: "hosted_vllm/zai-org/GLM-5.3-Flash"
+  small_model: "hosted_vllm/zai-org/GLM-5.3-Flash"
+  web_search_model: "vertex_ai/gemini-3.8-flash"
+----
+
+Leave it blank and the deployment still works — the agent is simply
+told web search is unavailable and told not to retry it. That is the
+right setting for an air-gapped install, and it is what distinguishes
+this from a misconfiguration: there is no failure to debug, only a tool
+the agent skips.
+
+The role follows the same rules as the other two. With a non-empty
+`llm.model_list` it is a router alias, not a provider string, and its
+credentials are checked at boot alongside the other roles. Pointing it
+at a model that itself has no route raises
+`InferenceCallWebSearchNotSupported` on the first search call, not at
+boot — the capability lookup is not part of credential validation.
 
 [#startup-credential-validation]
 == Startup credential validation and its limits
@@ -502,8 +566,9 @@ strings already read the provider's default variables.
 
 Rules when `model_list` is non-empty:
 
-. `llm.model` and `llm.small_model` *must equal a `model_name`* in the
-  list. They are router aliases now, not provider strings.
+. `llm.model`, `llm.small_model` and, when set, `llm.web_search_model`
+  *must equal a `model_name`* in the list. They are router aliases now,
+  not provider strings.
 . Only `litellm_params.model` is required in an entry. *`api_key`,
   `api_base`, `api_version`, and the other credential keys are
   optional*: when omitted, LiteLLM reads the provider's default

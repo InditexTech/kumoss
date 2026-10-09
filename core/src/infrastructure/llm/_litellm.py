@@ -6,7 +6,7 @@ import asyncio
 import dataclasses
 import json
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import litellm
 from litellm import Choices, Message, ModelResponse, ResponsesAPIResponse, Usage
@@ -27,9 +27,15 @@ from src.domains.services.tracer_service import trace_llm
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallThinkingToolError,
+    InferenceCallWebSearchNotSupported,
     InferenceCallWebSearchTools,
 )
 from src.shared.logger import logging
+
+
+# How a model reaches the web: `web_search_options` on the completion
+# call, or the Responses API with a `web_search_preview` tool.
+WebSearchRoute = Literal["native", "responses"]
 
 
 class LiteLLMAdapter(ILLMProvider):
@@ -40,12 +46,14 @@ class LiteLLMAdapter(ILLMProvider):
         max_tokens: int,
         timeout: float,
         router: Router,
+        web_search_model: str = "",
     ) -> None:
         self.__model = model
         self.__temperature = temperature
         self.__max_tokens = max_tokens
         self.__timeout = timeout
         self.__router = router
+        self.__web_search_model = web_search_model
         self._last_invocation_params: dict[str, Any] | None = None
 
     @property
@@ -89,11 +97,24 @@ class LiteLLMAdapter(ILLMProvider):
         if system_prompt:
             local_history.insert(0, {"role": "system", "content": system_prompt})
 
-        if web_search and not self.__web_search_is_native():
+        web_search_route: WebSearchRoute | None = None
+        if web_search:
+            # A dedicated search model keeps web search available when
+            # the configured model cannot reach the web (a self-hosted
+            # deployment, say). Every other call stays on self.__model.
+            model_id = self.__web_search_model or self.__model
+            web_search_route = self.__web_search_route(model_id)
+            if web_search_route is None:
+                raise InferenceCallWebSearchNotSupported(
+                    message=f"Model {model_id} cannot perform web search.",
+                    error_code=400,
+                )
+
+        if web_search_route == "responses":
             for attempt in range(4):
                 try:
                     response = await self.__aresponses_web_search(
-                        local_history, max_tokens
+                        model_id, local_history, max_tokens
                     )
                     break
                 except OpenAIError as e:
@@ -103,7 +124,7 @@ class LiteLLMAdapter(ILLMProvider):
                 await asyncio.sleep(30)
             else:
                 raise InferenceCallAPIError(
-                    message=f"Inference calls (aresponses) to {self.__model} have been exhausted.",
+                    message=f"Inference calls (aresponses) to {model_id} have been exhausted.",
                     error_code=502,
                 )
         else:
@@ -135,7 +156,7 @@ class LiteLLMAdapter(ILLMProvider):
             except OpenAIError as e:
                 logging.error(f"LiteLLM API error: {e!r}")
                 raise InferenceCallAPIError(
-                    message=f"Inference call to {self.__model} failed.",
+                    message=f"Inference call to {model_id} failed.",
                     error_code=getattr(e, "status_code", 502),
                 )
 
@@ -161,24 +182,33 @@ class LiteLLMAdapter(ILLMProvider):
             thinking=getattr(message, "reasoning_content", None) if thinking else None,
         )
 
-    def __web_search_is_native(self) -> bool:
-        """Check if the model supports native web search."""
-        model_id = self.__model
+    def __web_search_route(self, model_id: str) -> WebSearchRoute | None:
+        """Classify how a model can reach the web.
+
+        ``"native"`` takes ``web_search_options`` on the completions
+        call; ``"responses"`` needs the responses API and a
+        ``web_search_preview`` tool (gpt-5-mini, gpt-5, gpt-4o, ...).
+
+        ``None`` means no route, which includes a model absent from
+        LiteLLM's map: unmapped capabilities are unknown, not present,
+        and a self-hosted server has no search backend to call.
+        """
         try:
             info = litellm.get_model_info(model_id)
         except Exception:
-            return False
-        params = info.get("supported_openai_params") or []
-        return "web_search_options" in params
+            return None
+        if "web_search_options" in (info.get("supported_openai_params") or []):
+            return "native"
+        if info.get("supports_web_search"):
+            return "responses"
+        return None
 
     async def __aresponses_web_search(
-        self, messages: list[dict[str, Any]], max_tokens: int
+        self, model_id: str, messages: list[dict[str, Any]], max_tokens: int
     ) -> ModelResponse:
         """Use aresponses to perform web search with models that don't support native web search.
         Like gpt-5-mini, gpt-5, gpt-4o, gpt-4.1, ...
         """
-        model_id = self.__model
-
         aresponses_kwargs: dict[str, Any] = {
             "model": model_id,
             "input": messages,
