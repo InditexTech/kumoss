@@ -4,7 +4,7 @@
 
 [project]
 name = "kumoss-mapping-conformance"
-version = "1.0.2"
+version = "1.0.3"
 description = "Schemathesis-driven conformance suite for contracts/openapi/mapping.v1.yaml."
 requires-python = ">=3.13"
 dependencies = [
