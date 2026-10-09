@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-09)
+
+
+### Documentation
+
+* replace the overview video in the README and the docs home page ([#315](https://github.com/InditexTech/kumoss/issues/315)) ([dfec68d](https://github.com/InditexTech/kumoss/commit/dfec68dec7d078a4fe0821c4e994af1864c27d19))
+
 ## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-08)
 
 
