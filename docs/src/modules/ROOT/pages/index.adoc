@@ -7,9 +7,9 @@
 :page-action-url: main:quickstart.adoc
 :page-action-secondary: About
 :page-action-secondary-url: main:about.adoc
-:page-hero-video: main:kumoss-overview.mp4
+:page-hero-video: main:kumoss-overview.webm
 :page-hero-video-poster: main:kumoss-overview-poster.png
-:page-hero-video-alt: Kumoss overview video, 48 seconds, music only. A developer asks the Kumoss web portal, in plain language, to remove the database of their checkout project; Kumoss prepares the workspace, analyses the request, runs a risk check, and produces a change summary ready for approval.
+:page-hero-video-alt: Kumoss overview video, 3 minutes 13 seconds, background music, captions burned in. A developer asks for infrastructure in plain language; Kumoss reads the repository, the deployed cloud and the organization's standards, fixes drift, and returns a validated Terraform or OpenTofu plan with a report on impact and cost. A compliance agent locks a risky request until administrators review it. The video ends with the integrations Kumoss works with: repositories, Git providers, clouds, identity providers, OpenAPI contracts, any model, and full traceability.
 :page-hero-image-bordered:
 
 Kumoss turns natural-language infrastructure requests into reviewed,
