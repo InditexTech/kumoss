@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-08)
+
+
+### Documentation
+
+* add the Kernel Panic talk slides ([#314](https://github.com/InditexTech/kumoss/issues/314)) ([852a3d1](https://github.com/InditexTech/kumoss/commit/852a3d18d66d2d418c305c33715dbbd211697174))
+
 ## [1.0.1](https://github.com/InditexTech/kumoss/compare/v1.0.0...v1.0.1) (2026-10-08)
 
 

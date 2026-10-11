@@ -1,0 +1,11 @@
+= Events
+
+Talks and meetups where the team has presented Kumoss.
+
+== Kernel Panic
+
+[cols="2,3"]
+|===
+|Event |https://kernelpanic.helmcode.com/[kernelpanic.helmcode.com]
+|Slides |link:{attachmentsdir}/events/kernel-panic/index.html[Kernel Panic · Kumoss^]
+|===

@@ -4,7 +4,7 @@
 
 [project]
 name = "kumoss-authz"
-version = "1.0.1"
+version = "1.0.2"
 description = "Reference implementation of contracts/openapi/authz.v1.yaml — header-asserted identity + JSON-file role store + permissive cloud check."
 requires-python = ">=3.13"
 dependencies = [
