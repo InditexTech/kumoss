@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Supported versions
 
-There are no tagged releases yet. Security fixes land on `main`; run the latest `main`.
+Security fixes land on `main` and ship in the next tagged release. Run the latest release from the [releases page](https://github.com/InditexTech/kumoss/releases).
 
 ## Reporting a Vulnerability
 

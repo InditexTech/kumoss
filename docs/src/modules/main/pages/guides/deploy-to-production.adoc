@@ -381,7 +381,13 @@ execution environment* are the security decisions you must make:
   every other variable in the IaC sidecar's environment are reachable by
   the provider plugins the generated HCL invokes, and by any
   `local-exec` provisioner in that HCL — generated code runs with the
-  same privileges as the sidecar process. The job's `workspace_path` is
+  same privileges as the sidecar process. The seeded
+  `general-guidelines-terraform` prompt tells the generator never to
+  emit `null_resource`, `provisioner` blocks, or `data "external"`, and
+  the compliance auditor receives the same rule, but this is a prompt
+  instruction: neither the core nor the sidecar inspects the generated
+  HCL, and no allowlist restricts provider sources. Repository code is
+  not covered by the prompt at all. The job's `workspace_path` is
   not restricted to `/workspaces` by the sidecar itself. Treat the
   sidecar as reachable only from the core and give it nothing more than
   the cloud identity it needs.
