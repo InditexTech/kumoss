@@ -1,7 +1,7 @@
 = Reference
-:description: Lookup material for Nebula: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
+:description: Lookup material for Kumoss: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
 
-This section is the lookup material for Nebula: the operating modes,
+This section is the lookup material for Kumoss: the operating modes,
 every configuration field, every environment variable, the LLM provider
 and model tables, roles, repository layout, Terraform providers, and the
 HTTP APIs, described exhaustively.
@@ -20,7 +20,7 @@ and effect.
 
 [card]
 .xref:main:reference/database-schema.adoc[Database schema]
-The twelve tables of core-db, what each records, the enumerated columns,
+The thirteen tables of core-db, what each records, the enumerated columns,
 and how rows are deleted.
 
 [card]
@@ -30,7 +30,7 @@ files, plus the IaC engine and LLM provider variables.
 
 [card]
 .xref:main:reference/llm-providers.adoc[LLM providers and models]
-How Nebula selects LiteLLM models, provider credential tables, and the
+How Kumoss selects LiteLLM models, provider credential tables, and the
 `llm.model_list` router escape hatch.
 
 [card]
@@ -40,7 +40,7 @@ who gets which role by default.
 
 [card]
 .xref:main:reference/repository-layout.adoc[Repository layout]
-How Nebula finds Terraform roots in a repository: the detection rules
+How Kumoss finds Terraform roots in a repository: the detection rules
 and the wizard's zero/one/many behavior.
 
 [card]

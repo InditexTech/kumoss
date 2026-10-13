@@ -157,10 +157,10 @@ describe("ResultsRoute", () => {
 
       await user.click(screen.getByText("Confirm and Merge"));
 
-      await waitFor(() =>
-        expect(screen.getByTestId("location")).toHaveTextContent("/home/results/sess-1"),
-      );
-      expect(screen.getByTestId("location")).not.toHaveTextContent("view=pr");
+      await waitFor(() => {
+        expect(screen.getByTestId("location")).toHaveTextContent("/home/results/sess-1");
+        expect(screen.getByTestId("location")).not.toHaveTextContent("view=pr");
+      });
     });
 
     // A hand-edited ?view= must not resurrect the approval screen for a PR

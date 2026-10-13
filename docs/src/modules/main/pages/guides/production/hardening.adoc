@@ -47,16 +47,16 @@ options:
   the ~30-second Phoenix wait), and a liveness probe on `GET
   /api/v1/auth/config` — otherwise a transient dependency race at boot
   becomes a permanent outage.
-* *A remote state backend is mandatory, and by default Nebula provides
+* *A remote state backend is mandatory, and by default Kumoss provides
   it.* The workspace is deleted after each run and the pinned workspace
   after apply, and the seeded `.gitignore` excludes `*.tfstate`, so
   local state would be lost otherwise. `storage.terraform_state_bucket`
-  ships set to `nebula-terraform-state`, so the core writes a
+  ships set to `kumoss-terraform-state`, so the core writes a
   `backend_override.tf` into each workspace pointing at that bucket
   under a per-project key. Set the key to `""` to make it yours to
   provide instead: every repository you onboard must then declare its
   own remote backend and the sidecar must be able to authenticate to
-  it — verify this before the first real session. Either way, *Nebula
+  it — verify this before the first real session. Either way, *Kumoss
   never migrates state* between backends — `init` always runs
   `-reconfigure`. See xref:main:guides/configure-state-backends.adoc[].
 
@@ -75,7 +75,7 @@ optional for a shared deployment.
 * IaC sidecar implemented to your organization's requirements, or the
   bundled reference consciously accepted for production after review.
 * Mapping, notifications, and authorization containers already run as
-  the unprivileged `nebula` user (10001) in the bundled images; the
+  the unprivileged `kumoss` user (10001) in the bundled images; the
   `proxy` (nginx) image starts as root and drops privileges only for
   its workers — give it a non-root image or a Kubernetes
   `runAsNonRoot` treatment if your policy requires it.

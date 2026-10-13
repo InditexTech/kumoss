@@ -100,6 +100,66 @@
   min-height: 0;
 }
 
+/* The plan view stacks an optional targets block above the editor, so it
+   distributes its own height; the code view has a single child. Works in
+   stacked mode too, where the media query below gives it a definite one. */
+.planView {
+  display: flex;
+  flex-direction: column;
+}
+
+.planEditor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ─── Plan Targets ─── */
+/* Mirrors the session panel's plan viewer (see ArtifactContent.module.css).
+   Duplicated on purpose: the shared component lands with the upcoming
+   component-structure refactor. */
+
+.targets {
+  margin-bottom: 12px;
+}
+
+.targetsToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Reset the button chrome: this reads as a heading that happens to
+     toggle, not as a control competing with the report's cards. */
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  color: var(--color-content-muted);
+}
+
+.targetsToggleIcon {
+  font-size: 16px !important;
+}
+
+.targetsList {
+  max-height: 112px;
+  overflow-y: auto;
+  margin: 8px 0 0;
+  /* Clears the toggle's chevron so the addresses hang off its label. */
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+
+.targetsItem {
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 20px;
+  color: var(--color-content-primary);
+  /* Addresses are identifiers with no spaces, so they wrap mid-token
+     rather than overflowing the panel. */
+  overflow-wrap: anywhere;
+}
+
 .emptyState {
   padding: 48px 0;
   text-align: center;

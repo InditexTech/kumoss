@@ -11,9 +11,10 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
+from src.infrastructure.exceptions import InvalidIacPath
 from src.infrastructure.filesystem import (
+    RepositoryUnreachable,
     WorkspaceService,
-    InvalidRepoURI,
 )
 from src.shared.config import system_config
 
@@ -62,9 +63,14 @@ class TestValidateURI(unittest.IsolatedAsyncioTestCase):
         uri = _init_bare_remote(self.tmp)
         await WorkspaceService().validate_uri(uri)  # no exception
 
-    async def test_rejects_unreachable_remote(self):
-        with self.assertRaises(InvalidRepoURI):
+    async def test_rejects_unreachable_remote_without_git_output(self):
+        with self.assertRaises(RepositoryUnreachable) as ctx:
             await WorkspaceService().validate_uri("file:///nope/does-not-exist.git")
+        self.assertEqual(ctx.exception.error_code, 400)
+        self.assertEqual(
+            ctx.exception.message,
+            "Repository is not reachable or access was denied.",
+        )
 
 
 def _current_branch(path: Path) -> str:
@@ -121,33 +127,33 @@ class TestSetupCallDir(_WorkspaceBase):
     async def test_first_call_clones_and_pushes_the_branch(self):
         sid = uuid4()
         path = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/feat-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/feat-x"
         )
         self.assertTrue(path.is_dir())
         self.assertTrue((path / ".git").is_dir())
         self.assertTrue((path / "README.md").is_file())
         self.assertEqual(path.parent, self.workspaces / str(sid))
-        self.assertEqual(_current_branch(path), "Nebula/feat-x")
+        self.assertEqual(_current_branch(path), "Kumoss/feat-x")
         out = subprocess.check_output(
-            ["git", "ls-remote", "--heads", self.uri, "Nebula/feat-x"]
+            ["git", "ls-remote", "--heads", self.uri, "Kumoss/feat-x"]
         ).decode()
-        self.assertIn("Nebula/feat-x", out)
+        self.assertIn("Kumoss/feat-x", out)
 
     async def test_iteration_call_clones_existing_branch(self):
         sid = uuid4()
         first = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/iter-x"
         )
         _commit_file(first, "new.txt")
         subprocess.check_call(
-            ["git", "-C", str(first), "push", "origin", "Nebula/iter-x"]
+            ["git", "-C", str(first), "push", "origin", "Kumoss/iter-x"]
         )
 
         second = await self.svc.setup_call_dir(
-            session_id=sid, repo_uri=self.uri, branch="Nebula/iter-x"
+            session_id=sid, repo_uri=self.uri, branch="Kumoss/iter-x"
         )
         self.assertNotEqual(first, second)
-        self.assertEqual(_current_branch(second), "Nebula/iter-x")
+        self.assertEqual(_current_branch(second), "Kumoss/iter-x")
         self.assertTrue((second / "new.txt").is_file())
 
 
@@ -161,7 +167,7 @@ class TestTerraformGitignore(_WorkspaceBase):
         return await self.svc.setup_call_dir(
             session_id=uuid4(),
             repo_uri=_init_bare_remote(remote, files),
-            branch="Nebula/ignores",
+            branch="Kumoss/ignores",
         )
 
     async def test_writes_the_template_when_the_repo_has_none(self):
@@ -182,7 +188,7 @@ class TestTerraformGitignore(_WorkspaceBase):
 class TestCleanup(_WorkspaceBase):
     async def test_cleanup_removes_dir(self):
         path = await self.svc.setup_call_dir(
-            session_id=uuid4(), repo_uri=self.uri, branch="Nebula/cleanup"
+            session_id=uuid4(), repo_uri=self.uri, branch="Kumoss/cleanup"
         )
         self.svc.cleanup(path)
         self.assertFalse(path.exists())
@@ -252,3 +258,43 @@ class TestPinnedWorkspace(unittest.TestCase):
         self.svc.discard_pinned(self.sid)  # no exception
 
         self.assertIsNone(self.svc.pinned_plan_path(self.sid))
+
+
+class TestIacRoot(unittest.TestCase):
+    """The IaC root resolves inside the clone, whatever the repo links to."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.svc = WorkspaceService(base_path=self.tmp)
+        self.clone = self.tmp / "session" / "call"
+        (self.clone / "envs" / "dev").mkdir(parents=True)
+        (self.tmp / "session" / "other").mkdir()
+
+    def test_subdirectory_and_repo_root(self):
+        self.assertEqual(
+            self.svc.iac_root(self.clone, "envs/dev"),
+            (self.clone / "envs" / "dev").resolve(),
+        )
+        self.assertEqual(self.svc.iac_root(self.clone, None), self.clone.resolve())
+        self.assertEqual(self.svc.iac_root(self.clone, ""), self.clone.resolve())
+
+    def test_link_inside_the_clone_is_followed(self):
+        (self.clone / "current").symlink_to("envs/dev")
+        self.assertEqual(
+            self.svc.iac_root(self.clone, "current"),
+            (self.clone / "envs" / "dev").resolve(),
+        )
+
+    def test_links_leaving_the_clone_are_rejected(self):
+        (self.clone / "root").symlink_to("/")
+        (self.clone / "sibling").symlink_to("../other")
+        for iac_path in ["root", "sibling", "root/etc"]:
+            with self.assertRaises(InvalidIacPath, msg=iac_path):
+                self.svc.iac_root(self.clone, iac_path)
+
+    def test_missing_or_file_root_is_rejected(self):
+        (self.clone / "main.tf").write_text("\n")
+        for iac_path in ["nope", "main.tf"]:
+            with self.assertRaises(InvalidIacPath, msg=iac_path):
+                self.svc.iac_root(self.clone, iac_path)

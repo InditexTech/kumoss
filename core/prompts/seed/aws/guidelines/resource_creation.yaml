@@ -51,6 +51,8 @@ body: |
   }
   ```
 
+  No `tags_all` block should be used, defined or reconciled; it is a read-only view of the effective tags on a resource.
+
   ## Regions
   - Default to a single primary region per environment.
   - Use the full region name (`eu-west-1`, not `euw1`) in Terraform.

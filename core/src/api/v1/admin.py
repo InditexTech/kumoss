@@ -43,7 +43,7 @@ def _user_entry(user: User) -> AdminUserEntry:
 
 
 @router.get(
-    path="/sessions",
+    path="/sessions/list",
     summary="List sessions across all users.",
 )
 async def admin_sessions_list(
@@ -74,12 +74,12 @@ async def admin_sessions_list(
 
 
 @router.get(
-    path="/sessions/{session_id}",
+    path="/sessions",
     summary="Get any session's full aggregate.",
     responses={404: {"description": "Unknown session."}},
 )
 async def admin_session_detail(
-    session_id: UUID,
+    session_id: Annotated[UUID, Query(alias="id")],
     include_history: Annotated[
         bool,
         Query(description="Include the session's serialized conversation history."),

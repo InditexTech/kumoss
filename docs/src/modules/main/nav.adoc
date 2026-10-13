@@ -22,7 +22,7 @@
 * xref:main:guides/customize-prompts.adoc[Customize prompts]
 * xref:main:guides/configure-state-backends.adoc[Configure state backends]
 ** xref:main:guides/state-backends/repository-declared.adoc[Repository-declared backend]
-** xref:main:guides/state-backends/nebula-managed.adoc[Nebula-managed state]
+** xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed state]
 ** xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied backend]
 * xref:main:guides/deploy-to-production.adoc[Deploy to production]
 ** xref:main:guides/production/secrets-and-credentials.adoc[Secrets and credentials]
@@ -51,3 +51,5 @@
 * xref:main:faq.adoc[FAQ]
 * Contributing
 * xref:main:contributing.adoc[Contributing]
+* Events
+* xref:main:events.adoc[Events]

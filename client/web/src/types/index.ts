@@ -37,9 +37,19 @@ export interface CostBreakdownItem {
   notes: string;
 }
 
-export interface ImportResourceDetail {
-  category: string;
-  resource_identifier: string;
+// Import reports: one entry per resource the round tried to import, plus
+// the unmanaged resources the import exception list withheld (skipped on
+// purpose, never attempted — not failures).
+export interface ImportedResource {
+  resource_address: string;
+  resource_id: string;
+  status: "imported" | "failed";
+  details: string;
+  error_message?: string | null;
+}
+
+export interface ExcludedResource {
+  resource_id: string;
   details: string;
 }
 
@@ -96,9 +106,15 @@ export interface ApplySummary {
   failed?: number;
 }
 
+export interface ImportSummary {
+  selected: number;
+  imported: number;
+  failed: number;
+}
+
 export interface TerraformReport {
   status?: string;
-  summary?: PlanSummary | ApplySummary | string;
+  summary?: PlanSummary | ApplySummary | ImportSummary | string;
   potential_impact?: {
     banner?: { level: string; title: string; description: string };
     summary?: string;
@@ -115,10 +131,31 @@ export interface TerraformReport {
   unreconciled_drift?: DriftUnreconciled[];
   whitelisted_exceptions?: DriftException[];
   execution_summary?: string;
-  resource_details?: ImportResourceDetail[];
+  imported_resources?: ImportedResource[];
+  excluded_resources?: ExcludedResource[];
+  state_alignment?: string;
   recommendations?: string[];
   resource_changes?: ApplyResourceChange[];
   [key: string]: unknown;
+}
+
+// ─── Compliance Check ───────────────────────────────────────
+
+export type ComplianceSeverity = "info" | "warning" | "error" | "critical";
+
+export interface ComplianceViolation {
+  rule_id: string;
+  severity: ComplianceSeverity;
+  resource?: string | null;
+  message: string;
+  suggested_fix?: string | null;
+}
+
+export interface ComplianceReport {
+  passed: boolean;
+  violations?: ComplianceViolation[];
+  summary?: string;
+  checked_rules?: string[];
 }
 
 // ─── Events ─────────────────────────────────────────────────

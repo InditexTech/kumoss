@@ -4,7 +4,7 @@
 
 """Unit tests for the Terraform state backend the core writes.
 
-Nebula's own object store holds the state, so the override rendered
+Kumoss's own object store holds the state, so the override rendered
 into each workspace follows ``storage.provider``: the ``s3`` backend
 against a custom endpoint for RUSTFS, plain ``s3`` for AWS, ``azurerm``
 for a storage account. These cover the three renderings, the static
@@ -19,16 +19,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from src.infrastructure.terraform.backend import (
-    OVERRIDE_FILENAME,
-    TerraformBackend,
-)
+from src.infrastructure.terraform.backend import TerraformBackend
+from src.shared.config import system_config
 from src.shared.config.system_config import StorageConfig
 from src.shared.constants import ObjectStorageProvider
 
 
 PROJECT_ID = "a" * 64
-STATE_BUCKET = "nebula-terraform-state"
+STATE_BUCKET = "kumoss-terraform-state"
 
 _AK_ENV = "TEST_BACKEND_ACCESS_KEY"
 _SK_ENV = "TEST_BACKEND_SECRET_KEY"
@@ -68,8 +66,8 @@ def _azure_config(**overrides) -> StorageConfig:
             **{
                 "provider": ObjectStorageProvider.STORAGE_ACCOUNT,
                 "terraform_state_bucket": "tfstate",
-                "endpoint_url": "https://nebulaacct.blob.core.windows.net",
-                "public_endpoint_url": "https://nebulaacct.blob.core.windows.net",
+                "endpoint_url": "https://kumossacct.blob.core.windows.net",
+                "public_endpoint_url": "https://kumossacct.blob.core.windows.net",
                 "account_key_env": _ACCOUNT_KEY_ENV,
                 **overrides,
             }
@@ -87,7 +85,9 @@ class TestStateKey(unittest.TestCase):
         """The merge semantics this relies on come from the `_override`
         suffix; any other name would be a second backend block rather
         than a replacement."""
-        self.assertTrue(OVERRIDE_FILENAME.endswith("_override.tf"))
+        self.assertTrue(
+            system_config.paths.backend_override_filename.endswith("_override.tf")
+        )
 
 
 class TestRustfsRendering(unittest.TestCase):
@@ -147,7 +147,7 @@ class TestS3Rendering(unittest.TestCase):
         """A deployment on an instance profile or IRSA configures no
         keys; the backend then resolves them the way the AWS SDK does."""
         rendered = self._render({})
-        self.assertIn('bucket = "nebula-terraform-state"', rendered)
+        self.assertIn('bucket = "kumoss-terraform-state"', rendered)
         self.assertNotIn("access_key", rendered)
         self.assertNotIn("secret_key", rendered)
 
@@ -157,7 +157,7 @@ class TestStorageAccountRendering(unittest.TestCase):
         with patch.dict(os.environ, {_ACCOUNT_KEY_ENV: "azure-key"}):
             rendered = TerraformBackend(PROJECT_ID, _azure_config()).render() or ""
         self.assertIn('backend "azurerm"', rendered)
-        self.assertIn('storage_account_name = "nebulaacct"', rendered)
+        self.assertIn('storage_account_name = "kumossacct"', rendered)
         self.assertIn('container_name       = "tfstate"', rendered)
         self.assertIn(
             f'key                  = "{PROJECT_ID}/terraform.tfstate"', rendered
@@ -194,7 +194,7 @@ class TestApply(unittest.TestCase):
 
         self.assertTrue(backend.apply(self.workspace))
 
-        override = self.workspace / OVERRIDE_FILENAME
+        override = self.workspace / system_config.paths.backend_override_filename
         self.assertEqual(override.read_text(encoding="utf-8"), backend.render())
 
     def test_it_rewrites_a_stale_override(self):
@@ -205,7 +205,8 @@ class TestApply(unittest.TestCase):
         _ = TerraformBackend(other, config).apply(self.workspace)
         _ = TerraformBackend(PROJECT_ID, config).apply(self.workspace)
 
-        rendered = (self.workspace / OVERRIDE_FILENAME).read_text(encoding="utf-8")
+        override = self.workspace / system_config.paths.backend_override_filename
+        rendered = override.read_text(encoding="utf-8")
         self.assertIn(PROJECT_ID, rendered)
         self.assertNotIn(other, rendered)
 

@@ -14,5 +14,5 @@ export { default as ProviderIcon } from "./ProviderIcon/ProviderIcon";
 export { default as SideSheet } from "./SideSheet/SideSheet";
 export { default as StatusBadge } from "./StatusBadge/StatusBadge";
 export { default as SupportButton } from "./SupportButton/SupportButton";
-export { SessionsTable, formatDate, truncate } from "./SessionsTable";
+export { SessionsTable, truncate } from "./SessionsTable";
 export type { FilterOption, FilterConfig, ColumnDef, FetchParams, SearchFieldConfig } from "./SessionsTable";

@@ -2,18 +2,35 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Code-change artifacts come in two shapes (tagged new_file=true/false on
-// the backend): updated files carry unified `git diff` output, new files
-// carry the raw file content with no diff at all. The metadata tag isn't
-// exposed through the presigned URL, so the shape is detected from the
-// content itself.
+// Code-change artifacts come in two shapes: updated files carry unified
+// `git diff` output, new files carry the raw file content with no diff at
+// all. The backend tags each with `new_file=true/false` metadata and the
+// store serves that back as a response header (see `readIsNewFile` in
+// services/core/sessions.ts), so the shape is read rather than inferred —
+// but only when the store's CORS rules expose that header. `isGitDiff`
+// covers the case where they do not.
 
 export interface ParsedGitDiff {
   original: string;
   modified: string;
 }
 
-/** True when `content` is unified git-diff output rather than raw file content. */
+/** One stored code-change artifact: its body, and the shape the store declared. */
+export interface CodeChangeArtifact {
+  text: string;
+  isNewFile: boolean;
+}
+
+/**
+ * True when `content` is unified git-diff output rather than raw file content.
+ *
+ * A fallback, never the primary: `new_file` metadata wins whenever the
+ * store exposes it. Sniffing cannot distinguish a file created in-session
+ * from a tracked file that was added — both bodies open `diff --git` with
+ * `new file mode` — which is precisely the ambiguity the metadata removed.
+ * It is still far better than a fixed guess, so it carries deployments
+ * whose bucket CORS rules predate the `new_file` header.
+ */
 export function isGitDiff(content: string): boolean {
   return (
     content.startsWith("diff --git ") &&
@@ -59,8 +76,8 @@ export function parseGitDiff(content: string): ParsedGitDiff {
 
 /**
  * Wrap full before/after texts as a single-hunk unified diff. Only ever
- * read back through isGitDiff/parseGitDiff (which rebuild the two sides
- * for Monaco to re-diff), so hunk granularity doesn't matter.
+ * read back through parseGitDiff (which rebuilds the two sides for Monaco
+ * to re-diff), so hunk granularity doesn't matter.
  */
 export function buildUnifiedDiff(
   fileName: string,
@@ -88,24 +105,32 @@ export function buildUnifiedDiff(
  * artifact is a full snapshot of a file created in-session: it supersedes
  * anything before it, and diffs chained onto it stay "new file" (raw), as
  * the whole result is an addition relative to the session base.
+ *
+ * The result carries its own shape: a composed diff is synthesised by
+ * buildUnifiedDiff, so nothing downstream could recover it otherwise.
  */
 export function composeFileArtifacts(
   fileName: string,
-  contents: string[],
-): string {
-  const last = contents[contents.length - 1];
-  if (contents.length <= 1) return last ?? "";
-  if (!isGitDiff(last)) return last;
+  artifacts: readonly CodeChangeArtifact[],
+): CodeChangeArtifact {
+  const last = artifacts[artifacts.length - 1];
+  if (artifacts.length <= 1) return last ?? { text: "", isNewFile: false };
+  if (last.isNewFile) return last;
 
   // First artifact of the unbroken diff chain that ends at `last`.
-  let start = contents.length - 1;
-  while (start > 0 && isGitDiff(contents[start - 1])) start--;
+  let start = artifacts.length - 1;
+  while (start > 0 && !artifacts[start - 1].isNewFile) start--;
 
-  const { modified } = parseGitDiff(last);
-  if (start > 0) return modified; // chain grows out of a raw snapshot
-  return buildUnifiedDiff(
-    fileName,
-    parseGitDiff(contents[start]).original,
-    modified,
-  );
+  const { modified } = parseGitDiff(last.text);
+  // Chain grows out of a raw snapshot: the whole result is an addition
+  // relative to the session base, so it stays raw.
+  if (start > 0) return { text: modified, isNewFile: true };
+  return {
+    text: buildUnifiedDiff(
+      fileName,
+      parseGitDiff(artifacts[start].text).original,
+      modified,
+    ),
+    isNewFile: false,
+  };
 }

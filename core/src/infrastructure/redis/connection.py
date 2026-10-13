@@ -45,7 +45,7 @@ class RedisConnectionManager:
                 socket_timeout=cfg.socket_timeout,
                 retry=Retry(ExponentialBackoff(cap=0.5, base=0.05), retries=2),
                 retry_on_error=[RedisConnectionError, RedisTimeoutError],
-                client_name="nebula-core",
+                client_name="kumoss-core",
             )
             self._client = Redis(connection_pool=self._pool)
 

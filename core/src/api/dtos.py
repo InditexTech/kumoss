@@ -23,6 +23,7 @@ class AuthConfigResponse(BaseModel):
     client_id: str
     audience: str
     scope: str
+    artifact_metadata_header_prefix: str
 
 
 class UserMeResponse(BaseModel):

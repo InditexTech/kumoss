@@ -21,7 +21,7 @@ from src.infrastructure.auth.oidc import OidcTokenValidator
 from src.infrastructure.exceptions import TokenValidationError
 
 _ISSUER = "https://idp.test"
-_CLIENT_ID = "nebula-web"
+_CLIENT_ID = "kumoss-web"
 _KID = "test-kid"
 
 
@@ -119,8 +119,8 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.subject, "user-1")
 
     async def test_configured_audience_overrides_client_id(self):
-        validator = self._validator(audience="api://nebula")
-        claims = await validator.validate(self._token(aud="api://nebula"))
+        validator = self._validator(audience="api://kumoss")
+        claims = await validator.validate(self._token(aud="api://kumoss"))
         self.assertEqual(claims.subject, "user-1")
         with self.assertRaises(TokenValidationError):
             await validator.validate(self._token(aud=_CLIENT_ID))

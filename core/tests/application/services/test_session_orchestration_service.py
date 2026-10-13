@@ -53,7 +53,7 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
         self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
-        self.assertTrue(ctx.branch_name.startswith("Nebula/"))
+        self.assertTrue(ctx.branch_name.startswith("Kumoss/"))
         owner = await DatabaseService.get_session_owner(ctx.id)
         self.assertEqual(owner, self.user_pk)
 

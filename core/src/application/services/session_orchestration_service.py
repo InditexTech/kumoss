@@ -25,7 +25,7 @@ class SessionOrchestrationService:
 
     def __new_branch_name(self) -> str:
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-        return f"Nebula/{ts}"
+        return f"Kumoss/{ts}"
 
     async def resolve(
         self,

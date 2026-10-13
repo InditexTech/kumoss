@@ -41,7 +41,7 @@ def test_log_level_is_applied_to_the_root_logger() -> None:
 
 def test_from_env_reads_values(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SLACK_WEBHOOK_URL", _WEBHOOK)
-    monkeypatch.setenv("NEBULA_NOTIFICATIONS_TOKEN", "t0k3n")
+    monkeypatch.setenv("KUMOSS_NOTIFICATIONS_TOKEN", "t0k3n")
     monkeypatch.setenv("LOG_LEVEL", "debug")
     config = Config.from_env()
     assert config.slack_webhook_url == _WEBHOOK

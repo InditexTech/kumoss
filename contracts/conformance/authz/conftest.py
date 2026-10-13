@@ -14,12 +14,12 @@ import pytest
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--service-url",
-        default=os.environ.get("NEBULA_AUTHZ_URL"),
-        help="Base URL of the authz service to test (or set NEBULA_AUTHZ_URL).",
+        default=os.environ.get("KUMOSS_AUTHZ_URL"),
+        help="Base URL of the authz service to test (or set KUMOSS_AUTHZ_URL).",
     )
     parser.addoption(
         "--service-token",
-        default=os.environ.get("NEBULA_AUTHZ_TOKEN", ""),
+        default=os.environ.get("KUMOSS_AUTHZ_TOKEN", ""),
         help="Bearer token to include on requests, if the service requires auth.",
     )
 
@@ -29,7 +29,7 @@ def service_url(pytestconfig: pytest.Config) -> str:
     url = pytestconfig.getoption("--service-url")
     if not url:
         raise pytest.UsageError(
-            "--service-url is required (or set NEBULA_AUTHZ_URL). "
+            "--service-url is required (or set KUMOSS_AUTHZ_URL). "
             "Point it at the implementation you want to verify."
         )
     return url

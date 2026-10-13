@@ -48,9 +48,9 @@ def configure_git_credentials(home: Path | None = None) -> bool:
             + f"(provider={'set' if provider else 'unset'}, "
             + f"user={'set' if user else 'unset'}, "
             + f"token={'set' if token else 'unset'}). "
-            + "`git push` will fail unless the operator provides credentials "
-            + "via mounted SSH keys, a pre-populated ~/.git-credentials, or a "
-            + "PAT-embedded repo_uri."
+            + "`git push` will fail unless the operator provides a "
+            + "pre-populated ~/.git-credentials, and pull requests cannot be "
+            + "opened or merged."
         )
         return False
 

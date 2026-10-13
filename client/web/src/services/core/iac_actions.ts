@@ -6,6 +6,7 @@ import { apiFetch } from "@/services/api";
 import {
   GenerateRequest,
   DriftRequest,
+  ImportRequest,
   ApplyRequest,
   IacSessionResponse,
 } from "@/types/api";
@@ -27,6 +28,16 @@ export async function driftDetectionRemediation(
   request: DriftRequest,
 ): Promise<IacSessionResponse> {
   return apiFetch<IacSessionResponse>(`${BASE}/drift`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
+/** POST /v1/iac/import — Import unmanaged cloud resources */
+export async function importInfrastructure(
+  request: ImportRequest,
+): Promise<IacSessionResponse> {
+  return apiFetch<IacSessionResponse>(`${BASE}/import`, {
     method: "POST",
     body: JSON.stringify(request),
   });

@@ -81,15 +81,16 @@ export function useInitialInformation() {
   // ── The action your component calls ──────────────────────────
   const run = useCallback(async (params: InitialInfoParams) => {
     abortRef.current?.abort();
-    abortRef.current = new AbortController();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     dispatch({ type: "START" });
 
     try {
-      const result = await runInitialInfoWorkflow(
-        params,
-        abortRef.current.signal,
-      );
+      const result = await runInitialInfoWorkflow(params, controller.signal);
+      // The workflow does not hand the signal to its fetch, so a
+      // superseded or reset run still resolves; drop its result.
+      if (controller.signal.aborted) return;
 
       if (result.ok) {
         dispatch({ type: "SUCCESS", data: result });
@@ -113,7 +114,12 @@ export function useInitialInformation() {
     }
   }, []);
 
-  const reset = useCallback(() => dispatch({ type: "RESET" }), []);
+  // Abort too: a request still in flight would otherwise land its result
+  // on the state this just cleared.
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    dispatch({ type: "RESET" });
+  }, []);
 
   return { state, run, reset } as const;
 }

@@ -5,7 +5,7 @@
 import blue from "./blue";
 import white from "./white";
 
-const animations: Record<string, Record<string, unknown>> = {
+const animations: Record<string, Record<string, object>> = {
   blue,
   white,
 };

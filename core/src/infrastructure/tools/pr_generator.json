@@ -2,6 +2,8 @@
   {
     "name": "generate_pull_request",
     "description": "Reports the final pull request title and description generated from the user's request and the conversation history of the IaC session. This tool must be called as the final action; its parameters are used verbatim to open the pull request on the git provider.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

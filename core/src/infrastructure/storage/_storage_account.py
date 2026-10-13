@@ -44,6 +44,8 @@ class StorageAccountObjectStorage(IObjectStorage):
     in emulator-style split setups.
     """
 
+    _METADATA_HEADER_PREFIX = "x-ms-meta-"
+
     def __init__(
         self,
         *,
@@ -152,6 +154,11 @@ class StorageAccountObjectStorage(IObjectStorage):
             pass
 
     # --- port surface --------------------------------------------------------
+
+    @property
+    @override
+    def metadata_header_prefix(self) -> str:
+        return self._METADATA_HEADER_PREFIX
 
     @override
     async def ensure_bucket(self) -> None:

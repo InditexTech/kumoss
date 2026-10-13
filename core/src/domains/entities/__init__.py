@@ -6,10 +6,12 @@ from .session import SessionContext
 from .history import History
 from .document import Document
 from .user import User
+from .tool_loop_state import ToolLoopState
 
 __all__ = [
     "SessionContext",
     "History",
     "Document",
     "User",
+    "ToolLoopState",
 ]

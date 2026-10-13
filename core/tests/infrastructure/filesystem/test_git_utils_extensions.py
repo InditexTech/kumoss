@@ -13,8 +13,11 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+from src.infrastructure.exceptions import CliTimeoutError, RepositoryUnreachable
 from src.infrastructure.filesystem import GitUtils
+from src.infrastructure.filesystem.cli import Cli
 from src.shared.constants import GitProviderName
 
 _TMP_DIR = Path(tempfile.gettempdir())
@@ -70,6 +73,55 @@ class TestLsRemote(unittest.IsolatedAsyncioTestCase):
         result = await git.ls_remote()
         self.assertFalse(result)
 
+    async def test_returns_false_when_the_remote_times_out(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=_TMP_DIR)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            result = await git.ls_remote()
+        self.assertFalse(result)
+
+
+class TestRemoteErrorsAreMasked(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.bare, self.uri = _init_bare_remote(self.tmp)
+
+    async def asyncTearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    async def test_default_branch_lookup_on_a_bogus_remote_hides_git_output(self):
+        git = GitUtils(
+            uri="file:///no/such/repo.git", git_provider=_PROVIDER, cwd=_TMP_DIR
+        )
+        with self.assertRaises(RepositoryUnreachable) as ctx:
+            _ = await git.get_default_branch(ls_remote=True)
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertEqual(
+            ctx.exception.message,
+            "Repository is not reachable or access was denied.",
+        )
+        self.assertTrue(git.error_msg)
+
+    async def test_default_branch_lookup_timeout_is_masked(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=_TMP_DIR)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            with self.assertRaises(RepositoryUnreachable) as ctx:
+                _ = await git.get_default_branch(ls_remote=True)
+        self.assertEqual(ctx.exception.error_code, 502)
+
+    async def test_clone_timeout_returns_false(self):
+        git = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=self.tmp)
+        with patch.object(
+            Cli, "execute", AsyncMock(side_effect=CliTimeoutError("timed out", 408))
+        ):
+            ok = await git.clone_repository(
+                repo_url=self.uri, repository_name="timedout"
+            )
+        self.assertFalse(ok)
+
 
 class TestCloneRepositoryExtensions(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -120,7 +172,7 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
 
         clone_dir = self.clone_root / clone_name
         subprocess.check_call(
-            ["git", "-C", str(clone_dir), "checkout", "-b", "Nebula/push-branch"]
+            ["git", "-C", str(clone_dir), "checkout", "-b", "Kumoss/push-branch"]
         )
         # Make a commit so there's something to push
         (clone_dir / "new.txt").write_text("content\n")
@@ -141,14 +193,14 @@ class TestPushBranch(unittest.IsolatedAsyncioTestCase):
         )
 
         git_push = GitUtils(uri=self.uri, git_provider=_PROVIDER, cwd=clone_dir)
-        pushed = await git_push.push_branch("Nebula/push-branch")
+        pushed = await git_push.push_branch("Kumoss/push-branch")
         self.assertTrue(pushed)
 
         # Verify the branch exists on the bare remote
         out = subprocess.check_output(
-            ["git", "ls-remote", "--heads", self.uri, "Nebula/push-branch"]
+            ["git", "ls-remote", "--heads", self.uri, "Kumoss/push-branch"]
         ).decode()
-        self.assertIn("Nebula/push-branch", out)
+        self.assertIn("Kumoss/push-branch", out)
 
     async def test_push_branch_returns_false_when_remote_missing(self):
         # Clone with no remote configured -> push should fail.

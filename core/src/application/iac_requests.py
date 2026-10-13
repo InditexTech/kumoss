@@ -17,18 +17,28 @@ from pydantic import (
 )
 
 from src.shared.constants import TerraformProvider
+from src.shared.utils.urls import is_https_url
 
 
-def _reject_embedded_credentials(repo_uri: str) -> str:
-    """Reject repository URIs that carry a secret in their userinfo.
+def _validate_repo_uri(repo_uri: str) -> str:
+    """Accept only https repository URIs that carry no secret in their userinfo.
+
+    Any other transport (SSH, `git://`, `http://`, `file://`, a local path)
+    is rejected: pull requests are opened and merged over the provider's
+    HTTPS REST API, and the core's git client is set up for HTTPS only.
 
     A userinfo *username* is not a secret and is passed through untouched:
-    Azure DevOps' portal clone URL carries an `<org>@` prefix and SSH URIs
-    carry `git@`. Only a password component rejects the URI, and it counts as
-    present even when empty (`user:@host`) — that shape is a credential the
-    user failed to paste, not a bare URI.
+    Azure DevOps' portal clone URL carries an `<org>@` prefix. Only a
+    password component rejects the URI, and it counts as present even when
+    empty (`user:@host`) — that shape is a credential the user failed to
+    paste, not a bare URI.
     """
     repo_uri = repo_uri.strip()
+    if not is_https_url(repo_uri):
+        raise ValueError(
+            "repo_uri must be an https:// URL (e.g. `https://github.com/org/repo.git`); "
+            "SSH, git://, http://, file:// and local paths are not supported."
+        )
     parsed = urlparse(repo_uri)
     if parsed.password is not None:
         raise ValueError(
@@ -38,7 +48,7 @@ def _reject_embedded_credentials(repo_uri: str) -> str:
     return repo_uri
 
 
-RepoUri = Annotated[str, AfterValidator(_reject_embedded_credentials)]
+RepoUri = Annotated[str, AfterValidator(_validate_repo_uri)]
 
 
 class SessionRequest(BaseModel):
@@ -65,7 +75,7 @@ class BaseIacRequest(BaseModel):
         RepoUri | None,
         Field(
             description=(
-                "Repository URI (first call only). Mutually exclusive with session_id. "
+                "HTTPS repository URI (first call only). Mutually exclusive with session_id. "
                 "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
                 "but must not embed a password or token."
             ),

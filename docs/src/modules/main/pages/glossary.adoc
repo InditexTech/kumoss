@@ -1,9 +1,9 @@
 = Glossary
-:description: Terms and abbreviations used across the Nebula documentation.
+:description: Terms and abbreviations used across the Kumoss documentation.
 
 This glossary lists the terms, abbreviations, and phrases used across the
-Nebula documentation, together with their definitions. Use this terminology
-for clarity and consistency when discussing Nebula.
+Kumoss documentation, together with their definitions. Use this terminology
+for clarity and consistency when discussing Kumoss.
 
 == Compliance audit
 

@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/server";
 import userEvent from "@testing-library/user-event";
 import React, { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
@@ -58,6 +60,19 @@ function renderPr(
   return { ...renderWithProviders(ui, { withNotifications: true }), props: defaultProps };
 }
 
+async function openWhy(user = userEvent.setup()) {
+  await user.click(screen.getByRole("button", { name: /^Why/ }));
+  return user;
+}
+
+function lockOnServer(isBlocked: boolean) {
+  server.use(
+    http.get("/api/v1/sessions", () =>
+      HttpResponse.json({ is_blocked: isBlocked }),
+    ),
+  );
+}
+
 describe("PrApprovalView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -81,14 +96,15 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Why")).not.toBeInTheDocument();
     expect(screen.getByText("Back to Report")).toBeInTheDocument();
     expect(screen.getByText("Contact Team")).toBeInTheDocument();
     expect(screen.queryByText("Approve PR and Apply")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
   });
 
-  it("blocked state shows the report's impact banner description", () => {
+  it("blocked state lists the high impact reason", async () => {
     renderPr("confirming", {
       sessionPatch: {
         is_blocked: true,
@@ -99,9 +115,125 @@ describe("PrApprovalView", () => {
       prPatch: { number: 42 },
     });
 
-    expect(screen.getByText("High Impact Deployment")).toBeInTheDocument();
+    expect(screen.queryByText("Destroys production resources")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Why/ })).toHaveTextContent("High impact");
+    await openWhy();
+
     expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.queryByText("Compliance")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirm and Apply")).not.toBeInTheDocument();
+  });
+
+  it("blocked state lists only the blocking violations until expanded", async () => {
+    const user = userEvent.setup();
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: {
+          passed: false,
+          summary: "Public ingress is not allowed",
+          violations: [
+            { rule_id: "TAG-002", severity: "warning", message: "Missing owner tag" },
+            {
+              rule_id: "NET-001",
+              severity: "critical",
+              resource: "azurerm_network_security_rule.ssh",
+              message: "0.0.0.0/0 on port 22",
+              suggested_fix: "Restrict the source address prefix",
+            },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    const why = screen.getByRole("button", { name: /^Why/ });
+    expect(why).toHaveAttribute("aria-expanded", "false");
+    expect(why).toHaveTextContent("1 blocking violation");
+    expect(screen.queryByText("NET-001")).not.toBeInTheDocument();
+    await openWhy(user);
+    expect(why).toHaveAttribute("aria-expanded", "true");
+
+    expect(screen.getByText("Compliance")).toBeInTheDocument();
+    expect(screen.queryByText("High impact")).not.toBeInTheDocument();
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+    expect(screen.getByText("azurerm_network_security_rule.ssh")).toBeInTheDocument();
+    expect(screen.getByText("0.0.0.0/0 on port 22")).toBeInTheDocument();
+    expect(screen.queryByText("TAG-002")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Suggested fix: Restrict the source address prefix"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show all findings (2)" }));
+
+    expect(screen.getByText("TAG-002")).toBeInTheDocument();
+    expect(
+      screen.getByText("Suggested fix: Restrict the source address prefix"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide findings" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("blocked state omits the toggle when every finding is already shown", async () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: {
+          passed: false,
+          violations: [
+            { rule_id: "NET-001", severity: "critical", message: "0.0.0.0/0 on port 22" },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    await openWhy();
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Show all findings/ })).not.toBeInTheDocument();
+  });
+
+  it("blocked state lists both reasons when the plan is high impact and compliance failed", async () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        terraform_report: {
+          potential_impact: { banner: { level: "high", title: "Major", description: "Destroys production resources" } },
+        },
+        compliance_report: {
+          passed: false,
+          summary: "Public ingress is not allowed",
+          violations: [
+            { rule_id: "NET-001", severity: "critical", message: "0.0.0.0/0 on port 22" },
+          ],
+        },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Why/ })).toHaveTextContent(
+      "High impact · 1 blocking violation",
+    );
+    await openWhy();
+    expect(screen.getByText("Destroys production resources")).toBeInTheDocument();
+    expect(screen.getByText("NET-001")).toBeInTheDocument();
+  });
+
+  it("blocked state hides a passed compliance check", () => {
+    renderPr("initial", {
+      sessionPatch: {
+        is_blocked: true,
+        compliance_report: { passed: true, summary: "All rules satisfied", violations: [] },
+      },
+      prPatch: { number: 42 },
+    });
+
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+    expect(screen.queryByText("Compliance")).not.toBeInTheDocument();
+    expect(screen.queryByText("All rules satisfied")).not.toBeInTheDocument();
   });
 
   it("calls onBackToReport when Back to Report clicked in blocked state", async () => {
@@ -173,7 +305,69 @@ describe("PrApprovalView", () => {
 
     await user.click(screen.getByText("Confirm and Apply"));
     expect(mockMergePr).toHaveBeenCalled();
-    expect(props.onStepChange).toHaveBeenCalledWith("initial");
+    await waitFor(() => expect(props.onStepChange).toHaveBeenCalledWith("initial"));
+    expect(screen.getByText(/Failed to approve pull request/)).toBeInTheDocument();
+  });
+
+  it("switches to the blocked view when the merge fails on a session locked meanwhile", async () => {
+    const user = userEvent.setup();
+    mockMergePr.mockRejectedValue(new Error("Session is blocked"));
+    lockOnServer(true);
+    renderPr("confirming", {
+      sessionPatch: { uuid: "sess-1", is_blocked: false },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Confirm and Apply"));
+
+    expect(await screen.findByText("Deployment Blocked")).toBeInTheDocument();
+    expect(
+      screen.getByText("This deployment was blocked before the merge. A specialist will review it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to approve pull request/)).not.toBeInTheDocument();
+  });
+
+  it("Check again leaves the blocked view once an admin unlocked the session", async () => {
+    const user = userEvent.setup();
+    lockOnServer(false);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Check again"));
+
+    expect(await screen.findByText("Approve PR and Apply")).toBeInTheDocument();
+    expect(screen.queryByText("Deployment Blocked")).not.toBeInTheDocument();
+  });
+
+  it("Check again warns when the session is still locked", async () => {
+    const user = userEvent.setup();
+    lockOnServer(true);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+
+    await user.click(screen.getByText("Check again"));
+
+    expect(await screen.findByText("The deployment is still blocked.")).toBeInTheDocument();
+    expect(screen.getByText("Deployment Blocked")).toBeInTheDocument();
+  });
+
+  it("re-reads the lock when the window regains focus while blocked", async () => {
+    lockOnServer(false);
+    renderPr("initial", {
+      sessionPatch: { uuid: "sess-1", is_blocked: true },
+      prPatch: { number: 42 },
+    });
+    expect(await screen.findByText("Deployment Blocked")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+
+    expect(await screen.findByText("Approve PR and Apply")).toBeInTheDocument();
   });
 
   it("Approve button is disabled without prDetails.number", () => {

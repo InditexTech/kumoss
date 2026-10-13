@@ -1,7 +1,7 @@
 = HTTP APIs
-:description: The two HTTP surfaces in a Nebula deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
+:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
 
-A Nebula deployment has two kinds of HTTP surface, and they are
+A Kumoss deployment has two kinds of HTTP surface, and they are
 documented from two different sources.
 
 The *core API* is the browser-facing orchestration API. It is a FastAPI
@@ -63,7 +63,7 @@ the raw OpenAPI document at `/api/openapi.json`.
 
 == Where the sidecar contracts live
 
-`contracts/` is the source of truth for what every Nebula service —
+`contracts/` is the source of truth for what every Kumoss service —
 including third-party and enterprise implementations — must satisfy:
 
 * `contracts/openapi/<service>.v1.yaml` — one hand-written OpenAPI 3.1
@@ -112,7 +112,7 @@ sidecar clients].
 == Next steps
 
 * xref:main:reference/api/core.adoc[Core API] for the routes a client
-  of Nebula calls.
+  of Kumoss calls.
 * xref:main:guides/deploy-to-production.adoc[Deploy to production] for
   which sidecars to enable, replace, or leave off.
 * xref:main:reference/configuration.adoc[Configuration] for the

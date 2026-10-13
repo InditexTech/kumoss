@@ -11,7 +11,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { useWizardTerraform } from "./useWizardTerraform";
 import { invalidateSessionsCache } from "@/services/core/sessionsCache";
 import type { SessionOutcome } from "@/services/workflows/session_outcome";
-import { makeSessionDetail, makeRound, makeStatus } from "@/mocks/state";
+import { makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 
 vi.mock("@/services/core/sessionsCache", () => ({
   invalidateSessionsCache: vi.fn(),
@@ -38,8 +38,8 @@ function makeResultsOutcome(
     detail,
     round: detail.rounds[0],
     report: null,
+    compliance: null,
     code: "<Terraform_Plan>\nplan output\n</Terraform_Plan>\n<main.tf>\nresource {}\n</main.tf>",
-    targets: ["azurerm_resource_group.main"],
     ...overrides,
   };
 }
@@ -66,7 +66,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     expect(session.uuid).toBe("sess-1");
     expect(session.code).toContain("<main.tf>");
     expect(session.provider).toBe("azure");
-    expect(session.workspace?.branch).toBe("nebula/sess-1");
+    expect(session.workspace?.branch).toBe("kumoss/sess-1");
     expect(session.is_blocked).toBe(false);
     // Rebuilt from {user, assistant} turns, plus the appended summary
     expect(session.history?.[0]).toEqual({
@@ -248,7 +248,7 @@ describe("useWizardTerraform — handleOutcome", () => {
 
     expect(result.current.session.session.workspace).toEqual({
       uri: "https://dev.azure.com/org/project/_git/repo",
-      branch: "nebula/sess-1",
+      branch: "kumoss/sess-1",
       root_path: "environments/dev",
     });
   });

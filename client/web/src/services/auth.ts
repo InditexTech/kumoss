@@ -21,6 +21,10 @@ export function isOidcEnabled(): boolean {
   return (authConfig?.issuer_url.trim() ?? "") !== "";
 }
 
+export function metadataHeaderPrefix(): string {
+  return authConfig?.artifact_metadata_header_prefix || "x-amz-meta-";
+}
+
 /** State carried through the IdP round trip via `signinRedirect({ state })`. */
 export interface SigninState {
   returnTo?: string;
@@ -41,11 +45,7 @@ export function buildOidcConfig(): AuthProviderProps {
     // requested explicitly; harmless elsewhere.
     ...(audience ? { extraQueryParams: { audience } } : {}),
     onSigninCallback: () => {
-      window.history.replaceState(
-        {},
-        document.title,
-        window.location.pathname,
-      );
+      window.history.replaceState({}, document.title, window.location.pathname);
     },
   };
 }

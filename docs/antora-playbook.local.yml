@@ -31,7 +31,7 @@
 #
 
 site:
-  title: Nebula
+  title: Kumoss
   # Set to the dev server's own origin so Antora also generates 404.html
   # (@antora/page-composer only does this when site.url is set) — docouture dev
   # (src/lib/dev-server.ts) then has a real 404 page to serve instead of a
@@ -98,4 +98,5 @@ antora:
   extensions:
     # Same as the real antora-playbook.yml — see its own comment and the
     # docs-internals skill's reference/antora-extensions.md.
-    - '@inditextech/docouture-antora-extensions'
+    - require: '@inditextech/docouture-antora-extensions'
+      changelog_path: ../CHANGELOG.md

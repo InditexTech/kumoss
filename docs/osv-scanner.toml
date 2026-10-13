@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-01-05
+reason = "braces <= 3.0.3 (no fixed release yet): stack-exhaustion DoS from deeply nested patterns. Dev-only, reached through antora and asciidoctor at docs build time on repository-controlled globs; never shipped or exposed to untrusted input."

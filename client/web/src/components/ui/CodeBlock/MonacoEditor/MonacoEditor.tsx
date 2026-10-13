@@ -12,13 +12,13 @@ import type {
   DiffOnMount,
 } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/language/json/json.worker?worker";
 import ThumbUpAltOutlined from "@mui/icons-material/ThumbUpAltOutlined";
 import ThumbDownAltOutlined from "@mui/icons-material/ThumbDownAltOutlined";
 import { useShell } from "@/contexts/ShellContext";
 import { registerHclLanguage } from "@/utils/hclTokenizer";
-import { isGitDiff, parseGitDiff } from "@/utils/diffUtils";
+import { parseGitDiff } from "@/utils/diffUtils";
 import { STORAGE_KEYS, THEME } from "@/constants";
 import { getLocalItem } from "@/services";
 import EditorSkeleton from "../EditorSkeleton";
@@ -57,7 +57,7 @@ let themesRegistered = false;
 function defineCustomThemes(monacoInstance: typeof monaco): void {
   if (themesRegistered) return;
 
-  monacoInstance.editor.defineTheme("nebula-light", {
+  monacoInstance.editor.defineTheme("kumoss-light", {
     base: "vs",
     inherit: true,
     rules: [],
@@ -68,7 +68,7 @@ function defineCustomThemes(monacoInstance: typeof monaco): void {
     },
   });
 
-  monacoInstance.editor.defineTheme("nebula-dark", {
+  monacoInstance.editor.defineTheme("kumoss-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [],
@@ -145,6 +145,8 @@ interface MonacoEditorProps {
   onChange?: OnChange;
   options?: editor.IStandaloneEditorConstructionOptions;
   files?: Record<string, string> | null;
+  /** Names in `files` holding raw content rather than `git diff` output. */
+  newFiles?: ReadonlySet<string> | null;
   activeFile?: string | null;
   onFileChange?: ((fileName: string) => void) | null;
   stickyScroll?: boolean;
@@ -161,6 +163,7 @@ const MonacoEditor = ({
   onChange,
   options = {},
   files = null,
+  newFiles = null,
   activeFile = null,
   onFileChange = null,
   stickyScroll = false,
@@ -170,6 +173,8 @@ const MonacoEditor = ({
   ensureMonacoConfigured();
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const diffEditorRef = useRef<editor.IStandaloneDiffEditor | null>(null);
+  const [diffEditorMounts, setDiffEditorMounts] = useState(0);
   const monacoRef = useRef<typeof monaco | null>(null);
   const { isDark } = useShell();
 
@@ -192,15 +197,23 @@ const MonacoEditor = ({
   const showTabs = files && fileNames.length > 1;
 
   // Updated-file artifacts hold `git diff` output; new files hold raw
-  // content (backend tags them new_file=true/false). Diffs render in the
-  // diff editor; new files render whole-line "added" decorations — a diff
-  // against an empty original would show a spurious deleted-line marker.
+  // content. Which is which is object metadata the backend wrote
+  // (`new_file`), carried down as `newFiles` — so the shape is the input
+  // here and the diff is derived from it, not the other way round. Diffs
+  // render in the diff editor; new files render whole-line "added"
+  // decorations, because a diff against an empty original would show a
+  // spurious deleted-line marker.
   const activeContent = files && activeFile ? files[activeFile] : undefined;
+  const activeIsNewFile =
+    activeContent !== undefined &&
+    activeFile !== null &&
+    (newFiles?.has(activeFile) ?? false);
   const activeDiff =
-    activeContent !== undefined && isGitDiff(activeContent)
+    activeContent !== undefined && !activeIsNewFile
       ? parseGitDiff(activeContent)
       : null;
-  const activeIsNewFile = activeContent !== undefined && activeDiff === null;
+  const diffOriginal = activeDiff?.original;
+  const diffModified = activeDiff?.modified;
   const activeLanguage = getMonacoLanguage(
     getLanguageFromFileName(activeFile ?? ""),
   );
@@ -246,10 +259,25 @@ const MonacoEditor = ({
     if (files) decorateAsNewFile(editorInstance, activeIsNewFile);
   };
 
-  const handleDiffEditorDidMount: DiffOnMount = (_editorInstance, monaco) => {
+  useEffect(() => {
+    const model = diffEditorRef.current?.getModel();
+    if (!model || diffOriginal === undefined || diffModified === undefined) {
+      return;
+    }
+    if (model.original.getValue() !== diffOriginal) {
+      model.original.setValue(diffOriginal);
+    }
+    if (model.modified.getValue() !== diffModified) {
+      model.modified.setValue(diffModified);
+    }
+  }, [diffOriginal, diffModified, diffEditorMounts]);
+
+  const handleDiffEditorDidMount: DiffOnMount = (editorInstance, monaco) => {
     defineCustomThemes(monaco);
     monacoRef.current = monaco;
     registerHclLanguage(monaco);
+    diffEditorRef.current = editorInstance;
+    setDiffEditorMounts((mounts) => mounts + 1);
   };
 
   const handleTabClick = (fileName: string) => {
@@ -293,7 +321,7 @@ const MonacoEditor = ({
     renderOverviewRuler: false,
   };
 
-  const monacoTheme = editorTheme ? "nebula-dark" : "nebula-light";
+  const monacoTheme = editorTheme ? "kumoss-dark" : "kumoss-light";
 
   const containerStyle = { height };
   const editorWrapperStyle = showTabs

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "Nebula request flow · Phases 5-6",
+    "title": "Kumoss request flow · Phases 5-6",
     "output": "flow-phases-5-6.html",
     "quality_profile": "showcase",
     "locale": "en",
@@ -51,7 +51,7 @@
       "from": "ct",
       "to": "ag",
       "y": 180,
-      "label": "14 · Infrastructure Generation Agent (main model, at most 70 tool calls, ends via task_complete)",
+      "label": "14 · Infrastructure Generation Agent (main model, bounded tool calls, ends via task_complete)",
       "variant": "default"
     },
     {
@@ -100,7 +100,7 @@
       "from": "ct",
       "to": "ui",
       "y": 474,
-      "label": "20b · [5 iterations exhausted] session FAILED (422) · system.exception.failure",
+      "label": "20b · [8 iterations exhausted] session FAILED (422) · system.exception.failure",
       "variant": "security"
     },
     {

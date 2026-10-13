@@ -62,8 +62,15 @@ const isExternal = (url) => /^https?:\/\//.test(url)
 // far more likely to be meant literally than as "any character". Escapes
 // every other regex metacharacter so the rest of the string is matched
 // verbatim.
+// The compiled pattern is not linear-time for every input — globs whose
+// wildcards overlap, e.g. `*a*a*a*…b`, backtrack combinatorially on a
+// nonmatch — so the safety here is the trust boundary, not the regex: these
+// globs come only from this repository's own `package.json`
+// (`docouture.checkLinks.ignore`), are contributor-reviewed, and semgrep's
+// nosemgrep below suppresses the non-literal-regexp advisory on that basis.
 function globToRegExp(glob) {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, String.raw`\$&`)
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   return new RegExp(escaped.replaceAll('*', '.*').replaceAll('?', '.'))
 }
 
@@ -162,6 +169,10 @@ const result = await check({
   // correctly stay off `docouture.checkLinks.ignore` (see ignorePatterns()
   // above) so a genuinely broken one still fails the build.
   timeout: 10_000,
+  // Retry transient server/network failures with bounded exponential backoff;
+  // persistent failures and missing pages still fail the check.
+  retryErrors: true,
+  retryErrorsCount: 3,
   // A plain 403/429 from a real external host (most commonly GitHub's own
   // bot/rate-limit protection kicking in on repo links, hit repeatedly
   // across every page of a freshly built site) can't be told apart from a
@@ -172,6 +183,7 @@ const result = await check({
   statusCodes: {
     403: 'warn',
     429: 'warn',
+    503: 'warn',
   },
 })
 

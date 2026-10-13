@@ -7,9 +7,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ButtonBase } from "@mui/material";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SettingsIcon from "@mui/icons-material/Settings";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutlineOutlined";
 import PersonIcon from "@mui/icons-material/Person";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
@@ -57,7 +57,7 @@ function Header() {
               navigate("/home");
             }}
           >
-            NEBULA
+            KUMOSS
           </a>
         </div>
 

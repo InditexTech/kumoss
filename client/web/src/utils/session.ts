@@ -16,3 +16,17 @@ import type { Session } from "@/types/ui";
 export function isDriftSession(session: Session): boolean {
   return session.operation === "drift";
 }
+
+/** True for an import session, full or partial (both arrive as `"import"`). */
+export function isImportSession(session: Session): boolean {
+  return session.operation === "import";
+}
+
+/**
+ * True when merging the session's PR ends the flow and nothing is applied
+ * afterwards: drift is remediated by the merge itself, and an import has
+ * already written the resources into Terraform state.
+ */
+export function isMergeOnlySession(session: Session): boolean {
+  return isDriftSession(session) || isImportSession(session);
+}

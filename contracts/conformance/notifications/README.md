@@ -28,8 +28,8 @@ uv run pytest \
 ```
 
 `--service-token` is only needed if the implementation enforces auth.
-URL and token may also be supplied via `NEBULA_NOTIFICATIONS_URL` /
-`NEBULA_NOTIFICATIONS_TOKEN`.
+URL and token may also be supplied via `KUMOSS_NOTIFICATIONS_URL` /
+`KUMOSS_NOTIFICATIONS_TOKEN`.
 
 The bundled reference impl under `services/notifications/` has its own
 test suite — see that directory's README for how to run it.

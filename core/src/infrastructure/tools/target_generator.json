@@ -2,6 +2,8 @@
   {
     "name": "generate_terraform_targets",
     "description": "Generates a list of Terraform target strings for resources and modules based on the analysis context.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

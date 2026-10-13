@@ -3,6 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { setupServer } from "msw/node";
-import { handlers } from "./handlers";
+import { sessionHandlers } from "./handlers";
 
-export const server = setupServer(...handlers);
+export const server = setupServer(...sessionHandlers);

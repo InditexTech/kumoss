@@ -6,9 +6,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # Contracts
 
-The canonical OSS specification for Nebula's microservice interfaces.
+The canonical OSS specification for Kumoss's microservice interfaces.
 
-This directory is the source of truth for what every Nebula service —
+This directory is the source of truth for what every Kumoss service —
 including third-party and enterprise implementations — must satisfy. The
 core engine consumes these contracts via a generated HTTP client; it
 never imports a service implementation directly.

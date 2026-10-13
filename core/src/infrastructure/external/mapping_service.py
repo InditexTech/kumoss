@@ -36,13 +36,14 @@ from src.clients.mapping.types import UNSET, Unset
 from src.shared.config import system_config
 from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
+from src.shared.utils.urls import is_https_url
 
 
 @dataclass(frozen=True)
 class ResolvedRef:
     """Outcome of resolving an identifier.
 
-    `repo_url` is what `git clone` should target and `identifier` echoes
+    `repo_url` is the https URL `git clone` should target and `identifier` echoes
     what was asked for. `terraform_provider` and `scope_id` are the
     mapper's best effort: `None` means "unknown, ask the user", never
     "there is none". Callers skip the prompt for whatever is filled in,
@@ -97,9 +98,9 @@ class MappingServiceClient:
         """
         cfg = system_config.services.mapping
         if not cfg.enabled or not cfg.endpoint:
-            # Byte-identical to what the reference service answers, so
-            # toggling `mapping.enabled` changes nothing for a user who
-            # pastes a repo URL.
+            # Byte-identical to what the reference service answers for
+            # an https URL, so toggling `mapping.enabled` changes nothing
+            # for a user who pastes a repo URL.
             return ResolvedRef(
                 repo_url=identifier,
                 identifier=identifier,
@@ -137,6 +138,10 @@ class MappingServiceClient:
         if not isinstance(response, ResolveResponse):
             raise ExceptionHandler(
                 f"mapping service returned an unexpected response: {response!r}", 502
+            )
+        if not is_https_url(response.repo_url):
+            raise ExceptionHandler(
+                "mapping service returned a repo_url that is not an https:// URL", 502
             )
         return ResolvedRef(
             repo_url=response.repo_url,

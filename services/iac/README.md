@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Reference implementation of [`contracts/openapi/iac.v1.yaml`](../../contracts/openapi/iac.v1.yaml).
 
-The OSS default for the Nebula IaC contract: a raw IaC-engine executor
+The OSS default for the Kumoss IaC contract: a raw IaC-engine executor
 that runs individual engine CLI commands (**OpenTofu** by default,
 **Terraform** as the bundled alternative) against a workspace path on a
 docker-compose shared volume, as **asynchronous jobs**. Every POST enqueues exactly
@@ -61,7 +61,7 @@ subcommands against that binary instead (e.g. `terraform init`).
   memory for `Config.job_ttl` seconds (1 hour), then poll as 404 (as
   after a restart).
 - `GET /healthz` — liveness probe.
-- Bearer-token auth on all `/v1/*` endpoints if `NEBULA_IAC_TOKEN` is
+- Bearer-token auth on all `/v1/*` endpoints if `KUMOSS_IAC_TOKEN` is
   set.
 
 ## Scope injection
@@ -306,7 +306,7 @@ with one `json.loads`.
 
 The service does not choose where state goes. `init` reads the
 backend from the workspace it is handed, which is the caller's to
-prepare: Nebula's core writes a `backend_override.tf` into the
+prepare: Kumoss's core writes a `backend_override.tf` into the
 workspace before calling `init`, pinning state to the object store it
 already holds the credentials for (see the core's
 `storage.terraform_state_bucket`). Terraform merges `*_override.tf`
@@ -339,7 +339,7 @@ manual `init -migrate-state`) if it matters.
 
 | Env var                                       | Required | Description                                            |
 |-----------------------------------------------|----------|--------------------------------------------------------|
-| `NEBULA_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
+| `KUMOSS_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `IAC_BACKEND_CONFIG`                          | no       | Path to a backend configuration file `init` passes to `-backend-config` — absolute (inside this container) or relative to the workspace. Not validated at startup. Unset, the backend comes from the workspace itself. See "State backend". |
 | Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
@@ -392,16 +392,16 @@ workspace-staging mechanism — same contract, different mechanics.
 
 ## Runtime user and workspace ownership
 
-The image runs as an unprivileged user, `nebula` (uid/gid `10001`, set
-by the `NEBULA_UID` / `NEBULA_GID` build args): the engine executes
+The image runs as an unprivileged user, `kumoss` (uid/gid `10001`, set
+by the `KUMOSS_UID` / `KUMOSS_GID` build args): the engine executes
 provider plugins and provisioners from generated code, so it must not
 run as root.
 
 Because the engine writes `.terraform/`, `.terraform.lock.hcl`, plan
 files and state next to the configuration, **workspace directories must
 be writable by that uid**. In the compose stack this holds because the
-core image is built with the same `NEBULA_UID` / `NEBULA_GID` and also
-runs as `nebula`, so everything the core clones is owned by the same
+core image is built with the same `KUMOSS_UID` / `KUMOSS_GID` and also
+runs as `kumoss`, so everything the core clones is owned by the same
 user. Override the two build args together or not at all.
 
 - **Existing volumes.** A `workspaces` volume created by a stack that
@@ -411,7 +411,7 @@ user. Override the two build args together or not at all.
 - **Other deployments.** The requirement does not change with the
   topology: whatever backs the shared workspace (a PersistentVolumeClaim,
   an NFS export, a bind mount or any other staging mechanism) must be
-  owned by the unprivileged user the images were built with (`nebula`,
+  owned by the unprivileged user the images were built with (`kumoss`,
   uid/gid `10001` by default), and every component that stages repos
   into it must run as that same identity. How a platform expresses that
   (a pod security context, export options, a one-off `chown`) is

@@ -1,7 +1,7 @@
 = Contributing
-:description: Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Nebula's checks.
+:description: Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Kumoss's checks.
 
-Thank you for your interest in contributing to Nebula. Any contribution
+Thank you for your interest in contributing to Kumoss. Any contribution
 is valued and appreciated; the guidelines below keep the project
 collaborative and respectful. For the local development loop —
 running the stack, the test suites, type checking, and linting — see
@@ -14,12 +14,12 @@ xref:main:guides/development.adoc[].
   https://github.com/InditexTech/foss/blob/main/CONTRIBUTING.md[InditexTech/foss].
 * By participating in the project you agree to abide by the rules and
   principles set out in the
-  https://github.com/InditexTech/nebula/blob/main/CODE_OF_CONDUCT.md[code
-  of conduct]. Nebula adheres to the general
+  https://github.com/InditexTech/kumoss/blob/main/CODE_OF_CONDUCT.md[code
+  of conduct]. Kumoss adheres to the general
   https://github.com/InditexTech/foss/blob/main/CODE_OF_CONDUCT.md[Inditex
   Tech Code of Conduct]; direct any inquiry about it to oso@inditex.com.
-* Check existing https://github.com/InditexTech/nebula/issues[issues]
-  and https://github.com/InditexTech/nebula/pulls[pull requests] before
+* Check existing https://github.com/InditexTech/kumoss/issues[issues]
+  and https://github.com/InditexTech/kumoss/pulls[pull requests] before
   starting work, to avoid duplication. If you take on an existing issue,
   comment on it so other contributors know it is in progress.
 * Discuss and gather feedback from the community before making
@@ -31,7 +31,7 @@ xref:main:guides/development.adoc[].
   you wish to address. Security vulnerabilities are the exception:
   report them through the https://vdp.inditex.com[disclosure submission
   program] as described in the
-  https://github.com/InditexTech/nebula/blob/main/SECURITY.md[security
+  https://github.com/InditexTech/kumoss/blob/main/SECURITY.md[security
   policy], never through a public issue.
 . Fork the repository and clone it to your local machine.
 . Create a new branch to work on your contribution:
@@ -54,7 +54,7 @@ xref:main:guides/development.adoc[].
 == Pull requests
 
 Fill in the pull-request template
-(https://github.com/InditexTech/nebula/blob/main/.github/PULL_REQUEST_TEMPLATE.md[.github/PULL_REQUEST_TEMPLATE.md])
+(https://github.com/InditexTech/kumoss/blob/main/.github/PULL_REQUEST_TEMPLATE.md[.github/PULL_REQUEST_TEMPLATE.md])
 and link the issue it addresses. Include UI screenshots for visible
 changes. Document any new changes or features you add, so other
 contributors and users understand your work and its purpose.

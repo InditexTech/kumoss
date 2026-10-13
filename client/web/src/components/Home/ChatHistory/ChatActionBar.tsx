@@ -8,6 +8,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { createPullRequest } from "@/services/core/iac_code";
 import { getApiErrorMessage } from "@/services/api";
+import { useRefreshSessionLock } from "@/hooks/useSessionLock";
 import { STRINGS } from "@/constants/strings";
 import styles from "./ChatActionBar.module.css";
 
@@ -26,18 +27,20 @@ export default function ChatActionBar({
   const { showNotification } = useNotification();
   const [, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const refreshLock = useRefreshSessionLock();
 
   const prCreated = !!prDetails.number;
 
   const openPrView = useCallback(
-    (step: string) => {
+    async (step: string) => {
+      await refreshLock().catch(() => undefined);
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("view", `pr-${step}`);
         return next;
       }, { replace: true });
     },
-    [setSearchParams],
+    [refreshLock, setSearchParams],
   );
 
   const handleCreatePr = useCallback(async () => {
@@ -48,7 +51,7 @@ export default function ChatActionBar({
         session_id: session.uuid,
       });
       updatePrDetails({ number: res.id, url: res.url });
-      openPrView("initial");
+      await openPrView("initial");
     } catch (err) {
       showNotification(
         "failure",
@@ -65,9 +68,12 @@ export default function ChatActionBar({
     showNotification,
   ]);
 
-  const handleContinuePr = useCallback(() => {
-    openPrView(prDetails.lastPrStep ?? "initial");
-  }, [openPrView, prDetails.lastPrStep]);
+  const handleContinuePr = useCallback(async () => {
+    if (loading) return;
+    setLoading(true);
+    await openPrView(prDetails.lastPrStep ?? "initial");
+    setLoading(false);
+  }, [loading, openPrView, prDetails.lastPrStep]);
 
   const handleBackToReport = useCallback(() => {
     onResetToReport();
@@ -102,6 +108,7 @@ export default function ChatActionBar({
         <button
           className={`${styles.actionBtn} ${styles.actionBtnPrimary}`}
           onClick={handleContinuePr}
+          disabled={loading}
         >
           {STRINGS.pr.continuePr}
         </button>
