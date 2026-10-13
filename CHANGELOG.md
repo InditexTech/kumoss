@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* **core:** detect create-before-destroy replacements in drift ([7e14e11](https://github.com/InditexTech/kumoss/commit/7e14e1138d75a921de83c3099be5f2973392b23b))
+* **core:** detect create-before-destroy replacements in drift ([#319](https://github.com/InditexTech/kumoss/issues/319)) ([fa21183](https://github.com/InditexTech/kumoss/commit/fa21183c0c7f883cbc0f21145b5c6ead882b1708))
+
+
+### Documentation
+
+* replace the overview video in the README and the docs home page ([#315](https://github.com/InditexTech/kumoss/issues/315)) ([dfec68d](https://github.com/InditexTech/kumoss/commit/dfec68dec7d078a4fe0821c4e994af1864c27d19))
+
 ## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-08)
 
 
