@@ -77,7 +77,7 @@ class TerraformUtils:
         filtered_changes: list[dict[str, Any]] = []
         for resource in changed_resources:
             actions: list[str] = resource["change"]["actions"]
-            if actions == ["update"] or actions == ["delete", "create"]:
+            if actions in (["update"], ["delete", "create"], ["create", "delete"]):
                 before: dict[str, Any] = resource["change"]["before"]
                 after: dict[str, Any] = resource["change"]["after"]
                 diff = deepdiff.DeepDiff(before, after, verbose_level=2)

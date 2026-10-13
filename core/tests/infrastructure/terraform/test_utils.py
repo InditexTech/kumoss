@@ -246,6 +246,36 @@ class TestPlanToDriftTagValues(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
 
+class TestPlanToDriftReplacements(unittest.TestCase):
+    def test_both_replacement_orders_include_changed_values(self):
+        for actions in (["create", "delete"], ["delete", "create"]):
+            for reverse in (False, True):
+                with self.subTest(actions=actions, reversed=reverse):
+                    plan = _make_plan(
+                        [
+                            _make_resource(
+                                "terraform_data.example",
+                                actions,
+                                {"input": "before"},
+                                {"input": "after"},
+                            )
+                        ]
+                    )
+
+                    result = TerraformUtils.plan_to_drift(plan, reversed=reverse)
+
+                    self.assertEqual(len(result), 1)
+                    self.assertEqual(result[0]["address"], "terraform_data.example")
+                    self.assertEqual(result[0]["action"], "update resource")
+                    self.assertEqual(
+                        result[0]["changes"]["values_changed"]["root['input']"],
+                        {
+                            "old_value": "after" if reverse else "before",
+                            "new_value": "before" if reverse else "after",
+                        },
+                    )
+
+
 class TestProjectId(unittest.TestCase):
     """Tests for the state-keying identifier sent to the IaC service."""
 

@@ -137,18 +137,18 @@ researchers who report in good faith.
 
 == Release notes
 
-Kumoss has not published a tagged release yet. When it does, the curated
-highlights of each release — what is new and what it changes for the
-people using it — will be listed here and on the project's
-https://github.com/InditexTech/kumoss/releases[GitHub Releases] page.
+Kumoss publishes tagged releases. The curated highlights of each release —
+what is new and what it changes for the people using it — are available on
+the project's https://github.com/InditexTech/kumoss/releases[GitHub Releases]
+page.
 
 == Changelog
 
 The unabridged, commit-level record of changes is the repository's
 https://github.com/InditexTech/kumoss/commits/main[commit history];
-it is not duplicated here. Once releases exist, each GitHub Release
-carries the complete list of additions, changes, fixes, and
-deprecations since the previous one.
+it is not duplicated here. Each GitHub Release carries the complete
+list of additions, changes, fixes, and deprecations since the previous
+one.
 
 == Sections
 
