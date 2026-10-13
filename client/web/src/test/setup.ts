@@ -14,7 +14,7 @@ vi.mock("lottie-react", () => ({
 Element.prototype.scrollIntoView = vi.fn();
 
 beforeAll(async () => {
-  server.listen({ onUnhandledRequest: 'error' });
+  server.listen({ onUnhandledFrame: 'error' });
   // main.tsx awaits this before root.render, so the suite should too:
   // metadataHeaderPrefix() then reads a loaded config, not its fallback.
   await loadAuthConfig();
