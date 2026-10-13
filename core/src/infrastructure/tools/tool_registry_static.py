@@ -28,6 +28,11 @@ from src.infrastructure.exceptions import (
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
 )
+from src.infrastructure.external.search_service import (
+    SearchEngineError,
+    SearchServiceClient,
+)
+from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -399,6 +404,25 @@ class ToolRegistryStatic(IToolRegistry):
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
+        if system_config.web_search.provider:
+            try:
+                results = await SearchServiceClient().search(query)
+            except SearchEngineError as e:
+                return {
+                    "query": query,
+                    "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
+                }
+            if not results:
+                return {
+                    "query": query,
+                    "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+                }
+            return {
+                "query": query,
+                "result": "\n".join(
+                    f"- {r.title}: {r.snippet} ({r.url})" for r in results
+                ),
+            }
         try:
             response = await self.__llm.inference(msg=query, web_search=True)
         except (

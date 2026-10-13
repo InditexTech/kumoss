@@ -143,6 +143,12 @@ orchestration:
 #   max_output_tokens: 32000
 #   timeout: 600
 
+web_search:
+  provider: "searxng"
+  endpoint: "http://searxng:8888"
+  timeout: 30.0
+  max_results: 10
+
 llm:
   # Complex tasks model
   model: "main"
