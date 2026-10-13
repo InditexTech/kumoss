@@ -20,7 +20,7 @@ a human action.
 == What you deploy
 
 :diagram-name: readme-components
-:diagram-alt: What you deploy: the browser and proxy, the core, the four sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
+:diagram-alt: What you deploy: the browser and proxy, the core, the sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 

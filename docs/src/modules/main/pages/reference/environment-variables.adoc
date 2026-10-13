@@ -1,10 +1,10 @@
 = Environment variables and secrets
-:description: Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.
+:description: Every environment variable Kumoss reads: the core, the sidecars, the IaC engine, and the LLM providers.
 
 Kumoss keeps every secret in environment variables. `config.yaml` holds
 only non-secret settings and, where a secret is needed, the _name_ of
 the variable that carries it (fields ending in `_env`). This page
-documents every variable in `core/env.sample` and in the four sidecar
+documents every variable in `core/env.sample` and in the sidecar
 `env.sample` files, plus the variables that the IaC engine and the LLM
 providers read on their own.
 
@@ -550,6 +550,35 @@ Two things to keep apart:
   (`viewer`, `editor`, `admin`) live in the core database and are
   documented in the xref:main:guides/administer-users-and-locks.adoc[Admin
   portal] guide.
+
+== SearXNG sidecar (`services/searxng/env.sample`)
+
+The bundled SearXNG metasearch sidecar backs the agents' `web_search`
+tool (routed there by `web_search.provider: "searxng"` in
+`config.yaml`). It takes no credential from the core — SearXNG itself
+accepts unauthenticated requests inside the Compose network by default.
+
+[cols="2,2,2,5,2",options="header"]
+|===
+|Variable |Requirement |Default |Meaning |Checked
+
+|`SEARXNG_SECRET`
+|Recommended
+|empty (falls back to a public example key)
+|SearXNG instance secret key, used for cryptography (e.g. signed
+cookies). The container entrypoint substitutes it into
+`settings.yml`'s `${SEARXNG_SECRET}` placeholder at start. Generate one
+with `openssl rand -base64 32`. The fallback key is fine for a
+throwaway local stack and never for a reachable deployment.
+|At container start
+
+|`SEARXNG_PORT`
+|Optional
+|`8888`
+|Port SearXNG listens on inside the Compose network. Keep the default:
+the core's `web_search.endpoint` ships pointing at `:8888`.
+|At container start
+|===
 
 == Cloud-provider credentials at a glance
 
