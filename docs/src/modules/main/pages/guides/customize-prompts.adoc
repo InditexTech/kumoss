@@ -748,6 +748,12 @@ Keep the previous version; moving the tag back is the rollback.
   rules encode a policy, not yours.
 * Keep Phoenix reachable during core startups; seeding is part of the
   boot.
+* Keep the "No arbitrary command execution" section when you replace
+  the body of `general-guidelines-terraform`. It is the only instruction
+  that keeps `null_resource`, `provisioner` blocks, and
+  `data "external"` out of generated code, and nothing enforces it
+  outside the prompt, see
+  xref:main:guides/deploy-to-production.adoc[Deploy to production].
 * Decide who may edit prompts. Anyone with access to the Phoenix UI can
   change what the agents generate. Phoenix has no authentication in the
   default stack.
