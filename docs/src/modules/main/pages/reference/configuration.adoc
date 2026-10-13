@@ -541,7 +541,7 @@ typically do not and answer "unavailable".
 |`web_search.endpoint`
 |string (URL)
 |`""`
-|`http://searxng:8888`
+|`\http://searxng:8888`
 |Conditional
 |Base URL of the search service, passed to LiteLLM as `api_base`.
 Required for `searxng`; hosted providers take their credentials from
