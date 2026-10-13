@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure actions Nebula must never generate (security and cost guardrails).
+description: Azure actions Kumoss must never generate (security and cost guardrails).
 body: |
   # STRICTLY FORBIDDEN AZURE ACTIONS
 

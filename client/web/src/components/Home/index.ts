@@ -18,11 +18,23 @@ export {
   DriftResourceDetail,
 } from "./ResultPanel/DriftReport/DriftReport";
 export {
+  ComplianceRules,
+  ComplianceSummaryCard,
+  ComplianceViolations,
+} from "./ResultPanel/ComplianceReport/ComplianceReport";
+export {
   ApplyChangesList,
   ApplyResourceDetail,
   ApplyRecommendations,
 } from "./ResultPanel/ApplyReport/ApplyReport";
 export type { ApplyFilterId } from "./ResultPanel/ApplyReport/ApplyReport";
+export {
+  ImportedResourcesList,
+  ImportExclusions,
+  ImportStateAlignment,
+  ImportedResourceDetail,
+} from "./ResultPanel/ImportReport/ImportReport";
+export type { ImportFilterId } from "./ResultPanel/ImportReport/ImportReport";
 export {
   hasStructuredCosts,
   reportStatusVariant,

@@ -1,15 +1,15 @@
-= Nebula-managed state
+= Kumoss-managed state
 :description: The shipped default — the core creates the state bucket, writes the backend into every workspace, and assigns a state key per project.
 
-With the state bucket set to a name — the shipped configuration — Nebula
+With the state bucket set to a name — the shipped configuration — Kumoss
 owns state:
 
 [source,yaml]
 ----
 storage:
   provider: "RUSTFS"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
   endpoint_url: "http://object-storage:9000"
   public_endpoint_url: "http://localhost:9000"
   region: "us-east-1"
@@ -18,6 +18,12 @@ storage:
 This is why it ships on: it is the quickest way to get a working remote
 backend when there is none yet, on `RUSTFS` the bucket name is the only
 value involved, and the repositories need no backend block at all.
+
+IMPORTANT: Under this model, a backend block the repository declares is
+*replaced*, not combined: none of its values survive. If your
+repositories already keep state in their own backend, use
+xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
+backend] instead.
 
 State goes to the *same object-storage provider as artifacts*, in a
 *separate bucket* (a blob container on `STORAGE_ACCOUNT`). The separation
@@ -28,7 +34,7 @@ See <<credentials-required,Credentials required>> below for how the IaC
 sidecar authenticates against the state store when the rendered backend
 does not embed static keys.
 
-== What Nebula manages automatically
+== What Kumoss manages automatically
 
 [cols="2,4",options="header"]
 |===
@@ -60,12 +66,12 @@ never reaches a commit or a pull request.
 The override wins over whatever the repository declares: Terraform and
 OpenTofu merge `*_override.tf` *over* the rest of the configuration, so
 one file both _introduces_ a backend where the repository declares none
-and _replaces_ one it does declare. Nebula never edits the repository's
+and _replaces_ one it does declare. Kumoss never edits the repository's
 committed HCL. The core logs the target on every `init`:
 
 [source]
 ----
-Terraform state: rustfs bucket=nebula-terraform-state key=<project_id>/terraform.tfstate
+Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
 ----
 
 == Per-provider configuration
@@ -86,7 +92,7 @@ name is the only value to add.
 ----
 storage:
   provider: "RUSTFS"
-  terraform_state_bucket: "nebula-terraform-state"
+  terraform_state_bucket: "kumoss-terraform-state"
   endpoint_url: "http://object-storage:9000"
   region: "us-east-1"
 ----
@@ -97,7 +103,7 @@ Rendered into each workspace as `backend_override.tf`:
 ----
 terraform {
   backend "s3" {
-    bucket = "nebula-terraform-state"
+    bucket = "kumoss-terraform-state"
     key    = "<project_id>/terraform.tfstate"
     region = "us-east-1"
 
@@ -134,8 +140,8 @@ AWS S3.
 ----
 storage:
   provider: "S3"
-  bucket: "acme-nebula-artifacts"
-  terraform_state_bucket: "acme-nebula-tfstate"
+  bucket: "acme-kumoss-artifacts"
+  terraform_state_bucket: "acme-kumoss-tfstate"
   region: "eu-west-1"
 ----
 
@@ -147,7 +153,7 @@ configured:
 ----
 terraform {
   backend "s3" {
-    bucket = "acme-nebula-tfstate"
+    bucket = "acme-kumoss-tfstate"
     key    = "<project_id>/terraform.tfstate"
     region = "eu-west-1"
 
@@ -168,7 +174,7 @@ or a workload identity on the *IaC sidecar's* container:
 ----
 terraform {
   backend "s3" {
-    bucket = "acme-nebula-tfstate"
+    bucket = "acme-kumoss-tfstate"
     key    = "<project_id>/terraform.tfstate"
     region = "eu-west-1"
 
@@ -192,10 +198,10 @@ Azure Blob Storage.
 ----
 storage:
   provider: "STORAGE_ACCOUNT"
-  bucket: "nebula-artifacts"
-  terraform_state_bucket: "nebula-terraform-state"
-  endpoint_url: "https://acmenebula.blob.core.windows.net"
-  public_endpoint_url: "https://acmenebula.blob.core.windows.net"
+  bucket: "kumoss-artifacts"
+  terraform_state_bucket: "kumoss-terraform-state"
+  endpoint_url: "https://acmekumoss.blob.core.windows.net"
+  public_endpoint_url: "https://acmekumoss.blob.core.windows.net"
 ----
 
 `terraform_state_bucket` names a *blob container*, not a bucket. The
@@ -205,8 +211,8 @@ account name is derived from `endpoint_url`; `region` is ignored.
 ----
 terraform {
   backend "azurerm" {
-    storage_account_name = "acmenebula"
-    container_name       = "nebula-terraform-state"
+    storage_account_name = "acmekumoss"
+    container_name       = "kumoss-terraform-state"
     key                  = "<project_id>/terraform.tfstate"
     access_key           = "azure-shared-key"
   }
@@ -219,10 +225,12 @@ to boot with `provider: STORAGE_ACCOUNT` and an empty
 var STORAGE_ACCOUNT_KEY.`), because the artifact adapter needs that key
 to sign SAS download URLs. The renderer contains an Entra ID branch
 (`use_azuread_auth = true`) for a keyless account, but *no supported
-configuration reaches it* in this release. Treat managed identity for
-Azure _state_ as unavailable today; if you need it, use
-xref:main:guides/state-backends/sidecar-supplied.adoc[Sidecar-supplied
-backend].
+configuration reaches it* in this release. Treat managed identity and
+Entra ID for Azure _state_ as unavailable under this model. If you need
+keyless state, turn managed state off and declare an `azurerm` block with
+`use_azuread_auth = true`, as shown in
+xref:main:guides/state-backends/repository-declared.adoc[Repository-declared
+backend]; the artifacts keep using the shared key.
 ****
 --
 
@@ -243,9 +251,10 @@ the AWS default chain, or `STORAGE_ACCOUNT_KEY`
 
 |IaC sidecar
 |Reads and writes state on every `init`, `plan`, and `apply`
-|The static keys embedded in `backend_override.tf` when present;
-otherwise the sidecar container's own ambient credentials (`AWS_*`,
-IRSA, instance profile)
+|The static keys embedded in `backend_override.tf`: always on `RUSTFS`
+and `STORAGE_ACCOUNT` (the Azure shared key), and on `S3` when keys are
+configured. Otherwise, on `S3` only, the sidecar container's own ambient
+credentials (`AWS_*`, IRSA, instance profile)
 |===
 
 This split is easy to get wrong: with `provider: S3` and no static keys,
@@ -298,9 +307,10 @@ State is keyed by *project*, not by session or directory:
 . the *normalized root-module path* within the repository (`iac_path`)
 
 Normalization means two spellings of the same project never split into
-two states: the repository URI is lowercased, loses a `.git` suffix,
-loses embedded push credentials, and accepts SCP-style SSH form; the
-module path is trimmed of surrounding and duplicate slashes.
+two states: the repository URI is lowercased, loses a `.git` suffix
+and a userinfo username; the module path is trimmed of surrounding and
+duplicate slashes. Only `https://` URIs reach this point — the API
+rejects every other scheme.
 
 [cols="1",options="header"]
 |===
@@ -308,9 +318,8 @@ module path is trimmed of surrounding and duplicate slashes.
 
 |`\https://github.com/acme/infra.git`
 |`\https://github.com/acme/infra`
-|`\https://x-access-token:ghp_secret@github.com/acme/infra.git`
+|`\https://acme@github.com/acme/infra.git`
 |`HTTPS://GitHub.com/Acme/Infra.git`
-|`git@github.com:acme/infra.git`
 |===
 
 An empty `iac_path` is a valid project — the root module is the
@@ -324,7 +333,7 @@ of them is a different project and therefore a different state file.
 
 == Locking
 
-State locking is enabled and is *native to the store* — Nebula
+State locking is enabled and is *native to the store* — Kumoss
 provisions no extra infrastructure for it.
 
 [cols="1,2,4",options="header"]
@@ -346,3 +355,65 @@ conditional writes (the bundled engines are {opentofu-version} and {terraform-ve
 
 Whether RustFS honours the conditional-write semantics `use_lockfile`
 relies on has not been verified in this repository.
+
+== Verify
+
+To check all three layers in a deployed environment, see
+xref:main:guides/configure-state-backends.adoc#find-active-state[Find the
+active state].
+
+. Run a session, then confirm that the core wrote the override and
+  which key it chose:
++
+[source,bash]
+----
+docker compose logs core | grep "Terraform state:"
+----
++
+[source]
+----
+Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
+----
+
+. List the state bucket and check that the logged key exists after the
+  first `init`. For the bundled RustFS store, see
+  <<operations,Operations>> below.
+
+[#operations]
+== Operations
+
+*Inspect the bundled store.* RustFS speaks the S3 API, so any S3 client
+works. From the host, through the nginx server on port 9000 (it forwards
+the `Host` header unchanged, so SigV4 signatures verify):
+
+[source,bash]
+----
+# One-off: the backend uses path-style addressing, so the client must too.
+aws configure set default.s3.addressing_style path
+
+AWS_ACCESS_KEY_ID=rustfsadmin AWS_SECRET_ACCESS_KEY=rustfsadmin \
+AWS_DEFAULT_REGION=us-east-1 \
+  aws --endpoint-url http://localhost:9000 \
+  s3 ls s3://kumoss-terraform-state/ --recursive
+----
+
+*Reset local state.* `docker compose down -v` removes the
+`object_storage_data` volume and with it all state _and_ all artifacts.
+That is usually what you want on a workstation and never what you want
+elsewhere.
+
+*In production*, on the state bucket: versioning and soft delete on;
+encryption at rest with your own key if policy requires it; access
+restricted to the core and the IaC sidecar identities; excluded from any
+lifecycle expiry you apply to the artifacts bucket; and included in your
+backup and restore drills. This bucket is the record of what Kumoss has
+built, and Kumoss never deletes an object from it. See also
+xref:main:guides/production/operations.adoc#data-and-persistence[Operations
+— Data services and persistence].
+
+== Next steps
+
+* xref:main:guides/configure-state-backends.adoc#state-troubleshooting[Troubleshooting]:
+  boot, `init`, and empty-state failures.
+* xref:main:reference/configuration.adoc#storage[Configuration reference
+  — the `storage` section]: every field used on this page.

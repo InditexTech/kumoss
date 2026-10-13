@@ -67,7 +67,7 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    def render_task_splitter(self) -> str:
+    def render_task_splitter(self, operation_type: OperationType) -> str:
         pass
 
     @abstractmethod

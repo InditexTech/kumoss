@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
+import { server } from "@/test/server";
 import { useMapperResolution } from "./useMapperResolution";
 
 describe("useMapperResolution", () => {

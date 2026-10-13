@@ -54,8 +54,8 @@ def test_blank_backend_config_is_unset(
 
 
 def test_backend_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("IAC_BACKEND_CONFIG", "  /etc/nebula/backend.hcl  ")
-    assert Config.from_env().backend_config == "/etc/nebula/backend.hcl"
+    monkeypatch.setenv("IAC_BACKEND_CONFIG", "  /etc/kumoss/backend.hcl  ")
+    assert Config.from_env().backend_config == "/etc/kumoss/backend.hcl"
 
 
 @pytest.mark.parametrize("target", ["backend.hcl", "envs/prod/backend.tfbackend"])

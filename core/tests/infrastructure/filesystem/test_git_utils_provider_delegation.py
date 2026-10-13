@@ -81,7 +81,7 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
 
         result = await self.git.create_pr(
             repository_url=_REPO_URL,
-            head_branch="Nebula/feature",
+            head_branch="Kumoss/feature",
             title="My PR",
             description="Body",
         )
@@ -89,7 +89,7 @@ class TestGitUtilsProviderDelegation(unittest.IsolatedAsyncioTestCase):
         self.assertIs(result, expected)
         self.fake_provider.create_pr.assert_awaited_once_with(
             repository_url=_REPO_URL,
-            head="Nebula/feature",
+            head="Kumoss/feature",
             base="main",
             title="My PR",
             description="Body",
@@ -125,7 +125,7 @@ class TestGitUtilsProviderDelegationMasterDefault(unittest.IsolatedAsyncioTestCa
         )
         await self.git.create_pr(
             repository_url=_REPO_URL,
-            head_branch="Nebula/feature",
+            head_branch="Kumoss/feature",
             title="t",
             description="d",
         )

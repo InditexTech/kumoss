@@ -75,17 +75,6 @@ interface SessionsTableProps<T> {
   emptyText?: string;
 }
 
-export function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${day}.${month}.${year}, ${hours}:${minutes}`;
-}
-
 export function truncate(text: string | null, max = 60): string {
   if (!text) return "-";
   return text.length > max ? text.substring(0, max) + "..." : text;

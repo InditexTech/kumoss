@@ -5,7 +5,7 @@
 """System-wide configuration loaded from a YAML file.
 
 Single source of truth for every deployment-tunable knob in the core.
-Resolved at startup from the path in ``NEBULA_CONFIG``; if unset or
+Resolved at startup from the path in ``KUMOSS_CONFIG``; if unset or
 missing, defaults defined here apply (so the OSS distribution boots
 without any config file).
 
@@ -21,7 +21,7 @@ The annotated yaml configuration file is at ``/config.yaml``.
 from __future__ import annotations
 
 import os
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 import yaml
 from pathlib import Path
 from urllib.parse import urlparse
@@ -31,6 +31,7 @@ from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
+    Environment,
     GitProviderName,
     ObjectStorageProvider,
 )
@@ -73,7 +74,7 @@ class OidcConfig(BaseModel):
     clock_skew_seconds: int = 60
 
     @model_validator(mode="after")
-    def _validate_and_resolve(self) -> "OidcConfig":
+    def _validate_and_resolve(self) -> OidcConfig:
         if self.issuer_url and not self.client_id:
             raise ConfigError(
                 "oidc.issuer_url is set but oidc.client_id is empty; "
@@ -112,11 +113,14 @@ class LlmConfig(BaseModel):
     LiteLLM model-id strings (``provider/model``).  Credentials are
     resolved from the provider's standard env vars (see the provider
     tables at
-    https://inditextech.github.io/nebula/prerelease/main/reference/llm-providers/);
+    https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/);
     the validator fails boot when litellm reports required env vars
     missing.
 
-    ``temperature`` and ``max_output_tokens`` apply to both roles.
+    ``temperature``, ``max_output_tokens`` and ``timeout`` apply to both
+    roles. ``timeout`` is the per-request budget in seconds LiteLLM
+    enforces on a single inference call (retries get a fresh budget);
+    long reasoning or web-search calls need a generous value.
 
     ``model_list`` is an advanced escape hatch in the LiteLLM Router
     format (fallbacks, load balancing, custom credential env var names
@@ -133,6 +137,7 @@ class LlmConfig(BaseModel):
     small_model: str = "anthropic/claude-haiku-4-5"
     temperature: float = 0.1
     max_output_tokens: int = 32000
+    timeout: float = Field(default=600.0, gt=0)
 
     model_list: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -145,7 +150,7 @@ class LlmConfig(BaseModel):
         ]
 
     @model_validator(mode="after")
-    def _assert_llm_credentials(self) -> "LlmConfig":
+    def _assert_llm_credentials(self) -> LlmConfig:
         """Fail-fast on env vars litellm requires for the configured models."""
         missing: list[str] = []
         for entry in self._effective_model_list():
@@ -220,12 +225,12 @@ class IacServiceConfig(ServiceEndpointConfig):
     """
 
     endpoint: str = "http://iac:8082"
-    token_env: str = "NEBULA_IAC_TOKEN"
+    token_env: str = "KUMOSS_IAC_TOKEN"
     job_poll_interval: float = 5.0
     job_timeout: float = 3600.0
 
     @model_validator(mode="after")
-    def _assert_endpoint(self) -> "IacServiceConfig":
+    def _assert_endpoint(self) -> IacServiceConfig:
         if not self.endpoint:
             raise ConfigError(
                 "services.iac.endpoint is empty; the IaC service is mandatory. "
@@ -245,8 +250,9 @@ class OrchestrationConfig(BaseModel):
     """Iteration limits and batch sizes for the core's orchestration loops."""
 
     max_drift_reports: int = 3
-    max_validation_iteration: int = 5
-    max_tool_chain_executions: int = 70
+    max_validation_iteration: int = 8
+    max_import_iteration: int = 5
+    max_tool_agent_executions: int = 40
     max_session_events_iteration: int = 2160  # 3h
     drift_group_operations: int = 8
     pull_request_readiness_seconds: int = 10
@@ -260,6 +266,12 @@ class PathsConfig(BaseModel):
     upload_folder: Path = Path("/workspaces")
     session_plan_filename: str = Field(
         default="session.plan", pattern=r"^[A-Za-z0-9._-]{1,128}$"
+    )
+    # Terraform merges only `*_override.tf` over the configuration, so any
+    # other name would be a second backend block rather than a replacement.
+    backend_override_filename: str = Field(
+        default="backend_override.tf",
+        pattern=r"^[A-Za-z0-9._-]{1,128}_override\.tf$",
     )
 
 
@@ -304,8 +316,8 @@ class GitConfig(BaseModel):
     pat_token_env: str = "GIT_TOKEN"  # env var name holding the personal access token
 
     # git refuses to create a commit without name + email.
-    author_name: str = "Nebula"
-    author_email: str = "nebula@noreply.invalid"
+    author_name: str = "Kumoss"
+    author_email: str = "kumoss@noreply.invalid"
 
     @property
     def pat_user(self) -> str:
@@ -328,18 +340,18 @@ class GitConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    """Credentials for Nebula postgres database"""
+    """Credentials for Kumoss postgres database"""
 
-    nebula_database_url_env: str = "NEBULA_SQL_DATABASE_URL"
+    kumoss_database_url_env: str = "KUMOSS_SQL_DATABASE_URL"
 
     @property
-    def nebula_database_url(self) -> str:
-        return _env(self.nebula_database_url_env)
+    def kumoss_database_url(self) -> str:
+        return _env(self.kumoss_database_url_env)
 
     @model_validator(mode="after")
     def _assert_urls(self) -> DatabaseConfig:
-        if not self.nebula_database_url:
-            raise ConfigError("Missing env variable for nebula database")
+        if not self.kumoss_database_url:
+            raise ConfigError("Missing env variable for kumoss database")
         return self
 
 
@@ -356,7 +368,7 @@ class RedisConfig(BaseModel):
     database instead of stalling requests.
     """
 
-    redis_url_env: str = "NEBULA_REDIS_URL"
+    redis_url_env: str = "KUMOSS_REDIS_URL"
     default_url: str = "redis://redis:6379/0"
     max_connections: int = 20
     socket_connect_timeout: float = 2.0
@@ -390,18 +402,22 @@ class StorageConfig(BaseModel):
 
     ``terraform_state_bucket`` names a second bucket (blob container on
     STORAGE_ACCOUNT) in the same store, holding the Terraform state of
-    the projects Nebula manages. It is separate from ``bucket`` so that
+    the projects Kumoss manages. It is separate from ``bucket`` so that
     state does not inherit whatever lifecycle or presign policy the
     artifacts bucket carries. Empty turns managed state off: no backend
     override is written and each workspace keeps the backend its own
-    configuration declares.
+    configuration declares. ``terraform_state_filename`` is the object
+    name of each project's state under its ``project_id`` prefix.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
     # core/src/shared/constants.py::ObjectStorageProvider).
     provider: ObjectStorageProvider = ObjectStorageProvider.RUSTFS
-    bucket: str = "nebula-artifacts"
-    terraform_state_bucket: str = "nebula-terraform-state"
+    bucket: str = "kumoss-artifacts"
+    terraform_state_bucket: str = "kumoss-terraform-state"
+    terraform_state_filename: str = Field(
+        default="terraform.tfstate", pattern=r"^[A-Za-z0-9._-]{1,128}$"
+    )
     endpoint_url: str = "http://object-storage:9000"
     public_endpoint_url: str = "http://localhost:9000"
     region: str = "us-east-1"
@@ -492,9 +508,7 @@ class StorageConfig(BaseModel):
 
 
 class SystemConfig(BaseModel, frozen=True):
-    environment: Literal["development", "staging", "production"] = (
-        "development"  # development | staging | production
-    )
+    environment: Environment = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
@@ -531,15 +545,15 @@ class SystemConfig(BaseModel, frozen=True):
         return self
 
     @classmethod
-    def load(cls, config_path: str = "/etc/nebula/config.yaml") -> SystemConfig:
-        """Load from YAML if NEBULA_CONFIG points at a real file; else defaults.
+    def load(cls, config_path: str = "/etc/kumoss/config.yaml") -> SystemConfig:
+        """Load from YAML if KUMOSS_CONFIG points at a real file; else defaults.
 
         We require the path to be an existing *file* (not a directory) before
         attempting to parse it. This guards against the docker-compose
         foot-gun where mounting a missing host file silently creates an
         empty directory on the container side.
         """
-        path = os.environ.get("NEBULA_CONFIG") or config_path
+        path = os.environ.get("KUMOSS_CONFIG") or config_path
         if path and Path(path).is_file():
             with open(path) as f:
                 data = yaml.safe_load(f) or {}

@@ -2,6 +2,8 @@
   {
     "name": "task_complete",
     "description": "CRITICAL: Call this single tool to signal the final completion of the user's request. This is the very last action the agent should take. Use this tool in one of three situations: 1) The user's request has been fully and successfully addressed. 2) The agent has encountered an unrecoverable error and cannot proceed. This tool concludes the entire operation and provides a comprehensive report to the user.",
+    "single_use": false,
+    "mutates_workspace": false,
     "parameters": {
       "type": "object",
       "properties": {

@@ -56,7 +56,7 @@ class _SessionBase(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://example.com/foo.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-123",
-            branch_name="Nebula/x",
+            branch_name="Kumoss/x",
             query="create a resource group",
             iac_path="infra",
         )
@@ -105,7 +105,7 @@ class TestSessionContextFreshness(_SessionBase):
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
         self.assertEqual(ctx.scope_id, "sub-123")
         self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
-        self.assertEqual(ctx.branch_name, "Nebula/x")
+        self.assertEqual(ctx.branch_name, "Kumoss/x")
         self.assertEqual(ctx.iac_path, "infra")
         self.assertEqual(len(ctx.history), 0)
 
@@ -133,7 +133,7 @@ class TestSessionContextFreshness(_SessionBase):
             repo_uri="https://example.com/bar.git",
             terraform_prv=TerraformProvider.AZURE,
             scope_id="sub-456",
-            branch_name="Nebula/y",
+            branch_name="Kumoss/y",
             query="another one",
             iac_path="infra",
         )
@@ -231,11 +231,15 @@ class TestRounds(_SessionBase):
             [SessionStatus.GENERATING],
         )
         self.assertEqual(detail.rounds[1].id, rid)
-        # The session-level timeline spans all rounds.
+        # The timeline is the rounds' statuses concatenated in round
+        # order; the payload no longer ships a second, flat copy.
+        self.assertFalse(hasattr(detail, "statuses"))
         self.assertEqual(
-            [st.status for st in detail.statuses],
+            [st.status for r in detail.rounds for st in r.statuses],
             [SessionStatus.STARTED, SessionStatus.GENERATING],
         )
+        # The cheap latest-status field the list view polls stays.
+        self.assertIs(detail.current_status, SessionStatus.GENERATING)
 
 
 class TestInFlightEnforcement(_SessionBase):
@@ -277,7 +281,7 @@ class TestInFlightEnforcement(_SessionBase):
 
 class TestFinishedSessionDetailCache(_SessionBase):
     def _detail_key(self) -> str:
-        return f"nebula:v1:session:{self.sid}:detail"
+        return f"kumoss:v1:session:{self.sid}:detail"
 
     async def test_live_session_detail_is_never_cached(self):
         await DatabaseService.mark_session_status(
@@ -313,11 +317,69 @@ class TestFinishedSessionDetailCache(_SessionBase):
         first = await DatabaseService.get_session_detail(self.sid)  # writes cache
         second = await DatabaseService.get_session_detail(self.sid)  # cached copy
         for detail in (first, second):
-            report = detail.rounds[0].report
-            self.assertIsNotNone(report)
-            assert report is not None
+            [report] = detail.rounds[0].reports
             self.assertIs(report.type, ReportType.APPLY)
             self.assertEqual(detail.rounds[0].query, "create a resource group")
+
+    async def test_stale_shaped_cache_entry_falls_back_to_the_database(self):
+        # Old read-model shape: a round's artifacts were single `report`/
+        # `plan` objects (now `reports`/`plans` lists) and the timeline
+        # lived in a top-level `statuses` field (now removed). A key
+        # written under that old shape must be treated as a cache miss,
+        # not raise pydantic.ValidationError out of get_session_detail.
+        [rnd] = await db.list_by(Round)
+        _ = await DatabaseService.add_report(
+            round_id=rnd.id,
+            report_type=ReportType.APPLY,
+            uri=f"sessions/{self.sid}/rounds/{rnd.id}/reports/apply-t.json",
+            content_type="application/json",
+            file_size_bytes=2,
+        )
+        await DatabaseService.mark_failed(self.sid, "boom")
+
+        old_shaped = {
+            "uuid": str(self.sid),
+            "username": self.username,
+            "operation": OperationType.GENERATE.value,
+            "provider": TerraformProvider.AZURE.value,
+            "first_query": None,
+            "workspace_uri": "https://example.com/foo.git",
+            "current_status": SessionStatus.FAILED.value,
+            "in_flight": False,
+            "is_blocked": False,
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+            "workspace": {
+                "uri": "https://example.com/foo.git",
+                "branch": "Kumoss/x",
+                "root_path": None,
+            },
+            "scope_id": "sub-123",
+            "statuses": [],
+            "rounds": [
+                {
+                    "id": rnd.id,
+                    "number": rnd.number,
+                    "query": "create a resource group",
+                    "statuses": [],
+                    "report": None,
+                    "plan": None,
+                    "code_changes": [],
+                    "pull_requests": [],
+                    "created_at": "2024-01-01T00:00:00",
+                }
+            ],
+            "history": None,
+        }
+        await redis_client.set_json(self._detail_key(), old_shaped)
+
+        detail = await DatabaseService.get_session_detail(self.sid)
+
+        [report] = detail.rounds[0].reports
+        self.assertIs(report.type, ReportType.APPLY)
+        self.assertEqual(detail.rounds[0].plans, [])
+        self.assertEqual(detail.rounds[0].query, "create a resource group")
+        self.assertIs(detail.current_status, SessionStatus.FAILED)
 
     async def test_admin_variant_is_not_served_from_cache(self):
         await DatabaseService.mark_failed(self.sid, "boom")
@@ -337,7 +399,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "working"
         )
-        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        status_key = f"kumoss:v1:session:{self.sid}:status:last"
         live_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertLessEqual(live_ttl, 6 * 60)
 
@@ -347,10 +409,71 @@ class TestFinishedSessionDetailCache(_SessionBase):
 
     async def test_uncompleted_stays_live_for_the_cache(self):
         await DatabaseService.mark_uncompleted(self.sid, "gave up")
-        status_key = f"nebula:v1:session:{self.sid}:status:last"
+        status_key = f"kumoss:v1:session:{self.sid}:status:last"
         live_ttl = await redis_client.connection.client.ttl(status_key)
         self.assertLessEqual(live_ttl, 6 * 60)
 
         _ = await DatabaseService.get_session_detail(self.sid)
         raw = await redis_client.connection.client.get(self._detail_key())
         self.assertIsNone(raw)
+
+
+class TestRoundArtifactLists(_SessionBase):
+    """A drift round stores several plans per pass; all of them must surface."""
+
+    async def test_every_plan_of_a_round_is_returned_oldest_first(self):
+        [rnd] = await db.list_by(Round)
+        # One drift pass writes the diff and the plan that resolved it; a
+        # second reconciliation iteration adds one more.
+        ids = [
+            await DatabaseService.add_terraform_plan(
+                round_id=rnd.id,
+                targets=[],
+                uri=f"sessions/{self.sid}/rounds/{rnd.id}/plans/{name}.txt",
+                content_type="text/plain",
+                file_size_bytes=1,
+            )
+            for name in ("drift-1", "plan-1", "plan-2")
+        ]
+
+        detail = await DatabaseService.get_session_detail(self.sid)
+
+        self.assertEqual([p.id for p in detail.rounds[0].plans], ids)
+
+    async def test_every_report_of_a_round_is_returned_oldest_first(self):
+        [rnd] = await db.list_by(Round)
+        ids = [
+            await DatabaseService.add_report(
+                round_id=rnd.id,
+                report_type=report_type,
+                uri=f"sessions/{self.sid}/rounds/{rnd.id}/reports/{i}.json",
+                content_type="application/json",
+                file_size_bytes=2,
+            )
+            for i, report_type in enumerate((ReportType.DRIFT, ReportType.GENERATE))
+        ]
+
+        detail = await DatabaseService.get_session_detail(self.sid)
+
+        self.assertEqual([r.id for r in detail.rounds[0].reports], ids)
+        self.assertEqual(
+            [r.type for r in detail.rounds[0].reports],
+            [ReportType.DRIFT, ReportType.GENERATE],
+        )
+
+    async def test_a_round_without_artifacts_returns_empty_lists(self):
+        detail = await DatabaseService.get_session_detail(self.sid)
+
+        self.assertEqual(detail.rounds[0].plans, [])
+        self.assertEqual(detail.rounds[0].reports, [])
+
+    async def test_rounds_are_ordered_by_number(self):
+        second = await DatabaseService.create_round(self.sid, "add a vnet")
+        third = await DatabaseService.create_round(self.sid, "add a subnet")
+
+        detail = await DatabaseService.get_session_detail(self.sid)
+
+        # Clients reconstruct the timeline by concatenating rounds, so
+        # their order is contractual, not incidental.
+        self.assertEqual([r.number for r in detail.rounds], [1, 2, 3])
+        self.assertEqual([r.id for r in detail.rounds[1:]], [second, third])

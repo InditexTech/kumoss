@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /** Fired on window whenever an API call is rejected with 401. */
-export const UNAUTHORIZED_EVENT = "nebula:unauthorized";
+export const UNAUTHORIZED_EVENT = "kumoss:unauthorized";
 
 type AccessTokenProvider = () => string | null | undefined;
 

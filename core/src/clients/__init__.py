@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Generated HTTP clients for Nebula's microservice contracts.
+# Generated HTTP clients for Kumoss's microservice contracts.
 #
 # Each subpackage is produced by openapi-python-client (pinned in the dev
 # dependency group) from the matching `contracts/openapi/<service>.v1.yaml`,

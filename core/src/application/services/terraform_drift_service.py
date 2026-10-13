@@ -7,11 +7,17 @@ from src.domains.entities import History, SessionContext
 from src.domains.interfaces import ITerraform
 from src.domains.services import (
     ArtifactStorageService,
-    TerraformValidationService,
+    SessionService,
     TaskService,
+    TerraformValidationService,
 )
 from src.domains.value_objects import Conventions, PlanRef
-from src.shared.constants import ContentType, OperationType
+from src.shared.config import system_config
+from src.shared.constants import (
+    ContentType,
+    OperationType,
+    SessionStatus,
+)
 from src.shared.logger import logging
 
 
@@ -19,12 +25,14 @@ class TerraformDriftService:
     def __init__(
         self,
         session_context: SessionContext,
+        session_service: SessionService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
         artifact_service: ArtifactStorageService,
     ):
         self.__ctx = session_context
+        self.__session_svc = session_service
         self.__validation_svc = validation_service
         self.__terraform_svc = terraform_service
         self.__split_svc = split_service
@@ -58,33 +66,44 @@ class TerraformDriftService:
             result.excluded = exclusions
             return result
 
-        async def validator(history: History) -> TerraformPlanDTO:
+        async def plan_callback(history: History) -> TerraformPlanDTO:
             return await self.__terraform_svc.plan(targets=targets)
+
+        async def split_errors(errors: str) -> str:
+            return await self.__split_svc.split_errors(
+                errors=errors, operation_type=OperationType.GENERATE
+            )
 
         for i in range(max_iterations):
             logging.debug(f"Drift report no: {i + 1}/{max_iterations}")
 
+            _ = await self.__session_svc.update_status(
+                msg="Assessing drift on the targeted infrastructure.",
+                status=SessionStatus.RECONCILING,
+            )
+
             if plan is None:
                 plan_result = await self.__terraform_svc.plan(targets=targets)
                 if plan_result.plan is None:
-                    logging.error(f"Drift check could not plan: {plan_result.feedback}")
-                    return resolved(
-                        TerraformDriftDTO(
-                            in_sync=False,
-                            drift="",
-                            feedback=plan_result.feedback,
-                            stdout=plan_result.stdout,
-                            plan=None,
-                        )
+                    plan_result = await self.__validation_svc.generate_and_validate(
+                        q=await split_errors(plan_result.feedback),
+                        ctx=self.__ctx,
+                        conventions=conventions,
+                        include_forbidden_actions=False,
+                        operation_type=OperationType.GENERATE,
+                        validator=plan_callback,
+                        max_iterations=system_config.orchestration.max_validation_iteration,
+                        refine_feedback=split_errors,
                     )
                 plan = plan_result.plan
 
             drift = await self.__terraform_svc.drift(plan=plan)
 
+            if not drift.feedback:
+                await self.__store_drift(drift, targets)
+
             if drift.in_sync:
                 break
-
-            await self.__store_drift(drift, targets)
 
             if drift.feedback:
                 logging.error(f"Drift could not be read: {drift.feedback}")
@@ -92,6 +111,7 @@ class TerraformDriftService:
 
             operations: list[list[str]] = await self.__split_svc.split_task(
                 task=drift.drift,
+                operation_type=OperationType.DRIFT,
             )
             if filter_session_changes:
                 operations = await self.__split_svc.filter_reconciliation(
@@ -124,8 +144,9 @@ class TerraformDriftService:
                     ctx=self.__ctx,
                     conventions=conventions,
                     include_forbidden_actions=False,
-                    operation_type=OperationType.DRIFT,
-                    validator=validator,
+                    operation_type=OperationType.GENERATE,
+                    validator=plan_callback,
+                    max_iterations=system_config.orchestration.max_validation_iteration,
                 )
                 plan = result.plan
 
@@ -135,9 +156,8 @@ class TerraformDriftService:
         if drift.in_sync:
             logging.warning("Drift pre-check completed, resources are synchronized")
         else:
-            logging.warning(
-                f"Drift resolution completed but issues remain: {drift.drift}"
-            )
+            remaining = f"Drift resolution completed but issues remain: {drift.drift}"
+            logging.warning(remaining)
 
         return resolved(drift)
 
@@ -147,11 +167,15 @@ class TerraformDriftService:
         targets: list[str],
     ) -> None:
         if drift.drift:
-            _ = await self.__artifact_svc.store_terraform_plan(
-                session_id=self.__ctx.id,
-                round_id=self.__ctx.round_id,
-                targets=targets,
-                content=drift.drift,
-                content_type=ContentType.TEXT,
-                is_drift=True,
-            )
+            type, content = "drift", drift.drift
+        else:
+            type, content = "plan", drift.stdout
+
+        _ = await self.__artifact_svc.store_terraform_plan(
+            session_id=self.__ctx.id,
+            round_id=self.__ctx.round_id,
+            targets=targets,
+            content=content,
+            content_type=ContentType.TEXT,
+            metadata={"type": type},
+        )

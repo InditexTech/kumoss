@@ -5,9 +5,73 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeSessionDetail } from "@/mocks/state";
+import { makeSessionDetail, makeRound, makeStatus } from "@/test/factories";
 import { renderWithProviders } from "@/test/render";
 import SessionData from "./SessionData";
+
+function at(second: number): string {
+  return new Date(Date.UTC(2026, 0, 1, 12, 0, second)).toISOString();
+}
+
+/** True when `a` precedes `b` in document order. */
+function isBefore(a: Element, b: Element): boolean {
+  return !!(
+    a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+  );
+}
+
+/**
+ * A round mid-report: two artifact-bearing stages already behind it, so the
+ * timeline has to interleave. Deliberately non-terminal, to keep this
+ * fixture about ordering; the terminal case has its own describe below.
+ */
+function interleavedSession() {
+  return makeSessionDetail({
+    current_status: "report",
+    in_flight: true,
+    operation: "drift",
+    rounds: [
+      makeRound({
+        statuses: [
+          makeStatus("filtering", null, at(0)),
+          makeStatus("generating", null, at(10)),
+          makeStatus("validating", null, at(30)),
+          makeStatus("report", null, at(50)),
+        ],
+        code_changes: [
+          {
+            id: 1,
+            file_name: "main.tf",
+            url: "https://storage.example.com/main.tf",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(15),
+          },
+        ],
+        plans: [
+          {
+            id: 2,
+            targets: [],
+            url: "https://storage.example.com/plan",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(35),
+          },
+        ],
+        reports: [
+          {
+            id: 3,
+            type: "drift",
+            url: "https://storage.example.com/report",
+            content_type: "application/json",
+            file_size_bytes: 10,
+            created_at: at(55),
+          },
+        ],
+      }),
+    ],
+  });
+}
 
 describe("SessionData additional info", () => {
   it("shows the full session id", () => {
@@ -16,6 +80,353 @@ describe("SessionData additional info", () => {
 
     expect(screen.getByText("Session ID")).toBeInTheDocument();
     expect(screen.getByText(uuid)).toBeInTheDocument();
+  });
+});
+
+describe("SessionData timeline", () => {
+  it("nests each artifact under the status that produced it", () => {
+    renderWithProviders(<SessionData session={interleavedSession()} />);
+
+    const rows = [
+      "Request acceptance",
+      "Generating Infrastructure as Code",
+      "main.tf",
+      "Validating infrastructure configuration",
+      "Terraform Plan",
+      "Constructing a final report",
+      "Drift Report",
+    ].map((label) => screen.getByText(label));
+
+    for (let i = 0; i < rows.length - 1; i++) {
+      expect(isBefore(rows[i], rows[i + 1])).toBe(true);
+    }
+  });
+
+  it("no longer splits a round into status and artifact groups", () => {
+    renderWithProviders(<SessionData session={interleavedSession()} />);
+
+    expect(screen.queryByText("Statuses")).toBeNull();
+    expect(screen.queryByText("Artifacts")).toBeNull();
+  });
+
+  it("renders a reconciling pass with its plan", () => {
+    const session = makeSessionDetail({
+      current_status: "reconciling",
+      in_flight: true,
+      operation: "drift",
+      rounds: [
+        makeRound({
+          statuses: [
+            makeStatus("validating", null, at(0)),
+            makeStatus("reconciling", null, at(20)),
+          ],
+          plans: [
+            {
+              id: 7,
+              // An artifact stored after the reconciling entry: the
+              // drift diff the assessment read, which is what the phase
+              // owns before remediation re-plans.
+              targets: [],
+              url: "https://storage.example.com/plan",
+              content_type: "text/plain",
+              file_size_bytes: 10,
+              created_at: at(25),
+            },
+          ],
+        }),
+      ],
+    });
+    renderWithProviders(<SessionData session={session} />);
+
+    const phase = screen.getByText("Reconciling drift state");
+    const plan = screen.getByText("Terraform Plan");
+    expect(phase).toBeInTheDocument();
+    expect(isBefore(phase, plan)).toBe(true);
+  });
+});
+
+/** A finished session: the last round records the resting state itself. */
+function settledSession(status: "completed" | "failed" | "uncompleted") {
+  return makeSessionDetail({
+    current_status: status,
+    in_flight: false,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        statuses: [
+          makeStatus("generating", null, at(0)),
+          makeStatus(status, null, at(20)),
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData terminal state", () => {
+  it("renders the resting state once, not once per timeline level", () => {
+    // The round records the status and the session repeats it; rendering
+    // both put "Completed" on the timeline twice for every finished
+    // session — the default view of this feature.
+    renderWithProviders(<SessionData session={settledSession("completed")} />);
+
+    expect(screen.getAllByText("Completed")).toHaveLength(1);
+  });
+
+  it("renders a failed resting state once", () => {
+    renderWithProviders(<SessionData session={settledSession("failed")} />);
+
+    expect(screen.getAllByText("Failed")).toHaveLength(1);
+  });
+
+  it("closes the timeline on the last round rather than a trailing entry", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={settledSession("completed")} />,
+    );
+
+    // The connector line stops at the last entry, and that entry is now
+    // the round itself — nothing renders after it.
+    const last = container.querySelectorAll('[class*="timelineEntryLast"]');
+    expect(last).toHaveLength(1);
+    expect(last[0].textContent).toContain("Generating");
+  });
+});
+
+/**
+ * The window between `create_round` and the new round's first status:
+ * the round row exists and is deliberately kept visible, but carries no
+ * events yet, while `current_status` still reports the resting state the
+ * *previous* round reached.
+ */
+function reopenedSession(status: "completed" | "failed") {
+  return makeSessionDetail({
+    current_status: status,
+    in_flight: true,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        query: "deploy a VM",
+        statuses: [
+          makeStatus("generating", null, at(0)),
+          makeStatus(status, null, at(20)),
+        ],
+      }),
+      makeRound({ number: 2, query: "now add a key vault", statuses: [] }),
+    ],
+  });
+}
+
+describe("SessionData terminal state with a round already reopened", () => {
+  it("keeps the resting status marked on the round that reached it", () => {
+    // Anchoring the marker on the last round by index put it on the empty
+    // one, where no event row exists to carry it, so the Completed row
+    // silently lost its terminal styling every time work resumed.
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("completed")} />,
+    );
+
+    const terminal = container.querySelectorAll(
+      '[class*="timelineOpRowTerminal"]',
+    );
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0].textContent).toContain("Completed");
+  });
+
+  it("leaves the connector line running while the new round is empty", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("completed")} />,
+    );
+
+    // A round opened after the closing one means work resumed; the
+    // trailing line is what says so, so nothing ends the timeline.
+    expect(
+      container.querySelectorAll('[class*="timelineEntryLast"]'),
+    ).toHaveLength(0);
+  });
+
+  it("reddens the round that failed, not the one that followed it", () => {
+    const { container } = renderWithProviders(
+      <SessionData session={reopenedSession("failed")} />,
+    );
+
+    const failed = container.querySelectorAll(
+      '[class*="timelineEntryFailed"]',
+    );
+    expect(failed).toHaveLength(1);
+    expect(failed[0].textContent).toContain("deploy a VM");
+    expect(failed[0].textContent).not.toContain("now add a key vault");
+  });
+});
+
+/** A round with one expandable status and one artifact under it. */
+function keyboardSession() {
+  return makeSessionDetail({
+    current_status: "generating",
+    in_flight: true,
+    operation: "generate",
+    rounds: [
+      makeRound({
+        statuses: [makeStatus("generating", "see the [docs](/docs)", at(0))],
+        code_changes: [
+          {
+            id: 1,
+            file_name: "main.tf",
+            url: "https://storage.example.com/main.tf",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(5),
+          },
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData timeline accessibility", () => {
+  it("toggles a status row with Space as well as Enter", async () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+    const row = screen.getByRole("button", { name: /Generating/ });
+
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByText("docs")).toBeInTheDocument();
+
+    // `role="button"` promises Space too; without it the row stayed open
+    // and the page scrolled instead.
+    await userEvent.keyboard(" ");
+    expect(screen.queryByText("docs")).toBeNull();
+
+    await userEvent.keyboard(" ");
+    expect(screen.getByText("docs")).toBeInTheDocument();
+  });
+
+  it("keeps an expanded message out of the row's button", async () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+    const row = screen.getByRole("button", { name: /Generating/ });
+
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+
+    // A link inside `role="button"` is invalid and fires both actions;
+    // the message is a sibling of the row, so the link stands alone.
+    const link = screen.getByRole("link", { name: "docs" });
+    expect(row.contains(link)).toBe(false);
+  });
+
+  it("names each artifact row with what activating it does", () => {
+    renderWithProviders(<SessionData session={keyboardSession()} />);
+
+    // The row's visible text is just the file name; a screen reader
+    // needs the verb the eye icon conveys visually.
+    expect(
+      screen.getByRole("button", { name: "View main.tf" }),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A drift round whose plan is scoped to named resources. Partial drift is
+ * the flow that actually populates `targets`; a validation-loop plan
+ * carries the validator's `terraform_targets`, which are usually empty.
+ */
+function targetedSession(targets: string[]) {
+  return makeSessionDetail({
+    current_status: "validating",
+    in_flight: true,
+    operation: "drift",
+    rounds: [
+      makeRound({
+        statuses: [makeStatus("validating", null, at(0))],
+        plans: [
+          {
+            id: 11,
+            targets,
+            url: "https://storage.example.com/plans/plan-abc.txt",
+            content_type: "text/plain",
+            file_size_bytes: 10,
+            created_at: at(5),
+          },
+        ],
+      }),
+    ],
+  });
+}
+
+describe("SessionData plan targets", () => {
+  it("counts a plan's targets on its row", () => {
+    const session = targetedSession([
+      "azurerm_storage_account.main",
+      "azurerm_resource_group.rg",
+    ]);
+    renderWithProviders(<SessionData session={session} />);
+
+    const label = screen.getByText("Terraform Plan");
+    const chip = screen.getByText("2 targets");
+    expect(isBefore(label, chip)).toBe(true);
+  });
+
+  it("names the unit in the singular for a single target", () => {
+    renderWithProviders(<SessionData session={targetedSession(["a.one"])} />);
+
+    expect(screen.getByText("1 target")).toBeInTheDocument();
+  });
+
+  it("reveals the full list when the row is hovered", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SessionData session={targetedSession(["a.one", "b.two"])} />);
+
+    await user.hover(screen.getByRole("button", { name: "View Terraform Plan" }));
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("a.one");
+    expect(tooltip).toHaveTextContent("b.two");
+  });
+
+  it("anchors the list to the focusable row, not to the chip", async () => {
+    // Why it hangs off the row: the row is already keyboard-reachable, so
+    // focus reveals the list without nesting a control inside a
+    // `role="button"`. jsdom never reports `:focus-visible`, which is what
+    // MUI gates focus-opening on, so the binding is asserted rather than
+    // the keystroke — hence `aria-describedby` on the row itself.
+    const user = userEvent.setup();
+    renderWithProviders(<SessionData session={targetedSession(["a.one"])} />);
+
+    const row = screen.getByRole("button", { name: "View Terraform Plan" });
+    await user.hover(row);
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(row).toHaveAttribute("tabIndex", "0");
+    expect(row.getAttribute("aria-describedby")).toBe(tooltip.id);
+  });
+
+  it("renders no chip for a plan that carries no targets", () => {
+    renderWithProviders(<SessionData session={interleavedSession()} />);
+
+    expect(screen.getByText("Terraform Plan")).toBeInTheDocument();
+    expect(screen.queryByText(/target/)).toBeNull();
+  });
+});
+
+describe("SessionData artifacts", () => {
+  it("lists the round's compliance check alongside the other artifacts", () => {
+    const session = makeSessionDetail({
+      rounds: [
+        makeRound({
+          compliance_checks: [
+            {
+              id: 7,
+              url: "https://storage.test/compliance.json",
+              content_type: "application/json",
+              file_size_bytes: 10,
+              created_at: "2026-01-01T00:00:00Z",
+              passed: false,
+            },
+          ],
+        }),
+      ],
+    });
+    renderWithProviders(<SessionData session={session} />);
+
+    expect(screen.getByText("Compliance Check")).toBeInTheDocument();
   });
 });
 
@@ -42,5 +453,36 @@ describe("SessionData apply lock", () => {
     expect(button).toHaveAttribute("title", "Unlock apply");
     await userEvent.click(button);
     expect(onToggleLock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SessionData duration", () => {
+  /**
+   * A finished session whose row was written to long after the work ended
+   * — what an apply-lock toggle leaves behind. `updated_at` is ten minutes
+   * past the last status, so the two candidate end points disagree loudly.
+   */
+  function relockedSession() {
+    return makeSessionDetail({
+      current_status: "completed",
+      in_flight: false,
+      created_at: at(0),
+      updated_at: at(600),
+      rounds: [
+        makeRound({
+          statuses: [
+            makeStatus("generating", null, at(5)),
+            makeStatus("completed", null, at(30)),
+          ],
+        }),
+      ],
+    });
+  }
+
+  it("measures up to the last status, not the row's last write", () => {
+    renderWithProviders(<SessionData session={relockedSession()} />);
+
+    expect(screen.getByText("30s")).toBeInTheDocument();
+    expect(screen.queryByText("10m 0s")).not.toBeInTheDocument();
   });
 });

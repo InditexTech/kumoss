@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Nebula Web Client
+# Kumoss Web Client
 
-React frontend for the Nebula IaC generation platform.
+React frontend for the Kumoss IaC generation platform.
 
 ## Quick Start
 
@@ -34,7 +34,7 @@ This starts the full stack (core API, microservices, databases, Phoenix
 tracer, and the nginx proxy, which serves a production build of this client).
 Browse to `http://localhost`.
 
-The client is baked into the `nebula-nginx` image as a static build. After
+The client is baked into the `kumoss-nginx` image as a static build. After
 changing frontend code, rebuild the proxy to see the changes:
 
 ```bash

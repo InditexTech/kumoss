@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 function isStorageAvailable(storage: Storage): boolean {
-  const testKey = "__nebula_storage_test__";
+  const testKey = "__kumoss_storage_test__";
   try {
     storage.setItem(testKey, "1");
     storage.removeItem(testKey);

@@ -14,7 +14,8 @@ import type {
   OperationRole,
   PanelRole,
 } from "@/types/api";
-import { SessionsTable, formatDate } from "@/components/ui";
+import { SessionsTable } from "@/components/ui";
+import { formatDateTime } from "@/utils/datetime";
 import type {
   ColumnDef,
   FetchParams,
@@ -178,7 +179,7 @@ export default function UsersPanel() {
         header: "Created",
         width: "22%",
         className: styles.secondary,
-        render: (u) => formatDate(u.created_at),
+        render: (u) => formatDateTime(u.created_at),
       },
     ],
     [overrides, savingId, me?.id, applyRoles],

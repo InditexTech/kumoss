@@ -11,6 +11,12 @@ const MonacoEditor = lazy(() => import('@/components/ui/CodeBlock/MonacoEditor/M
 interface Props {
   code?: string;
   files?: Record<string, string>;
+  /**
+   * Names in `files` whose body is raw content rather than `git diff`
+   * output, from the artifact's `new_file` metadata. A name absent here
+   * renders in the diff editor.
+   */
+  newFiles?: ReadonlySet<string>;
   activeFile?: string;
   onFileChange?: (fileName: string) => void;
   language?: string;
@@ -24,6 +30,7 @@ interface Props {
 const CodeBlock = ({
   code,
   files,
+  newFiles,
   activeFile,
   onFileChange,
   language = 'hcl',
@@ -87,6 +94,7 @@ const CodeBlock = ({
         <Suspense fallback={<EditorSkeleton height={height} />}>
           <MonacoEditor
             files={files}
+            newFiles={newFiles}
             activeFile={internalActiveFile || activeFile}
             onFileChange={handleFileChange}
             showLineNumbers={showLineNumbers}

@@ -11,7 +11,7 @@
 #
 
 site:
-  title: Nebula
+  title: Kumoss
   # Set this to the public URL of the deployed site. It is required for the
   # sitemap and for canonical links; leave it out while developing locally.
   #
@@ -19,7 +19,7 @@ site:
   # https://<org>.github.io/<repo>/ — the repo name has to be baked into
   # this as a path segment; Antora uses it to generate correct absolute
   # asset URLs.
-  url: https://inditextech.github.io/nebula
+  url: https://inditextech.github.io/kumoss
   # A second /<component-name>/ segment only appears below (in
   # site.start_page) if this site opted into one (`docouture new`'s "extra URL
   # path segment" question, or `--url-segment`) — off by default, in which
@@ -183,6 +183,10 @@ antora:
     # generation for AI ingestion. `duplicateLatestVersion` additionally
     # publishes `stable`'s content a second time under `/latest/…` — a real,
     # independent copy, not a redirect — once a first release exists (see
-    # the `urls` note above).
+    # the `urls` note above). `changelog_path` points the changelog-pages
+    # step at the root CHANGELOG.md that release-please maintains, instead of
+    # its `code/CHANGELOG.md` default; a missing file is a warning, which
+    # fails the build under `failure_level: warn`.
     - require: '@inditextech/docouture-antora-extensions'
       duplicate_latest_version: true
+      changelog_path: ../CHANGELOG.md

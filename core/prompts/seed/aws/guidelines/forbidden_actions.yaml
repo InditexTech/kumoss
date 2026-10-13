@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS actions Nebula must never generate (security and cost guardrails).
+description: AWS actions Kumoss must never generate (security and cost guardrails).
 body: |
   # STRICTLY FORBIDDEN AWS ACTIONS
 

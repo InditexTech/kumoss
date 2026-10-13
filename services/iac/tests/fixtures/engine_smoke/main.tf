@@ -8,5 +8,5 @@
 # credentials.
 
 resource "terraform_data" "probe" {
-  input = "nebula-iac-smoke"
+  input = "kumoss-iac-smoke"
 }

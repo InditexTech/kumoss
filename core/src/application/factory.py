@@ -311,6 +311,7 @@ class ApplicationFactory:
 
     def _get_drift_service(
         self,
+        session_service: SessionService,
         validation_service: TerraformValidationService,
         terraform_service: ITerraform,
         split_service: TaskService,
@@ -318,6 +319,7 @@ class ApplicationFactory:
     ) -> TerraformDriftService:
         return TerraformDriftService(
             session_context=self.__ctx,
+            session_service=session_service,
             validation_service=validation_service,
             terraform_service=terraform_service,
             split_service=split_service,
@@ -355,11 +357,13 @@ class ApplicationFactory:
         tool_svc: ToolOrchestrationService,
         llm_svc: LLMOrchestrationService,
         template_svc: TemplateOrchestrationService,
+        artifact_svc: ArtifactStorageService,
     ) -> ComplianceCheckService:
         return ComplianceCheckService(
             tool_service=tool_svc,
             llm_service=llm_svc,
             template_service=template_svc,
+            artifact_service=artifact_svc,
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
@@ -378,7 +382,9 @@ class ApplicationFactory:
         )
         split_svc = self._get_terraform_split_service(tool_svc, llm_svc, template_svc)
         validator_prv = self._get_terraform_provider(file_utils.project_root)
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
+        compliance_svc = self._get_compliance_service(
+            tool_svc, llm_svc, template_svc, artifact_svc
+        )
         validation_svc = self._get_terraform_validation_service(
             git_utils=git_utils,
             file_utils=file_utils,
@@ -395,6 +401,7 @@ class ApplicationFactory:
             template_service=template_svc,
         )
         drift_svc = self._get_drift_service(
+            session_service=session_svc,
             validation_service=validation_svc,
             terraform_service=validator_prv,
             split_service=split_svc,
@@ -446,6 +453,7 @@ class ApplicationFactory:
             template_service=template_svc,
         )
         drift_svc = self._get_drift_service(
+            session_service=session_svc,
             validation_service=validation_svc,
             terraform_service=validator_prv,
             split_service=split_svc,
@@ -480,7 +488,9 @@ class ApplicationFactory:
         terraform_svc = self._get_terraform_provider(
             workspace_svc.pinned_dir(self.__ctx.id)
         )
-        compliance_svc = self._get_compliance_service(tool_svc, llm_svc, template_svc)
+        compliance_svc = self._get_compliance_service(
+            tool_svc, llm_svc, template_svc, artifact_svc
+        )
         return TerraformApplyHandler(
             terraform_service=terraform_svc,
             session_service=session_svc,
@@ -534,6 +544,7 @@ class ApplicationFactory:
             terraform_service=terraform_prv,
             split_service=split_svc,
             artifact_service=artifact_svc,
+            session_service=session_svc,
         )
         return TerraformImportHandler(
             session_ctx=self.__ctx,

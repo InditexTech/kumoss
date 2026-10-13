@@ -7,7 +7,7 @@ body: |
   # Import Exception List — GCP
 
   Resource IDs listed here are excluded from every import operation.
-  Nebula removes them in code before any selection, and the import
+  Kumoss removes them in code before any selection, and the import
   report lists them as skipped.
 
   Write one resource ID per markdown bullet, exactly as the cloud

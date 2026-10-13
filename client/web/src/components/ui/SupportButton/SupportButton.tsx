@@ -5,7 +5,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ButtonBase, Tooltip } from "@mui/material";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import { useSession } from "@/contexts/SessionContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { checkApplyAllowed } from "@/services/core/sessions";
@@ -147,7 +147,7 @@ function SupportButton({
   }, [user, session, prDetails, context, message, onSupportRequest, showNotification]);
 
   useEffect(() => {
-    const notificationKey = `nebulaai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
+    const notificationKey = `kumossai_notification_sent_${session.uuid}_${prDetails.url || "no_pr"}`;
     const alreadySent = getSessionItem(notificationKey) === "true";
 
     if (autoTrigger && !hasAutoTriggered.current && !alreadySent && user) {

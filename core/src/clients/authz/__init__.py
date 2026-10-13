@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""A client library for accessing Nebula Authorization Service"""
+"""A client library for accessing Kumoss Authorization Service"""
 
 from .client import AuthenticatedClient, Client
 

@@ -1,20 +1,21 @@
 = Data and state
 :description: What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
 
-This page describes what each of Nebula's data stores holds: core-db,
+This page describes what each of Kumoss's data stores holds: core-db,
 phoenix-db, Redis, object storage, and the `workspaces` volume on the
 filesystem shared between the core and the iac sidecar.
 
 == core-db
 
 *core-db (PostgreSQL 17)* is the system of record for the application
-domain. Twelve tables: `users` (unique
+domain. Thirteen tables: `users` (unique
 on `(issuer, subject)`, with `email`, `display_name`, `operation_role`,
 nullable `panel_role`), `sessions` (owned by a `user_id`, including the
 `in_flight` concurrency flag and the `is_blocked` compliance lock that
 gates apply), `workspaces`, `terraform_providers`, `pull_requests`,
 `histories`, `statuses`, `rounds`, and the artifact-metadata tables
-`artifacts`, `terraform_plans`, `reports`, and `code_changes`. Roles are
+`artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the
+audit verdict plus its stored findings), and `code_changes`. Roles are
 managed from the admin panel or, for the first administrator on IdPs
 that emit no `email_verified` claim, by a one-off SQL update (see
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the
@@ -32,7 +33,7 @@ xref:main:reference/database-schema.adoc[Database schema].
 
 *phoenix-db (PostgreSQL 17)* belongs exclusively to Phoenix and stores
 traces and prompt versions — operational/LLM telemetry, fully separate
-from Nebula's domain data.
+from Kumoss's domain data.
 
 == Redis
 
@@ -47,8 +48,8 @@ locks and no pub/sub channels.
 
 Object storage holds generated artifacts under
 `sessions/<session id>/rounds/<round primary key>/`, as
-`reports/<report type>-<token>.json`, `plans/{plan|drift}-<token>.txt`,
-or `changes/<token>-<sanitized file name>`.
+`reports/<report type>-<token>.json`, `compliance/check-<token>.json`,
+`plans/{plan|drift}-<token>.txt`, or `changes/<token>-<sanitized file name>`.
 RustFS is the *default and bundled* implementation: the Compose stack
 starts it as the `object-storage` container, and because it is open
 source (Apache-2.0) the default stack needs no proprietary or
@@ -94,7 +95,7 @@ shipped. A remote backend, however, is not optional regardless of that
 setting: workspaces are ephemeral and the `.gitignore` the core seeds
 excludes `*.tfstate`, so local state would be lost after the run.
 Because `storage.terraform_state_bucket` ships set to
-`nebula-terraform-state`, the default is that *Nebula manages state
+`kumoss-terraform-state`, the default is that *Kumoss manages state
 itself*, in a second bucket in the same store kept separate from the
 artifacts bucket. A deployment can instead set the value to `""` so
 that *each repository declares its own remote backend* — `azurerm`,
@@ -113,7 +114,7 @@ A bare `terraform_state_bucket:` key with no value is *not* the same as
 `""` — it parses as YAML null and fails boot with a Pydantic validation
 error — and *deleting* the key entirely also leaves managed state on,
 since the configuration default is the same
-`nebula-terraform-state` value.
+`kumoss-terraform-state` value.
 
 See xref:main:guides/configure-state-backends.adoc[Configure state
 backends] for the full decision between the three ownership models and
@@ -135,7 +136,7 @@ via git pushes and artifact uploads, not the volume.
 == authz sidecar persistence
 
 authz persistence is a JSON file (`/data/roles.json`, container-local
-in the shipped Compose file; set `NEBULA_AUTHZ_ROLE_STORE` to a mounted
+in the shipped Compose file; set `KUMOSS_AUTHZ_ROLE_STORE` to a mounted
 path to keep it), rewritten atomically under a process lock. It backs
 the sidecar's own user/role endpoints, which the core does not call;
-Nebula's roles live in core-db.
+Kumoss's roles live in core-db.

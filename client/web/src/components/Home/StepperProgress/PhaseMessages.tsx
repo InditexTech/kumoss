@@ -21,7 +21,7 @@ export default function PhaseMessages({
 }: PhaseMessagesProps) {
   const [displayed, setDisplayed] = useState<string | null>(null);
   const [phase, setPhase] = useState<"in" | "out" | "idle">("idle");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (!latestMessage || latestMessage === displayed) return;

@@ -11,6 +11,7 @@ from src.api.deps import get_current_user
 from src.api.dtos import AuthConfigResponse
 from src.domains.entities import User
 from src.infrastructure.external.authz_service import AuthzServiceClient
+from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
 from src.shared.exceptions import ExceptionHandler
 
@@ -29,6 +30,9 @@ async def auth_config() -> AuthConfigResponse:
         client_id=oidc.client_id,
         audience=oidc.audience,
         scope=oidc.scope,
+        artifact_metadata_header_prefix=(
+            default_object_storage().metadata_header_prefix
+        ),
     )
 
 

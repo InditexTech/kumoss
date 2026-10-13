@@ -15,3 +15,7 @@ class Conventions:
 
     templates: list[str]
     abbreviations: list[str]
+
+    @classmethod
+    def empty(cls) -> "Conventions":
+        return cls(templates=[], abbreviations=[])

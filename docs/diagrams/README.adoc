@@ -26,7 +26,7 @@ it:
 [source,asciidoc]
 ----
 :diagram-name: system-architecture
-:diagram-alt: Nebula system architecture: the browser and Nginx edge, ...
+:diagram-alt: Kumoss system architecture: the browser and Nginx edge, ...
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 ----
@@ -116,7 +116,7 @@ specification. Render one with the `archify` skill, from its own directory:
 ----
 node bin/archify.mjs validate <type> <spec.json> --quality showcase --json
 node bin/archify.mjs deliver  <type> <spec.json> \
-  <nebula>/docs/src/modules/main/attachments/<name>.html \
+  <kumoss>/docs/src/modules/main/attachments/<name>.html \
   --quality showcase --json
 ARCHIFY_CHROME=<chrome> node bin/archify.mjs visual-check <out.html> --json
 ----

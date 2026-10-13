@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -16,6 +16,7 @@ from src.domains.entities import User
 from src.main import app
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base
+from src.infrastructure.exceptions import RepositoryUnreachable
 from src.shared.config import system_config
 from src.shared.constants import OperationRole
 
@@ -93,12 +94,14 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_first_call_returns_202_and_session_id(self):
-        uri = _bare_remote(self.tmp)
-        with TestClient(app) as client:
+        with (
+            patch("src.api.v1.terraform._workspace.validate_uri", AsyncMock()),
+            TestClient(app) as client,
+        ):
             resp = client.post(
                 "/v1/iac/generate",
                 json={
-                    "repo_uri": uri,
+                    "repo_uri": "https://github.example.com/org/iac.git",
                     "terraform_providers": "azure",
                     "scope_id": "dev",
                     "q": "hello",
@@ -108,18 +111,46 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         body = resp.json()
         self.assertIn("session_id", body)
 
-    def test_first_call_with_bad_uri_returns_400(self):
-        with TestClient(app) as client:
+    def test_first_call_with_unreachable_uri_returns_400(self):
+        with (
+            patch(
+                "src.api.v1.terraform._workspace.validate_uri",
+                AsyncMock(side_effect=RepositoryUnreachable(400)),
+            ),
+            TestClient(app) as client,
+        ):
             resp = client.post(
                 "/v1/iac/generate",
                 json={
-                    "repo_uri": "file:///does/not/exist.git",
+                    "repo_uri": "https://github.example.com/org/missing.git",
                     "terraform_providers": "azure",
                     "scope_id": "dev",
                     "q": "hello",
                 },
             )
         self.assertEqual(resp.status_code, 400, resp.text)
+        self.assertEqual(
+            resp.json()["detail"],
+            "Repository is not reachable or access was denied.",
+        )
+
+    def test_first_call_with_non_https_uri_returns_422(self):
+        with TestClient(app) as client:
+            for uri in (
+                "git@github.com:org/iac.git",
+                "file:///does/not/exist.git",
+            ):
+                with self.subTest(uri=uri):
+                    resp = client.post(
+                        "/v1/iac/generate",
+                        json={
+                            "repo_uri": uri,
+                            "terraform_providers": "azure",
+                            "scope_id": "dev",
+                            "q": "hello",
+                        },
+                    )
+                    self.assertEqual(resp.status_code, 422, resp.text)
 
     def test_request_with_neither_uri_nor_session_id_returns_422(self):
         app.dependency_overrides[get_current_user] = lambda: _caller()
@@ -156,12 +187,14 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_drift_first_call_returns_202(self):
-        uri = _bare_remote(self.tmp)
-        with TestClient(app) as client:
+        with (
+            patch("src.api.v1.terraform._workspace.validate_uri", AsyncMock()),
+            TestClient(app) as client,
+        ):
             resp = client.post(
                 "/v1/iac/drift",
                 json={
-                    "repo_uri": uri,
+                    "repo_uri": "https://github.example.com/org/iac.git",
                     "terraform_providers": "azure",
                     "scope_id": "dev",
                     "q": "check drift",
@@ -222,7 +255,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/apply-x",
+                    branch_name="Kumoss/apply-x",
                     query="seed",
                     iac_path="",
                 )
@@ -263,7 +296,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/apply-blocked",
+                    branch_name="Kumoss/apply-blocked",
                     query="seed",
                     iac_path="",
                 )
@@ -335,7 +368,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
                     repo_uri=_bare_remote(self.tmp),
                     terraform_prv=TerraformProvider.AZURE,
                     scope_id="dev",
-                    branch_name="Nebula/x",
+                    branch_name="Kumoss/x",
                     query="seed",
                     iac_path="",
                 )

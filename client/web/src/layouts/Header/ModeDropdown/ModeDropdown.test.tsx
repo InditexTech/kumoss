@@ -34,7 +34,8 @@ describe("ModeDropdown role gating", () => {
       "true",
     );
     for (const name of [
-      /import infrastructure/i,
+      /full import/i,
+      /partial import/i,
       /full drift remediation/i,
       /partial drift remediation/i,
     ]) {
@@ -48,12 +49,15 @@ describe("ModeDropdown role gating", () => {
     auth.operationRole = "devops";
     const options = await openDropdown();
 
-    expect(options).toHaveLength(4);
+    expect(options).toHaveLength(5);
     for (const item of options) {
       expect(item).not.toHaveAttribute("aria-disabled", "true");
     }
-    expect(option(/import infrastructure/i)).toHaveTextContent(
-      "Adds existing resources to manage them from the tool.",
+    expect(option(/partial import/i)).toHaveTextContent(
+      "Imports only the unmanaged resources your request names.",
+    );
+    expect(option(/full import/i)).toHaveTextContent(
+      "Brings every unmanaged resource in the scope under management.",
     );
   });
 });

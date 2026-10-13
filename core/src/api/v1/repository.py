@@ -123,7 +123,7 @@ async def parse_repository(
         RepoUri,
         Body(
             description=(
-                "Git-cloneable repository URI to parse for Terraform roots. "
+                "HTTPS repository URI to parse for Terraform roots. "
                 "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
                 "but must not embed a password or token."
             ),

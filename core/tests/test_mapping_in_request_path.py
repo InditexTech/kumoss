@@ -125,6 +125,10 @@ class TestDisabledMappingIsIdentity(MappingClientTestCase):
         self.assertEqual(resolved.terraform_provider, TerraformProvider.GCP)
         self.assertIsNone(resolved.scope_id)
 
+    async def test_non_https_identifier_is_echoed_unchecked(self):
+        resolved = await MappingServiceClient().resolve("my-project")
+        self.assertEqual(resolved.repo_url, "my-project")
+
     async def test_service_is_never_contacted(self):
         op = self._patch_op(return_value=None)
         await MappingServiceClient().resolve(IDENTIFIER)
@@ -235,6 +239,25 @@ class TestEnabledMappingFailureModes(MappingClientTestCase):
                 with self.assertRaises(ExceptionHandler) as ctx:
                     await MappingServiceClient().resolve(IDENTIFIER)
                 self.assertEqual(ctx.exception.error_code, 502)
+
+    async def test_non_https_repo_url_is_502(self):
+        for repo_url in (
+            "my-project",
+            "git@github.com:me/my-iac.git",
+            "ssh://git@github.com/me/my-iac.git",
+            "file:///srv/git/my-iac.git",
+            "http://github.com/me/my-iac.git",
+        ):
+            with self.subTest(repo_url=repo_url):
+                self._patch_op(
+                    return_value=ResolveResponse(
+                        repo_url=repo_url, identifier="my-project"
+                    )
+                )
+                with self.assertRaises(ExceptionHandler) as ctx:
+                    await MappingServiceClient().resolve("my-project")
+                self.assertEqual(ctx.exception.error_code, 502)
+                self.assertNotIn(repo_url, ctx.exception.message)
 
     async def test_unexpected_response_type_is_502(self):
         self._patch_op(return_value=None)

@@ -1,7 +1,7 @@
 = Customize prompts
-:description: Manage Nebula's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+:description: Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
 
-Nebula does not hard-code cloud knowledge. The instructions that tell
+Kumoss does not hard-code cloud knowledge. The instructions that tell
 its agents how to name, configure, and secure resources are *prompts*
 stored in the prompt registry of https://arize.com/docs/phoenix[Arize
 Phoenix], fetched by the core at request time. This guide explains the
@@ -9,7 +9,7 @@ three layers involved, the naming conventions, how seeding and runtime
 lookup work, how the prompts are composed into a system prompt, and how
 to add or change prompts safely.
 
-Phoenix also collects Nebula's traces. That is a separate function,
+Phoenix also collects Kumoss's traces. That is a separate function,
 documented in xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
 Phoenix]. Where Phoenix runs and how it is protected in each deployment
 model is covered by xref:main:quickstart.adoc[Quickstart] and
@@ -36,7 +36,7 @@ in Phoenix
 |*Local Jinja layouts*
 |`core/src/infrastructure/templates/base_layouts/` (`core/` and
 `messages/`), inside the core image
-|Nebula developers
+|Kumoss developers
 |After rebuilding the core image
 |===
 
@@ -153,9 +153,9 @@ have been initialised, the seeder:
 . For each seed, asks Phoenix whether a prompt with that name exists
   (by name, regardless of tags). If it exists, the seed is skipped. If
   not, the seeder creates the prompt with one version whose displayed
-  model name is `nebula-seed` (Phoenix requires a model name; Nebula
-  ignores it) and tags that version with the value of `environment`
-  from `config.yaml` (`development` by default).
+  model name is `kumoss-seed` (Phoenix requires a model name; Kumoss
+  ignores it) and tags that version with every `environment` value:
+  `development`, `staging`, and `production`.
 . Logs `Prompt seeding complete: N created, M already present`.
 
 Consequences to plan for:
@@ -166,15 +166,21 @@ Consequences to plan for:
   Phoenix (see below) or delete it there and restart the core.
 * *Only new names are pushed.* Adding a new seed file and restarting the
   core does create the new prompt, even on an existing deployment.
+* *A failed tag is not retried.* If Phoenix rejects one of the three tag
+  writes, boot fails, but the prompt already exists and the next boot
+  skips it. The error names the prompt, its version, and the tags still
+  missing; add them to that version in Phoenix.
 * *The environment tag matters.* The core fetches prompts by name and
-  tag, and the tag is `environment`. If you change `environment` (say
-  from `development` to `production`) on a deployment whose prompts
-  were seeded earlier, the seeder sees the names already exist, skips
-  them, and never applies the new tag. The next session then fails
-  because `general-guidelines-terraform` has no version tagged
-  `production`. Tag a version of every prompt with the new value in
-  Phoenix before switching, or start from an empty Phoenix database.
-* *Prompt versions are yours to manage.* Nebula always fetches the
+  tag, and the tag is `environment`. Seeded versions carry all three
+  tags, so changing `environment` keeps working for them. It does not
+  for versions you create by hand, nor for prompts seeded by a release
+  that applied only the `environment` tag: the seeder sees the names
+  already exist, skips them, and never adds the missing tags. The next
+  session then fails because, say, `general-guidelines-terraform` has
+  no version tagged `production`. Tag a version of every such prompt
+  with the new value in Phoenix before switching, or start from an
+  empty Phoenix database.
+* *Prompt versions are yours to manage.* Kumoss always fetches the
   version currently carrying the environment tag. Publishing a new
   version and moving the tag is how you roll a change out; moving the
   tag back is how you roll it back.
@@ -724,8 +730,8 @@ exists, so the catalogue must be edited in Phoenix:
   (new names are created), or create the prompt
   `<cloud>-resources-<name>` directly in Phoenix. In both cases the
   new version must carry the deployment's `environment` tag
-  (`development` by default); the seeder tags what it creates, a
-  manual creation must be tagged by hand.
+  (`development` by default); the seeder tags what it creates with all
+  three environments, a manual creation must be tagged by hand.
 . Open `<cloud>-guidelines-resources_list`, create a new version with
   the extra line, and move the environment tag to it.
 . Run a session that mentions the new resource. No core rebuild or
@@ -742,6 +748,12 @@ Keep the previous version; moving the tag back is the rollback.
   rules encode a policy, not yours.
 * Keep Phoenix reachable during core startups; seeding is part of the
   boot.
+* Keep the "No arbitrary command execution" section when you replace
+  the body of `general-guidelines-terraform`. It is the only instruction
+  that keeps `null_resource`, `provisioner` blocks, and
+  `data "external"` out of generated code, and nothing enforces it
+  outside the prompt, see
+  xref:main:guides/deploy-to-production.adoc[Deploy to production].
 * Decide who may edit prompts. Anyone with access to the Phoenix UI can
   change what the agents generate. Phoenix has no authentication in the
   default stack.

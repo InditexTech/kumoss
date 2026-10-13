@@ -424,9 +424,19 @@ class Terraform(ITerraform):
                         f"terraform state pull failed: {state_res.stderr or 'unknown error'}",
                         502,
                     )
-                return TerraformDiscoveryDTO(
-                    resource_ids=json.loads(state_res.stdout),
-                )
+                try:
+                    resource_ids = json.loads(state_res.stdout)
+                except json.JSONDecodeError as e:
+                    raise ExceptionHandler(
+                        f"IaC service returned invalid state resource IDs: {e}", 502
+                    ) from e
+                if not isinstance(resource_ids, list) or not all(
+                    isinstance(resource_id, str) for resource_id in resource_ids
+                ):
+                    raise ExceptionHandler(
+                        "IaC service returned invalid state resource IDs.", 502
+                    )
+                return TerraformDiscoveryDTO(resource_ids=resource_ids)
 
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
@@ -466,19 +476,24 @@ class Terraform(ITerraform):
                     cfg,
                 )
                 if scope_res.exit_code != 0:
-                    # A failed cloud query is a normal outcome of this
-                    # endpoint (scope not found, credentials issue, a
-                    # provider with no inventory query at all), so the
-                    # scope reads as empty and the diagnostics travel
-                    # back with it: discovery finds nothing to import
-                    # rather than the session failing.
                     return TerraformDiscoveryDTO(
                         resource_ids=[],
                         feedback=scope_res.stderr or "unknown error",
                     )
-                return TerraformDiscoveryDTO(
-                    resource_ids=json.loads(scope_res.stdout),
-                )
+                try:
+                    resource_ids = json.loads(scope_res.stdout)
+
+                except json.JSONDecodeError as e:
+                    raise ExceptionHandler(
+                        f"IaC service returned invalid scope resource IDs: {e}", 502
+                    ) from e
+                if not isinstance(resource_ids, list) or not all(
+                    isinstance(resource_id, str) for resource_id in resource_ids
+                ):
+                    raise ExceptionHandler(
+                        "IaC service returned invalid scope resource IDs.", 502
+                    )
+                return TerraformDiscoveryDTO(resource_ids=resource_ids)
 
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e

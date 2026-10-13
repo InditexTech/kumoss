@@ -5,7 +5,7 @@
 openapi: 3.1.0
 
 info:
-  title: Nebula IaC Service
+  title: Kumoss IaC Service
   version: "1.0.0"
   summary: Run individual terraform operations as asynchronous jobs against a checked-out workspace.
   description: |
@@ -125,8 +125,8 @@ info:
     cloned the repo into); other implementations may pull from
     object storage, a content-addressable cache, or an upload endpoint.
   contact:
-    name: Nebula maintainers
-    url: https://github.com/InditexTech/nebula
+    name: Kumoss maintainers
+    url: https://github.com/InditexTech/kumoss
   license:
     name: Apache-2.0
 
@@ -927,7 +927,7 @@ components:
       description: |
         Per-service bearer token. The token value is the contents of the
         environment variable named in the system config (default
-        `NEBULA_IAC_TOKEN`). Implementations MAY accept all
+        `KUMOSS_IAC_TOKEN`). Implementations MAY accept all
         requests when no token is configured for local development.
 
   responses:

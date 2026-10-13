@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from src.domains.dto import ValidationResultDTO
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -150,6 +151,17 @@ class ObjectStorageUnavailable(ExceptionHandler):
 
 
 class ValidationLoopExceededError(ExceptionHandler):
-    """Raised when the validation loop has exceeded the retries"""
+    """Raised when the validation loop has exceeded the retries.
 
-    pass
+    ``result`` is the last attempt's, for callers that can still use a
+    partial outcome.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        error_code: int,
+        result: ValidationResultDTO | None = None,
+    ):
+        super().__init__(message, error_code)
+        self.result: ValidationResultDTO | None = result

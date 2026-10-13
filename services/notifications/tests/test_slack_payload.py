@@ -127,7 +127,7 @@ def test_links_render_as_buttons() -> None:
             links=[
                 {
                     "label": "Open session",
-                    "url": "https://nebula.example/home/results/1",
+                    "url": "https://kumoss.example/home/results/1",
                 }
             ]
         )
@@ -136,6 +136,6 @@ def test_links_render_as_buttons() -> None:
         {
             "type": "button",
             "text": "Open session",
-            "url": "https://nebula.example/home/results/1",
+            "url": "https://kumoss.example/home/results/1",
         }
     ]

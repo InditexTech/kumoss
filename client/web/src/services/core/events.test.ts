@@ -4,8 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/mocks/server";
-import { mockState } from "@/mocks/state";
+import { server } from "@/test/server";
+import { mockState } from "@/test/factories";
 import { subscribeToSession, checkSessionStatus } from "./events";
 import { UNAUTHORIZED_EVENT } from "@/services/token";
 
@@ -229,7 +229,7 @@ describe("subscribeToSession", () => {
 describe("checkSessionStatus", () => {
   it("returns completed when session has current_status=completed", async () => {
     server.use(
-      http.get("/api/v1/sessions/:sessionId", () => {
+      http.get("/api/v1/sessions", () => {
         return HttpResponse.json({ current_status: "completed" });
       }),
     );
@@ -240,7 +240,7 @@ describe("checkSessionStatus", () => {
 
   it("returns failed when session has current_status=failed", async () => {
     server.use(
-      http.get("/api/v1/sessions/:sessionId", () => {
+      http.get("/api/v1/sessions", () => {
         return HttpResponse.json({ current_status: "failed" });
       }),
     );
@@ -251,7 +251,7 @@ describe("checkSessionStatus", () => {
 
   it("returns uncompleted when the round was filter-rejected", async () => {
     server.use(
-      http.get("/api/v1/sessions/:sessionId", () => {
+      http.get("/api/v1/sessions", () => {
         return HttpResponse.json({ current_status: "uncompleted" });
       }),
     );
@@ -262,7 +262,7 @@ describe("checkSessionStatus", () => {
 
   it("returns in_progress when session is still running", async () => {
     server.use(
-      http.get("/api/v1/sessions/:sessionId", () => {
+      http.get("/api/v1/sessions", () => {
         return HttpResponse.json({ current_status: "generating" });
       }),
     );
@@ -273,7 +273,7 @@ describe("checkSessionStatus", () => {
 
   it("returns not_found when session does not exist (404)", async () => {
     server.use(
-      http.get("/api/v1/sessions/:sessionId", () => {
+      http.get("/api/v1/sessions", () => {
         return HttpResponse.json(
           { detail: "Not found" },
           { status: 404 },

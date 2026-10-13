@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export { default as SessionsTable } from "./SessionsTable";
-export { formatDate, truncate } from "./SessionsTable";
+export { truncate } from "./SessionsTable";
 export type {
   FilterOption,
   FilterConfig,

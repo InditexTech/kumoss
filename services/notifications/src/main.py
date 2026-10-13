@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Nebula Notifications Service",
+    title="Kumoss Notifications Service",
     version="1.0.0",
     description="Reference implementation of contracts/openapi/notifications.v1.yaml.",
     lifespan=lifespan,

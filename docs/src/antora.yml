@@ -7,7 +7,7 @@
 # `--url-segment`), default off/ROOT. See antora-playbook.yml's own
 # site.url comment for the full GitHub Pages URL shape either way.
 name: ROOT
-title: Nebula
+title: Kumoss
 # This descriptor is identical for BOTH versioning modes — see the docouture
 # docs-site-package skill's reference/versioning-modes.md. `main` permanently
 # says `version: prerelease`, `prerelease: true`, regardless of whether this
@@ -54,7 +54,7 @@ nav:
 nav_modules:
   - module: main
     title: Documentation
-    description: Deploy, operate, and use Nebula.
+    description: Deploy, operate, and use Kumoss.
     icon: grid-3x3
 
 # Which module's navigation the generated 404 page's side menu shows, read

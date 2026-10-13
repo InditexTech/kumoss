@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from src.api.deps import get_current_user
 from src.domains.entities import User
-from src.infrastructure.exceptions import InvalidRepoURI
+from src.infrastructure.exceptions import RepositoryUnreachable
 from src.main import app
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
@@ -70,18 +70,21 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["roots"], [])
 
-    def test_parse_invalid_uri_returns_400(self):
-        svc = _mock_service(AsyncMock(side_effect=InvalidRepoURI("not a repo", 400)))
+    def test_parse_unreachable_uri_returns_400_with_a_generic_detail(self):
+        svc = _mock_service(AsyncMock(side_effect=RepositoryUnreachable(400)))
         with patch(
             "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
                 "/v1/repository/parse",
-                json={"repo_uri": "not-a-valid-url"},
+                json={"repo_uri": "https://github.com/org/missing.git"},
             )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("not a repo", resp.json()["detail"])
+        self.assertEqual(
+            resp.json()["detail"],
+            "Repository is not reachable or access was denied.",
+        )
 
     def test_parse_clone_failure_returns_502(self):
         svc = _mock_service(
@@ -122,10 +125,21 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 200)
         svc.detect_roots.assert_awaited_once_with(uri)
 
-    def test_parse_bogus_uri_rejected_by_ls_remote(self):
-        """Unmocked: a URI that fails git ls-remote produces a 400."""
-        resp = self.client.post(
-            "/v1/repository/parse",
-            json={"repo_uri": "file:///nonexistent/repo.git"},
-        )
-        self.assertEqual(resp.status_code, 400)
+    def test_parse_rejects_non_https_uris(self):
+        svc = _mock_service(AsyncMock(return_value=[]))
+        with patch(
+            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            return_value=svc,
+        ):
+            for uri in (
+                "git@github.com:org/repo.git",
+                "ssh://git@github.com/org/repo.git",
+                "file:///nonexistent/repo.git",
+                "not-a-valid-url",
+            ):
+                with self.subTest(uri=uri):
+                    resp = self.client.post(
+                        "/v1/repository/parse", json={"repo_uri": uri}
+                    )
+                    self.assertEqual(resp.status_code, 422)
+        svc.detect_roots.assert_not_awaited()

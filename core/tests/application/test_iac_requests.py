@@ -25,13 +25,31 @@ class TestRepoUri(unittest.TestCase):
         uri = "https://github.com/foo/bar.git"
         self.assertEqual(self.adapter.validate_python(uri), uri)
 
-    def test_scp_style_ssh_uri_passes_through(self):
-        uri = "git@github.com:foo/bar.git"
+    def test_mixed_case_https_scheme_passes_through(self):
+        uri = "Https://github.com/foo/bar.git"
         self.assertEqual(self.adapter.validate_python(uri), uri)
 
-    def test_ssh_url_with_git_user_passes_through(self):
-        uri = "ssh://git@github.com/foo/bar.git"
-        self.assertEqual(self.adapter.validate_python(uri), uri)
+    def test_rejects_every_non_https_transport(self):
+        for uri in (
+            "git@github.com:foo/bar.git",
+            "ssh://git@github.com/foo/bar.git",
+            "git+ssh://git@github.com/foo/bar.git",
+            "git://github.com/foo/bar.git",
+            "http://github.com/foo/bar.git",
+            "file:///srv/git/bar.git",
+            "/srv/git/bar.git",
+            "github.com/foo/bar.git",
+        ):
+            with self.subTest(uri=uri):
+                with self.assertRaises(ValidationError) as ctx:
+                    _ = self.adapter.validate_python(uri)
+                self.assertIn("https://", str(ctx.exception))
+
+    def test_rejects_https_without_a_host(self):
+        for uri in ("https://", "https:///foo/bar.git"):
+            with self.subTest(uri=uri):
+                with self.assertRaises(ValidationError):
+                    _ = self.adapter.validate_python(uri)
 
     def test_https_uri_with_a_username_passes_through_verbatim(self):
         uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/devops.project.greenai"
@@ -58,10 +76,6 @@ class TestRepoUri(unittest.TestCase):
             _ = self.adapter.validate_python(
                 "Https://user:ghp_secret@github.com/foo/bar.git"
             )
-
-    def test_rejects_password_under_any_scheme(self):
-        with self.assertRaises(ValidationError):
-            _ = self.adapter.validate_python("ssh://git:ghp_secret@github.com/foo/bar")
 
     def test_a_port_is_not_mistaken_for_a_password(self):
         uri = "https://git.example.com:8443/foo/bar.git"

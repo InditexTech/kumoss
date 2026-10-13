@@ -7,7 +7,7 @@ body: |
   # General Terraform Guidelines
 
   These conventions apply regardless of cloud provider. They establish a
-  predictable shape for every module Nebula generates.
+  predictable shape for every module Kumoss generates.
 
   ## File layout
   - `main.tf` — primary resource definitions for the module.
@@ -32,6 +32,18 @@ body: |
   - Pin provider versions with `~>` (allow patch updates, block minor).
   - Do not embed credentials in code; rely on environment configuration
     or workload identity.
+
+  ## No arbitrary command execution
+  Generated code must never run commands on the machine executing
+  Terraform or on provisioned hosts. Never generate:
+  - `null_resource` blocks.
+  - `provisioner` blocks of any kind (`local-exec`, `remote-exec`,
+    `file`) on any resource, including `terraform_data`.
+  - `data "external"` data sources.
+  Use native provider resources instead, and configure instances
+  through cloud-init or the provider's `user_data` / startup-script
+  argument. If a request can only be satisfied by running a command,
+  refuse and explain why.
 
   ## Style
   - Run `terraform fmt` mentally before emitting code.

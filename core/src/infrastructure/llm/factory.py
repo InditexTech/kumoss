@@ -32,5 +32,6 @@ class LLMFactory:
             model=self.__model_id,
             temperature=self.__temperature,
             max_tokens=self.__max_tokens,
+            timeout=system_config.llm.timeout,
             router=_default_router(),
         )

@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from enum import Enum, unique
+from typing import Literal
+
+# Deployment tiers; also the Phoenix tags every seeded prompt version gets.
+Environment = Literal["development", "staging", "production"]
 
 
 @unique
@@ -62,6 +66,7 @@ class SessionStatus(Enum):
     FILTERING = "filtering"
     GENERATING = "generating"
     VALIDATING = "validating"
+    RECONCILING = "reconciling"
     REPORT = "report"
     APPLY = "apply"
     COMPLETED = "completed"
@@ -104,8 +109,9 @@ class ToolContext(Enum):
     WORKSPACE_INSPECTION = "workspace_inspection"
     EXTERNAL_INFORMATION = "external_information"
     TASK_SPLITTER = "task_splitter"
+    FILTER_RECONCILIATION = "filter_reconciliation"
     GENERAL_TASK_COMPLETION = "general_task_completion"
-    IAC_IMPORT = "iac_import"
+    IMPORT_ADDRESSES = "import_addresses"
     COMPLIANCE_CHECK = "compliance_check"
 
 

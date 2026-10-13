@@ -1,7 +1,7 @@
 = Enable authentication
 :description: Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
 
-Nebula authenticates against any OIDC-compliant identity provider. The
+Kumoss authenticates against any OIDC-compliant identity provider. The
 minimal configuration is two fields in `config.yaml`:
 
 [source,yaml]
@@ -14,9 +14,9 @@ oidc:
 Leaving `issuer_url` blank disables authentication entirely, the
 checked-in default: every request resolves to a fixed dev identity and
 acts as a local developer with top roles. `config.yaml` is baked into the
-`nebula-core` image at build time, so enabling authentication requires
+`kumoss-core` image at build time, so enabling authentication requires
 `docker compose build core`; to load a different file, point the
-`NEBULA_CONFIG` env var at its path.
+`KUMOSS_CONFIG` env var at its path.
 
 == Prerequisites
 

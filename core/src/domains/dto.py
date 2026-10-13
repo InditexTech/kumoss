@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -36,6 +36,12 @@ class ToolDefinitionDTO:
     description: str
     parameters: dict[str, Any]
     context: ToolContext
+    # Harness metadata, never sent to the model.
+    # single_use: the result does not depend on the arguments, so the tool is
+    # withdrawn once it succeeds (until the workspace changes).
+    single_use: bool
+    # mutates_workspace: a success invalidates earlier reads of the workspace.
+    mutates_workspace: bool
 
 
 @dataclass
@@ -81,6 +87,26 @@ class LLMResponseDTO:
         )
 
 
+class ValidationResultDTO(Protocol):
+    """What a generation loop validator answers, whichever step it ran.
+
+    ``feedback`` is what the next generation attempt is asked to fix;
+    ``stdout`` and ``targets`` are the plan the attempt was checked with.
+    """
+
+    @property
+    def ok(self) -> bool: ...
+
+    @property
+    def feedback(self) -> str: ...
+
+    @property
+    def stdout(self) -> str: ...
+
+    @property
+    def targets(self) -> list[str]: ...
+
+
 @dataclass
 class TerraformPlanDTO:
     """Result of an ``init`` → ``validate`` → ``plan`` sequence.
@@ -102,6 +128,17 @@ class TerraformPlanDTO:
     @property
     def summary(self) -> str:
         return self.stdout if self.ok else self.feedback
+
+    @classmethod
+    def empty(cls) -> "TerraformPlanDTO":
+        """A result for a loop that never ran: ``max_drift_reports`` can be 0."""
+        return cls(
+            ok=True,
+            feedback="",
+            stdout="",
+            targets=[],
+            plan=None,
+        )
 
 
 @dataclass
@@ -214,13 +251,13 @@ class TerraformImportResourceDTO:
         return self.stdout if self.ok else self.feedback
 
 
-@dataclass
+@dataclass(frozen=True)
 class TerraformImportAttempt:
     """One resource an import round tried to bring under Terraform management"""
 
     address: str
-    resource_id: str
-    error: str = ""
+    resource_id: str = field(compare=False)
+    error: str = field(compare=False, default="")
 
 
 @dataclass
@@ -228,17 +265,34 @@ class TerraformImportDTO:
     """Outcome of an import round, partitioned by result.
 
     Callers get the split they need instead of the raw per-resource
-    results: ``imported`` drives the convergence plan and the report,
-    ``failed`` carries the reason each import was rejected.
+    results.
     """
 
-    imported: list[TerraformImportAttempt]
-    failed: list[TerraformImportAttempt]
+    imported: set[TerraformImportAttempt]
+    failed: set[TerraformImportAttempt]
 
     @property
-    def addresses(self) -> list[str]:
-        """Terraform addresses now tracked in state."""
-        return [r.address for r in self.imported]
+    def ok(self) -> bool:
+        return len(self.failed) == 0
+
+    @property
+    def feedback(self) -> str:
+        return "\n".join([f"- {f}" for f in self.failed])
+
+    @property
+    def stdout(self) -> str:
+        return str(self.imported) if len(self.imported) > 0 else ""
+
+    @property
+    def targets(self) -> list[str]:
+        return []
+
+    @classmethod
+    def empty(cls) -> "TerraformImportDTO":
+        return cls(
+            imported=set(),
+            failed=set(),
+        )
 
 
 @dataclass
@@ -531,6 +585,50 @@ class ComplianceCheckReport(BaseModel):
         )
 
 
+class ReconciliationChange(BaseModel):
+    """One change a drift operation describes, judged against the session diff."""
+
+    description: str
+    reverts_session_change: bool
+    reason: str
+
+
+class ReconciliationVerdict(BaseModel):
+    """The reconciliation filter's account of a single drift operation.
+
+    The agent itemises every change the operation bundles and flags the
+    ones that would undo the session, and what survives follows from
+    those flags rather than from a verdict on the whole operation: an
+    operation that mixes both cannot be dropped for the sake of one
+    reversal. ``operation`` is the agent's rewrite without the flagged
+    changes, and is only read when some, but not all, of them are.
+    """
+
+    index: int
+    changes: list[ReconciliationChange]
+    operation: str = ""
+
+    @property
+    def kept(self) -> list[ReconciliationChange]:
+        return [c for c in self.changes if not c.reverts_session_change]
+
+    @property
+    def removed(self) -> list[ReconciliationChange]:
+        return [c for c in self.changes if c.reverts_session_change]
+
+    def reconciled(self, original: str) -> str | None:
+        """The operation left once the session's own changes are out of it."""
+        if not self.removed:
+            return original
+        if not self.kept:
+            return None
+        return self.operation
+
+
+class ReconciliationReport(BaseModel):
+    verdicts: list[ReconciliationVerdict]
+
+
 @dataclass
 class TerraformPlanResource:
     type: str  # tf resource type
@@ -580,8 +678,19 @@ class ReportRef(ArtifactRef):
     type: ReportType
 
 
+class ComplianceCheckRef(ArtifactRef):
+    """Read model: a compliance check artifact plus its verdict."""
+
+    passed: bool
+
+
 class TerraformPlanRef(ArtifactRef):
-    """Read model: a terraform plan artifact plus its resource targets."""
+    """Read model: a terraform plan artifact plus its resource targets.
+
+    Carries no flavour: whether a row is a drift diff or the plan that
+    resolved it lives on the stored object, under its ``type`` metadata
+    key, and is read from there by the client.
+    """
 
     targets: list[str]
 
@@ -605,14 +714,22 @@ class PullRequestRef(BaseModel):
 
 
 class RoundDetail(BaseModel):
-    """Read model: one generation round with its statuses and artifacts."""
+    """Read model: one generation round with its statuses and artifacts.
+
+    ``reports`` and ``plans`` hold *every* artifact of the round, oldest
+    first by ``(created_at, id)``. A drift pass stores its diff and the
+    plan that resolved it, and each validation iteration adds another, so
+    a round routinely holds several of both. Plans carry no flavour here:
+    a client that needs one reads the object's ``type`` metadata.
+    """
 
     id: int
     number: int
     query: str
     statuses: list[StatusEntry]
-    report: ReportRef | None
-    plan: TerraformPlanRef | None
+    reports: list[ReportRef]
+    compliance_checks: list[ComplianceCheckRef]
+    plans: list[TerraformPlanRef]
     code_changes: list[CodeChangeRef]
     pull_requests: list[PullRequestRef]
     created_at: datetime
@@ -634,7 +751,7 @@ class SessionSummary(BaseModel):
     operation: OperationType
     provider: TerraformProvider
     first_query: str | None
-    workspace_uri: str
+    workspace: WorkspaceRef
     current_status: SessionStatus
     in_flight: bool
     is_blocked: bool
@@ -645,15 +762,16 @@ class SessionSummary(BaseModel):
 class SessionDetail(SessionSummary):
     """Read model: the full session aggregate for the detail endpoint.
 
-    ``statuses`` is the session's full status timeline across all rounds;
-    the same entries also appear inside their round. Pull requests live
+    The status timeline lives inside the rounds and nowhere else: every
+    status row is ``NOT NULL`` on ``round_id``, so ``rounds[*].statuses``
+    concatenated in round order *is* the session timeline.
+    ``current_status`` (inherited) is the cheap latest-status field the
+    list view and the client's status polling rely on. Pull requests live
     inside their round. ``history`` is populated only when requested via
     ``include_history``.
     """
 
-    workspace: WorkspaceRef
     scope_id: str
-    statuses: list[StatusEntry]
     rounds: list[RoundDetail]
     history: list[dict[str, str]] | None = None
 

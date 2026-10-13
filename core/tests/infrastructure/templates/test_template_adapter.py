@@ -329,6 +329,41 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             ["session", "drift"],
         )
 
+    def test_render_task_splitter_drift(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        prompt = adapter.render_task_splitter(operation_type=OperationType.DRIFT)
+
+        self.assertIn("JSON drift report", prompt)
+        self.assertIn("dictionary_item_added", prompt)
+        self.assertIn("The real infrastructure is the source of truth", prompt)
+        self.assertIn("Describe the Change Only", prompt)
+        self.assertNotIn("fewest possible side effects", prompt)
+        self.assertNotIn("Troubleshooting Strategist", prompt)
+        self.assertNotIn("Root Cause", prompt)
+        self.assertIn("`report_decomposed_task_operations`", prompt)
+        self.assertNotIn("{{", prompt)
+        self.assertNotIn("{%", prompt)
+
+    def test_render_task_splitter_terraform_errors(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AZURE, cwd="/test/project"
+        )
+        for operation_type in (OperationType.GENERATE, OperationType.IMPORT):
+            with self.subTest(operation_type=operation_type):
+                prompt = adapter.render_task_splitter(operation_type=operation_type)
+
+                self.assertIn("Troubleshooting Strategist", prompt)
+                self.assertIn("Identify Root Causes", prompt)
+                self.assertIn("fewest possible side effects", prompt)
+                self.assertNotIn("drift report", prompt)
+                self.assertNotIn("source of truth", prompt)
+                self.assertNotIn("dictionary_item_added", prompt)
+                self.assertIn("`report_decomposed_task_operations`", prompt)
+                self.assertNotIn("{{", prompt)
+                self.assertNotIn("{%", prompt)
+
     def test_render_filter_reconciliation(self):
         adapter = TemplateAdapter(
             template_provider=TerraformProvider.AZURE, cwd="/test/project"
@@ -338,9 +373,10 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(prompt, str)
         self.assertIn("REQUIRED FIRST STEP", prompt)
         self.assertIn("diff_history", prompt)
-        self.assertIn("report_decomposed_task_operations", prompt)
+        self.assertIn("report_reconciliation_verdicts", prompt)
+        self.assertNotIn("report_decomposed_task_operations", prompt)
         self.assertIn("/test/project", prompt)
-        self.assertIn("Trim it", prompt)
+        self.assertIn("reverts_session_change", prompt)
         self.assertNotIn("{{", prompt)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)

@@ -104,7 +104,7 @@ def _make_runner(
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
             )
-            ctx.set_call_dir(call_dir / ctx.iac_path)
+            ctx.set_call_dir(_workspace.iac_root(call_dir, ctx.iac_path))
             run_handler = await build_handler(ctx)
             await run_handler()
             last = await DatabaseService.get_last_status(ctx.id)

@@ -19,6 +19,7 @@ from src.domains.dto import (
     TerraformPlanReport,
     TerraformApplyReport,
     TerraformImportReport,
+    ReconciliationReport,
 )
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
@@ -47,13 +48,14 @@ class ToolRegistryStatic(IToolRegistry):
         return {
             "requests_filter.json": ToolContext.REQUESTS_FILTER,
             "task_splitter.json": ToolContext.TASK_SPLITTER,
+            "filter_reconciliation.json": ToolContext.FILTER_RECONCILIATION,
             "prompt_compositor.json": ToolContext.PROMPT_COMPOSITOR,
             "target_generator.json": ToolContext.TARGET_GENERATOR,
             "report_generator.json": ToolContext.REPORT_GENERATOR,
             "pr_generator.json": ToolContext.PR_GENERATOR,
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
-            "iac_import.json": ToolContext.IAC_IMPORT,
+            "iac_import.json": ToolContext.IMPORT_ADDRESSES,
             "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
         }
 
@@ -75,6 +77,8 @@ class ToolRegistryStatic(IToolRegistry):
                 description=tool_data["description"],
                 parameters=tool_data["parameters"],
                 context=context,
+                single_use=tool_data["single_use"],
+                mutates_workspace=tool_data["mutates_workspace"],
             )
             self.__tool_definitions[tool_def.name] = tool_def
             logging.info(f"Loaded tool: {tool_def.name} from {file_path.name}")
@@ -93,8 +97,9 @@ class ToolRegistryStatic(IToolRegistry):
             "construct_information": self.__handle_construct_information,
             "generate_terraform_targets": self.__handle_target_generator,
             "report_decomposed_task_operations": self.__handle_task_splitter,
+            "report_reconciliation_verdicts": self.__handle_reconciliation_verdicts,
             "task_complete": self.__handle_task_completion,
-            "iac_import": self.__handle_iac_import,
+            "import_addresses": self.__handle_import_addresses,
             "report_compliance_findings": self._handle_compliance_findings,
             # External information
             "web_search": self.__handle_web_search,
@@ -105,7 +110,7 @@ class ToolRegistryStatic(IToolRegistry):
         """Get available tools for a specific context in LLM-compatible format"""
         filtered_tools: list[ToolDefinitionDTO] = []
 
-        for _, tool_def in self.__tool_definitions.items():
+        for tool_def in self.__tool_definitions.values():
             if tool_def.context == context:
                 filtered_tools.append(tool_def)
 
@@ -200,7 +205,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(targets, list):
             raise ToolInferenceParamsError(
                 message=f"Target generation inference hasn't returned the expected structure. got={targets}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "targets": targets,
@@ -224,7 +229,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_drift_generator(
@@ -244,7 +249,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_apply_generator(
@@ -266,7 +271,7 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
 
     def __handle_report_import_generator(
@@ -303,7 +308,7 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(status, bool):
             raise ToolInferenceParamsError(
                 message=f"Requests filter inference hasn't returned the expected structure. got={status}",
-                error_code=500,
+                error_code=400,
             )
         return {"status": status, "explanation": explanation}
 
@@ -314,7 +319,7 @@ class ToolRegistryStatic(IToolRegistry):
             raise ToolInferenceParamsError(
                 message="PR generation inference hasn't returned the expected structure."
                 + f" got={parameters}",
-                error_code=500,
+                error_code=400,
             )
         return {"title": title, "description": description}
 
@@ -348,14 +353,40 @@ class ToolRegistryStatic(IToolRegistry):
         if not isinstance(operations, list):
             raise ToolInferenceParamsError(
                 message=f"Task Splitter inference hasn't returned the expected structure. got={operations}",
-                error_code=500,
+                error_code=400,
             )
         return {
             "operations": operations,
             "explanation": explanation,
         }
 
-    def __handle_iac_import(self, parameters: dict[str, Any]) -> dict[str, Any]:
+    def __handle_reconciliation_verdicts(
+        self, parameters: dict[str, Any]
+    ) -> ReconciliationReport:
+        try:
+            report = ReconciliationReport(verdicts=parameters["verdicts"])
+        except ValidationError as e:
+            raise ToolInferenceParamsError(
+                message=e.json(),
+                error_code=400,
+            )
+        for verdict in report.verdicts:
+            if not verdict.changes:
+                raise ToolInferenceParamsError(
+                    message=f"Operation {verdict.index} has no changes: list every"
+                    + " change it describes.",
+                    error_code=400,
+                )
+            if verdict.removed and verdict.kept and not verdict.operation.strip():
+                raise ToolInferenceParamsError(
+                    message=f"Operation {verdict.index} keeps some changes and removes"
+                    + " others, so `operation` must hold its rewrite without the"
+                    + " removed ones.",
+                    error_code=400,
+                )
+        return report
+
+    def __handle_import_addresses(self, parameters: dict[str, Any]) -> dict[str, Any]:
         status = parameters["status"]
         summary = parameters["summary"]
         imports = parameters["imports"]
@@ -366,7 +397,7 @@ class ToolRegistryStatic(IToolRegistry):
             )
         return {"status": status, "summary": summary, "imports": imports}
 
-    async def __handle_web_search(self, parameters: dict[str, Any]) -> str:
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
         try:
             response = await self.__llm.inference(msg=query, web_search=True)
@@ -374,11 +405,20 @@ class ToolRegistryStatic(IToolRegistry):
             InferenceCallWebSearchNotSupported,
             InferenceCallAPIError,
         ) as e:
-            return f"Web search is unavailable: {e.message}. Do NOT retry web_search."
+            return {
+                "query": query,
+                "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
+            }
 
         if not response.text:
-            return f"Web search with query '{query}' returned no content. Do NOT retry web_search."
-        return response.text
+            return {
+                "query": query,
+                "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+            }
+        return {
+            "query": query,
+            "result": response.text,
+        }
 
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]
@@ -397,5 +437,5 @@ class ToolRegistryStatic(IToolRegistry):
         except ValidationError as e:
             raise ToolInferenceParamsError(
                 message=e.json(),
-                error_code=500,
+                error_code=400,
             )
