@@ -56,13 +56,12 @@ repository ships no Kubernetes manifests or Helm charts.
   (presigned object-storage access); every other service is
   internal-only via `expose`.
 * Compose `depends_on` orders start-up (it does not health-check): core
-  waits for core-db, Redis, and object storage; the
-  proxy waits for core, Phoenix, and object storage. SearXNG has no
-  dependency ordering — the core calls it per request, so a missing or
-  slow engine surfaces only as the `web_search` tool's "unavailable"
-  result. The core has no
-  Compose dependency on Phoenix, which is why its prompt seeder
-  retries.
+  waits for core-db, notifications, mapping, iac, authz, Redis, and
+  object storage; the proxy waits for core, Phoenix, and object storage.
+  SearXNG has no dependency ordering — the core calls it per request, so
+  a missing or slow engine surfaces only as the `web_search` tool's
+  "unavailable" result. The core has no Compose dependency on Phoenix,
+  which is why its prompt seeder retries.
 * Four named volumes persist state: `core_db_data`, `phoenix_db_data`,
   `object_storage_data`, and `workspaces`. The authz sidecar's JSON
   role store has no volume and does not survive container recreation.
