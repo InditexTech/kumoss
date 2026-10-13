@@ -137,7 +137,9 @@ class SearchConfig(BaseModel):
                     "the endpoint to use LLM-native web search."
                 )
             return self
-        if self.provider not in {item.value for item in litellm.types.utils.SearchProviders}:
+        if self.provider not in {
+            item.value for item in litellm.types.utils.SearchProviders
+        }:
             raise ConfigError(
                 f"web_search.provider '{self.provider}' is not a LiteLLM "
                 + "search provider; see litellm.types.utils.SearchProviders."

@@ -29,12 +29,16 @@ class _FakeResult:
     snippet: str
 
 
-def _config(provider: str, endpoint: str = "http://searxng:8888") -> MagicMock:
+def _config(
+    provider: str,
+    endpoint: str = "http://searxng:8888",
+    max_results: int = 10,
+) -> MagicMock:
     config = MagicMock()
     config.web_search.provider = provider
     config.web_search.endpoint = endpoint
     config.web_search.timeout = 30.0
-    config.web_search.max_results = 10
+    config.web_search.max_results = max_results
     return config
 
 
@@ -56,9 +60,7 @@ class TestSearchServiceClient(unittest.IsolatedAsyncioTestCase):
         ):
             results = await client.search("terraform s3")
 
-        self.assertEqual(
-            asearch.call_args.kwargs["query"], "terraform s3"
-        )
+        self.assertEqual(asearch.call_args.kwargs["query"], "terraform s3")
         self.assertEqual(asearch.call_args.kwargs["search_provider"], "searxng")
         self.assertEqual(asearch.call_args.kwargs["api_base"], "http://searxng:8888")
         self.assertEqual(asearch.call_args.kwargs["max_results"], 10)
@@ -107,6 +109,30 @@ class TestSearchServiceClient(unittest.IsolatedAsyncioTestCase):
                 ),
             ):
                 self.assertEqual(await client.search("q"), [])
+
+    async def test_result_cap_is_enforced_locally(self):
+        # LiteLLM's SearXNG adapter ignores `max_results` and returns the
+        # engine's full first page, so the facade must slice itself.
+        client = SearchServiceClient()
+        fake = MagicMock()
+        fake.results = [
+            MagicMock(title=f"T{i}", url=f"https://{i}", snippet="s") for i in range(20)
+        ]
+
+        with (
+            patch(
+                "src.infrastructure.external.search_service.system_config",
+                _config("searxng", max_results=5),
+            ),
+            patch(
+                "src.infrastructure.external.search_service.litellm.asearch",
+                AsyncMock(return_value=fake),
+            ),
+        ):
+            results = await client.search("q")
+
+        self.assertEqual(len(results), 5)
+        self.assertEqual([r.title for r in results], ["T0", "T1", "T2", "T3", "T4"])
 
     async def test_no_provider_configured_raises_typed_error(self):
         client = SearchServiceClient()

@@ -8,11 +8,15 @@
 # The upstream image does not substitute environment variables in
 # settings.yml, so resolve the ${SEARXNG_SECRET} placeholder here and
 # point SearXNG at the rewritten copy before exec'ing the stock
-# entrypoint. Falls back to a static example key when SEARXNG_SECRET is
-# unset (local/dev only — set a real key via services/searxng/.env).
+# entrypoint. When SEARXNG_SECRET is unset a random key is generated —
+# good enough for a throwaway local stack, but it rotates on every
+# container start; set a real key via services/searxng/.env.
 set -eu
 
-: "${SEARXNG_SECRET:=c8f9e6b2a4d7f3e1b5c9d8a6f2e4b7c1d9e3f8a5b2c7d4e6f1a8b3c5d2e9f4a1}"
+if [ -z "${SEARXNG_SECRET:-}" ]; then
+    SEARXNG_SECRET="$(head -c 24 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9')"
+    export SEARXNG_SECRET
+fi
 
 mkdir -p /tmp/searxng-config
 sed "s|\${SEARXNG_SECRET}|${SEARXNG_SECRET}|g" \

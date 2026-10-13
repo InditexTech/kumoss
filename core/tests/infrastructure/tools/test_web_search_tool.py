@@ -48,9 +48,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         ):
             return ToolRegistryStatic(llm=llm)
 
-    async def _run(
-        self, registry: ToolRegistryStatic, query: str
-    ):
+    async def _run(self, registry: ToolRegistryStatic, query: str):
         return await registry.execute_tool(
             ToolCallDTO(id="call_1", name="web_search", parameters={"query": query})
         )

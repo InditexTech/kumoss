@@ -13,6 +13,7 @@ use_default_settings:
 server:
   # Substituted at container start by docker-entrypoint.sh from the
   # SEARXNG_SECRET env var (services/searxng/.env — see env.sample).
+  # Unset, the entrypoint generates a per-boot random key instead.
   secret_key: "${SEARXNG_SECRET}"
   limiter: false
   image_proxy: true

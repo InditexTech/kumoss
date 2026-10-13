@@ -564,11 +564,11 @@ accepts unauthenticated requests inside the Compose network by default.
 
 |`SEARXNG_SECRET`
 |Recommended
-|empty (falls back to a public example key)
+|empty (a random key is generated per container start)
 |SearXNG instance secret key, used for cryptography (e.g. signed
 cookies). The container entrypoint substitutes it into
 `settings.yml`'s `${SEARXNG_SECRET}` placeholder at start. Generate one
-with `openssl rand -base64 32`. The fallback key is fine for a
+with `openssl rand -base64 32`. The per-boot random key is fine for a
 throwaway local stack and never for a reachable deployment.
 |At container start
 
