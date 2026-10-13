@@ -129,6 +129,21 @@ Refer to the [SearxNG documentation](https://docs.searxng.org/) for all availabl
   `host-certs` additional build context in docker-compose.yml) and trusts
   them with `update-ca-certificates`, so outbound HTTPS works behind the
   SSL-inspecting proxy. Update the host folder if the corporate CA changes.
+- **Pinned SearXNG base image**: SearXNG is a rolling release — every
+  master commit is a release, so `:latest` would silently change at each
+  rebuild. The Dockerfile pins a datetagged build (currently
+  `searxng/searxng:2026.10.13-22c64b8d3`) that this service was validated
+  against. Bumping is deliberate:
+
+  ```bash
+  docker pull searxng/searxng:latest          # see which version is current
+  # update the FROM tag in services/searxng/Dockerfile to match, then:
+  docker compose build searxng && docker compose up -d searxng
+  # verify: the banner at `docker compose logs searxng` prints the new
+  # version and `docker exec kumoss-core-1 python -c "import httpx; \
+  # print(httpx.get('http://searxng:8888/search?q=test&format=json', timeout=15).status_code)"`
+  # returns 200.
+  ```
 
 ## Stopping the Service
 

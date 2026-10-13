@@ -101,7 +101,9 @@ request/response for the support requests the header's chat bubble sends
 |searxng service
 |Self-hosted SearXNG metasearch with the JSON API enabled. Answers the
 core's `web_search` tool so agents get live web results without the LLM
-provider needing native search support.
+provider needing native search support. The base image is pinned to a
+datetagged SearXNG build: the project is a rolling release, so the
+pinned tag makes rebuilds reproducible and upgrades deliberate.
 |Called synchronously by the core's web-search facade, driven by
 `web_search.*` in `config.yaml`
 
