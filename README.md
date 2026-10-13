@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Kumoss turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, and Kumoss's agents generate Terraform-compatible HCL in the right repository, guided by the organization's architecture, security, and networking standards. Every change is validated, planned, reported, and audited for compliance before Kumoss opens a pull request and applies it on request.
 
-Kumoss is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization.
+Kumoss is an orchestration platform: a FastAPI core, a React web application, and replaceable sidecar services — four behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization, plus a bundled SearXNG metasearch instance the agents use to search the web.
 
 https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
 
@@ -35,6 +35,7 @@ https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
 **Bring your own**
 
 - **Model.** Any [LiteLLM](https://docs.litellm.ai/)-supported model.
+- **Search engine.** The agents query the bundled SearXNG instance by default (`web_search` in `config.yaml`); any LiteLLM-supported search backend (Tavily, Brave, Perplexity, …) works too. Web search does not require native provider support, so self-hosted models get live results too.
 - **Identity provider.** Any OIDC provider for sign-in.
 - **Authorization logic.** You decide who may request infrastructure, and where, by implementing the authorization OpenAPI contract.
 - **IaC executor.** Keep your own Terraform or OpenTofu runtime, version, and execution environment by implementing the IaC OpenAPI contract.
